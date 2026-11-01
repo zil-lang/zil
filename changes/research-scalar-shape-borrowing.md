@@ -1,0 +1,7 @@
+# Borrow current scalar Core after full shape resolution
+
+Stage12 baseline38a7d5a08. PreparedProgram already retains the complete current inference result, but aggregate resolution clones every CoreModule even when all type rewrites are identities. Add a private borrowed resolution path only for this prepared current input. It must perform the original successful resolution work and charges in their original order; all subsequent Types, Analyze and Verify operations remain current.
+
+Admit only a completely checked header domain without aggregate/enum declarations, type/callable/state binders, receivers, callable return contracts or owning mode transformations. Support only primitive scalar types and a finite expression/statement subset. A successful bounded identity walker returns Cow::Borrowed. Unsupported shapes discard speculative local state and restart the original resolver from the original limits. Preserve exact errors and spans for supported budget/depth failures; otherwise defer to the original path. Never mutate shared Core, weaken budgets, infer acceptance from names, or reuse authorization from another input.
+
+Use differential raw and real-source controls against the existing resolver, including exact budget/depth boundaries, traversal/first-error ordering, ascription/conversion, and nearby nominal/owning/callable fallback. Existing public APIs and wire data retain their behavior. Complete-request and targeted phase measurements must establish the actual gain; clone elimination alone is not a performance claim.

@@ -1,0 +1,92 @@
+{
+  "schema": 2,
+  "kind": "integration-correctness",
+  "collected_utc": "2026-10-31T13:54:57.478279+00:00",
+  "head_at_collection": "888af53a0a7389d10a508250059db6b631c61e4a",
+  "collector_sha256": "b2d33dc092407f5f7434a82c8fea1733f2e28c3dde6a185f5279c96ea4afc569",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 770275,
+    "sha256": "2d609567b421ce89054a206bd7145401df21dc9fe58c369747552d6a578fe170",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 770275,
+        "sha256": "2d609567b421ce89054a206bd7145401df21dc9fe58c369747552d6a578fe170"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 364,
+      "logical_bytes": 169538,
+      "logical_sha256": "2f43ae477726c211a9c18ca85c0d14c5e2cf939b64f9e0c2e7b465f25a465677",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 18088,
+        "sha256": "af84ec03e2111eb60fca9fd7b057718233543f133ed6982a9c7ba09b67571c13",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 18088,
+            "sha256": "af84ec03e2111eb60fca9fd7b057718233543f133ed6982a9c7ba09b67571c13"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 2,
+      "logical_bytes": 710,
+      "logical_sha256": "fb47e3a9f8360039ed283d09e35976ab7c0c40795cd3c5ed9d89312923e0ebed",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 318,
+        "sha256": "bbb9916a625348c454653344d8d689e9cfd3579b65c365ac720fdc66d9563079",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 318,
+            "sha256": "bbb9916a625348c454653344d8d689e9cfd3579b65c365ac720fdc66d9563079"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 18088,
+      "sha256": "af84ec03e2111eb60fca9fd7b057718233543f133ed6982a9c7ba09b67571c13"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 318,
+      "sha256": "bbb9916a625348c454653344d8d689e9cfd3579b65c365ac720fdc66d9563079"
+    },
+    "ROOTS.json": {
+      "bytes": 5729,
+      "sha256": "e2a511281fd3f764e249bdfc008f55a228a493a16658c54fbd003dd037674e51"
+    },
+    "PLAN.json": {
+      "bytes": 298,
+      "sha256": "4754ae6254ae82f2d3b572a6f1ba3eaee258d2d123a168312df6788dec90c464"
+    }
+  },
+  "summary": [
+    {
+      "class": "elf-executable-or-object",
+      "files": 2,
+      "bytes": 32784
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 364,
+      "bytes": 5610202
+    }
+  ],
+  "retained_paths": 364,
+  "omitted_paths": 2,
+  "unique_blobs": 198,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Frozen ac4 upstream integration scoped correctness and 888 matching DB unit-test repair, independent review and retained fixture/CI failures. Exact review/worktree/target trees and active API/plugin/runtime/SSA work are excluded. The later in-progress CI run is not a pass or an archived completed run. Includes identity-bound old Rust-cache cleanup receipts."
+}

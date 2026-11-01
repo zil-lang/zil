@@ -639,3 +639,172 @@ fn unsupported_profile_and_invalid_source_have_explicit_categories() {
     let report = compile_source(&source("too long"), &options);
     assert_eq!(report.status, ResultCategory::ResourceLimit);
 }
+
+// Requires the same LLVM API library and clang setup as the backend native tests.
+// This is an actual filesystem session: compile_source/ProjectSources do not
+// supply canonical source identities and would miss the candidate's route.
+#[cfg(all(
+    feature = "llvm-api",
+    target_os = "linux",
+    target_arch = "x86_64",
+    target_env = "gnu"
+))]
+#[test]
+fn closed_scalar_filesystem_session_prunes_dead_defs_and_reverifies_warm_requests() {
+    fn check_native(executable: &Path) {
+        let output = std::process::Command::new(executable).output().unwrap();
+        assert!(output.status.success(), "{:?}", output);
+        // The eight called helpers sum to (10+12+...+24) + (0+1+2+3+4+0+1+2) = 149.
+        // The live putchar writes A, then all four bytes of that computed value.
+        assert_eq!(output.stdout.as_slice(), b"A\x95\0\0\0");
+        assert!(output.stderr.is_empty(), "{:?}", output.stderr);
+    }
+
+    fn check_closed_ir(path: &Path) {
+        let ir = fs::read_to_string(path).unwrap();
+        let definitions: Vec<_> = ir
+            .lines()
+            .filter(|line| line.starts_with("define "))
+            .collect();
+        assert_eq!(definitions.len(), 2, "{ir}");
+        assert!(definitions.iter().any(|line| line.contains("@main()")));
+        let stable = definitions
+            .iter()
+            .find(|line| line.contains("@zil.stable."))
+            .expect("filesystem source hint must reach the closed candidate");
+        let name = stable.split_once('@').unwrap().1.split_once('(').unwrap().0;
+        assert!(ir.contains(&format!("call i32 @{name}()")), "{ir}");
+        assert!(
+            !ir.contains("@zil.fn."),
+            "dead source definitions must be absent: {ir}"
+        );
+    }
+
+    let directory = Directory::new();
+    let path = directory.0.join("main.zil");
+    let executable = directory.0.join("program");
+    let ir = directory.0.join("program.ll");
+    let mut text = String::from("extern \"C\" fn putchar(x:i32)->i32;\n");
+    // Match the existing private model fixtures' 64 distinct ordinary helpers.
+    // The candidate still requires at least two original owner buckets. Since
+    // its namespace contains this canonical temporary path, this assertion tests
+    // that admission precondition too; it must fail rather than silently skip a
+    // candidate miss. No production identity/hash algorithm is copied here.
+    for index in 0..64 {
+        text.push_str(&format!(
+            "fn h{index}(x:i32)->i32{{return x+{};}}\n",
+            10 + 2 * index
+        ));
+    }
+    text.push_str("fn dead_effect(x:i32)->i32{unsafe{putchar(88);}return x;}\n");
+    text.push_str("fn dead_trap(x:i32)->i32{return x+2147483647;}\n");
+    text.push_str("fn main()->i32{var total:i32=0;\n");
+    for index in 0..8 {
+        text.push_str(&format!("total=total+h{index}({});\n", index % 5));
+    }
+    text.push_str(
+        "unsafe{putchar(65);putchar(total%256);putchar(total/256%256);\
+         putchar(total/65536%256);putchar(total/16777216%256);}return 0;}\n",
+    );
+    fs::write(&path, &text).unwrap();
+    let options = CompileOptions {
+        backend: NativeBackend::LlvmApi,
+        stop_after: Stage::Build,
+        output: Some(executable.clone()),
+        object_cache: Some(directory.0.join("objects")),
+        optimization: Optimization::O2,
+        closed_executable: true,
+        incremental_o2: true,
+        function_merging: FunctionMerging::AfterOptimization,
+        codegen: CodegenOptions { units: 8, jobs: 1 },
+        ..CompileOptions::default()
+    };
+    let mut session = CompilationSession::default();
+    let cold = session.compile_path(&path, &options);
+    success(&cold);
+    assert_eq!(cold.verification_runs, 1);
+    let codegen = cold.native_codegen.as_ref().unwrap();
+    assert_eq!(codegen.actual_units, 1);
+    assert!(codegen.fallback.is_none());
+    assert!(codegen.object_cache.enabled);
+    assert_eq!(
+        (codegen.object_cache.hits, codegen.object_cache.misses),
+        (0, 1)
+    );
+    check_closed_ir(&ir);
+    check_native(&executable);
+
+    let warm = session.compile_path(&path, &options);
+    success(&warm);
+    assert_eq!(warm.verification_runs, 1);
+    assert_eq!(
+        disposition(&warm, Phase::Types),
+        Some(QueryDisposition::Reused)
+    );
+    assert_eq!(
+        disposition(&warm, Phase::Analyze),
+        Some(QueryDisposition::Reused)
+    );
+    assert_eq!(
+        disposition(&warm, Phase::Verify),
+        Some(QueryDisposition::Executed)
+    );
+    let codegen = warm.native_codegen.as_ref().unwrap();
+    assert_eq!(codegen.actual_units, 1);
+    assert_eq!(
+        (codegen.object_cache.hits, codegen.object_cache.misses),
+        (1, 0)
+    );
+    check_closed_ir(&ir);
+    check_native(&executable);
+
+    let previous_executable = fs::read(&executable).unwrap();
+    let previous_ir = fs::read(&ir).unwrap();
+    let invalid = text.replacen("h0(0)", "h0(0,1)", 1);
+    assert_ne!(invalid, text);
+    fs::write(&path, invalid).unwrap();
+    let rejected = session.compile_path(&path, &options);
+    assert_eq!(rejected.status, ResultCategory::SafeReject);
+    assert!(
+        rejected
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "E-CALL-ARITY")
+    );
+    assert_eq!(rejected.verification_runs, 0);
+    assert!(!rejected.artifacts.contains_key("executable"));
+    assert_eq!(fs::read(&executable).unwrap(), previous_executable);
+    assert_eq!(fs::read(&ir).unwrap(), previous_ir);
+    check_native(&executable);
+
+    fs::write(&path, &text).unwrap();
+    let ordinary_executable = directory.0.join("ordinary");
+    let ordinary_options = CompileOptions {
+        closed_executable: false,
+        output: Some(ordinary_executable.clone()),
+        object_cache: Some(directory.0.join("ordinary-objects")),
+        ..options
+    };
+    let ordinary = session.compile_path(&path, &ordinary_options);
+    success(&ordinary);
+    assert_eq!(ordinary.verification_runs, 1);
+    assert_eq!(
+        disposition(&ordinary, Phase::Verify),
+        Some(QueryDisposition::Executed)
+    );
+    let ordinary_ir = fs::read_to_string(directory.0.join("ordinary.ll")).unwrap();
+    assert!(!ordinary_ir.contains("@zil.stable."));
+    assert!(ordinary_ir.contains("@zil.fn."));
+    // This asserts whole-candidate fallback, not a particular legacy CGU count:
+    // 64 helpers + two unused effect/trap functions + source main + native main.
+    assert_eq!(
+        ordinary_ir
+            .lines()
+            .filter(|line| line.starts_with("define "))
+            .count(),
+        68
+    );
+    check_native(&ordinary_executable);
+    assert_eq!(session.active_query_count(), 0);
+    no_staging(&directory.0);
+}

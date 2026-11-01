@@ -1,0 +1,8 @@
+{
+  "window": "stage6-factor-02",
+  "start": "2026-10-31T11:13:55.280166+00:00",
+  "coordinator": "root; all other CPU idle",
+  "scope": "Shadow relation process cost, full-row controls or compressed-only absolute costs",
+  "end": "2026-10-31T11:14:04.969319+00:00",
+  "exit": 0
+}

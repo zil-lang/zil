@@ -1,0 +1,21 @@
+   Compiling zil-ir v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-ir)
+   Compiling zil-llvm-api v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-analyze)
+   Compiling zil-ct v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-lower)
+   Compiling zil-types v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-expand)
+   Compiling zil-db v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/.zil-env/research/stage5/review-exact5189/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 11.13s
+     Running tests/object_cache212.rs (/workspace/.zil-env/research/stage5/review-target5189/debug/deps/object_cache212-8eb14ab05887cf5f)
+
+running 2 tests
+test large_file_chunks_preserve_owned_closures_drop_and_function_addresses ... ok
+test large_file_o0_chunks_reuse_unchanged_objects_and_keep_current_verification ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 2.12s
+

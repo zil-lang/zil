@@ -1,0 +1,17 @@
+{
+  "kind": "research-ci-tools",
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 277,
+      "bytes": 334779
+    },
+    {
+      "class": "symlink-target-recorded-without-dereference",
+      "files": 1,
+      "bytes": 25
+    }
+  ],
+  "selected_paths": 278,
+  "unique_blobs": 119
+}

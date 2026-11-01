@@ -1,0 +1,88 @@
+{
+  "baseline_commit": "6dd46bcf59f74c0def15b3db8c3bf2ac49d0bf87",
+  "baseline_production": "70615ae1cfcdf20cc6f449612866f604f1b47eb8",
+  "candidate_commit": "8cf48baf2b5fd6fa944e4c65a6116907f1cf53d7",
+  "final_manifest": {
+    "source": "8cf48baf2b5fd6fa944e4c65a6116907f1cf53d7",
+    "arms": {
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage10/baseline/zil",
+        "sha256": "c2256c48fdc4398c59156f488ba2d45b19c76323ce51d96d1bd70f00b68141a0"
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+        "sha256": "15a988bcb1b42c6f01be3659728fdb074c2369955ef48b2395c8a408863e66dd"
+      },
+      "rust": {
+        "path": "/workspace/.zil-env/cargo/bin/rustc",
+        "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4"
+      }
+    },
+    "library": {
+      "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+      "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+    },
+    "reps": 3,
+    "contracts": [
+      "default"
+    ],
+    "cpus": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "resources": "Linux wait4 compiler CPU seconds and process max RSS; stdout/stderr files",
+    "cases": [
+      "large-even-8x1024"
+    ],
+    "runner_sha256": "7216f6a1c7f14d6d37af0e4fe6deffd96fb35c16e9150785660a7a2609481ef5",
+    "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+  },
+  "final_windows": {
+    "final-target": {
+      "requests": 27,
+      "valid": 27
+    },
+    "final-guards": {
+      "requests": 18,
+      "valid": 18
+    },
+    "final-closed-guard": {
+      "requests": 9,
+      "valid": 9
+    }
+  },
+  "observations": "54 builds/native oracles:36 current ZIL Verify and18 unshared Rust observations from6 independent cache histories. Cold/warm/edit within a history are not statistically independent. Uniform default3 histories; single/skew default1 each; uniform closed1. No pooled ratio with differing repetition counts.",
+  "mechanism": "3 additional currentVerify/native requests; full8203definitions retained,8192 compactcheckedleaves, edit2miss/6hit. No paired speedup claim for this window.",
+  "validation": {
+    "distinct_controls": 31,
+    "breakdown": {
+      "machine_cgu": 16,
+      "verified_scalar_summaries": 11,
+      "object_cache": 3,
+      "current_binding": 1
+    },
+    "clippy": "backend+driver all-targets -D warnings Pass",
+    "fmt": "Pass",
+    "independent_code_and_statistics": "Pass; reviewer /root/stage7_scalar_review separate from authors",
+    "native_static_quality": "6 edited pairs retain all generated symbol names and normalized instructions/sizes;2 full executable pairs byte-identical. Address layout normalized, not a general runtime-quality proof.",
+    "handoff": "historical integrity Fail retained",
+    "independent_report_quality_review": "Pass: report/links/archived statistics and existing nm/asm offsets/instructions/sizes/ELF hashes; no new builds or runtime measurements"
+  },
+  "research_choices": "Dedicated caller bucket rejected by static parallel-balance analysis before measurement. No alias/noinline thunk/early LLVM merge or persistent Types cache implemented. No timing attributed to rejected idea.",
+  "prior_ci": {
+    "head": "6dd46bcf59f74c0def15b3db8c3bf2ac49d0bf87",
+    "official": 41283921039,
+    "research": 41283915061,
+    "last_observation": "official completed/success; research in_progress, not claimed passed"
+  },
+  "raw_archive": {
+    "sha256": "96bee469fdba2d4a79fb33c7a8c9ac97bd32285dcdd3635d6ac975c710258953",
+    "files": 433,
+    "bytes": 2734785
+  },
+  "scope": "Explicit incremental O2 research candidate; same selected four-TU LLVM library and optimization pipeline. No product gate, language budget, main merge or environment publication change. SDK/binaries/caches excluded."
+}

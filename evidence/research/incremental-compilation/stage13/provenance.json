@@ -1,0 +1,251 @@
+{
+  "production": "4bbbce204bb468d83eaebb78573c98104c3de348",
+  "baseline_delivery": "4cb3687127a1980b2ace965af9fdc8c8e5de93c5",
+  "baseline_production": "743c9699eda7b5ef79b0759702cb48a17acfb83d",
+  "artifacts": [
+    {
+      "path": "/workspace/.zil-env/research/stage13/baseline/zil",
+      "bytes": 8339928,
+      "sha256": "725aaa5558107d421c81518c4b97fe4734b7057d7be4f94157ac9e2f04118baf"
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "bytes": 8326112,
+      "sha256": "1203a4a526031a666a14b68489f8954dbe24ae257cbab65a29587aa3c2a41d70"
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+      "bytes": 72097832,
+      "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+    },
+    {
+      "path": "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+      "bytes": 282507120,
+      "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+    }
+  ],
+  "final_windows": [
+    "final-target",
+    "final-guards",
+    "final-closed-guard"
+  ],
+  "requests": 63,
+  "valid_native": 63,
+  "current_zil_verifies": 42,
+  "rust_observations": 21,
+  "independent_cache_histories": 7,
+  "comparison_cells": 15,
+  "warm_followup": {
+    "requests": 15,
+    "valid_native": 15,
+    "current_zil_verifies": 10,
+    "rust_observations": 5,
+    "repeated_pairs": 5,
+    "new_independent_cache_histories": 0,
+    "scope": "repeated warm-after-edit requests on one existing edited cache history per arm; keep separate from main matrix",
+    "median_ms": {
+      "baseline": 340.748645,
+      "candidate": 269.443842,
+      "rust": 220.020999
+    },
+    "new_old_geomean": 0.8142154018026088,
+    "new_rust_geomean": 1.2073499120022972,
+    "all_emitted_binaries_equal_seed": true,
+    "all_original_artifacts_restored": true
+  },
+  "scoped_checks": {
+    "distinct": 62,
+    "base": 10,
+    "preflight": 20,
+    "chain": 13,
+    "object_cache": 10,
+    "object_patch": 5,
+    "native_source": 4,
+    "software_backend_repeat": 10,
+    "soft_flag": "--cfg sha2_backend=\"soft\"",
+    "clippy": "base/llvm-api/backend/driver all-targets -D warnings with LLVM API feature, pass",
+    "fmt": "pass",
+    "architecture": "actual metadata 15 crates,38 internal edges,pass",
+    "formal_full_local": "not run"
+  },
+  "dependencies": {
+    "Cargo_lock": {
+      "path": "/workspace/zil/Cargo.lock",
+      "bytes": 3621,
+      "sha256": "99b70f5eae3be5aec5d26185cf3ac4a875e3e508751767f11c2204dc2a806fde"
+    },
+    "registry_packages": [
+      {
+        "name": "block-buffer",
+        "version": "0.12.1",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa",
+        "dependencies": [
+          "hybrid-array"
+        ]
+      },
+      {
+        "name": "cfg-if",
+        "version": "1.0.5",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
+      },
+      {
+        "name": "cpufeatures",
+        "version": "0.3.1",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566",
+        "dependencies": [
+          "libc"
+        ]
+      },
+      {
+        "name": "crypto-common",
+        "version": "0.2.2",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453",
+        "dependencies": [
+          "hybrid-array"
+        ]
+      },
+      {
+        "name": "digest",
+        "version": "0.11.3",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2",
+        "dependencies": [
+          "block-buffer",
+          "crypto-common"
+        ]
+      },
+      {
+        "name": "hybrid-array",
+        "version": "0.4.15",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17",
+        "dependencies": [
+          "typenum"
+        ]
+      },
+      {
+        "name": "libc",
+        "version": "0.2.191",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
+      },
+      {
+        "name": "sha2",
+        "version": "0.11.1",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19",
+        "dependencies": [
+          "cfg-if",
+          "cpufeatures",
+          "digest"
+        ]
+      },
+      {
+        "name": "typenum",
+        "version": "1.20.1",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "checksum": "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+      }
+    ],
+    "features": "sha2 =0.11.1, default-features=false; actual metadata features=[]",
+    "unsafe": "ZIL forbid unsafe unchanged; runtime CPU/intrinsic primitive implementation inside pinned external registry crates",
+    "offline": "first cargo fetch --locked or matching prepopulated registry cache required",
+    "compatibility": "existing bounded compiler inputs / FIPS message length <2^64 bits; not a claim of old wrapping behavior for public streams >=2^61 bytes under overflow checks"
+  },
+  "quality": {
+    "edited_pairs": 7,
+    "text_byte_equal_pairs": 7,
+    "whole_elf_equal_pairs": 2,
+    "other_elf_differences": "only .strtab in five pairs",
+    "effective_instruction_differences": 0,
+    "single8192_raw_private_jump_label_differences": 146,
+    "all_size_deltas": 0,
+    "uncompared_per_pair": [
+      2,
+      2,
+      2,
+      2,
+      2,
+      1,
+      1
+    ],
+    "historical_thunk_cost": "existing Stage11 retired-body jump retained, no new Stage13 text change",
+    "receipt_identity_correction": "first copied section-reader receipt had old Stage12 source label; preserved as quality/section_byte_inspection.old-label.json, replaced by corrected Stage13/4bbb byte-only receipt with unchanged byte conclusions"
+  },
+  "profile": {
+    "source": "4cb3687127a1980b2ace965af9fdc8c8e5de93c5",
+    "instrumentation": "4bbbce204bb468d83eaebb78573c98104c3de348:tools/research/incremental-compilation/stage13_profile.py",
+    "requests": 6,
+    "valid_native": 6,
+    "scope": "private diagnostic only; nested phase and per-CGU interval sums are not exclusive request wall time; runner checkout/source diff not private source identity"
+  },
+  "previous_ci": "both successful runs bind4cb368712, not current acceptance",
+  "handoff": "historical integrity Fail retained",
+  "boundaries": "main/environment/public Wire/limits/product gates unchanged; Cargo.lock intentionally integrated for fixed registry dependency; task Doing",
+  "tools": {
+    "tools/research/incremental-compilation/stage13_profile.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage13_profile.py",
+      "bytes": 9168,
+      "sha256": "376d290409fa7f198dad1b9d51b339a7d488a3f89ec62109ff6a569777a7fdee"
+    },
+    "tools/research/incremental-compilation/stage13_warm.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage13_warm.py",
+      "bytes": 8746,
+      "sha256": "ff8402e7d8095b7004ce0161f2bc6fb02b8f3b79a45ffacf56f110c3cbcb9210"
+    },
+    "tools/research/incremental-compilation/stage11_quality.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage11_quality.py",
+      "bytes": 18289,
+      "sha256": "be682bbe38ec5930d176d63c4a7ddc6d5ed4102dff50f1ce601597703e672139"
+    },
+    "tools/research/incremental-compilation/stage8_screen.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage8_screen.py",
+      "bytes": 8932,
+      "sha256": "7216f6a1c7f14d6d37af0e4fe6deffd96fb35c16e9150785660a7a2609481ef5"
+    },
+    "tools/research/incremental-compilation/stage7_analyze.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage7_analyze.py",
+      "bytes": 3062,
+      "sha256": "bc37c93472abcb917affbfa5273744c3a1961313e31b4099a97a3dc219c12f4e"
+    },
+    "tools/research/incremental-compilation/stage8_resources.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage8_resources.py",
+      "bytes": 2146,
+      "sha256": "eb146572d27ae30b76c255bdc196d54786ffda04f5c8caa668c926319ebe378a"
+    }
+  },
+  "host": {
+    "model_name": "AMD EPYC 9V74 80-Core Processor",
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "features_for_sha": {
+      "sha_ni": true,
+      "sse4_1": true,
+      "ssse3": true
+    },
+    "scope": "capabilities, not a runtime instruction trace or fixed-frequency guarantee"
+  },
+  "raw_archive": {
+    "path": "evidence/research/incremental-compilation/stage13/raw.tar.gz",
+    "bytes": 9516966,
+    "sha256": "4e49de4c95044378a9dcd7ff2825c39b479780ea73ca9f40541d7a7fbd2736b8",
+    "files": 1002,
+    "contents": "all complete and followup requests, generated sources, logs, scoped-control/build/fetch/architecture commands, private diagnostic results and full quality data including corrected and superseded-label receipts; compiler binaries/cache payloads omitted, bound by manifests"
+  },
+  "native_archive": {
+    "path": "evidence/research/incremental-compilation/stage13/native-elves.tar.gz",
+    "bytes": 829084,
+    "sha256": "4548bb71da9eb7c0fc8057baaf10339c4f4eb4e3ecda320e379b423b5a6d6707",
+    "files": 14,
+    "contents": "the fourteen actual baseline/candidate edited ELF inputs of the quality comparison; paths relative to the original stage13 root and byte identities bound in native-section-bytes.json"
+  }
+}

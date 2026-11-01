@@ -1,0 +1,9 @@
+{
+  "kind": "llvm-entry",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 2922,
+  "omitted_paths": 713,
+  "unique_blobs": 1322,
+  "identity_sha256": "a5ae88e0cbe08874e337a45ec74a6aec9b1beab6f72190a88b767e69539bc671",
+  "verified_utc": "2026-10-31T14:27:57.891052+00:00"
+}

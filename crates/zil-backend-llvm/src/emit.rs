@@ -1,12 +1,17 @@
 mod arrays;
 mod byte_buffer;
+mod constant_divisors;
 mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
 mod packages;
+mod parallel_lowering;
 mod resource_closures;
 mod resources;
+mod scalar_leaf;
+mod scalar_locals;
+mod scalar_summaries;
 mod slices;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
@@ -14,8 +19,8 @@ use zil_llvm_api::model as m;
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::{
     BinaryOp, CallableKind, ClosureDefinition, ClosureId, Constant, FunctionId, Instruction,
-    InstructionKind, LirModule, LocalId, ResourceDefinition, ScalarLayout, Terminator, Type,
-    TypedFunction, UnaryOp, ValueId,
+    InstructionKind, LirModule, LirView, LocalId, ResourceDefinition, ScalarLayout, Terminator,
+    Type, TypedFunction, UnaryOp, ValueId,
 };
 use zil_verify::VerifiedModule;
 
@@ -40,6 +45,52 @@ pub(crate) fn lower_with_options(
     lir: &LirModule,
     options: &EmitOptions,
 ) -> CompileResult<m::Module> {
+    lower_view_with_options(verified, &lir.as_view(), options)
+}
+
+pub(crate) fn lower_view_with_options(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+) -> CompileResult<m::Module> {
+    lower_view_with_incremental_scalar_policy(verified, lir, options, false)
+}
+
+pub(crate) fn lower_view_with_incremental_scalar_policy(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+) -> CompileResult<m::Module> {
+    lower_view_with_closed_scalar_policy(verified, lir, options, incremental_scalar_policy, false)
+        .map(|(module, _)| module)
+}
+
+pub(crate) fn lower_view_with_closed_scalar_policy(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+    closed_scalar_collection: bool,
+) -> CompileResult<(m::Module, bool)> {
+    lower_view_with_closed_scalar_policy_and_jobs(
+        verified,
+        lir,
+        options,
+        incremental_scalar_policy,
+        closed_scalar_collection,
+        1,
+    )
+}
+
+pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+    closed_scalar_collection: bool,
+    jobs: usize,
+) -> CompileResult<(m::Module, bool)> {
     bind_lir(verified, lir)?;
     let functions = lir
         .functions
@@ -51,52 +102,106 @@ pub(crate) fn lower_with_options(
         .iter()
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
-    let wrapper = entry_wrapper(&functions, options.entry, &lir.resources)?;
+    let wrapper = entry_wrapper(&functions, options.entry, lir.resources)?;
+    let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
+    let collected = (closed_scalar_collection
+        && options.entry == EntryPoint::Main
+        && lir.target.triple == "x86_64-unknown-linux-gnu")
+        .then(|| {
+            summaries
+                .as_ref()
+                .and_then(|facts| scalar_summaries::collect_closed(lir, &functions, facts))
+        })
+        .flatten();
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
-    let mut intrinsics = BTreeSet::new();
-    // Finish each function before retaining it: no whole-project Event buffer.
-    let mut body = Vec::with_capacity(lir.functions.len());
-    for function in &lir.functions {
-        if function.foreign.is_some() {
-            if matches!(options.entry, EntryPoint::ReturnValue(_))
-                && function
-                    .foreign
+    // Constant summaries only need tiny result stubs, and a closed collection
+    // can discard most source functions. Neither warrants worker allocation.
+    // This is a conservative upper bound: foreign declarations still count.
+    let remaining_bodies = lir
+        .functions
+        .len()
+        .saturating_sub(summaries.as_ref().map_or(0, BTreeMap::len));
+    let jobs = if remaining_bodies < parallel_lowering::MIN_PARALLEL_FUNCTIONS
+        || collected
+            .as_ref()
+            .is_some_and(|needed| needed.len() < parallel_lowering::MIN_PARALLEL_FUNCTIONS)
+    {
+        1
+    } else {
+        jobs
+    };
+    let (jobs, prepared_leaves) = if jobs > 1 {
+        let mut work = parallel_lowering::RemainingWork::default();
+        let mut leaves = incremental_scalar_policy.then(|| Vec::with_capacity(lir.functions.len()));
+        let mut batch_work = 0usize;
+        for (index, function) in lir.functions.iter().enumerate() {
+            let ordinary = function.foreign.is_none()
+                && collected
                     .as_ref()
-                    .is_some_and(|f| f.symbol == "printf")
-            {
-                return invalid(
-                    "E-CODEGEN-FOREIGN",
-                    "foreign printf conflicts with the optional return-value harness",
-                    Some(function.span),
-                );
+                    .is_none_or(|needed| needed.contains(&function.id))
+                && summaries
+                    .as_ref()
+                    .is_none_or(|facts| !facts.contains_key(&function.id));
+            let prepared = (ordinary && incremental_scalar_policy)
+                .then(|| scalar_leaf::prepare(function))
+                .flatten();
+            if ordinary && prepared.is_none() {
+                let initial = function
+                    .parameters
+                    .len()
+                    .saturating_add(function.locals.len())
+                    .saturating_add(function.values.len());
+                let cost = function.blocks.iter().fold(initial, |sum, block| {
+                    sum.saturating_add(block.instructions.len())
+                        .saturating_add(1)
+                });
+                batch_work = batch_work.saturating_add(cost);
             }
-            body.extend(
-                foreign::declaration(function, &lir.target)?
-                    .into_items()
-                    .map_err(machine_error)?,
-            );
-            continue;
+            if index % parallel_lowering::BATCH_SIZE + 1 == parallel_lowering::BATCH_SIZE {
+                work.add(batch_work);
+                batch_work = 0;
+            }
+            if let Some(leaves) = &mut leaves {
+                leaves.push(prepared);
+            }
         }
-        body.extend(
-            FunctionEmitter {
-                function,
-                target: &lir.target,
-                functions: &functions,
-                closures: &closures,
-                resources: &lir.resources,
-                intrinsics: &mut intrinsics,
-                text: m::Code::new(),
-                temporary: 0,
-                continuation: 0,
-                partial_packages: BTreeSet::new(),
-            }
-            .emit()?
-            .into_items()
-            .map_err(machine_error)?,
-        );
+        work.add(batch_work);
+        (work.jobs(jobs), leaves)
+    } else {
+        (jobs, None)
+    };
+    let batches = parallel_lowering::ordered_batches(lir.functions, jobs, |start, batch| {
+        lower_function_batch(
+            batch,
+            lir,
+            options,
+            incremental_scalar_policy,
+            &functions,
+            &closures,
+            summaries.as_ref(),
+            collected.as_ref(),
+            prepared_leaves
+                .as_ref()
+                .map(|leaves| &leaves[start..start + batch.len()]),
+        )
+    })?;
+    let mut batches = batches.into_iter();
+    let FunctionBatch {
+        mut body,
+        mut intrinsics,
+    } = batches.next().expect("lowering always returns a batch");
+    body.reserve(
+        collected
+            .as_ref()
+            .map_or(lir.functions.len(), BTreeSet::len)
+            .saturating_sub(body.len()),
+    );
+    for batch in batches {
+        body.extend(batch.body);
+        intrinsics.extend(batch.intrinsics);
     }
     let mut text = m::Code::new();
-    for closure in &lir.closures {
+    for closure in lir.closures {
         let mut fields = closure
             .captures
             .iter()
@@ -115,10 +220,10 @@ pub(crate) fn lower_with_options(
         ));
     }
     text.append(resource_closures::drop_functions(
-        &lir.closures,
-        &lir.resources,
+        lir.closures,
+        lir.resources,
     )?);
-    for function in &lir.functions {
+    for function in lir.functions {
         for block in &function.blocks {
             for instruction in &block.instructions {
                 if let InstructionKind::Constant(Constant::WideString(units)) = &instruction.kind {
@@ -288,11 +393,101 @@ pub(crate) fn lower_with_options(
         ]));
     }
     items.extend(text.into_items().map_err(machine_error)?);
-    Ok(m::Module {
-        triple: lir.target.triple.clone(),
-        fingerprint: verified.fingerprint().to_hex(),
-        items,
-    })
+    Ok((
+        m::Module {
+            triple: lir.target.triple.clone(),
+            fingerprint: verified.fingerprint().to_hex(),
+            items,
+        },
+        collected.is_some(),
+    ))
+}
+
+struct FunctionBatch {
+    body: Vec<m::Item>,
+    intrinsics: BTreeSet<(&'static str, u32)>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_function_batch(
+    batch: &[TypedFunction],
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+    functions: &BTreeMap<FunctionId, &TypedFunction>,
+    closures: &BTreeMap<ClosureId, &ClosureDefinition>,
+    summaries: Option<&BTreeMap<FunctionId, Constant>>,
+    collected: Option<&BTreeSet<FunctionId>>,
+    prepared_leaves: Option<&[Option<scalar_leaf::Prepared>]>,
+) -> CompileResult<FunctionBatch> {
+    let mut intrinsics = BTreeSet::new();
+    // Finish each function before retaining it: no whole-project Event buffer.
+    let mut body =
+        Vec::with_capacity(collected.map_or(batch.len(), |needed| needed.len().min(batch.len())));
+    for (offset, function) in batch.iter().enumerate() {
+        if function.foreign.is_some() {
+            if matches!(options.entry, EntryPoint::ReturnValue(_))
+                && function
+                    .foreign
+                    .as_ref()
+                    .is_some_and(|f| f.symbol == "printf")
+            {
+                return invalid(
+                    "E-CODEGEN-FOREIGN",
+                    "foreign printf conflicts with the optional return-value harness",
+                    Some(function.span),
+                );
+            }
+            body.extend(
+                foreign::declaration(function, lir.target)?
+                    .into_items()
+                    .map_err(machine_error)?,
+            );
+            continue;
+        }
+        if collected.is_some_and(|needed| !needed.contains(&function.id)) {
+            continue;
+        }
+        if let Some(value) = summaries.and_then(|plan| plan.get(&function.id)) {
+            body.push(m::Item::Function(scalar_summaries::emit(function, value)));
+            continue;
+        }
+        if incremental_scalar_policy {
+            let leaf = if let Some(prepared) = prepared_leaves {
+                prepared[offset].map(|leaf| leaf.emit(&mut intrinsics))
+            } else {
+                scalar_leaf::emit(function, &mut intrinsics)
+            };
+            if let Some(machine) = leaf {
+                body.push(m::Item::Function(machine));
+                continue;
+            }
+        }
+        let emitted = FunctionEmitter {
+            function,
+            target: lir.target,
+            functions,
+            scalar_summaries: summaries,
+            closures,
+            resources: lir.resources,
+            intrinsics: &mut intrinsics,
+            text: m::Code::new(),
+            temporary: 0,
+            continuation: 0,
+            partial_packages: BTreeSet::new(),
+            safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
+        }
+        .emit()?
+        .into_items()
+        .map_err(machine_error)?;
+        for mut item in emitted {
+            if let m::Item::Function(machine) = &mut item {
+                scalar_locals::promote(function, machine);
+            }
+            body.push(item);
+        }
+    }
+    Ok(FunctionBatch { body, intrinsics })
 }
 
 fn machine_error(message: String) -> Vec<Diagnostic> {
@@ -304,7 +499,13 @@ fn machine_error(message: String) -> Vec<Diagnostic> {
     )]
 }
 
-fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
+// Exact immutable aliasing proves equality, not authority. For independently
+// allocated public raw inputs, compare every element as before.
+fn same_slice<T: PartialEq>(a: &[T], b: &[T]) -> bool {
+    std::ptr::eq(a, b) || a == b
+}
+
+fn bind_lir(verified: &VerifiedModule, lir: &LirView<'_>) -> CompileResult<()> {
     let module = verified.module();
     let layouts = vec![
         ScalarLayout {
@@ -355,11 +556,11 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
         || lir.schema_version != module.schema_version
         || lir.module_id != module.module_id
         || lir.verified_fingerprint != verified.fingerprint()
-        || lir.target != module.target
-        || lir.functions != module.functions
-        || lir.closures != module.closures
-        || lir.resources != module.resources
-        || lir.layouts != layouts
+        || *lir.target != module.target
+        || !same_slice(lir.functions, &module.functions)
+        || !same_slice(lir.closures, &module.closures)
+        || !same_slice(lir.resources, &module.resources)
+        || lir.layouts.as_ref() != layouts
     {
         return invalid(
             "E-CODEGEN-UNBOUND-LIR",
@@ -373,7 +574,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             None,
         );
     }
-    for closure in &lir.closures {
+    for closure in lir.closures {
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
@@ -392,9 +593,9 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
                     // The exact VerifiedModule binding above carries the
                     // independently checked owning Store capture contract.
                     // Borrowed descriptions do not gain an owning ABI here.
-                    || (resources::supported_type(ty, &lir.resources)
+                    || (resources::supported_type(ty, lir.resources)
                         && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
-                    || packages::supported_capture_type(ty, &lir.resources)
+                    || packages::supported_capture_type(ty, lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
                 ty.is_copy_value()
@@ -405,24 +606,24 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             return unsupported("LLVM finite resource closure representation", None);
         }
     }
-    for function in &lir.functions {
+    for function in lir.functions {
         if !(function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
-            || resources::supported_type(&function.return_type, &lir.resources)
-            || packages::supported_value_type(&function.return_type, &lir.resources)
-            || errors::supported_type(&function.return_type, &lir.resources)
-            || arrays::supported_type(&function.return_type, &lir.resources)
+            || resources::supported_type(&function.return_type, lir.resources)
+            || packages::supported_value_type(&function.return_type, lir.resources)
+            || errors::supported_type(&function.return_type, lir.resources)
+            || arrays::supported_type(&function.return_type, lir.resources)
             || (matches!(function.return_type, Type::Closure(_))
                 && function.callable_return_contract.is_some()))
             || function.parameters.iter().any(|id| {
                 let ty = &function.locals[id.0 as usize].ty;
                 !(ty.is_copy_value()
                     || ty.is_scalar_or_address()
-                    || resources::supported_type(ty, &lir.resources)
-                    || packages::supported_value_type(ty, &lir.resources)
-                    || errors::supported_type(ty, &lir.resources)
-                    || arrays::supported_type(ty, &lir.resources)
-                    || callable_parameter_type(ty, &lir.closures))
+                    || resources::supported_type(ty, lir.resources)
+                    || packages::supported_value_type(ty, lir.resources)
+                    || errors::supported_type(ty, lir.resources)
+                    || arrays::supported_type(ty, lir.resources)
+                    || callable_parameter_type(ty, lir.closures))
             })
         {
             return unsupported("LLVM scalar function signature", Some(function.span));
@@ -433,16 +634,16 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<()> {
             .map(|local| &local.ty)
             .chain(function.values.iter())
         {
-            let concrete_closure = callable_parameter_type(ty, &lir.closures);
+            let concrete_closure = callable_parameter_type(ty, lir.closures);
             if !ty.is_copy_value()
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_package_address()
-                && !resources::supported_type(ty, &lir.resources)
-                && !packages::supported_value_type(ty, &lir.resources)
-                && !errors::supported_type(ty, &lir.resources)
-                && !arrays::supported_type(ty, &lir.resources)
+                && !resources::supported_type(ty, lir.resources)
+                && !packages::supported_value_type(ty, lir.resources)
+                && !errors::supported_type(ty, lir.resources)
+                && !arrays::supported_type(ty, lir.resources)
             {
                 return unsupported(
                     format!("LLVM representation for {}", ty.name()),
@@ -758,6 +959,7 @@ struct FunctionEmitter<'a> {
     function: &'a TypedFunction,
     target: &'a TargetProfile,
     functions: &'a BTreeMap<FunctionId, &'a TypedFunction>,
+    scalar_summaries: Option<&'a BTreeMap<FunctionId, Constant>>,
     closures: &'a BTreeMap<ClosureId, &'a ClosureDefinition>,
     resources: &'a [ResourceDefinition],
     intrinsics: &'a mut BTreeSet<(&'static str, u32)>,
@@ -767,6 +969,7 @@ struct FunctionEmitter<'a> {
     // Only locals with field ownership/update operations need field flags.
     // Complete values retain the existing inline ABI and whole-local path.
     partial_packages: BTreeSet<LocalId>,
+    safe_divisors: Option<BTreeSet<ValueId>>,
 }
 
 impl FunctionEmitter<'_> {
@@ -798,12 +1001,12 @@ impl FunctionEmitter<'_> {
         }
 
         self.event(m::Event::Begin(m::Function {
-            name: symbol(self.function.id).to_string(),
+            name: symbol(self.function.id),
             linkage: m::Linkage::External,
             signature: m::Signature {
-                result: (llvm_type(&self.function.return_type)?).clone(),
+                result: llvm_type(&self.function.return_type)?,
                 result_attrs: vec![],
-                params: (parameters).clone(),
+                params: parameters,
                 variadic: false,
             },
             attrs: vec![],
@@ -819,6 +1022,11 @@ impl FunctionEmitter<'_> {
             .flat_map(|block| &block.instructions)
         {
             match instruction.kind {
+                InstructionKind::Binary {
+                    op: BinaryOp::Divide | BinaryOp::Remainder,
+                    right,
+                    ..
+                } => constant_divisors::record(&mut self.safe_divisors, right),
                 InstructionKind::TakePackageField { local, .. }
                 | InstructionKind::DropPackageField { local, .. }
                 | InstructionKind::StorePackageField { local, .. } => {
@@ -835,6 +1043,7 @@ impl FunctionEmitter<'_> {
                 _ => {}
             }
         }
+        constant_divisors::retain_safe(self.function, &mut self.safe_divisors);
         for local in &self.function.locals {
             if let Some(index) = package_views.get(&local.id) {
                 self.package_capture_storage(local.id, *index)?;
@@ -1421,6 +1630,23 @@ impl FunctionEmitter<'_> {
                         Some(instruction.span),
                     );
                 }
+                // Reuse a fact about this exact bound source before constructing
+                // a machine call that a later pass would have to rediscover.
+                // The bounded evaluator proves a returning, effect-free scalar
+                // computation. Other instructions and their order are untouched.
+                if arguments.is_empty()
+                    && callee.parameters.is_empty()
+                    && callee.foreign.is_none()
+                    && callee.return_type != Type::Unit
+                    && let Some(value) = self.scalar_summaries.and_then(|plan| plan.get(function))
+                    && value.ty() == callee.return_type
+                {
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result(instruction)?.0)),
+                        m::Op::Freeze(scalar_summaries::argument(value)),
+                    )));
+                    return Ok(());
+                }
                 let mut emitted_arguments = Vec::new();
                 for argument in arguments {
                     let ty = self.value_type(*argument)?;
@@ -1437,16 +1663,12 @@ impl FunctionEmitter<'_> {
                     Some(format!("v.{}", result(instruction)?.0))
                 };
                 self.event(m::Event::Instruction(m::Inst::new(
-                    (assignment).clone(),
+                    assignment,
                     m::Op::Call {
-                        result: (llvm_type(&callee.return_type)?).clone(),
+                        result: llvm_type(&callee.return_type)?,
                         result_attrs: vec![],
-                        callee: m::global(symbol(*function).to_string()),
-                        args: {
-                            let mut args = vec![];
-                            args.extend((emitted_arguments.clone()).clone());
-                            args
-                        },
+                        callee: m::global(symbol(*function)),
+                        args: emitted_arguments,
                         vararg: None,
                     },
                 )));
@@ -1498,16 +1720,12 @@ impl FunctionEmitter<'_> {
                     Some(format!("v.{}", result(instruction)?.0))
                 };
                 self.event(m::Event::Instruction(m::Inst::new(
-                    (assignment).clone(),
+                    assignment,
                     m::Op::Call {
-                        result: (llvm_type(return_type)?).clone(),
+                        result: llvm_type(return_type)?,
                         result_attrs: vec![],
                         callee: m::local(format!("v.{}", callee.0)),
-                        args: {
-                            let mut args = vec![];
-                            args.extend((emitted_arguments.clone()).clone());
-                            args
-                        },
+                        args: emitted_arguments,
                         vararg: None,
                     },
                 )));
@@ -1768,16 +1986,12 @@ impl FunctionEmitter<'_> {
                     }
                 }
                 self.event(m::Event::Instruction(m::Inst::new(
-                    (assignment).clone(),
+                    assignment,
                     m::Op::Call {
-                        result: (return_type).clone(),
+                        result: return_type,
                         result_attrs: vec![],
-                        callee: m::global(symbol(function).to_string()),
-                        args: {
-                            let mut args = vec![];
-                            args.extend((emitted_arguments.clone()).clone());
-                            args
-                        },
+                        callee: m::global(symbol(function)),
+                        args: emitted_arguments,
                         vararg: None,
                     },
                 )));
@@ -1809,65 +2023,71 @@ impl FunctionEmitter<'_> {
                 self.checked_binary("smul", &ty, &left_text, &right_text, result)?
             }
             BinaryOp::Divide | BinaryOp::Remainder => {
-                let is_zero = self.temp();
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(m::name((is_zero).clone())),
-                    m::Op::Compare {
-                        predicate: "eq".into(),
-                        ty: (operand_type).clone(),
-                        left: m::val((right_text).clone()),
-                        right: m::Val::Int(0),
-                    },
-                )));
-                if matches!(ty, Type::U8 | Type::U16) {
-                    self.trap_if(&is_zero);
-                } else {
-                    let minimum = match ty {
-                        Type::I32 => i128::from(i32::MIN),
-                        Type::I64 => i128::from(i64::MIN),
-                        _ => return unsupported("non-integer division", Some(span)),
-                    };
-                    let is_minimum = self.temp();
-                    let is_minus_one = self.temp();
-                    let is_overflow = self.temp();
-                    let is_invalid = self.temp();
+                if !self
+                    .safe_divisors
+                    .as_ref()
+                    .is_some_and(|safe| safe.contains(&right))
+                {
+                    let is_zero = self.temp();
                     self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((is_minimum).clone())),
-                        m::Op::Compare {
-                            predicate: "eq".into(),
-                            ty: (operand_type).clone(),
-                            left: m::val((left_text).clone()),
-                            right: m::val(minimum),
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((is_minus_one).clone())),
+                        Some(m::name((is_zero).clone())),
                         m::Op::Compare {
                             predicate: "eq".into(),
                             ty: (operand_type).clone(),
                             left: m::val((right_text).clone()),
-                            right: m::Val::Int(-1),
+                            right: m::Val::Int(0),
                         },
                     )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((is_overflow).clone())),
-                        m::Op::Binary {
-                            opcode: "and".into(),
-                            ty: m::Ty::Int(1),
-                            left: m::val((is_minimum).clone()),
-                            right: m::val((is_minus_one).clone()),
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((is_invalid).clone())),
-                        m::Op::Binary {
-                            opcode: "or".into(),
-                            ty: m::Ty::Int(1),
-                            left: m::val((is_zero).clone()),
-                            right: m::val((is_overflow).clone()),
-                        },
-                    )));
-                    self.trap_if(&is_invalid);
+                    if matches!(ty, Type::U8 | Type::U16) {
+                        self.trap_if(&is_zero);
+                    } else {
+                        let minimum = match ty {
+                            Type::I32 => i128::from(i32::MIN),
+                            Type::I64 => i128::from(i64::MIN),
+                            _ => return unsupported("non-integer division", Some(span)),
+                        };
+                        let is_minimum = self.temp();
+                        let is_minus_one = self.temp();
+                        let is_overflow = self.temp();
+                        let is_invalid = self.temp();
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((is_minimum).clone())),
+                            m::Op::Compare {
+                                predicate: "eq".into(),
+                                ty: (operand_type).clone(),
+                                left: m::val((left_text).clone()),
+                                right: m::val(minimum),
+                            },
+                        )));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((is_minus_one).clone())),
+                            m::Op::Compare {
+                                predicate: "eq".into(),
+                                ty: (operand_type).clone(),
+                                left: m::val((right_text).clone()),
+                                right: m::Val::Int(-1),
+                            },
+                        )));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((is_overflow).clone())),
+                            m::Op::Binary {
+                                opcode: "and".into(),
+                                ty: m::Ty::Int(1),
+                                left: m::val((is_minimum).clone()),
+                                right: m::val((is_minus_one).clone()),
+                            },
+                        )));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((is_invalid).clone())),
+                            m::Op::Binary {
+                                opcode: "or".into(),
+                                ty: m::Ty::Int(1),
+                                left: m::val((is_zero).clone()),
+                                right: m::val((is_overflow).clone()),
+                            },
+                        )));
+                        self.trap_if(&is_invalid);
+                    }
                 }
                 let op = match (
                     matches!(ty, Type::U8 | Type::U16),

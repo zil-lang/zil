@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "kind": "thin",
+  "collected_utc": "2026-10-31T11:43:34.541188+00:00",
+  "head_at_collection": "43037eb7b108ba864144979204b5c6d18636dac3",
+  "collector_sha256": "b8cdcd8cf309b5fc9d835f1e5d4208951be1bad7c7e5cd4adc0ae1752e942df9",
+  "boundary": "Raw archived observations, not rerun measurements or final performance acceptance. Each original path maps to exact bytes in a SHA-addressed blob. Duplicate raw bytes are stored once without rewriting text, JSON, LLVM IR, source or receipts. Current collection-source files are distinct from measured request-local or frozen-tool copies. Omitted build products/cache binaries are individually inventoried with their observed byte SHA; original tool/source/request identities remain authoritative.",
+  "archive": {
+    "path": "raw.tar.gz",
+    "bytes": 52575153,
+    "sha256": "d6a9648695b2237b7d37d941e213e137e331c19415e0156911dbd5520d329b3c",
+    "parts": [
+      {
+        "path": "raw.tar.gz.part-001",
+        "bytes": 41943040,
+        "sha256": "beb25ac29e1484aebdb826fc8570f78deffbbb754fb11f0e31a55b49193a6a96"
+      },
+      {
+        "path": "raw.tar.gz.part-002",
+        "bytes": 10632113,
+        "sha256": "11a40f49a03ac2a37ff0a837710af4122693b423291627c19f76c5c7375f613d"
+      }
+    ],
+    "storage": "Ordered byte segments of the original gzip stream; concatenate in listed order before ordinary tar extraction, or use this collector's --extract."
+  },
+  "sidecars": {
+    "FILES.json": "8a220b713e21ce9b0d9829ca939675304e05a3b4699b4f9d19fefe7df8ace41a",
+    "OMITTED.json": "be542bf0e3210a9f8d2477d226503f147b250f1c5f2d8cff29f1bab86a67270e",
+    "ROOTS.json": "d2a18e1f61d64470017ae884171ed3f8769b0144295daf620efa6cce947d2708",
+    "PLAN.json": "9de682a9563450061d7ff13623ac4ab781a36025e0202d6624ce5fe70fcb6c68"
+  },
+  "retained_paths": 23750,
+  "unique_blobs": 9256,
+  "unique_retained_bytes": 649237201,
+  "omitted_paths": 7437,
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 2834,
+      "bytes": 425835585
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 3574,
+      "bytes": 311595552
+    },
+    {
+      "class": "ephemeral-thin-cache-timestamp",
+      "files": 240,
+      "bytes": 0
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 6,
+      "bytes": 71495
+    },
+    {
+      "class": "llvm-bitcode-or-static-archive",
+      "files": 783,
+      "bytes": 154016524
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 23750,
+      "bytes": 5495857771
+    }
+  ],
+  "reconstruction": "Use stage6_archive.py --extract <archive-directory> --dest <new-directory>. Only retained files are reconstructed. Omitted binary cache/tool/executable bytes cannot be recovered from this archive; rebuild using the preserved source and original receipts if needed.",
+  "packaging_tool_sha256": "d43c2f08a0bc9f0cc5f1d32acadbc4da739fb02aa5cba59fc2d5f8869544b2a8"
+}

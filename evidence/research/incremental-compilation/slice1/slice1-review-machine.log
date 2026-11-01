@@ -1,0 +1,12 @@
+    Finished `test` profile [unoptimized] target(s) in 0.07s
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_backend_llvm-3136df6a873984eb)
+
+running 5 tests
+test machine_cgu::tests::local_component_falls_back_without_copying_and_duplicates_remain_invalid ... ok
+test machine_cgu::tests::filtering_cannot_hide_invalid_unused_declarations_or_cross_unit_collisions ... ok
+test machine_cgu::tests::external_uses_import_only_immediate_declarations ... ok
+test machine_cgu::tests::foreign_addresses_and_global_initializers_keep_only_consumed_declarations ... ok
+test machine_cgu::tests::local_identity_and_global_initializers_are_colocated_once ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.00s
+

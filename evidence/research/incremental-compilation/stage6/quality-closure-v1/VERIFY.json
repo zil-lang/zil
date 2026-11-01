@@ -1,0 +1,9 @@
+{
+  "kind": "quality-closure-v1",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 1417,
+  "omitted_paths": 169,
+  "unique_blobs": 743,
+  "identity_sha256": "8ce0ac744bb8789fcca0dd91337256e072d1441b9bf03af0b840fb6de7e7f25c",
+  "verified_utc": "2026-10-31T16:18:12.283270+00:00"
+}

@@ -1,0 +1,154 @@
+{
+  "scope": "fixed upstream source inspection; no Cargo resolution, build, test or timing",
+  "selected_dependency": {
+    "name": "sha2",
+    "version": "=0.11.1",
+    "default_features": false
+  },
+  "resolved_lock_owner": "root integrator; transitive versions below are inspected fixed releases, not a substitute for Cargo.lock",
+  "baseline": "4cb3687127a1980b2ace965af9fdc8c8e5de93c5",
+  "scalar_reference_sha256": "722ba20d7403374f52d914a4380155d9bf5d7402536125b02c33627feeea7464",
+  "host_observed_features": [
+    "sha_ni",
+    "sse4_1",
+    "ssse3"
+  ],
+  "software_control_rustflags": "--cfg sha2_backend=\"soft\"",
+  "packages": [
+    {
+      "crate": "sha2",
+      "version": "0.11.1",
+      "archive_url": "https://static.crates.io/crates/sha2/sha2-0.11.1.crate",
+      "archive_sha256": "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19",
+      "archive_bytes": 32748,
+      "license": "MIT OR Apache-2.0",
+      "rust_version": "1.88",
+      "published": "2026-10-12T18:58:22.836567Z",
+      "yanked": false,
+      "files": [
+        {
+          "source": "Cargo.toml",
+          "saved_as": "sha2-0.11.1/Cargo.toml.txt",
+          "bytes": 2099,
+          "sha256": "a2eb64ea4fa73cd686f453b7428c415dad6dda57c4e0b6825ffc6f6d765dcc05"
+        },
+        {
+          "source": ".cargo_vcs_info.json",
+          "saved_as": "sha2-0.11.1/.cargo_vcs_info.json.txt",
+          "bytes": 98,
+          "sha256": "a0be009176b1a2813a8bfb0178b524dca69f50de5bc2f15f66f2826eb916d512"
+        },
+        {
+          "source": "src/lib.rs",
+          "saved_as": "sha2-0.11.1/src_lib.rs.txt",
+          "bytes": 1857,
+          "sha256": "5529df80c102cb5d7240e47a5239565c8347a4dd79ee5a085e5f2d749657d49c"
+        },
+        {
+          "source": "src/sha256.rs",
+          "saved_as": "sha2-0.11.1/src_sha256.rs.txt",
+          "bytes": 3215,
+          "sha256": "e1b90f72b981d384cfde99a569d8e023cddc0a02bc0cf3b7392391f9429b10ca"
+        },
+        {
+          "source": "src/sha256/x86_sha.rs",
+          "saved_as": "sha2-0.11.1/src_sha256_x86_sha.rs.txt",
+          "bytes": 3385,
+          "sha256": "c27e188a5235788b064eb878ed7c4d8090f194dd30d3188aa2e73b1c4027e5a5"
+        },
+        {
+          "source": "LICENSE-MIT",
+          "saved_as": "sha2-0.11.1/LICENSE-MIT.txt",
+          "bytes": 1196,
+          "sha256": "831e0f43ad0bf014c1c4fec5767aae470434c1d66d6e671be2d823e729063e25"
+        },
+        {
+          "source": "LICENSE-APACHE",
+          "saved_as": "sha2-0.11.1/LICENSE-APACHE.txt",
+          "bytes": 10849,
+          "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+        }
+      ]
+    },
+    {
+      "crate": "digest",
+      "version": "0.11.3",
+      "archive_url": "https://static.crates.io/crates/digest/digest-0.11.3.crate",
+      "archive_sha256": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2",
+      "archive_bytes": 28955,
+      "license": "MIT OR Apache-2.0",
+      "rust_version": "1.85",
+      "published": "2026-05-03T12:54:48.023505Z",
+      "yanked": false,
+      "files": [
+        {
+          "source": "Cargo.toml",
+          "saved_as": "digest-0.11.3/Cargo.toml.txt",
+          "bytes": 2957,
+          "sha256": "59c4f2cba7e34831c87e8f4844718d91d0f276af7bd192de76fda7d5a8978eb9"
+        },
+        {
+          "source": "src/digest.rs",
+          "saved_as": "digest-0.11.3/src_digest.rs.txt",
+          "bytes": 6688,
+          "sha256": "7f4cc4c695353230e987a8b66bafe9b1a7eda2bb95dcefe0db16a825bc243abc"
+        }
+      ],
+      "license_texts": [
+        {
+          "source": "LICENSE-MIT",
+          "saved_as": "digest-0.11.3/LICENSE-MIT.txt",
+          "sha256": "af59cea35d7f5e2777a713b8d155d65efa2c339eb43f3c14e868c6ac8506edad"
+        },
+        {
+          "source": "LICENSE-APACHE",
+          "saved_as": "sha2-0.11.1/LICENSE-APACHE.txt",
+          "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+        }
+      ]
+    },
+    {
+      "crate": "cpufeatures",
+      "version": "0.3.1",
+      "archive_url": "https://static.crates.io/crates/cpufeatures/cpufeatures-0.3.1.crate",
+      "archive_sha256": "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566",
+      "archive_bytes": 14272,
+      "license": "MIT OR Apache-2.0",
+      "rust_version": "1.85",
+      "published": "2026-08-26T18:39:59.636708Z",
+      "yanked": false,
+      "files": [
+        {
+          "source": "Cargo.toml",
+          "saved_as": "cpufeatures-0.3.1/Cargo.toml.txt",
+          "bytes": 2958,
+          "sha256": "2e82ee61a94e8ef99197ca59723e9794d0f08363f28bacab680292af6ccdde61"
+        },
+        {
+          "source": "src/lib.rs",
+          "saved_as": "cpufeatures-0.3.1/src_lib.rs.txt",
+          "bytes": 3340,
+          "sha256": "386edfc4130e2ffada876ad574d15d1cc65e8b32cdfe7d8cf2a61b2e951fb3c3"
+        },
+        {
+          "source": "src/x86.rs",
+          "saved_as": "cpufeatures-0.3.1/src_x86.rs.txt",
+          "bytes": 4745,
+          "sha256": "1a97811711ae4130324e2169a1933ee694e0a1a418f94c6960b5ed1fee5e3194"
+        }
+      ],
+      "license_texts": [
+        {
+          "source": "LICENSE-MIT",
+          "saved_as": "cpufeatures-0.3.1/LICENSE-MIT.txt",
+          "sha256": "73b9dc2e79c7308998dd30296e073aefaefb944a68fb89aa412c23c0edcabcaa"
+        },
+        {
+          "source": "LICENSE-APACHE",
+          "saved_as": "sha2-0.11.1/LICENSE-APACHE.txt",
+          "sha256": "a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5"
+        }
+      ]
+    }
+  ]
+}

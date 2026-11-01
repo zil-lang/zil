@@ -1,0 +1,143 @@
+{
+  "pass": true,
+  "windows": {
+    "final-sanity-generated": {
+      "source": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+      "rows": 92,
+      "cell_count": 46,
+      "counts": {
+        "valid_current_verify": 42,
+        "object_hits": 0,
+        "object_misses": 286,
+        "native_outcomes": 88,
+        "native_builds": 88,
+        "valid_rows": 88,
+        "invalid_rows": 4
+      },
+      "oracle_builds": 0,
+      "oracle_native_outcomes": 0,
+      "failures": [
+        {
+          "case": "body-64x16",
+          "mode": "O0",
+          "request": "cold",
+          "arm": "zil",
+          "reason": "generic expansion budget exceeded",
+          "count": 1
+        },
+        {
+          "case": "body-64x16",
+          "mode": "O2",
+          "request": "cold",
+          "arm": "zil",
+          "reason": "generic expansion budget exceeded",
+          "count": 1
+        },
+        {
+          "case": "types-64x16",
+          "mode": "O0",
+          "request": "cold",
+          "arm": "zil",
+          "reason": "generic instance budget exceeded",
+          "count": 1
+        },
+        {
+          "case": "types-64x16",
+          "mode": "O2",
+          "request": "cold",
+          "arm": "zil",
+          "reason": "generic instance budget exceeded",
+          "count": 1
+        }
+      ]
+    },
+    "final-sanity-real": {
+      "source": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+      "rows": 112,
+      "cell_count": 56,
+      "counts": {
+        "valid_current_verify": 56,
+        "object_hits": 122,
+        "object_misses": 122,
+        "native_outcomes": 1680,
+        "native_builds": 112,
+        "valid_rows": 112
+      },
+      "oracle_builds": 14,
+      "oracle_native_outcomes": 210,
+      "failures": []
+    },
+    "sanity-generated": {
+      "source": "05e0b9de2727dce3432d82a587970d4c3123300d",
+      "rows": 92,
+      "cell_count": 46,
+      "counts": {
+        "valid_current_verify": 42,
+        "object_hits": 0,
+        "object_misses": 286,
+        "native_outcomes": 88,
+        "native_builds": 88,
+        "valid_rows": 88,
+        "invalid_rows": 4
+      },
+      "oracle_builds": 0,
+      "oracle_native_outcomes": 0,
+      "failures": [
+        {
+          "case": "body-64x16",
+          "mode": "O0",
+          "request": "cold",
+          "arm": "zil",
+          "reason": "generic expansion budget exceeded",
+          "count": 1
+        },
+        {
+          "case": "body-64x16",
+          "mode": "O2",
+          "request": "cold",
+          "arm": "zil",
+          "reason": "generic expansion budget exceeded",
+          "count": 1
+        },
+        {
+          "case": "types-64x16",
+          "mode": "O0",
+          "request": "cold",
+          "arm": "zil",
+          "reason": "generic instance budget exceeded",
+          "count": 1
+        },
+        {
+          "case": "types-64x16",
+          "mode": "O2",
+          "request": "cold",
+          "arm": "zil",
+          "reason": "generic instance budget exceeded",
+          "count": 1
+        }
+      ]
+    },
+    "sanity-real": {
+      "source": "05e0b9de2727dce3432d82a587970d4c3123300d",
+      "rows": 112,
+      "cell_count": 56,
+      "counts": {
+        "valid_current_verify": 56,
+        "object_hits": 122,
+        "object_misses": 122,
+        "native_outcomes": 1680,
+        "native_builds": 112,
+        "valid_rows": 112
+      },
+      "oracle_builds": 14,
+      "oracle_native_outcomes": 210,
+      "failures": []
+    }
+  },
+  "checks": {
+    "raw_zil_reports": 204,
+    "object_reports": 1060,
+    "numeric_fields": 204
+  },
+  "scope": "Final59d and intermediate05e sanity/source controls audited separately. Single-block timings are never pooled into formal windows."
+}

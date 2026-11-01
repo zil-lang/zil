@@ -1,0 +1,50 @@
+[
+  {
+    "prefix": "research/stage6/archive-df04-ci-sources",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-df04-ci-sources"
+  },
+  {
+    "prefix": "research/stage6/github-41212317882-run.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41212317882-run.json"
+  },
+  {
+    "prefix": "research/stage6/github-41212317882-jobs.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41212317882-jobs.json"
+  },
+  {
+    "prefix": "research/stage6/github-41212317882-artifacts.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41212317882-artifacts.json"
+  },
+  {
+    "prefix": "research/stage6/github-41212317882-logs.zip",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41212317882-logs.zip"
+  },
+  {
+    "prefix": "research/stage6/github-41212324365-run.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41212324365-run.json"
+  },
+  {
+    "prefix": "research/stage6/github-41212324365-jobs.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41212324365-jobs.json"
+  },
+  {
+    "prefix": "research/stage6/github-41212324365-artifacts.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41212324365-artifacts.json"
+  },
+  {
+    "prefix": "research/stage6/github-41212324365-logs.zip",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41212324365-logs.zip"
+  },
+  {
+    "prefix": "research/stage6/df04-dual-ci-log-audit.json",
+    "source_path": "/workspace/.zil-env/research/stage6/df04-dual-ci-log-audit.json"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/ci-dual-df04-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/ci-dual-df04-plan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

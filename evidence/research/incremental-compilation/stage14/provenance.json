@@ -1,0 +1,262 @@
+{
+  "production": "75178b1cfb42bfd37746b7573999d74d7d7668db",
+  "baseline_delivery": "5821120ac5952bcf799afe76de1030741d9ccb89",
+  "baseline_production": "4bbbce204bb468d83eaebb78573c98104c3de348",
+  "intermediate_production": "70ba1b271b19bd01f0c0c4803b490f2d218428d7",
+  "intermediate_scope": "Initial three backend changes with broader parallel scheduling; keep its initial windows and warm followup separate from final751 source. No ablation identifies individual implementation benefits.",
+  "final_complete": {
+    "requests": 33,
+    "valid": 33,
+    "native_valid": 33,
+    "current_zil_verify": 24,
+    "rust_observations": 9
+  },
+  "final_warm": {
+    "requests": 15,
+    "valid": 15,
+    "native_valid": 15,
+    "current_zil_verify": 10,
+    "rust_observations": 5
+  },
+  "intermediate_complete": {
+    "requests": 36,
+    "valid": 36,
+    "native_valid": 36,
+    "current_zil_verify": 24,
+    "rust_observations": 12
+  },
+  "intermediate_warm": {
+    "requests": 15,
+    "valid": 15,
+    "native_valid": 15,
+    "current_zil_verify": 10,
+    "rust_observations": 5
+  },
+  "sampling": "Final complete windows: four independent ZIL baseline/candidate history sets, 12cells, three independently built Rust histories for9guardcells. Final five warm pairs share one edited history perarm; Rust alone reuses the initial target edited history and is measured anew5times. No Rust cold/edit timing is relabeled to final source.",
+  "scoped_checks": {
+    "distinct": 45,
+    "executions": 46,
+    "initial": 30,
+    "discovery": 8,
+    "semantic": 7,
+    "parallel_source_repeat": 1,
+    "clippy": "affected crates all-targets pass; final backend/driver repeat after refinement",
+    "fmt": "pass",
+    "local_formal_full": "not run"
+  },
+  "artifacts": [
+    {
+      "path": "/workspace/.zil-env/research/stage14/baseline/zil",
+      "bytes": 8326112,
+      "sha256": "1203a4a526031a666a14b68489f8954dbe24ae257cbab65a29587aa3c2a41d70"
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage14/intermediate/zil-70ba1b271",
+      "bytes": 8345624,
+      "sha256": "374ac6369ed096c2f8d5b08ba64d53aa9a2139548dd69242934f709b338ebc3f"
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "bytes": 8361504,
+      "sha256": "ad8900335bdc8bd9709fea1d7464f9d33ac8b3afcda360a206c9d96d8afd42d0"
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+      "bytes": 72097832,
+      "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+    },
+    {
+      "path": "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+      "bytes": 282507120,
+      "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+    }
+  ],
+  "tools": {
+    "tools/research/incremental-compilation/stage8_screen.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage8_screen.py",
+      "bytes": 8932,
+      "sha256": "7216f6a1c7f14d6d37af0e4fe6deffd96fb35c16e9150785660a7a2609481ef5"
+    },
+    "tools/research/incremental-compilation/stage7_analyze.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage7_analyze.py",
+      "bytes": 3062,
+      "sha256": "bc37c93472abcb917affbfa5273744c3a1961313e31b4099a97a3dc219c12f4e"
+    },
+    "tools/research/incremental-compilation/stage8_resources.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage8_resources.py",
+      "bytes": 2146,
+      "sha256": "eb146572d27ae30b76c255bdc196d54786ffda04f5c8caa668c926319ebe378a"
+    },
+    "tools/research/incremental-compilation/stage14_warm.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage14_warm.py",
+      "bytes": 10600,
+      "sha256": "c9654e1ed5b5ab3b4a9212e4efa0886ca77874be7f371b4684ca55bed047b92d"
+    },
+    "tools/research/incremental-compilation/stage11_quality.py": {
+      "path": "/workspace/zil/tools/research/incremental-compilation/stage11_quality.py",
+      "bytes": 18289,
+      "sha256": "be682bbe38ec5930d176d63c4a7ddc6d5ed4102dff50f1ce601597703e672139"
+    }
+  },
+  "boundaries": "Current Verify and complete machine preflight, source/target/options/Limits/compiler identity, original failure publication retained. Singlefile shortcut excludes all literal import/syntax substrings, closed and active-query contexts. Cargo.lock/publicWire/budgets/main/environment/productgates unchanged. TaskDoing.",
+  "handoff": "historical integrity Fail retained",
+  "previous_ci": "both successful for5821120ac, not final acceptance",
+  "warm": {
+    "requests": 15,
+    "valid": 15,
+    "repeated_pairs": 5,
+    "cache_histories_per_arm": 1,
+    "medians_ms": {
+      "baseline": 316.180976,
+      "candidate": 243.340532,
+      "rust": 239.154034
+    },
+    "pairs": {
+      "baseline": [
+        0.8034662236199412,
+        0.7613584759128582,
+        0.7846277551211821,
+        0.8304321043800323,
+        0.7960907456275816
+      ],
+      "rust": [
+        1.1544959891281956,
+        0.668244855605303,
+        0.9241711609191835,
+        1.1508425988540871,
+        1.0175054458834678
+      ]
+    },
+    "geomean_ratios": {
+      "baseline": 0.7948724354471841,
+      "rust": 0.964554179501062
+    }
+  },
+  "warm_resources": {
+    "cpu_seconds": {
+      "median": {
+        "baseline": 0.335523,
+        "candidate": 0.287674,
+        "rust": 0.25051
+      },
+      "candidate_baseline_geomean": 0.8525675692676369
+    },
+    "max_rss_kib": {
+      "median": {
+        "baseline": 309.31640625,
+        "candidate": 309.31640625,
+        "rust": 309.31640625
+      },
+      "candidate_baseline_geomean": 1.0,
+      "limitation": "All15 wait4 readings are exactly309.31640625MiB, consistent with a runner/parent high-water floor after hashing282MB clang; not useful for compiler-specific memory comparison. No warm-followup RSS gain/neutrality claim."
+    }
+  },
+  "quality": {
+    "changed_bytes_outside_strtab_total": 0,
+    "nonidentical_pairs_confined_to_strtab": 2,
+    "pairs": 4,
+    "text_equal_pairs": 4,
+    "whole_elf_equal_pairs": 2,
+    "complete_result_sha256": "dac205597f5e54ad8e2f4016174754787864dd3db44e0273a9c5c0dfe2c4e181",
+    "receipt_sha256": "98301622d47304f92ca22e0a21eb422b21ba828b8dc422afd74357c6611de74e",
+    "script_sha256": "8d3c4e36da4de4d8426e47e34e58c6d451ebcc2d6dfe71634a1fc21acb74f47b"
+  },
+  "closed_recheck": {
+    "reason": "resolve single +42.04% closed edit guard; preserve original adverse observation",
+    "requests": 12,
+    "valid_native": 12,
+    "current_zil_verify": 12,
+    "new_independent_zil_histories": 2,
+    "rust_observations": 0,
+    "analysis": {
+      "requests": 12,
+      "valid": 12,
+      "cells": [
+        {
+          "case": "large-even-8x1024",
+          "contract": "closed",
+          "request": "cold",
+          "repetitions": 2,
+          "median_ms": {
+            "baseline": 339.432498,
+            "candidate": 340.966614
+          },
+          "candidate_baseline_geomean": 1.0042863846763972,
+          "paired_range": [
+            0.9959593587977212,
+            1.0126830312272137
+          ]
+        },
+        {
+          "case": "large-even-8x1024",
+          "contract": "closed",
+          "request": "warm",
+          "repetitions": 2,
+          "median_ms": {
+            "baseline": 165.8577055,
+            "candidate": 165.8202655
+          },
+          "candidate_baseline_geomean": 1.0015344057269093,
+          "paired_range": [
+            0.93782369385609,
+            1.0695732816584986
+          ]
+        },
+        {
+          "case": "large-even-8x1024",
+          "contract": "closed",
+          "request": "edit",
+          "repetitions": 2,
+          "median_ms": {
+            "baseline": 351.3672115,
+            "candidate": 344.23640250000005
+          },
+          "candidate_baseline_geomean": 0.9811252823327814,
+          "paired_range": [
+            0.9510021704338972,
+            1.012202547543491
+          ]
+        }
+      ],
+      "scope": "small screen; 2 independent cache histories, not a population confidence interval or product gate",
+      "by_contract": {
+        "closed": {
+          "cold": {
+            "candidate_baseline_geomean": 1.0042863846763972
+          },
+          "warm": {
+            "candidate_baseline_geomean": 1.0015344057269093
+          },
+          "edit": {
+            "candidate_baseline_geomean": 0.9811252823327814
+          }
+        }
+      }
+    },
+    "edited_artifacts_match_prior_closed": true
+  },
+  "final_total": {
+    "requests": 60,
+    "valid_native": 60,
+    "current_zil_verify": 46,
+    "rust_observations": 14,
+    "timings": "main33 / warm15 / closedrecheck12 kept separate"
+  },
+  "raw_archive": {
+    "path": "evidence/research/incremental-compilation/stage14/raw.tar.gz",
+    "bytes": 7688157,
+    "sha256": "cb307532bdba3c55aac4ee06f2c8832b0c742617d3623c44cd917f75e428a04a",
+    "files": 1136,
+    "scope": "initial70ba andfinal751 sources/commands/logs/rows/controls/metadata/quality; excludes compiler/cache binaries, compiler identities preserved and intermediate binary kept locally"
+  },
+  "native_archive": {
+    "path": "evidence/research/incremental-compilation/stage14/native-elves.tar.gz",
+    "bytes": 375262,
+    "sha256": "3c18d7e3da54b9ff52bc4820b24865e988db0633c5cbb485eb47a2d029777576",
+    "files": 8
+  },
+  "final_warm_artifacts": {
+    "all15_byte_equal_to_seed": true,
+    "all_original_artifacts_restored": true
+  }
+}

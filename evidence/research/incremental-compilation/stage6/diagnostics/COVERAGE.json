@@ -1,0 +1,77 @@
+{
+  "scope": "Archived input and failure-boundary coverage only; no compiler or diagnostic rerun.",
+  "native_stdin": [
+    {
+      "path": "research/stage6/slp-effective-opaque/2048-arithmetic/input.bin",
+      "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/2048-arithmetic/input.bin",
+      "bytes": 1,
+      "mode": 384,
+      "sha256": "ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879",
+      "sha256_scope": "file-bytes",
+      "disposition": "retain",
+      "archive_member": "blobs/sha256/ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879"
+    },
+    {
+      "path": "research/stage6/slp-effective-opaque/2048-branch/input.bin",
+      "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/2048-branch/input.bin",
+      "bytes": 1,
+      "mode": 384,
+      "sha256": "ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879",
+      "sha256_scope": "file-bytes",
+      "disposition": "retain",
+      "archive_member": "blobs/sha256/ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879"
+    },
+    {
+      "path": "research/stage6/slp-effective-opaque/512-arithmetic/input.bin",
+      "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/512-arithmetic/input.bin",
+      "bytes": 1,
+      "mode": 384,
+      "sha256": "ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879",
+      "sha256_scope": "file-bytes",
+      "disposition": "retain",
+      "archive_member": "blobs/sha256/ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879"
+    },
+    {
+      "path": "research/stage6/slp-effective-opaque/512-branch/input.bin",
+      "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/512-branch/input.bin",
+      "bytes": 1,
+      "mode": 384,
+      "sha256": "ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879",
+      "sha256_scope": "file-bytes",
+      "disposition": "retain",
+      "archive_member": "blobs/sha256/ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879"
+    },
+    {
+      "path": "research/stage6/slp-effective-opaque/8192-arithmetic/input.bin",
+      "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/8192-arithmetic/input.bin",
+      "bytes": 1,
+      "mode": 384,
+      "sha256": "ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879",
+      "sha256_scope": "file-bytes",
+      "disposition": "retain",
+      "archive_member": "blobs/sha256/ca358758f6d27e6cf45272937977a748fd88391db679ceda7dc7bf1f005ee879"
+    }
+  ],
+  "successful_perf_data": {
+    "path": "research/stage6/jump-threading-perf-default-after-attempt4/perf.data",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-perf-default-after-attempt4/perf.data",
+    "bytes": 4731204,
+    "mode": 384,
+    "sha256": "bd8c837c7a5a75816611e3ea1f9b40267cf25d683e2e869ef598e47e98794d90",
+    "sha256_scope": "file-bytes",
+    "disposition": "retain",
+    "archive_member": "blobs/sha256/bd8c837c7a5a75816611e3ea1f9b40267cf25d683e2e869ef598e47e98794d90"
+  },
+  "adaptive_stop": {
+    "path": "research/stage6/slp-effective-opaque/ADAPTIVE_STOP.json",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/ADAPTIVE_STOP.json",
+    "bytes": 1343,
+    "mode": 384,
+    "sha256": "7701a18ec0bf90f7e9924841ab1e2bab9b29137f278b9d11bf8a0d2aafe4e247",
+    "sha256_scope": "file-bytes",
+    "disposition": "retain",
+    "archive_member": "blobs/sha256/7701a18ec0bf90f7e9924841ab1e2bab9b29137f278b9d11bf8a0d2aafe4e247"
+  },
+  "earlier_failed_perf_paths": 15,
+  "active_plugin_paths_absent": true
+}

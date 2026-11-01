@@ -1,0 +1,31 @@
+{
+  "source": "0ecf973861038153b461dd94b7322e60cadddcce",
+  "arms": {
+    "candidate": {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "sha256": "bb276978dec52e8f35de5e77915ffdc32d6dedbd7e79eb88d5b98a9b52429648"
+    }
+  },
+  "library": {
+    "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+    "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+  },
+  "reps": 1,
+  "contracts": [
+    "closed"
+  ],
+  "cpus": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "resources": "Linux wait4 compiler CPU seconds and process max RSS; stdout/stderr files",
+  "cases": [
+    "large-even-8x1024"
+  ],
+  "runner_sha256": "7216f6a1c7f14d6d37af0e4fe6deffd96fb35c16e9150785660a7a2609481ef5",
+  "working_diff_sha256": "f4aa6a0837877d81ee79e4be7aadfafaf71afd3350ab0c6a6265dd3c25641d40",
+  "rustc_verbose": null
+}

@@ -1,0 +1,96 @@
+{
+  "builds": 200,
+  "native_checks": 200,
+  "cells": [
+    {
+      "modules": 4,
+      "request": "cold",
+      "median_block_mean_ms": {
+        "baseline": 51.3539175,
+        "candidate": 45.4090245
+      },
+      "candidate_over_baseline": 0.8842368160131113
+    },
+    {
+      "modules": 4,
+      "request": "unchanged",
+      "median_block_mean_ms": {
+        "baseline": 37.9261515,
+        "candidate": 35.855783
+      },
+      "candidate_over_baseline": 0.9454105302511382
+    },
+    {
+      "modules": 4,
+      "request": "unused",
+      "median_block_mean_ms": {
+        "baseline": 46.2414215,
+        "candidate": 40.09745
+      },
+      "candidate_over_baseline": 0.8671327286078349
+    },
+    {
+      "modules": 4,
+      "request": "private",
+      "median_block_mean_ms": {
+        "baseline": 40.157089,
+        "candidate": 40.607915
+      },
+      "candidate_over_baseline": 1.0112265607698805
+    },
+    {
+      "modules": 4,
+      "request": "restore",
+      "median_block_mean_ms": {
+        "baseline": 39.0982775,
+        "candidate": 38.2009425
+      },
+      "candidate_over_baseline": 0.9770492446885926
+    },
+    {
+      "modules": 32,
+      "request": "cold",
+      "median_block_mean_ms": {
+        "baseline": 73.667473,
+        "candidate": 69.308891
+      },
+      "candidate_over_baseline": 0.940834376116037
+    },
+    {
+      "modules": 32,
+      "request": "unchanged",
+      "median_block_mean_ms": {
+        "baseline": 51.779948,
+        "candidate": 51.6809595
+      },
+      "candidate_over_baseline": 0.998088285063554
+    },
+    {
+      "modules": 32,
+      "request": "unused",
+      "median_block_mean_ms": {
+        "baseline": 68.173934,
+        "candidate": 51.8580055
+      },
+      "candidate_over_baseline": 0.7606720407245384
+    },
+    {
+      "modules": 32,
+      "request": "private",
+      "median_block_mean_ms": {
+        "baseline": 57.094675,
+        "candidate": 56.7656685
+      },
+      "candidate_over_baseline": 0.9942375274051388
+    },
+    {
+      "modules": 32,
+      "request": "restore",
+      "median_block_mean_ms": {
+        "baseline": 54.2151985,
+        "candidate": 52.8145235
+      },
+      "candidate_over_baseline": 0.9741645324788398
+    }
+  ]
+}

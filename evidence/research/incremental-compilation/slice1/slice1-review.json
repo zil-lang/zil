@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_author": "/root",
+  "implementation_commit": "8fb69d61b41a241806e7021de93a27ce7e213f7b",
+  "production_source_commit": "665a0a06dc36a94f19e9ee8bbcd87fab321c6423",
+  "baseline_commit": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+  "verdict": "Pass",
+  "scope": "Independent functional review of slice1 foreign/global declaration dependency filtering; no main integration or performance acceptance",
+  "source_sha256": {
+    "crates/zil-backend-llvm/src/machine_cgu.rs": "4dbf5d33a582c2c65159b002aa0540f10079b7b05abd1f1ad68ebcc5100a5085",
+    "crates/zil-driver/tests/object_cache212.rs": "ac1f47bfacb5574dc02a26b4e3ee6455ecc4aef2135be697da55031e602f81b1",
+    "tools/research/incremental-compilation/slice1_bench.py": "3a68b9c37ab0fb6cc153fffb49ba8f4cfb5cc0dd97eb9d28bb96132286019557"
+  },
+  "actual_commands": [
+    {
+      "command": "cargo test --offline --locked -p zil-backend-llvm --features llvm-api --lib machine_cgu::tests",
+      "exit_code": 0,
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 36
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --features llvm-api --test object_cache212",
+      "exit_code": 0,
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --features llvm-api --test object_cache212 unused_foreign_declarations_do_not_invalidate_independent_objects",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 11,
+      "note": "Re-run after exact rejection assertions; overlaps the preceding suite and is not additive"
+    },
+    {
+      "command": "zil check /workspace/.zil-env/research/slice1-bad-args.zil --json",
+      "observed_status": "SafeReject",
+      "phase": "types",
+      "diagnostic": "E-CALL-ARITY",
+      "note": "Independent frontend rejection probe; existing CLI frontend is unchanged by this slice"
+    }
+  ],
+  "review_observations": [
+    "Function::references and Val::symbols cover all current machine operand forms carrying symbol references, including addresses, arrays and nested constant GEP.",
+    "External declaration filtering preserves signatures and ABI attributes without rebuilding them; cross-unit definition prototypes and local-linkage component co-location remain intact.",
+    "A declaration-only preflight before filtering prevents malformed unused declarations from disappearing; all named types remain available, and failures retain the full original module for normal rejection.",
+    "The new global symbol collision check catches declaration/definition and declaration/declaration collisions before partitioning.",
+    "Original before.log really fails on hits 0 versus 3, rather than an infrastructure failure.",
+    "Reviewed adjustment: replace generic non-Success check with SafeReject/Types/E-CALL-ARITY; exact post-adjustment test independently passed."
+  ],
+  "findings": [],
+  "performance": {
+    "status": "NotRun",
+    "benchmark_static_review": "200 O0 complete-CLI builds, ABBA/BAAB ordering, separate caches per arm sequence, same source path, native checks outside timing; scoped wall-only screen",
+    "limitations": [
+      "No empirical speed conclusion from this review",
+      "No process-tree CPU/RSS verification",
+      "Added prelude validation has real unmeasured cost",
+      "NamedType dependency closure and single-CGU invalidation remain outside slice1"
+    ]
+  },
+  "four_goals": {
+    "safety": "Scoped rejection, current Verify and native/cache controls passed; no full-language proof",
+    "runtime_memory": "Native behavior exercised; no complete runtime-performance or memory comparison",
+    "syntax_maintenance": "No source-language change; maintenance cost unmeasured",
+    "compile_breakthrough": "Invalidation-scope improvement only; product breakthrough not established"
+  },
+  "log_sha256": {
+    "slice1-review-machine.log": "7ac4ac3dd105e263d58a8e51505944144365e331591cb48e5b4bf7cf0591f8e8",
+    "slice1-review-source.log": "fd6faec7acc326e3dce16669fc1ac496adbb3076e49cae0764239504dfa40bc5",
+    "slice1-review-exact-reject.log": "f632698f75ace20f734a73f10bb5bb8f50d7dac6109c93c7d225483407500e38",
+    "slice1-bad-args.json": "9e73089b5f61acb2ed7195aa2149324ec148a95209db2171326e543be14cdf38"
+  }
+}

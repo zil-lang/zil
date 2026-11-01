@@ -1,0 +1,32 @@
+{
+  "kind": "llvm-ssa",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 708,
+      "bytes": 2096207054
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 150,
+      "bytes": 6994616
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 1,
+      "bytes": 7105
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1896,
+      "bytes": 154016286
+    },
+    {
+      "class": "symlink-target-recorded-without-dereference",
+      "files": 9,
+      "bytes": 135
+    }
+  ],
+  "selected_paths": 2764,
+  "unique_blobs": 539
+}

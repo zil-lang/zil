@@ -1,0 +1,34 @@
+[
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/6ed6518e3d8d3ea94391494a4761574e0d4b7150/.github/workflows/research-llvm.yml",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/6ed6518e3d8d3ea94391494a4761574e0d4b7150/.github/workflows/research-llvm.yml"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/6ed6518e3d8d3ea94391494a4761574e0d4b7150/SOURCE-INVENTORY-62d5dfbfd9fc.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/6ed6518e3d8d3ea94391494a4761574e0d4b7150/SOURCE-INVENTORY-62d5dfbfd9fc.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/6ed6518e3d8d3ea94391494a4761574e0d4b7150/changes/research-llvm-ci.md",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/6ed6518e3d8d3ea94391494a4761574e0d4b7150/changes/research-llvm-ci.md"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/6ed6518e3d8d3ea94391494a4761574e0d4b7150/tools/ci/research_llvm_manifest.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/6ed6518e3d8d3ea94391494a4761574e0d4b7150/tools/ci/research_llvm_manifest.py"
+  },
+  {
+    "prefix": "research/stage6/research-llvm-ci",
+    "source_path": "/workspace/.zil-env/research/stage6/research-llvm-ci"
+  },
+  {
+    "prefix": "research/stage6/research-llvm-ci-independent-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/research-llvm-ci-independent-v1"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/research-ci-tools-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/research-ci-tools-plan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

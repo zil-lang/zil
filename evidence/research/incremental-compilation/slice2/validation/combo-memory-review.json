@@ -1,0 +1,57 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_author": "/root",
+  "implementation_commit": "646099a70105b6da3821ce7d8ea20bd8e28fe3e1",
+  "baseline": "d66a3142099209b7c5a7884b46e46418fa60021e",
+  "verdict": "Pass",
+  "scope": "Incremental independent functional/rejection-boundary review of prepare_project owner release; previous b230 functional review retained for unchanged code. No timing/product gate conclusion.",
+  "tracked_worktree_clean_at_binding": true,
+  "changed_paths": [
+    "crates/zil-driver/src/project.rs",
+    "crates/zil-driver/src/session.rs",
+    "docs/research/incremental-compilation/SLICE2.md"
+  ],
+  "previous_coverage": {
+    "implementation_commit": "b230cfddcc12c3daf6ec4dcbca3a2dc11d9ebe79",
+    "verdict": "Pass",
+    "receipt": "combo-review-receipt-b230.json",
+    "receipt_sha256": "173358078ba124856d7170182c1ba5429a895a24573f399112cf7ab45dc409ad",
+    "unchanged_scope": [
+      "CP33 parse receipts and full quota identities",
+      "CP34 exact v27 fingerprint encoding",
+      "CP35 independent current-request shared-input verification",
+      "LirView complete current capability binding",
+      "LLVM named-DAG validator and 200000-case exact old/new oracle",
+      "Expand ordered first-wins declaration index"
+    ],
+    "changed_scope_reviewed_here": "Project request preparation now removes obsolete whole-project raw owners before the new parse phase, rather than waiting for end-of-request capacity trimming. Previous history tests were not independently rerun after this change; the new lifecycle control was."
+  },
+  "commands": [
+    {
+      "command": "cargo test --offline --locked -p zil-driver --features llvm-api --lib large_edits_release_obsolete_owners_before_constructing_the_new_epoch",
+      "environment": ". /workspace/.zil-env/env.sh",
+      "working_directory": "/workspace/zil",
+      "passed": 1,
+      "failed": 0,
+      "filtered_out": 30,
+      "log": "combo-memory-review-owner.log",
+      "log_sha256": "148037d6986e497e1e756972615678e65616b79486571f185270340933d439a5",
+      "source_binding": "Executed on the reviewed working tree before commit; inspected exact commit and confirmed the production/test delta is the same, with boundary documentation added."
+    }
+  ],
+  "findings": [],
+  "review_checks": [
+    "prepare_project only deletes raw entries and obsolete recency entries; it does not change keys, publish raw data, fabricate dependencies, or grant authority.",
+    "Called after cancellation/profile/source/artifact-path checks and before constructing new project stage results. No active query exists on this path.",
+    "The module/input/rules/target predicate retains exact-current identity. Target-independent Expand entries with ZERO may survive target changes; CT/Types/Candidate use nonzero current target keys and incompatible target entries are removed. Ordinary exact-key lookup and full dependency closure checks remain unchanged.",
+    "Parse entries are retained. Dependency metadata is collected by reachability from all remaining raw roots, preserving any still-required transitive receipt.",
+    "Weak control observes that unchanged requests retain the prior ProjectTyped owner, edited requests drop it before the first Parse event, and edited output equals a fresh session."
+  ],
+  "limits": [
+    "Same root means numeric ModuleId, not a distinct project-path namespace. Filesystem projects commonly share root=0, so unrelated project stages or single-source Candidate entries can be conservatively evicted; this affects cache hit rate, not acceptance.",
+    "Old entries under other root IDs can remain. This policy is not a session-wide live-byte ceiling or byte-budgeted cache.",
+    "The release policy triggers only when modules+4 exceeds raw capacity. Large-capacity histories and parse-only/failed subsequent requests may have different retention or hit behavior.",
+    "One new limited lifecycle test was independently run. No formal full suite or extra stress/timing test was run during the measurement window.",
+    "The prior 1560-request memory regression is not erased; this functional receipt does not certify that RSS or latency improved. That requires the separate second measurement window."
+  ]
+}

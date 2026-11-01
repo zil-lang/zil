@@ -1,0 +1,200 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "verdict": "Pass",
+  "scope": "Independent completeness/input/functional-output/statistical/archive and algorithm-attribution audit of original stage5 five windows. Not a performance/product gate.",
+  "implementation_commit": "801933a9e8f060d44b8305786d01399527aa6137",
+  "measurement_tools_commit": "283c661bcb18978fe048770dace4994ade1910d2",
+  "time_utc": "2026-10-31T09:07:58.687597+00:00",
+  "total_rows": 7824,
+  "total_cells": 652,
+  "valid_cells": 612,
+  "invalid_cells": 40,
+  "raw_zil_reports": 4392,
+  "valid_current_verify": 4152,
+  "pre_verify_budget_failures": 240,
+  "object_reports_checked": 18846,
+  "native_builds": 5928,
+  "native_outcomes": 20040,
+  "oracle_builds": 28,
+  "oracle_native_outcomes": 420,
+  "numeric_fields_recomputed": 10912,
+  "window_counts": {
+    "generated-default": {
+      "rows": 4140,
+      "cells": 345,
+      "invalid_cells": 30,
+      "time_adverse": 187,
+      "rss_adverse": 194,
+      "valid_current_verify": 1890,
+      "valid_rows": 3960,
+      "object_hits": 6360,
+      "object_misses": 2220,
+      "native_outcomes": 2640,
+      "native_builds": 2640,
+      "invalid_rows": 180,
+      "oracle_builds": 0,
+      "oracle_native_outcomes": 0
+    },
+    "generated-closed": {
+      "rows": 1380,
+      "cells": 115,
+      "invalid_cells": 10,
+      "time_adverse": 51,
+      "rss_adverse": 67,
+      "valid_current_verify": 630,
+      "object_hits": 2868,
+      "object_misses": 1032,
+      "native_outcomes": 1320,
+      "native_builds": 1320,
+      "valid_rows": 1320,
+      "invalid_rows": 60,
+      "oracle_builds": 0,
+      "oracle_native_outcomes": 0
+    },
+    "implementation-ablation": {
+      "rows": 960,
+      "cells": 80,
+      "invalid_cells": 0,
+      "time_adverse": 21,
+      "rss_adverse": 48,
+      "valid_current_verify": 960,
+      "object_hits": 2952,
+      "object_misses": 1218,
+      "native_outcomes": 960,
+      "native_builds": 960,
+      "valid_rows": 960,
+      "oracle_builds": 0,
+      "oracle_native_outcomes": 0
+    },
+    "real-default": {
+      "rows": 1008,
+      "cells": 84,
+      "invalid_cells": 0,
+      "time_adverse": 0,
+      "rss_adverse": 0,
+      "valid_current_verify": 504,
+      "valid_rows": 1008,
+      "object_hits": 732,
+      "object_misses": 732,
+      "native_outcomes": 10080,
+      "native_builds": 672,
+      "oracle_builds": 14,
+      "oracle_native_outcomes": 210
+    },
+    "real-closed": {
+      "rows": 336,
+      "cells": 28,
+      "invalid_cells": 0,
+      "time_adverse": 0,
+      "rss_adverse": 0,
+      "valid_current_verify": 168,
+      "object_hits": 366,
+      "object_misses": 366,
+      "native_outcomes": 5040,
+      "native_builds": 336,
+      "valid_rows": 336,
+      "oracle_builds": 14,
+      "oracle_native_outcomes": 210
+    }
+  },
+  "inventory": {
+    "files": 28046,
+    "bytes": 5614084681,
+    "scope": "All consumed manifests/rows/summaries, raw compiler stdout/stderr, source identities and retained source bytes, oracle records/outputs/ELFs, final sequence program/LLVM files, three compiler ELFs and report/script. Rust incremental and ZIL object cache content directories are not inventory inputs. No native/compiler was rerun."
+  },
+  "archives": {
+    "pass": true,
+    "files": 26524,
+    "windows": [
+      {
+        "window": "generated-default",
+        "files": 13269,
+        "uncompressed_bytes": 956300392,
+        "archive_sha256": "d9e5ba21573ec290677def96aad54d00d27d668ea41b8365e0aa6ce61faed32b",
+        "receipt_sha256": "73471805db2d52f2f8da529b4d439ffb7361136df6f594aa9ccfe604fb97fe6a",
+        "embedded_files_sha256": "b08e97c0a9610d4a1a863c7d270231e6244e39abdfd2d313c04f138786017838"
+      },
+      {
+        "window": "generated-closed",
+        "files": 7485,
+        "uncompressed_bytes": 463844813,
+        "archive_sha256": "1a70f887fe6d593e4bcfb129fd92fbbf03bc65f56548115d16e1c1616c366171",
+        "receipt_sha256": "3d29c78319617ae2616ab66bf8dc10aa38bc3e078b77fd3ed919a14a62a6a511",
+        "embedded_files_sha256": "12b12d489523661f40ef122310b8eaf433b86e5ad37b328224042e2172a251ba"
+      },
+      {
+        "window": "implementation-ablation",
+        "files": 2396,
+        "uncompressed_bytes": 669779932,
+        "archive_sha256": "3850ee2dcf82211fa43a9d32d0a264b18120958cd31667f720850883ce5bdcc4",
+        "receipt_sha256": "066c7dd56c70ffdad9f5215298f4850b2e9f2c9710a1d27f6116d3f1dbfafb62",
+        "embedded_files_sha256": "c03401f6598b563e02963a7544e87ce4239e57a9eb6af16efeae711a2dee29e8"
+      },
+      {
+        "window": "real-default",
+        "files": 2443,
+        "uncompressed_bytes": 11638130,
+        "archive_sha256": "e7b22bd43867838ced10a398625086446d3e4b0dadec875b4cc8a9a4315e89ae",
+        "receipt_sha256": "a2b1190954cdfc2308659f822c351841fe12fb2c076f4151709b5efbc90115ce",
+        "embedded_files_sha256": "2a82450ba833460ffa2fa543b68d66e9a4f748a6e92b2e023f33bcd79d2111e1"
+      },
+      {
+        "window": "real-closed",
+        "files": 931,
+        "uncompressed_bytes": 5567187,
+        "archive_sha256": "4d3298a44ab7f9f86aa79d369179cdafd8cdbaad479cb0194d48d35a66789686",
+        "receipt_sha256": "13e38c0e1260a36b3f6809da7cb8e84f843126246d51bc0f1a0d6ba12e3bb42f",
+        "embedded_files_sha256": "24ae4c495446eecf93c269febc879fa0709e225aa3b2afa5f9bf296b643e2e38"
+      }
+    ]
+  },
+  "evidence_sha256": {
+    "/workspace/.zil-env/research/stage5/recompute-stage5-data.py": "ce6feff012794a19eddee964988657ec156c8e4b5d7fc6d23b2d241dc0658401",
+    "/workspace/.zil-env/research/stage5/data-review-recomputed.json": "b592ff8977a3af363f8c088bc12648fd4b26157efde3e31d82e2e7c013178cb5",
+    "/workspace/.zil-env/research/stage5/data-review-recompute.log": "01a87fd323fa3f1ef6aa321ddc29880ec8720e0eae48cab789eb387dd3bd8c3b",
+    "/workspace/.zil-env/research/stage5/data-review-inventory.json": "e653676ed89094829722370c5047f13953c9802309eda14178380b67d8b8deac",
+    "/workspace/.zil-env/research/stage5/check-stage5-archives.py": "e8e580f912fbeb62194ada14f258a7d1c4bc347083ad51b0cd7315fadba73216",
+    "/workspace/.zil-env/research/stage5/data-review-archives.json": "d2b3cf94d8310d0eaf508125d87a91d291549bf74bbedbc75900f8ca94a7b4d0",
+    "/workspace/.zil-env/research/stage5/data-review-archives.log": "f9c673909163c9628601045295f3715c3b962c0f764595d85ea87a8dd92fd539",
+    "/workspace/.zil-env/research/stage5/zit.ts": "719a914356a24ac1edbeb1ffe6637d22311c9299e6be9ddbcdf3f7fdddf1474f",
+    "/workspace/.zil-env/research/stage5/zit-mechanisms.mjs": "7546229a48282ccb8625177dae01cba87c262f75b7247f42c864d41b378b58fe",
+    "/workspace/.zil-env/research/stage5/zit-mechanisms-result.json": "5cb42f7417226514ea13552b4bd7cd94c03ffed83972ee8def7c820a6f058d3b",
+    "/workspace/.zil-env/research/stage5/zit-run.log": "db041bce13f4671d480d81c0fd6f6073d573f2f48b4a77271562037a88c95664",
+    "/workspace/.zil-env/research/stage5/CP25-FEASIBILITY.md": "e7c039941b85c94c65e722fe90f8a8b4cc097cbd14b4ba096c5600f80be0c7cf",
+    "/workspace/zil/tools/research/incremental-compilation/distribution_report.py": "845b6b3f7b5bb71e70806d45bf97a9eab9845a81f83159810c6c76cb854e14e0",
+    "/workspace/zil/docs/research/incremental-compilation/ALGORITHM-ATTRIBUTION.md": "258aaa483c082e723306c3bbc4221c7d01efe51ecbee77a64cc7dff80b09a59e",
+    "/workspace/zil/docs/research/076/RESULTS.md": "5c8c5af22f147925a1abfc5fba8d8fe586d72ade53d863e0b86c18b32280f39d",
+    "/workspace/zil/docs/research/080/RESULTS.md": "161f4e2097556f7c9563101d04f94ed7f4247293b7c439cb4ebff792b4588010",
+    "/workspace/zil/docs/research/incremental-compilation/audit/compile-speed-review.md": "4334cf4d8689c9b376879018c9c7eeec5b239ccf2cc5ca41d9a056e5ea956f76",
+    "/workspace/zil/changes/research-preflight-fanin.md": "9838c5743b9d21cbff4facedd7c8e1d66807482d11bc366274ae1743a0efa208",
+    "/workspace/zil/evidence/research/incremental-compilation/stage5/validation/environment.json": "74c1856249977a7af020c926feef5c49edb926700d45d49d2ed4202bc4e47cf7"
+  },
+  "analysis_sha256": "889b1cefa323ff0b45b20a5fca68ddb6da254ec6d135ac359a6ddc8e56727a91",
+  "table_sha256": "328363778f8cbf6a2b9dccecdb9c41f97fa2f23b25357a35778dd35a0f639001",
+  "report_script_sha256": "845b6b3f7b5bb71e70806d45bf97a9eab9845a81f83159810c6c76cb854e14e0",
+  "findings": [],
+  "validation": [
+    "Every row identity/order matches declared case/mode/6 blocks/AB-BA arm/request Cartesian sequence; exact command, binary and runner hashes validated.",
+    "Generated source bytes re-created for all cases and edit epochs with frozen generator, independent mathematical expected values; every per-request source identity and retained restored input matches. Real copied files all match exact Git input bytes.",
+    "All raw compiler reports parsed separately from row valid boolean; Success/Verify1/phase/source-map/commands match. 240 invalid ZIL rows are actual expand ResourceLimit exit4/Verify0, with no native/output authorization.",
+    "Each object hit refers to earlier same-sequence action key; hit current preflight positive, producer before/after LLVM verification true; miss builder before/after verification true. Units/hits/misses/jobs and report sums checked. Cold all-miss and unchanged/restore all-hit contracts checked.",
+    "Every generated successful native row equals full expected four bytes/exit0/empty stderr; all real native outcomes have expected 15 input identities/no signal/error and match valid independent Rust O0 oracle exactly. app Rust --check and ZIL ordinary-main argument choices checked.",
+    "Raw wall/RSS medians, ratio of medians, all 2000 seeded paired-bootstrap draws/order-statistic bounds, per-case geomeans, object timing sums and all 652 Markdown rows independently recomputed.",
+    "Archive compressed SHA/size and every safe unique regular member match internal FILES, receipt count/byte totals and original workspace bytes. No cache/ELF restoration inferred from archive."
+  ],
+  "algorithm_attribution": {
+    "verdict": "Pass for scoped statements",
+    "historical_076": "Source report confirms 378.812/4.268 ms, local/direct1.060 CI[0.935,1.144], NoGo; numbers remain historical, not current gains.",
+    "historical_080": "Source report confirms reverse-chain61.851→17.594 and same-session21.078→1.804 at c4c→473c; current Analyze/Verify retain separate dependency implementations. No Rust comparison inferred.",
+    "zit": "Original zit.ts and probe bytes exactly match e739 historical branch; five output rows match probe assertions and documented numeric synchronous scope. Stable producer/consumer links, equality barriers, cursor trimming and pull refresh are credible mechanisms; hUp monotonic >1000 threshold is not a cycle proof and global synchronous context cannot become parallel compiler authority. No current production zit speedup claimed.",
+    "CP25_CP32": "Existing audit documents incomplete CP25 restoration/NotRun and historical reported build measurement; CP32 reuse6940/9222 with time1.003583/RSS1.202026 retained. No historical ratio applied to new windows.",
+    "followup": "research-preflight-fanin.md is a future proposal relative to original801/283 measurement; later05e review/measurements have separate identity and no contribution in these data."
+  },
+  "limitations": [
+    "Only six block observations per arm; exploratory paired bootstrap endpoints are order statistics49 and1949 of2000 and have no multiple-comparison/product guarantee. Equal-case geomeans are corpus summaries, not a population language advantage.",
+    "Actual per-request native stdout/stderr/exit are stored in rows by frozen runner, not separate per-request native logs; overwritten executable/LLVM paths retain final request only. Current final ELFs were hashed locally; archives exclude ELF/object/incremental work products.",
+    "All original unfavorable cells remain listed in recomputed result: time187/51/21/0/0 and RSS194/67/48/0/0 across five windows. Invalid budget cells retained with null ratio.",
+    "Report/attribution documents are currently reviewed by exact SHA256, not yet a final delivery commit. Later delivery must bind these bytes.",
+    "No benchmark, compiler or native executable was rerun during data audit; scripts regenerated source bytes and statistics only."
+  ]
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "prefix": "research/stage6/github-41209327141-run.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41209327141-run.json"
+  },
+  {
+    "prefix": "research/stage6/github-41209327141-jobs.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41209327141-jobs.json"
+  },
+  {
+    "prefix": "research/stage6/github-41209327141-artifacts.json",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41209327141-artifacts.json"
+  },
+  {
+    "prefix": "research/stage6/github-41209327141-logs.zip",
+    "source_path": "/workspace/.zil-env/research/stage6/github-41209327141-logs.zip"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

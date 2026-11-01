@@ -1,0 +1,48 @@
+{
+  "source": "c4d7b3fe1488fd22dc4f64e092b75a6ec2f08cad",
+  "arms": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/stage15/baseline/zil",
+      "sha256": "ad8900335bdc8bd9709fea1d7464f9d33ac8b3afcda360a206c9d96d8afd42d0"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "sha256": "99384f99d503a1bb8c9c955b7b174cccbd3c025937ce242b86b848ef93c983ba"
+    },
+    "rust": {
+      "path": "/workspace/.zil-env/cargo/bin/rustc",
+      "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4"
+    }
+  },
+  "library": {
+    "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+    "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+  },
+  "reps": 1,
+  "contracts": [
+    "default"
+  ],
+  "cpus": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "resources": "Linux wait4 compiler CPU seconds and process max RSS; stdout/stderr files",
+  "cases": [
+    "large-8192",
+    "large-even-8x1024",
+    "large-skew-8",
+    "opaque-2048-branch"
+  ],
+  "runner_sha256": "33d750699f12ae17fe55d261199a93847a9dce0a1ed41ea819bbbfd7c711547d",
+  "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "requests": [
+    "cold",
+    "warm",
+    "edit",
+    "edit-warm"
+  ],
+  "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+}

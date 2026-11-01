@@ -1,0 +1,117 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_author": "/root",
+  "implementation_commit": "b230cfddcc12c3daf6ec4dcbca3a2dc11d9ebe79",
+  "baseline": "5d7c1eeb2b74052eb239e19529dc5a943c6622a3",
+  "verdict": "Pass",
+  "scope": "Independent functional/rejection-boundary review of the combination implementation. Limited tests, not formal full validation or performance/product acceptance.",
+  "worktree_clean_at_binding": true,
+  "subsequent_commit": {
+    "commit": "d66a3142099209b7c5a7884b46e46418fa60021e",
+    "changed_paths": [
+      "tools/research/incremental-compilation/combined_bench.py"
+    ],
+    "production_and_test_sources_equal": true,
+    "functional_evidence_reusable": true,
+    "performance_results_reviewed": false
+  },
+  "commands": [
+    {
+      "command": "cargo test --offline --locked -p zil-ir --test cp34_fingerprint -p zil-syntax --test cp33_parse_receipts",
+      "passed": 6,
+      "log": "combo-review-encoding.log",
+      "log_sha256": "f8492fa50d221c35976f532f7d0a6aa21a8b2162483f83e683e815c901c2c011",
+      "status": "Pass"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --features llvm-api --test cp33_parse_budget --test cp34_fingerprint_sources --test cp35_shared_verify",
+      "passed": 15,
+      "log": "combo-review-driver-retry.log",
+      "log_sha256": "9cc59e0541f2c9c01c58b1db45f5a4b8ba65c7a78ba2406cf1d4ca75a60bd98b",
+      "status": "Pass"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --features llvm-api --lib bounded_history_tests",
+      "passed": 2,
+      "log": "combo-review-history.log",
+      "log_sha256": "c60e28f4dca5b97884e17febf5bc7d2504864e049be37ac9fe75f0170c62243f",
+      "status": "Pass"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-llvm-api --lib named_layout_tests",
+      "passed": 3,
+      "log": "combo-review-named.log",
+      "log_sha256": "4da4a39590f739df935487723f09ddaab060ef92f41024b9c05c4e767c461ff7",
+      "status": "Pass"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-db --lib collecting_raw_roots_keeps_transitive_receipts_and_current_invalidation",
+      "passed": 1,
+      "log": "combo-review-db.log",
+      "log_sha256": "f60b195ce58e39ade8bccd83cd25c38be7168b1e192b8641723b22cc0f55f8e6",
+      "status": "Pass"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-backend-llvm --features llvm-api --lib borrowed_lir_aliases_bind_length_and_the_current_capability",
+      "passed": 1,
+      "log": "combo-review-final-lir.log",
+      "log_sha256": "e4b249ca4ff239027511f2d0d288024a8e4e0f2621954805b9857a2051d9b18f",
+      "status": "Pass"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-syntax --test cp33_parse_receipts",
+      "passed": 2,
+      "log": "combo-review-final-syntax.log",
+      "log_sha256": "01e4b10e9605fc034298940dabfdf7298044f39eac6ba7046eacdfd7e0f364c3",
+      "status": "Pass"
+    }
+  ],
+  "test_executions": 30,
+  "unique_test_functions": 28,
+  "independent_oracle": {
+    "archive": "/workspace/.zil-env/research/combo-preflight-oracle.tar.gz",
+    "sha256": "71baee9eb80abbfae9f5ec4d93aa66d82d32c35ba9fbb0c66e9edf93194e62bb",
+    "reviewer": "/root/review_incremental_slice1",
+    "baseline": "5d7c1eeb2b74052eb239e19529dc5a943c6622a3",
+    "implementation_commit": "b230cfddcc12c3daf6ec4dcbca3a2dc11d9ebe79",
+    "verdict": "Pass",
+    "scope": "200000 deterministic synthetic machine-IR exact validation Result comparisons; no performance conclusion",
+    "comparisons": 200000,
+    "success_results": 1768,
+    "rejected_results": 198232,
+    "normalized_candidate_matches_commit": true,
+    "committed_preflight_sha256": "a72f366ae9a1eae72f213aa332b942b41bfc02a6aa945f4daa1b0bf5532336ea",
+    "files": {
+      "old.rs": "f2c32d389b913710dd87ad7a7d0926de27b31428596ff786b85717d1533d22b5",
+      "candidate.rs": "a72f366ae9a1eae72f213aa332b942b41bfc02a6aa945f4daa1b0bf5532336ea",
+      "model.rs": "96aa60a9eb041aa059031ddc5eebb1aa5ffe199369b88a982fbf3f7152d1aa72",
+      "probe.rs": "f939e1c9087217db990ac9dd0971b453a9d4a674040ef2a8718c5c3348fa6027",
+      "result.txt": "3ebb42a46a36cddb4847afff656bf99971a9013ded5b01042713c5f0adffc5ef",
+      "RUN.md": "e7f62c779fb7b318bbd3de0e4af00480109e8fccb4ca33acd625575e19dabe4a"
+    }
+  },
+  "resolved_findings": [
+    {
+      "finding": "Intermediate worktree build.rs passed String where compile_units required &str; E0308 blocked initial run.",
+      "resolution": "Explicit borrow restored before reviewed commit; later tests passed.",
+      "log": "combo-review-driver.log",
+      "log_sha256": "ff44ad7b2f01365ebabc903fec153194da064ec6bf812a4188d6b1f955340b0f"
+    },
+    {
+      "finding": "ParseUsage initially changed derived syntax Debug output.",
+      "resolution": "Custom Debug preserves original fields and order in exact commit."
+    },
+    {
+      "finding": "Public raw LirView needed same-address/different-length and foreign-capability negative controls.",
+      "resolution": "borrowed_lir_aliases_bind_length_and_the_current_capability was added and independently rerun at exact commit."
+    }
+  ],
+  "unresolved_correctness_findings": [],
+  "limitations": [
+    "The tests are scoped, not the formal full suite. Earlier working-tree test evidence is reused only for unchanged semantics; final edits were formatting/borrow cleanup, ParseResult Debug preservation, negative controls, documentation and tooling. The final raw-view test and syntax receipt tests were rerun at the exact commit.",
+    "The oracle candidate snapshot differs from committed source only by rustfmt formatting, checked independently before commit; committed preflight SHA256 matches the source checked then.",
+    "Raw capacity bounds retained raw item count, not bytes or dependency-receipt count; current large graphs and a bounded set of old raw roots may retain corresponding metadata.",
+    "No compile-time speedup, Rust comparability, memory-byte ceiling, function-granular incrementality or product gate is certified by this review.",
+    "The oracle is synthetic machine IR and does not establish source reachability or native performance for the exponential DAG pattern."
+  ]
+}

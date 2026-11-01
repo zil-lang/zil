@@ -1,0 +1,61 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_commit": "996bcc1394842a9dc4edcc30952387e1d0004c03",
+  "baseline": "fd223da98fe7a699472b5adeda1ea861b588b039",
+  "reviewed_production_commit": "5cf1c417f5cbdc0895e5edceb3053d9d4da490c6",
+  "verdict": "Pass",
+  "scope": "Test-only formatting/equivalent-byte-expression fix and broader Clippy target selection. Prior production/performance receipts remain unchanged; no full suite or benchmark rerun.",
+  "worktree_clean": true,
+  "changed_paths": [
+    "crates/zil-backend-llvm/src/tests.rs",
+    "crates/zil-ir/tests/cp34_fingerprint.rs",
+    "crates/zil-ir/tests/support/cp34_legacy_v27.rs",
+    "docs/research/incremental-compilation/CI-FOLLOWUP.md",
+    "evidence/research/incremental-compilation/ci-followup/MANIFEST.json",
+    "evidence/research/incremental-compilation/ci-followup/final-format-retry.log",
+    "evidence/research/incremental-compilation/ci-followup/final-format.log",
+    "evidence/research/incremental-compilation/ci-followup/final-target-clippy-retry.log",
+    "evidence/research/incremental-compilation/ci-followup/final-target-clippy.log",
+    "evidence/research/incremental-compilation/ci-followup/final-test-style-tests.log",
+    "tools/research/incremental-compilation/verify_scoped.sh"
+  ],
+  "all_crate_changes_are_test_only": true,
+  "test_files": [
+    "crates/zil-backend-llvm/src/tests.rs",
+    "crates/zil-ir/tests/cp34_fingerprint.rs",
+    "crates/zil-ir/tests/support/cp34_legacy_v27.rs"
+  ],
+  "backend_tests_module_cfg_test_only": true,
+  "frozen_encoder": {
+    "body_sha256": "51ca6f134a7af5e0abbd18a1f0320201c724240ad1faf64fd309b1b1f435526a",
+    "helper_sha256": {
+      "passing_mode_tag": "7649d5d1b89712ad86add09dde2e141b6ea99a5e98a15953d3002d2d7aaaedc4",
+      "cleanup_exit_tag": "5bbcb832d2786108ad7cc8cc6ba1f22cfd82fc688be339a631a3a6c409bb1d9d"
+    },
+    "body_and_helpers_byte_identical": true
+  },
+  "assertion_strength_preserved": true,
+  "equivalence_reason": "find returns byte offsets at ASCII function delimiters; both old string slicing then as_bytes and new byte slicing select exactly the same valid UTF-8 boundary interval. Expected digests, asserted results and test cases are unchanged. Backend alias and wrapper edits only add whitespace.",
+  "runner_change": "Only Clippy --lib changed to --all-targets; -D warnings, package/features and cargo test selection are unchanged.",
+  "checks": {
+    "independent_command": "cargo fmt --all -- --check",
+    "independent_format_exit": 0,
+    "independent_log": "final-ci-fix-review-format.log",
+    "independent_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "recorded_limited_tests_passed": 7,
+    "recorded_limited_tests_failed": 0,
+    "all_five_followup_log_hashes_match": true,
+    "recorded_all_targets_clippy_completed": true
+  },
+  "prior_failures_preserved": {
+    "format_log": "evidence/research/incremental-compilation/ci-followup/final-format.log",
+    "all_targets_clippy_log": "evidence/research/incremental-compilation/ci-followup/final-target-clippy.log"
+  },
+  "followup_manifest_sha256": "d1cda74a305e537e2ceb2e540552a5ea3a5398ffbe0c681e1494697c33a8eb8a",
+  "unresolved_findings": [],
+  "limitations": [
+    "Hosted CI status for this head is not asserted by this local review. The original failed CI run remains failed.",
+    "The seven tests were verified from the committed logs, not rerun by this reviewer; only formatting was independently rerun.",
+    "Production/functionality and performance retain their previous exact commit/evidence boundaries."
+  ]
+}

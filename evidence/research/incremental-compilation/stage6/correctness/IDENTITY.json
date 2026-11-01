@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "kind": "correctness",
+  "collected_utc": "2026-10-31T12:02:17.444812+00:00",
+  "head_at_collection": "58a75321421fe2ee3b58f69b174c138fc2d24832",
+  "collector_sha256": "f07d7f9eda81383108fa42911829a1687b2e2b7ff3bf05707bbec29b422b1880",
+  "boundary": "Raw archived observations, not rerun measurements or final performance acceptance. Each original path maps to exact bytes in a SHA-addressed blob. Duplicate raw bytes are stored once without rewriting text, JSON, LLVM IR, source or receipts. Current collection-source files are distinct from measured request-local or frozen-tool copies. Omitted build products/cache binaries are individually inventoried with their observed byte SHA; original tool/source/request identities remain authoritative.",
+  "archive": {
+    "path": "raw.tar.gz",
+    "bytes": 20745337,
+    "sha256": "5969d98ae9b0d2e9049001d9d961351f69701f3f28c6daa28d2f4870d80d8ab8"
+  },
+  "sidecars": {
+    "FILES.json": "a1247b2d113a1987ca65b54816905b501bf43d2cfc1401be76fcb31679d9e446",
+    "OMITTED.json": "a7842f5e32980408e1e87ec35b422cbfc1846b704392ce334af464cf47f5105a",
+    "ROOTS.json": "0c8e6fc795f89acfbb1c7b82dde1c7c8da48b4da8ca6554ac9a349f9af9db9d9",
+    "PLAN.json": "d794b11aae07e909c436df47ca7ef908cbfdf33267dfc41dc6187a80ce747d7d"
+  },
+  "retained_paths": 48338,
+  "unique_blobs": 2836,
+  "unique_retained_bytes": 276308884,
+  "omitted_paths": 1989,
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 1700,
+      "bytes": 1174560801
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 156,
+      "bytes": 430646440
+    },
+    {
+      "class": "ephemeral-rust-incremental-lock",
+      "files": 71,
+      "bytes": 0
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 2,
+      "bytes": 38661
+    },
+    {
+      "class": "large-functional-semantic-cache-candidate",
+      "files": 60,
+      "bytes": 117480207
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 48338,
+      "bytes": 421916409
+    }
+  ],
+  "outside_selected_scope": [
+    {
+      "path": "/workspace/.zil-env/research/stage6-merge-review/exact",
+      "reason": "Reviewer source worktree excluded by integration instruction; retained review/commit receipts bind the reviewed commit and source hashes."
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage6-merge-review/target",
+      "reason": "Reviewer build target excluded by integration instruction; test commands/logs and source identity are retained."
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage6/session-db-isolation",
+      "reason": "Separate formal performance window; outside this frozen correctness collection."
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage6/session-final-vs-3d6",
+      "reason": "Separate formal performance window; outside this frozen correctness collection."
+    }
+  ],
+  "reconstruction": "Use stage6_archive.py --extract <archive-directory> --dest <new-directory>. Only retained files are reconstructed. Omitted binary cache/tool/executable bytes cannot be recovered from this archive; rebuild using the preserved source and original receipts if needed."
+}

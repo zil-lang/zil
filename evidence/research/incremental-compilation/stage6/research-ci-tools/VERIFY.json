@@ -1,0 +1,9 @@
+{
+  "kind": "research-ci-tools",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 277,
+  "omitted_paths": 1,
+  "unique_blobs": 119,
+  "identity_sha256": "c0b7044b6ae08e9647b078ba8665ac5df416d2e7463b7ba80edee8e02456cb5b",
+  "verified_utc": "2026-10-31T15:20:10.031201+00:00"
+}

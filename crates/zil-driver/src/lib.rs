@@ -7,7 +7,9 @@ mod contracts;
 mod ct_program;
 mod ct_selection;
 mod project;
+mod semantic_cache;
 mod session;
+mod stable_source_identity;
 pub use project::{ProjectSources, compile_project};
 pub use session::CompilationSession;
 pub use zil_db::CancellationToken;
@@ -17,7 +19,8 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 pub use zil_backend_llvm::{
-    CodegenOptions, CodegenSummary, NativeBackend, Optimization, WindowsLinkOptions,
+    CodegenOptions, CodegenSummary, FunctionMerging, NativeBackend, Optimization,
+    WindowsLinkOptions,
 };
 use zil_base::{
     CompileResult, Diagnostic, FileId, Fingerprint, Limits, ModuleId, Phase, ResultCategory,
@@ -62,10 +65,18 @@ pub struct CompileOptions {
     pub output: Option<PathBuf>,
     pub entry: Option<String>,
     pub cache_dir: Option<PathBuf>,
+    /// Explicitly trusted local raw TypedProgram cache; never stores Verified.
+    pub semantic_cache: Option<PathBuf>,
     /// Trusted local machine-object cache; independent of source-candidate cache.
     pub object_cache: Option<PathBuf>,
     pub clang: Option<PathBuf>,
     pub optimization: zil_backend_llvm::Optimization,
+    /// Explicit Linux build without generated ZIL symbol exports; default false.
+    pub closed_executable: bool,
+    /// Explicit O2 partitioning with complete direct-call implementation copies.
+    pub incremental_o2: bool,
+    /// O2 function-merging policy, with address-preserving reference controls.
+    pub function_merging: FunctionMerging,
     pub codegen: CodegenOptions,
     pub windows: Option<zil_backend_llvm::WindowsLinkOptions>,
     pub target: TargetProfile,
@@ -85,9 +96,13 @@ impl Default for CompileOptions {
             output: None,
             entry: None,
             cache_dir: None,
+            semantic_cache: None,
             object_cache: None,
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
+            closed_executable: false,
+            incremental_o2: false,
+            function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
             windows: None,
             target: TargetProfile::host_llvm(),

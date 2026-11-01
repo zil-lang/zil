@@ -1,0 +1,27 @@
+{
+  "kind": "confirmation-isolation",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 2064,
+      "bytes": 99489504
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 252,
+      "bytes": 40580640
+    },
+    {
+      "class": "large-semantic-cache-candidate",
+      "files": 720,
+      "bytes": 1409762484
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 7662,
+      "bytes": 740791409
+    }
+  ],
+  "selected_paths": 10698,
+  "unique_blobs": 1705
+}

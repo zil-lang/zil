@@ -1,0 +1,74 @@
+[
+  {
+    "prefix": "research/stage6/combined-runtime-analysis-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-analysis-v1"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-config-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-config-controls"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-config-v1.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-config-v1.json"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-config-v2.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-config-v2.json"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-exclusive-lease.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-exclusive-lease.json"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-formal-v1.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-formal-v1.log"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-native-oracles-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-native-oracles-v1"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-native-oracles-v1.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-native-oracles-v1.log"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-preparation-execution.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-preparation-execution.json"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-prepare-v1.log",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-prepare-v1.log"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-prepared-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-prepared-v1"
+  },
+  {
+    "prefix": "research/stage6/combined-runtime-ready.json",
+    "source_path": "/workspace/.zil-env/research/stage6/combined-runtime-ready.json"
+  },
+  {
+    "prefix": "research/stage6/confirmation-incremental-original-nogo.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-incremental-original-nogo.json"
+  },
+  {
+    "prefix": "research/stage6/opaque-compile-independent-v1/part1.json",
+    "source_path": "/workspace/.zil-env/research/stage6/opaque-compile-independent-v1/part1.json"
+  },
+  {
+    "prefix": "research/stage6/runtime-analysis-independent-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/runtime-analysis-independent-v1"
+  },
+  {
+    "prefix": "research/stage6/runtime-combined-review",
+    "source_path": "/workspace/.zil-env/research/stage6/runtime-combined-review"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/runtime-final-v1-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/runtime-final-v1-plan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

@@ -25,7 +25,23 @@ pub fn check_program(
     limits: &Limits,
 ) -> CompileResult<TypedProgram> {
     let inferred = resolve_program_shapes(program, limits)?;
-    let program = &inferred;
+    check_resolved_program(&inferred, target, limits)
+}
+
+pub(super) fn check_resolved_program(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
+) -> CompileResult<TypedProgram> {
+    check_resolved_program_with_reuse(program, target, limits, None)
+}
+
+pub(super) fn check_resolved_program_with_reuse(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
+    mut reuse: Option<&mut incremental::Reuse<'_>>,
+) -> CompileResult<TypedProgram> {
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
     let limit = || {
         vec![Diagnostic::limit(
@@ -227,6 +243,9 @@ pub fn check_program(
         .map_err(|e| vec![e])?;
         factories.insert(id, typed);
     }
+    if let Some(reuse) = &mut reuse {
+        reuse.prepare(program, &signatures_by_module, target, limits);
+    }
     let mut functions = Vec::new();
     let mut interfaces = Vec::new();
     let mut resources = Vec::new();
@@ -247,7 +266,14 @@ pub fn check_program(
             let id = signature.concrete_id(f.span).map_err(|e| vec![e])?;
             let mut typed = if let Some(typed) = factories.remove(&id) {
                 typed
+            } else if let Some(typed) = reuse
+                .as_mut()
+                .and_then(|reuse| reuse.get(core.module_id, f, &mut closure_state))
+            {
+                visibility.check(&typed, core.module_id)?;
+                typed
             } else {
+                let accounting_before = closure_state.accounting();
                 let pending_start = closure_state.pending.len();
                 let thin_start = closure_state.thin.len();
                 let mut builder =
@@ -263,6 +289,15 @@ pub fn check_program(
                 }
                 for function in closure_state.thin[thin_start..].iter().flatten() {
                     visibility.check(function, core.module_id)?;
+                }
+                if let Some(reuse) = &mut reuse {
+                    reuse.save(
+                        core.module_id,
+                        f,
+                        &typed,
+                        accounting_before,
+                        closure_state.accounting(),
+                    );
                 }
                 typed
             };

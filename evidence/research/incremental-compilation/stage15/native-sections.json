@@ -1,0 +1,112 @@
+[
+  {
+    "window": "confirmed",
+    "case": "large-8192",
+    "arms": {
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage15/confirmed/large-8192/0-default-baseline/program",
+        "elf_sha256": "4a1ae9bfeee39bd84f640cdbf07bcb346f3f0ee326a310d1a7b9199839cb80cc",
+        "elf_bytes": 376080,
+        "text_sha256": "117ad9d8c155bb2416ef88516353668dda95264b839788eb8588f0310826934c",
+        "text_bytes": 66421
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage15/confirmed/large-8192/0-default-candidate/program",
+        "elf_sha256": "f17fc360f1e353616da377a0d3b3999a0b511452fec52845ab2a1e80df29727a",
+        "elf_bytes": 376080,
+        "text_sha256": "117ad9d8c155bb2416ef88516353668dda95264b839788eb8588f0310826934c",
+        "text_bytes": 66421
+      }
+    },
+    "text_equal": true,
+    "whole_elf_equal": false
+  },
+  {
+    "window": "confirmed",
+    "case": "large-even-8x1024",
+    "arms": {
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage15/confirmed/large-even-8x1024/0-default-baseline/program",
+        "elf_sha256": "35287972835631efc008d62fa3fafcb14ba02f532f8e5e4f52c4e8c0a9a83374",
+        "elf_bytes": 376568,
+        "text_sha256": "dbdc6d89404fc3bb440fee061eba2c845a6b994dbd8a758caeed6debde37c86d",
+        "text_bytes": 66485
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage15/confirmed/large-even-8x1024/0-default-candidate/program",
+        "elf_sha256": "0d399e2f5e02eb1ba47cf65b4c378a654246859f003c9450b798da1c6f1c5f39",
+        "elf_bytes": 376568,
+        "text_sha256": "dbdc6d89404fc3bb440fee061eba2c845a6b994dbd8a758caeed6debde37c86d",
+        "text_bytes": 66485
+      }
+    },
+    "text_equal": true,
+    "whole_elf_equal": false
+  },
+  {
+    "window": "confirmed",
+    "case": "large-skew-8",
+    "arms": {
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage15/confirmed/large-skew-8/0-default-baseline/program",
+        "elf_sha256": "08810b3d99349349949535d827abd8b1b84a052f91f2d7853c8227731846c1c1",
+        "elf_bytes": 376568,
+        "text_sha256": "4324c29e37e4aee1973c7d1bec7c1860b23faf546033e39b98c6216d50b548e1",
+        "text_bytes": 66485
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage15/confirmed/large-skew-8/0-default-candidate/program",
+        "elf_sha256": "be1d888c87534459a3d4619d43fdc4ea2c47095bd140ff89715e3cb17dee42bc",
+        "elf_bytes": 376568,
+        "text_sha256": "4324c29e37e4aee1973c7d1bec7c1860b23faf546033e39b98c6216d50b548e1",
+        "text_bytes": 66485
+      }
+    },
+    "text_equal": true,
+    "whole_elf_equal": false
+  },
+  {
+    "window": "confirmed",
+    "case": "opaque-2048-branch",
+    "arms": {
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage15/confirmed/opaque-2048-branch/0-default-baseline/program",
+        "elf_sha256": "b054af688adbaf0e3da5bb4232a7b1147af903345b21e9bbc17bceb90694de1d",
+        "elf_bytes": 260728,
+        "text_sha256": "c87b38ffabe797cddfb17461a9bf6d688b49ced09e65aab2290c1e2752f5b49a",
+        "text_bytes": 173895
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage15/confirmed/opaque-2048-branch/0-default-candidate/program",
+        "elf_sha256": "b054af688adbaf0e3da5bb4232a7b1147af903345b21e9bbc17bceb90694de1d",
+        "elf_bytes": 260728,
+        "text_sha256": "c87b38ffabe797cddfb17461a9bf6d688b49ced09e65aab2290c1e2752f5b49a",
+        "text_bytes": 173895
+      }
+    },
+    "text_equal": true,
+    "whole_elf_equal": true
+  },
+  {
+    "window": "closed-guard",
+    "case": "large-even-8x1024",
+    "arms": {
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage15/closed-guard/large-even-8x1024/0-closed-baseline/program",
+        "elf_sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+        "elf_bytes": 15792,
+        "text_sha256": "30368e679c1b0fc9204a1a17c6ac104ff8959eed81fdb25c520e8efe3932d2d4",
+        "text_bytes": 274
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage15/closed-guard/large-even-8x1024/0-closed-candidate/program",
+        "elf_sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+        "elf_bytes": 15792,
+        "text_sha256": "30368e679c1b0fc9204a1a17c6ac104ff8959eed81fdb25c520e8efe3932d2d4",
+        "text_bytes": 274
+      }
+    },
+    "text_equal": true,
+    "whole_elf_equal": true
+  }
+]

@@ -1,0 +1,87 @@
+{
+  "schema": 2,
+  "kind": "ci-disk",
+  "collected_utc": "2026-10-31T14:22:04.551698+00:00",
+  "head_at_collection": "50250e29a896b10529f8277ccbeb931bb54c3c93",
+  "collector_sha256": "19bd94bdd1f9706c4dbd9ca2caec3cb72cf6e8c10339883c0eabaa89b98d4a78",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 137935,
+    "sha256": "8b2b174bef621ad1bb5d1db1d5d268781951efc30aae34f2451a50a7247ab188",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 137935,
+        "sha256": "8b2b174bef621ad1bb5d1db1d5d268781951efc30aae34f2451a50a7247ab188"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 49,
+      "logical_bytes": 19925,
+      "logical_sha256": "2a52954fa958eb33a893cc2f025c89a75bd2dc9dcea14864c10c33befaa1a710",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 3249,
+        "sha256": "5ceed0edd0ac38d25ae4ab6f1e5ce945df5c541d60d69c73e261f46c3e40873f",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 3249,
+            "sha256": "5ceed0edd0ac38d25ae4ab6f1e5ce945df5c541d60d69c73e261f46c3e40873f"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 0,
+      "logical_bytes": 0,
+      "logical_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 34,
+        "sha256": "8cd2c5feff5bbcfaf8dbbb0c60425bed16e2815cdc1bd4a444ea8cc3380c282a",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 34,
+            "sha256": "8cd2c5feff5bbcfaf8dbbb0c60425bed16e2815cdc1bd4a444ea8cc3380c282a"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 3249,
+      "sha256": "5ceed0edd0ac38d25ae4ab6f1e5ce945df5c541d60d69c73e261f46c3e40873f"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "8cd2c5feff5bbcfaf8dbbb0c60425bed16e2815cdc1bd4a444ea8cc3380c282a"
+    },
+    "ROOTS.json": {
+      "bytes": 2070,
+      "sha256": "eb836e6c1996ff46bf574538f52d87335a4846eeba36dfc386cc7ccc60f3d9a5"
+    },
+    "PLAN.json": {
+      "bytes": 183,
+      "sha256": "79308dcc7482b811a9c51c2aeb4c7c8f6d9fd36932c29dd25ea4bec31133f2ad"
+    }
+  },
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 49,
+      "bytes": 744963
+    }
+  ],
+  "retained_paths": 49,
+  "omitted_paths": 0,
+  "unique_blobs": 42,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "CI disk recovery only: original 41207249551 ENOSPC failure, empty downloaded logs, author/reviewer controls, root-discovered sudo-parent and umask corrections, and actual uploaded cleanup receipt from still-in-progress 41209327141. Receipt Pass is not a whole-CI or compiler-test Pass."
+}

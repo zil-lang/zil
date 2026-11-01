@@ -1,0 +1,54 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 2.06s
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_driver-fa1548cfe1f00883)
+
+running 34 tests
+test artifacts::tests::second_native_rename_failure_restores_both_previous_outputs ... ok
+test ct_program::tests::ct202_collector_bounds_unused_template_names_before_whole_program_copy ... ok
+test artifacts::tests::later_validation_rechecks_files_parent_directories_and_aliases ... ok
+test ct_program::tests::ct_reachable_pattern_trees_are_bounded_before_clone ... ok
+test artifacts::tests::one_parent_resolution_matches_the_uncached_resolver ... ok
+test ct_program::tests::ct202_collector_rejects_bare_template_and_indirect_wrapper_before_execution ... ok
+test ct_program::tests::ct122_original_teardown_is_bounded_before_query_copy ... ok
+test project::discovery158_tests::discovery_cancellation_and_active_query_guards_still_apply ... ok
+test project::discovery158_tests::discovery_reuses_exact_published_syntax_arcs_but_reads_edited_bytes ... ok
+test project::discovery158_tests::cached_syntax_cannot_hide_lower_quotas_syntax_errors_or_ambiguous_entries ... ok
+test project::discovery158_tests::capacity_eviction_keeps_lent_syntax_valid_without_caching_authority ... ok
+test session::bounded_history_tests::frontend_reuse_requires_reachable_receipts_and_never_supplies_authority ... ok
+test session::construction_identity150_tests::construction_identity_binds_every_query_axis_and_all_limits ... ok
+test session::construction_identity150_tests::construction_identity_binds_order_count_upstream_key_and_observation ... ok
+test tests::artifact_preflight_detects_hard_links_and_parent_symlink_aliases ... ok
+test tests::artifact_preflight_protects_source_from_every_phase_dump_and_native_destination ... ok
+test tests::artifact_preflight_rejects_dump_native_collisions_before_any_write ... ok
+test tests::cache_changed_source_limits_build_inputs_and_file_identity_cannot_reuse_stale_snapshots ... ok
+test tests::cache_disk_corruption_is_rebuilt_and_never_substitutes_for_phase_execution ... ok
+test tests::cache_session_reuses_raw_phases_but_always_runs_independent_verification ... ok
+test tests::cache_tampered_raw_typed_snapshot_is_rejected_by_a_new_verifier_run ... ok
+test tests::cache_target_change_reuses_frontend_and_rechecks_target_dependent_phases ... ok
+test session::bounded_history_tests::large_edits_release_obsolete_owners_before_constructing_the_new_epoch ... ok
+test tests::cancellation_after_native_link_preserves_both_previous_successful_outputs ... ok
+test tests::cancellation_before_start_and_after_cache_hit_cannot_report_success ... ok
+test tests::cancellation_during_a_phase_aborts_publication_and_next_request_recovers ... ok
+test tests::explicit_main_contract_has_the_frozen_types_diagnostics ... ok
+test tests::cancellation_after_native_link_removes_the_unpublished_executable ... ok
+test tests::native_entry_cannot_select_a_synthesized_closure_with_or_without_captures ... ok
+test tests::source_ct_keeps_original_core_and_propagates_ct_errors ... ok
+test tests::unsupported_profile_and_invalid_source_have_explicit_categories ... ok
+test session::bounded_history_tests::large_current_projects_reuse_semantics_across_the_old_capacity_cliff ... ok
+test tests::late_artifact_failure_preserves_both_previous_native_outputs ... ok
+test session::bounded_history_tests::edits_errors_cancellation_and_eviction_match_fresh_without_growing_history ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.44s
+
+     Running tests/project_frontend_reuse.rs (/workspace/.zil-env/target/debug/deps/project_frontend_reuse-82d89ad44939a74f)
+
+running 6 tests
+test replayed_phase_order_keeps_observer_cancellation_and_recovery ... ok
+test same_complete_input_reuses_frontend_after_parse_eviction_and_verifies_now ... ok
+test reused_frontend_builds_current_native_output_and_preserves_link_cancellation ... ok
+test stage_stops_artifacts_disk_sources_and_filesystem_discovery_keep_original_path ... ok
+test changed_source_identity_rules_limits_and_target_match_fresh ... ok
+test real_resources_generics_ct_and_products_reuse_evicted_frontends ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.53s
+

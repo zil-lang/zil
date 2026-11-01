@@ -1,0 +1,16 @@
+{
+  "tools": [],
+  "repo_extra_sources": [],
+  "external_sources": [],
+  "tool_source_inventory": [],
+  "omission_paths": {},
+  "preserve_paths": [],
+  "research_roots": [
+    "stage6/confirmation-real",
+    "stage6/confirmation-real-execution.json",
+    "stage6/confirmation-real-exclusive-lease.json",
+    "stage6/confirmation-real.log",
+    "stage6/confirmation-real-analysis-v1"
+  ],
+  "archive_scope": "Complete frozen14-real-program default-export O2 CLI matrix:336 requests from14cases x6blocks x2arms x2cold/unchanged requests, all valid. Original df04 runner/distribution/timing helpers are retained with their own measured SHA, separate from common888 compiler/744 LLVM and later analysis producer. Full source/native oracles/reports/commands/lease/execution and independent AuditComplete analysis retained. Fixed small repository programs do not represent industrial-workload sampling or equal internal compiler work; no edited-request benchmark was run. Generated binaries/objects/caches are SHA-inventoried where omitted and are not deleted by collection. No later quality candidate or default-only pyc correction is included."
+}

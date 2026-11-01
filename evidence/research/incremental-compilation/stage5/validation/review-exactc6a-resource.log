@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/object_cache212.rs (/workspace/.zil-env/research/stage5/review-target5189/debug/deps/object_cache212-8eb14ab05887cf5f)
+
+running 1 test
+test large_file_chunks_preserve_owned_closures_drop_and_function_addresses ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.54s
+

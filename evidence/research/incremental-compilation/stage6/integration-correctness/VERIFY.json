@@ -1,0 +1,9 @@
+{
+  "kind": "integration-correctness",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 364,
+  "omitted_paths": 2,
+  "unique_blobs": 198,
+  "identity_sha256": "ed2951d56c735a0c3a4257c888bda576aa57535217700b637ea4099d5d84ce9c",
+  "verified_utc": "2026-10-31T13:55:42.521839+00:00"
+}

@@ -1,0 +1,9 @@
+{
+  "kind": "ci-dual-df04",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 86,
+  "omitted_paths": 0,
+  "unique_blobs": 83,
+  "identity_sha256": "58e7cbae486d2baf58b7ad556d511e451b74cf8df85bff5c803336c61f113211",
+  "verified_utc": "2026-10-31T15:53:38.141271+00:00"
+}

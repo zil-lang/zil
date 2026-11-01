@@ -1,0 +1,74 @@
+{
+  "kind": "merge-screens",
+  "roots": [
+    {
+      "archive_prefix": "research/stage6/merge-screen-closed-after",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-closed-after"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-closed-after.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-closed-after.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-closed-before-and-after",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-closed-before-and-after"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-closed-before-and-after.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-closed-before-and-after.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-default-after",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-default-after"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-default-after.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-default-after.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-default-before-and-after",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-default-before-and-after"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-default-before-and-after.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-default-before-and-after.log"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screen-execution.json",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screen-execution.json"
+    },
+    {
+      "archive_prefix": "research/stage6/merge-screens.log",
+      "source_path": "/workspace/.zil-env/research/stage6/merge-screens.log"
+    },
+    {
+      "archive_prefix": "research/stage6/run-merge-screens.py",
+      "source_path": "/workspace/.zil-env/research/stage6/run-merge-screens.py"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_bench.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_bench.py"
+    },
+    {
+      "archive_prefix": "collection-source/tools/research/incremental-compilation/stage6_archive.py",
+      "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive.py"
+    }
+  ],
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 705,
+      "bytes": 29380664
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 107,
+      "bytes": 13341360
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 2300,
+      "bytes": 454909042
+    }
+  ]
+}

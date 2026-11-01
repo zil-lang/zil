@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "kind": "screens",
+  "collected_utc": "2026-10-31T11:43:22.886195+00:00",
+  "head_at_collection": "43037eb7b108ba864144979204b5c6d18636dac3",
+  "collector_sha256": "b8cdcd8cf309b5fc9d835f1e5d4208951be1bad7c7e5cd4adc0ae1752e942df9",
+  "boundary": "Raw archived observations, not rerun measurements or final performance acceptance. Each original path maps to exact bytes in a SHA-addressed blob. Duplicate raw bytes are stored once without rewriting text, JSON, LLVM IR, source or receipts. Current collection-source files are distinct from measured request-local or frozen-tool copies. Omitted build products/cache binaries are individually inventoried with their observed byte SHA; original tool/source/request identities remain authoritative.",
+  "archive": {
+    "path": "raw.tar.gz",
+    "bytes": 8100205,
+    "sha256": "cc863f7f2850896dc01854c3e53674e2c0eb8ae7f6f85450a385a4f2a38f5187"
+  },
+  "sidecars": {
+    "FILES.json": "14bedb36e37ac7d399241094a83a92b4547bce9fcdd3a499b49a36738045028a",
+    "OMITTED.json": "78d08f6efd42d89af337a650280f57fbb217abfd00bca5acd229e9590458bda6",
+    "ROOTS.json": "47581eb2d5b1fdddd85e003c49b72d95e66ca50b4ade591dd1deb8e51fe18cf7",
+    "PLAN.json": "5258ca677624ed25f6cda42fec20e37db0d94e5c9725e3d71661e86bc94891b8"
+  },
+  "retained_paths": 2274,
+  "unique_blobs": 534,
+  "unique_retained_bytes": 106652752,
+  "omitted_paths": 1822,
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 1642,
+      "bytes": 1173587924
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 108,
+      "bytes": 175853424
+    },
+    {
+      "class": "ephemeral-rust-incremental-lock",
+      "files": 72,
+      "bytes": 0
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 2274,
+      "bytes": 272787161
+    }
+  ],
+  "reconstruction": "Use stage6_archive.py --extract <archive-directory> --dest <new-directory>. Only retained files are reconstructed. Omitted binary cache/tool/executable bytes cannot be recovered from this archive; rebuild using the preserved source and original receipts if needed."
+}

@@ -1,0 +1,23 @@
+{
+  "research_roots": [
+    "stage6/confirmation-default-analysis-v2",
+    "stage6/confirmation-default-rust-cache-cleanup-audit.jsonl",
+    "stage6/confirmation-default-rust-cache-cleanup-receipt.json",
+    "stage6/confirmation-default-rust-cache-cleanup-v2-audit.jsonl",
+    "stage6/confirmation-default-rust-cache-cleanup-v2-receipt.json",
+    "stage6/confirmation-default-rust-cache-cleanup-v2.log",
+    "stage6/confirmation-default-rust-cache-cleanup-v2.py",
+    "stage6/confirmation-default-rust-cache-cleanup.log",
+    "stage6/confirmation-default-rust-cache-cleanup.py",
+    "stage6/confirmation-default-rust-cache-hardlink-diagnosis.json",
+    "stage6/confirmation-default-rust-cache-preinventory.json",
+    "stage6/generated-analysis-import-correction-v1"
+  ],
+  "tools": [],
+  "repo_extra_sources": [],
+  "external_sources": [],
+  "tool_source_inventory": [],
+  "omission_paths": {},
+  "preserve_paths": [],
+  "archive_scope": "Exact authorized post-archive cleanup of only138 default-window Rustincremental cache directories after full5172-file SHA validation against the frozen raw archive. All source/program/object/semantic-cache and request evidence paths retained. Full per-file validation/deletion audit and partial/error reporting preserved. Separately includes frozen v2 no-bytecode analysis and correction receipts: v1 SourceFileLoader generated a post-measurement pyc, whose bytes/source and before/after identities remain documented; no original raw/v1/pyc deletion or rewriting. v2 statistical tables match v1; cleanup is not a performance measurement. Initial cleanup verified all5172 files and safely stopped after22 deletes because own hardlink unlink changed aliasctime. V2 binds that partial ledger, revalidates all5150 remaining files, and rehashes any own-hardlink alias metadata change immediately before unlink. Both epochs and exact diagnosis remain retained."
+}

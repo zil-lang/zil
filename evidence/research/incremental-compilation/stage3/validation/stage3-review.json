@@ -1,0 +1,123 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_commit": "a4bec09fbaff29a353ad21571e183166de0968dc",
+  "baseline_commit": "240bb37d806be81f82360e626d74af1844e973fc",
+  "verdict": "Pass",
+  "scope": "Independent scoped correctness review of exact-input project frontend reuse; not a performance or product gate",
+  "blocking_findings": [],
+  "created_utc": "2026-10-31T04:36:54.247637+00:00",
+  "static_review": [
+    "Explicit ProjectSources only: loaded_syntax None, stop_after >= Types, emit_dir/cache_dir None. File-system discovery, early stage stops and requested intermediate/disk-source outputs retain original path.",
+    "Current Driver cancellation/profile, validate_sources module/file uniqueness, source/path/map costs and ArtifactPlan::project physical destination/source protections execute before reuse.",
+    "Current Types key binds ordered project root/module/file/path/source/import-map fingerprint, all 11 Limits fields, build_inputs/rules/schema and target. Native output/entry/backend/optimization options are consumed later on the unchanged finish_typed path.",
+    "Raw ProjectTyped is private process-local immutable state. Database::read checks complete transitive dependency presence, observed fingerprints and active/cyclic state; then successful Types -> CT -> either original target-independent or target-dependent Expand -> ordered module Parse shape is checked. Missing/incompatible metadata falls back; no disk receipt alone authorizes this path.",
+    "Only exact previously successful frontend computation is skipped, so original Parse charging, import graph/CT selection/evaluation, entry contract and type acceptance are reused at the identical logical budget. Distinct quotas take distinct Types keys; deterministic first-error and quota controls compare with fresh.",
+    "Replayed Parse/Expand/CT/Types event order has before/after cancellation checks and only touches existing raw owners. It does not materialize evicted Parse or introduce recency-only owners. Repeated fast requests retain the existing bounded raw working set.",
+    "Analyze retains original query behavior; every request progressing through Verify increments verification_runs and calls independent verify_shared_program_module. Internal raw schema corruption remains E-VERIFY-SCHEMA, not cached verification authority.",
+    "No production modification outside session.rs/project.rs in this commit; the test/proposal/design/task/limited-runner additions remain inside the assigned research scope."
+  ],
+  "independent_commands": [
+    {
+      "command": ". /workspace/.zil-env/env.sh; cargo test --offline --locked -p zil-driver --features llvm-api --test project_frontend_reuse",
+      "exit_code": 0,
+      "tests_passed": 5,
+      "log": "stage3-review-integration.log"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; cargo test --offline --locked -p zil-driver --features llvm-api --lib frontend_reuse_requires_reachable_receipts_and_never_supplies_authority",
+      "exit_code": 0,
+      "tests_passed": 1,
+      "log": "stage3-review-fault.log"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; rustc --edition=2024 /workspace/.zil-env/research/stage3-independent-probe.rs --extern zil_driver=/workspace/.zil-env/target/debug/deps/libzil_driver-a9a13b2ff6e7897a.rlib --extern zil_base=/workspace/.zil-env/target/debug/deps/libzil_base-a5cb5dbca91c1029.rlib -L dependency=/workspace/.zil-env/target/debug/deps -L native=\"$ZIL_LLVM_LIB_DIR\" -o /workspace/.zil-env/research/stage3-independent-probe",
+      "exit_code": 0,
+      "log": "stage3-independent-probe-build.log"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; /workspace/.zil-env/research/stage3-independent-probe",
+      "exit_code": 0,
+      "log": "stage3-independent-probe.log"
+    }
+  ],
+  "additional_probe": {
+    "source_level": "Real ZIL source through public driver API; Rust probe supplies sources/options only, never IR",
+    "cases": [
+      "Types-only publication -> warm Types -> current independent Verify; cross-module #if dependency and CT expression",
+      "all 11 Limits fields independently increased by one: Types executes, then exact warm reuse succeeds",
+      "tokens exact 724 / insufficient 723 -> Parse E-RESOURCE-LIMIT",
+      "nodes exact 4645 / insufficient 4644 -> Ct E-RESOURCE-LIMIT",
+      "CT steps exact 27 / insufficient 26 -> Ct E-RESOURCE-LIMIT",
+      "unchanged complete logical input + new source hardlink alias -> E-OUTPUT-SOURCE before any query event"
+    ],
+    "comparison": "status, phase, diagnostic vector including spans/order, input fingerprint, source files, scalar interfaces, Verify count and ordered phase sequence compared with fresh; disposition differences intentionally expected"
+  },
+  "source_identity": {
+    "crates/zil-driver/src/project.rs": {
+      "commit_sha256": "02ee2d292b71616c1631301b51d1e763e2c658faaa2c091efb47ffa189aeabec",
+      "working_sha256": "02ee2d292b71616c1631301b51d1e763e2c658faaa2c091efb47ffa189aeabec"
+    },
+    "crates/zil-driver/src/session.rs": {
+      "commit_sha256": "ad987d0080c316bee123307c0e27f475767e46936880a34119b25e84b0a884df",
+      "working_sha256": "ad987d0080c316bee123307c0e27f475767e46936880a34119b25e84b0a884df"
+    },
+    "crates/zil-driver/tests/project_frontend_reuse.rs": {
+      "commit_sha256": "700109530d4be39d8c46cd76ef3a8a9bb8d1f97e1525d11dec5252ddac0bdf7b",
+      "working_sha256": "50324cdfb74eca8e234e2d5d96454166e34ed0fd541a1fad0d15adaeceda2dcd"
+    },
+    "changes/research-project-frontend-reuse.md": {
+      "commit_sha256": "3e39c383d10f30bd816435ec82a6944bc4a1dfd78ddeb7a9899f47f81ba50da0",
+      "working_sha256": "3e39c383d10f30bd816435ec82a6944bc4a1dfd78ddeb7a9899f47f81ba50da0"
+    },
+    "docs/research/incremental-compilation/FRONTEND-REUSE.md": {
+      "commit_sha256": "1a0adf62b6f0de9e0dad09b58bd49ef3b9f337b7a138825beacb46cc49c13b13",
+      "working_sha256": "7000b0418517183611499a8da99f286ea1f167ba7c85443383f98e078998e4c5"
+    },
+    "tools/research/incremental-compilation/verify_scoped.sh": {
+      "commit_sha256": "7a5fe3128f31a87f1b0ed75fb9515c592d043730e430abc2babb81dad1b02164",
+      "working_sha256": "7a5fe3128f31a87f1b0ed75fb9515c592d043730e430abc2babb81dad1b02164"
+    },
+    ".task/research/incremental-compilation.md": {
+      "commit_sha256": "0e8c9c174cb577276ae3cbb27bd37312824c714a3a33b054faac0f58a3f3cf3a",
+      "working_sha256": "0e8c9c174cb577276ae3cbb27bd37312824c714a3a33b054faac0f58a3f3cf3a"
+    }
+  },
+  "artifacts": {
+    "/workspace/.zil-env/research/stage3-review-integration.log": {
+      "sha256": "5fce498ea8df3a1e72d1525ab57b61a4a3bc1ad410742355628d29c9ecd4b0f8",
+      "bytes": 711
+    },
+    "/workspace/.zil-env/research/stage3-review-fault.log": {
+      "sha256": "b3cd107a68037707acf7bb07a9ed8e17578c2d75d2592ad7bb9512f357eb35b4",
+      "bytes": 392
+    },
+    "/workspace/.zil-env/research/stage3-independent-probe.rs": {
+      "sha256": "69dc7d8fd5d9a6aaeb8cee611cc668c8bd4fd2a0469b36d02ccb06a2f1cd3725",
+      "bytes": 5943
+    },
+    "/workspace/.zil-env/research/stage3-independent-probe-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "/workspace/.zil-env/research/stage3-independent-probe.log": {
+      "sha256": "dcc6567aced53b8333bbdd8f467ad086fdd392aac2f4abd446c08b4a27242886",
+      "bytes": 505
+    },
+    "/workspace/.zil-env/research/stage3-independent-probe": {
+      "sha256": "02d0596e4c464150f4380762bb5bb3c3e10c2d5edb1bb7008c912705c1ddca15",
+      "bytes": 36112904
+    }
+  },
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "llvm": "23.1.4 via /workspace/.zil-env/env.sh"
+  },
+  "concurrent_changes": "At initial review start worktree was clean at a4bec09. The five-test integration run finished 2026-10-31 04:33:59 UTC. Constructor subsequently appended a sixth real-corpus test (mtime 04:34:29 UTC); original five tests and production source unchanged. That later uncommitted addition is not covered by this exact-SHA execution claim, and the test binary was subsequently rebuilt by constructor. Test source committed SHA and current hash are recorded separately.",
+  "limits": [
+    "No official full suite or benchmark executed by reviewer. Six repository tests independently rerun; constructor reported 492 is not an independent reviewer execution count.",
+    "No new performance numbers approved. Parent was notified CPU tests ended before its exclusive measurement window.",
+    "Raw-owner capacity bounds counts, not bytes or reachable dependency metadata. Historical stage-2 review/evidence identities remain unchanged.",
+    "No semantic incrementality for edited bodies is claimed. Exact input-key hashing and private-cache integrity retain their pre-existing threat model."
+  ]
+}

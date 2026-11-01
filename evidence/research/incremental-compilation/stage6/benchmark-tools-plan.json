@@ -1,0 +1,140 @@
+{
+  "research_roots": [
+    "stage6-confirmation-review",
+    "stage6-timer-review",
+    "stage6/archive-frozen-tool-sources-v1/a638e8aacab9ced167c31eb52a75001c3d134c75/SOURCE-INVENTORY-d8bbd5796802.json",
+    "stage6/archive-frozen-tool-sources-v1/a638e8aacab9ced167c31eb52a75001c3d134c75/tools/research/incremental-compilation/stage6_bench.py",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/DEPENDENCY-INVENTORY.json",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/SOURCE-INVENTORY-3da69b358762.json",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/distribution_bench.py",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_bench.py",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_confirmation.py",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_merge_runtime.py",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_opaque_bench.md",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_opaque_bench.py",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_real_pair_bench.py",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_runtime_config.py",
+    "stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_toolchain_runtime.py",
+    "stage6/confirmation-runner-controls",
+    "stage6/opaque-compile-author-controls-v1",
+    "stage6/opaque-compile-author-controls-v2",
+    "stage6/opaque-compile-author-controls.py",
+    "stage6/opaque-compile-author-final-controls-v1",
+    "stage6/opaque-compile-author-final-controls.py",
+    "stage6/opaque-compile-author-isolation-v1",
+    "stage6/opaque-compile-author-rust-v1",
+    "stage6/opaque-compile-independent-v1",
+    "stage6/stage6-opaque-runner-before-pipeline-tightening.py",
+    "stage6/toolchain-runtime-api-guard-prepare-only.log",
+    "stage6/toolchain-runtime-api-guard-receipt.json",
+    "stage6/toolchain-runtime-api-guard-run-prepared.log",
+    "stage6/toolchain-runtime-api-guard-smoke",
+    "stage6/toolchain-runtime-api-guard-smoke.json",
+    "stage6/toolchain-runtime-tool-controls",
+    "stage6/toolchain-runtime-v1-config-controls",
+    "stage6/benchmark-tools-capture-correction.json"
+  ],
+  "source_strategy": "Preserve every initial/final tool copy in controls/reviews; df04 delivery binding is distinct from original c17/7830 opaque and a638 reference-cache review. Recover immutable old stage6_bench/config/runtime sources when a copy is absent, never bind to current timer.",
+  "git_snapshots": [
+    {
+      "revision": "df04d4920b9d3ec618e660f8149063eb6019b317",
+      "paths": [
+        "tools/research/incremental-compilation/stage6_bench.py",
+        "tools/research/incremental-compilation/stage6_confirmation.py",
+        "tools/research/incremental-compilation/stage6_opaque_bench.py",
+        "tools/research/incremental-compilation/stage6_toolchain_runtime.py",
+        "tools/research/incremental-compilation/stage6_runtime_config.py"
+      ]
+    },
+    {
+      "revision": "a638e8aacab9ced167c31eb52a75001c3d134c75",
+      "paths": [
+        "tools/research/incremental-compilation/stage6_bench.py"
+      ]
+    }
+  ],
+  "root_exists_checks": {
+    "stage6-confirmation-review": true,
+    "stage6-timer-review": true,
+    "stage6/confirmation-runner-controls": true,
+    "stage6/opaque-compile-author-controls-v1": true,
+    "stage6/opaque-compile-author-controls-v2": true,
+    "stage6/opaque-compile-author-controls.py": true,
+    "stage6/opaque-compile-author-final-controls-v1": true,
+    "stage6/opaque-compile-author-final-controls.py": true,
+    "stage6/opaque-compile-author-isolation-v1": true,
+    "stage6/opaque-compile-author-rust-v1": true,
+    "stage6/opaque-compile-independent-v1": true,
+    "stage6/stage6-opaque-runner-before-pipeline-tightening.py": true,
+    "stage6/toolchain-runtime-api-guard-prepare-only.log": true,
+    "stage6/toolchain-runtime-api-guard-receipt.json": true,
+    "stage6/toolchain-runtime-api-guard-run-prepared.log": true,
+    "stage6/toolchain-runtime-api-guard-smoke": true,
+    "stage6/toolchain-runtime-api-guard-smoke.json": true,
+    "stage6/toolchain-runtime-tool-controls": true,
+    "stage6/toolchain-runtime-v1-config-controls": true
+  },
+  "author_freeze_confirmation": "Opaque author confirms all5roots,2scripts and old c17 runner copy frozen; runtime author confirms earlier toolchain-runtime-* controls were already frozen and should retain their own receipts.",
+  "opaque_final_source_sha256": "7830d095eb1cdbc0e7096f7519fea670f27d5ab49475743ff8e7274681dfe83a",
+  "opaque_final_markdown_sha256": "5f23ab5b996c6434bb679ae83a875f05466ae44aeee962d01d1410775cbc758b",
+  "identity_note": "a638e8aacab9ced167c31eb52a75001c3d134c75 is the prior reference-cache Git revision; do not confuse it with the runtime prepared stage6_bench file SHA c682809\u2026.",
+  "tools": [],
+  "repo_extra_sources": [],
+  "external_sources": [],
+  "tool_source_inventory": [],
+  "omission_paths": {},
+  "preserve_paths": [
+    "research/stage6-timer-review/real-pair/byte_io-O2-0-1-rust/incremental/main-2u4q8viihsgov/s-hnq7erwfmn-10ahxjc-4y9f05gq3gevqgkl5smv0roj3/thin-lto-past-keys.bin",
+    "research/stage6-timer-review/real-pair/byte_io-O2-0-1-rust/incremental/main-2u4q8viihsgov/s-hnq7erz8os-1dfa4sj-4y9f05gq3gevqgkl5smv0roj3/thin-lto-past-keys.bin",
+    "research/stage6/opaque-compile-author-rust-v1/512-branch-0-1-rust/incremental/main-2u4q8viihsgov/s-hnq6x8tjqj-02yr55b-by60wy5orp4ycgnc366pxcqvm/thin-lto-past-keys.bin",
+    "research/stage6/opaque-compile-author-rust-v1/512-branch-0-1-rust/incremental/main-2u4q8viihsgov/s-hnq6xbcau4-0lcijxl-1isrfqvbi1rs3549jqky74sy5/thin-lto-past-keys.bin"
+  ],
+  "archive_scope": "Frozen benchmark author and independent controls, initial failures and later timer/opaque/reference-cache revisions. Immutable df04 delivery sources are separate from a638 Git revision and its c682 bench file SHA. No final formal CLI matrices are included.",
+  "pre_capture_metadata": {
+    "regular_paths": 1581,
+    "logical_bytes": 55686514,
+    "largest": [
+      {
+        "path": "research/stage6/opaque-compile-author-rust-v1/512-branch-0-1-rust/program",
+        "bytes": 4582680
+      },
+      {
+        "path": "research/stage6-timer-review/real-pair/oracle-byte_io/program",
+        "bytes": 4529912
+      },
+      {
+        "path": "research/stage6-timer-review/real-pair/byte_io-O2-0-1-rust/program",
+        "bytes": 4527000
+      },
+      {
+        "path": "research/stage6/opaque-compile-author-rust-v1/512-branch-0-1-rust/incremental/main-2u4q8viihsgov/s-hnq6xbcau4-0lcijxl-1isrfqvbi1rs3549jqky74sy5/dep-graph.bin",
+        "bytes": 1784143
+      },
+      {
+        "path": "research/stage6/opaque-compile-author-rust-v1/512-branch-0-1-rust/incremental/main-2u4q8viihsgov/s-hnq6x8tjqj-02yr55b-by60wy5orp4ycgnc366pxcqvm/dep-graph.bin",
+        "bytes": 1783663
+      },
+      {
+        "path": "research/stage6/opaque-compile-author-rust-v1/512-branch-0-1-rust/incremental/main-2u4q8viihsgov/s-hnq6x8tjqj-02yr55b-by60wy5orp4ycgnc366pxcqvm/query-cache.bin",
+        "bytes": 1130645
+      },
+      {
+        "path": "research/stage6/opaque-compile-author-rust-v1/512-branch-0-1-rust/incremental/main-2u4q8viihsgov/s-hnq6xbcau4-0lcijxl-1isrfqvbi1rs3549jqky74sy5/query-cache.bin",
+        "bytes": 1130147
+      },
+      {
+        "path": "research/stage6/opaque-compile-author-rust-v1/512-branch-0-0-candidate/program.ll",
+        "bytes": 1127529
+      },
+      {
+        "path": "research/stage6/opaque-compile-author-rust-v1/512-branch-0-0-candidate/semantics/semantic-v1/9341deaccde86653ed15fa58c8524fec5da4bfff6ccdb4ce874607eda092152b.candidate",
+        "bytes": 625067
+      },
+      {
+        "path": "research/stage6/opaque-compile-author-rust-v1/512-branch-0-0-candidate/semantics/semantic-v1/9d677ae38db09314bfb90a5436513aeaf633a10bb313d7af03dad96470d606f3.candidate",
+        "bytes": 625067
+      }
+    ]
+  },
+  "dependency_correction": "Initial capture passed byte integrity but lacked three imported helpers; it was never frozen or used as complete restoration evidence. All three exact df04 helpers now retained."
+}

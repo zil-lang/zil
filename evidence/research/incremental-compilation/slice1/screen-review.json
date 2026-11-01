@@ -1,0 +1,298 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_commit": "8fb69d61b41a241806e7021de93a27ce7e213f7b",
+  "verdict": "Pass",
+  "scope": "Independent recomputation and retained-evidence audit of scoped O0 wall-time screen; not Rust comparison or product acceptance",
+  "build_records_checked": 200,
+  "native_stdout_checked": 200,
+  "current_verify_checked": 200,
+  "complete_unique_requests": 200,
+  "numeric_summary_fields_checked": 30,
+  "max_numeric_difference": 2.220446049250313e-16,
+  "raw_log_files_hashed": 600,
+  "retained_final_elf_sha256_checked": 40,
+  "intermediate_elf_receipts_only": 160,
+  "compiler_sha256_checked": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/target-slice1-baseline/release/zil",
+      "sha256": "794c53ba6f71e4e752872e8797e23fda622bb9ba9dfd0d286e24609f5729bccf"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/target-slice1-candidate/release/zil",
+      "sha256": "90f00a1ba4d8592e777b485a06480db37bb2e352f6fb59614c7b11b210fa22f6"
+    }
+  },
+  "recomputed_cells": [
+    {
+      "modules": 4,
+      "request": "cold",
+      "block_means_ms": {
+        "baseline": [
+          67.9030805,
+          51.65375,
+          44.2527555,
+          41.627286,
+          51.3539175
+        ],
+        "candidate": [
+          43.7436,
+          45.4090245,
+          41.6479855,
+          45.5369455,
+          56.9043625
+        ]
+      },
+      "medians_ms": {
+        "baseline": 51.3539175,
+        "candidate": 45.4090245
+      },
+      "ratio": 0.8842368160131113,
+      "elf_receipt_unique_hashes_across_arms": 1
+    },
+    {
+      "modules": 4,
+      "request": "unchanged",
+      "block_means_ms": {
+        "baseline": [
+          42.2583625,
+          35.7783725,
+          34.9721075,
+          38.389739,
+          37.9261515
+        ],
+        "candidate": [
+          39.040168,
+          35.855783,
+          33.9731165,
+          47.1025275,
+          34.624171
+        ]
+      },
+      "medians_ms": {
+        "baseline": 37.9261515,
+        "candidate": 35.855783
+      },
+      "ratio": 0.9454105302511382,
+      "elf_receipt_unique_hashes_across_arms": 1
+    },
+    {
+      "modules": 4,
+      "request": "unused",
+      "block_means_ms": {
+        "baseline": [
+          51.5488225,
+          43.8510185,
+          47.4167,
+          46.2414215,
+          43.352411
+        ],
+        "candidate": [
+          40.338415,
+          41.266244,
+          40.0166095,
+          38.2490895,
+          40.09745
+        ]
+      },
+      "medians_ms": {
+        "baseline": 46.2414215,
+        "candidate": 40.09745
+      },
+      "ratio": 0.8671327286078349,
+      "elf_receipt_unique_hashes_across_arms": 1
+    },
+    {
+      "modules": 4,
+      "request": "private",
+      "block_means_ms": {
+        "baseline": [
+          41.6520895,
+          40.157089,
+          39.39692,
+          34.1241985,
+          44.3633215
+        ],
+        "candidate": [
+          36.301924,
+          42.32008,
+          40.8703485,
+          40.607915,
+          39.3375435
+        ]
+      },
+      "medians_ms": {
+        "baseline": 40.157089,
+        "candidate": 40.607915
+      },
+      "ratio": 1.0112265607698805,
+      "elf_receipt_unique_hashes_across_arms": 1
+    },
+    {
+      "modules": 4,
+      "request": "restore",
+      "block_means_ms": {
+        "baseline": [
+          41.068077,
+          37.6521355,
+          39.0982775,
+          38.5205875,
+          52.095623
+        ],
+        "candidate": [
+          43.329636,
+          35.260209,
+          38.2009425,
+          35.3892465,
+          38.68377
+        ]
+      },
+      "medians_ms": {
+        "baseline": 39.0982775,
+        "candidate": 38.2009425
+      },
+      "ratio": 0.9770492446885928,
+      "elf_receipt_unique_hashes_across_arms": 1
+    },
+    {
+      "modules": 32,
+      "request": "cold",
+      "block_means_ms": {
+        "baseline": [
+          81.080164,
+          57.3363815,
+          73.667473,
+          70.313349,
+          75.852727
+        ],
+        "candidate": [
+          80.455378,
+          69.320912,
+          65.423092,
+          69.308891,
+          67.5805915
+        ]
+      },
+      "medians_ms": {
+        "baseline": 73.667473,
+        "candidate": 69.308891
+      },
+      "ratio": 0.940834376116037,
+      "elf_receipt_unique_hashes_across_arms": 1
+    },
+    {
+      "modules": 32,
+      "request": "unchanged",
+      "block_means_ms": {
+        "baseline": [
+          48.983724,
+          54.552813,
+          51.773795,
+          65.1969175,
+          51.779948
+        ],
+        "candidate": [
+          50.6665935,
+          57.87327,
+          48.592392,
+          60.3494105,
+          51.6809595
+        ]
+      },
+      "medians_ms": {
+        "baseline": 51.779948,
+        "candidate": 51.6809595
+      },
+      "ratio": 0.998088285063554,
+      "elf_receipt_unique_hashes_across_arms": 1
+    },
+    {
+      "modules": 32,
+      "request": "unused",
+      "block_means_ms": {
+        "baseline": [
+          72.206495,
+          64.6519555,
+          70.659561,
+          68.173934,
+          63.0311365
+        ],
+        "candidate": [
+          51.8580055,
+          52.4329235,
+          55.7513275,
+          47.02764,
+          51.607177
+        ]
+      },
+      "medians_ms": {
+        "baseline": 68.173934,
+        "candidate": 51.8580055
+      },
+      "ratio": 0.7606720407245385,
+      "elf_receipt_unique_hashes_across_arms": 1
+    },
+    {
+      "modules": 32,
+      "request": "private",
+      "block_means_ms": {
+        "baseline": [
+          58.4764965,
+          54.320831,
+          57.094675,
+          59.839995,
+          57.0331975
+        ],
+        "candidate": [
+          51.3523355,
+          52.1125015,
+          59.4971185,
+          56.7656685,
+          106.410489
+        ]
+      },
+      "medians_ms": {
+        "baseline": 57.094675,
+        "candidate": 56.7656685
+      },
+      "ratio": 0.9942375274051389,
+      "elf_receipt_unique_hashes_across_arms": 1
+    },
+    {
+      "modules": 32,
+      "request": "restore",
+      "block_means_ms": {
+        "baseline": [
+          54.2151985,
+          45.850283,
+          52.3347445,
+          56.348365,
+          55.1457775
+        ],
+        "candidate": [
+          50.360846,
+          53.718194,
+          52.8145235,
+          47.5408565,
+          58.4070895
+        ]
+      },
+      "medians_ms": {
+        "baseline": 54.2151985,
+        "candidate": 52.8145235
+      },
+      "ratio": 0.9741645324788398,
+      "elf_receipt_unique_hashes_across_arms": 1
+    }
+  ],
+  "limitations": [
+    "No timing rerun; source identity of binaries also relies on author build receipts",
+    "Only 40 final restore ELF files remain; 160 intermediate ELF hashes are contemporaneous receipts, not fresh byte verification",
+    "Native stdout is retained for all 200 requests; native exit status was asserted by runner but not stored as a separate field",
+    "Two synthetic module-tree sizes, O0 only, wall-only measurement, OS cache uncontrolled, five paired blocks; no CPU/RSS or cross-host confidence claim",
+    "4-module private-edit ratio 1.0112265607698805 is unfavorable and retained; these data do not establish a general private-edit speedup",
+    "No Rust comparison, full-language acceptance, main integration or product breakthrough claimed"
+  ],
+  "evidence_manifest_sha256": "49f9858b86823e24defb796e93eaff7a361126622c0935cb6b579a333ec8fe8c",
+  "rows_sha256": "0734e518a3ba75348ae4b20797a9a157df1dc244cc158deb6d68fd1e8fb7472d",
+  "summary_sha256": "6219341743eceee9120f9433f6e76cdd4eebabf92af8810496284a6b17b299d8"
+}

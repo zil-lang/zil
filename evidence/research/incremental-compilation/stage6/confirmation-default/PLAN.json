@@ -1,0 +1,37 @@
+{
+  "kind": "confirmation-default",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 1032,
+      "bytes": 49744752
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 264,
+      "bytes": 644811360
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 1,
+      "bytes": 29342
+    },
+    {
+      "class": "large-semantic-cache-candidate",
+      "files": 360,
+      "bytes": 704881242
+    },
+    {
+      "class": "reproducible-rust-incremental-final-cache-only-not-per-request-state",
+      "files": 5172,
+      "bytes": 4593946026
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 7519,
+      "bytes": 379741847
+    }
+  ],
+  "selected_paths": 14348,
+  "unique_blobs": 1082
+}

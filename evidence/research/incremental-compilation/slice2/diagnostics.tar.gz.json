@@ -1,0 +1,16 @@
+{
+  "archive": "diagnostics.tar.gz",
+  "sha256": "28001a108b7dbbdc6a6a1f5de8cab694a3419619671223ea3736e26f80b04a4c",
+  "bytes": 371397,
+  "file_count": 244,
+  "uncompressed_bytes": 3689290,
+  "excluded": "object/incremental caches, executable binaries, object/shared libraries/bitcode; source, IR, reports, native outputs, failures and timing rows retained",
+  "records": [
+    "o2-investigation",
+    "o2-independent",
+    "final-constant-cross-cache",
+    "stage2-cross-binary-cache",
+    "stage2-mixed",
+    "linker-experiment"
+  ]
+}

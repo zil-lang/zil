@@ -1,0 +1,107 @@
+{
+  "schema": 2,
+  "kind": "llvm-lvi",
+  "collected_utc": "2026-10-31T14:40:35.794454+00:00",
+  "head_at_collection": "7266d29b19fb6f40898f94ad88b7027c0c7b0346",
+  "collector_sha256": "873f9b5c27c914f9c8b01c2a7c7b284576a8d58506a54e492b43365d1e8effdb",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 1283889,
+    "sha256": "75fda818eda0f559f0ec4aa777854c0f9cacc0b7648de6e179a9967eccb70d89",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 1283889,
+        "sha256": "75fda818eda0f559f0ec4aa777854c0f9cacc0b7648de6e179a9967eccb70d89"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 590,
+      "logical_bytes": 268893,
+      "logical_sha256": "14968fba755d16c72e205f13b29a41ae0a4fb36463d1b4f4d2ebb9417ee90169",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 23683,
+        "sha256": "8a9563940f6fc1305a6e8d0cfe15485bb9ac5613bc573c6951a2c6f26948732c",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 23683,
+            "sha256": "8a9563940f6fc1305a6e8d0cfe15485bb9ac5613bc573c6951a2c6f26948732c"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 196,
+      "logical_bytes": 76411,
+      "logical_sha256": "8d7a1262871d5e01d486ce3f1663693a4521d9d8ecd89ef4564440dfcfe62ae0",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 9047,
+        "sha256": "3b28b08543221e3b07022b7173f07165aaedd51719224e8fe48dce05c482726f",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 9047,
+            "sha256": "3b28b08543221e3b07022b7173f07165aaedd51719224e8fe48dce05c482726f"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 23683,
+      "sha256": "8a9563940f6fc1305a6e8d0cfe15485bb9ac5613bc573c6951a2c6f26948732c"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 9047,
+      "sha256": "3b28b08543221e3b07022b7173f07165aaedd51719224e8fe48dce05c482726f"
+    },
+    "ROOTS.json": {
+      "bytes": 3751,
+      "sha256": "07c7d2053e4543b8f0e3ed6534b9608ce1777ffaea16da978cdaf8e625f124f2"
+    },
+    "PLAN.json": {
+      "bytes": 604,
+      "sha256": "316a8a50902350220c602f7638a28c17bcba8e18fbce8cce80d70c6ffb62f544"
+    }
+  },
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 157,
+      "bytes": 464764770
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 33,
+      "bytes": 2075336
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 4,
+      "bytes": 37484
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 590,
+      "bytes": 16483267
+    },
+    {
+      "class": "symlink-target-recorded-without-dereference",
+      "files": 2,
+      "bytes": 30
+    }
+  ],
+  "retained_paths": 590,
+  "omitted_paths": 196,
+  "unique_blobs": 222,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Frozen isolated llvm-lvi candidate sources, licenses, functional diagnostics, failure epochs and independent reviews. No combined-toolchain, final runtime or formal performance acceptance. Selected compiled artifacts are identity-inventoried; original input/oracle/perf bytes are retained."
+}

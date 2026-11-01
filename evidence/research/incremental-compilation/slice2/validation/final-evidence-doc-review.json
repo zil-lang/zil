@@ -1,0 +1,15 @@
+{
+  "measurement_rows_checked": 192,
+  "main_results_rows_checked": 7,
+  "sections": {
+    "main→最终": 44,
+    "首片→最终正确性修复": 44,
+    "首片→内存修复": 44,
+    "首片→初始组合（保留回退）": 44,
+    "真实语料冷CLI（首片→最终）": 16
+  },
+  "document_sha256": {
+    "docs/research/incremental-compilation/RESULTS.md": "53730fdd521e1fd8e2e9b0312e834926ed6e5b668c32856d6715ecd04c05e69e",
+    "docs/research/incremental-compilation/MEASUREMENTS.md": "58f24cc5561bb76acc06ef0c04ca0b8a18adbfcf487827431826a23c4e866af7"
+  }
+}

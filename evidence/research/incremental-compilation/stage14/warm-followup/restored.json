@@ -1,0 +1,7 @@
+{
+  "/workspace/.zil-env/research/stage14/final-target/opaque-2048-branch/0-default-baseline/program": true,
+  "/workspace/.zil-env/research/stage14/final-target/opaque-2048-branch/0-default-baseline/program.ll": true,
+  "/workspace/.zil-env/research/stage14/final-target/opaque-2048-branch/0-default-candidate/program": true,
+  "/workspace/.zil-env/research/stage14/final-target/opaque-2048-branch/0-default-candidate/program.ll": true,
+  "/workspace/.zil-env/research/stage14/final-target/opaque-2048-branch/0-default-rust/program": true
+}

@@ -1,0 +1,3583 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "verdict": "Pass",
+  "scope": "Scoped data integrity/statistical reconstruction; not product, Rust parity or formal full-suite acceptance.",
+  "windows": [
+    {
+      "window": "stage2-frozen-v2",
+      "baseline_source": "5d7c1eeb2b74052eb239e19529dc5a943c6622a3",
+      "candidate_source": "d66a3142099209b7c5a7884b46e46418fa60021e",
+      "counts": {
+        "cli": 600,
+        "zil": 1360,
+        "cli_verify": 400,
+        "cli_native_stdout": 300,
+        "session": 960,
+        "session_verify_phase": 960,
+        "session_native_assertions": 320
+      },
+      "native_controls": 620,
+      "cells": 44,
+      "summary_values_recomputed": 388,
+      "retained_cli_restore_elf_hashes_checked": 60,
+      "identities": [
+        {
+          "kind": "compilers",
+          "arm": "baseline",
+          "recorded_sha256": "90f00a1ba4d8592e777b485a06480db37bb2e352f6fb59614c7b11b210fa22f6",
+          "current_sha256": "90f00a1ba4d8592e777b485a06480db37bb2e352f6fb59614c7b11b210fa22f6",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/target-slice1-candidate/release/zil"
+        },
+        {
+          "kind": "compilers",
+          "arm": "candidate",
+          "recorded_sha256": "3765400dbc1d3c95976ea4c08e02e0a4ae8945dc900c1eda7ec56b4a3134c897",
+          "current_sha256": "64fd64caaec0cd1d543aa25ba2da05e12b4d925c730295871f10c003cde5f84d",
+          "matches_current_file": false,
+          "path": "/workspace/.zil-env/research/target-stage2/release/zil"
+        },
+        {
+          "kind": "compilers",
+          "arm": "rust",
+          "recorded_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+          "current_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc"
+        },
+        {
+          "kind": "probes",
+          "arm": "baseline",
+          "recorded_sha256": "961d64bb3d5bafa9c55b23eaff6ae56e00d36aff11a029366462044a837135e3",
+          "current_sha256": "961d64bb3d5bafa9c55b23eaff6ae56e00d36aff11a029366462044a837135e3",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/stage2-baseline-probe"
+        },
+        {
+          "kind": "probes",
+          "arm": "candidate",
+          "recorded_sha256": "44eb0007f465c3f5c5ee984c7df2e5eb4e698fdcefa082db005bb9a6eccc7166",
+          "current_sha256": "44eb0007f465c3f5c5ee984c7df2e5eb4e698fdcefa082db005bb9a6eccc7166",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/stage2-candidate-probe"
+        }
+      ],
+      "cache_hit_miss_patterns": [
+        {
+          "arm": "baseline",
+          "request": "cold",
+          "hits": 0,
+          "misses": 8,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "private1",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "private2",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "restore",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "unchanged",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "cold",
+          "hits": 0,
+          "misses": 8,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "private1",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "private2",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "restore",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "unchanged",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        }
+      ],
+      "time_unfavorable_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.000622138165375,
+          "baseline_ms": 40.0771105,
+          "candidate_ms": 40.102044,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 1.020376823887025,
+          "baseline_ms": 37.46737,
+          "candidate_ms": 38.230836,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 1.0045097869160398,
+          "baseline_ms": 12.602591,
+          "candidate_ms": 12.659426,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.0139047153641416,
+          "baseline_ms": 12.630032,
+          "candidate_ms": 12.805649,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.0079009749955101,
+          "baseline_ms": 31.2932518,
+          "candidate_ms": 31.540499,
+          "rss_ratio": 1.0395141572679234
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.017768763232,
+          "baseline_ms": 76.7441145,
+          "candidate_ms": 78.1077625,
+          "rss_ratio": 0.9406450979429525
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.0113613052415316,
+          "baseline_ms": 59.007868,
+          "candidate_ms": 59.6782744,
+          "rss_ratio": 1.0849666748950877
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.015516483999923,
+          "baseline_ms": 21.2397538,
+          "candidate_ms": 21.5693201,
+          "rss_ratio": 1.2337035954399298
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 1.005446694228746,
+          "baseline_ms": 21.0483635,
+          "candidate_ms": 21.1630075,
+          "rss_ratio": 1.236957474791758
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "cold",
+          "candidate_over_baseline": 1.096753582763638,
+          "baseline_ms": 21.843403,
+          "candidate_ms": 23.9568305,
+          "rss_ratio": 0.993595406360424
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "restore",
+          "candidate_over_baseline": 1.0066273722998382,
+          "baseline_ms": 6.3166815,
+          "candidate_ms": 6.3585445,
+          "rss_ratio": 0.9417167300978203
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.0613029272717316,
+          "baseline_ms": 116.2643175,
+          "candidate_ms": 123.3916605,
+          "rss_ratio": 0.9768489937029263
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.048782940405038,
+          "baseline_ms": 111.3641399,
+          "candidate_ms": 116.7968101,
+          "rss_ratio": 1.3989880404783808
+        }
+      ],
+      "rss_unfavorable_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9645450889251479,
+          "baseline_ms": 49.940035,
+          "candidate_ms": 48.1694155,
+          "rss_ratio": 1.0185657370517929
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.9682487771522571,
+          "baseline_ms": 71.090821,
+          "candidate_ms": 68.8336005,
+          "rss_ratio": 1.0004318488529016
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9541678982057985,
+          "baseline_ms": 67.9451275,
+          "candidate_ms": 64.8310595,
+          "rss_ratio": 1.000921885563272
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9265495008345274,
+          "baseline_ms": 34.2526195,
+          "candidate_ms": 31.7367475,
+          "rss_ratio": 1.0772908366533864
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9496222254474223,
+          "baseline_ms": 33.1452315,
+          "candidate_ms": 31.4754485,
+          "rss_ratio": 1.0772908366533864
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.936759930489872,
+          "baseline_ms": 33.7386805,
+          "candidate_ms": 31.605044,
+          "rss_ratio": 1.0772908366533864
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9442531575903071,
+          "baseline_ms": 34.936768,
+          "candidate_ms": 32.9891535,
+          "rss_ratio": 1.077211155378486
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.919203744444476,
+          "baseline_ms": 33.861792,
+          "candidate_ms": 31.125886,
+          "rss_ratio": 1.0771314741035856
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.0079009749955101,
+          "baseline_ms": 31.2932518,
+          "candidate_ms": 31.540499,
+          "rss_ratio": 1.0395141572679234
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9494761531029489,
+          "baseline_ms": 31.214082,
+          "candidate_ms": 29.6370265,
+          "rss_ratio": 1.0155375029576466
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9890212597450898,
+          "baseline_ms": 5.6289245,
+          "candidate_ms": 5.567126,
+          "rss_ratio": 1.0019198193111236
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9434116824288828,
+          "baseline_ms": 4.6029589,
+          "candidate_ms": 4.3424852,
+          "rss_ratio": 1.0920492721164614
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.8797933155187125,
+          "baseline_ms": 4.701756,
+          "candidate_ms": 4.1365735,
+          "rss_ratio": 1.0952434247341913
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.0113613052415316,
+          "baseline_ms": 59.007868,
+          "candidate_ms": 59.6782744,
+          "rss_ratio": 1.0849666748950877
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9788443459293522,
+          "baseline_ms": 55.821791,
+          "candidate_ms": 54.6408445,
+          "rss_ratio": 1.0851526227402943
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.015516483999923,
+          "baseline_ms": 21.2397538,
+          "candidate_ms": 21.5693201,
+          "rss_ratio": 1.2337035954399298
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 1.005446694228746,
+          "baseline_ms": 21.0483635,
+          "candidate_ms": 21.1630075,
+          "rss_ratio": 1.236957474791758
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.048782940405038,
+          "baseline_ms": 111.3641399,
+          "candidate_ms": 116.7968101,
+          "rss_ratio": 1.3989880404783808
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9240803903221463,
+          "baseline_ms": 116.748282,
+          "candidate_ms": 107.884798,
+          "rss_ratio": 1.4008586323213739
+        }
+      ],
+      "all_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9645450889251479,
+          "baseline_ms": 49.940035,
+          "candidate_ms": 48.1694155,
+          "rss_ratio": 1.0185657370517929
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.000622138165375,
+          "baseline_ms": 40.0771105,
+          "candidate_ms": 40.102044,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.9985801444226204,
+          "baseline_ms": 40.052313,
+          "candidate_ms": 39.9954445,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 1.020376823887025,
+          "baseline_ms": 37.46737,
+          "candidate_ms": 38.230836,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9706525297848716,
+          "baseline_ms": 38.713865,
+          "candidate_ms": 37.577711,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9161001984268524,
+          "baseline_ms": 13.2822245,
+          "candidate_ms": 12.1678485,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.997136640436336,
+          "baseline_ms": 12.549594,
+          "candidate_ms": 12.51366,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.8999314881044572,
+          "baseline_ms": 13.1488115,
+          "candidate_ms": 11.8330295,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 1.0045097869160398,
+          "baseline_ms": 12.602591,
+          "candidate_ms": 12.659426,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.0139047153641416,
+          "baseline_ms": 12.630032,
+          "candidate_ms": 12.805649,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9569276950647518,
+          "baseline_ms": 88.6990145,
+          "candidate_ms": 84.8785435,
+          "rss_ratio": 0.9942560870228232
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.912480953653129,
+          "baseline_ms": 74.424377,
+          "candidate_ms": 67.9108265,
+          "rss_ratio": 0.9912224363091415
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.9682487771522571,
+          "baseline_ms": 71.090821,
+          "candidate_ms": 68.8336005,
+          "rss_ratio": 1.0004318488529016
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9541678982057985,
+          "baseline_ms": 67.9451275,
+          "candidate_ms": 64.8310595,
+          "rss_ratio": 1.000921885563272
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9780508937491623,
+          "baseline_ms": 67.97377,
+          "candidate_ms": 66.4818065,
+          "rss_ratio": 0.9993853340709324
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9265495008345274,
+          "baseline_ms": 34.2526195,
+          "candidate_ms": 31.7367475,
+          "rss_ratio": 1.0772908366533864
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9496222254474223,
+          "baseline_ms": 33.1452315,
+          "candidate_ms": 31.4754485,
+          "rss_ratio": 1.0772908366533864
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.936759930489872,
+          "baseline_ms": 33.7386805,
+          "candidate_ms": 31.605044,
+          "rss_ratio": 1.0772908366533864
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9442531575903071,
+          "baseline_ms": 34.936768,
+          "candidate_ms": 32.9891535,
+          "rss_ratio": 1.077211155378486
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.919203744444476,
+          "baseline_ms": 33.861792,
+          "candidate_ms": 31.125886,
+          "rss_ratio": 1.0771314741035856
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9087115548171737,
+          "baseline_ms": 42.9380355,
+          "candidate_ms": 39.018289,
+          "rss_ratio": 0.9768671007276906
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.0079009749955101,
+          "baseline_ms": 31.2932518,
+          "candidate_ms": 31.540499,
+          "rss_ratio": 1.0395141572679234
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9494761531029489,
+          "baseline_ms": 31.214082,
+          "candidate_ms": 29.6370265,
+          "rss_ratio": 1.0155375029576466
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.8299572051314364,
+          "baseline_ms": 31.613136,
+          "candidate_ms": 26.23755,
+          "rss_ratio": 0.9730628803245436
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9890212597450898,
+          "baseline_ms": 5.6289245,
+          "candidate_ms": 5.567126,
+          "rss_ratio": 1.0019198193111236
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9434116824288828,
+          "baseline_ms": 4.6029589,
+          "candidate_ms": 4.3424852,
+          "rss_ratio": 1.0920492721164614
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.8797933155187125,
+          "baseline_ms": 4.701756,
+          "candidate_ms": 4.1365735,
+          "rss_ratio": 1.0952434247341913
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.36308949287884273,
+          "baseline_ms": 4.719247,
+          "candidate_ms": 1.713509,
+          "rss_ratio": 0.9969659512304754
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.017768763232,
+          "baseline_ms": 76.7441145,
+          "candidate_ms": 78.1077625,
+          "rss_ratio": 0.9406450979429525
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.0113613052415316,
+          "baseline_ms": 59.007868,
+          "candidate_ms": 59.6782744,
+          "rss_ratio": 1.0849666748950877
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9788443459293522,
+          "baseline_ms": 55.821791,
+          "candidate_ms": 54.6408445,
+          "rss_ratio": 1.0851526227402943
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.7709308196596197,
+          "baseline_ms": 56.0667305,
+          "candidate_ms": 43.2235705,
+          "rss_ratio": 0.9355685720056555
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9875989504199933,
+          "baseline_ms": 23.3344765,
+          "candidate_ms": 23.0451045,
+          "rss_ratio": 0.9927835051546392
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.015516483999923,
+          "baseline_ms": 21.2397538,
+          "candidate_ms": 21.5693201,
+          "rss_ratio": 1.2337035954399298
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 1.005446694228746,
+          "baseline_ms": 21.0483635,
+          "candidate_ms": 21.1630075,
+          "rss_ratio": 1.236957474791758
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.39265856202899513,
+          "baseline_ms": 21.4539305,
+          "candidate_ms": 8.4240695,
+          "rss_ratio": 0.985672514619883
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "cold",
+          "candidate_over_baseline": 1.096753582763638,
+          "baseline_ms": 21.843403,
+          "candidate_ms": 23.9568305,
+          "rss_ratio": 0.993595406360424
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "private",
+          "candidate_over_baseline": 0.9845927136377955,
+          "baseline_ms": 19.1673727,
+          "candidate_ms": 18.8720555,
+          "rss_ratio": 0.925837889232232
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "restore",
+          "candidate_over_baseline": 1.0066273722998382,
+          "baseline_ms": 6.3166815,
+          "candidate_ms": 6.3585445,
+          "rss_ratio": 0.9417167300978203
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.951907332925026,
+          "baseline_ms": 6.2297855,
+          "candidate_ms": 5.9301785,
+          "rss_ratio": 0.993595406360424
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.0613029272717316,
+          "baseline_ms": 116.2643175,
+          "candidate_ms": 123.3916605,
+          "rss_ratio": 0.9768489937029263
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 1.048782940405038,
+          "baseline_ms": 111.3641399,
+          "candidate_ms": 116.7968101,
+          "rss_ratio": 1.3989880404783808
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9240803903221463,
+          "baseline_ms": 116.748282,
+          "candidate_ms": 107.884798,
+          "rss_ratio": 1.4008586323213739
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.3771294394773924,
+          "baseline_ms": 111.461374,
+          "candidate_ms": 42.0353655,
+          "rss_ratio": 0.9706766456045641
+        }
+      ]
+    },
+    {
+      "window": "stage2-final-frozen",
+      "baseline_source": "5d7c1eeb2b74052eb239e19529dc5a943c6622a3",
+      "candidate_source": "646099a70105b6da3821ce7d8ea20bd8e28fe3e1",
+      "counts": {
+        "cli": 600,
+        "zil": 1360,
+        "cli_verify": 400,
+        "cli_native_stdout": 300,
+        "session": 960,
+        "session_verify_phase": 960,
+        "session_native_assertions": 320
+      },
+      "native_controls": 620,
+      "cells": 44,
+      "summary_values_recomputed": 388,
+      "retained_cli_restore_elf_hashes_checked": 60,
+      "identities": [
+        {
+          "kind": "compilers",
+          "arm": "baseline",
+          "recorded_sha256": "90f00a1ba4d8592e777b485a06480db37bb2e352f6fb59614c7b11b210fa22f6",
+          "current_sha256": "90f00a1ba4d8592e777b485a06480db37bb2e352f6fb59614c7b11b210fa22f6",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/target-slice1-candidate/release/zil"
+        },
+        {
+          "kind": "compilers",
+          "arm": "candidate",
+          "recorded_sha256": "a0710d7f44d62fc0829a9a457900c2f4c9833671de1362b21e3fead725cb16d7",
+          "current_sha256": "64fd64caaec0cd1d543aa25ba2da05e12b4d925c730295871f10c003cde5f84d",
+          "matches_current_file": false,
+          "path": "/workspace/.zil-env/research/target-stage2/release/zil"
+        },
+        {
+          "kind": "compilers",
+          "arm": "rust",
+          "recorded_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+          "current_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc"
+        },
+        {
+          "kind": "probes",
+          "arm": "baseline",
+          "recorded_sha256": "961d64bb3d5bafa9c55b23eaff6ae56e00d36aff11a029366462044a837135e3",
+          "current_sha256": "961d64bb3d5bafa9c55b23eaff6ae56e00d36aff11a029366462044a837135e3",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/stage2-baseline-probe"
+        },
+        {
+          "kind": "probes",
+          "arm": "candidate",
+          "recorded_sha256": "8861c084c4342f01148baabf17ec603c3886f4e5696b3307040755bb7200a0cd",
+          "current_sha256": "8861c084c4342f01148baabf17ec603c3886f4e5696b3307040755bb7200a0cd",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/stage2-final-candidate-probe"
+        }
+      ],
+      "cache_hit_miss_patterns": [
+        {
+          "arm": "baseline",
+          "request": "cold",
+          "hits": 0,
+          "misses": 8,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "private1",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "private2",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "restore",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "unchanged",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "cold",
+          "hits": 0,
+          "misses": 8,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "private1",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "private2",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "restore",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "unchanged",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        }
+      ],
+      "time_unfavorable_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.1179634078031642,
+          "baseline_ms": 14.055401,
+          "candidate_ms": 15.713424,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 1.0177148026309881,
+          "baseline_ms": 13.6396665,
+          "candidate_ms": 13.8812905,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.003113920849464,
+          "baseline_ms": 86.7602335,
+          "candidate_ms": 87.030398,
+          "rss_ratio": 0.997912954950369
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.0256150675413278,
+          "baseline_ms": 72.0628785,
+          "candidate_ms": 73.908774,
+          "rss_ratio": 1.0005942733657482
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0026698204582456,
+          "baseline_ms": 73.335643,
+          "candidate_ms": 73.531436,
+          "rss_ratio": 1.0037815353033332
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.08281270679023,
+          "baseline_ms": 31.9050675,
+          "candidate_ms": 34.5472125,
+          "rss_ratio": 1.0777016257570928
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0232837733617797,
+          "baseline_ms": 33.449239,
+          "candidate_ms": 34.2280635,
+          "rss_ratio": 1.0776219317819573
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.1793898060818147,
+          "baseline_ms": 32.726121,
+          "candidate_ms": 38.5968535,
+          "rss_ratio": 1.0777813197322283
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.0041794506568924,
+          "baseline_ms": 39.394651,
+          "candidate_ms": 39.559299,
+          "rss_ratio": 0.978920741989882
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.0145129682051708,
+          "baseline_ms": 23.16666,
+          "candidate_ms": 23.502877,
+          "rss_ratio": 0.9898589065255732
+        }
+      ],
+      "rss_unfavorable_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9650842152116711,
+          "baseline_ms": 50.034963,
+          "candidate_ms": 48.287953,
+          "rss_ratio": 1.0153809372011475
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.0256150675413278,
+          "baseline_ms": 72.0628785,
+          "candidate_ms": 73.908774,
+          "rss_ratio": 1.0005942733657482
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0026698204582456,
+          "baseline_ms": 73.335643,
+          "candidate_ms": 73.531436,
+          "rss_ratio": 1.0037815353033332
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.08281270679023,
+          "baseline_ms": 31.9050675,
+          "candidate_ms": 34.5472125,
+          "rss_ratio": 1.0777016257570928
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9906803676964576,
+          "baseline_ms": 33.0213135,
+          "candidate_ms": 32.713567,
+          "rss_ratio": 1.0777813197322283
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0232837733617797,
+          "baseline_ms": 33.449239,
+          "candidate_ms": 34.2280635,
+          "rss_ratio": 1.0776219317819573
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.97767765098396,
+          "baseline_ms": 34.2201665,
+          "candidate_ms": 33.456292,
+          "rss_ratio": 1.0777813197322283
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.1793898060818147,
+          "baseline_ms": 32.726121,
+          "candidate_ms": 38.5968535,
+          "rss_ratio": 1.0777813197322283
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9610787795599605,
+          "baseline_ms": 5.4502145,
+          "candidate_ms": 5.2380855,
+          "rss_ratio": 1.0036011703803736
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.8632112252557328,
+          "baseline_ms": 4.6677529,
+          "candidate_ms": 4.0292567,
+          "rss_ratio": 1.0012269938650307
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.8929632943084617,
+          "baseline_ms": 4.66113,
+          "candidate_ms": 4.162218,
+          "rss_ratio": 1.0033489618218352
+        }
+      ],
+      "all_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9650842152116711,
+          "baseline_ms": 50.034963,
+          "candidate_ms": 48.287953,
+          "rss_ratio": 1.0153809372011475
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9612921699629293,
+          "baseline_ms": 41.670122,
+          "candidate_ms": 40.057162,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.9547146126466532,
+          "baseline_ms": 41.991647,
+          "candidate_ms": 40.090039,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9641513205416501,
+          "baseline_ms": 39.162112,
+          "candidate_ms": 37.758202,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9511044153397069,
+          "baseline_ms": 39.799248,
+          "candidate_ms": 37.8532405,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9997679618510398,
+          "baseline_ms": 14.297218,
+          "candidate_ms": 14.2939005,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.1179634078031642,
+          "baseline_ms": 14.055401,
+          "candidate_ms": 15.713424,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.9894281263919524,
+          "baseline_ms": 13.8014325,
+          "candidate_ms": 13.6555255,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 1.0177148026309881,
+          "baseline_ms": 13.6396665,
+          "candidate_ms": 13.8812905,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9497595104311861,
+          "baseline_ms": 14.04011,
+          "candidate_ms": 13.334728,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.003113920849464,
+          "baseline_ms": 86.7602335,
+          "candidate_ms": 87.030398,
+          "rss_ratio": 0.997912954950369
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.0256150675413278,
+          "baseline_ms": 72.0628785,
+          "candidate_ms": 73.908774,
+          "rss_ratio": 1.0005942733657482
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0026698204582456,
+          "baseline_ms": 73.335643,
+          "candidate_ms": 73.531436,
+          "rss_ratio": 1.0037815353033332
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9640055781104176,
+          "baseline_ms": 71.628557,
+          "candidate_ms": 69.0503285,
+          "rss_ratio": 0.999877104583999
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9824239092213846,
+          "baseline_ms": 70.1229025,
+          "candidate_ms": 68.890416,
+          "rss_ratio": 0.9980948869223205
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.08281270679023,
+          "baseline_ms": 31.9050675,
+          "candidate_ms": 34.5472125,
+          "rss_ratio": 1.0777016257570928
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9906803676964576,
+          "baseline_ms": 33.0213135,
+          "candidate_ms": 32.713567,
+          "rss_ratio": 1.0777813197322283
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0232837733617797,
+          "baseline_ms": 33.449239,
+          "candidate_ms": 34.2280635,
+          "rss_ratio": 1.0776219317819573
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.97767765098396,
+          "baseline_ms": 34.2201665,
+          "candidate_ms": 33.456292,
+          "rss_ratio": 1.0777813197322283
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.1793898060818147,
+          "baseline_ms": 32.726121,
+          "candidate_ms": 38.5968535,
+          "rss_ratio": 1.0777813197322283
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.0041794506568924,
+          "baseline_ms": 39.394651,
+          "candidate_ms": 39.559299,
+          "rss_ratio": 0.978920741989882
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9679061169634502,
+          "baseline_ms": 31.6698917,
+          "candidate_ms": 30.6534819,
+          "rss_ratio": 0.9762655732534301
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9612078082298503,
+          "baseline_ms": 29.894663,
+          "candidate_ms": 28.7349835,
+          "rss_ratio": 0.9829059829059829
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.8861646878198243,
+          "baseline_ms": 29.9495555,
+          "candidate_ms": 26.5402385,
+          "rss_ratio": 0.973790976955534
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9610787795599605,
+          "baseline_ms": 5.4502145,
+          "candidate_ms": 5.2380855,
+          "rss_ratio": 1.0036011703803736
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.8632112252557328,
+          "baseline_ms": 4.6677529,
+          "candidate_ms": 4.0292567,
+          "rss_ratio": 1.0012269938650307
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.8929632943084617,
+          "baseline_ms": 4.66113,
+          "candidate_ms": 4.162218,
+          "rss_ratio": 1.0033489618218352
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.35100631441752816,
+          "baseline_ms": 4.5298715,
+          "candidate_ms": 1.5900135,
+          "rss_ratio": 0.9957570343903528
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9405421009828417,
+          "baseline_ms": 79.5200735,
+          "candidate_ms": 74.791977,
+          "rss_ratio": 0.9200114816055112
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9863378175201024,
+          "baseline_ms": 58.2152157,
+          "candidate_ms": 57.4198688,
+          "rss_ratio": 0.9383257740090711
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9745338808238895,
+          "baseline_ms": 56.2093105,
+          "candidate_ms": 54.7778775,
+          "rss_ratio": 0.9405127688510553
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.7537207199050252,
+          "baseline_ms": 55.244954,
+          "candidate_ms": 41.6392665,
+          "rss_ratio": 0.933822413356944
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.0145129682051708,
+          "baseline_ms": 23.16666,
+          "candidate_ms": 23.502877,
+          "rss_ratio": 0.9898589065255732
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9700530881897987,
+          "baseline_ms": 21.2435761,
+          "candidate_ms": 20.6073966,
+          "rss_ratio": 0.9921121822962313
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9111570977860725,
+          "baseline_ms": 21.597319,
+          "candidate_ms": 19.6785505,
+          "rss_ratio": 0.9945977514965688
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.39072094317701067,
+          "baseline_ms": 21.205097,
+          "candidate_ms": 8.2852755,
+          "rss_ratio": 0.9852425482174167
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "cold",
+          "candidate_over_baseline": 0.991763370332997,
+          "baseline_ms": 22.23804,
+          "candidate_ms": 22.0548735,
+          "rss_ratio": 0.9908236675965351
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "private",
+          "candidate_over_baseline": 0.9608153062097022,
+          "baseline_ms": 19.4531034,
+          "candidate_ms": 18.6908395,
+          "rss_ratio": 0.9263286934514394
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "restore",
+          "candidate_over_baseline": 0.9879435904730213,
+          "baseline_ms": 6.4714955,
+          "candidate_ms": 6.3934725,
+          "rss_ratio": 0.941939740488234
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9420412980643008,
+          "baseline_ms": 6.1190035,
+          "candidate_ms": 5.764354,
+          "rss_ratio": 0.9908236675965351
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9824262202378677,
+          "baseline_ms": 114.8030775,
+          "candidate_ms": 112.7855535,
+          "rss_ratio": 0.9755487635454293
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9134218175106043,
+          "baseline_ms": 113.8951352,
+          "candidate_ms": 104.0343014,
+          "rss_ratio": 0.9909518860426728
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9596384373614526,
+          "baseline_ms": 109.836072,
+          "candidate_ms": 105.4029165,
+          "rss_ratio": 0.9915624713399163
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.3514831924568021,
+          "baseline_ms": 112.243323,
+          "candidate_ms": 39.4516415,
+          "rss_ratio": 0.96659631091126
+        }
+      ]
+    },
+    {
+      "window": "stage2-corrected-frozen",
+      "baseline_source": "5d7c1eeb2b74052eb239e19529dc5a943c6622a3",
+      "candidate_source": "5cf1c417f5cbdc0895e5edceb3053d9d4da490c6",
+      "counts": {
+        "cli": 600,
+        "zil": 1360,
+        "cli_verify": 400,
+        "cli_native_stdout": 300,
+        "session": 960,
+        "session_verify_phase": 960,
+        "session_native_assertions": 320
+      },
+      "native_controls": 620,
+      "cells": 44,
+      "summary_values_recomputed": 388,
+      "retained_cli_restore_elf_hashes_checked": 60,
+      "identities": [
+        {
+          "kind": "compilers",
+          "arm": "baseline",
+          "recorded_sha256": "90f00a1ba4d8592e777b485a06480db37bb2e352f6fb59614c7b11b210fa22f6",
+          "current_sha256": "90f00a1ba4d8592e777b485a06480db37bb2e352f6fb59614c7b11b210fa22f6",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/target-slice1-candidate/release/zil"
+        },
+        {
+          "kind": "compilers",
+          "arm": "candidate",
+          "recorded_sha256": "64fd64caaec0cd1d543aa25ba2da05e12b4d925c730295871f10c003cde5f84d",
+          "current_sha256": "64fd64caaec0cd1d543aa25ba2da05e12b4d925c730295871f10c003cde5f84d",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/target-stage2/release/zil"
+        },
+        {
+          "kind": "compilers",
+          "arm": "rust",
+          "recorded_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+          "current_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc"
+        },
+        {
+          "kind": "probes",
+          "arm": "baseline",
+          "recorded_sha256": "961d64bb3d5bafa9c55b23eaff6ae56e00d36aff11a029366462044a837135e3",
+          "current_sha256": "961d64bb3d5bafa9c55b23eaff6ae56e00d36aff11a029366462044a837135e3",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/stage2-baseline-probe"
+        },
+        {
+          "kind": "probes",
+          "arm": "candidate",
+          "recorded_sha256": "14afde2ec51600c50b2ed95ae8239f4f0caea3f9f2a82cde480582d2e341c0b9",
+          "current_sha256": "14afde2ec51600c50b2ed95ae8239f4f0caea3f9f2a82cde480582d2e341c0b9",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/stage2-corrected-probe"
+        }
+      ],
+      "cache_hit_miss_patterns": [
+        {
+          "arm": "baseline",
+          "request": "cold",
+          "hits": 0,
+          "misses": 8,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "private1",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "private2",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "restore",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "unchanged",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "cold",
+          "hits": 0,
+          "misses": 8,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "private1",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "private2",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "restore",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "unchanged",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        }
+      ],
+      "time_unfavorable_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0084497240168564,
+          "baseline_ms": 39.523066,
+          "candidate_ms": 39.857025,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.0028034379621682,
+          "baseline_ms": 37.3933725,
+          "candidate_ms": 37.4982025,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.0281378324272712,
+          "baseline_ms": 12.003039,
+          "candidate_ms": 12.3407785,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0358529417635824,
+          "baseline_ms": 70.7100415,
+          "candidate_ms": 73.2452045,
+          "rss_ratio": 1.00340319792567
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.02135505037404,
+          "baseline_ms": 31.942842,
+          "candidate_ms": 32.624983,
+          "rss_ratio": 1.0721535045987949
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0057707998498577,
+          "baseline_ms": 31.7205595,
+          "candidate_ms": 31.9036125,
+          "rss_ratio": 1.0723120837297813
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.0064270498791494,
+          "baseline_ms": 5.4594255,
+          "candidate_ms": 5.4945135,
+          "rss_ratio": 0.9985355412864707
+        }
+      ],
+      "rss_unfavorable_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9693596123594674,
+          "baseline_ms": 47.3883365,
+          "candidate_ms": 45.9363395,
+          "rss_ratio": 1.0088011417697431
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9688806316013244,
+          "baseline_ms": 73.9150445,
+          "candidate_ms": 71.614855,
+          "rss_ratio": 1.0005941770647653
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0358529417635824,
+          "baseline_ms": 70.7100415,
+          "candidate_ms": 73.2452045,
+          "rss_ratio": 1.00340319792567
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9224727241294726,
+          "baseline_ms": 75.7755375,
+          "candidate_ms": 69.9008665,
+          "rss_ratio": 1.0041959767987165
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9688048174714219,
+          "baseline_ms": 70.0851485,
+          "candidate_ms": 67.8988295,
+          "rss_ratio": 1.0040103652517276
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9254235679342656,
+          "baseline_ms": 33.281084,
+          "candidate_ms": 30.7990995,
+          "rss_ratio": 1.0747700602600698
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.02135505037404,
+          "baseline_ms": 31.942842,
+          "candidate_ms": 32.624983,
+          "rss_ratio": 1.0721535045987949
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0057707998498577,
+          "baseline_ms": 31.7205595,
+          "candidate_ms": 31.9036125,
+          "rss_ratio": 1.0723120837297813
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9895849006358806,
+          "baseline_ms": 32.174441,
+          "candidate_ms": 31.839341,
+          "rss_ratio": 1.072232794164288
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9975334100426887,
+          "baseline_ms": 31.7253785,
+          "candidate_ms": 31.647125,
+          "rss_ratio": 1.0721535045987949
+        }
+      ],
+      "all_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9693596123594674,
+          "baseline_ms": 47.3883365,
+          "candidate_ms": 45.9363395,
+          "rss_ratio": 1.0088011417697431
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9679400974052359,
+          "baseline_ms": 41.160621,
+          "candidate_ms": 39.8410155,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0084497240168564,
+          "baseline_ms": 39.523066,
+          "candidate_ms": 39.857025,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.985849039441481,
+          "baseline_ms": 37.5164285,
+          "candidate_ms": 36.985535,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.0028034379621682,
+          "baseline_ms": 37.3933725,
+          "candidate_ms": 37.4982025,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9477400255606832,
+          "baseline_ms": 12.9961315,
+          "candidate_ms": 12.316954,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9672266065859623,
+          "baseline_ms": 12.5753075,
+          "candidate_ms": 12.163172,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.9176194015055059,
+          "baseline_ms": 13.209779,
+          "candidate_ms": 12.1215495,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9260279596882885,
+          "baseline_ms": 12.855222,
+          "candidate_ms": 11.904295,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.0281378324272712,
+          "baseline_ms": 12.003039,
+          "candidate_ms": 12.3407785,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9952079649401537,
+          "baseline_ms": 88.813624,
+          "candidate_ms": 88.388026,
+          "rss_ratio": 0.9952731893265565
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9688806316013244,
+          "baseline_ms": 73.9150445,
+          "candidate_ms": 71.614855,
+          "rss_ratio": 1.0005941770647653
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0358529417635824,
+          "baseline_ms": 70.7100415,
+          "candidate_ms": 73.2452045,
+          "rss_ratio": 1.00340319792567
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9224727241294726,
+          "baseline_ms": 75.7755375,
+          "candidate_ms": 69.9008665,
+          "rss_ratio": 1.0041959767987165
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9688048174714219,
+          "baseline_ms": 70.0851485,
+          "candidate_ms": 67.8988295,
+          "rss_ratio": 1.0040103652517276
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9254235679342656,
+          "baseline_ms": 33.281084,
+          "candidate_ms": 30.7990995,
+          "rss_ratio": 1.0747700602600698
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.02135505037404,
+          "baseline_ms": 31.942842,
+          "candidate_ms": 32.624983,
+          "rss_ratio": 1.0721535045987949
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0057707998498577,
+          "baseline_ms": 31.7205595,
+          "candidate_ms": 31.9036125,
+          "rss_ratio": 1.0723120837297813
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9895849006358806,
+          "baseline_ms": 32.174441,
+          "candidate_ms": 31.839341,
+          "rss_ratio": 1.072232794164288
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9975334100426887,
+          "baseline_ms": 31.7253785,
+          "candidate_ms": 31.647125,
+          "rss_ratio": 1.0721535045987949
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9744656488139776,
+          "baseline_ms": 40.045153,
+          "candidate_ms": 39.022626,
+          "rss_ratio": 0.9768171384850803
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9560568153553439,
+          "baseline_ms": 32.0838194,
+          "candidate_ms": 30.6739542,
+          "rss_ratio": 0.9769036733406905
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9996757564537662,
+          "baseline_ms": 29.328263,
+          "candidate_ms": 29.3187535,
+          "rss_ratio": 0.9546815889029003
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.7845117387570558,
+          "baseline_ms": 33.3354075,
+          "candidate_ms": 26.1520185,
+          "rss_ratio": 0.9753246753246754
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.0064270498791494,
+          "baseline_ms": 5.4594255,
+          "candidate_ms": 5.4945135,
+          "rss_ratio": 0.9985355412864707
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.894302235180501,
+          "baseline_ms": 4.8944772,
+          "candidate_ms": 4.3771419,
+          "rss_ratio": 0.9944196428571429
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.8911242856637132,
+          "baseline_ms": 4.8162715,
+          "candidate_ms": 4.2918965,
+          "rss_ratio": 0.9978792275923652
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.3335805233769786,
+          "baseline_ms": 4.7803975,
+          "candidate_ms": 1.5946475,
+          "rss_ratio": 0.9911682504192286
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9956554793797016,
+          "baseline_ms": 77.7151335,
+          "candidate_ms": 77.3774985,
+          "rss_ratio": 0.917144495412844
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9783780445373139,
+          "baseline_ms": 59.5314842,
+          "candidate_ms": 58.2442971,
+          "rss_ratio": 0.9662240622002323
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9771605799348647,
+          "baseline_ms": 56.2710435,
+          "candidate_ms": 54.9858455,
+          "rss_ratio": 0.9573232323232324
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.734583413943624,
+          "baseline_ms": 57.5117845,
+          "candidate_ms": 42.247203,
+          "rss_ratio": 0.9598862597745507
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9839064607586683,
+          "baseline_ms": 22.156562,
+          "candidate_ms": 21.7999845,
+          "rss_ratio": 0.9912551440329218
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9368847148085223,
+          "baseline_ms": 20.3043953,
+          "candidate_ms": 19.0228776,
+          "rss_ratio": 0.9948901379662749
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9664703546806858,
+          "baseline_ms": 19.854281,
+          "candidate_ms": 19.188574,
+          "rss_ratio": 0.9945287423402392
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.3952017168529451,
+          "baseline_ms": 20.0851215,
+          "candidate_ms": 7.9376745,
+          "rss_ratio": 0.9844752186588921
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "cold",
+          "candidate_over_baseline": 0.9784301353606125,
+          "baseline_ms": 23.8895565,
+          "candidate_ms": 23.374262,
+          "rss_ratio": 0.9911192660550459
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "private",
+          "candidate_over_baseline": 0.9581634726723539,
+          "baseline_ms": 20.4272332,
+          "candidate_ms": 19.5726287,
+          "rss_ratio": 0.9250138350857775
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "restore",
+          "candidate_over_baseline": 0.9634625736331802,
+          "baseline_ms": 6.6497705,
+          "candidate_ms": 6.406805,
+          "rss_ratio": 0.9410120300279549
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.978039737694815,
+          "baseline_ms": 6.1594665,
+          "candidate_ms": 6.024203,
+          "rss_ratio": 0.9911192660550459
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9607242445422285,
+          "baseline_ms": 115.54716,
+          "candidate_ms": 111.008958,
+          "rss_ratio": 0.9738859975980045
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9250951440969163,
+          "baseline_ms": 111.9834582,
+          "candidate_ms": 103.5953534,
+          "rss_ratio": 0.9896190592846644
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9891148218779439,
+          "baseline_ms": 110.6111895,
+          "candidate_ms": 109.407167,
+          "rss_ratio": 0.9912337164750958
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.3601915649600977,
+          "baseline_ms": 105.3600825,
+          "candidate_ms": 37.949813,
+          "rss_ratio": 0.9647356700527745
+        }
+      ]
+    },
+    {
+      "window": "stage2-main-final",
+      "baseline_source": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+      "candidate_source": "5cf1c417f5cbdc0895e5edceb3053d9d4da490c6",
+      "counts": {
+        "cli": 600,
+        "zil": 1360,
+        "cli_verify": 400,
+        "cli_native_stdout": 300,
+        "session": 960,
+        "session_verify_phase": 960,
+        "session_native_assertions": 320
+      },
+      "native_controls": 620,
+      "cells": 44,
+      "summary_values_recomputed": 388,
+      "retained_cli_restore_elf_hashes_checked": 60,
+      "identities": [
+        {
+          "kind": "compilers",
+          "arm": "baseline",
+          "recorded_sha256": "794c53ba6f71e4e752872e8797e23fda622bb9ba9dfd0d286e24609f5729bccf",
+          "current_sha256": "794c53ba6f71e4e752872e8797e23fda622bb9ba9dfd0d286e24609f5729bccf",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/target-slice1-baseline/release/zil"
+        },
+        {
+          "kind": "compilers",
+          "arm": "candidate",
+          "recorded_sha256": "64fd64caaec0cd1d543aa25ba2da05e12b4d925c730295871f10c003cde5f84d",
+          "current_sha256": "64fd64caaec0cd1d543aa25ba2da05e12b4d925c730295871f10c003cde5f84d",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/target-stage2/release/zil"
+        },
+        {
+          "kind": "compilers",
+          "arm": "rust",
+          "recorded_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+          "current_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc"
+        },
+        {
+          "kind": "probes",
+          "arm": "baseline",
+          "recorded_sha256": "ff4b52b680e6aa2502ef39182f93ae39a53bd9f59dc2958615e497b87c8e318c",
+          "current_sha256": "ff4b52b680e6aa2502ef39182f93ae39a53bd9f59dc2958615e497b87c8e318c",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/stage2-main-baseline-probe"
+        },
+        {
+          "kind": "probes",
+          "arm": "candidate",
+          "recorded_sha256": "14afde2ec51600c50b2ed95ae8239f4f0caea3f9f2a82cde480582d2e341c0b9",
+          "current_sha256": "14afde2ec51600c50b2ed95ae8239f4f0caea3f9f2a82cde480582d2e341c0b9",
+          "matches_current_file": true,
+          "path": "/workspace/.zil-env/research/stage2-corrected-probe"
+        }
+      ],
+      "cache_hit_miss_patterns": [
+        {
+          "arm": "baseline",
+          "request": "cold",
+          "hits": 0,
+          "misses": 8,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "private1",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "private2",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "restore",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "baseline",
+          "request": "unchanged",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "cold",
+          "hits": 0,
+          "misses": 8,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "private1",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "private2",
+          "hits": 7,
+          "misses": 1,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "restore",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        },
+        {
+          "arm": "candidate",
+          "request": "unchanged",
+          "hits": 8,
+          "misses": 0,
+          "count": 20
+        }
+      ],
+      "time_unfavorable_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.007586056725019,
+          "baseline_ms": 39.4468445,
+          "candidate_ms": 39.7460905,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0144267787792962,
+          "baseline_ms": 39.983839,
+          "candidate_ms": 40.560677,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 1.0149143440701198,
+          "baseline_ms": 36.3557725,
+          "candidate_ms": 36.897995,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.014336587231627,
+          "baseline_ms": 36.2512355,
+          "candidate_ms": 36.7709545,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.0039820930776806,
+          "baseline_ms": 81.74269,
+          "candidate_ms": 82.068197,
+          "rss_ratio": 0.9963858488164927
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0185587320794203,
+          "baseline_ms": 68.0360595,
+          "candidate_ms": 69.2987225,
+          "rss_ratio": 0.9899475991872527
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.0170685253209337,
+          "baseline_ms": 32.9611955,
+          "candidate_ms": 33.5237945,
+          "rss_ratio": 1.0667402966235406
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 1.0295569156276763,
+          "baseline_ms": 29.198615,
+          "candidate_ms": 30.061636,
+          "rss_ratio": 0.981378763866878
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 1.0090570972152089,
+          "baseline_ms": 56.6211765,
+          "candidate_ms": 57.134,
+          "rss_ratio": 0.9263676688023657
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "cold",
+          "candidate_over_baseline": 1.0153374708998468,
+          "baseline_ms": 21.787686,
+          "candidate_ms": 22.121854,
+          "rss_ratio": 0.9954408412383263
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "restore",
+          "candidate_over_baseline": 1.0073509075080767,
+          "baseline_ms": 6.2712665,
+          "candidate_ms": 6.317366,
+          "rss_ratio": 0.9427116086026914
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.001802617913732,
+          "baseline_ms": 111.960221,
+          "candidate_ms": 112.1620425,
+          "rss_ratio": 0.9752377423737186
+        }
+      ],
+      "rss_unfavorable_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9919361268964244,
+          "baseline_ms": 47.7769175,
+          "candidate_ms": 47.3916505,
+          "rss_ratio": 1.0081255916692964
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9772814285076579,
+          "baseline_ms": 65.816154,
+          "candidate_ms": 64.320905,
+          "rss_ratio": 1.0046893317702228
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9833889540423337,
+          "baseline_ms": 65.2881825,
+          "candidate_ms": 64.2036775,
+          "rss_ratio": 1.0039481801357186
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.0170685253209337,
+          "baseline_ms": 32.9611955,
+          "candidate_ms": 33.5237945,
+          "rss_ratio": 1.0667402966235406
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9812694916100431,
+          "baseline_ms": 34.531524,
+          "candidate_ms": 33.884731,
+          "rss_ratio": 1.066898075102556
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.9572062224716936,
+          "baseline_ms": 34.145081,
+          "candidate_ms": 32.683884,
+          "rss_ratio": 1.0667402966235406
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9217925690666393,
+          "baseline_ms": 34.2628695,
+          "candidate_ms": 31.5832585,
+          "rss_ratio": 1.0668191858630482
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9932591666601148,
+          "baseline_ms": 33.3876375,
+          "candidate_ms": 33.162577,
+          "rss_ratio": 1.0693436415272957
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9706693028720149,
+          "baseline_ms": 5.4360965,
+          "candidate_ms": 5.276652,
+          "rss_ratio": 1.002036890347403
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.8848116139255294,
+          "baseline_ms": 4.729357,
+          "candidate_ms": 4.18459,
+          "rss_ratio": 1.0004485813614443
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9843484937365344,
+          "baseline_ms": 20.9039625,
+          "candidate_ms": 20.576784,
+          "rss_ratio": 1.0016152716593245
+        }
+      ],
+      "all_cells": [
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.9919361268964244,
+          "baseline_ms": 47.7769175,
+          "candidate_ms": 47.3916505,
+          "rss_ratio": 1.0081255916692964
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 1.007586056725019,
+          "baseline_ms": 39.4468445,
+          "candidate_ms": 39.7460905,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0144267787792962,
+          "baseline_ms": 39.983839,
+          "candidate_ms": 40.560677,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 1.0149143440701198,
+          "baseline_ms": 36.3557725,
+          "candidate_ms": 36.897995,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 1.014336587231627,
+          "baseline_ms": 36.2512355,
+          "candidate_ms": 36.7709545,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 0.8676632378752773,
+          "baseline_ms": 14.610396,
+          "candidate_ms": 12.6769035,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9643390131687644,
+          "baseline_ms": 12.934471,
+          "candidate_ms": 12.473215,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.8582157084032265,
+          "baseline_ms": 13.6425515,
+          "candidate_ms": 11.708252,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.8279405969414867,
+          "baseline_ms": 14.710219,
+          "candidate_ms": 12.1791875,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.937531138540695,
+          "baseline_ms": 13.1218015,
+          "candidate_ms": 12.3020975,
+          "rss_ratio": 1.0
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.0039820930776806,
+          "baseline_ms": 81.74269,
+          "candidate_ms": 82.068197,
+          "rss_ratio": 0.9963858488164927
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.989301685154442,
+          "baseline_ms": 68.389696,
+          "candidate_ms": 67.6580415,
+          "rss_ratio": 0.99628532974428
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 1.0185587320794203,
+          "baseline_ms": 68.0360595,
+          "candidate_ms": 69.2987225,
+          "rss_ratio": 0.9899475991872527
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9772814285076579,
+          "baseline_ms": 65.816154,
+          "candidate_ms": 64.320905,
+          "rss_ratio": 1.0046893317702228
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9833889540423337,
+          "baseline_ms": 65.2881825,
+          "candidate_ms": 64.2036775,
+          "rss_ratio": 1.0039481801357186
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "cold",
+          "candidate_over_baseline": 1.0170685253209337,
+          "baseline_ms": 32.9611955,
+          "candidate_ms": 33.5237945,
+          "rss_ratio": 1.0667402966235406
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private1",
+          "candidate_over_baseline": 0.9812694916100431,
+          "baseline_ms": 34.531524,
+          "candidate_ms": 33.884731,
+          "rss_ratio": 1.066898075102556
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "private2",
+          "candidate_over_baseline": 0.9572062224716936,
+          "baseline_ms": 34.145081,
+          "candidate_ms": 32.683884,
+          "rss_ratio": 1.0667402966235406
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "restore",
+          "candidate_over_baseline": 0.9217925690666393,
+          "baseline_ms": 34.2628695,
+          "candidate_ms": 31.5832585,
+          "rss_ratio": 1.0668191858630482
+        },
+        {
+          "interface": "cli",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 0,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9932591666601148,
+          "baseline_ms": 33.3876375,
+          "candidate_ms": 33.162577,
+          "rss_ratio": 1.0693436415272957
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9670521606521569,
+          "baseline_ms": 40.4638825,
+          "candidate_ms": 39.130685,
+          "rss_ratio": 0.9818754319944705
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9649095480586055,
+          "baseline_ms": 31.9387451,
+          "candidate_ms": 30.8180001,
+          "rss_ratio": 0.9979050841995004
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 1.0295569156276763,
+          "baseline_ms": 29.198615,
+          "candidate_ms": 30.061636,
+          "rss_ratio": 0.981378763866878
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "build",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.8596446782727653,
+          "baseline_ms": 30.159259,
+          "candidate_ms": 25.9262465,
+          "rss_ratio": 0.9793973941368078
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9706693028720149,
+          "baseline_ms": 5.4360965,
+          "candidate_ms": 5.276652,
+          "rss_ratio": 1.002036890347403
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9073640972996924,
+          "baseline_ms": 4.6781484,
+          "candidate_ms": 4.2447839,
+          "rss_ratio": 0.9998877917414721
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.8848116139255294,
+          "baseline_ms": 4.729357,
+          "candidate_ms": 4.18459,
+          "rss_ratio": 1.0004485813614443
+        },
+        {
+          "interface": "session",
+          "modules": 32,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.3769556464195864,
+          "baseline_ms": 4.5744785,
+          "candidate_ms": 1.7243755,
+          "rss_ratio": 0.997072401756559
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9912656327441447,
+          "baseline_ms": 76.9099215,
+          "candidate_ms": 76.238162,
+          "rss_ratio": 0.9159262443871214
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9851674122901143,
+          "baseline_ms": 59.8225554,
+          "candidate_ms": 58.9352321,
+          "rss_ratio": 0.9330143540669856
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 1.0090570972152089,
+          "baseline_ms": 56.6211765,
+          "candidate_ms": 57.134,
+          "rss_ratio": 0.9263676688023657
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "build",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.7597424492683512,
+          "baseline_ms": 57.033579,
+          "candidate_ms": 43.330831,
+          "rss_ratio": 0.9391299944295336
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 0.9661714379867221,
+          "baseline_ms": 22.9899515,
+          "candidate_ms": 22.2122345,
+          "rss_ratio": 0.9906048150322959
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.8075083851244593,
+          "baseline_ms": 25.0230931,
+          "candidate_ms": 20.2063575,
+          "rss_ratio": 0.998608364462023
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9843484937365344,
+          "baseline_ms": 20.9039625,
+          "candidate_ms": 20.576784,
+          "rss_ratio": 1.0016152716593245
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.410202916978808,
+          "baseline_ms": 20.111082,
+          "candidate_ms": 8.2496245,
+          "rss_ratio": 0.9828163681374691
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "cold",
+          "candidate_over_baseline": 1.0153374708998468,
+          "baseline_ms": 21.787686,
+          "candidate_ms": 22.121854,
+          "rss_ratio": 0.9954408412383263
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "private",
+          "candidate_over_baseline": 0.9622317794581229,
+          "baseline_ms": 18.9564107,
+          "candidate_ms": 18.2404608,
+          "rss_ratio": 0.9265386898871957
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "restore",
+          "candidate_over_baseline": 1.0073509075080767,
+          "baseline_ms": 6.2712665,
+          "candidate_ms": 6.317366,
+          "rss_ratio": 0.9427116086026914
+        },
+        {
+          "interface": "session",
+          "modules": 128,
+          "mode": "check",
+          "capacity": 8192,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.9867693955144926,
+          "baseline_ms": 5.8729365,
+          "candidate_ms": 5.795234,
+          "rss_ratio": 0.9954408412383263
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "cold",
+          "candidate_over_baseline": 1.001802617913732,
+          "baseline_ms": 111.960221,
+          "candidate_ms": 112.1620425,
+          "rss_ratio": 0.9752377423737186
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "private",
+          "candidate_over_baseline": 0.9647084556016646,
+          "baseline_ms": 108.0163525,
+          "candidate_ms": 104.2042886,
+          "rss_ratio": 0.9935934769947583
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "restore",
+          "candidate_over_baseline": 0.9592178236140783,
+          "baseline_ms": 111.030097,
+          "candidate_ms": 106.502048,
+          "rss_ratio": 0.9947229551451188
+        },
+        {
+          "interface": "session",
+          "modules": 512,
+          "mode": "check",
+          "capacity": 32,
+          "request": "unchanged",
+          "candidate_over_baseline": 0.36187023506119254,
+          "baseline_ms": 105.514865,
+          "candidate_ms": 38.182689,
+          "rss_ratio": 0.9663464480205592
+        }
+      ]
+    }
+  ],
+  "mixed": {
+    "window": "stage2-corrected-mixed",
+    "requests": 320,
+    "oracle_builds": 16,
+    "native_controls": 336,
+    "zil_verify1_reports_checked": 336,
+    "wrong_baseline_results": 10,
+    "excluded_cell": [
+      "byte_io/main.zil",
+      "O2"
+    ],
+    "excluded_ratio": null,
+    "all_other_cells_equivalent": true,
+    "time_unfavorable_cells": [
+      {
+        "case": "generic_store178/main.zil",
+        "opt": "O0",
+        "ratio": 1.0145819321481706
+      },
+      {
+        "case": "mixed_capture182/main.zil",
+        "opt": "O0",
+        "ratio": 1.0124831195405715
+      },
+      {
+        "case": "mixed_capture182/main.zil",
+        "opt": "O2",
+        "ratio": 1.0267871683205767
+      },
+      {
+        "case": "ct_selection219/main.zil",
+        "opt": "O0",
+        "ratio": 1.0100935415488097
+      },
+      {
+        "case": "where_copy229/main.zil",
+        "opt": "O2",
+        "ratio": 1.0514411405375554
+      },
+      {
+        "case": "shared_product224/main.zil",
+        "opt": "O0",
+        "ratio": 1.0297339471427474
+      }
+    ]
+  },
+  "scoped_test_log": {
+    "passed": 486,
+    "failed": 0,
+    "result_groups": 22,
+    "zero_test_groups": 1,
+    "note": "Zero-test targets contribute zero, not a separate pass."
+  },
+  "numeric_fields_recomputed": 1599,
+  "max_absolute_float_difference": 1.4210854715202004e-14,
+  "limitations": [
+    "Session per-request Verify=1 and native success are asserted by the hash-bound probe before emitting each row; full CompileReport and native stdout are not separately persisted for those requests. Raw phase records independently show one Verify execution.",
+    "CLI build records retain all native stdout and per-request ELF hashes; each run overwrites the executable, so only the final restore ELF per run remains for present-day hash verification.",
+    "First two candidate CLI paths were later overwritten; recorded historical hashes remain in manifests, and historical probe binaries still exist. Source/binary build provenance is separate from this statistical reconstruction.",
+    "CLI ru_maxrss is child high-water RSS; Session VmRSS is a post-request sample. They are different metrics and cannot be combined into a peak-memory claim.",
+    "Phase fields are time between observer events, including intervening driver work; they are not exclusive phase CPU cost.",
+    "Session private pools five consecutive edits per arm/run. Each block/arm mean has ten private samples versus two for other request labels.",
+    "Rust reference is direct rustc O0/metadata with its stated incremental/CGU flags, not Cargo or full language/product parity.",
+    "No benchmark was rerun; all unfavorable cells are retained in the review."
+  ]
+}

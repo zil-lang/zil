@@ -1,0 +1,9 @@
+{
+  "kind": "llvm-lvi",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 590,
+  "omitted_paths": 196,
+  "unique_blobs": 222,
+  "identity_sha256": "5860253d6320473425b99a24e805761f89bb228623a295e9bd1d1cbffe0149a1",
+  "verified_utc": "2026-10-31T14:41:19.095631+00:00"
+}

@@ -1,0 +1,16 @@
+{
+  "research_roots": [
+    "stage6/confirmation-closed-rust-cache-cleanup.py",
+    "stage6/confirmation-closed-rust-cache-cleanup-receipt.json",
+    "stage6/confirmation-closed-rust-cache-cleanup-audit.jsonl",
+    "stage6/confirmation-closed-rust-cache-cleanup.log",
+    "stage6/confirmation-closed-rust-cache-preinventory.json"
+  ],
+  "tools": [],
+  "repo_extra_sources": [],
+  "external_sources": [],
+  "tool_source_inventory": [],
+  "omission_paths": {},
+  "preserve_paths": [],
+  "archive_scope": "Exact authorized post-archive cleanup of only138 closed-window Rustincremental directories,5172 files and4593942570 logical bytes. Each current file must fully match the frozen raw-package omitted SHA manifest before any delete; membership/stats checked again, and only own-unlink same-inode ctime changes can be accepted after another immediate full content SHA verification. Source/program/object/semantic-cache and all request evidence are protected by precise path scope and outside file inventory. Full per-file verification/deletion audit and error/partial receipt reporting are retained. This operation is not performance data."
+}

@@ -1,0 +1,4 @@
+{
+  "timing_eligible": false,
+  "reason": "Final release build had not exited when this preliminary screen began; transient build overlap and binary replacement cannot establish an isolated measurement. All functional outcomes retained."
+}

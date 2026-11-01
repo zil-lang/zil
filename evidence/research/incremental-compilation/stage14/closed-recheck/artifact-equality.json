@@ -1,0 +1,26 @@
+[
+  {
+    "path": "/workspace/.zil-env/research/stage14/closed-recheck/large-even-8x1024/0-closed-baseline/program",
+    "sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+    "bytes": 15792,
+    "equal_to_confirmed_closed_elf": true
+  },
+  {
+    "path": "/workspace/.zil-env/research/stage14/closed-recheck/large-even-8x1024/1-closed-baseline/program",
+    "sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+    "bytes": 15792,
+    "equal_to_confirmed_closed_elf": true
+  },
+  {
+    "path": "/workspace/.zil-env/research/stage14/closed-recheck/large-even-8x1024/0-closed-candidate/program",
+    "sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+    "bytes": 15792,
+    "equal_to_confirmed_closed_elf": true
+  },
+  {
+    "path": "/workspace/.zil-env/research/stage14/closed-recheck/large-even-8x1024/1-closed-candidate/program",
+    "sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+    "bytes": 15792,
+    "equal_to_confirmed_closed_elf": true
+  }
+]

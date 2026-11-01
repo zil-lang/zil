@@ -1,0 +1,102 @@
+{
+  "schema": 2,
+  "kind": "quality-final-a1ab",
+  "collected_utc": "2026-10-31T16:19:46.816209+00:00",
+  "head_at_collection": "57e740ec971749981d615cbc2d7893a44a02f7fe",
+  "collector_sha256": "80daf64df57d74139eaa70349240ff86fc8fca93b81b306c3e973346a4bd24c3",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 223525,
+    "sha256": "c24188c9a567cd49d21c7df08830a01099bab19ac202b8467f887e2743b6ebfc",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 223525,
+        "sha256": "c24188c9a567cd49d21c7df08830a01099bab19ac202b8467f887e2743b6ebfc"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 103,
+      "logical_bytes": 44262,
+      "logical_sha256": "8f50673b92923eda5bf4116bdcc2275e663db3aea8c39e55e8196c96c4def0be",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 6309,
+        "sha256": "b3b3af9cf5ebe6851c9fcfe5bcb0513d99532c5aa98c71e56bd46cc79e29e7ac",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 6309,
+            "sha256": "b3b3af9cf5ebe6851c9fcfe5bcb0513d99532c5aa98c71e56bd46cc79e29e7ac"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 16,
+      "logical_bytes": 8991,
+      "logical_sha256": "84cd9716fd108be6bd1d6139f95797faef52068003518f88c79868d7ad73aa3f",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 1721,
+        "sha256": "c476c0eb68f3a81e0d08af0b70378ea7d2f71037865e0e596396dc6e686c62e7",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 1721,
+            "sha256": "c476c0eb68f3a81e0d08af0b70378ea7d2f71037865e0e596396dc6e686c62e7"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 6309,
+      "sha256": "b3b3af9cf5ebe6851c9fcfe5bcb0513d99532c5aa98c71e56bd46cc79e29e7ac"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 1721,
+      "sha256": "c476c0eb68f3a81e0d08af0b70378ea7d2f71037865e0e596396dc6e686c62e7"
+    },
+    "ROOTS.json": {
+      "bytes": 904,
+      "sha256": "dae663db334a8a2edb6b3db82b3acbbadf5e047a134d1f683a0eea1f290ce2a9"
+    },
+    "PLAN.json": {
+      "bytes": 502,
+      "sha256": "adbb42d61474fa14cbcb938f32482675b5a6fc9f24576a6807c54fd1ae04ff9b"
+    }
+  },
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 10,
+      "bytes": 198040
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 2,
+      "bytes": 119176
+    },
+    {
+      "class": "large-semantic-cache-candidate",
+      "files": 4,
+      "bytes": 1291452
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 103,
+      "bytes": 1981464
+    }
+  ],
+  "retained_paths": 103,
+  "omitted_paths": 16,
+  "unique_blobs": 71,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Frozen final production a1ab correctness/build evidence distinct from private v1: actualcdc6 compiler against unchanged7b5 four-TU LLVM, original BUILD/SOURCE/source-match/commands/loader/wrapper/producer bytes,18author backend tests and independent final review. Independent review has8 final builds+2 old-cache controls,40+10native and3negative requests; prior13structural models are reused by exact-equivalence, not newly executed. ENV-SUPPLEMENT is a later observed environment/script/tool dispatch supplement, not retroactive cargo-time capture; original BUILD unchanged. Full compiler source restores from exacta1ab Git and662-file source manifest; selected production sources/import helpers included. No formal speed, runtime-quality recovery or acceptance of later candidates is implied."
+}

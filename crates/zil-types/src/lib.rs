@@ -16,16 +16,24 @@ mod errors;
 mod foreign;
 mod functions;
 mod helpers;
+mod incremental;
 mod inference;
+pub use incremental::{FunctionSession, FunctionStats};
 mod lending;
 mod managed_slots;
 mod names;
 mod owning_factory;
 mod packages;
+mod preparation;
 mod program;
+pub use preparation::{
+    InferredProgram, PreparedProgram, check_prepared_program, infer_program_for_ct,
+    infer_shared_program_for_ct,
+};
 mod resource_effects;
 mod resources;
 mod retained;
+mod scalar_shapes;
 mod state_origins;
 mod store_templates;
 pub use inference::{infer_program_closures, infer_source_closures};

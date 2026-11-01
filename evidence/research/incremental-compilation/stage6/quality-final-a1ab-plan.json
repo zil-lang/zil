@@ -1,0 +1,14 @@
+{
+  "research_roots": [
+    "stage6/quality-production-a1ab",
+    "stage6-quality-final-review",
+    "stage6/quality-final-a1ab-archived-sources"
+  ],
+  "tools": [],
+  "repo_extra_sources": [],
+  "external_sources": [],
+  "tool_source_inventory": [],
+  "omission_paths": {},
+  "preserve_paths": [],
+  "archive_scope": "Frozen final production a1ab correctness/build evidence distinct from private v1: actualcdc6 compiler against unchanged7b5 four-TU LLVM, original BUILD/SOURCE/source-match/commands/loader/wrapper/producer bytes,18author backend tests and independent final review. Independent review has8 final builds+2 old-cache controls,40+10native and3negative requests; prior13structural models are reused by exact-equivalence, not newly executed. ENV-SUPPLEMENT is a later observed environment/script/tool dispatch supplement, not retroactive cargo-time capture; original BUILD unchanged. Full compiler source restores from exacta1ab Git and662-file source manifest; selected production sources/import helpers included. No formal speed, runtime-quality recovery or acceptance of later candidates is implied."
+}

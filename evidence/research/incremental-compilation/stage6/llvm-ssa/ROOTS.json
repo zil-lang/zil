@@ -1,0 +1,106 @@
+[
+  {
+    "prefix": "research/stage6/ssa-update",
+    "source_path": "/workspace/.zil-env/research/stage6/ssa-update"
+  },
+  {
+    "prefix": "research/stage6/ssa-handoff.log",
+    "source_path": "/workspace/.zil-env/research/stage6/ssa-handoff.log"
+  },
+  {
+    "prefix": "research/stage6-ssa-v2-review",
+    "source_path": "/workspace/.zil-env/research/stage6-ssa-v2-review"
+  },
+  {
+    "prefix": "research/stage6-ssa-v4-review",
+    "source_path": "/workspace/.zil-env/research/stage6-ssa-v4-review"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/512-branch",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/512-branch"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/2048-branch",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/2048-branch"
+  },
+  {
+    "prefix": "research/stage6/ca79-opaque-perf-v2/2048-branch",
+    "source_path": "/workspace/.zil-env/research/stage6/ca79-opaque-perf-v2/2048-branch"
+  },
+  {
+    "prefix": "research/stage6-native-jt-review/c_api_child.py",
+    "source_path": "/workspace/.zil-env/research/stage6-native-jt-review/c_api_child.py"
+  },
+  {
+    "prefix": "research/stage6-native-jt-review/c-api/plan.json",
+    "source_path": "/workspace/.zil-env/research/stage6-native-jt-review/c-api/plan.json"
+  },
+  {
+    "prefix": "research/stage6-native-jt-review/c-api/original",
+    "source_path": "/workspace/.zil-env/research/stage6-native-jt-review/c-api/original"
+  },
+  {
+    "prefix": "research/stage6-jt-review/differential",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/differential"
+  },
+  {
+    "prefix": "research/stage6-jt-review/boundaries",
+    "source_path": "/workspace/.zil-env/research/stage6-jt-review/boundaries"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-sdk/headers-receipt.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-sdk/headers-receipt.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/ssa_update",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/ssa_update"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/llvm-ssa-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/llvm-ssa-plan.json"
+  },
+  {
+    "prefix": "collection-source/changes/research-jump-threading-ssa.md",
+    "source_path": "/workspace/zil/changes/research-jump-threading-ssa.md"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/jump_threading_plugin/build_native_toolchain.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/jump_threading_plugin/build_native_toolchain.py"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.cpp",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.cpp"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.h",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.h"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/jump_threading_plugin/upstream/PROVENANCE.json",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/jump_threading_plugin/upstream/PROVENANCE.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/jump_threading_plugin/upstream/LICENSE.TXT",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/jump_threading_plugin/upstream/LICENSE.TXT"
+  },
+  {
+    "prefix": "collection-source/tools/llvm/release-linux-x86_64.json",
+    "source_path": "/workspace/zil/tools/llvm/release-linux-x86_64.json"
+  },
+  {
+    "prefix": "collection-source/tools/llvm/install.py",
+    "source_path": "/workspace/zil/tools/llvm/install.py"
+  },
+  {
+    "prefix": "external-build-inputs/llvm-23.1.4/install-receipt.json",
+    "source_path": "/workspace/.zil-env/llvm-23.1.4/install-receipt.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

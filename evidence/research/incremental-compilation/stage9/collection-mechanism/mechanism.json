@@ -1,0 +1,15 @@
+{
+  "scope": "mechanism and native correctness only; not paired performance",
+  "requests": 3,
+  "valid": 3,
+  "definitions": [
+    "define i32 @zil.fn.2() {",
+    "define i32 @main() {"
+  ],
+  "ir_bytes": 1451,
+  "current_verify": [
+    1,
+    1,
+    1
+  ]
+}

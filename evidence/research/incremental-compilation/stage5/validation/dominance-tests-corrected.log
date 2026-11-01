@@ -1,0 +1,13 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/zil/crates/zil-llvm-api)
+    Finished `test` profile [unoptimized] target(s) in 0.40s
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_llvm_api-9229337dfe21b3b8)
+
+running 5 tests
+test preflight::named_layout_tests::cached_shallow_success_never_hides_deeper_failure_or_first_error ... ok
+test preflight::named_layout_tests::cyclic_missing_void_and_width_neighbors_match_original_dfs ... ok
+test preflight::named_layout_tests::shared_layout_dag_is_bounded_by_nodes_and_depth_not_expanded_paths ... ok
+test preflight::dominance_interval_tests::deep_dominator_chain_uses_iterative_intervals ... ok
+test preflight::dominance_interval_tests::intervals_match_original_walk_for_cycles_unreachable_and_irreducible_cfgs ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

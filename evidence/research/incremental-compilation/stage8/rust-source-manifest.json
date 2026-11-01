@@ -1,0 +1,78 @@
+{
+  "rust_commit": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+  "read_only": true,
+  "sources": [
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_ast_lowering__src__lib.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_ast_lowering/src/lib.rs",
+      "sha256": "9679752e076845e21f53fc33f9be83d6223027a85e7f99e028e40df534746da2",
+      "bytes": 136266
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_hir__src__hir.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_hir/src/hir.rs",
+      "sha256": "96e1ee42831eb3bd0b121179f1ef49a36cf022315cab1f2345ed4657ebe83de1",
+      "bytes": 183464
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_hir_analysis__src__collect.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_hir_analysis/src/collect.rs",
+      "sha256": "ff29c42ca25c983e219e5b08ca47a9b74f27eb531a75186234cb785774dbdb03",
+      "bytes": 64618
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_interface__src__passes.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_interface/src/passes.rs",
+      "sha256": "e8094f06284bb501a29ccbffb6c9273b7ed964252682fa9226b18aa92ce9109b",
+      "bytes": 58242
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_middle__src__dep_graph__dep_node.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_middle/src/dep_graph/dep_node.rs",
+      "sha256": "bd39f41a5ecdf2435d7137af00ea423d968050230eda45dd55831e00890a28cc",
+      "bytes": 16831
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_middle__src__hir__map.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_middle/src/hir/map.rs",
+      "sha256": "2796908b0ba41107d8739dd84a21ec08c1c83170d9ba94657fafbfd31d8edc21",
+      "bytes": 56338
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_middle__src__hir__mod.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_middle/src/hir/mod.rs",
+      "sha256": "2c977d13f1cb3c9b2ad15ae1c88f6c442c74cf3248e1b55fb605c378e88b6dfa",
+      "bytes": 19505
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_middle__src__queries.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_middle/src/queries.rs",
+      "sha256": "ea9e4284f77e59b8e2e4e0c4bbc201ddce79751d145de437631b8f1236b059d0",
+      "bytes": 121819
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_middle__src__query__mod.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_middle/src/query/mod.rs",
+      "sha256": "53aa447ea55dd1edf24f2a9e6c0a36abb95c259114012f527334e685c1340abf",
+      "bytes": 1024
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_middle__src__query__on_disk_cache.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_middle/src/query/on_disk_cache.rs",
+      "sha256": "1057af59ff38d53c8444c073325fb57c9b90999fb5becc53f7b94a0a2e865564",
+      "bytes": 38536
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/compiler__rustc_middle__src__query__plumbing.rs",
+      "url": "https://github.com/rust-lang/rust/blob/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_middle/src/query/plumbing.rs",
+      "sha256": "d1ff86442f384b7843b07a1d5a7720d5ec419d8a07796399320062df60351598",
+      "bytes": 25536
+    },
+    {
+      "file": "/workspace/.zil-env/research/stage8-rust/incremental-compilation-in-detail.md",
+      "url": "https://github.com/rust-lang/rustc-dev-guide/blob/69e3b706eac15d804c75ce6558cc8355aac4e3f5/src/queries/incremental-compilation-in-detail.md",
+      "sha256": "8a975481bb5aff355a1d4b3d89c09c924143d508228bd5907a4d6cd8ffb385d3",
+      "bytes": 27785
+    }
+  ]
+}

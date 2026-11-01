@@ -1,0 +1,242 @@
+{
+  "production": "c4d7b3fe1488fd22dc4f64e092b75a6ec2f08cad",
+  "intermediate": {
+    "production": "1222448ba0c8fae17fe60b3556a20f2e01476bae",
+    "screen_builds": 32,
+    "warm_followups": 12,
+    "retained_adverse": true
+  },
+  "baseline": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/stage15/baseline/zil",
+      "sha256": "ad8900335bdc8bd9709fea1d7464f9d33ac8b3afcda360a206c9d96d8afd42d0"
+    },
+    "llvm": {
+      "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+      "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+    },
+    "clang": {
+      "path": "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+      "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+    },
+    "baseline_source": "75178b1cfb42bfd37746b7573999d74d7d7668db",
+    "delivery": "014c5d301c7a7283f5a39665d81d145ccaa6bc1f"
+  },
+  "final": {
+    "builds": 56,
+    "valid": 56,
+    "current_zil_verify": 40,
+    "rust_observations": 16,
+    "independent_histories": {
+      "main": 12,
+      "closed": 2
+    },
+    "sampling": "one observation per history state; edit-warm shares edited cache history; explicit O2/8CGU/2jobs/research LLVM, default contract means retained symbols, not CLI defaults"
+  },
+  "controls_initial": {
+    "environment_overrides": {
+      "CARGO_TARGET_DIR": "/workspace/.zil-env/research/stage8/target-test",
+      "ZIL_LLVM_LIB_DIR": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib",
+      "LD_LIBRARY_PATH": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib"
+    },
+    "checks": [
+      {
+        "name": "backend",
+        "command": [
+          "cargo",
+          "test",
+          "--offline",
+          "--locked",
+          "-p",
+          "zil-backend-llvm",
+          "--features",
+          "llvm-api",
+          "--lib"
+        ],
+        "exit": 0,
+        "passed": 126
+      },
+      {
+        "name": "discovery",
+        "command": [
+          "cargo",
+          "test",
+          "--offline",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--lib",
+          "discovery"
+        ],
+        "exit": 0,
+        "passed": 10
+      },
+      {
+        "name": "functions",
+        "command": [
+          "cargo",
+          "test",
+          "--offline",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--lib",
+          "function_types_"
+        ],
+        "exit": 0,
+        "passed": 6
+      },
+      {
+        "name": "cache-native",
+        "command": [
+          "cargo",
+          "test",
+          "--offline",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--features",
+          "llvm-api",
+          "--test",
+          "discovery_cache",
+          "--test",
+          "semantic_cache",
+          "--test",
+          "object_cache212"
+        ],
+        "exit": 0,
+        "passed": 32
+      },
+      {
+        "name": "clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--offline",
+          "--locked",
+          "-p",
+          "zil-types",
+          "-p",
+          "zil-backend-llvm",
+          "-p",
+          "zil-driver",
+          "--features",
+          "zil-driver/llvm-api",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit": 101,
+        "passed": null
+      }
+    ]
+  },
+  "controls_final": [
+    {
+      "name": "functions-final",
+      "stdout_sha256": "688178a2a86ce0e098c4d6616a2b5abba6c4c4173dc29a898084fe5607951d37",
+      "stderr_sha256": "3f125f7973a05909cd3a9f6b14353a7f7ebbac9cc914f6579252293b625b047e",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--lib",
+        "function_types_"
+      ]
+    },
+    {
+      "name": "functions-gate",
+      "stdout_sha256": "15de1e450e936b6c725cf6431d58e4fe7fedc74da7cffc33b59c143017119ba4",
+      "stderr_sha256": "cda2ba1973607eaf5cf577f1ca4749eff49f9c01e276c8630c7700dcd060340e",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--lib",
+        "function_types_"
+      ]
+    },
+    {
+      "name": "clippy-gate",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c0f5caf2d488740f79578e61137683c7d1ee5cf7cd3dd14f7fb1aab48cd980cc",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-types",
+        "-p",
+        "zil-backend-llvm",
+        "-p",
+        "zil-driver",
+        "--features",
+        "zil-driver/llvm-api",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ]
+    },
+    {
+      "name": "fmt-gate",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ]
+    },
+    {
+      "name": "ci-controls",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "812020290987e68027b66f0b10a6cd36f917bfc0dc21dae04c9d9796dd2b845e",
+      "exit": 0,
+      "command": [
+        "python3",
+        "tools/ci/test_evidence_transport.py"
+      ]
+    }
+  ],
+  "distinct_rust_controls": 175,
+  "rust_control_executions": 187,
+  "python_controls": 5,
+  "native_section_pairs": 5,
+  "all_native_text_equal": true,
+  "raw_archive": {
+    "path": "raw.tar.gz",
+    "bytes": 10765728,
+    "sha256": "b4a9c0f0cfe8f7444cb0952f9414e4ca6365f025f36f5005ce56ca877f1d5d87",
+    "files": 910
+  },
+  "limitations": [
+    "general resource/generic/closure function-level semantic dependency graph not implemented",
+    "Expand/CT/global checks/Analyze/Verify stay current",
+    "no check/O0/industrial/Rust runtime matrix added",
+    "no universal Rust win: dynamic warm and edited-warm slower in final observations",
+    "final exact delivery CI and integration remain pending"
+  ]
+}

@@ -21,15 +21,33 @@ const DUMPS: &[(&str, &str, Stage)] = &[
     ("llvm", "ll", Stage::Build),
 ];
 
+#[derive(Clone)]
 struct PlannedFile {
     name: &'static str,
     path: PathBuf,
 }
 
+#[derive(Clone)]
 pub(super) struct ArtifactPlan {
     files: Vec<PlannedFile>,
 }
 impl ArtifactPlan {
+    pub(super) fn semantic_cache(&mut self, path: &Path) -> CompileResult<PathBuf> {
+        self.cache_destination("semantic-cache", path)
+    }
+    pub(super) fn cache_destination(
+        &mut self,
+        name: &'static str,
+        path: &Path,
+    ) -> CompileResult<PathBuf> {
+        let path = destination(path)?;
+        self.files.push(PlannedFile {
+            name,
+            path: path.clone(),
+        });
+        self.validate()?;
+        Ok(path)
+    }
     pub(super) fn project(
         source: &SourceUnit,
         sources: &[SourceUnit],
@@ -37,10 +55,11 @@ impl ArtifactPlan {
     ) -> CompileResult<Self> {
         let mut plan = Self::new(source, options)?;
         let mut dependencies = Vec::new();
+        let mut directories = DestinationCache::default();
         for dependency in sources.iter().filter(|unit| unit.file_id != source.file_id) {
             dependencies.push(PlannedFile {
                 name: "source",
-                path: destination(Path::new(&dependency.path))?,
+                path: directories.resolve(Path::new(&dependency.path))?,
             });
         }
         plan.files.splice(1..1, dependencies);
@@ -97,10 +116,13 @@ impl ArtifactPlan {
     /// destinations already resolve parent symlinks, so changing such an alias
     /// cannot redirect the operation after the initial preflight.
     pub(super) fn validate(&self) -> CompileResult<()> {
+        // No resolution is retained across this check boundary. In particular,
+        // observer callbacks may change aliases before a later publication.
+        let mut directories = DestinationCache::default();
         let identities = self
             .files
             .iter()
-            .map(|file| identity(&file.path))
+            .map(|file| identity(&file.path, &mut directories))
             .collect::<CompileResult<Vec<_>>>()?;
         // Project sources precede the fixed-size output set. Check source
         // identities once, then compare each source only against outputs.
@@ -281,12 +303,54 @@ fn destination(path: &Path) -> CompileResult<PathBuf> {
     Ok(parent.join(name))
 }
 
+/// One successful parent per synchronous construction/validation batch. File
+/// identities, failures and later checks are never cached. Keep the original
+/// resolver as the miss path, including symlink-before-ParentDir semantics.
+#[derive(Default)]
+struct DestinationCache {
+    last: Option<(PathBuf, PathBuf)>,
+}
+impl DestinationCache {
+    fn resolve(&mut self, path: &Path) -> CompileResult<PathBuf> {
+        let name = path
+            .file_name()
+            .ok_or_else(|| infra("E-OUTPUT-PATH", "a file destination must have a name"))?;
+        let absolute = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .map_err(|error| infra("E-OUTPUT-PATH", error.to_string()))?
+                .join(path)
+        };
+        // Drive-relative Windows paths can remain relative after joining the
+        // process directory; their implicit per-drive state is not a cache key.
+        if !absolute.is_absolute() {
+            return destination(path);
+        }
+        let parent = absolute.parent().expect("absolute file has a parent");
+        if let Some((previous, resolved)) = &self.last
+            && previous == parent
+        {
+            return Ok(resolved.join(name));
+        }
+        let resolved = destination(&absolute)?;
+        self.last = Some((
+            parent.to_path_buf(),
+            resolved
+                .parent()
+                .expect("resolved file has a parent")
+                .to_path_buf(),
+        ));
+        Ok(resolved)
+    }
+}
+
 struct FileIdentity {
     resolved: PathBuf,
     #[cfg(unix)]
     inode: Option<(u64, u64)>,
 }
-fn identity(path: &Path) -> CompileResult<FileIdentity> {
+fn identity(path: &Path, directories: &mut DestinationCache) -> CompileResult<FileIdentity> {
     match fs::metadata(path) {
         Ok(metadata) => {
             if !metadata.is_file() {
@@ -316,7 +380,7 @@ fn identity(path: &Path) -> CompileResult<FileIdentity> {
                 ));
             }
             Ok(FileIdentity {
-                resolved: destination(path)?,
+                resolved: directories.resolve(path)?,
                 #[cfg(unix)]
                 inode: None,
             })
@@ -522,6 +586,112 @@ impl Drop for NativePublication {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_parent_resolution_matches_the_uncached_resolver() {
+        let directory = Staging::create(&std::env::temp_dir()).unwrap();
+        let root = &directory.path;
+        fs::create_dir(root.join("a")).unwrap();
+        fs::create_dir(root.join("b")).unwrap();
+        fs::write(root.join("not-a-directory"), "file").unwrap();
+        let paths = vec![
+            root.join("a/first.zil"),
+            root.join("a/second.zil"),
+            root.join("a/missing/nested/first.zil"),
+            root.join("a/missing/nested/second.zil"),
+            root.join("a/../b/first.zil"),
+            root.join("a/../b/second.zil"),
+            root.join("not-a-directory/first.zil"),
+            root.join("not-a-directory/second.zil"),
+            PathBuf::from("./Cargo.toml"),
+            PathBuf::from("./missing-source.zil"),
+            PathBuf::from("/"),
+            PathBuf::new(),
+            root.join("a/.."),
+        ];
+        #[cfg(unix)]
+        let paths = {
+            use std::os::unix::fs::symlink;
+            let mut paths = paths;
+            fs::create_dir_all(root.join("deep/inner")).unwrap();
+            symlink(root.join("deep/inner"), root.join("alias")).unwrap();
+            symlink(root.join("absent"), root.join("dangling")).unwrap();
+            paths.extend([
+                root.join("alias/first.zil"),
+                root.join("alias/second.zil"),
+                root.join("alias/../first.zil"),
+                root.join("alias/../second.zil"),
+                root.join("dangling/first.zil"),
+                root.join("dangling/second.zil"),
+            ]);
+            paths
+        };
+        let mut cached = DestinationCache::default();
+        for path in paths.iter().cycle().take(paths.len() * 3) {
+            assert_eq!(
+                cached.resolve(path),
+                destination(path),
+                "{}",
+                path.display()
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn later_validation_rechecks_files_parent_directories_and_aliases() {
+        let directory = Staging::create(&std::env::temp_dir()).unwrap();
+        let root = &directory.path;
+        fs::write(root.join("a.zil"), "source a").unwrap();
+        fs::write(root.join("b.zil"), "source b").unwrap();
+        fs::create_dir(root.join("output")).unwrap();
+        let sources = [
+            SourceUnit::new(
+                FileId(0),
+                zil_base::ModuleId(0),
+                root.join("a.zil").to_string_lossy(),
+                "source a",
+            ),
+            SourceUnit::new(
+                FileId(1),
+                zil_base::ModuleId(1),
+                root.join("b.zil").to_string_lossy(),
+                "source b",
+            ),
+        ];
+        let options = CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(root.join("output/program")),
+            ..CompileOptions::default()
+        };
+        let plan = ArtifactPlan::project(&sources[0], &sources, &options).unwrap();
+        plan.validate().unwrap();
+        fs::remove_file(root.join("b.zil")).unwrap();
+        fs::hard_link(root.join("a.zil"), root.join("b.zil")).unwrap();
+        assert_eq!(plan.validate().unwrap_err()[0].code, "E-OUTPUT-SOURCE");
+        fs::remove_file(root.join("b.zil")).unwrap();
+        fs::write(root.join("b.zil"), "source b").unwrap();
+        plan.validate().unwrap();
+        fs::remove_dir(root.join("output")).unwrap();
+        fs::write(root.join("output"), "not a directory anymore").unwrap();
+        assert_eq!(plan.validate().unwrap_err()[0].code, "E-OUTPUT-PATH");
+        fs::remove_file(root.join("output")).unwrap();
+        fs::create_dir(root.join("output")).unwrap();
+        plan.validate().unwrap();
+        fs::hard_link(root.join("a.zil"), root.join("output/program")).unwrap();
+        assert_eq!(plan.validate().unwrap_err()[0].code, "E-OUTPUT-SOURCE");
+        fs::remove_file(root.join("output/program")).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            symlink(root.join("a.zil"), root.join("output/program")).unwrap();
+            assert_eq!(plan.validate().unwrap_err()[0].code, "E-OUTPUT-SOURCE");
+            fs::remove_file(root.join("output/program")).unwrap();
+            symlink(root.join("missing.zil"), root.join("output/program")).unwrap();
+            assert_eq!(plan.validate().unwrap_err()[0].code, "E-OUTPUT-PATH");
+        }
+        assert_eq!(fs::read_to_string(root.join("a.zil")).unwrap(), "source a");
+    }
 
     #[test]
     fn second_native_rename_failure_restores_both_previous_outputs() {

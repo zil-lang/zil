@@ -1,0 +1,34 @@
+{
+  "scope": "Archived completion accounting only; no new benchmark observations.",
+  "planned": 640,
+  "completed_valid": 535,
+  "aborted": 1,
+  "not_started": 104,
+  "windows": [
+    {
+      "window": "merge-screen-default-after",
+      "completed": 160,
+      "completed_valid": 160,
+      "rows_sha256": "aa857666e0378a0d96416e2e83feaac3bc68935fca0003753a721b622d8c07d3"
+    },
+    {
+      "window": "merge-screen-default-before-and-after",
+      "completed": 160,
+      "completed_valid": 160,
+      "rows_sha256": "2d79853fbc8a91be1e7f52a636408532763e1d4b50f9e6b8827b6ec6cce571ce"
+    },
+    {
+      "window": "merge-screen-closed-after",
+      "completed": 160,
+      "completed_valid": 160,
+      "rows_sha256": "899a3f410fc145dc9c6970b7e8e6acee562138052cd721f9d8ec36e06d8de6f4"
+    },
+    {
+      "window": "merge-screen-closed-before-and-after",
+      "completed": 55,
+      "completed_valid": 55,
+      "rows_sha256": "f3816e73984d1aeadb6d397c5dd25102b477a84dc7f24af4f940f7090f91c978"
+    }
+  ],
+  "stop_sha256": "973724cf3dd6d353d8278fa7d22cd0fb03c94f2f2075263d44cf22eb98f26e6a"
+}

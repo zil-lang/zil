@@ -1,0 +1,87 @@
+{
+  "schema": 2,
+  "kind": "screen-cache-cleanup",
+  "collected_utc": "2026-10-31T14:38:18.684179+00:00",
+  "head_at_collection": "74431f9d6e65d716f8d1e94d99b679eb399acdfc",
+  "collector_sha256": "4d822ed213fbc8304db30be23acd08c3d9645a7e824f0007b8b915f8ffc6b232",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 128012,
+    "sha256": "9c3fd7b70c1ec2f343401c278615f3ce8106c476eb089318cb77d44b7b166fc9",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 128012,
+        "sha256": "9c3fd7b70c1ec2f343401c278615f3ce8106c476eb089318cb77d44b7b166fc9"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 9,
+      "logical_bytes": 3817,
+      "logical_sha256": "36947c0bf2a847b9e8252cf543dd7169909028155775bc37836bccb570f32f73",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 819,
+        "sha256": "ad5826bf8b7f677b2f095b4a591fb0a518188ce3f9c7cfd1fa677dc2e7fc6412",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 819,
+            "sha256": "ad5826bf8b7f677b2f095b4a591fb0a518188ce3f9c7cfd1fa677dc2e7fc6412"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 0,
+      "logical_bytes": 0,
+      "logical_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 34,
+        "sha256": "b7d32eb09f028d616c025aaacadf2fbffdc21346da5eff6a6d21fcb9d1b5d8f2",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 34,
+            "sha256": "b7d32eb09f028d616c025aaacadf2fbffdc21346da5eff6a6d21fcb9d1b5d8f2"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 819,
+      "sha256": "ad5826bf8b7f677b2f095b4a591fb0a518188ce3f9c7cfd1fa677dc2e7fc6412"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "b7d32eb09f028d616c025aaacadf2fbffdc21346da5eff6a6d21fcb9d1b5d8f2"
+    },
+    "ROOTS.json": {
+      "bytes": 1765,
+      "sha256": "bd18a9c75ff385009660ba296d4cb379b845626c7f76b4393ff8a30914329410"
+    },
+    "PLAN.json": {
+      "bytes": 194,
+      "sha256": "5911bbca34f6529ed2b490b864da46b19472121efa7e735fc560bee328366cc8"
+    }
+  },
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 9,
+      "bytes": 1326159
+    }
+  ],
+  "retained_paths": 9,
+  "omitted_paths": 0,
+  "unique_blobs": 9,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Exact 36 old-screen Rust incremental-cache cleanup after full SHA comparison with frozen archive identities. Preserves initial schema-check failure before any deletion and complete verification/deletion receipts. No source/test/target or old evidence package deletion."
+}

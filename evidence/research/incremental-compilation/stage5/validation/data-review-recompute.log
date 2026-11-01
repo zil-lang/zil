@@ -1,0 +1,6 @@
+generated-default {'valid_current_verify': 1890, 'valid_rows': 3960, 'object_hits': 6360, 'object_misses': 2220, 'native_outcomes': 2640, 'native_builds': 2640, 'invalid_rows': 180} adverse 187 invalid_cells 30
+generated-closed {'valid_current_verify': 630, 'object_hits': 2868, 'object_misses': 1032, 'native_outcomes': 1320, 'native_builds': 1320, 'valid_rows': 1320, 'invalid_rows': 60} adverse 51 invalid_cells 10
+implementation-ablation {'valid_current_verify': 960, 'object_hits': 2952, 'object_misses': 1218, 'native_outcomes': 960, 'native_builds': 960, 'valid_rows': 960} adverse 21 invalid_cells 0
+real-default {'valid_current_verify': 504, 'valid_rows': 1008, 'object_hits': 732, 'object_misses': 732, 'native_outcomes': 10080, 'native_builds': 672} adverse 0 invalid_cells 0
+real-closed {'valid_current_verify': 168, 'object_hits': 366, 'object_misses': 366, 'native_outcomes': 5040, 'native_builds': 336, 'valid_rows': 336} adverse 0 invalid_cells 0
+PASS 7824 652 {'raw_zil_reports': 4392, 'object_reports': 18846, 'numeric_fields': 10912} inventory 28046

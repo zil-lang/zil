@@ -1,0 +1,36 @@
+{
+  "source": "f289037feaf49adccdaa9ae01ab340c2e599bd8e",
+  "arms": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/stage8/baseline/zil",
+      "sha256": "c9a26c0b6b8b129abdd4411addc2d085a916c9734cd556bc480dcccd1c3aeda6"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "sha256": "aded4d4fa753fac6ae40a4ab586b95b0a07def8bf24bbafa64b21eb94bb7d513"
+    }
+  },
+  "library": {
+    "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+    "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+  },
+  "reps": 1,
+  "contracts": [
+    "default",
+    "closed"
+  ],
+  "cpus": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "resources": "GNU time child CPU and max RSS; subprocess wall includes the same launcher for all arms",
+  "cases": [
+    "large-even-8x1024"
+  ],
+  "runner_sha256": "7784dbb57d7536ad8c51cd7acd212b1c1b9f36de0e931d38c6dc691672c65e9d",
+  "working_diff_sha256": "1837b3868a5fcce1f60769b6fb60b06d88dd54499ddc8ac6ab3aedca3fc102d7",
+  "rustc_verbose": null
+}

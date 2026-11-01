@@ -1,0 +1,119 @@
+{
+  "scope": "Compare existing edited native artifacts without building or timing programs.\n\nUsage: stage10_quality.py STAGE10_ROOT. GNU nm sizes exclude inter-function\nalignment padding. Objdump comparisons preserve instructions, immediates and\nsymbolic branch destinations, normalizing only relocated absolute addresses\nand annotated RIP-relative displacements. This is a bounded static comparison,\nnot a general runtime or function-address equality proof.\n",
+  "pairs": [
+    {
+      "label": "final-target-large-even-8x1024-0-default",
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage10/final-target/large-even-8x1024/0-default-baseline/program",
+        "sha256": "3cd7162422bb93c47593a0ba4fbb5b3234cad53874b47bd86f881d7972726f3e",
+        "bytes": 375664
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage10/final-target/large-even-8x1024/0-default-candidate/program",
+        "sha256": "ff9873ddf9ec4ab9135460ae874c4d1e78cec76081f29509c7c9cf83e64b24a9",
+        "bytes": 375664
+      },
+      "byte_identical": false,
+      "common_functions": 8203,
+      "missing_functions": [],
+      "added_functions": [],
+      "different_instruction_functions": [],
+      "different_size_functions": []
+    },
+    {
+      "label": "final-target-large-even-8x1024-1-default",
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage10/final-target/large-even-8x1024/1-default-baseline/program",
+        "sha256": "3cd7162422bb93c47593a0ba4fbb5b3234cad53874b47bd86f881d7972726f3e",
+        "bytes": 375664
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage10/final-target/large-even-8x1024/1-default-candidate/program",
+        "sha256": "ff9873ddf9ec4ab9135460ae874c4d1e78cec76081f29509c7c9cf83e64b24a9",
+        "bytes": 375664
+      },
+      "byte_identical": false,
+      "common_functions": 8203,
+      "missing_functions": [],
+      "added_functions": [],
+      "different_instruction_functions": [],
+      "different_size_functions": []
+    },
+    {
+      "label": "final-target-large-even-8x1024-2-default",
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage10/final-target/large-even-8x1024/2-default-baseline/program",
+        "sha256": "3cd7162422bb93c47593a0ba4fbb5b3234cad53874b47bd86f881d7972726f3e",
+        "bytes": 375664
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage10/final-target/large-even-8x1024/2-default-candidate/program",
+        "sha256": "ff9873ddf9ec4ab9135460ae874c4d1e78cec76081f29509c7c9cf83e64b24a9",
+        "bytes": 375664
+      },
+      "byte_identical": false,
+      "common_functions": 8203,
+      "missing_functions": [],
+      "added_functions": [],
+      "different_instruction_functions": [],
+      "different_size_functions": []
+    },
+    {
+      "label": "final-guards-large-8192-0-default",
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage10/final-guards/large-8192/0-default-baseline/program",
+        "sha256": "a4544dc8ea3f2be9f6e9dbeeb448dca5b7104bc5fb704b8668e50c1a59883ab2",
+        "bytes": 375368
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage10/final-guards/large-8192/0-default-candidate/program",
+        "sha256": "a4544dc8ea3f2be9f6e9dbeeb448dca5b7104bc5fb704b8668e50c1a59883ab2",
+        "bytes": 375368
+      },
+      "byte_identical": true,
+      "common_functions": 8195,
+      "missing_functions": [],
+      "added_functions": [],
+      "different_instruction_functions": [],
+      "different_size_functions": []
+    },
+    {
+      "label": "final-guards-large-skew-8-0-default",
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage10/final-guards/large-skew-8/0-default-baseline/program",
+        "sha256": "44fc5c0d669707accb8f4c6d4ae1632391744eee4aa7a91146337d3daf2e44a6",
+        "bytes": 375664
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage10/final-guards/large-skew-8/0-default-candidate/program",
+        "sha256": "c65a82f93bc589630ae81dddac6bb149d37f9ba44e3ec8a85d46a4638ab52e84",
+        "bytes": 375664
+      },
+      "byte_identical": false,
+      "common_functions": 8203,
+      "missing_functions": [],
+      "added_functions": [],
+      "different_instruction_functions": [],
+      "different_size_functions": []
+    },
+    {
+      "label": "final-closed-guard-large-even-8x1024-0-closed",
+      "baseline": {
+        "path": "/workspace/.zil-env/research/stage10/final-closed-guard/large-even-8x1024/0-closed-baseline/program",
+        "sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+        "bytes": 15792
+      },
+      "candidate": {
+        "path": "/workspace/.zil-env/research/stage10/final-closed-guard/large-even-8x1024/0-closed-candidate/program",
+        "sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+        "bytes": 15792
+      },
+      "byte_identical": true,
+      "common_functions": 1,
+      "missing_functions": [],
+      "added_functions": [],
+      "different_instruction_functions": [],
+      "different_size_functions": []
+    }
+  ]
+}

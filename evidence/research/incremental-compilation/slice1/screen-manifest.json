@@ -1,0 +1,42 @@
+{
+  "scope": "complete CLI O0 declaration-dependency screen, not product acceptance",
+  "baseline_source": "21058d0e331de764e3a1b9123c3e1edf5e55a1aa",
+  "candidate_source": "8fb69d61b41a241806e7021de93a27ce7e213f7b",
+  "compilers": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/target-slice1-baseline/release/zil",
+      "sha256": "794c53ba6f71e4e752872e8797e23fda622bb9ba9dfd0d286e24609f5729bccf"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/target-slice1-candidate/release/zil",
+      "sha256": "90f00a1ba4d8592e777b485a06480db37bb2e352f6fb59614c7b11b210fa22f6"
+    }
+  },
+  "cpus": [
+    0,
+    1
+  ],
+  "blocks": 5,
+  "modules": [
+    4,
+    32
+  ],
+  "requests": [
+    "cold",
+    "unchanged",
+    "unused",
+    "private",
+    "restore"
+  ],
+  "flags": [
+    "--entry",
+    "value",
+    "--opt",
+    "O0",
+    "--codegen-units",
+    "8",
+    "--codegen-jobs",
+    "2"
+  ],
+  "timing": "subprocess complete wall; native execution checked outside timer; OS cache uncontrolled"
+}

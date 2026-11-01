@@ -1,0 +1,142 @@
+[
+  {
+    "prefix": "research/stage6-confirmation-review",
+    "source_path": "/workspace/.zil-env/research/stage6-confirmation-review"
+  },
+  {
+    "prefix": "research/stage6-timer-review",
+    "source_path": "/workspace/.zil-env/research/stage6-timer-review"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/a638e8aacab9ced167c31eb52a75001c3d134c75/SOURCE-INVENTORY-d8bbd5796802.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/a638e8aacab9ced167c31eb52a75001c3d134c75/SOURCE-INVENTORY-d8bbd5796802.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/a638e8aacab9ced167c31eb52a75001c3d134c75/tools/research/incremental-compilation/stage6_bench.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/a638e8aacab9ced167c31eb52a75001c3d134c75/tools/research/incremental-compilation/stage6_bench.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/DEPENDENCY-INVENTORY.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/DEPENDENCY-INVENTORY.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/SOURCE-INVENTORY-3da69b358762.json",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/SOURCE-INVENTORY-3da69b358762.json"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/distribution_bench.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/distribution_bench.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_bench.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_bench.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_confirmation.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_confirmation.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_merge_runtime.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_merge_runtime.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_opaque_bench.md",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_opaque_bench.md"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_opaque_bench.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_opaque_bench.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_real_pair_bench.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_real_pair_bench.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_runtime_config.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_runtime_config.py"
+  },
+  {
+    "prefix": "research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_toolchain_runtime.py",
+    "source_path": "/workspace/.zil-env/research/stage6/archive-frozen-tool-sources-v1/df04d4920b9d3ec618e660f8149063eb6019b317/tools/research/incremental-compilation/stage6_toolchain_runtime.py"
+  },
+  {
+    "prefix": "research/stage6/confirmation-runner-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-runner-controls"
+  },
+  {
+    "prefix": "research/stage6/opaque-compile-author-controls-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/opaque-compile-author-controls-v1"
+  },
+  {
+    "prefix": "research/stage6/opaque-compile-author-controls-v2",
+    "source_path": "/workspace/.zil-env/research/stage6/opaque-compile-author-controls-v2"
+  },
+  {
+    "prefix": "research/stage6/opaque-compile-author-controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/opaque-compile-author-controls.py"
+  },
+  {
+    "prefix": "research/stage6/opaque-compile-author-final-controls-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/opaque-compile-author-final-controls-v1"
+  },
+  {
+    "prefix": "research/stage6/opaque-compile-author-final-controls.py",
+    "source_path": "/workspace/.zil-env/research/stage6/opaque-compile-author-final-controls.py"
+  },
+  {
+    "prefix": "research/stage6/opaque-compile-author-isolation-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/opaque-compile-author-isolation-v1"
+  },
+  {
+    "prefix": "research/stage6/opaque-compile-author-rust-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/opaque-compile-author-rust-v1"
+  },
+  {
+    "prefix": "research/stage6/opaque-compile-independent-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/opaque-compile-independent-v1"
+  },
+  {
+    "prefix": "research/stage6/stage6-opaque-runner-before-pipeline-tightening.py",
+    "source_path": "/workspace/.zil-env/research/stage6/stage6-opaque-runner-before-pipeline-tightening.py"
+  },
+  {
+    "prefix": "research/stage6/toolchain-runtime-api-guard-prepare-only.log",
+    "source_path": "/workspace/.zil-env/research/stage6/toolchain-runtime-api-guard-prepare-only.log"
+  },
+  {
+    "prefix": "research/stage6/toolchain-runtime-api-guard-receipt.json",
+    "source_path": "/workspace/.zil-env/research/stage6/toolchain-runtime-api-guard-receipt.json"
+  },
+  {
+    "prefix": "research/stage6/toolchain-runtime-api-guard-run-prepared.log",
+    "source_path": "/workspace/.zil-env/research/stage6/toolchain-runtime-api-guard-run-prepared.log"
+  },
+  {
+    "prefix": "research/stage6/toolchain-runtime-api-guard-smoke",
+    "source_path": "/workspace/.zil-env/research/stage6/toolchain-runtime-api-guard-smoke"
+  },
+  {
+    "prefix": "research/stage6/toolchain-runtime-api-guard-smoke.json",
+    "source_path": "/workspace/.zil-env/research/stage6/toolchain-runtime-api-guard-smoke.json"
+  },
+  {
+    "prefix": "research/stage6/toolchain-runtime-tool-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/toolchain-runtime-tool-controls"
+  },
+  {
+    "prefix": "research/stage6/toolchain-runtime-v1-config-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/toolchain-runtime-v1-config-controls"
+  },
+  {
+    "prefix": "research/stage6/benchmark-tools-capture-correction.json",
+    "source_path": "/workspace/.zil-env/research/stage6/benchmark-tools-capture-correction.json"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/benchmark-tools-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/benchmark-tools-plan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

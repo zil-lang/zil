@@ -1,0 +1,17 @@
+byte_io/main.zil O0 complete
+byte_io/main.zil O2 complete
+resource_closures/main.zil O0 complete
+resource_closures/main.zil O2 complete
+generic_store178/main.zil O0 complete
+generic_store178/main.zil O2 complete
+mixed_capture182/main.zil O0 complete
+mixed_capture182/main.zil O2 complete
+ct_selection219/main.zil O0 complete
+ct_selection219/main.zil O2 complete
+ct_types228/arrays_defaults.zil O0 complete
+ct_types228/arrays_defaults.zil O2 complete
+where_copy229/main.zil O0 complete
+where_copy229/main.zil O2 complete
+shared_product224/main.zil O0 complete
+shared_product224/main.zil O2 complete
+Complete: 320 builds and exact native controls

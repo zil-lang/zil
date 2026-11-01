@@ -1,0 +1,7 @@
+{
+  "name": "stage6-ee786-graph-zit-01",
+  "start": "2026-10-31T10:46:39.608558+00:00",
+  "scope": "Sequential graph shadow query and original/adapted zit scheduler; root-coordinated other CPU idle",
+  "end": "2026-10-31T10:50:35.232507+00:00",
+  "result": "Graph six blocks complete; Node parent runner failed EPERM; same worker Python orchestration completed84 arms; final largest graph probe passed"
+}

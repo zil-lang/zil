@@ -1,0 +1,34 @@
+[
+  {
+    "prefix": "research/stage6/confirmation-default",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-default"
+  },
+  {
+    "prefix": "research/stage6/confirmation-default-execution.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-default-execution.json"
+  },
+  {
+    "prefix": "research/stage6/confirmation-default-exclusive-lease.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-default-exclusive-lease.json"
+  },
+  {
+    "prefix": "research/stage6/confirmation-default.log",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-default.log"
+  },
+  {
+    "prefix": "research/stage6/confirmation-default-analysis-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-default-analysis-v1"
+  },
+  {
+    "prefix": "research/stage6/confirmation-default-rust-cache-preinventory.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-default-rust-cache-preinventory.json"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/confirmation-default-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/confirmation-default-plan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "kind": "runtime-final-v1",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 6662,
+  "omitted_paths": 54,
+  "unique_blobs": 2575,
+  "identity_sha256": "f24df7f957d6f752e575c33ada88c963cb903ec38386a784263c81dcf9d74326",
+  "verified_utc": "2026-10-31T15:20:12.014470+00:00"
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "prefix": "research/stage6/confirmation-closed-rust-cache-cleanup.py",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-closed-rust-cache-cleanup.py"
+  },
+  {
+    "prefix": "research/stage6/confirmation-closed-rust-cache-cleanup-receipt.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-closed-rust-cache-cleanup-receipt.json"
+  },
+  {
+    "prefix": "research/stage6/confirmation-closed-rust-cache-cleanup-audit.jsonl",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-closed-rust-cache-cleanup-audit.jsonl"
+  },
+  {
+    "prefix": "research/stage6/confirmation-closed-rust-cache-cleanup.log",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-closed-rust-cache-cleanup.log"
+  },
+  {
+    "prefix": "research/stage6/confirmation-closed-rust-cache-preinventory.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-closed-rust-cache-preinventory.json"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/confirmation-closed-cache-cleanup-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/confirmation-closed-cache-cleanup-plan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

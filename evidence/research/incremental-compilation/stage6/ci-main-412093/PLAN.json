@@ -1,0 +1,12 @@
+{
+  "kind": "ci-main-412093",
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 5,
+      "bytes": 554494
+    }
+  ],
+  "selected_paths": 5,
+  "unique_blobs": 5
+}

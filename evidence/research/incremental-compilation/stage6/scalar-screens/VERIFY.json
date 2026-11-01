@@ -1,0 +1,9 @@
+{
+  "kind": "scalar-screens",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 1422,
+  "omitted_paths": 512,
+  "unique_blobs": 431,
+  "identity_sha256": "9f8a962ef7afeec877a07de6819e733c0a9cab2d6191db84886f25bdf7b95ad5",
+  "verified_utc": "2026-10-31T13:08:15.945154+00:00"
+}

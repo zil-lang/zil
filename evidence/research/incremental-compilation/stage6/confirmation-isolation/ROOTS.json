@@ -1,0 +1,30 @@
+[
+  {
+    "prefix": "research/stage6/confirmation-isolation",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-isolation"
+  },
+  {
+    "prefix": "research/stage6/confirmation-isolation-execution.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-isolation-execution.json"
+  },
+  {
+    "prefix": "research/stage6/confirmation-isolation-exclusive-lease.json",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-isolation-exclusive-lease.json"
+  },
+  {
+    "prefix": "research/stage6/confirmation-isolation.log",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-isolation.log"
+  },
+  {
+    "prefix": "research/stage6/confirmation-isolation-analysis-v1",
+    "source_path": "/workspace/.zil-env/research/stage6/confirmation-isolation-analysis-v1"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/confirmation-isolation-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/confirmation-isolation-plan.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

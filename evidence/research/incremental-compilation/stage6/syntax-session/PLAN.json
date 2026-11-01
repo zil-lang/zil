@@ -1,0 +1,22 @@
+{
+  "kind": "syntax-session",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 1584,
+      "bytes": 102839904
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 172,
+      "bytes": 105250840
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 527635,
+      "bytes": 1520975691
+    }
+  ],
+  "selected_paths": 529391,
+  "unique_blobs": 957
+}

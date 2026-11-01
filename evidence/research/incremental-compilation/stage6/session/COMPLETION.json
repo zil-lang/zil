@@ -1,0 +1,22 @@
+{
+  "scope": "Saved window receipts only; independent detailed recomputation is in session-review.",
+  "formal_windows": [
+    {
+      "window": "session-db-isolation",
+      "rows": 840,
+      "cells": 70,
+      "execution_sha256": "987fa1699c695cc6d8ed18f935b23e5cecb7204a1d7440cd4d2c193f6d3c02d6"
+    },
+    {
+      "window": "session-scalar-vs-3d6",
+      "rows": 840,
+      "cells": 70,
+      "execution_sha256": "26c9ec437912815403fb8d59e6b9005b3ba8f2ebcfa9bec85534a9e2411e2fa5"
+    }
+  ],
+  "superseded_prepared": {
+    "root": "session-final-vs-3d6",
+    "formal_requests": 0,
+    "preparation_controls": 126
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "schema": 2,
+  "kind": "session-review",
+  "collected_utc": "2026-10-31T13:08:01.628674+00:00",
+  "head_at_collection": "ffe4b814e22d8db79985fdd6fe397fbf77e6a243",
+  "collector_sha256": "d0be4a31e376d1619a9c5f602c24a3f867d7a01533454eb8fa4943673b37a3eb",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 2068602,
+    "sha256": "8ec5d72183b5334d286f32c591421d130b803b837871d9ecc628381b818f7fb5",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 2068602,
+        "sha256": "8ec5d72183b5334d286f32c591421d130b803b837871d9ecc628381b818f7fb5"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 13,
+      "logical_bytes": 5207,
+      "logical_sha256": "58b4fd739cff9b560ed3830ae6a7ade1674afe1027a219975ecf3c1a9d9af7c6",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 1118,
+        "sha256": "abd9b0263f7d675f39e87449ec60a910ccb07d646a470fe7f21f0a510b30c01e",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 1118,
+            "sha256": "abd9b0263f7d675f39e87449ec60a910ccb07d646a470fe7f21f0a510b30c01e"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 0,
+      "logical_bytes": 0,
+      "logical_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 34,
+        "sha256": "b92854fc731f420763e805f15c2615c66e12d9004e90a8c735e4fbb7eb5ec26a",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 34,
+            "sha256": "b92854fc731f420763e805f15c2615c66e12d9004e90a8c735e4fbb7eb5ec26a"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 1118,
+      "sha256": "abd9b0263f7d675f39e87449ec60a910ccb07d646a470fe7f21f0a510b30c01e"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 34,
+      "sha256": "b92854fc731f420763e805f15c2615c66e12d9004e90a8c735e4fbb7eb5ec26a"
+    },
+    "ROOTS.json": {
+      "bytes": 750,
+      "sha256": "1a937ffdc5d405a0392a8e5329aea2fa3d2c775e2090500a9e4b567796b42c0a"
+    },
+    "PLAN.json": {
+      "bytes": 193,
+      "sha256": "89c26f2fb681f0cd2315196a159d6126a0dff759c5447aae71c0867c0d2e526a"
+    }
+  },
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 13,
+      "bytes": 101397845
+    }
+  ],
+  "retained_paths": 13,
+  "omitted_paths": 0,
+  "unique_blobs": 13,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Independent Session review, including its full large inventory and recomputation."
+}

@@ -1,0 +1,6 @@
+PASS Types-only publication -> warm Types -> current Verify; CT selection and CT expression
+PASS all 11 logical budget fields separately invalidate Types before subsequent exact reuse
+PASS exact / N-1 dimension=0 N=724 denied_phase=Parse code=E-RESOURCE-LIMIT
+PASS exact / N-1 dimension=1 N=4645 denied_phase=Ct code=E-RESOURCE-LIMIT
+PASS exact / N-1 dimension=2 N=27 denied_phase=Ct code=E-RESOURCE-LIMIT
+PASS same-input warm request reruns current physical source alias guard before any frontend replay

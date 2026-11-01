@@ -1,0 +1,37 @@
+{
+  "kind": "benchmark-tools",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 71,
+      "bytes": 7715372
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 17,
+      "bytes": 14249248
+    },
+    {
+      "class": "ephemeral-rust-incremental-lock",
+      "files": 4,
+      "bytes": 0
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 2,
+      "bytes": 58114
+    },
+    {
+      "class": "large-semantic-cache-candidate",
+      "files": 9,
+      "bytes": 3919963
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1485,
+      "bytes": 29815540
+    }
+  ],
+  "selected_paths": 1588,
+  "unique_blobs": 529
+}

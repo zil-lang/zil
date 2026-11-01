@@ -1,0 +1,86 @@
+[
+  {
+    "case": "bool-1",
+    "factor_wall_ms": 1.3469165,
+    "factor_stdout_bytes": 1788.0,
+    "baseline_wall_ms": 1.35938,
+    "paired_wall_ratio": 0.9744460275998325
+  },
+  {
+    "case": "bool-2",
+    "factor_wall_ms": 1.286941,
+    "factor_stdout_bytes": 2050.0,
+    "baseline_wall_ms": 1.4237425,
+    "paired_wall_ratio": 0.8894397881467001
+  },
+  {
+    "case": "bool-4",
+    "factor_wall_ms": 1.5846895,
+    "factor_stdout_bytes": 2618.0,
+    "baseline_wall_ms": 1.573683,
+    "paired_wall_ratio": 0.9945930797725973
+  },
+  {
+    "case": "bool-8",
+    "factor_wall_ms": 4.5955655,
+    "factor_stdout_bytes": 3978.0,
+    "baseline_wall_ms": 4.731486,
+    "paired_wall_ratio": 0.9678515203795539
+  },
+  {
+    "case": "sequence-1",
+    "factor_wall_ms": 2.073442,
+    "factor_stdout_bytes": 6971.0,
+    "baseline_wall_ms": 1.829639,
+    "paired_wall_ratio": 1.147678121197933
+  },
+  {
+    "case": "sequence-4",
+    "factor_wall_ms": 6.818543,
+    "factor_stdout_bytes": 38376.0,
+    "baseline_wall_ms": 3.776671,
+    "paired_wall_ratio": 1.9770744101817204
+  },
+  {
+    "case": "sequence-8",
+    "factor_wall_ms": 25.245914,
+    "factor_stdout_bytes": 132229.0,
+    "baseline_wall_ms": 6.8764905,
+    "paired_wall_ratio": 3.7538055156201002
+  },
+  {
+    "case": "sequence-16",
+    "factor_wall_ms": 137.9129955,
+    "factor_stdout_bytes": 546618.0,
+    "baseline_wall_ms": 20.501474,
+    "paired_wall_ratio": 6.540419882438289
+  },
+  {
+    "case": "bool-16",
+    "factor_wall_ms": 1.7439095,
+    "factor_stdout_bytes": 7576.0,
+    "baseline_wall_ms": null,
+    "paired_wall_ratio": null
+  },
+  {
+    "case": "bool-32",
+    "factor_wall_ms": 2.680923,
+    "factor_stdout_bytes": 18007.0,
+    "baseline_wall_ms": null,
+    "paired_wall_ratio": null
+  },
+  {
+    "case": "bool-64",
+    "factor_wall_ms": 5.6265155,
+    "factor_stdout_bytes": 53598.0,
+    "baseline_wall_ms": null,
+    "paired_wall_ratio": null
+  },
+  {
+    "case": "bool-128",
+    "factor_wall_ms": 17.5123865,
+    "factor_stdout_bytes": 185301.5,
+    "baseline_wall_ms": null,
+    "paired_wall_ratio": null
+  }
+]

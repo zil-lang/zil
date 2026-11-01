@@ -1,0 +1,102 @@
+{
+  "schema": 2,
+  "kind": "confirmation-isolation",
+  "collected_utc": "2026-10-31T16:18:13.717303+00:00",
+  "head_at_collection": "a1ab243fa5ba1b9841c904d251fea7c999aa6681",
+  "collector_sha256": "80daf64df57d74139eaa70349240ff86fc8fca93b81b306c3e973346a4bd24c3",
+  "archive": {
+    "logical_path": "raw.tar.gz",
+    "bytes": 9186736,
+    "sha256": "4e2f64815811b359b1038efad21ffb64fc5322e4c2f70e638fa36fa240efd0e4",
+    "parts": [
+      {
+        "path": "raw.tar.gz",
+        "bytes": 9186736,
+        "sha256": "4e2f64815811b359b1038efad21ffb64fc5322e4c2f70e638fa36fa240efd0e4"
+      }
+    ]
+  },
+  "manifests": {
+    "FILES": {
+      "encoding": "gzip-jsonl",
+      "rows": 7662,
+      "logical_bytes": 3364601,
+      "logical_sha256": "67977cc9e761813e3783c43d92829694d52c1135c672df4e1f10ed02da0f3784",
+      "storage": {
+        "logical_path": "FILES.jsonl.gz",
+        "bytes": 178450,
+        "sha256": "c6d9f6199624b0ed9df924c550caa5a8300cceace068cef057e3889f2799118f",
+        "parts": [
+          {
+            "path": "FILES.jsonl.gz",
+            "bytes": 178450,
+            "sha256": "c6d9f6199624b0ed9df924c550caa5a8300cceace068cef057e3889f2799118f"
+          }
+        ]
+      }
+    },
+    "OMITTED": {
+      "encoding": "gzip-jsonl",
+      "rows": 3036,
+      "logical_bytes": 1902348,
+      "logical_sha256": "0c6a931fd385bfc24c7ee7477bd22ba8f709dd2189175961e2e95076bf81384e",
+      "storage": {
+        "logical_path": "OMITTED.jsonl.gz",
+        "bytes": 120669,
+        "sha256": "ee2ad02d7dd0837dfa38a7910e4586a396297c34780bd1ed2fcc127ea11a9b53",
+        "parts": [
+          {
+            "path": "OMITTED.jsonl.gz",
+            "bytes": 120669,
+            "sha256": "ee2ad02d7dd0837dfa38a7910e4586a396297c34780bd1ed2fcc127ea11a9b53"
+          }
+        ]
+      }
+    }
+  },
+  "metadata": {
+    "FILES.jsonl.gz": {
+      "bytes": 178450,
+      "sha256": "c6d9f6199624b0ed9df924c550caa5a8300cceace068cef057e3889f2799118f"
+    },
+    "OMITTED.jsonl.gz": {
+      "bytes": 120669,
+      "sha256": "ee2ad02d7dd0837dfa38a7910e4586a396297c34780bd1ed2fcc127ea11a9b53"
+    },
+    "ROOTS.json": {
+      "bytes": 1282,
+      "sha256": "65663d4945af0ae36e5f2829166d8fe83c31e9ca4974b644bdf8cb13bcbc7059"
+    },
+    "PLAN.json": {
+      "bytes": 526,
+      "sha256": "2d09b32a364e5bfe2c53a56012c90bf1f925c279647d84fcb12cd2edf070ff7c"
+    }
+  },
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 2064,
+      "bytes": 99489504
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 252,
+      "bytes": 40580640
+    },
+    {
+      "class": "large-semantic-cache-candidate",
+      "files": 720,
+      "bytes": 1409762484
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 7662,
+      "bytes": 740791409
+    }
+  ],
+  "retained_paths": 7662,
+  "omitted_paths": 3036,
+  "unique_blobs": 1705,
+  "boundary": "Original raw bytes and source identities are retained, with each original path mapped to one content blob. JSONL manifests are gzip-compressed externally and internally; every stream and each <=40MiB segment is SHA-bound. Omitted binaries/cache bytes are individually inventoried. Source and request identities in original receipts remain authoritative; collection HEAD is not a measured compiler identity. Only retained files and ordinary permissions are reconstructible; not omitted files, symlinks, hardlink topology or timestamps.",
+  "scope": "Frozen exclusive old888 common-source LLVM candidate/original isolation window:1380requests,1260valid and120budget refusals;23fixed shapes,6blocks,5requests,twoZIL arms, noRust. Full raw source identities, rows/stdout/stderr/native, commands/lease/execution and AuditComplete independent analysis retained. Exact originaldf04 measurement tool and888 compiler/744 DSO pair remain their measured identities, not finala1ab/newquality. Body-value edits are not function insertion/deletion/rename performance coverage. Final artifacts and source sidecars retain historical audit limits; generated binaries/caches individually SHA-inventoried. No cache deletion authorized or performed by collection."
+}

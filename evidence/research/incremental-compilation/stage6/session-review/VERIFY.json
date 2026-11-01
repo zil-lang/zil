@@ -1,0 +1,9 @@
+{
+  "kind": "session-review",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 13,
+  "omitted_paths": 0,
+  "unique_blobs": 13,
+  "identity_sha256": "1e4325ff2cf747aae15c14119475752adb307b731712e2223ab428e75637948b",
+  "verified_utc": "2026-10-31T13:08:15.815423+00:00"
+}

@@ -1,0 +1,70 @@
+{
+  "llvm-combined": {
+    "retained_paths": 1079,
+    "omitted_paths": 379,
+    "unique_blobs": 432,
+    "archive_bytes": 2814036,
+    "segments": 1,
+    "explicit_preserved": 3,
+    "verify": {
+      "kind": "llvm-combined",
+      "status": "AllBlobsManifestsAndSegmentsMatch",
+      "retained_paths": 1079,
+      "omitted_paths": 379,
+      "unique_blobs": 432,
+      "identity_sha256": "c718c60e391e4284de8247a77571b3792bde62ba8046abab07aec354d8c44ccb",
+      "verified_utc": "2026-10-31T15:20:11.765473+00:00"
+    }
+  },
+  "research-ci-tools": {
+    "retained_paths": 277,
+    "omitted_paths": 1,
+    "unique_blobs": 119,
+    "archive_bytes": 79294,
+    "segments": 1,
+    "explicit_preserved": 275,
+    "verify": {
+      "kind": "research-ci-tools",
+      "status": "AllBlobsManifestsAndSegmentsMatch",
+      "retained_paths": 277,
+      "omitted_paths": 1,
+      "unique_blobs": 119,
+      "identity_sha256": "c0b7044b6ae08e9647b078ba8665ac5df416d2e7463b7ba80edee8e02456cb5b",
+      "verified_utc": "2026-10-31T15:20:10.031201+00:00"
+    }
+  },
+  "benchmark-tools": {
+    "retained_paths": 1485,
+    "omitted_paths": 103,
+    "unique_blobs": 529,
+    "archive_bytes": 1708593,
+    "segments": 1,
+    "explicit_preserved": 4,
+    "verify": {
+      "kind": "benchmark-tools",
+      "status": "AllBlobsManifestsAndSegmentsMatch",
+      "retained_paths": 1485,
+      "omitted_paths": 103,
+      "unique_blobs": 529,
+      "identity_sha256": "f2bd6cf4d579970b444a3633f8a74c1fa2aa4b015dd6d64d26272630e126a49e",
+      "verified_utc": "2026-10-31T15:20:41.216271+00:00"
+    }
+  },
+  "runtime-final-v1": {
+    "retained_paths": 6662,
+    "omitted_paths": 54,
+    "unique_blobs": 2575,
+    "archive_bytes": 5364897,
+    "segments": 1,
+    "explicit_preserved": 0,
+    "verify": {
+      "kind": "runtime-final-v1",
+      "status": "AllBlobsManifestsAndSegmentsMatch",
+      "retained_paths": 6662,
+      "omitted_paths": 54,
+      "unique_blobs": 2575,
+      "identity_sha256": "f24df7f957d6f752e575c33ada88c963cb903ec38386a784263c81dcf9d74326",
+      "verified_utc": "2026-10-31T15:20:12.014470+00:00"
+    }
+  }
+}

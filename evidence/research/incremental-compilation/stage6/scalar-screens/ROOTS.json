@@ -1,0 +1,34 @@
+[
+  {
+    "prefix": "research/stage6/scalar-screen-closed",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-screen-closed"
+  },
+  {
+    "prefix": "research/stage6/scalar-screen-closed.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-screen-closed.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-screen-default",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-screen-default"
+  },
+  {
+    "prefix": "research/stage6/scalar-screen-default.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-screen-default.log"
+  },
+  {
+    "prefix": "research/stage6/scalar-screen-execution.json",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-screen-execution.json"
+  },
+  {
+    "prefix": "research/stage6/scalar-screens.log",
+    "source_path": "/workspace/.zil-env/research/stage6/scalar-screens.log"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_bench.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_bench.py"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

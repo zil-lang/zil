@@ -1,0 +1,63 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_commit": "c6a60d3ec15db9df6953d4e38f640ba23b1d8a94",
+  "base_commit": "5189f09750c138eb61a4c86bea3654d7f0e57f6f",
+  "verdict": "Pass",
+  "scope": "Explicit default-false closed Linux executable internalization; correctness/ABI/cache only, no performance or product-gate pass.",
+  "time_utc": "2026-10-31T08:08:40.033127+00:00",
+  "changed_file_sha256": {
+    ".task/research/incremental-compilation.md": "e5978a1b9c629857f7fd1880755d02dd60336ed726a209386a96c786ba54e7bc",
+    "changes/research-closed-executable-port.md": "148abc9b73a788ff9dbfd8d35064afc5191c6ade9f2d1542c68a7bbe1bce869c",
+    "crates/zil-backend-llvm/src/build.rs": "96fc7d43d3bd0794106c359695134062b118d48645692a486d5ea1abb4e1bedf",
+    "crates/zil-backend-llvm/src/machine_cgu.rs": "70ff1088acc687566426297722ff01b4b3eeba031fd8f3d0cf37b8798a7883da",
+    "crates/zil-backend-llvm/tests/closed_executable_research.rs": "88886a6e4e77e902294c99ce09dc5c4e27d0f754a8aeefc733bb8891e5179972",
+    "crates/zil-cli/src/main.rs": "bea23f4f7b4318413b3a22631fd85bf2f0126720eb72b6a7ebf04b59eb05fe84",
+    "crates/zil-cli/tests/closed_executable_research.rs": "1dce7103fa46691cc40318dae4d8983c73630fefda919f22b578026d8dfd0c7e",
+    "crates/zil-driver/src/lib.rs": "75ba7b90fc2493a9d25f08311eb80027c67d5f4742feabdad7d6f9767f1f5b91",
+    "crates/zil-driver/src/session.rs": "2d42dc97bbc5cd6ec3cfbc75765825b0b9d4ebc99acba6621c9bd8c727380438",
+    "crates/zil-driver/tests/object_cache212.rs": "b0369addb51e85adda969b81a54ce4e00cf1620cbbaec3a383e0cbdb338f2dd1"
+  },
+  "independent_tests": {
+    "counts": [
+      6,
+      9,
+      1,
+      1,
+      1
+    ],
+    "total": 18,
+    "all_passed": true,
+    "source_snapshot": "/workspace/.zil-env/research/stage5/review-exactc6a",
+    "environment": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/research/stage5/review-target5189",
+    "commands": [
+      "cargo test --manifest-path /workspace/.zil-env/research/stage5/review-exactc6a/Cargo.toml --offline --locked -p zil-backend-llvm --features llvm-api --test closed_executable_research",
+      "cargo test --manifest-path /workspace/.zil-env/research/stage5/review-exactc6a/Cargo.toml --offline --locked -p zil-backend-llvm --features llvm-api --lib machine_cgu",
+      "cargo test --manifest-path /workspace/.zil-env/research/stage5/review-exactc6a/Cargo.toml --offline --locked -p zil-driver --features llvm-api --test object_cache212 closed",
+      "cargo test --manifest-path /workspace/.zil-env/research/stage5/review-exactc6a/Cargo.toml --offline --locked -p zil-driver --features llvm-api --test object_cache212 large_file_chunks_preserve_owned_closures_drop_and_function_addresses",
+      "cargo test --manifest-path /workspace/.zil-env/research/stage5/review-exactc6a/Cargo.toml --offline --locked -p zil-cli --features llvm-api --test closed_executable_research"
+    ],
+    "log_sha256": {
+      "review-exactc6a-backend.log": "5c9ca97883ef5ec5ef2abf2e3542133ba007120b76b9830cbf643cd9e5b131f5",
+      "review-exactc6a-cli.log": "ad2ecacf777f3bf7035f7d0d2d2942ee26932f3cf80643160c5dba045725f5bf",
+      "review-exactc6a-driver.log": "21b20136302ec193b9ab91714d419c0b0761e106765315be642cec60f9f3d450",
+      "review-exactc6a-machine.log": "3fdced094244df3a2584212fa20633c786bd24f0520af7fa73a7e949c24fdc45",
+      "review-exactc6a-resource.log": "e88ef7296d3ac1e0a90d3d4a27697642c7e9fd99dbc4aed559bcb1a01b2e8775"
+    }
+  },
+  "findings": [],
+  "reviewed_invariants": [
+    "CLI permits flag only complete x86_64 Linux build; BuildOptions and CompileOptions default false; backend independently rejects other target.",
+    "Lowering requires current VerifiedModule/LIR complete binding before policy. Partition unchanged; exact current nonforeign function identities only.",
+    "Only External definitions become Internal; main, wrappers, foreign declarations, helper identities and data remain untouched. Duplicate candidate definitions cause no transformation and retain mandatory preflight.",
+    "Every function op value and recursive global initializer address is scanned; actual cross-unit referenced owner stays External. Same-unit function addresses retain identity; no unnamed_addr added.",
+    "Single-unit Clang consumes transformed unit-0 rather than unchanged public diagnostic module. Public emit output remains original.",
+    "Object key hashes full ordered model items including linkage. Policy boolean need not authorize raw frontend/Verified cache; same actual machine structure may safely reuse. Current per-unit preflight remains on hits.",
+    "Existing cancellation, publication staging and error cleanup paths retained; boundary tests preserve previous executable/sidecar and invalid-input rejection."
+  ],
+  "limitations": [
+    "Internalization assumes explicitly relinquished generated zil.fn exports. Default path is unchanged; explicit opt-in results must be reported separately.",
+    "Cross-unit functions remain externally visible; this is not whole-program LTO.",
+    "Hand-authored machine/TypedIR cases are model/ABI controls; real resource/closure/address and CLI cases separately cover production source.",
+    "No timing measurements or full product acceptance executed."
+  ]
+}

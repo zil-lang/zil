@@ -1,0 +1,62 @@
+   Compiling zil-analyze v0.1.0 (/workspace/zil/crates/zil-analyze)
+   Compiling zil-stage6-graph-revisit v0.1.0 (/workspace/zil/tools/research/incremental-compilation/stage6_algorithms/graph)
+    Finished `release` profile [optimized] target(s) in 22.27s
+     Running unittests main.rs (/workspace/.zil-env/research/target-stage6-graph/release/deps/cut_stage6-a35fcea13dea3f02)
+
+running 53 tests
+test historical_tests::cleanup_order_is_part_of_the_interface ... ok
+test historical_tests::a_unique_carrier_can_still_leak_at_normal_return ... ok
+test historical_tests::collection_preserves_roots_and_clears_recycled_id_cache_entries ... ok
+test historical_tests::actual_solver_and_oracle_work_boundaries_are_exact ... ok
+test historical_tests::a_reinitialized_position_does_not_revive_an_old_description_or_borrowed_closure ... ok
+test historical_tests::complete_check_census_and_materialization_share_the_candidate_budget ... ok
+test historical_tests::description_future_use_prevents_owner_invalidation ... ok
+test historical_tests::complete_joint_rows_reject_the_cartesian_marginal_product ... ok
+test historical_tests::exact_cardinality_overflow_is_never_agreement ... ok
+test historical_tests::error_scope_returns_and_abort_debt_are_both_retained ... ok
+test historical_tests::fused_quantification_matches_independent_truth_enumeration ... ok
+test historical_tests::give_result_different_nominal_type_is_unsupported ... ok
+test historical_tests::guard_insensitive_future_description_use_is_explicitly_conservative ... ok
+test historical_tests::collection_preserves_definite_duplicate_cleanup_rejected_by_production ... ok
+test historical_tests::loop_redefinition_is_a_current_value_not_a_global_fixed_guard ... ok
+test historical_tests::metadata_and_point_bounds_precede_cross_product_allocation ... ok
+test historical_tests::joined_conditional_cleanup_exposes_stricter_research_event_contract ... ok
+test historical_tests::one_changed_shared_guard_exposes_double_transfer ... ok
+test historical_tests::overlapping_site_incarnation_is_not_collapsed_into_one_owner ... ok
+test historical_tests::permutation_and_joint_root_census_do_not_hide_shared_nodes ... ok
+test historical_tests::post_ports_must_be_unique_and_absent_from_other_factors ... ok
+test historical_tests::relational_images_exhaust_every_three_bit_input_relation ... ok
+test historical_tests::owned_closure_keeps_every_captured_token ... ok
+test historical_tests::scope_labels_are_audited_even_when_state_transfer_is_identity ... ok
+test historical_tests::unique_location_does_not_authorize_duplicate_cleanup ... ok
+test historical_tests::wire_waits_for_last_incidence_and_does_not_substitute_non_equalities ... ok
+test intern_tests::all_points_survive_interning_including_empty_and_shared_states ... ok
+test historical_tests::reordered_rank_preserves_canonical_materialization_and_all_images ... ok
+test intern_tests::colliding_rows_remain_distinct_through_every_resize ... ok
+test intern_tests::dense_direct_complete_budget_is_exact ... ok
+test intern_tests::hash_probing_and_row_comparison_obey_the_work_limit ... ok
+test intern_tests::dense_and_local_intern_complete_budget_is_exact_and_deterministic ... ok
+test intern_tests::shared_row_does_not_relax_total_relation_member_limit ... ok
+test tests::complete_correlated_relations_decode_identically_in_both_representations ... ok
+test tests::direct_assignment_rhs_and_free_predicates_are_persistent_gc_roots ... ok
+test tests::direct_assignments_read_simultaneously_and_expand_free_bits ... ok
+test tests::direct_free_expansion_limit_is_explicit ... ok
+test tests::direct_local_complete_budget_is_deterministic_and_exact ... ok
+test tests::distinct_tokens_may_share_one_environment_location ... ok
+test tests::duplicate_call_operands_are_observed_before_transfer ... ok
+test tests::duplicate_capture_occurrences_preserve_exact_fault_prestate ... ok
+test tests::every_observable_oracle_row_roundtrips_without_losing_other_coordinates ... ok
+test tests::invalid_codec_input_is_rejected_instead_of_normalized ... ok
+test tests::local_direct_does_not_accept_multiple_live_site_incarnations ... ok
+test tests::local_direct_preserves_loop_and_give_correlations ... ok
+test tests::local_domain_violation_is_rejected_not_filtered ... ok
+test tests::local_domains_cover_every_observed_row_and_prune_impossible_carriers ... ok
+test tests::normal_transfer_multiplicity_is_an_observed_invariant_violation ... ok
+test tests::sparse_full_materialization_obeys_the_same_exact_work_limit ... ok
+test tests::unknown_new_schema_is_not_accepted_by_the_frozen_model ... ok
+test tests::all_engines_keep_abort_debt_and_complete_arithmetic_prestates ... ok
+test historical_tests::collection_scanning_and_rebuilding_share_the_complete_candidate_budget ... ok
+test historical_tests::four_independent_guards_fit_same_arena_with_explicit_safe_boundary_collection ... ok
+
+test result: ok. 53 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.21s
+

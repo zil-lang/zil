@@ -1,0 +1,555 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "verdict": "Pass",
+  "scope": "Final59d followup data/input/native/verification/cache/statistics/archive/document audit. No product/performance acceptance gate.",
+  "implementation_commit": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+  "isolation_baseline_commit": "801933a9e8f060d44b8305786d01399527aa6137",
+  "measurement_manifest_source_commit": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+  "tools_origin_commit": "283c661bcb18978fe048770dace4994ade1910d2",
+  "time_utc": "2026-10-31T09:52:20.287995+00:00",
+  "formal_counts": {
+    "rows": 2700,
+    "cells": 225,
+    "invalid": 0,
+    "raw_zil_reports": 1890,
+    "current_verify1": 1890,
+    "object_reports": 9840,
+    "native_builds_and_four_byte_observations": 2700,
+    "numeric_fields_recomputed": 4615,
+    "paired_blocks": 6,
+    "bootstrap_draws_per_cell": 2000
+  },
+  "window_counts": {
+    "followup-default": {
+      "rows": 1080,
+      "cells": 90,
+      "time_adverse": 45,
+      "rss_adverse": 50,
+      "valid_current_verify": 540,
+      "object_hits": 2112,
+      "object_misses": 798,
+      "native_outcomes": 1080,
+      "native_builds": 1080,
+      "valid_rows": 1080
+    },
+    "followup-closed": {
+      "rows": 540,
+      "cells": 45,
+      "time_adverse": 20,
+      "rss_adverse": 28,
+      "valid_current_verify": 270,
+      "object_hits": 780,
+      "object_misses": 330,
+      "native_outcomes": 540,
+      "native_builds": 540,
+      "valid_rows": 540
+    },
+    "followup-isolation": {
+      "rows": 1080,
+      "cells": 90,
+      "time_adverse": 24,
+      "rss_adverse": 34,
+      "valid_current_verify": 1080,
+      "object_hits": 4224,
+      "object_misses": 1596,
+      "native_outcomes": 1080,
+      "native_builds": 1080,
+      "valid_rows": 1080
+    }
+  },
+  "sanity": {
+    "pass": true,
+    "windows": {
+      "final-sanity-generated": {
+        "source": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+        "rows": 92,
+        "cell_count": 46,
+        "counts": {
+          "valid_current_verify": 42,
+          "object_hits": 0,
+          "object_misses": 286,
+          "native_outcomes": 88,
+          "native_builds": 88,
+          "valid_rows": 88,
+          "invalid_rows": 4
+        },
+        "oracle_builds": 0,
+        "oracle_native_outcomes": 0,
+        "failures": [
+          {
+            "case": "body-64x16",
+            "mode": "O0",
+            "request": "cold",
+            "arm": "zil",
+            "reason": "generic expansion budget exceeded",
+            "count": 1
+          },
+          {
+            "case": "body-64x16",
+            "mode": "O2",
+            "request": "cold",
+            "arm": "zil",
+            "reason": "generic expansion budget exceeded",
+            "count": 1
+          },
+          {
+            "case": "types-64x16",
+            "mode": "O0",
+            "request": "cold",
+            "arm": "zil",
+            "reason": "generic instance budget exceeded",
+            "count": 1
+          },
+          {
+            "case": "types-64x16",
+            "mode": "O2",
+            "request": "cold",
+            "arm": "zil",
+            "reason": "generic instance budget exceeded",
+            "count": 1
+          }
+        ]
+      },
+      "final-sanity-real": {
+        "source": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+        "rows": 112,
+        "cell_count": 56,
+        "counts": {
+          "valid_current_verify": 56,
+          "object_hits": 122,
+          "object_misses": 122,
+          "native_outcomes": 1680,
+          "native_builds": 112,
+          "valid_rows": 112
+        },
+        "oracle_builds": 14,
+        "oracle_native_outcomes": 210,
+        "failures": []
+      },
+      "sanity-generated": {
+        "source": "05e0b9de2727dce3432d82a587970d4c3123300d",
+        "rows": 92,
+        "cell_count": 46,
+        "counts": {
+          "valid_current_verify": 42,
+          "object_hits": 0,
+          "object_misses": 286,
+          "native_outcomes": 88,
+          "native_builds": 88,
+          "valid_rows": 88,
+          "invalid_rows": 4
+        },
+        "oracle_builds": 0,
+        "oracle_native_outcomes": 0,
+        "failures": [
+          {
+            "case": "body-64x16",
+            "mode": "O0",
+            "request": "cold",
+            "arm": "zil",
+            "reason": "generic expansion budget exceeded",
+            "count": 1
+          },
+          {
+            "case": "body-64x16",
+            "mode": "O2",
+            "request": "cold",
+            "arm": "zil",
+            "reason": "generic expansion budget exceeded",
+            "count": 1
+          },
+          {
+            "case": "types-64x16",
+            "mode": "O0",
+            "request": "cold",
+            "arm": "zil",
+            "reason": "generic instance budget exceeded",
+            "count": 1
+          },
+          {
+            "case": "types-64x16",
+            "mode": "O2",
+            "request": "cold",
+            "arm": "zil",
+            "reason": "generic instance budget exceeded",
+            "count": 1
+          }
+        ]
+      },
+      "sanity-real": {
+        "source": "05e0b9de2727dce3432d82a587970d4c3123300d",
+        "rows": 112,
+        "cell_count": 56,
+        "counts": {
+          "valid_current_verify": 56,
+          "object_hits": 122,
+          "object_misses": 122,
+          "native_outcomes": 1680,
+          "native_builds": 112,
+          "valid_rows": 112
+        },
+        "oracle_builds": 14,
+        "oracle_native_outcomes": 210,
+        "failures": []
+      }
+    },
+    "checks": {
+      "raw_zil_reports": 204,
+      "object_reports": 1060,
+      "numeric_fields": 204
+    },
+    "scope": "Final59d and intermediate05e sanity/source controls audited separately. Single-block timings are never pooled into formal windows."
+  },
+  "archives": {
+    "pass": true,
+    "files": 16997,
+    "windows": [
+      {
+        "window": "followup-default",
+        "files": 2629,
+        "uncompressed_bytes": 393997671,
+        "archive_sha256": "7816385b406f5d1ba0afa85b06ada3d3aa87ca2423e45149aa579f59a965540c",
+        "receipt_sha256": "fc54d18feb45b00ec3ab1e7f7dafba92046815f7ee7f893d2d7b6be60728cbfe",
+        "embedded_files_sha256": "4e83e86e623005463e4ed6ebfe22be6872daef49b0baad2fb35662ebe75216a7"
+      },
+      {
+        "window": "followup-closed",
+        "files": 1495,
+        "uncompressed_bytes": 198317492,
+        "archive_sha256": "f4a610fb6329c8ebb8e32aee870e84ccb3ec5431b6b4a86cd2e71b0f7e819a0f",
+        "receipt_sha256": "18bd310a843d7fa392c0e6767c9684d69ccf606d46a19080dda706dd3e60a1b3",
+        "embedded_files_sha256": "341ffc8c87dfbbdefcca58afba3171311b5868a12e668e34f644986c0c3a9ee3"
+      },
+      {
+        "window": "followup-isolation",
+        "files": 2737,
+        "uncompressed_bytes": 783405758,
+        "archive_sha256": "d18dffdc7ce59da3d25ffb5fdc02af5dd8c89f707503d87d6649e4a11ba7283f",
+        "receipt_sha256": "e97d60799a4835acc9c041649f66ab3d886afed3cb79eb8d1c12b33720ff84e9",
+        "embedded_files_sha256": "1c5a4df6c665a3d9fd598e5f4bbd60e4906540595ec3330e028b68b78a59b83b"
+      },
+      {
+        "window": "controls",
+        "files": 10136,
+        "uncompressed_bytes": 301837605,
+        "archive_sha256": "a22fe143bb9a4f15080ea168aef79cb3c420317a185635ec935aaf04b1fa2315",
+        "receipt_sha256": "abeb244b20659a0f800c9205c3405b8350f68b8c3ff5d6603fa0c9e41afbad71",
+        "embedded_files_sha256": "54a7c7462955fcab791af7be91dc3c04f6647fbbbbb2e1ab111805402ce1679d"
+      }
+    ]
+  },
+  "archive_embedded_files_digest_note": "embedded_files_sha256 hashes sorted-key JSON representation of FILES payload; compressed archive SHA binds exact member bytes, every listed member hash was separately validated.",
+  "evidence_inventory": {
+    "formal_files": 7407,
+    "control_files": 10455,
+    "union_files": 17860,
+    "union_bytes": 3507674726,
+    "scope": "All consumed manifests/rows/summaries, raw compiler stdout/stderr, source identities and retained source bytes, oracle records/outputs/ELFs, final sequence program/LLVM files, three compiler ELFs and report/script. Rust incremental and ZIL object cache content directories are not inventory inputs. No native/compiler was rerun."
+  },
+  "evidence_sha256": {
+    "/workspace/.zil-env/research/stage5-followup/recompute-followup-data.py": "76d8f0080e2a8a0f773c2b394ea5438646207b8966318186cae08fab4767a509",
+    "/workspace/.zil-env/research/stage5-followup/data-review-recomputed.json": "c52d1c1f3f7f9023d5dcd6f9368159db963d1d002bf08ade017cb92732a4ac4b",
+    "/workspace/.zil-env/research/stage5-followup/data-review-recompute.log": "923fa364966e0525347c96536a183d1967bcd172491e491159401e897f757c91",
+    "/workspace/.zil-env/research/stage5-followup/data-review-inventory.json": "873c72cb7da5835f97a05b54ea3d5398e1dde8cd8f8a27d938b29b0f5dda182f",
+    "/workspace/.zil-env/research/stage5-followup/recompute-sanity-data.py": "a85f6148952962812820e2c6bd69bb7e73119f4328665e1cdc928bfc9eabee17",
+    "/workspace/.zil-env/research/stage5-followup/sanity-review-recomputed.json": "b42cf3e9d062b9f83ee3031cf62deba482741265a4ea5c5d0e33fa6dfdd1fa13",
+    "/workspace/.zil-env/research/stage5-followup/sanity-review-recompute.log": "3d9e647e3848b9cab2c2af68fa2ad9d81a9481972857211f7c9b03eae2588098",
+    "/workspace/.zil-env/research/stage5-followup/sanity-review-inventory.json": "9dcdbe16e26d786b69b7cc9897bb9faaf16222813842f3db94c1ddd007f4158f",
+    "/workspace/.zil-env/research/stage5-followup/check-followup-archives.py": "b435df96c5f9e36e1eb5caa5df7dd1c507b29189ae7d9492020f1d6746e79b75",
+    "/workspace/.zil-env/research/stage5-followup/data-review-archives.json": "5658f7a13a9e3521cc05b252b889c1c7a12468f586900b313ecf1fba021d35c8",
+    "/workspace/.zil-env/research/stage5-followup/data-review-archives.log": "64ccad2e2b36647938ae2cd2077ead36dbf8aef927d8dd55b5d022d07afaf0aa",
+    "/workspace/.zil-env/research/stage5-followup/check-final-documents.py": "98542cc9e3c20168d6bf5704117ce85b4d43fb3e74577e3b101ec2194d45991f",
+    "/workspace/.zil-env/research/stage5-followup/document-review.json": "48331b7d604f34fdf7919c8d8265b1ae805b33684d6400f68d6936cbd403bd4b",
+    "/workspace/zil/evidence/research/incremental-compilation/stage5-followup/validation/environment.json": "322914979e217ea657d88361666cf8af0a2aad374fc579be6c59b761c4afaf0b",
+    "/workspace/zil/evidence/research/incremental-compilation/stage5-followup/validation/frozen-execution.json": "6325a049703c74b4b4db637b2f88fe3f8db74fd46b0dff671250bcd98e07227a"
+  },
+  "report_source_sha256": "845b6b3f7b5bb71e70806d45bf97a9eab9845a81f83159810c6c76cb854e14e0",
+  "analysis_sha256": "7a141032759ca6b7f8280ac9ba3a6e204c58ca16b730c9310aed3e7ac1b92118",
+  "table_sha256": "4a57dcc597b349c4d2f0885a3a95ff82eff416ae6cff46af2e29fc07d6de5c3f",
+  "document_binding": {
+    "pass": true,
+    "checks": [
+      {
+        "window": "generated-default",
+        "mode": "O0",
+        "request": "cold",
+        "table": "| 默认O0冷构建 | 1163.567 | 1731.503 | 0.672 |"
+      },
+      {
+        "window": "generated-default",
+        "mode": "O0",
+        "request": "unchanged",
+        "table": "| 默认O0无改动 | 851.774 | 426.111 | 1.999 |"
+      },
+      {
+        "window": "generated-default",
+        "mode": "O0",
+        "request": "early_edit",
+        "table": "| 默认O0前部私有修改 | 1210.647 | 1195.618 | 1.013 |"
+      },
+      {
+        "window": "generated-default",
+        "mode": "O2",
+        "request": "cold",
+        "table": "| 默认O2冷构建 | 5363.392 | 2192.335 | 2.446 |"
+      },
+      {
+        "window": "generated-default",
+        "mode": "O2",
+        "request": "unchanged",
+        "table": "| 默认O2无改动 | 910.927 | 465.142 | 1.958 |"
+      },
+      {
+        "window": "generated-default",
+        "mode": "O2",
+        "request": "early_edit",
+        "table": "| 默认O2前部私有修改 | 5386.851 | 1294.342 | 4.162 |"
+      },
+      {
+        "window": "generated-closed",
+        "mode": "O2",
+        "request": "cold",
+        "table": "| 显式封闭O2冷构建 | 1917.724 | 2148.115 | 0.893 |"
+      },
+      {
+        "window": "generated-closed",
+        "mode": "O2",
+        "request": "unchanged",
+        "table": "| 显式封闭O2无改动 | 872.781 | 396.938 | 2.199 |"
+      },
+      {
+        "window": "generated-closed",
+        "mode": "O2",
+        "request": "early_edit",
+        "table": "| 显式封闭O2前部私有修改 | 1893.783 | 1242.969 | 1.524 |"
+      },
+      {
+        "window": "followup-default",
+        "mode": "O0",
+        "request": "cold",
+        "table": "| 默认O0冷构建 | 1200.480 | 1818.227 | 0.660 |"
+      },
+      {
+        "window": "followup-default",
+        "mode": "O0",
+        "request": "unchanged",
+        "table": "| 默认O0无改动 | 755.106 | 481.478 | 1.568 |"
+      },
+      {
+        "window": "followup-default",
+        "mode": "O0",
+        "request": "early_edit",
+        "table": "| 默认O0前部私有修改 | 1092.106 | 1311.016 | 0.833 |"
+      },
+      {
+        "window": "followup-default",
+        "mode": "O0",
+        "request": "late_edit",
+        "table": "| 默认O0末尾私有修改 | 749.184 | 1196.709 | 0.626 |"
+      },
+      {
+        "window": "followup-default",
+        "mode": "O2",
+        "request": "cold",
+        "table": "| 默认O2冷构建 | 5551.528 | 2421.879 | 2.292 |"
+      },
+      {
+        "window": "followup-default",
+        "mode": "O2",
+        "request": "unchanged",
+        "table": "| 默认O2无改动 | 832.907 | 526.639 | 1.582 |"
+      },
+      {
+        "window": "followup-default",
+        "mode": "O2",
+        "request": "early_edit",
+        "table": "| 默认O2前部私有修改 | 5446.916 | 1337.788 | 4.072 |"
+      },
+      {
+        "window": "followup-closed",
+        "mode": "O2",
+        "request": "cold",
+        "table": "| 显式封闭O2冷构建 | 2170.504 | 2372.091 | 0.915 |"
+      },
+      {
+        "window": "followup-closed",
+        "mode": "O2",
+        "request": "unchanged",
+        "table": "| 显式封闭O2无改动 | 868.463 | 459.576 | 1.890 |"
+      },
+      {
+        "window": "followup-closed",
+        "mode": "O2",
+        "request": "early_edit",
+        "table": "| 显式封闭O2前部私有修改 | 1981.366 | 1320.878 | 1.500 |"
+      },
+      {
+        "window": "followup-isolation",
+        "case": "large-8192",
+        "mode": "O2",
+        "request": "unchanged",
+        "narrative_pair": "1025.708→910.377"
+      },
+      {
+        "window": "followup-isolation",
+        "case": "large-8192",
+        "mode": "O0",
+        "request": "late_edit",
+        "narrative_pair": "913.379→819.606"
+      },
+      {
+        "window": "followup-isolation",
+        "case": "large-8192",
+        "mode": "O0",
+        "request": "early_edit",
+        "narrative_pair": "1356.783→1200.336"
+      },
+      {
+        "window": "followup-isolation",
+        "case": "large-8192",
+        "mode": "O2",
+        "request": "early_edit",
+        "narrative_pair": "5577.572→5566.668"
+      },
+      {
+        "window": "followup-isolation",
+        "case": "large-512",
+        "mode": "O2",
+        "request": "unchanged",
+        "narrative_pair": "64.942→67.631"
+      },
+      {
+        "window": "followup-isolation",
+        "case": "body-16x16",
+        "mode": "O0",
+        "request": "unchanged",
+        "narrative_pair": "372.788→392.627"
+      }
+    ],
+    "scope": "All original19 key Rust table rows,6 isolation narrative pairs,main interval/preflight/RSS anchors and final boundaries; full877 tables separately independently recomputed. Historical algorithm attribution was read against original sources, current59d mechanism against exact review.",
+    "documents": {
+      "docs/research/incremental-compilation/DISTRIBUTION-RESULTS.md": {
+        "bytes": 15361,
+        "sha256": "6235966cf0206550aab02066becbb598a1f4ef952a10338027e7cf7fcfc91413"
+      },
+      "docs/research/incremental-compilation/DISTRIBUTION-TABLES.md": {
+        "bytes": 61325,
+        "sha256": "328363778f8cbf6a2b9dccecdb9c41f97fa2f23b25357a35778dd35a0f639001"
+      },
+      "docs/research/incremental-compilation/PREFLIGHT-FOLLOWUP-TABLES.md": {
+        "bytes": 21770,
+        "sha256": "4a57dcc597b349c4d2f0885a3a95ff82eff416ae6cff46af2e29fc07d6de5c3f"
+      },
+      "docs/research/incremental-compilation/ALGORITHM-ATTRIBUTION.md": {
+        "bytes": 7749,
+        "sha256": "9185cfb9ba533a700dd1dd30720aba670e3e165d9cd81600dd3052c7e5180883"
+      },
+      "docs/research/incremental-compilation/PLAN.md": {
+        "bytes": 5477,
+        "sha256": "7ade2149b00ace3b13faece32664f09ff3d4b287e903278054d6d6269bd8dfd4"
+      },
+      "docs/research/incremental-compilation/README.md": {
+        "bytes": 796,
+        "sha256": "b51fd987671e3fbe8da675b1cc36a8b9a571ef80c59040ef927e9ea05666db3b"
+      },
+      "docs/research/incremental-compilation/DISTRIBUTION-PROTOCOL.md": {
+        "bytes": 5214,
+        "sha256": "d6ff19621d4414eec28f767c528773ecdabe257917267606ebc9464c6aaecf05"
+      },
+      "docs/research/incremental-compilation/PREFLIGHT-FOLLOWUP-PROTOCOL.md": {
+        "bytes": 1706,
+        "sha256": "33ab44cca06c2268e7a28e0f3b637b14f11d5aefe44b55f96034d9d40cff1d7d"
+      },
+      "evidence/research/incremental-compilation/stage5/README.md": {
+        "bytes": 3167,
+        "sha256": "646524da6e005afdd1af1c7cf6f69bde7287e8bc3d80273c08f443a8f6243139"
+      },
+      "evidence/research/incremental-compilation/stage5-followup/README.md": {
+        "bytes": 2940,
+        "sha256": "8febaa2748b632b615892fc9d9f85792e022408632846f4bdfbc65af76b83950"
+      },
+      "docs/research/incremental-compilation/plots/followup/large-module-before-after.svg": {
+        "bytes": 53452,
+        "sha256": "7b5f86e5dcb78f3a4f745e39d0716d5b1f7b86fc9255034286e6d9e44c48bcfa"
+      },
+      "docs/research/incremental-compilation/plots/followup/large-module-rust.svg": {
+        "bytes": 56346,
+        "sha256": "eabf4098c52c628ff0c042ad043d888825bd0610e8295ea8029fa3c7d8beb50f"
+      },
+      "docs/research/incremental-compilation/plots/stage5/large-module-before-after.svg": {
+        "bytes": 47342,
+        "sha256": "c75ab3cc7270a42b7739da8e10936c5d4be632ecc40189a7d4cfb476d7fbdc3f"
+      },
+      "docs/research/incremental-compilation/plots/stage5/large-module-rust.svg": {
+        "bytes": 56760,
+        "sha256": "d3f334779854324ddb24872788753371b45205d71f76faaec78614a016602390"
+      },
+      "tools/research/incremental-compilation/distribution_plot.py": {
+        "bytes": 4145,
+        "sha256": "d4cc304f9ed587e1c48ad4f715e5d3fa4d17267bb1d65f43e9bc8fbcd6a9443b"
+      },
+      "tools/research/incremental-compilation/distribution_report.py": {
+        "bytes": 9076,
+        "sha256": "845b6b3f7b5bb71e70806d45bf97a9eab9845a81f83159810c6c76cb854e14e0"
+      }
+    }
+  },
+  "findings": [],
+  "main_results": {
+    "large8192_O2_unchanged_isolation": {
+      "baseline_ms": 1025.707735,
+      "candidate_ms": 910.3771435,
+      "ratio": 0.8875599865686886,
+      "exploratory95": [
+        0.8126081329103524,
+        0.9241197151875584
+      ],
+      "preflight_sum_baseline_ms": 232.2434425,
+      "preflight_sum_candidate_ms": 115.834919,
+      "single_unit_hits_misses": [
+        1,
+        0
+      ]
+    },
+    "large512_O2_unchanged_adverse": {
+      "baseline_ms": 64.94159,
+      "candidate_ms": 67.631172,
+      "ratio": 1.0414154011320018,
+      "exploratory95": [
+        1.0029155283208817,
+        1.0932548652398237
+      ]
+    },
+    "all_time_adverse_cells": "45/20/24 in default/closed/isolation; all lists in recomputed result.",
+    "all_rss_adverse_cells": "50/28/34 in default/closed/isolation; all lists in recomputed result."
+  },
+  "validation": [
+    "All formal row/request/case/arm/block identities and AB/BA order exactly match frozen nine-family protocol. Per-request commands, runner bytes and current retained compiler hashes match.",
+    "Generated source bytes and all edit identities independently reconstructed with frozen generator; arithmetic expected results independently calculated. Every original stdout/stderr report is parsed, not just row valid.",
+    "Every successful ZIL report has current Verify1, expected phase/source/option/artifact identity; every object count and current preflight/producer verification flag checked, with hits traced to earlier same-sequence action keys. All2700 native records equal complete four-byte result/exit0/empty stderr.",
+    "All225 arm medians/RSS, ratio-of-medians, full2000-draw same-block bootstrap endpoints, aggregates, component sums and Markdown rows agree with independent recomputation.",
+    "Final59d sanity92+112 rows and14 reference builds checked against exact copied source, raw reports and native inputs/outcomes. Exactly4 expected expand ResourceLimit refusals;200 successful native builds/1768 observations plus210 oracle observations. Intermediate05e204 rows/14 oracle controls independently audited and kept separate, not counted as final.",
+    "Four archives contain16997 checked records; compressed SHA/size, safe unique regular members, internal FILES, side receipts and original bytes all match.",
+    "Both complete tables are identical to independently checked analysis tables.19 key Rust table rows,6 isolation narrative pairs, component/RSS/interval anchors, totals and negative results match source data. Aggregate/narrative/coverage values and scope were read against recomputed data.",
+    "ALGORITHM-ATTRIBUTION/PLAN/index and evidence READMEs retain801 versus59d/historical mechanisms/unfinished architecture distinction. program.ll is explicitly final-request public diagnostic IR before partition/internalization; different output sets, JSON timing, Rust LLVM23.1.1 versus ZIL23.1.4, host noise and single-crate limits are explicit."
+  ],
+  "combined_formal_totals_only": {
+    "original801_rows": 7824,
+    "final59d_rows": 2700,
+    "rows": 10524,
+    "cells": 877,
+    "invalid_cells": 40,
+    "valid_native_builds": 8628,
+    "native_observations": 22740,
+    "oracle_native_observations": 420,
+    "successful_current_zil_verify_requests": 6042,
+    "note": "No pooling/relabeling of measured times between801 and59d. Final sanity and05e intermediate controls excluded from these formal totals."
+  },
+  "limitations": [
+    "Six blocks; exploratory percentile bootstrap, no multiple-comparison/product guarantee. One isolation adverse cell has interval wholly>1; no universal speedup or total-memory breakthrough claimed.",
+    "Native streams/exit are rows recorded by frozen runner; no per-request retained binary guarantee. Only final sequence artifacts remain. ELF and cache work products are deliberately absent from archives; local retained compiler identities checked separately.",
+    "CGU component sums do not partition parallel wall time; full CLI includes unchanged costs, JSON and public diagnostic LLVM publication.",
+    "No compiler/native/benchmark rerun in this audit. Statistics/input reconstruction and hashes only.",
+    "Documents are bound by exact file SHA256 pending the requested final delivery commit binding. No new code or product-goal approval is implied."
+  ]
+}

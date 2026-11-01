@@ -1,0 +1,17 @@
+{
+  "kind": "runtime-final-v1",
+  "summary": [
+    {
+      "class": "elf-executable-or-object",
+      "files": 54,
+      "bytes": 34444216
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 6662,
+      "bytes": 251046360
+    }
+  ],
+  "selected_paths": 6716,
+  "unique_blobs": 2575
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "prefix": "research/stage6-syntax-session-review",
+    "source_path": "/workspace/.zil-env/research/stage6-syntax-session-review"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_session_bench.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_session_bench.py"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_session_probe.rs",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_session_probe.rs"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

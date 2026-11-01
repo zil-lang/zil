@@ -1,0 +1,12 @@
+{
+  "kind": "confirmation-closed-cache-cleanup",
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 7,
+      "bytes": 4636189
+    }
+  ],
+  "selected_paths": 7,
+  "unique_blobs": 6
+}

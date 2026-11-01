@@ -1,0 +1,150 @@
+[
+  {
+    "prefix": "research/stage6-cfg-review",
+    "source_path": "/workspace/.zil-env/research/stage6-cfg-review"
+  },
+  {
+    "prefix": "research/stage6-cfg-toolchain-review",
+    "source_path": "/workspace/.zil-env/research/stage6-cfg-toolchain-review"
+  },
+  {
+    "prefix": "research/stage6/arithmetic-cfg-control",
+    "source_path": "/workspace/.zil-env/research/stage6/arithmetic-cfg-control"
+  },
+  {
+    "prefix": "research/stage6/arithmetic-cfg-control.log",
+    "source_path": "/workspace/.zil-env/research/stage6/arithmetic-cfg-control.log"
+  },
+  {
+    "prefix": "research/stage6/arithmetic-ir-comparison",
+    "source_path": "/workspace/.zil-env/research/stage6/arithmetic-ir-comparison"
+  },
+  {
+    "prefix": "research/stage6/arithmetic-stage-profile",
+    "source_path": "/workspace/.zil-env/research/stage6/arithmetic-stage-profile"
+  },
+  {
+    "prefix": "research/stage6/arithmetic-stage-profile.log",
+    "source_path": "/workspace/.zil-env/research/stage6/arithmetic-stage-profile.log"
+  },
+  {
+    "prefix": "research/stage6/merge-screen-default-after/source-large-8192/main.zil",
+    "source_path": "/workspace/.zil-env/research/stage6/merge-screen-default-after/source-large-8192/main.zil"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-author.json",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-author.json"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-cfg",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-cfg"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-cfg-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-cfg-build.log"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-cfg-profile-v2.log",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-cfg-profile-v2.log"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-cfg-profile.log",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-cfg-profile.log"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-controls",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-controls"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-controls.log",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-controls.log"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-original",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-original"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-original-build.log",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-original-build.log"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-original-profile-v2.log",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-original-profile-v2.log"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-original-profile.log",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-original-profile.log"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-profiles",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-profiles"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-scalar",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-scalar"
+  },
+  {
+    "prefix": "research/stage6/post-ipsccp-cfg-source",
+    "source_path": "/workspace/.zil-env/research/stage6/post-ipsccp-cfg-source"
+  },
+  {
+    "prefix": "research/stage6/run-arithmetic-cfg-control.py",
+    "source_path": "/workspace/.zil-env/research/stage6/run-arithmetic-cfg-control.py"
+  },
+  {
+    "prefix": "research/stage6/run-arithmetic-stage-profile.py",
+    "source_path": "/workspace/.zil-env/research/stage6/run-arithmetic-stage-profile.py"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/8192-arithmetic/closed0-slp-on.row.json",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/8192-arithmetic/closed0-slp-on.row.json"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/8192-arithmetic/input.bin",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/8192-arithmetic/input.bin"
+  },
+  {
+    "prefix": "research/stage6/slp-effective-opaque/8192-arithmetic/main.zil",
+    "source_path": "/workspace/.zil-env/research/stage6/slp-effective-opaque/8192-arithmetic/main.zil"
+  },
+  {
+    "prefix": "research/stage6/jump-threading-plugin-sdk/headers-receipt.json",
+    "source_path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-sdk/headers-receipt.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/post_ipsccp_cfg",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/post_ipsccp_cfg"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/pass_timing",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/pass_timing"
+  },
+  {
+    "prefix": "collection-source/evidence/research/incremental-compilation/stage6/llvm-cfg-plan.json",
+    "source_path": "/workspace/zil/evidence/research/incremental-compilation/stage6/llvm-cfg-plan.json"
+  },
+  {
+    "prefix": "collection-source/changes/research-post-ipsccp-cfg-cleanup.md",
+    "source_path": "/workspace/zil/changes/research-post-ipsccp-cfg-cleanup.md"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py"
+  },
+  {
+    "prefix": "collection-source/tools/llvm/release-linux-x86_64.json",
+    "source_path": "/workspace/zil/tools/llvm/release-linux-x86_64.json"
+  },
+  {
+    "prefix": "collection-source/tools/llvm/install.py",
+    "source_path": "/workspace/zil/tools/llvm/install.py"
+  },
+  {
+    "prefix": "external-build-inputs/llvm-23.1.4/install-receipt.json",
+    "source_path": "/workspace/.zil-env/llvm-23.1.4/install-receipt.json"
+  },
+  {
+    "prefix": "collection-source/tools/research/incremental-compilation/stage6_archive_large.py",
+    "source_path": "/workspace/zil/tools/research/incremental-compilation/stage6_archive_large.py"
+  }
+]

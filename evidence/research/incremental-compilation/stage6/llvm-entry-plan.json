@@ -1,0 +1,292 @@
+{
+  "schema": 1,
+  "kind": "llvm-entry",
+  "scope": "Frozen v1 entry-preserving JumpThreading research, native DSO and exact ac4 API pair. Not final combined compiler, performance acceptance or active SSA/LVI/CFG/runtime work.",
+  "tool_source_commit": "09f1bb90e3bdd4a996aa69f4752b43153f5c59dd",
+  "tool_source_inventory": [
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/README.md",
+      "bytes": 7501,
+      "sha256": "c74566f9ed23a6c83f5ec2b242fbc3b58cd9ec28c6056100444fbc61837ec9c6"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/abi_probe.cpp",
+      "bytes": 975,
+      "sha256": "05d3d85bff20a589856c0b9d71d1ae87600c682ead5503eccd73510c114dd216"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+      "bytes": 13038,
+      "sha256": "a0ba55510734f389a61ebd0efb72630bdfdf0400db3158bcc2baea586e4854db"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/build_native_toolchain.py",
+      "bytes": 11710,
+      "sha256": "6115fb8fbdeb223d49afe966c7234521f25f0cfa43bf2c173d1c9fe4481f1b0d"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/build_plugin.sh",
+      "bytes": 3030,
+      "sha256": "c319f74bfaa37dea817e1d1949037edd484feefb056d346f2157ed3ee8b56e65"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/cache_bundle.py",
+      "bytes": 3176,
+      "sha256": "ec72dc59b6a136925d77b4fd6fce255cb47f9f9c0f05e3f1fa22ab4efb06fed0"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/clang_wrapper.py",
+      "bytes": 8653,
+      "sha256": "007a2bb886b776e58f2950ea98de3f6176b240c2f2ca687e5a572af1a8389dfa"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/controls.py",
+      "bytes": 5701,
+      "sha256": "815c4ed5a0923b6e2cb81243620ef178b453f82dbb00a4cb3ec0ef756a3def2b"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/finalize_api_pair.py",
+      "bytes": 5735,
+      "sha256": "e45905fbd5088862e920f0405d306fdf3f0653cf765fd22d58fd2029d3d25c6a"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/opaque_controls.py",
+      "bytes": 4878,
+      "sha256": "18971e93cb6c7d281082a1b6950d4b3ada0f4f74e9c82e308240e37dd6bd0a0f"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/prepare_api_snapshot.py",
+      "bytes": 4144,
+      "sha256": "48e16eecc783234d31f62279fec9bcdbdd52be6aa33b46e5a9fc9a0a7d30103b"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/prepare_clone.py",
+      "bytes": 8427,
+      "sha256": "f21822c89120e96210c298bc8ec20e439681a382371de4c88a1839b7b1570f38"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/prepare_headers.py",
+      "bytes": 4052,
+      "sha256": "aa0dfd89c918a9cbe2d9bfdff98ea933eff480f927cd6b50464074b04ffb226c"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/prepare_native_patch.py",
+      "bytes": 5753,
+      "sha256": "d14ccc263404be3e31f45c9a24b309ed3cc74ce70907bbc5635663534913c405"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/prepare_pipeline.py",
+      "bytes": 3408,
+      "sha256": "47d0f32d71533a4e24085f6b061da340b2615684ad5a469e1abd33a0f7c3931a"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/run_request.py",
+      "bytes": 12324,
+      "sha256": "9f40a395a403fd32944e796ecd3c9859076e1ff6e83bd1048ef2dadf7e3de910"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/screen.py",
+      "bytes": 8914,
+      "sha256": "4300e5314a9da3bdbe235294cd448d8585d7f112700f49dd0728be8c948efe04"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/source_controls.py",
+      "bytes": 13346,
+      "sha256": "a72106c2bd3b7383764a99bfebdd18b427fcfc310d77c2bbf7200305e046057e"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.cpp",
+      "bytes": 129818,
+      "sha256": "735bdb11bc0a10b549a430eb69863dce4f64a4be48f878f47c380b6898caaf62"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/upstream/JumpThreading.h",
+      "bytes": 9432,
+      "sha256": "5abd69e54d52f6b9b0c47dc1332fa1c034ee718d9c53567a6bc93eee12350688"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/upstream/LICENSE.TXT",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/upstream/PROVENANCE.json",
+      "bytes": 679,
+      "sha256": "4017f3231d3b3761b5981740ea19ee1fbc9c69ae584797e457a8ae46aa0f5698"
+    }
+  ],
+  "research_roots": [
+    "stage6/jump-threading-api-author.md",
+    "stage6/jump-threading-api-entry-build.log",
+    "stage6/jump-threading-api-entry-prepare.log",
+    "stage6/jump-threading-api-original-build.log",
+    "stage6/jump-threading-api-original-prepare.log",
+    "stage6/jump-threading-api-pair",
+    "stage6/jump-threading-capture-build.log",
+    "stage6/jump-threading-capture-prepare.log",
+    "stage6/jump-threading-native-build-receipt.md",
+    "stage6/jump-threading-native-entry",
+    "stage6/jump-threading-native-original",
+    "stage6/jump-threading-native-source",
+    "stage6/jump-threading-opaque-controls",
+    "stage6/jump-threading-opaque-controls-v2",
+    "stage6/jump-threading-opaque-controls-v2.log",
+    "stage6/jump-threading-opaque-controls.log",
+    "stage6/jump-threading-perf-default-after",
+    "stage6/jump-threading-perf-default-after-attempt2",
+    "stage6/jump-threading-perf-default-after-attempt3",
+    "stage6/jump-threading-perf-default-after-attempt4",
+    "stage6/jump-threading-perf-receipt.md",
+    "stage6/jump-threading-pipelines",
+    "stage6/jump-threading-pipelines.log",
+    "stage6/jump-threading-plugin-build",
+    "stage6/jump-threading-plugin-build-setup.md",
+    "stage6/jump-threading-plugin-clone",
+    "stage6/jump-threading-plugin-clone-prepare.log",
+    "stage6/jump-threading-plugin-small-controls",
+    "stage6/jump-threading-real-controls",
+    "stage6/jump-threading-resource-source-controls",
+    "stage6/jump-threading-resource-source-controls-v2",
+    "stage6/jump-threading-resource-source-controls-v3",
+    "stage6/jump-threading-resource-source-controls-v3.log",
+    "stage6/jump-threading-screen-tool-smoke",
+    "stage6/jump-threading-screen-tool-smoke.log",
+    "stage6/jump-threading-source",
+    "stage6/jump-threading-source-controls-receipt.md",
+    "stage6/jump-threading-static.md",
+    "stage6/jump-threading-symbols.md",
+    "stage6/jump-threading-tag-object.json",
+    "stage6/jump-threading-tag.json",
+    "stage6/jump-threading-api-original-snapshot/RESEARCH.json",
+    "stage6/jump-threading-api-original-snapshot/RESEARCH.patch",
+    "stage6/jump-threading-api-original-snapshot/SOURCE-ORIGINALS.json",
+    "stage6/jump-threading-api-entry-snapshot/RESEARCH.json",
+    "stage6/jump-threading-api-entry-snapshot/RESEARCH.patch",
+    "stage6/jump-threading-api-entry-snapshot/SOURCE-ORIGINALS.json",
+    "stage6/jump-threading-capture-snapshot/RESEARCH.json",
+    "stage6/jump-threading-capture-snapshot/RESEARCH.patch",
+    "stage6/jump-threading-plugin-sdk/headers-receipt.json",
+    "stage6/jump-threading-plugin-sdk/headers-receipt.initial-failure.json",
+    "stage6/jump-threading-plugin-sdk/download.log",
+    "stage6/jump-threading-plugin-sdk/extract.log",
+    "stage6/jump-threading-plugin-headers/apt-llvm-Packages.gz",
+    "stage6/jump-threading-plugin-headers/apt-llvm-pool.html",
+    "stage6-jt-review",
+    "stage6-native-jt-review"
+  ],
+  "repo_extra_sources": [
+    "changes/research-entry-preserving-jump-threading.md",
+    "changes/research-jump-threading-native-toolchain.md",
+    "tools/llvm/release-linux-x86_64.json",
+    "tools/llvm/install.py",
+    "tools/llvm/version.txt"
+  ],
+  "external_sources": [
+    {
+      "logical_path": "external-build-inputs/llvm-23.1.4/install-receipt.json",
+      "path": "/workspace/.zil-env/llvm-23.1.4/install-receipt.json"
+    }
+  ],
+  "excluded_reconstructible": {
+    "SDK_archive": {
+      "path": "/workspace/.zil-env/research/stage6/jump-threading-plugin-headers/cache/LLVM-23.1.4-Linux-X64.tar.zst",
+      "bytes": 1190060068,
+      "sha256": "efdd1dbd089b99bfcfcde7b8eb1236163f2e88df5a981cca4f783ec9cb5e0378"
+    },
+    "SDK_headers": {
+      "root": "stage6/jump-threading-plugin-sdk/include",
+      "files": 2355,
+      "identity_receipt": "stage6/jump-threading-plugin-sdk/headers-receipt.json",
+      "reason": "Exact per-header SHA and original release archive SHA/extraction commands retained; headers not copied."
+    },
+    "api_snapshots": {
+      "roots": [
+        "stage6/jump-threading-api-original-snapshot",
+        "stage6/jump-threading-api-entry-snapshot"
+      ],
+      "base_revision": "ac4ebb9e5fe668b160cbc4b1fe30db735858fdce",
+      "keep": [
+        "RESEARCH.json",
+        "RESEARCH.patch",
+        "SOURCE-ORIGINALS.json"
+      ],
+      "reason": "Restore exact base Git input set and apply retained tag patch; do not relabel 888."
+    },
+    "capture_snapshot": {
+      "root": "stage6/jump-threading-capture-snapshot",
+      "base_revision": "ca79f8ab983e13d832de936263c79b2af7e0b8c6",
+      "keep": [
+        "RESEARCH.json",
+        "RESEARCH.patch"
+      ],
+      "reason": "Original source hashes embedded in RESEARCH; full checkout reconstructible."
+    },
+    "targets": "Compiler targets not selected; exact ELF/link/build inputs and actual loader logs in api-pair and reviews."
+  },
+  "retention_rules": [
+    "All selected generated source/IR/commands/reports/stdout/stderr retained byte-exact.",
+    "input.bin and perf.data retained, including initial perf failure files.",
+    "All success and corrupt/forged/atomic-publication ZIP cache payloads retained, including resource-source-v3 real 3-CGU cache set and revised-faults malformed ZIPs.",
+    "Large native ELF/static archives/objects use existing per-path SHA omission; SDK archive outside raw bytes but full SHA in headers receipt.",
+    "Original 43037 perf attempts belong to official baseline diagnostics, never entry timing; duplicate prior diagnostics are not new measurements.",
+    "Excludes ca79 opaque perf(-v2)/earlyprofile later diagnostics and all active SSA/LVI/CFG/combined/final-runtime roots."
+  ],
+  "static_inventory": {
+    "paths_including_symlinks": 3600,
+    "regular_file_logical_bytes_before_omission": 777705029,
+    "input_bin_paths": [
+      "stage6-jt-review/real-source/input.bin",
+      "stage6-jt-review/real-source.initial-unsafe-expression/input.bin"
+    ],
+    "perf_data_paths": [
+      "stage6/jump-threading-perf-default-after/perf.data",
+      "stage6/jump-threading-perf-default-after-attempt2/perf.data",
+      "stage6/jump-threading-perf-default-after-attempt3/perf.data",
+      "stage6/jump-threading-perf-default-after-attempt4/perf.data"
+    ],
+    "zip_paths": [
+      "stage6/jump-threading-resource-source-controls-v3/cache/entry-closed/4d9b3b528d8151832dbf581832e4c02346204f4b597264ac49c3730c43d62350.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/entry-closed/3591a30b6c0c196423daf4b907471042f4ec1d39ee2e435542716b9aaa1df0b3.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/entry-closed/a7be4ec67bcb439b421492b43f599e2a83f6cb0b0950fc7f34b3b432e42cedd8.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/original-default/ff834e0e5462207beb952e68f426ec4528d8475fc6e07b8627387c35a2111551.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/original-default/d2108f9e554f11ab13283c45c76350e1f7515852dec228d5decbf401317f56c5.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/original-default/7ad6e4b9fd55ee0bbdf23f296cc7eb34f6b897451041ee2138495c5f3f7cbe85.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/entry-default/f404fb808ed90f0a5d632de750c8917600c9eef79e97f317672adbe047ec41b7.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/entry-default/c832a27dc758a63153eb910037bdee9fa2360c06106f026e0e7ba74975f1105f.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/entry-default/8a8d01a51d171ed83d2a731f68b80454c4a8bedebbfa3b74c5bd239afafcc974.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/entry-default/39d0a3103097ec9313014241ff45e8c311080e30f9784eeeae503f17625948e7.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/original-closed/6792f230d6767559611c136a5d94665a10740198d6e4dab60448c8d3c6871a6d.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/original-closed/4e629b36160aa664f90a64f514dd50fa808335e5fdb94a04de5e64308cd23062.zip",
+      "stage6/jump-threading-resource-source-controls-v3/cache/original-closed/7f99ef09100349cc48f05268fa00579625e5a5adb0919e94127ec2d9240b6003.zip",
+      "stage6-jt-review/real-source/cache/dacb8347c74a64c3a34cecf8724b2a75ca393c8933c3046bc4296d9ffc8dcbdf.zip",
+      "stage6-jt-review/real-source/cache/d886a2071978125a5aeb6f34a48956132fad555518f0c2fca01b66d6b68b5d47.zip",
+      "stage6-jt-review/real-source/cache/02589bdc7aaa8238cab5782dd6a516da3cac6e9676b8aaa117f07d09913440c3.zip",
+      "stage6-jt-review/real-source/cache/6e61fd0f726b769049776f332459e1bf3d34509d497dcf2eebc2330472dc03f4.zip",
+      "stage6-jt-review/real-source/cache/6c9ce97007d7b0d7806378d78482dce1cbf5af13bc03bddf12d5b35c2b1b95e9.zip",
+      "stage6-jt-review/revised-faults/codec/truncated.zip",
+      "stage6-jt-review/revised-faults/codec/wrong_header.zip",
+      "stage6-jt-review/revised-faults/codec/nonobject_receipt.zip",
+      "stage6-jt-review/revised-faults/codec/valid.zip",
+      "stage6-jt-review/revised-faults/codec/extra_member.zip",
+      "stage6-jt-review/revised-faults/codec/wrong_material.zip",
+      "stage6-jt-review/revised-faults/codec/crc_corrupt.zip",
+      "stage6-jt-review/revised-faults/codec/duplicate_member.zip",
+      "stage6-jt-review/revised-faults/codec/compressed.zip",
+      "stage6-jt-review/revised-faults/codec/hash_mismatch.zip",
+      "stage6-jt-review/revised-faults/driver_timeout/cache/8df647b104f7c3537523c1ccf53d60bba9b96ab28db46e9f1cdc298628d00249.zip",
+      "stage6-jt-review/revised-faults/native_wrong/cache/b68d1f52008e39b2e8072cf30795a0137df957cd60c926c6ac6a7715a19e7004.zip",
+      "stage6-jt-review/revised-faults/compile_fail/cache/fb697559b955bee07436ae70182629860cbe5f2f74d8e288b55f1870785930f2.zip",
+      "stage6-jt-review/revised-faults/success/cache/d38c5484e0049ffcffad74e801e53f2ae99c6b50d12d65f9670d574be0c65271.zip",
+      "stage6-jt-review/revised-faults/driver_signal/cache/a34e625e250ddc72d80947cf535b8db760f8a733286e011693cb06da42a34047.zip",
+      "stage6-jt-review/revised-faults/compile_launch/cache/0c56261c1583f489ec1e0e832acd92e5f2b72196e3538c4e23bf703c6062eede.zip",
+      "stage6-jt-review/revised-faults/native_timeout/cache/64fd5b115b82c1e86533f8e8e603df288a29c4164915a4fda41bb0ac65de5455.zip",
+      "stage6-jt-review/revised-faults/native_launch/cache/2672fd0498252942d117dc8326b28c25a07ed4dfe3a4852885e546ae3851e468.zip",
+      "stage6-jt-review/revised-faults/native_stderr/cache/a0b4f84d07c35899f712e7d69bd17f23ef316967a177fb596f33dfed8eb4e339.zip",
+      "stage6-jt-review/revised-faults/report_nonjson/cache/fefed039ee7bad398bfed615bf8bf9ba3d47c6f0965877da0cbc04ab313e57a5.zip",
+      "stage6-jt-review/revised-faults/native_nonzero/cache/48f1160f4923f900b08bc505e80654647d4422abccfcff101b67adc899f1bf7b.zip",
+      "stage6-jt-review/revised-faults/publish_io_failure/cache/4722c0511284f7d9c9b792869ad0dd3ae9995797b774c92fd773c601c35417ae.zip",
+      "stage6-jt-review/revised-faults/missing_preflight/cache/99f8b1b74f00b4f775c2e8e726c957f88ac7549e11aad71479ff9413ab78d455.zip",
+      "stage6-jt-review/revised-faults/report_list/cache/f2f5adf113f225a34ce410ef092b0ee4f0cc602c4367b57b4f496bd14e7de96c.zip"
+    ]
+  }
+}

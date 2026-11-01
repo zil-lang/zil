@@ -1,0 +1,22 @@
+{
+  "repository": "llvm/llvm-project",
+  "commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "ref": "llvmorg-23.1.4",
+  "license": "Apache-2.0 WITH LLVM-exception; original SPDX/copyright text retained",
+  "source_record": "/workspace/.zil-env/research/stage6/jump-threading-source/manifest.json",
+  "source_record_sha256": "6e9695a9e3d142534137372ad29801a7c770e315cc5dfb31419617b9a2d62c77",
+  "files": [
+    {
+      "name": "LazyValueInfo.cpp",
+      "upstream_path": "llvm/lib/Analysis/LazyValueInfo.cpp",
+      "sha256": "acba830547744352e9ec983f3f7574a48e28a736c512fae7721afe0ac746cbe7",
+      "bytes": 91791
+    },
+    {
+      "name": "LICENSE.TXT",
+      "upstream_path": "llvm/LICENSE.TXT",
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee",
+      "bytes": 15141
+    }
+  ]
+}

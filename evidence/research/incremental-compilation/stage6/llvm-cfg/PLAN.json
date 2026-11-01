@@ -1,0 +1,37 @@
+{
+  "kind": "llvm-cfg",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 163,
+      "bytes": 472735776
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 27,
+      "bytes": 3394672
+    },
+    {
+      "class": "generated-python-bytecode",
+      "files": 4,
+      "bytes": 37484
+    },
+    {
+      "class": "large-derived-JSON; exact bytes/SHA recorded, authoritative opt.stderr and parser retained",
+      "files": 1,
+      "bytes": 380782521
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 594,
+      "bytes": 185600113
+    },
+    {
+      "class": "symlink-target-recorded-without-dereference",
+      "files": 2,
+      "bytes": 30
+    }
+  ],
+  "selected_paths": 791,
+  "unique_blobs": 272
+}

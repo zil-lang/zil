@@ -1,0 +1,9 @@
+{
+  "kind": "syntax-session-review",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 15,
+  "omitted_paths": 0,
+  "unique_blobs": 13,
+  "identity_sha256": "a6ce3a957c1397e9c29dac4a31c6c1a19dc98607d7f0f97c60906933cc11dc29",
+  "verified_utc": "2026-10-31T13:44:08.116439+00:00"
+}

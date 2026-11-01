@@ -1,0 +1,120 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_commit": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+  "base_commit": "801933a9e8f060d44b8305786d01399527aa6137",
+  "verdict": "Pass",
+  "time_utc": "2026-10-31T09:14:07.183331+00:00",
+  "scope": "Final guarded high-fanin dominator merge and local lookup maps: independent correctness/preflight equivalence review, not a timing/product gate.",
+  "production_changed_paths": [
+    "crates/zil-llvm-api/src/preflight.rs"
+  ],
+  "changed_file_sha256": {
+    ".task/research/incremental-compilation.md": "85538c0e412d5c1cdbd5710dbe4b3fd66784837ca42ca670c22652462bdb2f57",
+    "changes/research-preflight-fanin.md": "d55165fa502057de52ceec3ab256052f092254b4fb4b36e8e16269d105927d11",
+    "crates/zil-llvm-api/src/preflight.rs": "984891225304a4163b7a3f3caf88912240f2995f042716118bc2e656fcfc1d51",
+    "docs/research/incremental-compilation/DISTRIBUTION-PROTOCOL.md": "d6ff19621d4414eec28f767c528773ecdabe257917267606ebc9464c6aaecf05",
+    "docs/research/incremental-compilation/PREFLIGHT-FOLLOWUP-PROTOCOL.md": "33ab44cca06c2268e7a28e0f3b637b14f11d5aefe44b55f96034d9d40cff1d7d",
+    "tools/research/incremental-compilation/distribution_bench.py": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+    "tools/research/incremental-compilation/real_pair_bench.py": "48d43fbdebdcc2e5660fd7bd9dd7db4c4d531e924a6ee964661feaca8cc295dc"
+  },
+  "independent_scoped_test": {
+    "passed": 43,
+    "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/research/stage5/review-target5189 cargo test --manifest-path /workspace/.zil-env/research/stage5-followup/review-exact59d/Cargo.toml --offline --locked -p zil-llvm-api --features text-reference",
+    "snapshot": "/workspace/.zil-env/research/stage5-followup/review-exact59d",
+    "log": "/workspace/.zil-env/research/stage5-followup/review-exact59d-api.log",
+    "log_sha256": "1e16667ec87876ad273106e8df015058ee61b3c021ea7513128d9753ff581d28"
+  },
+  "independent_oracle": {
+    "graphs": 5087,
+    "high_fanin_graphs": 472,
+    "density_boundary_graphs": 90,
+    "all_pairs": 5975139,
+    "complete_modules": 1645,
+    "checked_chain_modules": 105,
+    "fresh_hashmap_validations": 26320,
+    "accepted_modules": 904,
+    "rejected_modules": 741,
+    "deep_chain": 131072,
+    "pass": true,
+    "old_commit": "801933a9e8f060d44b8305786d01399527aa6137",
+    "implementation_commit": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+    "sources": {
+      "old": {
+        "commit": "801933a9e8f060d44b8305786d01399527aa6137",
+        "exact_sha256": "53a17abaf27113cd13706c64575a31110f61f8a1538e7c176d0078829379c6c3",
+        "wrapped_sha256": "02423ea7bad8952ead9fec379c4f1378f2f8812381ce29f44d3fefc882129e01"
+      },
+      "new": {
+        "commit": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+        "exact_sha256": "984891225304a4163b7a3f3caf88912240f2995f042716118bc2e656fcfc1d51",
+        "wrapped_sha256": "aafa522ff232aa6850ecd3f54de37792061806082a7b1c5ad4bdb197dcab1f96"
+      }
+    },
+    "model_sha256": "96aa60a9eb041aa059031ddc5eebb1aa5ffe199369b88a982fbf3f7152d1aa72",
+    "harness_sha256": "dd3293a4f51d869acac764884470c44ef6054a69acda72a083511018eaf733c3",
+    "command": [
+      "rustc",
+      "--edition=2024",
+      "-O",
+      "/workspace/.zil-env/research/stage5-followup/review-fanin-oracle/main.rs",
+      "-o",
+      "/workspace/.zil-env/research/stage5-followup/review-fanin-oracle/probe"
+    ],
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "scope": "Model/query differential only; old/new full success schedules or first-error text exact; no timing/product gate."
+  },
+  "oracle_archive": {
+    "path": "/workspace/.zil-env/research/stage5-followup/review-fanin-oracle.tar.gz",
+    "sha256": "4c27fd639a10b8f2a408b4fc98d81849da0b9b9f517b8e924cf17a7b5955eea1",
+    "files": {
+      "review-fanin-oracle.py": "e7516548854b64944cc3cd7173e1ccaa9e2ea7a19ffd62085e4407a79104271f",
+      "review-fanin-oracle.rs": "dd3293a4f51d869acac764884470c44ef6054a69acda72a083511018eaf733c3",
+      "review-fanin-oracle.log": "57f1c8c761e500bdf1bcd6f160eff7ec5c4a75021bf71a4b3435aecd06151560",
+      "review-fanin-oracle/compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review-fanin-oracle/compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review-fanin-oracle/main.rs": "dd3293a4f51d869acac764884470c44ef6054a69acda72a083511018eaf733c3",
+      "review-fanin-oracle/model.rs": "96aa60a9eb041aa059031ddc5eebb1aa5ffe199369b88a982fbf3f7152d1aa72",
+      "review-fanin-oracle/new-exact.rs": "984891225304a4163b7a3f3caf88912240f2995f042716118bc2e656fcfc1d51",
+      "review-fanin-oracle/new.rs": "aafa522ff232aa6850ecd3f54de37792061806082a7b1c5ad4bdb197dcab1f96",
+      "review-fanin-oracle/old-exact.rs": "53a17abaf27113cd13706c64575a31110f61f8a1538e7c176d0078829379c6c3",
+      "review-fanin-oracle/old.rs": "02423ea7bad8952ead9fec379c4f1378f2f8812381ce29f44d3fefc882129e01",
+      "review-fanin-oracle/result.json": "20ebe4398e5040799d66ec46d68b301736a3e6d4f59ea166bafa46ba39cf6431",
+      "review-fanin-oracle/run.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "review-fanin-oracle/run.stdout": "5f70eea072790815eacfbfe726197983957d689e54851dea8952c83deb5720de"
+    }
+  },
+  "findings": [],
+  "resolved_intermediate_risk": {
+    "commit": "05e0b9de2727dce3432d82a587970d4c3123300d",
+    "description": "The >=32-only gate can initialize O(V) storage for many fixed-small-fanin joins. Parent found this before timing. Intermediate functional differential passed and its evidence is preserved separately; no final or performance pass is assigned to05e.",
+    "resolution": "59d requires pred.len() >=32 AND pred.len() >=ceil(V/4). Initialization and chain/trail traversal cost is O(V), bounded by four times that block total predecessor-edge count per merge. Sparse joins keep prior intersect; no whole-CHK linear claim.",
+    "intermediate_evidence_sha256": {
+      "review-05e-intermediate/result.json": "5cbafeebb96c97fc1975fa1bfc0d39bb5e610f52b76a4a6a28659c402efe29b3",
+      "review-05e-intermediate/review-fanin-oracle.log": "c115eb2dbebc2dd84a9eec78e17a09d6156f56d4deceea502bc2d74a295371b9",
+      "review-05e-intermediate/review-fanin-oracle.py": "75ed29b08a8cd0d11f7a4aaa05877bf28f638c780f66b573b376687d6a1c4c5d",
+      "review-05e-intermediate/review-fanin-oracle.rs": "25097c6933b9a84ae5bd92bc5232bd911efbbcbf791143502228fb2bf62c6c86"
+    }
+  },
+  "static_invariants": [
+    "Within each merge idom is immutably borrowed, and all passed predecessors have known idom. Existing CHK rank/initialization maintains a rooted acyclic current-parent relation. No projection is shared across blocks, iterations or requests.",
+    "The first predecessor ancestor chain is explicitly marked; each newly visited path is assigned its unique first intersection on that chain. All intersections lie on one ordered chain, so minimal RPO rank selects the common ancestor for all processed predecessors. Root early exit is absorbing.",
+    "Both sparse and dense branches preserve predecessor filtering and block/update ordering. They return the same immediate-dominator result; all reachable and idom entries, including MAX unreachable sentinels, were compared directly against801.",
+    "HashMap replaces only local defs/labels identity lookup; definitions/instructions/block traversal remain source ordered. The sole labels.keys scan computes an existence predicate with one fixed diagnostic. Global symbol/type maps, returned schedules and ordering structures remain ordered.",
+    "No changes to independent VerifiedModule authority, backend cache namespace/machine structure, optimization pipeline, user logical limits, source acceptance, SSA/phi/unreachable checks, error text or cleanup sequencing."
+  ],
+  "oracle_coverage": [
+    "Exhaustive entry-predecessor-free graphs up to4 nodes and sparse/random cyclic/irreducible/unreachable/duplicate-edge graphs.",
+    "472 targeted high-fanin graphs, including4096-long checked-chain topology with LCA1 rather than root0; forward/reverse/random predecessor orders, duplicated edges, backedges and unreachable predecessor populations.",
+    "90 density-threshold controls at V124/128/129/132/256 and indegree31/32/33/63/64/65, in three predecessor orders.",
+    "Full validator models include105 genuine machine checked-overflow intrinsic/extract/branch-to-shared-trap shapes, valid/invalid phi/SSA/label cases, and textual block reordering. These are hand-authored machine controls, not represented as real source compiler runs.",
+    "Each of1645 complete module models is validated16 times by the candidate with fresh standard RandomState-backed maps; all26320 success schedules or first-error strings equal old result.904 accepted/741 rejected models.",
+    "Independent set-intersection fixed-point dominance oracle plus old walk checks5975139 ordered block pairs. Existing iterative index also handles131072-node deep chain."
+  ],
+  "limitations": [
+    "Correctness tests do not establish speed or RSS improvement; final59d performance requires separate exclusive windows. Original801/283 data stays unchanged.",
+    "Extra vector preparation is gated by total incoming edge count, including duplicates/unreachable predecessors. The bound is per merge/per CHK iteration; total iteration complexity is not proved linear.",
+    "Fresh HashMap validation exercises independent random states but does not enumerate all hash seeds. Static access-order audit establishes diagnostic determinism.",
+    "Author113 tests and reviewer43 tests have distinct commands/features; counts are not summed into product acceptance.",
+    "No production code was modified by reviewer; review evidence is hash-bound pending final delivery binding."
+  ]
+}

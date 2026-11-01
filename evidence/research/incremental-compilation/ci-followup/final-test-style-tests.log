@@ -1,0 +1,30 @@
+   Compiling zil-ir v0.1.0 (/workspace/zil/crates/zil-ir)
+   Compiling zil-driver v0.1.0 (/workspace/zil/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.44s
+     Running tests/cp34_fingerprint_sources.rs (/workspace/.zil-env/target/debug/deps/cp34_fingerprint_sources-40e39240c340159e)
+
+running 2 tests
+test actual_project_typed_output_matches_the_frozen_encoder ... ok
+test source_modules_match_frozen_identity_and_each_request_verifies ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/cp34_fingerprint.rs (/workspace/.zil-env/target/debug/deps/cp34_fingerprint-c2d443c6037b70b2)
+
+running 4 tests
+test callable_public_fingerprints_keep_the_original_vec_contracts ... ok
+test frozen_oracle_is_the_original_encoder_not_the_new_sink ... ok
+test every_raw_encoding_variant_matches_the_frozen_vec_oracle ... ok
+test sha_blocks_and_stream_buffer_boundaries_preserve_exact_bytes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 2.10s
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_backend_llvm-3136df6a873984eb)
+
+running 1 test
+test tests::borrowed_lir_aliases_bind_length_and_the_current_capability ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 41 filtered out; finished in 0.00s
+

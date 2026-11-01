@@ -1,0 +1,9 @@
+{
+  "kind": "quality-final-a1ab",
+  "status": "AllBlobsManifestsAndSegmentsMatch",
+  "retained_paths": 103,
+  "omitted_paths": 16,
+  "unique_blobs": 71,
+  "identity_sha256": "ece776c5b7da71dda86fa3862512951c0d85d7d83452efdd281007aa7039cbf8",
+  "verified_utc": "2026-10-31T16:19:46.897052+00:00"
+}

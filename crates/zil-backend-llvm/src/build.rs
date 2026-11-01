@@ -5,13 +5,13 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use zil_base::{CompileResult, Diagnostic, Phase, ResultCategory};
-use zil_ir::LirModule;
+use zil_ir::{FunctionId, LirModule, LirView};
 use zil_verify::VerifiedModule;
 
 use crate::object_cache::{
     Access, ObjectCacheSummary, PendingObject, PendingObjectCache, PreparedCache,
 };
-use crate::{EmitOptions, EntryPoint};
+use crate::{EmitOptions, EntryPoint, FunctionMerging};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Optimization {
@@ -97,6 +97,12 @@ pub struct BuildOptions {
     pub clang: PathBuf,
     pub output: PathBuf,
     pub optimization: Optimization,
+    /// Explicit Linux executable without generated ZIL symbol exports.
+    pub closed_executable: bool,
+    /// Explicit stable O2 chunks with complete direct-call implementation copies.
+    pub incremental_o2: bool,
+    /// Explicit O2 pass policy; default preserves the reference pipeline.
+    pub function_merging: FunctionMerging,
     pub codegen: CodegenOptions,
     pub emit: EmitOptions,
     pub windows: Option<WindowsLinkOptions>,
@@ -111,6 +117,9 @@ impl BuildOptions {
             clang: PathBuf::from("clang"),
             output: output.into(),
             optimization: Optimization::O0,
+            closed_executable: false,
+            incremental_o2: false,
+            function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
             windows: None,
             object_cache: None,
@@ -134,6 +143,17 @@ pub struct BuildArtifact {
     pub pending_cache: PendingObjectCache,
 }
 impl BuildArtifact {
+    /// Optional private layout destination, pinned before publication guards.
+    pub fn pending_partition_cache_path(&self) -> Option<&Path> {
+        self.pending_cache
+            .layout
+            .as_ref()
+            .map(|pending| pending.path())
+    }
+    /// A cache destination conflict must not reject an otherwise valid request.
+    pub fn discard_partition_cache(&mut self) {
+        self.pending_cache.layout = None;
+    }
     /// Call only after all request validation, cancellation and publication steps.
     pub fn commit_object_cache(&mut self) {
         std::mem::take(&mut self.pending_cache).commit(&mut self.codegen.object_cache);
@@ -164,6 +184,30 @@ pub fn build_with_cancellation(
     options: &BuildOptions,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<BuildArtifact> {
+    build_view_with_cancellation(verified, &lir.as_view(), options, cancelled)
+}
+
+/// Borrowed raw LIR uses the same complete binding and machine preflight as the
+/// owned API. Sharing removes allocation, never current-request verification.
+pub fn build_view_with_cancellation(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &BuildOptions,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> CompileResult<BuildArtifact> {
+    build_view_with_cancellation_and_stable_names(verified, lir, options, cancelled, None)
+}
+
+/// Internal-use cross-crate experiment. The optional current-request spelling
+/// hint is not a verification capability; existing public callers use no hint.
+#[doc(hidden)]
+pub fn build_view_with_cancellation_and_stable_names(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &BuildOptions,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    stable_names: Option<&[(FunctionId, String)]>,
+) -> CompileResult<BuildArtifact> {
     check_cancelled(cancelled)?;
     if options.emit.entry == EntryPoint::None {
         return Err(vec![Diagnostic::error(
@@ -179,12 +223,112 @@ pub fn build_with_cancellation(
             "codegen units and jobs must be in 1..=64",
         ));
     }
-    let machine = crate::emit::lower_with_options(verified, lir, &options.emit)?;
-    // Diagnostic/reference output only. API preflight runs once per owned unit,
-    // immediately before its LLVMBuilder calls; it cannot be bypassed.
+    if options.function_merging != FunctionMerging::Disabled
+        && options.optimization != Optimization::O2
+    {
+        return Err(infra(
+            "E-CODEGEN-MERGING-OPTIONS",
+            "function merging requires O2",
+        ));
+    }
+    if options.backend == NativeBackend::Clang
+        && options.function_merging == FunctionMerging::BeforeAndAfter
+    {
+        return Err(vec![Diagnostic::new(
+            Phase::Codegen,
+            ResultCategory::Unsupported,
+            "E-CODEGEN-MERGING-BACKEND",
+            "before-and-after function merging requires the LLVM API backend",
+            None,
+        )]);
+    }
+    let (mut machine, collected_closed) =
+        crate::emit::lower_view_with_closed_scalar_policy_and_jobs(
+            verified,
+            lir,
+            &options.emit,
+            options.optimization == Optimization::O2 && options.incremental_o2,
+            options.closed_executable
+                && options.backend == NativeBackend::LlvmApi
+                && options.codegen.units >= 2,
+            options.codegen.jobs,
+        )?;
+    // The opt-in O2 strategy contracts strict checked-add chains before
+    // scalar evaluation. Each nonempty plan validates its complete unchanged
+    // input before mutation. Ordinary O2 skips both passes.
+    if options.optimization == Optimization::O2 && options.incremental_o2 {
+        crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
+        crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
+    }
+    let mut stable = if options.closed_executable
+        && options.backend == NativeBackend::LlvmApi
+        && options.optimization == Optimization::O2
+        && options.incremental_o2
+        && options.codegen.units >= 2
+        && options.emit.entry == EntryPoint::Main
+        && lir.target.triple == "x86_64-unknown-linux-gnu"
+    {
+        stable_names.and_then(|names| {
+            if collected_closed {
+                crate::machine_stable_identity::prepare_collected(
+                    &machine,
+                    lir,
+                    names,
+                    options.codegen.units,
+                    cancelled,
+                )
+            } else {
+                crate::machine_stable_identity::prepare(
+                    &machine,
+                    lir,
+                    names,
+                    options.codegen.units,
+                    cancelled,
+                )
+            }
+        })
+    } else {
+        None
+    };
+    check_cancelled(cancelled)?;
+    if let Some(plan) = &mut stable {
+        plan.prune_unreachable_closed_definitions(&mut machine);
+        plan.rename(&mut machine);
+    }
+    // Diagnostic/reference output only. Each nonempty transform plan requires
+    // complete original-model preflight. Existing per-unit API preflight still runs
+    // immediately before its LLVMBuilder calls and cannot be bypassed.
     let llvm = machine.to_text();
-    let plan =
-        crate::machine_cgu::partition(machine, lir, options.emit.entry, options.codegen.units);
+    let mut pending_layout = None;
+    let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
+        let trace =
+            std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
+        let (plan, candidates, diagnostic) = stable.partition(machine, trace);
+        (plan, Some(candidates), diagnostic)
+    } else if collected_closed {
+        (
+            crate::machine_cgu::Plan {
+                units: vec![machine],
+                fallback: None,
+            },
+            None,
+            None,
+        )
+    } else {
+        let (plan, pending) = crate::machine_cgu::partition_view_cached(
+            machine,
+            lir,
+            options.emit.entry,
+            options.codegen.units,
+            options.optimization == Optimization::O0 || options.incremental_o2,
+            options.optimization == Optimization::O2 && options.incremental_o2,
+            (options.backend == NativeBackend::LlvmApi)
+                .then_some(options.object_cache.as_deref())
+                .flatten(),
+        );
+        pending_layout = pending;
+        (plan, None, None)
+    };
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
             Phase::Codegen,
@@ -200,12 +344,37 @@ pub fn build_with_cancellation(
             "object cache requires the LLVM API backend",
         ));
     }
+    if options.closed_executable && lir.target.triple != "x86_64-unknown-linux-gnu" {
+        return Err(vec![Diagnostic::new(
+            Phase::Codegen,
+            ResultCategory::Unsupported,
+            "E-CODEGEN-CLOSED-TARGET",
+            "closed-executable code generation requires the Linux executable target",
+            None,
+        )]);
+    }
+    if options.closed_executable {
+        if let Some(candidates) = stable_candidates {
+            crate::machine_cgu::internalize_closed_executable_names(&mut plan.units, &candidates);
+        } else {
+            crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir);
+        }
+    }
     let mut cache_summary = ObjectCacheSummary {
         requested: options.object_cache.is_some(),
         ..ObjectCacheSummary::default()
     };
     let cache = options.object_cache.as_ref().and_then(|path| {
-        match PreparedCache::new(path, &lir.target, options.optimization) {
+        match PreparedCache::new(
+            path,
+            lir.target,
+            options.optimization,
+            options.function_merging,
+            options.incremental_o2
+                && options.optimization == Optimization::O2
+                && !options.closed_executable
+                && lir.target.triple == "x86_64-unknown-linux-gnu",
+        ) {
             Ok(cache) => {
                 cache_summary.enabled = true;
                 Some(cache)
@@ -216,8 +385,15 @@ pub fn build_with_cancellation(
             }
         }
     });
+    if let Some(diagnostic) = stable_diagnostic {
+        diagnostic.write(&plan.units, cache.as_ref());
+    }
     let mut pending_cache = PendingObjectCache {
         directory: cache.as_ref().map(|c| c.directory.clone()),
+        layout: cache
+            .as_ref()
+            .and(pending_layout)
+            .and_then(|pending| pending.pin()),
         ..PendingObjectCache::default()
     };
     let actual_units = plan.units.len().max(1);
@@ -283,7 +459,16 @@ pub fn build_with_cancellation(
     let mut commands = Vec::new();
     let split = plan.units.len() > 1;
     let objects = if !split && options.backend == NativeBackend::Clang {
-        // Keep the legacy one-process Unix path exactly, including its flags.
+        // Keep one clang invocation, but an explicit closed build must consume
+        // the transformed unit rather than the public diagnostic sidecar.
+        let input = if options.closed_executable {
+            let input = staging.0.join("unit-0.ll");
+            fs::write(&input, plan.units[0].to_text())
+                .map_err(|e| io_error("write closed codegen unit", &input, e))?;
+            input
+        } else {
+            ir_path.clone()
+        };
         drop(plan.units);
         let mut command = Command::new(&options.clang);
         command
@@ -291,10 +476,11 @@ pub fn build_with_cancellation(
             .arg("-x")
             .arg("ir")
             .arg(optimization);
+        clang_function_merging(&mut command, options.function_merging);
         if windows {
             command.arg("-c");
         }
-        command.arg(&ir_path).arg("-o").arg(if windows {
+        command.arg(&input).arg("-o").arg(if windows {
             &object_path
         } else {
             &executable_path
@@ -330,9 +516,7 @@ pub fn build_with_cancellation(
             cancelled,
         )?;
         for result in compiled {
-            if let Some(command) = result.command {
-                commands.push(command);
-            }
+            commands.extend(result.commands);
             if let Some(receipt) = result.receipt {
                 codegen.object_reports.push(receipt);
             }
@@ -406,7 +590,7 @@ struct UnitInput {
     module: zil_llvm_api::model::Module,
 }
 struct UnitResult {
-    command: Option<Vec<String>>,
+    commands: Vec<Vec<String>>,
     receipt: Option<String>,
     access: Option<Access>,
     pending: Option<PendingObject>,
@@ -461,6 +645,7 @@ fn compile_units(
                                         .arg(&unit.input)
                                         .arg("-o")
                                         .arg(&unit.object);
+                                    clang_function_merging(&mut command, options.function_merging);
                                     let command = run_command(&mut command, "E-LLVM-COMPILE")?;
                                     if !unit.object.is_file() {
                                         return Err(infra(
@@ -469,7 +654,7 @@ fn compile_units(
                                         ));
                                     }
                                     Ok(UnitResult {
-                                        command: Some(command),
+                                        commands: vec![command],
                                         receipt: None,
                                         access: None,
                                         pending: None,
@@ -479,6 +664,7 @@ fn compile_units(
                                     unit,
                                     target,
                                     options.optimization,
+                                    options.function_merging,
                                     cache,
                                     cancelled,
                                 ),
@@ -550,6 +736,7 @@ fn compile_api_unit(
     unit: &UnitInput,
     target: &str,
     opt: Optimization,
+    function_merging: FunctionMerging,
     cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<UnitResult> {
@@ -576,16 +763,20 @@ fn compile_api_unit(
                 .map_err(|e| io_error("write reused object", &unit.object, e))?;
             let q = zil_base::json_string;
             let receipt = format!(
-                "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
+                "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
                 q(&cache.llvm_version),
                 q(target),
+                q(zil_llvm_api::pipeline_identity(
+                    config.optimization,
+                    function_merging
+                )),
                 bytes.len(),
                 lookup.to_json(),
                 lookup.preflight_ns,
                 lookup.key_ns + lookup.lookup_ns + lookup.preflight_ns
             );
             return Ok(UnitResult {
-                command: None,
+                commands: Vec::new(),
                 receipt: Some(receipt),
                 access: Some(lookup),
                 pending: None,
@@ -593,8 +784,90 @@ fn compile_api_unit(
         }
         access = Some(lookup);
     }
-    let object =
-        zil_llvm_api::compile_module(&unit.module, &config, cancelled).map_err(api_error)?;
+    let snapshot = cache
+        .filter(|cache| cache.patch_policy.is_some())
+        .and_then(|_| crate::machine_object_patch::Snapshot::new(&unit.module));
+    let mut commands = Vec::new();
+    let mut patch_fallback = None;
+    if let (Some(cache), Some(snapshot), Some(lookup)) = (cache, snapshot.as_ref(), access.as_ref())
+        && let Some(record) = cache.patch_record(snapshot.index_key)
+        && let Some(plan) = snapshot.plan(&unit.module, &record)
+        && let Some(base) = cache.base_object(plan.base_key)
+    {
+        // The old object is raw cached data. Check the entire current model,
+        // including unchanged definitions, before deriving any current product.
+        let t = std::time::Instant::now();
+        zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
+        let current_preflight = crate::object_cache::elapsed_ns(t);
+        check_cancelled(cancelled)?;
+        match zil_llvm_api::compile_module_with_function_merging(
+            &plan.module,
+            &config,
+            function_merging,
+            cancelled,
+        ) {
+            Ok(patch) => {
+                check_cancelled(cancelled)?;
+                let t = std::time::Instant::now();
+                let attempt = plan.derive(
+                    cache.patch_policy.as_ref().expect("eligible patch policy"),
+                    &base,
+                    &patch.bytes,
+                    &unit.object,
+                    lookup.key,
+                );
+                let derive_ns = crate::object_cache::elapsed_ns(t);
+                commands.extend(attempt.commands);
+                check_cancelled(cancelled)?;
+                if let Some(bytes) = attempt.bytes {
+                    let mut lookup = access.take().expect("current cache action");
+                    lookup.preflight_ns = current_preflight;
+                    let q = zil_base::json_string;
+                    let r = &patch.receipt;
+                    let receipt = format!(
+                        "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-patch\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"patched_functions\":{},\"reused_functions\":{},\"base_action_key\":{},\"llvm_verification_scope\":\"current-patch\",\"base_producer_verified_before_after\":true,\"current_full_machine_preflight\":true,\"verify_before_after\":true,\"cache\":{},\"preflight_ns\":{},\"builder_ns\":{},\"parse_ns\":0,\"optimize_ns\":{},\"emit_ns\":{},\"derive_ns\":{},\"total_ns\":{}}}",
+                        q(&r.llvm_version),
+                        q(target),
+                        q(&r.pipeline),
+                        bytes.len(),
+                        plan.replacements.len(),
+                        plan.reused_functions,
+                        q(&plan.base_key.to_hex()),
+                        lookup.to_json(),
+                        current_preflight + r.preflight_ns,
+                        r.builder_ns,
+                        r.optimize_ns,
+                        r.emit_ns,
+                        derive_ns,
+                        current_preflight + r.total_ns + derive_ns
+                    );
+                    let pending = PendingObject {
+                        key: lookup.key,
+                        bytes,
+                        base: None,
+                    };
+                    return Ok(UnitResult {
+                        commands,
+                        receipt: Some(receipt),
+                        access: Some(lookup),
+                        pending: Some(pending),
+                    });
+                }
+                patch_fallback = attempt.reason;
+            }
+            Err(error) => {
+                check_cancelled(cancelled)?;
+                patch_fallback = Some(error.to_string());
+            }
+        }
+    }
+    let object = zil_llvm_api::compile_module_with_function_merging(
+        &unit.module,
+        &config,
+        function_merging,
+        cancelled,
+    )
+    .map_err(api_error)?;
     check_cancelled(cancelled)?;
     fs::write(&unit.object, &object.bytes)
         .map_err(|e| io_error("write LLVM API object", &unit.object, e))?;
@@ -627,12 +900,27 @@ fn compile_api_unit(
         receipt.push_str(&access.to_json());
         receipt.push('}');
     }
-    let pending = access.as_ref().map(|a| PendingObject {
-        key: a.key,
-        bytes: object.bytes,
+    if let Some(reason) = patch_fallback {
+        receipt.pop();
+        receipt.push_str(",\"patch_fallback\":");
+        receipt.push_str(&q(&reason));
+        receipt.push('}');
+    }
+    let pending = access.as_ref().map(|a| {
+        let base = snapshot.map(|s| {
+            (
+                s.index_key,
+                s.encode_base(a.key, zil_base::Fingerprint::of(&object.bytes)),
+            )
+        });
+        PendingObject {
+            key: a.key,
+            bytes: object.bytes,
+            base,
+        }
     });
     Ok(UnitResult {
-        command: None,
+        commands,
         receipt: Some(receipt),
         access,
         pending,
@@ -643,6 +931,7 @@ fn compile_api_unit(
     _unit: &UnitInput,
     _target: &str,
     _opt: Optimization,
+    _function_merging: FunctionMerging,
     _cache: Option<&PreparedCache>,
     _cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<UnitResult> {
@@ -650,6 +939,17 @@ fn compile_api_unit(
         "E-LLVM-API-UNAVAILABLE",
         "LLVM API support was not compiled in",
     ))
+}
+
+fn clang_function_merging(command: &mut Command, policy: FunctionMerging) {
+    if policy == FunctionMerging::AfterOptimization {
+        command.args([
+            "-mllvm",
+            "-enable-merge-functions=true",
+            "-mllvm",
+            "-mergefunc-use-aliases=false",
+        ]);
+    }
 }
 
 fn run_command(command: &mut Command, code: &str) -> CompileResult<Vec<String>> {

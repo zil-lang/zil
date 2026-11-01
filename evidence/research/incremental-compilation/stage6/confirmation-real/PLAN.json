@@ -1,0 +1,27 @@
+{
+  "kind": "confirmation-real",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 2982,
+      "bytes": 85813114
+    },
+    {
+      "class": "elf-executable-or-object",
+      "files": 182,
+      "bytes": 446329256
+    },
+    {
+      "class": "ephemeral-rust-incremental-lock",
+      "files": 168,
+      "bytes": 0
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 1029,
+      "bytes": 8772697
+    }
+  ],
+  "selected_paths": 4361,
+  "unique_blobs": 347
+}

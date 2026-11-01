@@ -1,0 +1,12 @@
+{
+  "kind": "syntax-correctness",
+  "summary": [
+    {
+      "class": "retained-raw-evidence",
+      "files": 18,
+      "bytes": 288132
+    }
+  ],
+  "selected_paths": 18,
+  "unique_blobs": 18
+}

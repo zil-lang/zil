@@ -1,0 +1,9 @@
+{
+  "kind": "correctness",
+  "status": "AllBlobsAndSidecarsMatch",
+  "paths": 48338,
+  "unique_blobs": 2836,
+  "omitted_paths": 1989,
+  "identity_sha256": "9bfe5b516e3c475c3e5fa53196a94abd3e9ebff2cc96b0866aff7e248bf3430e",
+  "verified_utc": "2026-10-31T12:02:29.529813+00:00"
+}

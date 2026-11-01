@@ -1,0 +1,68 @@
+[
+  {
+    "window": "delivery-closed-target",
+    "case": "large-even-8x1024",
+    "rep": 0,
+    "contract": "closed",
+    "sha256": {
+      "baseline": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+      "candidate": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe"
+    },
+    "equal": true
+  },
+  {
+    "window": "delivery-closed-target",
+    "case": "large-even-8x1024",
+    "rep": 1,
+    "contract": "closed",
+    "sha256": {
+      "baseline": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+      "candidate": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe"
+    },
+    "equal": true
+  },
+  {
+    "window": "delivery-closed-target",
+    "case": "large-even-8x1024",
+    "rep": 2,
+    "contract": "closed",
+    "sha256": {
+      "baseline": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+      "candidate": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe"
+    },
+    "equal": true
+  },
+  {
+    "window": "delivery-closed-guards",
+    "case": "large-8192",
+    "rep": 0,
+    "contract": "closed",
+    "sha256": {
+      "baseline": "a0765b24621cfd54fb924ba127aedfe5e695a1f4fc4422b6dd4d5c77610b992a",
+      "candidate": "a0765b24621cfd54fb924ba127aedfe5e695a1f4fc4422b6dd4d5c77610b992a"
+    },
+    "equal": true
+  },
+  {
+    "window": "delivery-closed-guards",
+    "case": "large-skew-8",
+    "rep": 0,
+    "contract": "closed",
+    "sha256": {
+      "baseline": "2b1bbd6f3bd0309be50c3957d78953284c2cc886d10436f3dfc99db2bebf9b03",
+      "candidate": "2b1bbd6f3bd0309be50c3957d78953284c2cc886d10436f3dfc99db2bebf9b03"
+    },
+    "equal": true
+  },
+  {
+    "window": "delivery-default-guard",
+    "case": "large-even-8x1024",
+    "rep": 0,
+    "contract": "default",
+    "sha256": {
+      "baseline": "3cd7162422bb93c47593a0ba4fbb5b3234cad53874b47bd86f881d7972726f3e",
+      "candidate": "3cd7162422bb93c47593a0ba4fbb5b3234cad53874b47bd86f881d7972726f3e"
+    },
+    "equal": true
+  }
+]

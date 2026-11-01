@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "kind": "llvm-cfg",
+  "scope": "Frozen isolated functional candidate and independent review only; no combined/final runtime/formal performance acceptance. Earlier failed preparation/build/fixture epochs remain intact.",
+  "tools": [
+    "post_ipsccp_cfg",
+    "pass_timing"
+  ],
+  "tool_source_commit": "7266d29b19fb6f40898f94ad88b7027c0c7b0346",
+  "tool_source_inventory": [
+    {
+      "path": "tools/research/incremental-compilation/post_ipsccp_cfg/controls.py",
+      "bytes": 6080,
+      "sha256": "49d5094bcb4b1c03fd31c15837986dc9e1102d8926299d6df8c1b344c2a5c7ca"
+    },
+    {
+      "path": "tools/research/incremental-compilation/post_ipsccp_cfg/README.md",
+      "bytes": 5182,
+      "sha256": "21488f425f3281eb7af089e3981a99c504bf43adb9b3fe427d29f72314b4a6f5"
+    },
+    {
+      "path": "tools/research/incremental-compilation/post_ipsccp_cfg/profile.py",
+      "bytes": 7355,
+      "sha256": "d3033ad108e8ac914b459f0172fd532de27356446de16e0a93bb0331a7539e2d"
+    },
+    {
+      "path": "tools/research/incremental-compilation/post_ipsccp_cfg/prepare.py",
+      "bytes": 3680,
+      "sha256": "68eaf93914f57d065542100ff14808d759ad938a6eb788883754972da96322ce"
+    },
+    {
+      "path": "tools/research/incremental-compilation/post_ipsccp_cfg/upstream/LICENSE.TXT",
+      "bytes": 15141,
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+    },
+    {
+      "path": "tools/research/incremental-compilation/post_ipsccp_cfg/upstream/PROVENANCE.json",
+      "bytes": 667,
+      "sha256": "9185ae5fc650653c922193270e94c06bf343e8cc252b7870626ffb92968aa0cc"
+    },
+    {
+      "path": "tools/research/incremental-compilation/post_ipsccp_cfg/upstream/PassBuilderPipelines.cpp",
+      "bytes": 110681,
+      "sha256": "b9c1d966a530d87054513e6dddda3b78115d6e92dec421753df4a07f0c713fa0"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/build_probe.py",
+      "bytes": 1504,
+      "sha256": "3cadb7e38d30732f278203d36cd18200879b0dc274b89fef4bdbb776ef904dcf"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/enable_timing.c",
+      "bytes": 3910,
+      "sha256": "37e00f620ee2b69a78bebfe75c75ca4714cbf775d443d220ce99fbc2e44072c5"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/README.md",
+      "bytes": 3450,
+      "sha256": "ca43fe45eb6a28378cc249548818375d44423a233174e379ded25e65ca786b71"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/slp_opaque_compare.py",
+      "bytes": 5416,
+      "sha256": "aea8520428b6dcb6f580efcbfddebd8f141d09ebc6cedf8bd1c9498a3ecab13f"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/slp_vector_control.py",
+      "bytes": 7260,
+      "sha256": "3c50e910c956806ee4867dfaec4cbcf85be25a832987e75882707d763cebbf94"
+    },
+    {
+      "path": "tools/research/incremental-compilation/pass_timing/run_probe.py",
+      "bytes": 5782,
+      "sha256": "edbedebe1668a9fb96b0bc6731b2ad35266c5cbd9809b2fb2cdd03f140e4939a"
+    },
+    {
+      "path": "changes/research-post-ipsccp-cfg-cleanup.md",
+      "bytes": 3696,
+      "sha256": "8cbbaa2641f405051a4fbfe7159b9f380d62cb582b1185ab5c1eb28a002e4e58"
+    },
+    {
+      "path": "tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+      "bytes": 13038,
+      "sha256": "a0ba55510734f389a61ebd0efb72630bdfdf0400db3158bcc2baea586e4854db"
+    },
+    {
+      "path": "tools/llvm/release-linux-x86_64.json",
+      "bytes": 844,
+      "sha256": "a822f495aa0e605e8248f05ee9d58bd853dc6f020621a3488843b267b3d931cf"
+    },
+    {
+      "path": "tools/llvm/install.py",
+      "bytes": 9225,
+      "sha256": "5732842ebdc834e069cd2bb084e2da68e0b1af9c1dcf7e4c2323c370fc4ea172"
+    }
+  ],
+  "research_roots": [
+    "stage6-cfg-review",
+    "stage6-cfg-toolchain-review",
+    "stage6/arithmetic-cfg-control",
+    "stage6/arithmetic-cfg-control.log",
+    "stage6/arithmetic-ir-comparison",
+    "stage6/arithmetic-stage-profile",
+    "stage6/arithmetic-stage-profile.log",
+    "stage6/merge-screen-default-after/source-large-8192/main.zil",
+    "stage6/post-ipsccp-cfg-author.json",
+    "stage6/post-ipsccp-cfg-cfg",
+    "stage6/post-ipsccp-cfg-cfg-build.log",
+    "stage6/post-ipsccp-cfg-cfg-profile-v2.log",
+    "stage6/post-ipsccp-cfg-cfg-profile.log",
+    "stage6/post-ipsccp-cfg-controls",
+    "stage6/post-ipsccp-cfg-controls.log",
+    "stage6/post-ipsccp-cfg-original",
+    "stage6/post-ipsccp-cfg-original-build.log",
+    "stage6/post-ipsccp-cfg-original-profile-v2.log",
+    "stage6/post-ipsccp-cfg-original-profile.log",
+    "stage6/post-ipsccp-cfg-profiles",
+    "stage6/post-ipsccp-cfg-scalar",
+    "stage6/post-ipsccp-cfg-source",
+    "stage6/run-arithmetic-cfg-control.py",
+    "stage6/run-arithmetic-stage-profile.py",
+    "stage6/slp-effective-opaque/8192-arithmetic/closed0-slp-on.row.json",
+    "stage6/slp-effective-opaque/8192-arithmetic/input.bin",
+    "stage6/slp-effective-opaque/8192-arithmetic/main.zil",
+    "stage6/jump-threading-plugin-sdk/headers-receipt.json"
+  ],
+  "repo_extra_sources": [
+    "changes/research-post-ipsccp-cfg-cleanup.md",
+    "tools/research/incremental-compilation/jump_threading_plugin/build_component_toolchain.py",
+    "tools/llvm/release-linux-x86_64.json",
+    "tools/llvm/install.py"
+  ],
+  "external_sources": [
+    {
+      "logical_path": "external-build-inputs/llvm-23.1.4/install-receipt.json",
+      "path": "/workspace/.zil-env/llvm-23.1.4/install-receipt.json"
+    }
+  ],
+  "input_and_oracle_bin_paths": [
+    "stage6/slp-effective-opaque/8192-arithmetic/input.bin"
+  ],
+  "perf_paths": [],
+  "omission_paths": {
+    "research/stage6/arithmetic-stage-profile/pass-tables.json": "large-derived-JSON; exact bytes/SHA recorded, authoritative opt.stderr and parser retained"
+  },
+  "exclusions": [
+    "Large compiled ELF/object/static-library bytes omitted with per-path identity; raw generated source/patch/commands/stdout/stderr retained.",
+    "Shared SDK/rebuild component identities in toolchain receipts; no SDK archive or full compiler target copies.",
+    "Combined candidate, residual-branch-static and all active formal/runtime tool roots excluded."
+  ],
+  "source_evidence_note": "Profile requests reference original ca79 sources; retain actual main.zil/input.bin/five-seed source oracle and original failure epochs without changing source identity."
+}

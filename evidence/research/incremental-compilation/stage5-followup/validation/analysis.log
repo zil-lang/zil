@@ -1,0 +1,23 @@
+{
+  "followup-default": {
+    "rows": 1080,
+    "invalid_rows": [],
+    "valid_verify_requests": 540,
+    "native_runs": 1080,
+    "oracle_builds": 0
+  },
+  "followup-closed": {
+    "rows": 540,
+    "invalid_rows": [],
+    "valid_verify_requests": 270,
+    "native_runs": 540,
+    "oracle_builds": 0
+  },
+  "followup-isolation": {
+    "rows": 1080,
+    "invalid_rows": [],
+    "valid_verify_requests": 1080,
+    "native_runs": 1080,
+    "oracle_builds": 0
+  }
+}

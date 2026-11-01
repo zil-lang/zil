@@ -1,0 +1,99 @@
+{
+  "research_roots": [
+    "stage6/combined-runtime-analysis-v1",
+    "stage6/combined-runtime-config-controls",
+    "stage6/combined-runtime-config-v1.json",
+    "stage6/combined-runtime-config-v2.json",
+    "stage6/combined-runtime-exclusive-lease.json",
+    "stage6/combined-runtime-formal-v1.log",
+    "stage6/combined-runtime-native-oracles-v1",
+    "stage6/combined-runtime-native-oracles-v1.log",
+    "stage6/combined-runtime-preparation-execution.json",
+    "stage6/combined-runtime-prepare-v1.log",
+    "stage6/combined-runtime-prepared-v1",
+    "stage6/combined-runtime-ready.json",
+    "stage6/confirmation-incremental-original-nogo.json",
+    "stage6/opaque-compile-independent-v1/part1.json",
+    "stage6/runtime-analysis-independent-v1",
+    "stage6/runtime-combined-review"
+  ],
+  "source_strategy": "Use frozen prepared/scripts copies: runtime cc611392\u2026, merge_runtime569288f\u2026, stage6_bench c682809\u2026. Compile54 diagnostic builds,270 untimed correctness controls,1620 formal native rows remain separate. 300 overlapping comparisons/123 adverse; no multiplecomparison population claim.",
+  "formal_boundaries": "Native full-process runtime only; one instrumented build perartifact not compile performance. Original bounded-import quality NoGo326x retained with1740 planned NotRun, not failed or completed requests.",
+  "root_exists_checks": {
+    "stage6/combined-runtime-analysis-v1": true,
+    "stage6/combined-runtime-config-controls": true,
+    "stage6/combined-runtime-config-v1.json": true,
+    "stage6/combined-runtime-config-v2.json": true,
+    "stage6/combined-runtime-exclusive-lease.json": true,
+    "stage6/combined-runtime-formal-v1.log": true,
+    "stage6/combined-runtime-native-oracles-v1": true,
+    "stage6/combined-runtime-native-oracles-v1.log": true,
+    "stage6/combined-runtime-preparation-execution.json": true,
+    "stage6/combined-runtime-prepare-v1.log": true,
+    "stage6/combined-runtime-prepared-v1": true,
+    "stage6/combined-runtime-ready.json": true,
+    "stage6/confirmation-incremental-original-nogo.json": true,
+    "stage6/runtime-analysis-independent-v1": true,
+    "stage6/runtime-combined-review": true
+  },
+  "author_freeze_confirmation": "All listed runtime roots and adjacent files frozen; independent analysis reviewer confirms its entire root frozen. Lease/NoGo owned by root and explicitly frozen in assignment.",
+  "producer_versions": {
+    "original_copy": "stage6/combined-runtime-config-controls/stage6_runtime_config-v1.py",
+    "original_sha256": "ea5aab5478480076ae9d4b014119e9909c7fda77f62bb12d870679697c80c62d",
+    "repaired_sha256": "26ae7536c4eb925c05dd33cae51551a0c6891a3a0699ee6fd57d26d70ff9b6b1",
+    "boundary": "Actualv1 config binds old producer; v2 config and revised producer/logs are retained without modifying frozen v1 experiment."
+  },
+  "tools": [],
+  "repo_extra_sources": [],
+  "external_sources": [],
+  "tool_source_inventory": [],
+  "omission_paths": {},
+  "preserve_paths": [],
+  "archive_scope": "Frozen54 diagnostic builds,270 untimed native correctness and1620 exclusive native runtime observations; author and independent300-cell recomputation preserve123 adverse comparisons. Original incremental quality NoGo and1740 planned NotRun remain explicit. Actual frozen prepared/scripts identities are not replaced by later timer sources. No new quality-closure candidate or formal compile results included.",
+  "pre_capture_metadata": {
+    "regular_paths": 6714,
+    "logical_bytes": 285456536,
+    "largest": [
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/8192-arithmetic/baseline_off/program.ll",
+        "bytes": 12105994
+      },
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/8192-arithmetic/baseline_off_closed/program.ll",
+        "bytes": 12105994
+      },
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/512-body/baseline_off/program.ll",
+        "bytes": 12081989
+      },
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/512-body/baseline_off_closed/program.ll",
+        "bytes": 12081989
+      },
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/8192-arithmetic/original_after_closed/program.ll",
+        "bytes": 10068907
+      },
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/8192-arithmetic/entry_after/program.ll",
+        "bytes": 10068907
+      },
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/8192-arithmetic/entry_after_closed/program.ll",
+        "bytes": 10068907
+      },
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/8192-arithmetic/original_after/program.ll",
+        "bytes": 10068907
+      },
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/8192-arithmetic/entry_incremental_after_closed/program.ll",
+        "bytes": 10068907
+      },
+      {
+        "path": "research/stage6/combined-runtime-prepared-v1/8192-arithmetic/entry_incremental_after/program.ll",
+        "bytes": 10068907
+      }
+    ]
+  }
+}

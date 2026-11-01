@@ -1,0 +1,185 @@
+{
+  "scope": "Linux wait4 CPU usage and process maximum RSS; RSS is not simultaneous tree-wide memory. Same paired identities as analysis.json; no extra samples.",
+  "cells": [
+    {
+      "case": "large-8192",
+      "contract": "default",
+      "request": "cold",
+      "repetitions": 1,
+      "cpu_seconds": {
+        "unit": "seconds",
+        "median": {
+          "baseline": 1.988649,
+          "candidate": 2.225391
+        },
+        "candidate_baseline_geomean": 1.119046649257863,
+        "paired_range": [
+          1.119046649257863,
+          1.119046649257863
+        ]
+      },
+      "max_rss_kib": {
+        "unit": "MiB",
+        "median": {
+          "baseline": 214.82421875,
+          "candidate": 228.35546875
+        },
+        "candidate_baseline_geomean": 1.0629875443222112,
+        "paired_range": [
+          1.0629875443222112,
+          1.0629875443222112
+        ]
+      }
+    },
+    {
+      "case": "large-8192",
+      "contract": "default",
+      "request": "warm",
+      "repetitions": 1,
+      "cpu_seconds": {
+        "unit": "seconds",
+        "median": {
+          "baseline": 0.25692499999999996,
+          "candidate": 0.247963
+        },
+        "candidate_baseline_geomean": 0.9651182251629854,
+        "paired_range": [
+          0.9651182251629854,
+          0.9651182251629854
+        ]
+      },
+      "max_rss_kib": {
+        "unit": "MiB",
+        "median": {
+          "baseline": 135.66796875,
+          "candidate": 92.15625
+        },
+        "candidate_baseline_geomean": 0.6792778785523019,
+        "paired_range": [
+          0.6792778785523019,
+          0.6792778785523019
+        ]
+      }
+    },
+    {
+      "case": "large-8192",
+      "contract": "default",
+      "request": "edit",
+      "repetitions": 1,
+      "cpu_seconds": {
+        "unit": "seconds",
+        "median": {
+          "baseline": 0.49877499999999997,
+          "candidate": 0.47933099999999995
+        },
+        "candidate_baseline_geomean": 0.9610164904014836,
+        "paired_range": [
+          0.9610164904014836,
+          0.9610164904014836
+        ]
+      },
+      "max_rss_kib": {
+        "unit": "MiB",
+        "median": {
+          "baseline": 199.5703125,
+          "candidate": 213.3671875
+        },
+        "candidate_baseline_geomean": 1.069132902720689,
+        "paired_range": [
+          1.069132902720689,
+          1.069132902720689
+        ]
+      }
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "default",
+      "request": "cold",
+      "repetitions": 1,
+      "cpu_seconds": {
+        "unit": "seconds",
+        "median": {
+          "baseline": 2.147276,
+          "candidate": 2.1114349999999997
+        },
+        "candidate_baseline_geomean": 0.9833086198513836,
+        "paired_range": [
+          0.9833086198513836,
+          0.9833086198513836
+        ]
+      },
+      "max_rss_kib": {
+        "unit": "MiB",
+        "median": {
+          "baseline": 213.92578125,
+          "candidate": 223.9375
+        },
+        "candidate_baseline_geomean": 1.0467999634803251,
+        "paired_range": [
+          1.0467999634803251,
+          1.0467999634803251
+        ]
+      }
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "default",
+      "request": "warm",
+      "repetitions": 1,
+      "cpu_seconds": {
+        "unit": "seconds",
+        "median": {
+          "baseline": 0.257186,
+          "candidate": 0.24456299999999997
+        },
+        "candidate_baseline_geomean": 0.9509187902918509,
+        "paired_range": [
+          0.9509187902918509,
+          0.9509187902918509
+        ]
+      },
+      "max_rss_kib": {
+        "unit": "MiB",
+        "median": {
+          "baseline": 135.1640625,
+          "candidate": 139.39453125
+        },
+        "candidate_baseline_geomean": 1.0312987688572914,
+        "paired_range": [
+          1.0312987688572914,
+          1.0312987688572914
+        ]
+      }
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "default",
+      "request": "edit",
+      "repetitions": 1,
+      "cpu_seconds": {
+        "unit": "seconds",
+        "median": {
+          "baseline": 0.42316699999999996,
+          "candidate": 0.435454
+        },
+        "candidate_baseline_geomean": 1.0290358180103838,
+        "paired_range": [
+          1.0290358180103838,
+          1.0290358180103838
+        ]
+      },
+      "max_rss_kib": {
+        "unit": "MiB",
+        "median": {
+          "baseline": 199.6953125,
+          "candidate": 210.546875
+        },
+        "candidate_baseline_geomean": 1.0543405970032471,
+        "paired_range": [
+          1.0543405970032471,
+          1.0543405970032471
+        ]
+      }
+    }
+  ]
+}

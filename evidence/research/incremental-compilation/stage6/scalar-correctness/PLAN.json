@@ -1,0 +1,17 @@
+{
+  "kind": "scalar-correctness",
+  "summary": [
+    {
+      "class": "compiled-artifact-or-binary-cache",
+      "files": 8,
+      "bytes": 222784
+    },
+    {
+      "class": "retained-raw-evidence",
+      "files": 51,
+      "bytes": 1948692
+    }
+  ],
+  "selected_paths": 59,
+  "unique_blobs": 37
+}

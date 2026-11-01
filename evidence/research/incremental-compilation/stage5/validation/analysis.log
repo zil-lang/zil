@@ -1,0 +1,63 @@
+{
+  "generated-default": {
+    "rows": 4140,
+    "invalid_rows": [
+      {
+        "case": "body-64x16",
+        "arm": "zil",
+        "status": "ResourceLimit",
+        "count": 90
+      },
+      {
+        "case": "types-64x16",
+        "arm": "zil",
+        "status": "ResourceLimit",
+        "count": 90
+      }
+    ],
+    "valid_verify_requests": 1890,
+    "native_runs": 2640,
+    "oracle_builds": 0
+  },
+  "generated-closed": {
+    "rows": 1380,
+    "invalid_rows": [
+      {
+        "case": "body-64x16",
+        "arm": "zil",
+        "status": "ResourceLimit",
+        "count": 30
+      },
+      {
+        "case": "types-64x16",
+        "arm": "zil",
+        "status": "ResourceLimit",
+        "count": 30
+      }
+    ],
+    "valid_verify_requests": 630,
+    "native_runs": 1320,
+    "oracle_builds": 0
+  },
+  "implementation-ablation": {
+    "rows": 960,
+    "invalid_rows": [],
+    "valid_verify_requests": 960,
+    "native_runs": 960,
+    "oracle_builds": 0
+  },
+  "real-default": {
+    "rows": 1008,
+    "invalid_rows": [],
+    "valid_verify_requests": 504,
+    "native_runs": 10080,
+    "oracle_builds": 14
+  },
+  "real-closed": {
+    "rows": 336,
+    "invalid_rows": [],
+    "valid_verify_requests": 168,
+    "native_runs": 5040,
+    "oracle_builds": 14
+  }
+}

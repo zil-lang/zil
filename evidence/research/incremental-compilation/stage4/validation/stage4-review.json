@@ -1,0 +1,160 @@
+{
+  "reviewer": "/root/review_incremental_slice1",
+  "implementation_commit": "9fe5f55e64c7d537b9d585d3d40e42c9e248308e",
+  "baseline_commit": "5e0613cc4d09bc99dcd1fba00a371eed691f8a37",
+  "verdict": "Pass",
+  "scope": "Independent scoped correctness review of local artifact parent resolution memo; Linux host, no performance/product acceptance",
+  "created_utc": "2026-10-31T04:59:38.695783+00:00",
+  "blocking_findings": [],
+  "findings": [
+    "Original destination function is byte-identical to baseline and remains the cache miss resolver. Parent keys retain ParentDir components; Path normalization of separators/CurDir matches the original components traversal.",
+    "Each relative resolve obtains the current working directory before looking up the absolute parent. Filename errors and current_dir errors preserve original ordering. Nonabsolute drive-relative results conservatively call the old destination; this branch is not natively Windows-tested.",
+    "Only one successful parent is retained in an automatic local variable: project dependency construction and every validate each instantiate distinct caches. It is absent from CompilationSession, ArtifactPlan and NativePublication, and cannot cross observer callbacks or validation/publication boundaries.",
+    "identity still performs metadata on each requested file. Existing files retain regular-file validation, per-file canonicalize and Unix dev/inode extraction; missing files retain per-file dangling-final-symlink rejection before cached parent resolution. Errors are not cached.",
+    "ArtifactPlan::new/root ordering, dependency order, source-source overlap/inode conflicts, source-output collisions, repeated dump/native/publication validate, cancellation and atomic publication/rollback logic are unchanged.",
+    "For a stable filesystem within a synchronous batch, the final filename cannot affect parent resolution; successful cached-parent concatenation yields the same destination. Concurrent external filesystem mutation has no atomic-snapshot guarantee in either implementation; no stronger race-proof guarantee is claimed.",
+    "Linux process_cpu_ns uses CLOCK_PROCESS_CPUTIME_ID with native 64-bit Linux timespec layout. Timing encloses compile_project and includes compiler threads/observer bookkeeping; it excludes child-linker/native-control CPU. CPU boundaries slightly enclose wall boundaries and do not replace wall-clock comparison. Native execution remains after timers.",
+    "All benchmark arms must be rebuilt from the same probe source before comparison. Historical phase intervals remain observer intervals, not exclusive CPU attribution. Stage-3 performance numbers added to FRONTEND-REUSE.md were not independently recomputed in this correctness review."
+  ],
+  "independent_test_count": 10,
+  "commands": [
+    {
+      "command": ". /workspace/.zil-env/env.sh; cargo test --offline --locked -p zil-driver --features llvm-api --lib artifacts::tests",
+      "passed": 3,
+      "exit_code": 0,
+      "log": "stage4-review-artifacts.log"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; cargo test --offline --locked -p zil-driver --features llvm-api --test project_frontend_reuse",
+      "passed": 6,
+      "exit_code": 0,
+      "log": "stage4-review-frontend.log"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; cargo test --offline --locked -p zil-driver --features llvm-api --test projects m007_every_dependency_is_protected_from_output_overwrite -- --exact",
+      "passed": 1,
+      "exit_code": 0,
+      "log": "stage4-review-source-protection.log"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; rustc --edition=2024 /workspace/.zil-env/research/stage4-path-oracle.rs --extern zil_base=/workspace/.zil-env/target/debug/deps/libzil_base-a5cb5dbca91c1029.rlib -L dependency=/workspace/.zil-env/target/debug/deps -o /workspace/.zil-env/research/stage4-path-oracle",
+      "exit_code": 0,
+      "log": "stage4-path-oracle-build.log"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; /workspace/.zil-env/research/stage4-path-oracle",
+      "exit_code": 0,
+      "log": "stage4-path-oracle.log"
+    }
+  ],
+  "external_oracle": {
+    "level": "Frozen production-function external harness, not another full driver test. Candidate destination/cache/identity and baseline identity copied from exact Git commits; only Debug/PartialEq/Eq derives added to FileIdentity for comparison.",
+    "resolver_comparisons": 696,
+    "identity_and_diagnostic_comparisons": 684,
+    "normal_matrix_successes": 388,
+    "normal_matrix_rejections": 296,
+    "changed_cwd_controls": 12,
+    "coverage": [
+      "existing/missing/nested directories",
+      "ordinary-file parents",
+      "directory symlink followed by ParentDir",
+      "dangling and looping directory symlinks",
+      "existing final file and hardlink",
+      "final symlink and dangling final symlink",
+      "relative, empty, root, CurDir and ParentDir paths",
+      "non-UTF8 final name",
+      "same cached object across process cwd changes"
+    ],
+    "original_function_identity": {
+      "candidate": "9fe5f55e64c7d537b9d585d3d40e42c9e248308e",
+      "baseline": "5e0613cc4d09bc99dcd1fba00a371eed691f8a37",
+      "destination_function_unchanged_sha256": "8c319184ee8ead1cefb8f1f6b9f97883917b8086a238e58143b83ee0b5807e63",
+      "candidate_functions_source_sha256": "1010489ae83ece928836b16aba344e9dd8cb9200f372b15efbf7daadf3b933f9",
+      "baseline_identity_source_sha256": "00a9ec7b1f0c55ca0d41cfbf945fd5f56d3f04d7d2729a1373549a361ac2e155",
+      "description": "Standalone external harness, candidate destination/cache/identity copied from exact commit and old identity copied from baseline; only FileIdentity derives Debug/PartialEq/Eq added for comparison; production source unchanged."
+    }
+  },
+  "constructor_evidence": {
+    "passed": 495,
+    "result_groups": 23,
+    "failed": 0,
+    "source_identity_note": "Constructor confirmed drive-relative fallback predates initial tests and 495-test run. Later artifacts.rs mtime reflects only test-local mut-to-shadow change and cfg(unix) guard for inode-dependent test; no production code changed after the full scoped run. Those final tests and all-targets lint/fmt were rerun, and reviewer independently ran the exact final 10 tests listed above.",
+    "clippy": "All-targets log reaches Finished dev; no independent full lint rerun.",
+    "format": "Final format log is empty, consistent with constructor-reported successful format check; empty output alone does not encode exit status."
+  },
+  "source_sha256": {
+    ".task/research/incremental-compilation.md": "b1c557d10d5021ed276ff2b12ea7b3f9570f9c6f7e947fb4009e7dfc5691080c",
+    "changes/research-artifact-directory-reuse.md": "537728aaeef2504b56c9eba63330cc99c76224a2b7ed5c27a02c30a3b4b447ab",
+    "crates/zil-driver/src/artifacts.rs": "9195626d9c6cf81a95c0b10ecaceb965a96f7254172d720992b10185494d49d0",
+    "docs/research/incremental-compilation/FRONTEND-REUSE.md": "0dd7a72ebe1c3359cab5b53c24c880e280b0892972ff07bc96e09308f8aebf0b",
+    "docs/research/incremental-compilation/PATH-RESOLUTION.md": "207bddea26d5edb4266ab9c54798f4f3d06f09450a7514e5dc70debc110433da",
+    "tools/research/incremental-compilation/session_probe.rs": "0ef4fdf5405a16377fb19dba19cba26fc351b15e22f01c3d11baffcf630561e3"
+  },
+  "artifact_inventory": {
+    "stage4-review-artifacts.log": {
+      "sha256": "2eb06f2e4cd0ce7a7feb30f599d0a33006a75ac3c19f38137d60b44b02549770",
+      "bytes": 542
+    },
+    "stage4-review-frontend.log": {
+      "sha256": "10b70165ed1f2e28e34667d47dbc1bfda8d9f2e1210fcd1578fa036364f08d3e",
+      "bytes": 853
+    },
+    "stage4-review-source-protection.log": {
+      "sha256": "2b8f0fc4ca51d4a1cfc66a9dd83def576444c0c900583fc22fbd357ab3510dc0",
+      "bytes": 406
+    },
+    "stage4-path-oracle.rs": {
+      "sha256": "ffb5901a04987fa239a24cfabd86513047ca8d03084fbc72ff19b9d05d44d8fe",
+      "bytes": 9308
+    },
+    "stage4-path-oracle-input.json": {
+      "sha256": "0999c1c4389f3420da35b43877c653cc0ad7e50810e26eb9fc138e8730607e0d",
+      "bytes": 689
+    },
+    "stage4-path-oracle-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "stage4-path-oracle.log": {
+      "sha256": "64c90320f02d027337224e4e923698d8ab7760ccedc04f3023153ab6cfafc6b9",
+      "bytes": 148
+    },
+    "stage4-path-oracle": {
+      "sha256": "58dde7f49c7f5eb18a5b8effe7a1efa4c09865a1c69ade3cb93eeb224f062713",
+      "bytes": 4707816
+    },
+    "stage4-scoped.log": {
+      "sha256": "cb2cddbde10ca7aa8abe7d05516fa325d6c513e7334e63499e373120fa422f01",
+      "bytes": 48471
+    },
+    "stage4-path-tests.log": {
+      "sha256": "c7fb4b32b8c4207653a3925ea3bba2beb0c3823e0c83a524424ba863b2c5cfe6",
+      "bytes": 608
+    },
+    "stage4-final-clippy.log": {
+      "sha256": "55b4edaa1ed6a872b6d24d9ed6d918128e7b672b45465cf8286f435fc980f7c8",
+      "bytes": 127
+    },
+    "stage4-final-fmt.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "stage3-test-binding.json": {
+      "sha256": "3a5d2a2bfbeccf7d64331c72da134babd1f8e9597dc9db39f90a2aef601fea2d",
+      "bytes": 7823
+    },
+    "stage3-review.json": {
+      "sha256": "3197e4cc04cf1c85ef6649e698a0cbf1299cccd7014d2ec2a6117dc1c2f6f205",
+      "bytes": 8888
+    }
+  },
+  "tracked_worktree_matches_reviewed_commit": true,
+  "untracked_evidence_note": "Constructor was concurrently assembling evidence/research/incremental-compilation/stage3; untracked evidence is not part of this commit or this code review.",
+  "limitations": [
+    "No native Windows execution. Linux drive-relative branch is unreachable for normal absolute cwd, so Windows semantics rely on conservative old-function fallback and static review.",
+    "No filesystem atomic-snapshot or adversarial concurrent path-mutation guarantee added; memo is limited to the synchronous batch.",
+    "No benchmark executed by reviewer. CPU completion notification sent before constructor exclusive window.",
+    "Full 495-test log is constructor execution, distinct from 10 independently rerun tests. The real-corpus integration internally asserts 48 native builds/runs and does not retain 48 per-request report/output files.",
+    "Stage-3 and prior correctness receipts keep original exact commit identities; their unaffected production coverage transfers by diff inspection, not by rewriting historical evidence."
+  ]
+}

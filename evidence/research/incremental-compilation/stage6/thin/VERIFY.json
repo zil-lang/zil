@@ -1,0 +1,9 @@
+{
+  "kind": "thin",
+  "status": "AllBlobsAndSidecarsMatch",
+  "paths": 23750,
+  "unique_blobs": 9256,
+  "omitted_paths": 7437,
+  "identity_sha256": "841dc81351d416e879afcf471846614b07c2ef72ffca0b320769be75735bc1a3",
+  "verified_utc": "2026-10-31T11:44:53.532603+00:00"
+}

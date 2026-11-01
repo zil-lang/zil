@@ -1,0 +1,229 @@
+{
+  "source": "59d8753dc23f0ddfcddbaf5780e3057f3c60b9e9",
+  "tool_sha256": "73c0be9ebbb61e98562f499580adf51010477a216c7597ad72d5b57c43639610",
+  "binaries": {
+    "zil": {
+      "path": "/workspace/.zil-env/research/target-stage5-followup-final/release/zil",
+      "sha256": "71896d84ddaf39bfb287b46903b91c02064c4e5f6ffaddb197e72740b66f9e1a"
+    },
+    "rust": {
+      "path": "/workspace/.zil-env/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853"
+    }
+  },
+  "cases": [
+    {
+      "name": "large-128",
+      "sizes": [
+        128
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "large-512",
+      "sizes": [
+        512
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "large-2048",
+      "sizes": [
+        2048
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "large-4096",
+      "sizes": [
+        4096
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "large-8192",
+      "sizes": [
+        8192
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "even-64x64",
+      "sizes": [
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64,
+        64
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "body-16x16",
+      "sizes": [
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16
+      ],
+      "flavor": "body"
+    },
+    {
+      "name": "large-skew-8",
+      "sizes": [
+        4096,
+        2048,
+        1024,
+        512,
+        256,
+        128,
+        64,
+        64
+      ],
+      "flavor": "scalar"
+    },
+    {
+      "name": "types-32x16",
+      "sizes": [
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16,
+        16
+      ],
+      "flavor": "types"
+    }
+  ],
+  "blocks": 6,
+  "modes": [
+    "O2"
+  ],
+  "requests": [
+    [
+      "cold",
+      0
+    ],
+    [
+      "unchanged",
+      0
+    ],
+    [
+      "early_edit",
+      1
+    ],
+    [
+      "late_edit",
+      2
+    ],
+    [
+      "restore",
+      0
+    ]
+  ],
+  "cpus": [
+    0,
+    1
+  ],
+  "source_cache": false,
+  "closed_executable": true,
+  "scope": "Expanded paired-source CLI screen; no product thresholds. Preserve every outcome.",
+  "flags": "O0/O2, overflow checks, panic abort, 8 CGU, ZIL jobs2; rustc incremental and ZIL object cache persist per sequence; optional unverified ZIL source cache"
+}

@@ -1,0 +1,84 @@
+{
+  "production": "082efcfc0f8e0408844a22af8bcc34d29c0d9df4",
+  "initial_lld_candidate": "a4cadf3e8ba2d59c4030b15129adee75f56e147a",
+  "baseline_delivery": "21ecc60fffe396920ddc4ed3aa9269b536a34433",
+  "baseline_production": "8cf48baf2b5fd6fa944e4c65a6116907f1cf53d7",
+  "artifacts": [
+    {
+      "path": "/workspace/.zil-env/research/stage11/baseline/zil",
+      "bytes": 8243608,
+      "sha256": "15a988bcb1b42c6f01be3659728fdb074c2369955ef48b2395c8a408863e66dd"
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "bytes": 8350040,
+      "sha256": "e871f7da42854e29ec4a3118c711e9546cd48ebbb63b712c950930bf0d5d8594"
+    },
+    {
+      "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+      "bytes": 72097832,
+      "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+    },
+    {
+      "path": "/usr/bin/x86_64-linux-gnu-objcopy",
+      "bytes": 159568,
+      "sha256": "403f90bbd5d26c8ab9a2ad51f56255b812e8858a83aa8740ee71791071ddb580"
+    },
+    {
+      "path": "/usr/bin/x86_64-linux-gnu-ld.bfd",
+      "bytes": 1861256,
+      "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b"
+    },
+    {
+      "path": "/workspace/.zil-env/llvm-23.1.4/bin/lld",
+      "bytes": 213124752,
+      "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b"
+    }
+  ],
+  "scoped_checks": {
+    "distinct": 16,
+    "patch": 4,
+    "cache": 9,
+    "real_source": 3,
+    "bfd_repeated_affected_source_test": 1,
+    "clippy": "backend/driver all-targets -D warnings; initial and final",
+    "fmt": "pass",
+    "formal_full_local": "not run"
+  },
+  "final_windows": [
+    "final-target",
+    "final-guards",
+    "final-closed-guard"
+  ],
+  "requests": 54,
+  "current_zil_verifies": 36,
+  "rust_observations": 18,
+  "independent_cache_histories": 6,
+  "profiling": "private 21ecc60ff source + stage11_profile.py instrumentation; profile manifest source identifies runner checkout, not uninstrumented binary",
+  "prior_ci": "previous-ci.json is a historical observation, not final source CI",
+  "negative_window": "mechanism: first candidate hashes213124752-byte SDK lld on each request because no build-id; mechanism-bfd is final mechanism, not paired performance evidence",
+  "handoff": "historical integrity Fail retained",
+  "tools": {
+    "tools/research/incremental-compilation/stage11_profile.py": {
+      "path": "tools/research/incremental-compilation/stage11_profile.py",
+      "bytes": 5185,
+      "sha256": "9cff70cf150d8b85e67ac43b33b984484af95e6d6b2a4f35e66d59ee4eef8cfb"
+    },
+    "tools/research/incremental-compilation/stage11_quality.py": {
+      "path": "tools/research/incremental-compilation/stage11_quality.py",
+      "bytes": 18138,
+      "sha256": "ad707e402590f468e0027d9fdfd9afe012cee64a346651781667aaa14bbf04a1"
+    },
+    "tools/research/incremental-compilation/stage8_screen.py": {
+      "path": "tools/research/incremental-compilation/stage8_screen.py",
+      "bytes": 8932,
+      "sha256": "7216f6a1c7f14d6d37af0e4fe6deffd96fb35c16e9150785660a7a2609481ef5"
+    }
+  },
+  "raw_archive": {
+    "path": "evidence/research/incremental-compilation/stage11/raw.tar.gz",
+    "sha256": "807d4432a622ebc5530f69f669f69bf6cbb9da1a84f1db85fddf5d871e21ebed",
+    "bytes": 8677380,
+    "files": 988
+  }
+}

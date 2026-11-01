@@ -1,0 +1,67 @@
+   Compiling zil-llvm-api v0.1.0 (/workspace/zil/crates/zil-llvm-api)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 2.75s
+     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_backend_llvm-3136df6a873984eb)
+
+running 46 tests
+test cgu::tests::duplicate_definitions_are_not_erased_to_make_invalid_ir_link ... ok
+test cgu::tests::foreign_declarations_and_header_are_retained_without_body_rewriting ... ok
+test cgu::tests::global_initializer_and_function_value_uses_keep_exact_declarations ... ok
+test cgu::tests::mutual_recursion_keeps_cross_unit_prototypes_and_no_self_declaration ... ok
+test cgu::tests::original_function_and_global_bodies_are_not_rewritten ... ok
+test cgu::tests::symbol_scan_ignores_strings_and_comments_and_fails_closed ... ok
+test cgu::tests::shared_private_storage_and_internal_function_addresses_are_never_cloned ... ok
+test cgu::tests::sparse_declarations_follow_direct_uses_not_transitive_callees ... ok
+test cgu::tests::union_find_is_transitive_and_deterministic ... ok
+test cgu::tests::unknown_top_level_and_incomplete_definitions_fall_back ... ok
+test cgu::tests::unsupported_alias_linkage_and_block_addresses_keep_original_module ... ok
+test machine_cgu::tests::closed_policy_uses_exact_nonforeign_identity_and_keeps_other_items ... ok
+test machine_cgu::tests::closed_policy_preserves_local_address_use_and_duplicate_rejection ... ok
+test machine_cgu::tests::closed_policy_keeps_cross_unit_function_addresses_and_global_initializers ... ok
+test machine_cgu::tests::external_uses_import_only_immediate_declarations ... ok
+test machine_cgu::tests::filtering_cannot_hide_invalid_unused_declarations_or_cross_unit_collisions ... ok
+test machine_cgu::tests::foreign_addresses_and_global_initializers_keep_only_consumed_declarations ... ok
+test machine_cgu::tests::local_component_falls_back_without_copying_and_duplicates_remain_invalid ... ok
+test machine_cgu::tests::local_identity_and_global_initializers_are_colocated_once ... ok
+test object_cache::tests::installed_tool_identity_fallback_detects_changed_content ... ok
+test object_cache::tests::entry_roundtrip_corruption_key_and_length_are_checked ... ok
+test object_cache::tests::key_binds_all_machine_changes_but_not_authorization_comment ... ok
+test object_cache::tests::pending_objects_are_not_stored_until_success_commit ... ok
+test object_cache::tests::symlink_and_group_writable_cache_roots_are_rejected ... ok
+test object_cache::tests::unwritable_cache_cannot_revoke_success ... ok
+test tests::borrowed_lir_aliases_bind_length_and_the_current_capability ... ok
+test object_cache::tests::concurrent_writers_only_publish_complete_entries ... ok
+test tests::changing_any_lir_closure_claim_is_rejected_before_tools_or_output ... ok
+test machine_cgu::tests::large_file_chunks_still_union_shared_local_addresses ... ok
+test tests::bytes083_native_unsigned_result_and_untrusted_byte_layout_are_independent ... ok
+test tests::empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi ... ok
+test tests::error_projection_tag_mismatch_traps_including_unit_payload ... ok
+test tests::error_union_nested_in_enum_preserves_wide_and_unit_payload_layout ... ok
+test tests::missing_tool_and_invalid_entry_fail_without_a_native_artifact ... ok
+test tests::native_entry_never_enters_an_environment_function_even_when_empty ... ok
+test tests::loop_and_branch_execute_mutable_local_dataflow ... ok
+test tests::nonzero_cfg_entry_is_selected_by_the_native_prologue ... ok
+test tests::ordinary_main_uses_real_process_exit_status_and_unit_returns_zero ... ok
+test tests::native_harness_observes_full_signed_results_at_both_optimization_levels ... ok
+test tests::recursion_and_direct_calls_use_identity_symbols_not_source_names ... ok
+test tests::runtime_closure_environments_are_independent_copies_and_repeatable ... ok
+test tests::tampered_lir_is_rejected_before_invoking_tools_or_creating_outputs ... ok
+test tests::unit_parameters_loads_stores_calls_and_returns_are_erased_after_verification ... ok
+test tests::integer_arithmetic_comparisons_and_explicit_wrapping_execute ... ok
+test tests::synchronous_error_main_maps_both_tags_and_erased_success_at_o0_o2 ... ok
+test tests::checked_integer_failures_trap_in_native_code_before_printing ... ok
+
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.16s
+
+     Running tests/closed_executable_research.rs (/workspace/.zil-env/target/debug/deps/closed_executable_research-0612c743d3d644a3)
+
+running 6 tests
+test closed_policy_cannot_bypass_invalid_codegen_options ... ok
+test closed_mode_preserves_entry_binding_and_unsupported_target_rejection ... ok
+test closed_link_failure_keeps_previous_artifacts ... ok
+test selected_entry_and_public_emission_remain_separate_from_closed_build_policy ... ok
+test object_cache_separates_actual_linkage_and_reuses_each_policy ... ok
+test closed_o0_build_keeps_runtime_behavior_with_one_or_many_units ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
