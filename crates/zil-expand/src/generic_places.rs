@@ -28,6 +28,9 @@ impl Check<'_, '_, '_> {
                     .locals
                     .get(name)
                     .ok_or_else(|| error(span, "unknown generic place"))?;
+                if use_alias {
+                    self.resource_description_use(local.description_roots.as_deref(), state, span)?;
+                }
                 if state.moved.contains(&local.id) {
                     return Err(error(span, "generic place used after move"));
                 }

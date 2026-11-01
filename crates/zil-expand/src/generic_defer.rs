@@ -63,6 +63,12 @@ impl Check<'_, '_, '_> {
         for local in state.locals.values() {
             self.budget.node(span, 0)?;
             outer.insert(local.id);
+            if let Some(roots) = &local.description_roots {
+                for root in roots.iter() {
+                    self.budget.node(span, 0)?;
+                    outer.insert(*root);
+                }
+            }
         }
         let saved_result = std::mem::replace(&mut self.result, unit(span));
         let saved_loops = std::mem::take(&mut self.loops);
