@@ -114,11 +114,17 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         })
         .flatten();
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
-    // A large source can collapse to a tiny closed program before emission.
-    // Do not start workers merely to skip thousands of discarded definitions.
-    let jobs = if collected
-        .as_ref()
-        .is_some_and(|needed| needed.len() < parallel_lowering::MIN_PARALLEL_FUNCTIONS)
+    // Constant summaries only need tiny result stubs, and a closed collection
+    // can discard most source functions. Neither warrants worker allocation.
+    // This is a conservative upper bound: foreign declarations still count.
+    let remaining_bodies = lir
+        .functions
+        .len()
+        .saturating_sub(summaries.as_ref().map_or(0, BTreeMap::len));
+    let jobs = if remaining_bodies < parallel_lowering::MIN_PARALLEL_FUNCTIONS
+        || collected
+            .as_ref()
+            .is_some_and(|needed| needed.len() < parallel_lowering::MIN_PARALLEL_FUNCTIONS)
     {
         1
     } else {

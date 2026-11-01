@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use zil_base::{CompileResult, ModuleId, SourceMap, Span};
 use zil_db::{QueryKey, QuerySnapshot};
-use zil_ir::{CoreImport, CoreProgram, ProgramModule};
+use zil_ir::{CandidatePlan, CoreImport, CoreProgram, ProgramModule, TypedProgram};
 use zil_syntax::{ParseResult, ast};
 
 /// All bytes are supplied by the caller; compiling this value never loads an
@@ -51,6 +51,13 @@ struct LoadedSyntax {
     stable_module_key: Option<Arc<str>>,
 }
 
+/// An exact import-free source may restore its already decoded raw frontend.
+/// Ordinary discovery still owns syntax; neither variant carries Verify authority.
+enum LoadedProject {
+    Parsed(Vec<LoadedSyntax>),
+    Semantic(Box<(TypedProgram, CandidatePlan)>),
+}
+
 pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {
     CompilationSession::default().compile_project(project, options)
 }
@@ -81,7 +88,7 @@ impl CompilationSession {
         project: &ProjectSources,
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
-        loaded_syntax: Option<&[LoadedSyntax]>,
+        loaded: Option<LoadedProject>,
     ) -> CompileReport {
         let start = Instant::now();
         let fallback = SourceUnit::new(FileId(0), project.root, "<project>", "");
@@ -91,9 +98,19 @@ impl CompilationSession {
             .find(|m| m.module_id == project.root)
             .unwrap_or(&fallback);
         let mut report = CompileReport::new(root);
-        if let Err(errors) =
-            self.project_pipeline(project, options, &mut report, observer, loaded_syntax)
-        {
+        let (loaded_syntax, preloaded_semantic) = match loaded {
+            Some(LoadedProject::Parsed(syntax)) => (Some(syntax), None),
+            Some(LoadedProject::Semantic(pair)) => (None, Some(*pair)),
+            None => (None, None),
+        };
+        if let Err(errors) = self.project_pipeline(
+            project,
+            options,
+            &mut report,
+            observer,
+            loaded_syntax.as_deref(),
+            preloaded_semantic,
+        ) {
             report.fail(errors);
         }
         self.trim_history();
@@ -125,7 +142,7 @@ impl CompilationSession {
         let loaded = if options.stop_after == Stage::Parse {
             read_source(path, options).map(|source| {
                 project.modules[0] = source;
-                Vec::new()
+                LoadedProject::Parsed(Vec::new())
             })
         } else {
             load_sources(&mut project, path, options, self)
@@ -135,7 +152,7 @@ impl CompilationSession {
                 self.compile_source(&project.modules[0], options)
             }
             Ok(parsed) => {
-                self.compile_project_request(&project, options, &mut |_| {}, Some(&parsed))
+                self.compile_project_request(&project, options, &mut |_| {}, Some(parsed))
             }
             Err(errors) => {
                 let mut report = CompileReport::new(&project.modules[0]);
@@ -159,6 +176,7 @@ impl CompilationSession {
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
         loaded_syntax: Option<&[LoadedSyntax]>,
+        preloaded_semantic: Option<(TypedProgram, CandidatePlan)>,
     ) -> CompileResult<()> {
         options
             .cancellation
@@ -216,7 +234,7 @@ impl CompilationSession {
             } else {
                 DiskCacheStatus::Missing
             };
-            if let Some((typed, candidate)) = store.load(options)
+            if let Some((typed, candidate)) = preloaded_semantic.or_else(|| store.load(options))
                 && typed.module.source_fingerprint == fingerprint
                 && typed.module.module_id == project.root
                 && typed.module.target == options.target
@@ -912,12 +930,45 @@ fn resolve_file_module(root: &Path, logical: &[String], span: Span) -> CompileRe
     Ok(canonical)
 }
 
+/// A raw substring check deliberately over-rejects comments and identifiers.
+/// Parser::at_word compares original bytes; both spellings that introduce an
+/// import are excluded, including self-imports whose filesystem aliases change.
+fn single_file_semantic(
+    project: &ProjectSources,
+    options: &CompileOptions,
+    session: &CompilationSession,
+) -> Option<(TypedProgram, CandidatePlan)> {
+    if options.profile != ExecutionProfile::Native
+        || options.closed_executable
+        || options.semantic_cache.is_none()
+        || session.active_query_count() != 0
+        || project.modules.len() != 1
+        || project.modules[0].text.contains("import")
+        || project.modules[0].text.contains("syntax")
+    {
+        return None;
+    }
+    // A failed optional probe cannot move a source/import error behind an
+    // artifact error. The original discovery and pipeline report that error.
+    let source = validate_sources(project, &options.limits).ok()?;
+    let fingerprint = project_fingerprint(project);
+    let key = project_key(source, options, fingerprint, Phase::Types, true);
+    let mut store = super::semantic_cache::Store::new(options, &key)?;
+    let mut artifacts = ArtifactPlan::project(source, &project.modules, options).ok()?;
+    store.bind_path(&artifacts.semantic_cache(&store.path()).ok()?);
+    let (typed, candidate) = store.load(options)?;
+    (typed.module.source_fingerprint == fingerprint
+        && typed.module.module_id == project.root
+        && typed.module.target == options.target)
+        .then_some((typed, candidate))
+}
+
 fn load_sources(
     project: &mut ProjectSources,
     path: &Path,
     options: &CompileOptions,
     session: &CompilationSession,
-) -> CompileResult<Vec<LoadedSyntax>> {
+) -> CompileResult<LoadedProject> {
     options
         .cancellation
         .check(Phase::Driver)
@@ -932,7 +983,6 @@ fn load_sources(
         return Err(limit(Phase::Parse, "project module budget exceeded"));
     }
     project.modules[0] = read_source(&root_path, options)?;
-    let retained_syntax = session.retained_project_syntax(&project.modules[0]);
     take(
         &mut remaining.max_source_bytes,
         project.modules[0].text.len(),
@@ -946,6 +996,16 @@ fn load_sources(
     {
         project.paths.insert(vec![stem.into()], project.root);
     }
+    // Preserve the original discovery cancellation boundary before replacing
+    // parsing with an exact successful raw frontend lookup.
+    options
+        .cancellation
+        .check(Phase::Parse)
+        .map_err(|e| vec![e])?;
+    if let Some(pair) = single_file_semantic(project, options, session) {
+        return Ok(LoadedProject::Semantic(Box::new(pair)));
+    }
+    let retained_syntax = session.retained_project_syntax(&project.modules[0]);
     let mut known = BTreeMap::from([(root_path.clone(), project.root)]);
     let mut stable_modules = super::stable_source_identity::eligible(options)
         .then(|| super::stable_source_identity::CanonicalModules::new(&root_path))
@@ -1052,7 +1112,7 @@ fn load_sources(
         });
         index += 1;
     }
-    Ok(syntax)
+    Ok(LoadedProject::Parsed(syntax))
 }
 
 fn charge_ct_usage(
@@ -1119,8 +1179,197 @@ mod discovery158_tests {
             modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
             paths: BTreeMap::new(),
         };
-        load_sources(&mut p, path, options, session)
+        match load_sources(&mut p, path, options, session)? {
+            LoadedProject::Parsed(syntax) => Ok(syntax),
+            LoadedProject::Semantic(_) => panic!("this control expects ordinary syntax discovery"),
+        }
     }
+    fn discover_candidate(
+        path: &Path,
+        options: &CompileOptions,
+    ) -> CompileResult<(ProjectSources, LoadedProject)> {
+        let mut project = ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "placeholder", "")],
+            paths: BTreeMap::new(),
+        };
+        let loaded = load_sources(&mut project, path, options, &CompilationSession::default())?;
+        Ok((project, loaded))
+    }
+
+    #[test]
+    fn import_free_discovery_reuses_decoded_pair_and_preserves_corrupt_and_limit_fallback() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        fs::write(&path, "pub fn main()->i32=>0").unwrap();
+        let options = CompileOptions {
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        let cold = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        let (project, loaded) = discover_candidate(&path, &options).unwrap();
+        assert!(matches!(&loaded, LoadedProject::Semantic(_)));
+        let key = project_key(
+            &project.modules[0],
+            &options,
+            project_fingerprint(&project),
+            Phase::Types,
+            true,
+        );
+        let store = super::super::semantic_cache::Store::new(&options, &key).unwrap();
+        // Once decoded, the same immutable pair reaches the normal pipeline;
+        // a second disk decode here would miss this deliberately corrupted file.
+        fs::write(store.path(), "corrupt after discovery").unwrap();
+        let warm = CompilationSession::default().compile_project_request(
+            &project,
+            &options,
+            &mut |_| {},
+            Some(loaded),
+        );
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.disk_cache, DiskCacheStatus::Hit);
+        assert_eq!(warm.verification_runs, 1);
+        assert!(
+            !warm
+                .query_events
+                .iter()
+                .any(|event| event.phase == Phase::Parse)
+        );
+        assert!(
+            warm.query_events
+                .iter()
+                .any(|event| event.phase == Phase::Analyze
+                    && event.disposition == QueryDisposition::Reused)
+        );
+        let (_, rebuilt) = discover_candidate(&path, &options).unwrap();
+        assert!(matches!(rebuilt, LoadedProject::Parsed(_)));
+        let repaired = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(
+            repaired.status,
+            ResultCategory::Success,
+            "{}",
+            repaired.to_json()
+        );
+        assert_eq!(repaired.disk_cache, DiskCacheStatus::Rebuilt);
+        assert!(
+            repaired
+                .query_events
+                .iter()
+                .any(|event| event.phase == Phase::Parse
+                    && event.disposition == QueryDisposition::Executed)
+        );
+        let mut limited = options.clone();
+        limited.limits.max_tokens = 1;
+        let with_cache = CompilationSession::default().compile_path(&path, &limited);
+        limited.semantic_cache = None;
+        let without_cache = CompilationSession::default().compile_path(&path, &limited);
+        assert_eq!(with_cache.status, without_cache.status);
+        assert_eq!(with_cache.diagnostics, without_cache.diagnostics);
+        assert_ne!(with_cache.status, ResultCategory::Success);
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+
+    #[test]
+    fn rejected_discovery_pair_reparses_the_same_current_root_bytes() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        fs::write(&path, "pub fn main()->i32=>0").unwrap();
+        let options = CompileOptions {
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        let cold = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        let (project, mut loaded) = discover_candidate(&path, &options).unwrap();
+        let LoadedProject::Semantic(pair) = &mut loaded else {
+            panic!("exact successful import-free source should skip discovery parsing");
+        };
+        assert!(pair.0.module.functions[0].locals.is_empty());
+        pair.1.functions[0].blocks[0]
+            .initialized_out
+            .push(zil_ir::LocalId(0));
+        // Discovery already captured immutable input bytes. A rejected raw
+        // claim must not reread a subsequently changed file during its retry.
+        fs::write(&path, "fn malformed(").unwrap();
+        let report = CompilationSession::default().compile_project_request(
+            &project,
+            &options,
+            &mut |_| {},
+            Some(loaded),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.disk_cache, DiskCacheStatus::Rebuilt);
+        assert_eq!(report.verification_runs, 2);
+        assert!(
+            report
+                .query_events
+                .iter()
+                .any(|event| event.phase == Phase::Parse
+                    && event.disposition == QueryDisposition::Executed)
+        );
+        assert_eq!(
+            report
+                .query_events
+                .iter()
+                .filter(|event| event.phase == Phase::Verify)
+                .count(),
+            2
+        );
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+
+    #[test]
+    fn discovery_probe_does_not_hide_added_imports_or_ambiguous_self_entries() {
+        let dir = Dir::new();
+        let path = dir.0.join("main.zil");
+        let options = CompileOptions {
+            semantic_cache: Some(dir.0.join("cache")),
+            ..Default::default()
+        };
+        fs::write(&path, "pub fn main()->i32=>0").unwrap();
+        let first = CompilationSession::default().compile_path(&path, &options);
+        assert_eq!(first.status, ResultCategory::Success, "{}", first.to_json());
+        fs::write(&path, "import missing; fn main()->i32=>0").unwrap();
+        let missing = CompilationSession::default().compile_path(&path, &options);
+        assert!(
+            missing
+                .diagnostics
+                .iter()
+                .any(|error| error.code == "E-MODULE-NOT-FOUND")
+        );
+        fs::write(&path, "import main; fn main()->i32=>0").unwrap();
+        fs::create_dir(dir.0.join("main")).unwrap();
+        fs::write(dir.0.join("main/mod.zil"), "fn main()->i32=>0").unwrap();
+        let ambiguous = CompilationSession::default().compile_path(&path, &options);
+        assert!(
+            ambiguous
+                .diagnostics
+                .iter()
+                .any(|error| error.code == "E-MODULE-AMBIGUOUS")
+        );
+        for text in [
+            "// import
+pub fn main()->i32=>0",
+            "// syntax
+pub fn main()->i32=>0",
+        ] {
+            fs::write(&path, text).unwrap();
+            let first = CompilationSession::default().compile_path(&path, &options);
+            assert_eq!(first.status, ResultCategory::Success, "{}", first.to_json());
+            assert!(matches!(
+                discover_candidate(&path, &options).unwrap().1,
+                LoadedProject::Parsed(_)
+            ));
+        }
+        fs::remove_dir_all(dir.0).unwrap();
+    }
+
     fn setup() -> (Dir, std::path::PathBuf, CompilationSession) {
         let dir = Dir::new();
         let main = dir.0.join("main.zil");

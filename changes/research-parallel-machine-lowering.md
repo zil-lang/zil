@@ -13,9 +13,13 @@ shared logical budgets are unchanged. Extract the current per-function loop into
 a batch operation that owns its body items and intrinsic set and borrows only
 immutable functions, target, closures, resources and summaries. Source functions
 are assigned in contiguous batches of 64. At least 128 functions and more than
-one requested job are required for parallel execution; a closed collection with
-fewer than 128 retained functions remains serial despite a larger original input; defensively bound the
-private job argument to 1..=64. Existing serial emitter entrypoints pass one job;
+one requested job are required for parallel execution. Also remain serial when
+`functions.len().saturating_sub(summaries.len()) < 128`: completed constant
+summaries emit tiny stubs and do not justify worker allocation. This count is a
+conservative upper bound because foreign declarations still count. A closed
+collection with fewer than 128 retained functions remains serial despite a larger
+original input. Defensively bound the private job argument to 1..=64.
+Existing serial emitter entrypoints pass one job;
 the native build entrypoint passes its existing validated codegen.jobs setting.
 
 Each worker returns source-indexed batches. Join every worker, sort batches into
@@ -39,3 +43,10 @@ jobs=1/jobs=2 output and diagnostic/native controls and focused complete-request
 measurements; no speedup is established merely by adding threads. Reduced wall
 time can cost worker allocation/stack memory and extra work following failure;
 report measured CPU/RSS as well as wall time.
+
+The first measured candidate (70ba) reduced opaque warm wall time by about 6%,
+but uniform/default cold and edit regressed about 7.9% and 6.8%, with CPU and RSS
+increases. Its threads mostly allocated tiny summary stubs. The summary-count
+gate above is a refinement selected from that observation; the original candidate
+and measurements remain separate evidence, and this refinement needs its own
+complete-request result before any retained performance claim.
