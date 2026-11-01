@@ -147,6 +147,10 @@ impl Builder<'_, '_> {
         let work = inference::type_snapshot_work(&ty, span, self.limits)?;
         self.closures
             .snapshot(work.saturating_mul(3).saturating_add(arms.len()), span)?;
+        // End the scrutinee's full-expression preparation before the hidden
+        // match owner is registered. These older temporaries can still own
+        // resource headers used only to compute Copy payload expressions.
+        self.finish_resource_temps(expression.span)?;
         let hidden = self.temp(ty.clone(), expression.span)?;
         self.store(hidden, value, expression.span)?;
         self.check_match_coverage(&ty, arms, span)?;
@@ -165,16 +169,27 @@ impl Builder<'_, '_> {
             self.push_scope(arm.span)?;
             let mut leaves = Vec::new();
             self.unpack_owned_pattern(&arm.pattern, hidden, &ty, &mut leaves)?;
-            // Only real operations establish the final registration order.
-            // An unsplit Product/Sum is one leaf; ignored owners are real locals.
+            // Move every final leaf into SSA before empty temporary shells
+            // are closed. A retained Sum wrapper is older than the payload
+            // locals; publishing first would make its cleanup out of order.
+            self.closures.snapshot(leaves.len(), arm.span)?;
+            let mut publication = Vec::with_capacity(leaves.len());
             for (name, source, ty, span) in leaves.into_iter().rev() {
-                let name =
-                    name.unwrap_or_else(|| format!("$discard240${}", self.function.locals.len()));
+                let work = inference::type_snapshot_work(&ty, span, self.limits)?;
+                self.closures.snapshot(work, span)?;
                 let value = self.value(
                     InstructionKind::TakeLocal { local: source },
                     ty.clone(),
                     span,
                 )?;
+                publication.push((name, value, ty, span));
+            }
+            self.finish_resource_temps(arm.span)?;
+            // The same reverse DFS order now establishes actual new ages.
+            // No user callback, recoverable failure or early exit intervenes.
+            for (name, value, ty, span) in publication {
+                let name =
+                    name.unwrap_or_else(|| format!("$discard240${}", self.function.locals.len()));
                 let local = self.local(&name, ty, false, span)?;
                 self.store(local, value, span)?;
             }
@@ -182,7 +197,6 @@ impl Builder<'_, '_> {
                 let local = self.local(&name, ty, false, span)?;
                 self.store(local, value, span)?;
             }
-            self.finish_resource_temps(arm.span)?;
             self.block(&arm.body)?;
             if self.current.is_some() {
                 self.end_scopes(self.scopes.len() - 1, arm.span)?;
