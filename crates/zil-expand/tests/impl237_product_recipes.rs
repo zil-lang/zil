@@ -58,3 +58,63 @@ fn preserves_original_recipe_and_exact_ordinary_owner() {
             .any(|t| matches!(t.fields[0].ty, CoreAggregateTypeRecipe::Store { .. }))
     );
 }
+
+#[test]
+fn concrete_existing_generic_fields_are_materialized_in_the_original_recipe() {
+    let core = expand(
+        "struct Cell<U>{value:U} resource R{n:i32} package Item{manages r:R} package Bag<T:StoreElement>{manages items:Store<T>;cookie:Cell<i32>} fn main(){let items:Store<Item>=store_new();let bag=Bag::<Item>{items:give items,cookie:Cell::<i32>{value:7}}}",
+    );
+    let recipe = &core.aggregate_templates[0].fields[1].ty;
+    assert!(
+        matches!(recipe,CoreAggregateTypeRecipe::Concrete(Type::Named(name)) if core.aggregates.iter().any(|a|a.name==*name)),
+        "{recipe:#?}"
+    );
+}
+
+#[test]
+fn new_recipe_tables_have_exact_fresh_work_node_and_depth_boundaries() {
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "product237-budget.zil", SOURCE);
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let default = Limits::default();
+    let full = zil_expand::expand_with_map_limits(&source, &syntax, &default).unwrap();
+    for dimension in ["work", "nodes", "depth"] {
+        let probe = |n| {
+            let mut limits = default.clone();
+            match dimension {
+                "work" => limits.max_analysis_steps = n,
+                "nodes" => limits.max_nodes = n,
+                _ => limits.max_call_depth = n,
+            }
+            zil_expand::expand_with_map_limits(&source, &syntax, &limits)
+        };
+        let mut high = match dimension {
+            "work" => default.max_analysis_steps,
+            "nodes" => default.max_nodes,
+            _ => default.max_call_depth,
+        };
+        let mut low = 0;
+        while low + 1 < high {
+            let mid = low + (high - low) / 2;
+            match probe(mid) {
+                Ok(_) => high = mid,
+                Err(ds) => {
+                    assert!(
+                        ds.iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit),
+                        "{dimension}: {ds:#?}"
+                    );
+                    low = mid;
+                }
+            }
+        }
+        assert_eq!(probe(high).unwrap().core, full.core);
+        assert!(
+            probe(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        assert_eq!(probe(high).unwrap().core, full.core);
+        eprintln!("product237_expand_{dimension}_n={high}");
+    }
+}

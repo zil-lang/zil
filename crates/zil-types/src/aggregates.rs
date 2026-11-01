@@ -7,15 +7,36 @@ use zil_base::ModuleId;
 /// module restriction, not a runtime capability or a change to record layout.
 pub(super) struct Visibility<'a> {
     records: BTreeMap<String, (ModuleId, &'a [CoreField])>,
+    generic_records: BTreeMap<String, (ModuleId, &'a [CoreAggregateFieldRecipe])>,
     remaining: usize,
 }
 impl<'a> Visibility<'a> {
     pub(super) fn new(program: &'a CoreProgram, limits: &Limits) -> CompileResult<Self> {
         let mut result = Self {
             records: BTreeMap::new(),
+            generic_records: BTreeMap::new(),
             remaining: limits.max_analysis_steps,
         };
         for module in &program.modules {
+            for template in &module.core.aggregate_templates {
+                result
+                    .spend(
+                        template
+                            .name
+                            .len()
+                            .saturating_add(template.fields.len())
+                            .saturating_add(96),
+                        template.span,
+                    )
+                    .map_err(|e| vec![e])?;
+                result.generic_records.insert(
+                    format!(
+                        "@module{}:product-template{}",
+                        module.core.module_id.0, template.id.0
+                    ),
+                    (module.core.module_id, &template.fields),
+                );
+            }
             for record in &module.core.aggregates {
                 result
                     .spend(
@@ -50,6 +71,21 @@ impl<'a> Visibility<'a> {
             return Ok(());
         };
         self.spend(name.len(), span)?;
+        if !self.generic_records.is_empty()
+            && let Some((family, _)) = name.rsplit_once(':')
+        {
+            self.spend(family.len().saturating_add(1), span)?;
+            if let Some((owner, fields)) = self.generic_records.get(family) {
+                if *owner != module && fields.get(field as usize).is_some_and(|f| !f.public) {
+                    return Err(error(
+                        "E-FIELD-PRIVATE",
+                        span,
+                        "record field is private to its declaring module",
+                    ));
+                }
+                return Ok(());
+            }
+        }
         if !self.records.contains_key(name) {
             self.spend(
                 self.records
@@ -391,6 +427,33 @@ fn resolve_indexed(
         remaining: *remaining,
         depth_limit: limits.max_call_depth,
     };
+    if !resolver.generic.templates.is_empty() {
+        aggregate_templates::spend(
+            &mut resolver.remaining,
+            resolver.generic.templates.len(),
+            Span::default(),
+        )
+        .map_err(|e| vec![e])?;
+        let templates = resolver
+            .generic
+            .templates
+            .iter()
+            .map(|(key, t)| (*key, t.clone()))
+            .collect::<Vec<_>>();
+        for (family, template) in templates {
+            resolver.ordinary_parameter = Some(template.parameter.name.clone());
+            resolver
+                .generic_materialize(
+                    family,
+                    &[Type::Named(template.parameter.name.clone())],
+                    None,
+                    0,
+                    template.span,
+                )
+                .map_err(|e| vec![e])?;
+        }
+        resolver.ordinary_parameter = None;
+    }
     for d in &core.aggregates {
         resolver
             .ty(&Type::Named(d.name.clone()), 0, d.span)
@@ -2000,6 +2063,12 @@ impl Resolver<'_> {
                 "recursive generic Product recipe has infinite layout",
             ));
         }
+        let owner = owner.filter(|o| {
+            self.generic
+                .owners
+                .get(o)
+                .is_some_and(|b| args.iter().any(|a| aggregate_templates::free(a, b)))
+        });
         let template = self
             .generic
             .templates
@@ -2017,6 +2086,14 @@ impl Resolver<'_> {
                 "E-PRODUCT-TEMPLATE",
                 span,
                 "generic Product needs one complete type argument",
+            ));
+        }
+        aggregate_templates::type_work(&args[0], &self.generic_limits, &mut self.remaining, span)?;
+        if !self.store_element_shape(&args[0], depth, span)? {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product actual type does not satisfy its StoreElement declaration",
             ));
         }
         aggregate_templates::spend(&mut self.remaining, template.fields.len(), span)?;
@@ -2040,6 +2117,13 @@ impl Resolver<'_> {
                 span: f.span,
             };
             let ty = self.field_type(&raw, depth + 1)?;
+            if !f.manages && matches!(ty, Type::Managed(_) | Type::Desc(_)) {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "generic Product Managed leaves require an explicit manages declaration",
+                ));
+            }
             fields.push((f.name.clone(), ty));
         }
         let name = aggregate_templates::canonical(
@@ -2050,6 +2134,38 @@ impl Resolver<'_> {
             &mut self.remaining,
             span,
         )?;
+        for arg in args {
+            aggregate_templates::type_work(arg, &self.generic_limits, &mut self.remaining, span)?;
+        }
+        aggregate_templates::spend(
+            &mut self.remaining,
+            name.len()
+                .saturating_add(self.generic.canonical_arguments.len()),
+            span,
+        )?;
+        if let Some((prior_family, prior_args, prior_owner)) =
+            self.generic.canonical_arguments.get(&name)
+        {
+            if *prior_family != family || prior_args != args || *prior_owner != owner {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "generic Product canonical identity collision",
+                ));
+            }
+        } else {
+            for arg in args {
+                aggregate_templates::type_work(
+                    arg,
+                    &self.generic_limits,
+                    &mut self.remaining,
+                    span,
+                )?;
+            }
+            self.generic
+                .canonical_arguments
+                .insert(name.clone(), (family, args.to_vec(), owner));
+        }
         if let Some(owner) = owner {
             aggregate_templates::spend(&mut self.remaining, name.len().saturating_add(1), span)?;
             self.generic.symbolic_names.insert(name.clone(), owner);

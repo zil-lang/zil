@@ -569,10 +569,18 @@ impl Walk<'_, '_> {
                             ));
                         }
                         let mut actual = None;
+                        let products = self.state.products.clone();
                         for ((pattern, shape), argument) in
                             signature.parameters.iter().zip(&shapes).zip(arguments)
                         {
-                            if !store_templates::has_parameter(pattern, &bound.name) {
+                            if !aggregate_templates::parameter_in(
+                                pattern,
+                                &bound.name,
+                                &products,
+                                self.limits,
+                                argument.span,
+                                &mut |n| self.state.snapshot(n, argument.span),
+                            )? {
                                 continue;
                             }
                             let Shape::Complete { ty, .. } = shape else {
@@ -586,7 +594,7 @@ impl Walk<'_, '_> {
                                 ty,
                                 &bound.name,
                                 &mut actual,
-                                self.limits,
+                                (self.limits, &products),
                                 argument.span,
                                 &mut |work| self.state.snapshot(work, argument.span),
                             )?;
