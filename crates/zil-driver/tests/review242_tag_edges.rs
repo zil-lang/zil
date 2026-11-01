@@ -397,3 +397,55 @@ fn loop_at_one_write_site_needs_a_new_observation_after_each_swap() {
         );
     }
 }
+
+#[test]
+fn each_sealed_request_keeps_its_limits_through_shared_wire_clone_and_emission() {
+    use std::sync::Arc;
+    let module = fixture();
+    let plan = candidate(&module);
+    let limits = Limits::default();
+    let warm =
+        zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let lir = zil_lower::lower(&warm).unwrap();
+    zil_backend_llvm::emit(&warm, &lir).unwrap();
+    let small = Limits {
+        max_nodes: 512,
+        max_call_depth: 32,
+        ..limits.clone()
+    };
+    let shared_module = Arc::new(module.clone());
+    let shared_plan = Arc::new(plan.clone());
+    let program = Arc::new(TypedProgram {
+        module: module.clone(),
+        interfaces: vec![],
+        root_functions: vec![],
+    });
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let owned = zil_verify::verify_module(module.clone(), plan, &module.target, &small).unwrap();
+    let shared = zil_verify::verify_shared_module(
+        shared_module,
+        shared_plan.clone(),
+        &module.target,
+        &small,
+    )
+    .unwrap();
+    let from_program =
+        zil_verify::verify_shared_program_module(program, shared_plan, &module.target, &small)
+            .unwrap();
+    let replay = zil_verify::verify_module_bytes(&bytes, &module.target, &small).unwrap();
+    for current in [owned.clone(), owned, shared, from_program, replay] {
+        assert_eq!(current.limits(), &small);
+        assert!(current.uses_owned_sum_extension());
+        let lir = zil_lower::lower(&current).unwrap();
+        let error = zil_backend_llvm::emit(&current, &lir)
+            .expect_err("small current request was overwritten by warm/default limits");
+        assert!(
+            error
+                .iter()
+                .any(|d| d.category == ResultCategory::ResourceLimit),
+            "{error:?}"
+        );
+    }
+    assert_eq!(warm.limits(), &limits);
+    zil_backend_llvm::emit(&warm, &zil_lower::lower(&warm).unwrap()).unwrap();
+}

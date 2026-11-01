@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.30s
+     Running tests/review240_match_exits.rs (/workspace/.zil-env/target-244/debug/deps/review240_match_exits-39efe94349c5f1de)
+
+running 2 tests
+test early_arm_return_runs_defer_then_recursive_pattern_leaves ... ok
+test continue_and_break_each_discharge_only_the_current_pattern_owners ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
