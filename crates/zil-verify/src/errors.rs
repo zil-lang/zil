@@ -5,7 +5,8 @@ use super::*;
 pub(super) fn owned(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_))
+            || sums::owned(error) || sums::owned(result))
 }
 
 /// Classifies a raw shape; admission and responsibility are checked elsewhere.
@@ -19,6 +20,9 @@ pub(super) fn check_type_for(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    if sums::needs_shape(ty, budget)? {
+        return sums::check_type_for(module, ty, span, budget);
+    }
     let Type::ErrorUnion { error, result } = ty else {
         return Err(reject(
             "E-VERIFY-ERROR",
