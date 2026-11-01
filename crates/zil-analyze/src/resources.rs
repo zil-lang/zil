@@ -2099,9 +2099,10 @@ impl Flow<'_> {
                                     .life
                                     .contains(&Life::Available)
                             {
-                                return Err(error(
-                                    "cleanup is not reverse successful initialization order",
-                                ));
+                                return Err(error(&format!(
+                                    "cleanup is not reverse successful initialization order: local {} precedes live {} in {} block {}",
+                                    local.0, later.0, f.name, b
+                                )));
                             }
                         }
                     }
@@ -2415,13 +2416,12 @@ impl Flow<'_> {
                 }
                 _ => {}
             }
-            if let Some(plan) = self.sums {
-                if let Some(birth) =
+            if let Some(plan) = self.sums
+                && let Some(birth) =
                     plan.apply(self.module, f, i, &mut state.sums, check, budget)?
-                    && let Some(produced) = &mut produced
-                {
-                    produced.birth = birth;
-                }
+                && let Some(produced) = &mut produced
+            {
+                produced.birth = birth;
             }
             if let (Some(place), Some(s)) = (output, out_shape) {
                 let fact = produced
