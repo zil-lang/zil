@@ -1,0 +1,25 @@
+{
+  "status": "PartialImplementationCheckpoint",
+  "public_checkpoint": "f5ac46522b7c3686b843cbe70750a6cc5529bec0",
+  "normative_snapshot": "b8811d6957d3599facdb31aa9c36829efdfc23ae",
+  "spec_hash": "12bffd494b9d1d1165cb7d533628864dc4430ba948e199184d01add3907d3148",
+  "normative_hash": "a603e5b787157ba1ffe3231b922889d781ff541a494a64d4c2dc2a03c2cd9370",
+  "IR_base_limited_tests": {
+    "passed": 65,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "receipt": "ir/RESULT.json"
+  },
+  "temporary_fixture_generator": {
+    "passed": 1,
+    "failed": 0,
+    "not_a_delivered_test": true
+  },
+  "CT_mechanical_change": "Four new runtime Enum opcodes have an explicit E-CT-FORBIDDEN VM branch; existing independent CT verifier whitelist already defaults to rejection. No old Copy-enum execution branch or accounting changed.",
+  "CT_driver_execution": "Pending dependent owner exhaustive integration; not run in this incomplete pipeline",
+  "driver_CT_collectors": "Existing Enum and Managed recursive type/shape/text visitors already traverse and precharge all payload fields before clone; no new Core metadata or enum fields to migrate. No source collector change required.",
+  "legacy_files": "v27/v28/v29 fingerprint encoders plus original/schema29 review223 wire and old ORACLE remain exact. New schema30 fixture uses only version and derived fingerprint envelope changes.",
+  "full_workspace": "NotRun",
+  "native_executions": 0
+}

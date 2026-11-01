@@ -18,7 +18,11 @@ pub(super) fn constructor(e: &Expr) -> Option<(&str, &str, Option<&[GenericArg]>
         _ => None,
     }
 }
-pub(super) fn fields<'a>(decl: &'a EnumDecl, variant: &str, span: Span) -> R<&'a [TypeRef]> {
+pub(super) fn fields<'a>(
+    decl: &'a EnumDecl,
+    variant: &str,
+    span: Span,
+) -> R<&'a [VariantTupleField]> {
     let v = decl
         .variants
         .iter()
@@ -148,6 +152,9 @@ pub(super) fn validate_declaration(
     };
     for variant in &decl.variants {
         for field in fields(decl, &variant.name, variant.span)? {
+            if field.manages {
+                return Err(unsupported(field.span, "owned generic enum payload"));
+            }
             shape(field, &variables, nominals, budget, 0)?;
         }
     }
@@ -262,7 +269,12 @@ fn layout(
                 ItemKind::Enum(e) => {
                     for v in &e.variants {
                         match &v.fields {
-                            VariantFields::Tuple(ts) => fields.extend(ts),
+                            VariantFields::Tuple(ts) => {
+                                if ts.iter().any(|f| f.manages) {
+                                    return Err(unsupported(v.span, "owned generic enum payload"));
+                                }
+                                fields.extend(ts.iter().map(|f| &f.ty));
+                            }
                             VariantFields::Unit => {}
                             VariantFields::Record(_) => {
                                 return Err(unsupported(v.span, "record enum variants"));
