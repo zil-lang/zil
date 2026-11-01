@@ -118,7 +118,10 @@ def main():
                     or not captured.is_file()):
                 raise RuntimeError(f"{opt}: five-module native build did not succeed: {build}")
             native = build["native_codegen"]
-            if native["backend"] != "llvm-api" or native.get("fallback") is not None:
+            if (native["backend"] != "llvm-api" or native.get("fallback") is not None
+                    or native["actual_units"] != 1 or not native["object_reports"]
+                    or any(row.get("input_kind") != "builder" or not row.get("verify_before_after")
+                           for row in native["object_reports"])):
                 raise RuntimeError("LLVM API object identity not established")
             # The captured object, rather than regenerated text LLVM, is linked.
             probe = directory / "probe"
