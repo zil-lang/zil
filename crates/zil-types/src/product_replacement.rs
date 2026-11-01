@@ -10,7 +10,16 @@ impl Builder<'_, '_> {
         rhs: &CoreExpr,
         span: Span,
     ) -> R<bool> {
-        if !matches!(ty, Type::Package { .. }) || !packages::product::owned_supported(ty) {
+        if !matches!(ty, Type::Package { .. }) {
+            return Ok(false);
+        }
+        // The bounded type walk reserves its own visits before descent. Pay
+        // both that inventory and the new qualification pass before inspecting
+        // Product eligibility; scalar/field assignments never enter this path.
+        let qualification = inference::type_snapshot_work(ty, span, self.limits)?;
+        self.closures
+            .snapshot(qualification.saturating_mul(2), span)?;
+        if !packages::product::owned_supported(ty) {
             return Ok(false);
         }
         self.closures
@@ -30,7 +39,13 @@ impl Builder<'_, '_> {
                     "Product self replacement requires a static call with one direct whole-target argument",
                 ));
             };
-            let direct = match &callee.kind {
+            // Retained ordinary type templates use the same call dispatcher
+            // as other source calls after the single self argument is rebuilt.
+            let static_callee = match &callee.kind {
+                CoreExprKind::TypeApply { callee, .. } => callee.as_ref(),
+                _ => callee.as_ref(),
+            };
+            let direct = match &static_callee.kind {
                 CoreExprKind::Name(name) => self.lookup(name).is_none(),
                 CoreExprKind::Member { object, .. } => {
                     matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none())
@@ -43,17 +58,16 @@ impl Builder<'_, '_> {
                     "Product self replacement requires an ordinary static function",
                 ));
             }
-            let signature = self.resolve_callee(callee)?;
+            let signature = self.resolve_callee(static_callee)?;
             if signature.foreign
                 || signature.cleanup
                 || signature.receiver.is_some()
-                || signature.type_parameter.is_some()
                 || !signature.callable.is_empty()
                 || signature.state_parameter.is_some()
             {
                 return Err(unsupported(
                     rhs.span,
-                    "Product self replacement requires an ordinary concrete static function",
+                    "Product self replacement requires an ordinary static function without callable or State roles",
                 ));
             }
             let mut position = None;
