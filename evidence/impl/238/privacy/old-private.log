@@ -1,0 +1,15 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-238-privacy/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.45s
+     Running tests/impl072_packages.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl072_packages-f1d33cc8806b0ce0)
+
+running 1 test
+test packages072_direct_operations_keep_defining_module_field_privacy ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.01s
+
+     Running tests/impl206_verify.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl206_verify-cc86d461db71459a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+

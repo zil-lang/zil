@@ -1,0 +1,21 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-238-privacy/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.55s
+     Running tests/impl238_private_replacement.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl238_private_replacement-9569567b1e554f48)
+
+running 1 test
+
+thread 'opaque_independent_and_self_replacement_preserve_private_fields' (138527) panicked at crates/zil-driver/tests/impl238_private_replacement.rs:50:9:
+assertion `left == right` failed: value=lib.relay_union(value);: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-TYPE-MISMATCH","message":"expected ErrorUnion { error: Unit, result: Package { name: \"@module1:$module1_Owner\", fields: [(\"marker\", Managed(Record { name: \"@module1:$module1_Mark\", fields: [(\"code\", I32)] })), (\"tag\", I32)] } }, found Package { name: \"@module1:$module1_Owner\", fields: [(\"marker\", Managed(Record { name: \"@module1:$module1_Mark\", fields: [(\"code\", I32)] })), (\"tag\", I32)] }","span":{"file":0,"start":69,"end":74},"notes":[]}],"artifacts":{},"input_fingerprint":"5034ecc73a2fc0cdca941e696cbd04902406bb184a8b0e363ef7eea9422c284d","seconds":0.002075211,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/tmp/privacy238-138526-1/main.zil","1":"/tmp/privacy238-138526-1/lib.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test opaque_independent_and_self_replacement_preserve_private_fields ... FAILED
+
+failures:
+
+failures:
+    opaque_independent_and_self_replacement_preserve_private_fields
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test impl238_private_replacement`

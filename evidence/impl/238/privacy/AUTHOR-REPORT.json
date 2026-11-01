@@ -1,0 +1,31 @@
+{
+  "status": "author limited checks; not formal acceptance",
+  "baseline": "23c636a5a",
+  "scope": "Opaque cross-module ordinary Product whole-value replacement preserves source field privacy; no schema, example, oracle or default-limit change.",
+  "cause": "semantic_cache raw() initial source compile failed before encoding: transaction-generated field operations were checked as explicit source field access.",
+  "implementation": [
+    "Private compiler-only exact instruction provenance keyed by FunctionId/block/index and complete InstructionKind; source/Core/Typed/Wire cannot assert it.",
+    "Self input is reconstructed only at the unique direct whole-target argument evaluation established by the bounded References walk; other source arguments retain field checks.",
+    "Both existing instruction insertion sites prepay and rebase provenance; empty receipt tables retain old exact fees.",
+    "Existing ErrorUnion coercion prelude runs before reconstruction; no new Sum eligibility."
+  ],
+  "checks": [
+    "Explicit LLVM API: impl060 3/0, impl064 2/0, impl206_budget 2/0, impl238_product_replacement 7/0; limited.log.",
+    "Original semantic_cache::tests::private_format_roundtrips_all_raw_program_fields_for_real_projects 1/0, 63 filtered; cache.log.",
+    "Existing direct private-field test impl072_packages 1/0,17 filtered; old-private.log.",
+    "impl206_verify 5/0, original exact Verify 10398; old-verify.log.",
+    "Private replacement author tests 4/0: opaque independent/self/branch/multiple temps; explicit private read/write/construction reject; native API O0/O2. See final logs.",
+    "Types all-target clippy -D warnings passed before and after ErrorUnion prelude fix; final logs."
+  ],
+  "preserved_failures": [
+    "First new author fixture used an early return followed by another return; this rejected as unreachable rather than privacy. Fixture changed to a normal let-read; production unchanged by that correction.",
+    "Intermediate reconstruction hook preceded the old ErrorUnion injection prelude and rejected relay_union(value:void!Owner)->Owner with E-TYPE-MISMATCH. union-before.log preserves the actual failure; hook moved below the old coercion prelude."
+  ],
+  "limits": "No formal full suite, no changes to captured-view regression (238 author owns that separate patch), no final combined-SHA acceptance.",
+  "rust_goals": {
+    "correctness": "Original private API sources and cleanup oracles pass without changing examples; explicit source access still rejects.",
+    "performance": "Prepaid provenance registration/rebasing/lookups; old exact Types418 Analyze8673 Verify10398 unchanged.",
+    "productivity": "Natural opaque whole-value replacement works across module boundaries.",
+    "control": "No runtime representation, allocation, ABI or Drop-order changes; actual LLVM API O0/O2 controls run."
+  }
+}

@@ -453,6 +453,7 @@ struct Builder<'a, 'c> {
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
     managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
+    replacement_input: Option<LocalId>,
 }
 struct LoopContext {
     continue_target: BlockId,
@@ -528,6 +529,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             resource_temps: Vec::new(),
             sequenced_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
+            replacement_input: None,
             managed_slot_work: limits.max_analysis_steps,
             managed_rebindings: managed_slots::reassigned_bindings(&f.body, limits)?,
         };
@@ -734,6 +736,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         }) {
             position += 1;
         }
+        self.closures
+            .inserted_instruction(self.function.id, entry, position + 1, span)?;
         instructions.insert(position + 1, instruction);
         // Earlier exits already emitted in this scope also see the reserved
         // vacant slot. Close its storage there without inventing a cleanup.
@@ -751,6 +755,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                         Some(span),
                     ));
                 }
+                self.closures
+                    .inserted_instruction(self.function.id, block.id, position, span)?;
                 block.instructions.insert(
                     position,
                     Instruction {
@@ -1373,6 +1379,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.expr_raw(e, expected)
     }
     fn expr_raw(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        if let Some(value) = self.take_replacement_input(e, expected)? {
+            return Ok(value);
+        }
+
         let result = match &e.kind {
             CoreExprKind::Literal(value) => {
                 foreign::check_literal(value, e.span)?;
