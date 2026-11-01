@@ -1,0 +1,106 @@
+{
+  "status": "Pass",
+  "scope": "Post-merge main replay, both required source gates; fresh results kept separate from PR/local runs",
+  "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "integration_commit": "fde8081418454acc51d9c7e937e76e063ffacd92",
+  "runs": [
+    {
+      "status": "Pass",
+      "run_id": "41348687045",
+      "url": "https://github.com/zil-lang/zil/actions/runs/41348687045",
+      "head": "fde8081418454acc51d9c7e937e76e063ffacd92",
+      "actual_checkout": "fde8081418454acc51d9c7e937e76e063ffacd92",
+      "tree": "4e75f9ae8dff62f0bf2d0fcfaac088d099cf7c48",
+      "tree_listing_sha256": "0d483d0640da496d7921c5140239f3f0e53fc2cf30bc4008cdc98176526e1c35",
+      "tree_identical_to_candidate": true,
+      "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+      "current_non_evidence_file_hashes_checked": 4025,
+      "mismatches": [],
+      "conclusion": "success",
+      "tests": {
+        "workspace": {
+          "passed": 3446,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        "reference": {
+          "passed": 3347,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        "text-reference": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      },
+      "recovery": {
+        "bytes": 80159470,
+        "checkout": "fde8081418454acc51d9c7e937e76e063ffacd92",
+        "chunks": 19571,
+        "files": 141377,
+        "run_id": "41348687045",
+        "sha256": "3f7938e9b1e45b7a9c827393b32f43b400a232f2ad54317aa4e32b3d87a49bfa"
+      },
+      "artifact_api_total_count": 0,
+      "raw_archive": "/workspace/.zil-env/ci-main-Q/41348687045/evidence-recovery.tar.zst",
+      "upload_note": "Complete log recovery verified all indexed blobs; action conclusion alone was not used as proof of successful artifact storage.",
+      "consumer209_status": "Pass"
+    },
+    {
+      "status": "Pass",
+      "run_id": "41348687154",
+      "url": "https://github.com/zil-lang/zil/actions/runs/41348687154",
+      "head": "fde8081418454acc51d9c7e937e76e063ffacd92",
+      "actual_checkout": "fde8081418454acc51d9c7e937e76e063ffacd92",
+      "tree": "4e75f9ae8dff62f0bf2d0fcfaac088d099cf7c48",
+      "tree_listing_sha256": "0d483d0640da496d7921c5140239f3f0e53fc2cf30bc4008cdc98176526e1c35",
+      "tree_identical_to_candidate": true,
+      "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+      "current_non_evidence_file_hashes_checked": 4025,
+      "mismatches": [],
+      "conclusion": "success",
+      "tests": {
+        "workspace": {
+          "passed": 3446,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        "reference": {
+          "passed": 3347,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        "text-reference": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      },
+      "recovery": {
+        "bytes": 80377826,
+        "checkout": "fde8081418454acc51d9c7e937e76e063ffacd92",
+        "chunks": 19624,
+        "files": 141548,
+        "run_id": "41348687154",
+        "sha256": "3e0eb07e0c5cc18bf4e726c8156c693dbb5566a1a34d4a483b2497f1cd8328df"
+      },
+      "artifact_api_total_count": 0,
+      "raw_archive": "/workspace/.zil-env/ci-main-Q/41348687154/evidence-recovery.tar.zst",
+      "upload_note": "Complete log recovery verified all indexed blobs; action conclusion alone was not used as proof of successful artifact storage.",
+      "consumer209_status": "Pass"
+    }
+  ]
+}

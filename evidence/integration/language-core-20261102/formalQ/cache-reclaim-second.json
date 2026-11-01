@@ -1,0 +1,21 @@
+{
+  "status": "Complete",
+  "scope": "Reproducible compiler Cargo caches for completed tasks only",
+  "removed": [
+    "/workspace/.zil-env/target-227",
+    "/workspace/.zil-env/target-235",
+    "/workspace/.zil-env/target-237",
+    "/workspace/.zil-env/target-238",
+    "/workspace/.zil-env/target-238-privacy",
+    "/workspace/.zil-env/target-core",
+    "/workspace/.zil-env/target-integration",
+    "/workspace/.zil-env/target-ir"
+  ],
+  "active_build_targets_preserved": [],
+  "native_archive_preserved": "/workspace/.zil-env/formal-languageQ-native.tar.zst",
+  "archive_sha256_verified": "015758613ea8e63c57f06eaa37a91551a421615ac98dde3ac47ba84b1e2d875e",
+  "raw_native_preserved": true,
+  "Q_release_cli_preserved": "/workspace/.zil-env/target-236/release/zil",
+  "source_and_evidence_untouched": true,
+  "time_utc": "2026-11-01T21:10:33Z"
+}
