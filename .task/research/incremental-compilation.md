@@ -1,6 +1,6 @@
 # 增量编译纵向专项
 
-状态：Doing；长期研究分支：`research/incremental-compilation`。
+状态：本轮专项已验收合入；原研究分支 `research/incremental-compilation` 已删除，历史保留在 main。一般函数语义增量等长期目标仍待后续任务，不改 B0/W4 状态。
 
 用户于本会话授权建立新的专项、持续攻坚编译速度并直接使用 GitHub 权限发布。正式父目标为 B0/W4；本记录不变更父工单状态或产品门。
 
@@ -222,3 +222,11 @@ Stage14 final production75178b1cfb42bfd37746b7573999d74d7d7668db freezes direct 
 Stage15实现冻结：四方向已接通有界生产路径，函数级范围为标量CFG（一般资源/泛型/闭包保留原路），Expand/CT/全局合同和Analyze/Verify仍当前。root补实际layout目标的ArtifactPlan保护，冲突仅丢弃可选缓存。首轮backend126/discovery10/functionTypes6/cache-native32均通过；解码数组分块lint修正后6项重跑通过，Python证据恢复5项通过，受影响all-targetsClippy/fmt/diff通过。历史014c两CI的语言测试实际通过（每套workspace3265/reference3170/text-reference64），仅artifact配额上传失败，保留原失败。新运输需要最终exactrun下载还原再核SHA才算证据已保存。此处仍未登记性能收益或main已合入。
 
 Stage15最终生产c4d7b3fe1488fd22dc4f64e092b75a6ec2f08cad按实际工作量限制函数epoch，保留122中间32screen/12warm的负结果。最终4分布48请求+closed8保护全部有效/native，40当前ZILVerify、16新Rust观察；五组edited .text逐字相等。14/16个主窗口ZIL/Rust点较快，动态warm仍慢8.1%/4.5%；单大模块cold、均匀edit及closed edit-warm不利点保留，不称全场景胜出。175不同限定Rust控制（含复跑187执行）+5Python控制、最终Clippy/fmt与非作者源码审查Pass。完整原始记录910文件归档10765728B，SHA b4a9c0f0cfe8f7444cb0952f9414e4ca6365f025f36f5005ce56ca877f1d5d87。报告见STAGE15-RESULTS.md。接续只剩最终远端两套CI、证据回收、授权main合入及已合并分支清理；不扩大测试矩阵或把一般函数语义增量记完成。
+
+## Stage15 集成与清理完成
+
+2026-11-02（北京时间）：官方41327533826、研究41327533923均Success，每套workspace3283/reference3188/textreference64均0失败/0忽略，另Python迁移9与证据恢复5。实际远端日志归档完整恢复，root独立全blob核验与所有当前源码Git OID/模式/大小比对通过。GitHub上传配额失败保持原记录，不伪装正常artifact成功。
+
+PR13通过merge commit 24442feb9e915181dedb4866951da01d0ddf67a4合入main；实际完整树10f01a026b9479e1b52277d4591045ace04109e3与两配置已验收PR checkout2ba0fad9完全相同，因此复用同源码验收证据完成清理，不重复等待主线自动重跑。官方/研究main自动检查仍正常触发，记录时未宣称其完成。远端及本地research/incremental-compilation均删除，当前main工作区；没有删除其它分支、历史证据或工具链。
+
+acceptance_record：evidence/research/incremental-compilation/stage15/integration/ACCEPTANCE.json。清理/完整tree/原始受测commit对象/远端回收与当前源码核验收据同目录留存。本次函数级实现限非平凡标量CFG，一般资源/泛型/闭包及完整语义依赖图未完成，不以有限实现关闭全部语言或Rust产品目标。
