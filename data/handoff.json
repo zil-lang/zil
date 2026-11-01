@@ -8,44 +8,59 @@
     "task_root": ".task",
     "current_is_main": true
   },
-  "current_head": "115f4f81e58b6262e3f80234953310158f8b0785",
-  "main_head": "115f4f81e58b6262e3f80234953310158f8b0785",
-  "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-  "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979",
+  "current_head": "0557133f81710f30814f6989d88fb5b9c6788f16",
+  "main_head": "0557133f81710f30814f6989d88fb5b9c6788f16",
+  "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+  "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854",
   "worktrees": [
     {
       "branch": "refs/heads/main",
-      "head": "115f4f81e58b6262e3f80234953310158f8b0785",
+      "head": "0557133f81710f30814f6989d88fb5b9c6788f16",
       "is_main": true
     },
     {
-      "branch": "refs/heads/impl/230-restored",
-      "head": "14163219c503a6ee959aa52beddfc2c6d1d862b4",
+      "branch": null,
+      "head": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
       "is_main": false
     },
     {
-      "branch": "refs/heads/impl/231-restored",
-      "head": "8c970275931ed9b7735b3a1dfb5be0cf9f32ab0b",
+      "branch": "refs/heads/task/227",
+      "head": "192b45c051a4c938659eb8ff5c0029a24a671900",
       "is_main": false
     },
     {
-      "branch": "refs/heads/integration/construction10",
-      "head": "6475a91f8c8f7b31693cab71973048b0de850072",
+      "branch": "refs/heads/task/235",
+      "head": "edb044089592ff73832040ed52057f78eb9b419b",
       "is_main": false
     },
     {
-      "branch": "refs/heads/review/construction10-225226",
-      "head": "e169322703ee11b035fa56a21856a10c841aebdc",
+      "branch": "refs/heads/task/236",
+      "head": "566396accaa3b1df90ee4c3ff478615df518b073",
       "is_main": false
     },
     {
-      "branch": "refs/heads/review/construction10-230",
-      "head": "d8a57152775df948f3e34331181f28579127444e",
+      "branch": "refs/heads/task/237",
+      "head": "addb36909738208b0711fd6b5f6e282c58a8588d",
       "is_main": false
     },
     {
-      "branch": "refs/heads/review/construction10-231",
-      "head": "680fafa6f3e376d57cbe1084cbb6e359c2beaaf0",
+      "branch": "refs/heads/task/238",
+      "head": "1b7572807d8948ac255312b035f8fc063d314995",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/238-privacy",
+      "head": "0b6b9e99632191283d67f6ee78292fddbe634ef1",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/238-regression",
+      "head": "541f21bbe8cff775cb7341aae3652759a0a65c8d",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/zui-core-20261102",
+      "head": "e92508be996a190fa188d08319d37cc8b522bae6",
       "is_main": false
     }
   ],
@@ -62,7 +77,7 @@
       "path": ".task/B0.md",
       "status": "Doing",
       "baseline": "c9ee2e81de661bb0789ac6a0c6a130d864c4d5a9",
-      "record_sha256": "0e27b99702396d808c15b1c8cb64c8df91962090b0f40e63af846b25b1eb4dc0",
+      "record_sha256": "73ddb6eef993b4e61feaf890fed8f2cf2d753f24e0de7e4288277bb9aaf4b454",
       "committed": true,
       "evidence": [
         {
@@ -78,8 +93,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": []
     },
@@ -88,7 +103,7 @@
       "path": ".task/T01.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "9db94d1b15d724d6d8c7c460294a360644f651e93d70ca7d4f41055f845c76c8",
+      "record_sha256": "02a0f2d5d6d3ed195150e2e2c9b01a3dd27d5ac9e9f3692adc1da5b6f67f1259",
       "committed": true,
       "evidence": [
         {
@@ -101,8 +116,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "B0"
@@ -113,7 +128,7 @@
       "path": ".task/T02.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "5da5d0e9e599bc28fcb270554db9cbcbf80fcddbd28d5cb3d247ea66f02628e1",
+      "record_sha256": "76247850e4b9b8f9d712e856fa4a2bfe48fe68331111b39a6c797312054461dd",
       "committed": true,
       "evidence": [
         {
@@ -123,8 +138,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "B0"
@@ -135,14 +150,14 @@
       "path": ".task/T03.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "8186a43a85e5fd941b148dfe638e7faec91293d48439455d58703bb67790da20",
+      "record_sha256": "f8907b0baf94123aa0367d8159d3a82bfe755f28465cd2573b3e1bed73e96f36",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "T01",
@@ -155,7 +170,7 @@
       "path": ".task/T04.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "f464dbadbef0b5866fa2930eb4edc313c943b5391cbacbeffc48e32e0901b147",
+      "record_sha256": "7fdbf223019c2d7d1578b7a6b0fbc6a99fb314e14f35dec922fc6969aaf16f9e",
       "committed": true,
       "evidence": [
         {
@@ -168,8 +183,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "B0"
@@ -180,7 +195,7 @@
       "path": ".task/T05.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "24411a466fc2dbba083c21f5881beb9625dfa254e0673293e57976389126f93f",
+      "record_sha256": "99a2a0f98a0b9160182d2753293bf9796c1b761666a7bb7d3f8c778f20f36c23",
       "committed": true,
       "evidence": [
         {
@@ -190,8 +205,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "B0"
@@ -202,14 +217,14 @@
       "path": ".task/T06.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "676b804d574f2aa7a6a1accc1f910a1ef693fc168342797144581a26a746d397",
+      "record_sha256": "d512201ceff7a5f5f53d8acd918acc7bd3720fa44fc8eb624c05eb17fd0ce2de",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "T02",
@@ -221,14 +236,14 @@
       "path": ".task/T07.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "5e232d3f3089b6fc4e7bf18774f457ee166af3dc4248b03779fc5d788febf220",
+      "record_sha256": "683a1a4507e93a2988705f380290d306239cb6b102b8f84f77d47fb70b4f0804",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "T05"
@@ -239,14 +254,14 @@
       "path": ".task/T08.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "9870d614de55ca85e9991a9fb6a4eab045982b82ea7abfec1392eac95453e718",
+      "record_sha256": "9847e2c2fc38745fd138c542124b075149716ff5c024a2c313016bef9ab079ed",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "W1"
@@ -257,14 +272,14 @@
       "path": ".task/T09.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "3647a3404e729d026d43d2482c3c9fed08ecde5e368123aca40636af9c0d986d",
+      "record_sha256": "4f72236bfb7c9ba004fec22d5dc04b0285bcd9146b3de12e2f9252b8164bff6b",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "W1",
@@ -276,14 +291,14 @@
       "path": ".task/W1.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "86cc1448343dbb388c566759c556b112ff7324adb6ef5497b9df9c5496ee0d54",
+      "record_sha256": "34523550a7bec14a1a549333947a0616d325fd324967adca0c35f1998363339f",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "T01",
@@ -299,14 +314,14 @@
       "path": ".task/W2.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "6279193920c72ff6a35fd115261b1b2a23350b6c41e179eea4bb37b92203424b",
+      "record_sha256": "e9fa2142c2a8ead4d9ebeb02fb68ae5d32742a48ee53c3ef0821383335f2d35f",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "W1",
@@ -319,14 +334,14 @@
       "path": ".task/W3.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "54829a88926f240f6e0551c4367e9a6a4593288f02e4ee31a4624a3a87c35bbc",
+      "record_sha256": "bb48b8a16a2f9bfe9ff06563e53b412ecdc4bc559d549316b6440cf36dc50429",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "T09",
@@ -338,14 +353,14 @@
       "path": ".task/W4.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "3efacaa8727b71b4114cba0668f9d6f9b687deba31826d5354d2d7ab9312f5ce",
+      "record_sha256": "f02828e73dc72e6879fff8a48b47c8c51b65bb9d31b3d4ea0dabdab46cae2b77",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "blocked_by": [
         "W2",
@@ -1132,8 +1147,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5629,8 +5644,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5659,8 +5674,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5686,8 +5701,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5711,8 +5726,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5737,8 +5752,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5762,8 +5777,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5789,8 +5804,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5814,8 +5829,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5840,8 +5855,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5867,8 +5882,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5890,8 +5905,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5912,8 +5927,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5937,8 +5952,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5963,8 +5978,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5987,8 +6002,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6011,8 +6026,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6038,8 +6053,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6068,8 +6083,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -7458,8 +7473,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9297,8 +9312,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9330,8 +9345,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9363,8 +9378,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9390,8 +9405,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9416,8 +9431,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
@@ -10367,25 +10382,58 @@
     {
       "id": "227",
       "path": ".task/impl/227.md",
-      "status": "卡住",
-      "baseline": "42ce8081a2aa5722a14fea53f23f819f46685a60",
-      "record_sha256": "061f9275c9db85b1eec5db951cfc669553df7ba126aa3e04fa901eaa7d4bc468",
+      "status": "已合入",
+      "baseline": "a68398ad7714e2749e7f263b191c0ed78d36b3c8",
+      "record_sha256": "acdd9b07b625bc69d83d40e081287d752920f096de524348d7edb3f1f99ea640",
       "committed": true,
-      "evidence": [],
+      "evidence": [
+        {
+          "path": "evidence/integration/language-core-20261102/ACCEPTANCE.json",
+          "sha256": "dd26ab4c6e73514288d2000390ec2f2581061137e0bec73fb2fbbfeba6faebf5",
+          "location": "main",
+          "passing": true
+        }
+      ],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "9f44f15d8942f8bc57d39f1c3c67ba4121a8ae03baaa6e27c179be28ad823f9a",
-        "normative_hash": "223c62dd5fd22ad5912c7b91c279fb63b71f555cfa8148cf1551cd7f49978979"
+        "source": "implementation_commit",
+        "revision": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
       },
       "parent_task": "B0",
       "write_set": [
-        "changes/227-defer-lowering-plan.md",
-        "evidence/planning/227/**"
+        "crates/zil-base/**",
+        "crates/zil-ir/**",
+        "crates/zil-expand/**",
+        "crates/zil-types/**",
+        "crates/zil-analyze/**",
+        "crates/zil-verify/**",
+        "crates/zil-lower/**",
+        "crates/zil-backend-llvm/**",
+        "crates/zil-ct/**",
+        "crates/zil-driver/**",
+        "crates/zil-ide/**",
+        "spec/interfaces.json",
+        "changes/227-*",
+        "tests/defer227/**",
+        "evidence/impl/227/**"
       ],
-      "implementation_author": "zil施工8/current-assistant",
-      "implementation_commit": null,
-      "integration_commit": null
+      "implementation_author": "/root",
+      "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+      "integration_commit": "fde8081418454acc51d9c7e937e76e063ffacd92",
+      "review": {
+        "reviewer": "/root/review_language_contracts",
+        "verdict": "Pass",
+        "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "evidence": [
+          {
+            "path": "evidence/reviews/227/integrationQ.json",
+            "sha256": "771045e85ea757005ad2c894ab79edcb203e767ca9f59cc555f4893e76ba10b0",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
     },
     {
       "id": "228",
@@ -10655,6 +10703,393 @@
           }
         ]
       }
+    },
+    {
+      "id": "232",
+      "path": ".task/impl/232.md",
+      "status": "已合入",
+      "baseline": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+      "record_sha256": "61bf1d2bb914b65a79b75fa3935b5ab4ba739ac3a4b5c6e3f4dc55806c9f38a6",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/reviews/232/FINAL.json",
+          "sha256": "973d9ff3543d3cf5a38e5aafa572123c1c1661e7a6c1dc30a3b5fb101d389217",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/232/MAIN-CONTINUITY.json",
+          "sha256": "8e562231aa1554907b20f591fcd32155b1572d7b45b610103f3130b351f286db",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/construction-status-20261031/MAIN-CI.json",
+          "sha256": "a93b5406506b6e2c91922ad6257a4983d2169ea0ef4581a8d366e8a66d1383eb",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "507e650d526653ccc79146366e4bb7c30b55ac84",
+        "spec_hash": "995da9e3557a8a9b33bae0d2a57ab7919781ef8b019e6e2ec9072c1da39c957c",
+        "normative_hash": "b4caffbf123b1915079c9275d8a93e9534dc19a5dcf59ef098cf80a51d9474f4"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-types/src/closures.rs",
+        "crates/zil-types/src/closures/package_effects.rs",
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-driver/tests/impl232*",
+        "crates/zil-driver/tests/impl214_source.rs (original readonly rejection inputs only)",
+        "examples/mainline/readonly_product232/**",
+        "evidence/impl/232/**",
+        "crates/zil-driver/tests/impl072_packages.rs (exact contract-required capture expectation migration only)",
+        "crates/zil-driver/tests/impl077_package_captures.rs (exact readonly expectation and non-no-op raw fixture migration only)",
+        "crates/zil-driver/tests/impl192_copy_fields.rs (default mutable rejection diagnostic assertion only)"
+      ],
+      "implementation_author": "/root/next_language_slices",
+      "implementation_commit": "507e650d526653ccc79146366e4bb7c30b55ac84",
+      "integration_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+      "review": {
+        "reviewer": "/root/handoff_integrity",
+        "verdict": "Pass",
+        "implementation_commit": "507e650d526653ccc79146366e4bb7c30b55ac84",
+        "evidence": [
+          {
+            "path": "evidence/reviews/232/FINAL.json",
+            "sha256": "973d9ff3543d3cf5a38e5aafa572123c1c1661e7a6c1dc30a3b5fb101d389217",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "233",
+      "path": ".task/impl/233.md",
+      "status": "已合入",
+      "baseline": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+      "record_sha256": "421cb5414e9181cad7b39bcb6095eec60ff8db50299a9524b69dcbe69cfb343c",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/reviews/233/FINAL.json",
+          "sha256": "34a56bb036d2fad7bf809eb70add48f06416c60997ddddae026bfeb260e98b9b",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/233/MAIN-CONTINUITY.json",
+          "sha256": "252636cfac89a109050dd8d5353336584090d286203f5984212d9cca2a12f948",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/construction-status-20261031/MAIN-CI.json",
+          "sha256": "a93b5406506b6e2c91922ad6257a4983d2169ea0ef4581a8d366e8a66d1383eb",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "6d087050f232e8e8939aff297af0acc89e11bd20",
+        "spec_hash": "995da9e3557a8a9b33bae0d2a57ab7919781ef8b019e6e2ec9072c1da39c957c",
+        "normative_hash": "b4caffbf123b1915079c9275d8a93e9534dc19a5dcf59ef098cf80a51d9474f4"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-expand/src/lib.rs",
+        "crates/zil-expand/src/static_traits.rs",
+        "crates/zil-expand/src/receivers.rs",
+        "crates/zil-expand/src/project_traits.rs",
+        "crates/zil-expand/src/modules.rs",
+        "crates/zil-expand/src/generic_trait_bounds.rs (reserved-name sharing only)",
+        "crates/zil-driver/tests/impl233*",
+        "crates/zil-expand/tests/impl233*",
+        "crates/zil-driver/tests/review231_independent.rs (original separated trait impl input only)",
+        "examples/mainline/trait_modules233/**",
+        "evidence/impl/233/**"
+      ],
+      "implementation_author": "/root/safety_review",
+      "implementation_commit": "6d087050f232e8e8939aff297af0acc89e11bd20",
+      "integration_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+      "review": {
+        "reviewer": "/root/handoff_integrity",
+        "verdict": "Pass",
+        "implementation_commit": "6d087050f232e8e8939aff297af0acc89e11bd20",
+        "evidence": [
+          {
+            "path": "evidence/reviews/233/FINAL.json",
+            "sha256": "34a56bb036d2fad7bf809eb70add48f06416c60997ddddae026bfeb260e98b9b",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "234",
+      "path": ".task/impl/234.md",
+      "status": "已合入",
+      "baseline": "30224452fd40fed59112d79c134a9f6d6abdc5cc",
+      "record_sha256": "ef35fd67baa16b6c0f2909db7296c723b4e780438a8c36868e2b8a3116835aa1",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/reviews/234/FINAL.json",
+          "sha256": "41d2cceb96aa195034854a30afe4b49dcf6b93c065a428ce4d3cb43613f5fde5",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/234/MAIN-CONTINUITY.json",
+          "sha256": "a03298ecd3331ea9ff68a01c3f0382712d774be73ffba699ea831a5ca0543140",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/construction-status-20261031/MAIN-CI.json",
+          "sha256": "a93b5406506b6e2c91922ad6257a4983d2169ea0ef4581a8d366e8a66d1383eb",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "32f218d419cc162f8f51e5a24a5e2fb24d50e3b0",
+        "spec_hash": "995da9e3557a8a9b33bae0d2a57ab7919781ef8b019e6e2ec9072c1da39c957c",
+        "normative_hash": "b4caffbf123b1915079c9275d8a93e9534dc19a5dcf59ef098cf80a51d9474f4"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-llvm-api/src/native/builder.rs (integer constant canonicalization only)",
+        "crates/zil-llvm-api/tests/builder210.rs (narrow constant controls only)",
+        "crates/zil-driver/tests/impl234_narrow_constants.rs",
+        "evidence/impl/234/**"
+      ],
+      "implementation_author": "/root",
+      "implementation_commit": "32f218d419cc162f8f51e5a24a5e2fb24d50e3b0",
+      "integration_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+      "review": {
+        "reviewer": "/root/next_language_slices",
+        "verdict": "Pass",
+        "implementation_commit": "32f218d419cc162f8f51e5a24a5e2fb24d50e3b0",
+        "evidence": [
+          {
+            "path": "evidence/reviews/234/FINAL.json",
+            "sha256": "41d2cceb96aa195034854a30afe4b49dcf6b93c065a428ce4d3cb43613f5fde5",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "235",
+      "path": ".task/impl/235.md",
+      "status": "已合入",
+      "baseline": "a68398ad7714e2749e7f263b191c0ed78d36b3c8",
+      "record_sha256": "f9053bddbb325a87a36c5740f218a153a18e4f71580c663274d6401eb1d0dc58",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/language-core-20261102/ACCEPTANCE.json",
+          "sha256": "dd26ab4c6e73514288d2000390ec2f2581061137e0bec73fb2fbbfeba6faebf5",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-types/src/**",
+        "crates/zil-analyze/src/**",
+        "crates/zil-verify/src/**",
+        "crates/zil-lower/src/**",
+        "crates/zil-backend-llvm/src/emit/**",
+        "crates/zil-driver/tests/impl235*",
+        "crates/zil-types/tests/impl235*",
+        "crates/zil-analyze/tests/impl235*",
+        "crates/zil-verify/tests/impl235*",
+        "tests/impl235/**",
+        "changes/235-*",
+        "evidence/impl/235/**",
+        "crates/zil-expand/src/generics.rs (235 lexical StoreElement aggregate binding only)",
+        "crates/zil-expand/src/generic_store_templates.rs (235 lexical StoreElement aggregate binding only)"
+      ],
+      "implementation_author": "/root/impl_product_store235",
+      "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+      "integration_commit": "fde8081418454acc51d9c7e937e76e063ffacd92",
+      "review": {
+        "reviewer": "/root/review_language_contracts",
+        "verdict": "Pass",
+        "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "evidence": [
+          {
+            "path": "evidence/reviews/235/integrationQ.json",
+            "sha256": "fca4b943e5f46d7e4ac976aee36880bf048b7799ae2e3f6f446dd4015139e3b5",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "236",
+      "path": ".task/impl/236.md",
+      "status": "已合入",
+      "baseline": "a68398ad7714e2749e7f263b191c0ed78d36b3c8",
+      "record_sha256": "a264e2b271fad1ec5f56611b5269653ed14dd8f6aa5e06e1debf0d16d08587f1",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/language-core-20261102/ACCEPTANCE.json",
+          "sha256": "dd26ab4c6e73514288d2000390ec2f2581061137e0bec73fb2fbbfeba6faebf5",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "examples/mainline/zui_core236/**",
+        "crates/zil-driver/tests/impl236*",
+        "tools/language/236/**",
+        "evidence/impl/236/**"
+      ],
+      "implementation_author": "/root/zui_language_consumer",
+      "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+      "integration_commit": "fde8081418454acc51d9c7e937e76e063ffacd92",
+      "review": {
+        "reviewer": "/root/ir_defer227",
+        "verdict": "Pass",
+        "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "evidence": [
+          {
+            "path": "evidence/reviews/236/finalQ.json",
+            "sha256": "3d80a2d905a927d9dda4464c30f6c86493cf9aefc0550821fd05e0cfaf7089e6",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "237",
+      "path": ".task/impl/237.md",
+      "status": "已合入",
+      "baseline": "36f37a77a19c92dcb13d83f0e04ad197c78f1489",
+      "record_sha256": "1b9b809a41905fc2af571d442a6542766ee0aa88068e55b8b711a50f8a73996e",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/language-core-20261102/ACCEPTANCE.json",
+          "sha256": "dd26ab4c6e73514288d2000390ec2f2581061137e0bec73fb2fbbfeba6faebf5",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-ir/**",
+        "crates/zil-base/src/lib.rs",
+        "crates/zil-expand/**",
+        "crates/zil-ct/**",
+        "crates/zil-types/**",
+        "crates/*/tests/* (CoreModule new empty fields only; other changes root-owned)",
+        "crates/zil-driver/tests/impl237*",
+        "changes/237-*",
+        "evidence/impl/237/**",
+        "crates/zil-driver/src/ct* (237 metadata propagation and precharge only)"
+      ],
+      "implementation_author": "/root",
+      "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+      "integration_commit": "fde8081418454acc51d9c7e937e76e063ffacd92",
+      "review": {
+        "reviewer": "/root/review_language_contracts",
+        "verdict": "Pass",
+        "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "evidence": [
+          {
+            "path": "evidence/reviews/237/integrationQ.json",
+            "sha256": "061dbe55e64b22137fe66963b7863e74f6e7214a0f8eb3da8970c057d9910708",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "238",
+      "path": ".task/impl/238.md",
+      "status": "已合入",
+      "baseline": "6693e7748ac7626b106a5cf1da97c46c6d68e097",
+      "record_sha256": "fe952cd8c06ea34e7fc2f8998c79dda065acd67db082fd2e67a979d3794f6d4c",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/integration/language-core-20261102/ACCEPTANCE.json",
+          "sha256": "dd26ab4c6e73514288d2000390ec2f2581061137e0bec73fb2fbbfeba6faebf5",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+        "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-types/src/lib.rs (ordinary Product assignment dispatch only)",
+        "crates/zil-types/src/product_replacement.rs",
+        "crates/zil-types/src/packages.rs (prepared Product field helpers only)",
+        "crates/zil-driver/tests/impl238*",
+        "crates/zil-types/tests/impl238*",
+        "changes/238-*",
+        "evidence/impl/238/**",
+        "crates/zil-types/src/addresses.rs (238 actual self argument hook only)",
+        "crates/zil-types/src/aggregates.rs (238 actual self argument hook only)",
+        "crates/zil-types/src/closures.rs (private internal Product projection receipts only)",
+        "crates/zil-types/src/program.rs (precise internal projection visibility only)"
+      ],
+      "implementation_author": "/root/impl_defer227",
+      "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+      "integration_commit": "fde8081418454acc51d9c7e937e76e063ffacd92",
+      "review": {
+        "reviewer": "/root/review_language_contracts",
+        "verdict": "Pass",
+        "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "evidence": [
+          {
+            "path": "evidence/reviews/238/integrationQ.json",
+            "sha256": "de8501e2fcf955bc31cfe43c11f1d8537f126f5f2703b8d6388eae03c5a32809",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
     }
   ],
   "next": [
@@ -10782,11 +11217,6 @@
       "id": "212",
       "status": "施工",
       "authoritative_task": ".task/impl/212.md"
-    },
-    {
-      "id": "227",
-      "status": "卡住",
-      "authoritative_task": ".task/impl/227.md"
     }
   ],
   "commands": {
@@ -15372,10 +15802,6 @@
     },
     {
       "id": "212",
-      "reason": "Task specification snapshot is stale."
-    },
-    {
-      "id": "227",
       "reason": "Task specification snapshot is stale."
     }
   ]

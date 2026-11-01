@@ -1,0 +1,25 @@
+{
+  "status": "PassWithinScope",
+  "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "integration_commit": "fde8081418454acc51d9c7e937e76e063ffacd92",
+  "observed_head": "0557133f81710f30814f6989d88fb5b9c6788f16",
+  "before_errors": 1145,
+  "after_errors": 1144,
+  "warnings": 0,
+  "added_errors": [],
+  "removed_errors": [
+    {
+      "id": "227",
+      "reason": "Task specification snapshot is stale."
+    }
+  ],
+  "scoped_ids": [
+    "227",
+    "235",
+    "236",
+    "237",
+    "238"
+  ],
+  "scoped_errors": [],
+  "global_status": "Fail: retained historical handoff debt; no global pass claimed"
+}
