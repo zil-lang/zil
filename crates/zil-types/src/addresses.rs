@@ -5,6 +5,7 @@ impl Builder<'_, '_> {
         match ty {
             Type::Package { .. } => true,
             Type::ErrorUnion { .. } => errors::owned(ty),
+            Type::Enum { .. } => owned_shapes::enumeration(ty),
             ty if packages::owned_array_supported(ty) => true,
             Type::Address { mutable: true, .. } => true,
             Type::Closure(id) => self.closures.pending[id.0 as usize]
@@ -40,6 +41,9 @@ impl Builder<'_, '_> {
             && let Some(local) = self.lookup(name)
             && !self.borrowed_captures.contains_key(&local)
         {
+            if let Some(value) = self.take_sum_slot(local, expected, e.span, false)? {
+                return Ok(value);
+            }
             if self.closure_slots.contains_key(&local) {
                 let ty = Type::Closure(self.closure_slots[&local]);
                 if let Some(expected) = expected {
