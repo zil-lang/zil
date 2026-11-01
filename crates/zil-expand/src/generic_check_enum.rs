@@ -206,6 +206,7 @@ impl Check<'_, '_, '_> {
                                 let local =
                                     state.locals.get_mut(name).expect("actual pattern binding");
                                 local.owned_resource = true;
+                                self.enum_resource_flow = true;
                                 if stores::element(&local.ty).is_some() {
                                     // Extraction is incoming ownership, never a create producer.
                                     self.budget.node(p.span, 0)?;
