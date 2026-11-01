@@ -159,3 +159,14 @@ pub(super) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, spa
     }
     names(ty, remaining, span)
 }
+
+pub(super) fn product_with_sum(ty: &Type) -> bool {
+    fn contains(ty: &Type) -> bool {
+        match ty {
+            Type::Enum { .. } | Type::ErrorUnion { .. } => sum(ty),
+            Type::Package { fields, .. } => fields.iter().any(|(_, field)| contains(field)),
+            _ => false,
+        }
+    }
+    matches!(ty, Type::Package { .. }) && contains(ty) && value(ty)
+}
