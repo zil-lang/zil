@@ -435,6 +435,8 @@ Lower/机器生成新增形状的预付使用本次Verify实际请求的Limits�
 
 既有Copy泛型enum的实例化保留一个具名预算例外：在原模板身份尚在时，对实际替换后的字段执行有限Copy资格检查，避免普通拥有Enum准入反向放开拥有泛型enum。这次必要的实际工作在Expand预付，允许相应旧Copy泛型enum精确N增加；不通过免费扫描、省略检查、新权限或提高默认额度维持旧数。其余旧profile费用保持。必须用原样源码、实际Q依赖字节同一性、旧/新N及N−1/fresh/暖调用记录具体差额，不能宣称所有旧N完全未变。
 
+泛型helper定义期对实际Enum及含Enum的ErrorUnion进行Copy/线性资格判断时，必须核其声明字段，不能仅因类型名字不依赖binder而视为Copy；未调用定义同样禁止重复移动或重复消耗式match。此处复用有预算的实际Copy证明，作为第二个具名预算例外，允许相应旧Copy Enum helper的精确Expand N增加，默认额度与其他旧路径不变。原样控制在Q等同依赖中为Expand work266/nodes116、Types219，实际补核后Expand work296/nodes130、Types219，增加30work/14nodes；必须保留两版N−1/fresh及相同输出证据。此义务不增加拥有泛型Enum或callback拥有签名权限，也不以省略必要证明维持旧费用。
+
 公共schema/Wire/指纹迁移为30；新增opcode90–93依次对应本地Tag、本地Copy Read、Unpack、Drop。旧版本明确拒绝，历史Wire字节及失败证据保留，已核Copy Enum的CT执行保持，新增运行时拥有操作明确CT禁止。类型/路径/变体/目标索引、完整类型复制、来源映射、合流、布局和清理计划在增长前预付既有数量/深度/工作额度，默认限额不提高；除上述具名Copy泛型enum资格核之外，旧无新形状profile费用保持。必须覆盖原Q的03/05失败源原样晋升及已有01/02/04/06、多字段/同型Store/右嵌套pattern、跨模块参数返回、Product<Sum>与错误载荷、准备失败/替换/defer顺序、活窗口与重复消费、raw/Wire陈旧tag及错误目标、N/N−1/fresh和O0/O2真实分配失败。登记仅为施工合同，不代表验收或完整语言完成。
 
 ### 8.2 泛型 Store 元素资格
