@@ -1,0 +1,21 @@
+   Compiling zil-types v0.1.0 (/workspace/zil-core/crates/zil-types)
+error[E0062]: field `aggregate_templates` specified more than once
+   --> crates/zil-types/src/inference.rs:645:9
+    |
+638 |         aggregate_templates: core.aggregate_templates.clone(),
+    |         ----------------------------------------------------- first use of `aggregate_templates`
+...
+645 |         aggregate_templates: core.aggregate_templates.clone(),
+    |         ^^^^^^^^^^^^^^^^^^^ used more than once
+
+error[E0062]: field `aggregate_applications` specified more than once
+   --> crates/zil-types/src/inference.rs:646:9
+    |
+639 |         aggregate_applications: core.aggregate_applications.clone(),
+    |         ----------------------------------------------------------- first use of `aggregate_applications`
+...
+646 |         aggregate_applications: core.aggregate_applications.clone(),
+    |         ^^^^^^^^^^^^^^^^^^^^^^ used more than once
+
+For more information about this error, try `rustc --explain E0062`.
+error: could not compile `zil-types` (lib) due to 2 previous errors

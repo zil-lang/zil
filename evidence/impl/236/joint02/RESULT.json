@@ -1,0 +1,142 @@
+{
+  "status": "Pass",
+  "scope": "Root-delegated limited 236 consumer validation on an intermediate integration candidate",
+  "candidate_commit": "0df77455c55e51eab6415ba10ea6926ca6a6a86c",
+  "candidate_was_clean_before_and_after_execution": true,
+  "cli_sha256": "fd66f22106e9b9787950d4d412a568c787782e672bfeb19b737ae8f4c4a1bec7",
+  "source_manifest_sha256": "c539d3c7a9054b33d6cce1987ac8fd1dfedcd1e590b064ae67ce5aff0c04f4ab",
+  "oracle_sha256": "5d3928abeb65d677518a93c9649ac3641ba2d403c448be0a59b4dcbbb5e12c25",
+  "consumer_source_and_oracle_changed": false,
+  "execution_owner": "/root/zui_language_consumer",
+  "compiler_build": {
+    "status": "Pass",
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "-p",
+      "zil-cli",
+      "--features",
+      "llvm-api"
+    ],
+    "cargo_seconds": 9.9,
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-core",
+    "CARGO_BUILD_JOBS": 1,
+    "CARGO_INCREMENTAL": 0
+  },
+  "main_matrix": {
+    "status": "Pass",
+    "native_builds": 2,
+    "source_modules_per_build": 5,
+    "backend": "llvm-api",
+    "verified_builder_objects_per_build": 1,
+    "ordinary_executions": 48,
+    "allocator_executions": 302,
+    "actual_injected_allocation_failures": 206,
+    "all_final_live_zero": true,
+    "all_allocated_equals_frees": true,
+    "max_peak_live_allocations": 12,
+    "max_peak_requested_payload_bytes": 417,
+    "note": "Payload is actual requested allocator bytes for these inputs, not RSS, a universal upper bound or a Rust comparison."
+  },
+  "current_controls": {
+    "status": "Pass",
+    "native_builds": 4,
+    "ordinary_executions": 4,
+    "allocator_executions": 10,
+    "actual_injected_allocation_failures": 2,
+    "all_final_live_zero": true,
+    "all_allocated_equals_frees": true,
+    "defer_control_allocation_calls": 0,
+    "scheduler_sha256": "33e66f6033803670c2fe0b6928bb75910b5cb4dd68cc1673767bb65b36b84175",
+    "note": "Separate existing-shape leaf A/FA and capture-free defer Q controls. Baseline-only tracked controls.py still expects Unsupported and was intentionally not run on the implemented candidate."
+  },
+  "negative_test": {
+    "status": "Pass",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--test",
+      "impl236_zui_core",
+      "nearest_missing_refill_and_live_window_counterexamples",
+      "--",
+      "--exact",
+      "--test-threads=1"
+    ],
+    "tests_passed": 1,
+    "tests_failed": 0,
+    "tests_ignored": 0,
+    "tests_filtered_out": 2,
+    "source_reports": [
+      {
+        "path": "attempt02/negative-test-reports/consumer236-counterexample-control-83413/report.json",
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      {
+        "path": "attempt02/negative-test-reports/consumer236-live-window-83413/report.json",
+        "status": "SafeReject",
+        "phase": "analyze",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "captured Store transition invalidates a live element window",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "path": "attempt02/negative-test-reports/consumer236-missing-refill-83413/report.json",
+        "status": "SafeReject",
+        "phase": "analyze",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: whole aggregate move requires every owned element or field live",
+            "span": null,
+            "notes": []
+          }
+        ]
+      }
+    ],
+    "note": "CLI matrix already covers the other two tests positive/native outcomes, so their native loops were not repeated."
+  },
+  "total_native_executions_this_successful_candidate": 364,
+  "author_238_native_runs_included": false,
+  "previous_236_or_baseline_runs_included": false,
+  "earlier_attempt": {
+    "status": "BuildFailure",
+    "candidate_commit": "c470c0a04c276e0266b28d98728c9e510760eb85",
+    "compiler_exit": 101,
+    "reason": "Duplicate aggregate_templates/aggregate_applications initializer fields; fixed by integrator, not consumer",
+    "native_executions": 0,
+    "path": "attempt01-build-failure/BUILD-FAILURE.json"
+  },
+  "native_optimization_levels": [
+    "O0",
+    "O2"
+  ],
+  "native_windows": "NotRun",
+  "wine": "NotRun",
+  "full_workspace_gate": "NotRun",
+  "final_integration_acceptance": "NotClaimed",
+  "full_language": "NotSatisfied",
+  "full_zui": "NotClaimed",
+  "product": "NotRun",
+  "rust_comparative_runtime_memory_maintenance_compile": "NotMeasured",
+  "raw_directory": "/workspace/.zil-env/236-joint02"
+}
