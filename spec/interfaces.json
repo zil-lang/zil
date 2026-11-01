@@ -113,13 +113,14 @@
       "template": "CoreAggregateTemplate { id:NodeId, name:String, parameter:CoreTypeParameter, fields:Vec<CoreAggregateFieldRecipe>, span:Span }; field { name:String, public:bool, manages:bool, ty:CoreAggregateTypeRecipe, span:Span }. Recipe = Concrete(Type) | Parameter{index:u32} | Store{element:Box<Recipe>} | Apply{module:ModuleId,template:NodeId,arguments:Vec<Recipe>}.",
       "application": "CoreAggregateApplication { aggregate:NodeId, template_module:ModuleId, template:NodeId, owner:Option<CoreAggregateOwner>, arguments:Vec<CoreAggregateArgument> }; Owner { module:ModuleId,function:NodeId }; Argument = Concrete(Type) | Parameter{index:u32}. Template formal and caller formal are distinct binders.",
       "responsibility": "All unused metadata checked and prepaid. Resolve by exact caller owner; canonical identity uses original family and full concrete arguments including phantom. Generated headers must match recipes. No capability grant; final actual Package/Store independently checked by Analyze and Verify.",
-      "compatibility": "schema/Wire/fingerprint29; no new Typed instruction. CT normalization preserves tables; CT execution forbidden. Empty old-table fees unchanged."
+      "compatibility": "schema/Wire/fingerprint29; no new Typed instruction. CT normalization preserves tables; CT execution forbidden. Empty old-table fees unchanged.",
+      "inference": "Ordinary Product value parameters infer the unique T from checked original family and full actual argument registry, including phantom. All constraints and explicit arguments must agree; no field-layout guessing or cross-owner permission."
     },
     "ordinary_product_assignment_238": {
       "authority": "_zil_design.md §8.1.3.1",
       "state": "ContractToImplement",
       "representation": "Existing same-shape Package shell and Read/Take/Drop/StorePackageField, MakePackage and ordinary temporary cleanup. No new runtime opcode or permission.",
-      "scope": "Mutable ordinary Product without whole user teardown; independent RHS, or static ordinary call with exactly one direct target-local argument and no other free target reference. Other whole moves preserve TakeLocal semantics.",
+      "scope": "Mutable ordinary Product without whole user teardown; independent RHS, or static ordinary call (including uniquely instantiated ordinary templates and explicit TypeApply) with exactly one direct target-local argument and no other free target reference. Other whole moves preserve TakeLocal semantics.",
       "responsibility": "Keep original shell construction age; fully prepare before ordered old-field cleanup and infallible publication. Actual source/loan/debt and failed preparation checked by existing independent kernels; no Copy read after whole move admitted."
     }
   },
