@@ -1,0 +1,18 @@
+{
+  "sha256": "1c1c423859df0154e3a30a8a9386f8d309d24114c318a4fd16859005009e535f",
+  "inputs": [
+    "final239-243-P-capture-supplement",
+    "final239-243-P-capture-supplement.log",
+    "final239-243-P-local-capture-supplement",
+    "final239-243-P-local-capture-supplement.log",
+    "final239-243-P-local-capture02",
+    "final239-243-P-local-capture02.log",
+    "final239-243-P-unread-capture.log",
+    "final239-243-P-unread-capture02.log",
+    "final239-243-P-unread-capture03",
+    "final239-243-P-unread-capture03.log",
+    "final239-243-P-slot-supplement",
+    "final239-243-P-slot-supplement.log"
+  ],
+  "note": "Two early malformed fixture controls produced no artifact directories; their actual logs are included. This successful archive replaces a first tar invocation that named those nonexistent directories; final real raw modules/Wire/results remain unchanged."
+}
