@@ -102,6 +102,168 @@ fn rejected(module: &Module, expected: &str) {
     assert_eq!(validation_only, expected, "validation-only first error");
 }
 
+#[test]
+fn borrowed_result_types_preserve_aggregate_projection_and_gep() {
+    let aggregate = Ty::Named("Pair".into());
+    let array = Ty::array(2, Ty::Int(32));
+    let mut function = function_item(
+        "projection",
+        vec![block(
+            "entry",
+            vec![
+                inst(
+                    Some("pair"),
+                    Op::Freeze(Arg::new(aggregate.clone(), Val::Local("input".into()))),
+                ),
+                inst(
+                    Some("array"),
+                    Op::Extract {
+                        arg: Arg::new(aggregate.clone(), Val::Local("pair".into())),
+                        index: 0,
+                    },
+                ),
+                inst(
+                    Some("value"),
+                    Op::Extract {
+                        arg: Arg::new(array.clone(), Val::Local("array".into())),
+                        index: 1,
+                    },
+                ),
+                inst(
+                    Some("slot"),
+                    Op::Alloca {
+                        ty: aggregate.clone(),
+                        align: 8,
+                    },
+                ),
+                inst(
+                    Some("field"),
+                    Op::Gep {
+                        ty: aggregate,
+                        ptr: Val::Local("slot".into()),
+                        indices: vec![
+                            Arg::new(Ty::Int(64), Val::Int(0)),
+                            Arg::new(Ty::Int(32), Val::Int(0)),
+                            Arg::new(Ty::Int(64), Val::Int(1)),
+                        ],
+                    },
+                ),
+                inst(
+                    None,
+                    Op::Store {
+                        arg: Arg::new(Ty::Int(32), Val::Local("value".into())),
+                        ptr: Val::Local("field".into()),
+                        align: 4,
+                    },
+                ),
+                inst(
+                    Some("loaded"),
+                    Op::Load {
+                        ty: Ty::Int(32),
+                        ptr: Val::Local("field".into()),
+                        align: 4,
+                    },
+                ),
+                ret(Val::Local("loaded".into())),
+            ],
+        )],
+    );
+    let Item::Function(f) = &mut function else {
+        unreachable!()
+    };
+    f.signature.params.push(Param {
+        ty: Ty::Named("Pair".into()),
+        name: Some("input".into()),
+        attrs: vec![],
+    });
+    let mut model = module(vec![Item::NamedType("Pair".into(), vec![array]), function]);
+    accepted(&model);
+
+    // A named projection borrows the same field stored in this current model;
+    // ordinary result types borrow the instruction rather than a copied tree.
+    let Item::NamedType(name, fields) = &model.items[0] else {
+        unreachable!()
+    };
+    let world = World {
+        named: BTreeMap::from([(name.as_str(), fields)]),
+        symbols: BTreeMap::new(),
+        valid_named: RefCell::new(BTreeMap::new()),
+    };
+    let Item::Function(f) = &model.items[1] else {
+        unreachable!()
+    };
+    let instructions = &f.blocks.as_ref().unwrap()[0].instructions;
+    assert!(std::ptr::eq(
+        world.result(&instructions[1].op).unwrap().unwrap(),
+        &fields[0]
+    ));
+    let Op::Freeze(arg) = &instructions[0].op else {
+        unreachable!()
+    };
+    assert!(std::ptr::eq(
+        world.result(&instructions[0].op).unwrap().unwrap(),
+        &arg.ty
+    ));
+
+    let Item::Function(f) = &mut model.items[1] else {
+        unreachable!()
+    };
+    let Op::Gep { indices, .. } = &mut f.blocks.as_mut().unwrap()[0].instructions[4].op else {
+        unreachable!()
+    };
+    indices[1].ty = Ty::Int(64);
+    rejected(
+        &model,
+        "@projection / entry / 4: struct GEP index must be i32",
+    );
+}
+
+#[test]
+fn borrowed_results_keep_result_type_and_identifier_error_order() {
+    for (operation, expected) in [
+        (
+            Op::Freeze(Arg::new(Ty::Int(7), Val::Zero)),
+            "unsupported machine integer width",
+        ),
+        (
+            Op::Extract {
+                arg: Arg::new(Ty::Struct(vec![Ty::Int(7)]), Val::Zero),
+                index: 1,
+            },
+            "aggregate index outside struct",
+        ),
+        (
+            Op::Extract {
+                arg: Arg::new(Ty::Struct(vec![Ty::Int(7)]), Val::Zero),
+                index: 0,
+            },
+            "unsupported machine integer width",
+        ),
+        (
+            Op::Extract {
+                arg: Arg::new(Ty::array(2, Ty::Int(32)), Val::Zero),
+                index: 2,
+            },
+            "aggregate index outside machine array",
+        ),
+        (
+            Op::Freeze(Arg::new(Ty::Struct(vec![Ty::Int(32)]), Val::Zero)),
+            "invalid/duplicate SSA definition %!invalid",
+        ),
+    ] {
+        rejected(
+            &module(vec![function_item(
+                "ordered",
+                vec![block(
+                    "entry",
+                    vec![inst(Some("!invalid"), operation), ret(Val::Int(0))],
+                )],
+            )]),
+            expected,
+        );
+    }
+}
+
 fn before(schedule: &[(usize, usize)], definition: (usize, usize), use_: (usize, usize)) {
     let position = |needle| {
         schedule
