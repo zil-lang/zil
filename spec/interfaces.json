@@ -93,6 +93,18 @@
       "state": "ContractToImplement",
       "representation": "Existing ordinary trait/receiver/static-call identity after real project module resolution; local concrete Self only.",
       "responsibility": "Public imported ordinary trait; actual signature/receiver, nominal ownership, duplicate/collision and reserved-name validation; no implicit permissions or runtime dictionary."
+    },
+    "synchronous_defer_227": {
+      "authority": "_zil_design.md §7.1",
+      "state": "ContractToImplement",
+      "representation": "Core Defer block and Typed RegisterDefer { scope, local }; schema/Wire/fingerprint28. Actual adjacent TakeLocal + zero-argument CallClosureOnce discharges the obligation, never a producer claim.",
+      "responsibility": "Independent Analyze and Verify track pending actions per scope activation and mixed reverse successful-construction order, including empty/Copy environments. Current Verify always executes."
+    },
+    "ordinary_product_store_235": {
+      "authority": "_zil_design.md §8.1.3",
+      "state": "ContractToImplement",
+      "representation": "Existing Package and Managed<OwnedStore<T>> with actual field operations, complete child and prefix layout. No new instruction or capability bit for 235.",
+      "responsibility": "Ordinary ownership admission only; independent canonical definitions, provenance, complete-state and cleanup checks. Preserve prior shared/capture/StoreElement/array/Sum gates."
     }
   },
   "schemas": [
