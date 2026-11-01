@@ -132,6 +132,114 @@ pub(crate) fn prepare(
     count: usize,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Option<Prepared> {
+    prepare_inner(module, lir, hints, count, cancelled, false)
+}
+
+/// The closed collector has already selected the current emitted definitions.
+/// Rebind their original source identities without cloning the removed bodies.
+/// The original model admission and complete preflight still run in inner.
+pub(crate) fn prepare_collected(
+    module: &Module,
+    lir: &LirView<'_>,
+    hints: &[(FunctionId, String)],
+    count: usize,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Option<Prepared> {
+    if count < 2
+        || !lir.closures.is_empty()
+        || !lir.resources.is_empty()
+        || hints.is_empty()
+        || hints.len() > MAX_FUNCTIONS
+        || module.items.len() > MAX_WORK
+        || (cancelled)()
+    {
+        return None;
+    }
+    let mut work = Work {
+        remaining: MAX_WORK,
+        cancelled,
+    };
+    let mut ids = BTreeSet::new();
+    let mut foreign_names = BTreeSet::new();
+    for item in &module.items {
+        work.spend(1)?;
+        let Item::Function(function) = item else {
+            return None;
+        };
+        if function.blocks.is_none() {
+            if !function.name.starts_with("llvm.") {
+                foreign_names.insert(function.name.as_str());
+            }
+        } else if function.name != "main" {
+            let id = FunctionId(function.name.strip_prefix("zil.fn.")?.parse().ok()?);
+            if function.name != source_symbol(id) || !ids.insert(id) || ids.len() > 8 {
+                return None;
+            }
+        }
+    }
+    if ids.is_empty() {
+        return None;
+    }
+    let mut functions = Vec::new();
+    for &id in &ids {
+        work.spend(1)?;
+        let function = lir.functions.get(id.0 as usize)?;
+        if function.id != id || function.foreign.is_some() {
+            return None;
+        }
+        functions.push(function.clone());
+    }
+    // Existing admission recognizes external declarations through the current
+    // LIR foreign symbols. Keep exactly those still present in the small model.
+    if !foreign_names.is_empty() {
+        for function in lir.functions {
+            work.spend(1)?;
+            if let Some(foreign) = &function.foreign
+                && foreign_names.remove(foreign.symbol.as_str())
+            {
+                functions.push(function.clone());
+                if foreign_names.is_empty() {
+                    break;
+                }
+            }
+        }
+        if !foreign_names.is_empty() {
+            return None;
+        }
+    }
+    let mut selected_hints = Vec::new();
+    let mut key_bytes = 0usize;
+    for (id, key) in hints {
+        work.spend(1)?;
+        if ids.contains(id) {
+            key_bytes = key_bytes.checked_add(key.len())?;
+            if key_bytes > MAX_KEY_BYTES {
+                return None;
+            }
+            selected_hints.push((*id, key.clone()));
+        }
+    }
+    let selected = LirView {
+        schema_version: lir.schema_version,
+        module_id: lir.module_id,
+        verified_fingerprint: lir.verified_fingerprint,
+        target: lir.target,
+        functions: &functions,
+        closures: lir.closures,
+        resources: lir.resources,
+        layouts: std::borrow::Cow::Borrowed(lir.layouts.as_ref()),
+    };
+    prepare_inner(module, &selected, &selected_hints, count, cancelled, true)
+}
+
+fn prepare_inner(
+    module: &Module,
+    lir: &LirView<'_>,
+    hints: &[(FunctionId, String)],
+    count: usize,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    allow_single_owner: bool,
+) -> Option<Prepared> {
     if count < 2
         || !lir.closures.is_empty()
         || !lir.resources.is_empty()
@@ -344,7 +452,7 @@ pub(crate) fn prepare(
                 .insert(*declaration_ids.get(reference)?);
         }
     }
-    if owners.values().copied().collect::<BTreeSet<_>>().len() < 2 {
+    if !allow_single_owner && owners.values().copied().collect::<BTreeSet<_>>().len() < 2 {
         return None;
     }
     work.spend(1)?;

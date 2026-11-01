@@ -247,8 +247,7 @@ pub fn build_view_with_cancellation_and_stable_names(
         crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
         crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
     }
-    let mut stable = if !collected_closed
-        && options.closed_executable
+    let mut stable = if options.closed_executable
         && options.backend == NativeBackend::LlvmApi
         && options.optimization == Optimization::O2
         && options.incremental_o2
@@ -257,13 +256,23 @@ pub fn build_view_with_cancellation_and_stable_names(
         && lir.target.triple == "x86_64-unknown-linux-gnu"
     {
         stable_names.and_then(|names| {
-            crate::machine_stable_identity::prepare(
-                &machine,
-                lir,
-                names,
-                options.codegen.units,
-                cancelled,
-            )
+            if collected_closed {
+                crate::machine_stable_identity::prepare_collected(
+                    &machine,
+                    lir,
+                    names,
+                    options.codegen.units,
+                    cancelled,
+                )
+            } else {
+                crate::machine_stable_identity::prepare(
+                    &machine,
+                    lir,
+                    names,
+                    options.codegen.units,
+                    cancelled,
+                )
+            }
         })
     } else {
         None
@@ -277,7 +286,12 @@ pub fn build_view_with_cancellation_and_stable_names(
     // complete original-model preflight. Existing per-unit API preflight still runs
     // immediately before its LLVMBuilder calls and cannot be bypassed.
     let llvm = machine.to_text();
-    let (mut plan, stable_candidates, stable_diagnostic) = if collected_closed {
+    let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
+        let trace =
+            std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
+        let (plan, candidates, diagnostic) = stable.partition(machine, trace);
+        (plan, Some(candidates), diagnostic)
+    } else if collected_closed {
         (
             crate::machine_cgu::Plan {
                 units: vec![machine],
@@ -286,11 +300,6 @@ pub fn build_view_with_cancellation_and_stable_names(
             None,
             None,
         )
-    } else if let Some(stable) = stable {
-        let trace =
-            std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
-        let (plan, candidates, diagnostic) = stable.partition(machine, trace);
-        (plan, Some(candidates), diagnostic)
     } else {
         (
             crate::machine_cgu::partition_view(
