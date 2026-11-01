@@ -1,0 +1,28 @@
+{
+  "status": "Pass",
+  "scope": "Public declarations, codec, bounded path/field preflight and fingerprint only; dependent crate exhaustive matches pending their owners",
+  "worktree": "/workspace/zil-239",
+  "source_base_commit": "79ed2b4bf697d4d74fb40281528bcbe2aaba55f1",
+  "command": [
+    "cargo",
+    "check",
+    "--locked",
+    "-p",
+    "zil-base",
+    "-p",
+    "zil-ir"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-239",
+    "CARGO_BUILD_JOBS": 1,
+    "CARGO_INCREMENTAL": 0
+  },
+  "schema_version": 30,
+  "wire_version": 30,
+  "domain": "ZIL-TYPED-MODULE-V30\\0",
+  "source_sha256": {
+    "crates/zil-base/src/lib.rs": "324fd823be3d25cf540c181a956f4f275a09e9ceefb7553ebd331b9ee15d1c6a",
+    "crates/zil-ir/src/lib.rs": "0ef283bef7c3a151393e36671cdd33cf5c6a0fa1a392668740c9d0d19ab4faa5",
+    "crates/zil-ir/src/wire.rs": "5ab60b0f037713681909cb40efac07238c49bfa7a80b2d2c22fe42f532949bab"
+  }
+}
