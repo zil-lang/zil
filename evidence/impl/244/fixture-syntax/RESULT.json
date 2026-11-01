@@ -1,0 +1,12 @@
+{
+  "status": "FixtureSyntaxCorrectionOnly",
+  "original_frozen_commit": "ec3580d86",
+  "original_failure": "/workspace/.zil-env/sum-integration-debug/consumer244-first",
+  "observed_by": "root independent consumer execution",
+  "production_changes": false,
+  "change": "Add () to the qualified Unit patterns state.Phase.Empty() and state.Right.Empty(); other source bytes unchanged.",
+  "constructor_check": "Existing original Q05 proves qualified Unit expression construction MaybeSession.Empty without () is legal. state.zil uses the same existing expression form, not a pattern; no constructor rewrite.",
+  "oracle_sha256_unchanged": "e357f2d4f553f87d6b5ba0d3570fcc133d2582895c8708aecd6752fdbcc0b254",
+  "source_sha256_after": "7dfd2262f9a69936ffb95ae1f2058bd5f077659c4231238658c2fb9db3f0f018",
+  "new_execution": "NotRun by consumer author; root first failure retained"
+}
