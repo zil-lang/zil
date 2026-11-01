@@ -1,0 +1,11 @@
+   Compiling impl240-helper-budget-current v0.0.0 (/tmp/impl240-helper-budget/current)
+    Finished `dev` profile [unoptimized] target(s) in 0.25s
+     Running `/workspace/.zil-env/target-240/debug/impl240-helper-budget-current /tmp/impl240-helper-budget /tmp/impl240-helper-budget/receipts-owner-join owner-join old-give-param old-package-field old-copy-enum`
+owner-join Expand N=959 N-1 ResourceLimit, cold/warm/fresh output equal
+owner-join Types N=2250 N-1 ResourceLimit, cold/warm/fresh output equal
+old-give-param Expand N=389 N-1 ResourceLimit, cold/warm/fresh output equal
+old-give-param Types N=544 N-1 ResourceLimit, cold/warm/fresh output equal
+old-package-field Expand N=430 N-1 ResourceLimit, cold/warm/fresh output equal
+old-package-field Types N=711 N-1 ResourceLimit, cold/warm/fresh output equal
+old-copy-enum Expand N=296 N-1 ResourceLimit, cold/warm/fresh output equal
+old-copy-enum Types N=219 N-1 ResourceLimit, cold/warm/fresh output equal
