@@ -333,7 +333,12 @@ fn normalize(
             combined.items.push(item);
         }
     }
-    let specialized = generics::specialize(&combined, limits).map_err(|mut e| e.remove(0))?;
+    let specialized = match generics::specialize(&combined, limits).map_err(|mut e| e.remove(0))? {
+        // A borrowed result is the unchanged combined input. Keep that owned
+        // syntax rather than cloning it again while redistributing modules.
+        Cow::Borrowed(_) => combined,
+        Cow::Owned(module) => module,
+    };
     let mut output = modules
         .iter()
         .zip(imports)
@@ -368,13 +373,19 @@ fn normalize(
                 false,
             ));
         }
-        output[position].0.items.push(item.clone());
     }
     let method_owners = if has_project_trait_impl {
         project_traits::method_owners(&specialized, modules, &files, &mut budget)?
     } else {
         BTreeMap::new()
     };
+    // All source identities, budget visits and project-method checks above
+    // retain their original order. No fallible check depends on the copies;
+    // transfer each declaration only after those checks have succeeded.
+    for item in specialized.items {
+        let position = files[&item.span.file];
+        output[position].0.items.push(item);
+    }
     for (module, edges) in &mut output {
         if !method_owners.is_empty() {
             for item in &module.items {
