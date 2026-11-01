@@ -1,0 +1,310 @@
+fn R.$drop FunctionId(0)
+  LocalId(0) self Desc(Record { name: "@module0:R", fields: [("n", I32)] })
+  BlockId(0)
+    None = ScopeEnter { scope: ScopeId(0) }
+    None = ScopeEnter { scope: ScopeId(1) }
+    None = ScopeExit { scope: ScopeId(1), kind: Fallthrough }
+    None = StorageDead(LocalId(0))
+    None = ScopeExit { scope: ScopeId(0), kind: Return }
+    exit Return(None)
+fn make FunctionId(1)
+  LocalId(0) $record_field_0 i32
+  LocalId(1) $temporary1 Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(2) $record_field_1 i32
+  LocalId(3) $temporary3 Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(4) $record_field_2 i32
+  LocalId(5) $temporary5 Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(6) $temporary6 Enum { name: "@module0:Inner", variants: [("Nil", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Managed(Record { name: "@module0:R", fields: [("n", I32)] })])] }
+  BlockId(0)
+    None = ScopeEnter { scope: ScopeId(0) }
+    None = ScopeEnter { scope: ScopeId(1) }
+    None = StorageLive(LocalId(6))
+    None = StorageLive(LocalId(5))
+    None = StorageLive(LocalId(3))
+    None = StorageLive(LocalId(1))
+    None = ScopeEnter { scope: ScopeId(2) }
+    Some(ValueId(0)) = Constant(I32(65))
+    None = StorageLive(LocalId(0))
+    None = Store { local: LocalId(0), value: ValueId(0) }
+    Some(ValueId(1)) = Load(LocalId(0))
+    Some(ValueId(2)) = MakeManaged { fields: [ValueId(1)] }
+    None = StorageDead(LocalId(0))
+    None = ScopeExit { scope: ScopeId(2), kind: Fallthrough }
+    None = Store { local: LocalId(1), value: ValueId(2) }
+    None = ScopeEnter { scope: ScopeId(3) }
+    Some(ValueId(3)) = Constant(I32(67))
+    None = StorageLive(LocalId(2))
+    None = Store { local: LocalId(2), value: ValueId(3) }
+    Some(ValueId(4)) = Load(LocalId(2))
+    Some(ValueId(5)) = MakeManaged { fields: [ValueId(4)] }
+    None = StorageDead(LocalId(2))
+    None = ScopeExit { scope: ScopeId(3), kind: Fallthrough }
+    None = Store { local: LocalId(3), value: ValueId(5) }
+    None = ScopeEnter { scope: ScopeId(4) }
+    Some(ValueId(6)) = Constant(I32(68))
+    None = StorageLive(LocalId(4))
+    None = Store { local: LocalId(4), value: ValueId(6) }
+    Some(ValueId(7)) = Load(LocalId(4))
+    Some(ValueId(8)) = MakeManaged { fields: [ValueId(7)] }
+    None = StorageDead(LocalId(4))
+    None = ScopeExit { scope: ScopeId(4), kind: Fallthrough }
+    None = Store { local: LocalId(5), value: ValueId(8) }
+    Some(ValueId(9)) = TakeLocal { local: LocalId(3) }
+    Some(ValueId(10)) = TakeLocal { local: LocalId(5) }
+    Some(ValueId(11)) = MakeVariant { variant: 1, fields: [ValueId(9), ValueId(10)] }
+    None = Store { local: LocalId(6), value: ValueId(11) }
+    Some(ValueId(12)) = TakeLocal { local: LocalId(1) }
+    Some(ValueId(13)) = TakeLocal { local: LocalId(6) }
+    Some(ValueId(14)) = MakeVariant { variant: 1, fields: [ValueId(12), ValueId(13)] }
+    None = DropEnum { local: LocalId(6) }
+    None = StorageDead(LocalId(6))
+    None = DropManaged { local: LocalId(5) }
+    None = StorageDead(LocalId(5))
+    None = DropManaged { local: LocalId(3) }
+    None = StorageDead(LocalId(3))
+    None = DropManaged { local: LocalId(1) }
+    None = StorageDead(LocalId(1))
+    None = ScopeExit { scope: ScopeId(1), kind: Return }
+    None = ScopeExit { scope: ScopeId(0), kind: Return }
+    exit Return(Some(ValueId(14)))
+fn relay FunctionId(2)
+  LocalId(0) value Enum { name: "@module0:Outer", variants: [("Empty", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Enum { name: "@module0:Inner", variants: [("Nil", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Managed(Record { name: "@module0:R", fields: [("n", I32)] })])] }]), ("Copy", [I32])] }
+  BlockId(0)
+    None = ScopeEnter { scope: ScopeId(0) }
+    None = ScopeEnter { scope: ScopeId(1) }
+    Some(ValueId(0)) = TakeLocal { local: LocalId(0) }
+    None = ScopeExit { scope: ScopeId(1), kind: Return }
+    None = DropEnum { local: LocalId(0) }
+    None = StorageDead(LocalId(0))
+    None = ScopeExit { scope: ScopeId(0), kind: Return }
+    exit Return(Some(ValueId(0)))
+fn main FunctionId(3)
+  LocalId(0) value Package { name: "$sum240$FunctionId(3)$0", fields: [("$value240", Enum { name: "@module0:Outer", variants: [("Empty", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Enum { name: "@module0:Inner", variants: [("Nil", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Managed(Record { name: "@module0:R", fields: [("n", I32)] })])] }]), ("Copy", [I32])] })] }
+  LocalId(1) $temporary1 Enum { name: "@module0:Outer", variants: [("Empty", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Enum { name: "@module0:Inner", variants: [("Nil", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Managed(Record { name: "@module0:R", fields: [("n", I32)] })])] }]), ("Copy", [I32])] }
+  LocalId(2) $temporary2 Enum { name: "@module0:Outer", variants: [("Empty", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Enum { name: "@module0:Inner", variants: [("Nil", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Managed(Record { name: "@module0:R", fields: [("n", I32)] })])] }]), ("Copy", [I32])] }
+  LocalId(3) $temporary3 Package { name: "$sum240$FunctionId(3)$0", fields: [("$value240", Enum { name: "@module0:Outer", variants: [("Empty", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Enum { name: "@module0:Inner", variants: [("Nil", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Managed(Record { name: "@module0:R", fields: [("n", I32)] })])] }]), ("Copy", [I32])] })] }
+  LocalId(4) $temporary4 Enum { name: "@module0:Outer", variants: [("Empty", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Enum { name: "@module0:Inner", variants: [("Nil", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Managed(Record { name: "@module0:R", fields: [("n", I32)] })])] }]), ("Copy", [I32])] }
+  LocalId(5) $temporary5 Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(6) $temporary6 Enum { name: "@module0:Inner", variants: [("Nil", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Managed(Record { name: "@module0:R", fields: [("n", I32)] })])] }
+  LocalId(7) $temporary7 Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(8) $temporary8 Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(9) d Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(10) c Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(11) a Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(12) aa Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(13) cc Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(14) dd Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(15) $temporary15 Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(16) $temporary16 Enum { name: "@module0:Inner", variants: [("Nil", []), ("Pair", [Managed(Record { name: "@module0:R", fields: [("n", I32)] }), Managed(Record { name: "@module0:R", fields: [("n", I32)] })])] }
+  LocalId(17) $discard240$17 Managed(Record { name: "@module0:R", fields: [("n", I32)] })
+  LocalId(18) $temporary18 i32
+  LocalId(19) n i32
+  BlockId(0)
+    None = ScopeEnter { scope: ScopeId(0) }
+    None = ScopeEnter { scope: ScopeId(1) }
+    None = StorageLive(LocalId(4))
+    None = StorageLive(LocalId(3))
+    None = StorageLive(LocalId(2))
+    None = StorageLive(LocalId(1))
+    Some(ValueId(0)) = Call { function: FunctionId(1), arguments: [] }
+    Some(ValueId(1)) = MakePackage { fields: [ValueId(0)] }
+    None = StorageLive(LocalId(0))
+    None = Store { local: LocalId(0), value: ValueId(1) }
+    Some(ValueId(2)) = TakePackageField { local: LocalId(0), index: 0 }
+    None = Store { local: LocalId(1), value: ValueId(2) }
+    Some(ValueId(3)) = TakeLocal { local: LocalId(1) }
+    Some(ValueId(4)) = Call { function: FunctionId(2), arguments: [ValueId(3)] }
+    None = Store { local: LocalId(2), value: ValueId(4) }
+    None = DropPackageField { local: LocalId(0), index: 0 }
+    Some(ValueId(5)) = TakeLocal { local: LocalId(2) }
+    None = StorePackageField { local: LocalId(0), index: 0, value: ValueId(5) }
+    None = DropEnum { local: LocalId(2) }
+    None = DropEnum { local: LocalId(1) }
+    Some(ValueId(6)) = TakeLocal { local: LocalId(0) }
+    None = Store { local: LocalId(3), value: ValueId(6) }
+    Some(ValueId(7)) = TakePackageField { local: LocalId(3), index: 0 }
+    None = Store { local: LocalId(4), value: ValueId(7) }
+    Some(ValueId(8)) = VariantTagLocal { local: LocalId(4), path: [] }
+    Some(ValueId(9)) = Constant(I32(1))
+    Some(ValueId(10)) = Binary { op: Equal, left: ValueId(8), right: ValueId(9) }
+    exit Branch { condition: ValueId(10), then_block: BlockId(2), else_block: BlockId(1) }
+  BlockId(1)
+    Some(ValueId(26)) = VariantTagLocal { local: LocalId(4), path: [] }
+    Some(ValueId(27)) = Constant(I32(1))
+    Some(ValueId(28)) = Binary { op: Equal, left: ValueId(26), right: ValueId(27) }
+    exit Branch { condition: ValueId(28), then_block: BlockId(9), else_block: BlockId(8) }
+  BlockId(2)
+    Some(ValueId(11)) = VariantTagLocal { local: LocalId(4), path: [VariantProjection { variant: 1, index: 1 }] }
+    Some(ValueId(12)) = Constant(I32(1))
+    Some(ValueId(13)) = Binary { op: Equal, left: ValueId(11), right: ValueId(12) }
+    exit Branch { condition: ValueId(13), then_block: BlockId(3), else_block: BlockId(1) }
+  BlockId(3)
+    None = ScopeEnter { scope: ScopeId(2) }
+    None = StorageLive(LocalId(8))
+    None = StorageLive(LocalId(7))
+    None = StorageLive(LocalId(6))
+    None = StorageLive(LocalId(5))
+    Some(ValueId(14)) = VariantTagLocal { local: LocalId(4), path: [] }
+    Some(ValueId(15)) = Constant(I32(1))
+    Some(ValueId(16)) = Binary { op: Equal, left: ValueId(14), right: ValueId(15) }
+    exit Branch { condition: ValueId(16), then_block: BlockId(5), else_block: BlockId(4) }
+  BlockId(4)
+    exit Trap
+  BlockId(5)
+    None = UnpackVariant { local: LocalId(4), variant: 1, fields: [LocalId(5), LocalId(6)] }
+    Some(ValueId(17)) = VariantTagLocal { local: LocalId(6), path: [] }
+    Some(ValueId(18)) = Constant(I32(1))
+    Some(ValueId(19)) = Binary { op: Equal, left: ValueId(17), right: ValueId(18) }
+    exit Branch { condition: ValueId(19), then_block: BlockId(7), else_block: BlockId(6) }
+  BlockId(6)
+    exit Trap
+  BlockId(7)
+    None = UnpackVariant { local: LocalId(6), variant: 1, fields: [LocalId(7), LocalId(8)] }
+    Some(ValueId(20)) = TakeLocal { local: LocalId(8) }
+    None = StorageLive(LocalId(9))
+    None = Store { local: LocalId(9), value: ValueId(20) }
+    Some(ValueId(21)) = TakeLocal { local: LocalId(7) }
+    None = StorageLive(LocalId(10))
+    None = Store { local: LocalId(10), value: ValueId(21) }
+    Some(ValueId(22)) = TakeLocal { local: LocalId(5) }
+    None = StorageLive(LocalId(11))
+    None = Store { local: LocalId(11), value: ValueId(22) }
+    None = DropManaged { local: LocalId(8) }
+    None = DropManaged { local: LocalId(7) }
+    None = DropEnum { local: LocalId(6) }
+    None = DropManaged { local: LocalId(5) }
+    None = DropEnum { local: LocalId(4) }
+    None = DropPackage { local: LocalId(3) }
+    None = ScopeEnter { scope: ScopeId(3) }
+    Some(ValueId(23)) = TakeLocal { local: LocalId(11) }
+    None = StorageLive(LocalId(12))
+    None = Store { local: LocalId(12), value: ValueId(23) }
+    Some(ValueId(24)) = TakeLocal { local: LocalId(10) }
+    None = StorageLive(LocalId(13))
+    None = Store { local: LocalId(13), value: ValueId(24) }
+    Some(ValueId(25)) = TakeLocal { local: LocalId(9) }
+    None = StorageLive(LocalId(14))
+    None = Store { local: LocalId(14), value: ValueId(25) }
+    None = DropManaged { local: LocalId(14) }
+    None = StorageDead(LocalId(14))
+    None = DropManaged { local: LocalId(13) }
+    None = StorageDead(LocalId(13))
+    None = DropManaged { local: LocalId(12) }
+    None = StorageDead(LocalId(12))
+    None = ScopeExit { scope: ScopeId(3), kind: Fallthrough }
+    None = DropManaged { local: LocalId(11) }
+    None = StorageDead(LocalId(11))
+    None = DropManaged { local: LocalId(10) }
+    None = StorageDead(LocalId(10))
+    None = DropManaged { local: LocalId(9) }
+    None = StorageDead(LocalId(9))
+    None = StorageDead(LocalId(8))
+    None = StorageDead(LocalId(7))
+    None = StorageDead(LocalId(6))
+    None = StorageDead(LocalId(5))
+    None = ScopeExit { scope: ScopeId(2), kind: Fallthrough }
+    exit Jump(BlockId(23))
+  BlockId(8)
+    Some(ValueId(39)) = VariantTagLocal { local: LocalId(4), path: [] }
+    Some(ValueId(40)) = Constant(I32(0))
+    Some(ValueId(41)) = Binary { op: Equal, left: ValueId(39), right: ValueId(40) }
+    exit Branch { condition: ValueId(41), then_block: BlockId(16), else_block: BlockId(15) }
+  BlockId(9)
+    Some(ValueId(29)) = VariantTagLocal { local: LocalId(4), path: [VariantProjection { variant: 1, index: 1 }] }
+    Some(ValueId(30)) = Constant(I32(0))
+    Some(ValueId(31)) = Binary { op: Equal, left: ValueId(29), right: ValueId(30) }
+    exit Branch { condition: ValueId(31), then_block: BlockId(10), else_block: BlockId(8) }
+  BlockId(10)
+    None = ScopeEnter { scope: ScopeId(4) }
+    None = StorageLive(LocalId(16))
+    None = StorageLive(LocalId(15))
+    Some(ValueId(32)) = VariantTagLocal { local: LocalId(4), path: [] }
+    Some(ValueId(33)) = Constant(I32(1))
+    Some(ValueId(34)) = Binary { op: Equal, left: ValueId(32), right: ValueId(33) }
+    exit Branch { condition: ValueId(34), then_block: BlockId(12), else_block: BlockId(11) }
+  BlockId(11)
+    exit Trap
+  BlockId(12)
+    None = UnpackVariant { local: LocalId(4), variant: 1, fields: [LocalId(15), LocalId(16)] }
+    Some(ValueId(35)) = VariantTagLocal { local: LocalId(16), path: [] }
+    Some(ValueId(36)) = Constant(I32(0))
+    Some(ValueId(37)) = Binary { op: Equal, left: ValueId(35), right: ValueId(36) }
+    exit Branch { condition: ValueId(37), then_block: BlockId(14), else_block: BlockId(13) }
+  BlockId(13)
+    exit Trap
+  BlockId(14)
+    None = UnpackVariant { local: LocalId(16), variant: 0, fields: [] }
+    Some(ValueId(38)) = TakeLocal { local: LocalId(15) }
+    None = StorageLive(LocalId(17))
+    None = Store { local: LocalId(17), value: ValueId(38) }
+    None = DropEnum { local: LocalId(16) }
+    None = DropManaged { local: LocalId(15) }
+    None = ScopeEnter { scope: ScopeId(5) }
+    None = ScopeExit { scope: ScopeId(5), kind: Fallthrough }
+    None = DropManaged { local: LocalId(17) }
+    None = StorageDead(LocalId(17))
+    None = StorageDead(LocalId(16))
+    None = StorageDead(LocalId(15))
+    None = ScopeExit { scope: ScopeId(4), kind: Fallthrough }
+    exit Jump(BlockId(23))
+  BlockId(15)
+    Some(ValueId(45)) = VariantTagLocal { local: LocalId(4), path: [] }
+    Some(ValueId(46)) = Constant(I32(2))
+    Some(ValueId(47)) = Binary { op: Equal, left: ValueId(45), right: ValueId(46) }
+    exit Branch { condition: ValueId(47), then_block: BlockId(20), else_block: BlockId(19) }
+  BlockId(16)
+    None = ScopeEnter { scope: ScopeId(6) }
+    Some(ValueId(42)) = VariantTagLocal { local: LocalId(4), path: [] }
+    Some(ValueId(43)) = Constant(I32(0))
+    Some(ValueId(44)) = Binary { op: Equal, left: ValueId(42), right: ValueId(43) }
+    exit Branch { condition: ValueId(44), then_block: BlockId(18), else_block: BlockId(17) }
+  BlockId(17)
+    exit Trap
+  BlockId(18)
+    None = UnpackVariant { local: LocalId(4), variant: 0, fields: [] }
+    None = ScopeEnter { scope: ScopeId(7) }
+    None = ScopeExit { scope: ScopeId(7), kind: Fallthrough }
+    None = ScopeExit { scope: ScopeId(6), kind: Fallthrough }
+    exit Jump(BlockId(23))
+  BlockId(19)
+    exit Trap
+  BlockId(20)
+    Some(ValueId(48)) = ReadVariantLocal { local: LocalId(4), path: [VariantProjection { variant: 2, index: 0 }] }
+    None = ScopeEnter { scope: ScopeId(8) }
+    None = StorageLive(LocalId(18))
+    Some(ValueId(49)) = VariantTagLocal { local: LocalId(4), path: [] }
+    Some(ValueId(50)) = Constant(I32(2))
+    Some(ValueId(51)) = Binary { op: Equal, left: ValueId(49), right: ValueId(50) }
+    exit Branch { condition: ValueId(51), then_block: BlockId(22), else_block: BlockId(21) }
+  BlockId(21)
+    exit Trap
+  BlockId(22)
+    None = UnpackVariant { local: LocalId(4), variant: 2, fields: [LocalId(18)] }
+    None = StorageLive(LocalId(19))
+    None = Store { local: LocalId(19), value: ValueId(48) }
+    None = ScopeEnter { scope: ScopeId(9) }
+    Some(ValueId(52)) = Load(LocalId(19))
+    None = ScopeExit { scope: ScopeId(9), kind: Return }
+    None = StorageDead(LocalId(19))
+    None = StorageDead(LocalId(18))
+    None = ScopeExit { scope: ScopeId(8), kind: Return }
+    None = StorageDead(LocalId(4))
+    None = StorageDead(LocalId(3))
+    None = StorageDead(LocalId(2))
+    None = StorageDead(LocalId(1))
+    None = DropPackage { local: LocalId(0) }
+    None = StorageDead(LocalId(0))
+    None = ScopeExit { scope: ScopeId(1), kind: Return }
+    None = ScopeExit { scope: ScopeId(0), kind: Return }
+    exit Return(Some(ValueId(52)))
+  BlockId(23)
+    Some(ValueId(53)) = Constant(I32(0))
+    None = StorageDead(LocalId(4))
+    None = StorageDead(LocalId(3))
+    None = StorageDead(LocalId(2))
+    None = StorageDead(LocalId(1))
+    None = DropPackage { local: LocalId(0) }
+    None = StorageDead(LocalId(0))
+    None = ScopeExit { scope: ScopeId(1), kind: Return }
+    None = ScopeExit { scope: ScopeId(0), kind: Return }
+    exit Return(Some(ValueId(53)))

@@ -243,6 +243,157 @@ fn owned_sum_stale_tag_after_take_store_cannot_reauthorize_current_local() {
 }
 
 #[test]
+fn owned_sum_stale_observation_does_not_survive_activation_or_a_loop() {
+    let mut m = tested_parameter();
+    let f = &mut m.functions[0];
+    let index = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::VariantTagLocal { .. }))
+        .unwrap()
+        + 1;
+    let value = ValueId(f.values.len() as u32);
+    f.values.push(sum());
+    f.blocks[0].instructions.splice(
+        index..index,
+        [
+            ins(
+                Some(value),
+                InstructionKind::TakeLocal { local: LocalId(0) },
+            ),
+            ins(None, InstructionKind::StorageDead(LocalId(0))),
+            ins(None, InstructionKind::StorageLive(LocalId(0))),
+            ins(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(0),
+                    value,
+                },
+            ),
+        ],
+    );
+    reject_semantic(m, "exact selected tag");
+    let mut m = tested_parameter();
+    let f = &mut m.functions[0];
+    let condition = match f.blocks[0].terminator {
+        Terminator::Branch { condition, .. } => condition,
+        _ => unreachable!(),
+    };
+    let moved = ValueId(f.values.len() as u32);
+    f.values.push(sum());
+    f.blocks[0].terminator = Terminator::Jump(BlockId(3));
+    f.blocks.push(BasicBlock {
+        id: BlockId(3),
+        instructions: vec![
+            ins(
+                Some(moved),
+                InstructionKind::TakeLocal { local: LocalId(0) },
+            ),
+            ins(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(0),
+                    value: moved,
+                },
+            ),
+        ],
+        terminator: Terminator::Branch {
+            condition,
+            then_block: BlockId(1),
+            else_block: BlockId(3),
+        },
+    });
+    reject_semantic(m, "exact selected tag");
+}
+
+#[test]
+fn owned_sum_vacant_drop_is_conditional_but_dead_storage_is_not() {
+    let mut b = Body::new(Type::Unit);
+    let local = b.storage(sum());
+    b.op(InstructionKind::DropEnum { local });
+    b.op(InstructionKind::DropEnum { local });
+    accepted(module(b.finish(None, CleanupExitKind::Return)));
+    let mut b = Body::new(Type::Unit);
+    let local = b.storage(sum());
+    b.op(InstructionKind::StorageDead(local));
+    b.op(InstructionKind::DropEnum { local });
+    // Avoid a second StorageDead from the fixture's ordinary finalizer.
+    b.op(InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Return,
+    });
+    b.0.blocks[0].terminator = Terminator::Return(None);
+    reject_semantic(module(b.0), "outside its active storage");
+}
+
+#[test]
+fn owned_sum_fresh_leaf_survives_product_and_error_union_packaging() {
+    let mut b = Body::new(owned());
+    b.0.result_mode = PassingMode::Create;
+    let a = b.token(65);
+    let c = b.token(66);
+    let n = b.value(Type::I32, InstructionKind::Constant(Constant::I32(7)));
+    let inner = b.value(
+        sum(),
+        InstructionKind::MakeVariant {
+            variant: 0,
+            fields: vec![a, c, n],
+        },
+    );
+    let root_ty = Type::Package {
+        name: "SumRoot".into(),
+        fields: vec![("state".into(), sum())],
+    };
+    let package = b.value(
+        root_ty.clone(),
+        InstructionKind::MakePackage {
+            fields: vec![inner],
+        },
+    );
+    let union_ty = Type::ErrorUnion {
+        error: Box::new(Type::Unit),
+        result: Box::new(root_ty.clone()),
+    };
+    let union = b.value(
+        union_ty,
+        InstructionKind::MakeErrorUnion {
+            is_error: false,
+            value: package,
+        },
+    );
+    let package = b.value(
+        root_ty.clone(),
+        InstructionKind::TakeErrorUnion {
+            value: union,
+            is_error: false,
+        },
+    );
+    let root = b.storage(root_ty);
+    b.op(InstructionKind::Store {
+        local: root,
+        value: package,
+    });
+    let value = b.value(
+        sum(),
+        InstructionKind::TakePackageField {
+            local: root,
+            index: 0,
+        },
+    );
+    let source = b.storage(sum());
+    b.op(InstructionKind::Store {
+        local: source,
+        value,
+    });
+    let targets = [b.storage(owned()), b.storage(owned()), b.storage(Type::I32)];
+    unpack(&mut b, source, &targets);
+    let result = b.value(owned(), InstructionKind::TakeLocal { local: targets[1] });
+    b.op(InstructionKind::DropManaged { local: targets[0] });
+    b.op(InstructionKind::DropPackage { local: root });
+    accepted(module(b.finish(Some(result), CleanupExitKind::Return)));
+}
+
+#[test]
 fn owned_sum_rejects_copy_ssa_view_and_true_double_drop() {
     let mut m = pair_module();
     let f = &mut m.functions[0];
@@ -318,11 +469,30 @@ fn fresh_field(swapped: bool, relay: bool) -> TypedModule {
 }
 
 #[test]
-fn owned_sum_deep_freshness_survives_pack_unpack_and_function_forwarding() {
+fn owned_sum_direct_freshness_survives_pack_unpack_but_ordinary_calls_have_no_leaf_create_contract()
+{
     accepted(fresh_field(false, false));
-    accepted(fresh_field(false, true));
+    reject_semantic(fresh_field(false, true), "not independently proven fresh");
     reject_semantic(fresh_field(true, false), "not independently proven fresh");
     reject_semantic(fresh_field(true, true), "not independently proven fresh");
+    let mut factory = fresh_field(false, true);
+    let mut b = Body::new(sum());
+    b.0.id = FunctionId(1);
+    b.0.name = "factory".into();
+    let source = b.parameter(sum());
+    b.op(InstructionKind::DropEnum { local: source });
+    let a = b.token(71);
+    let c = b.token(72);
+    let n = b.value(Type::I32, InstructionKind::Constant(Constant::I32(7)));
+    let value = b.value(
+        sum(),
+        InstructionKind::MakeVariant {
+            variant: 0,
+            fields: vec![a, c, n],
+        },
+    );
+    factory.functions[1] = b.finish(Some(value), CleanupExitKind::Return);
+    reject_semantic(factory, "not independently proven fresh");
 }
 
 fn right_nested(publish: bool) -> TypedModule {
@@ -469,16 +639,20 @@ fn owned_sum_budget_n_minus_one_and_fresh_retry() {
     let mut high = Limits::default().max_analysis_steps;
     while low + 1 < high {
         let middle = low + (high - low) / 2;
-        let mut limits = Limits::default();
-        limits.max_analysis_steps = middle;
+        let limits = Limits {
+            max_analysis_steps: middle,
+            ..Limits::default()
+        };
         if verify_module(m.clone(), p.clone(), &m.target, &limits).is_ok() {
             high = middle;
         } else {
             low = middle;
         }
     }
-    let mut limits = Limits::default();
-    limits.max_analysis_steps = high;
+    let mut limits = Limits {
+        max_analysis_steps: high,
+        ..Limits::default()
+    };
     verify_module(m.clone(), p.clone(), &m.target, &limits).unwrap();
     limits.max_analysis_steps -= 1;
     assert_eq!(
