@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "scope": "Frozen consumer, oracle, runner and actual allocator probe inputs; not compiler identity",
+  "files": {
+    "crates/zil-driver/tests/impl236_zui_core.rs": "ab1fae1b5539abaa15e34df00ab5e0c5897335e7dfb6121ccda0c7bba62aa7ee",
+    "examples/mainline/zui_core236/README.md": "dc508f7e58709e178a1f456bc595039625b24b977a48035c8d29a0303e02d41c",
+    "examples/mainline/zui_core236/collections.zil": "fab1ed8cbdb11abb6015bcda0b803c610d9f2f2dcff1b54329e085a36ca2a4a8",
+    "examples/mainline/zui_core236/defer_control.zil": "113588160c5d8ed9ed8dbbf8a52742176555cc4e7dad7f3a75473fd2d6007e16",
+    "examples/mainline/zui_core236/leaf_control.zil": "37e035932af277c9c2123e9ddb47d8cbe50bee5365fb14625d0e7e0b291769cc",
+    "examples/mainline/zui_core236/main.zil": "ca084ec0317c7ce9d88620cd419bb147fde1394b2d2b03d5a6b00c12ce0cc5cf",
+    "examples/mainline/zui_core236/model.zil": "3176eb3da5332bd95dbe8eec6596037e2191fa0bfdd10c1035a3bcf7283569c1",
+    "examples/mainline/zui_core236/portable.zil": "c2f3baff8bebdd3a40a37c92082697f14d5db4c2c04427a669b3a49870cc8b28",
+    "examples/mainline/zui_core236/session.zil": "edb299e3e0407d6e961ca4f2dde316cf30026a8b5b91a4f1ab392b6796dcc198",
+    "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
+    "tools/language/236/ORACLE.json": "5d3928abeb65d677518a93c9649ac3641ba2d403c448be0a59b4dcbbb5e12c25",
+    "tools/language/236/controls.py": "8c09ca2c9c395eb70923349e77b8ab13d8787a30d16f6267e3685547ce16dffd",
+    "tools/language/236/oracle.py": "05fdf1a525fce504b797ed37acb3504c0c8b806ff7846dafa4606d34e24a4175",
+    "tools/language/236/run.py": "c265602f151a2a7c6c140f8b286a34f8541ef109f3d8ec6c90b17465900f94a0",
+    "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
+  }
+}
