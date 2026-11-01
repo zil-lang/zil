@@ -6,7 +6,9 @@ use super::*;
 pub(super) fn owned(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_))
+            || (matches!(error.as_ref(), Type::Enum { .. }) && !error.is_copy_value())
+            || (matches!(result.as_ref(), Type::Enum { .. }) && !result.is_copy_value()))
 }
 
 /// Structural classification only. `supported` separately admits the finite
@@ -22,6 +24,7 @@ pub(super) fn supported(ty: &Type) -> bool {
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
                 && resources::supported(result)))
         || dynamic_store::product_protocol(ty)
+        || owned_shapes::error_union(ty)
 }
 
 pub(super) fn injection(actual: &Type, union: &Type, span: Span) -> R<Option<bool>> {
