@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Types,
+        category: ResourceLimit,
+        code: "E-RESOURCE-LIMIT",
+        message: "closure lookup snapshot budget exceeded",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 138,
+                end: 164,
+            },
+        ),
+        notes: [],
+    },
+]
