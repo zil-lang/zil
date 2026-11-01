@@ -165,19 +165,6 @@ fn infer(
 ) -> CompileResult<Vec<ValueHold>> {
     let v = f.values.len();
     budget.spend(v, "dense Hold candidate")?;
-    // These complete type trees were bounded and admitted in preflight. Only
-    // the new ordinary composition enables an additional precise transition
-    // pass; legacy functions retain their historical work and candidate rows.
-    fn product_store(ty: &Type) -> bool {
-        matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, field)|
-            dynamic_store::is_owned_carrier(field) || product_store(field)))
-    }
-    let store_windows = store_windows
-        || f.locals
-            .iter()
-            .map(|l| &l.ty)
-            .chain(f.values.iter())
-            .any(|ty| resources::product::nested(ty) && product_store(ty));
     let captured_address = |ty: &Type, budget: &mut Budget| -> CompileResult<bool> {
         let Type::Closure(id) = ty else {
             return Ok(false);
@@ -552,6 +539,20 @@ pub(super) fn infer_module(
     Ok(result)
 }
 
+// Preflight records these private bits during paid complete-type admission.
+// Index by the actual function table position, never producer FunctionId.
+fn ordinary_store_function(index: usize, budget: &mut Budget) -> CompileResult<bool> {
+    if budget.ordinary_store_functions.is_empty() {
+        return Ok(false);
+    }
+    budget.spend(1, "ordinary Product Store function flag lookup")?;
+    budget
+        .ordinary_store_functions
+        .get(index)
+        .copied()
+        .ok_or_else(|| bad("ordinary Product Store function profile is absent"))
+}
+
 fn infer_module_inner(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
@@ -567,7 +568,8 @@ fn infer_module_inner(
             .functions
             .iter()
             .zip(graphs)
-            .map(|(f, (preds, reachable))| {
+            .enumerate()
+            .map(|(index, (f, (preds, reachable)))| {
                 infer(
                     module,
                     &[],
@@ -576,7 +578,7 @@ fn infer_module_inner(
                     reachable,
                     f.environment.is_some_and(|id| {
                         store_profiles.get(id.0 as usize).copied().unwrap_or(false)
-                    }),
+                    }) || ordinary_store_function(index, budget)?,
                     budget,
                 )
             })
@@ -637,7 +639,8 @@ fn infer_module_inner(
             reachable,
             function
                 .environment
-                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false)),
+                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false))
+                || ordinary_store_function(index, budget)?,
             budget,
         )?;
         let mut changed = false;

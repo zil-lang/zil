@@ -21,6 +21,8 @@ pub(super) struct Budget {
     pub(super) helper_edges: usize,
     pub(super) helper_depth: usize,
     pub(super) shared_product_capture: bool,
+    // Empty on legacy modules; populated only by the paid ordinary admission.
+    pub(super) ordinary_store_functions: Vec<bool>,
 }
 
 impl Budget {
@@ -32,6 +34,7 @@ impl Budget {
             helper_edges: limits.max_analysis_steps,
             helper_depth: limits.max_call_depth,
             shared_product_capture: false,
+            ordinary_store_functions: Vec::new(),
         }
     }
 
@@ -257,21 +260,21 @@ fn local_value(
     span: Span,
     module: &TypedModule,
     budget: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<bool> {
     if let Type::Address {
         mutable: false,
         inner,
     } = ty
         && super::resources::product::nested(inner)
     {
-        return super::resources::product::admit(inner, budget);
+        return super::resources::product::admit(inner, budget).map(|_| false);
     }
     if super::resources::product::nested(ty) {
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
-        super::dynamic_store::product_element(payload, budget)
+        super::dynamic_store::product_element(payload, budget).map(|_| false)
     } else {
-        legacy_value(ty, span, module)
+        legacy_value(ty, span, module).map(|_| false)
     }
 }
 
@@ -601,7 +604,7 @@ pub(super) fn preflight(
     // Each bounded function visit also materializes one flag; no second type
     // scan is needed in the scope checker, including for legacy scalar IR.
     let mut package_functions = Vec::new();
-    for function in &module.functions {
+    for (function_index, function) in module.functions.iter().enumerate() {
         blocks = count(blocks, function.blocks.len(), limits.max_blocks, "block")?;
         locals = count(locals, function.locals.len(), limits.max_locals, "local")?;
         values = count(values, function.values.len(), limits.max_values, "value")?;
@@ -705,7 +708,7 @@ pub(super) fn preflight(
             )?;
         }
         budget.input(1, "return type preflight")?;
-        local_value(&function.return_type, function.span, module, budget)?;
+        let mut product_store = local_value(&function.return_type, function.span, module, budget)?;
         let scoped_aggregate = |ty: &Type| {
             matches!(ty, Type::Package { .. })
                 || super::resources::owned_error(ty)
@@ -717,7 +720,7 @@ pub(super) fn preflight(
             if parameter.0 as usize >= function.locals.len() {
                 return Err(bad("parameter local outside table"));
             }
-            local_value(
+            product_store |= local_value(
                 &function.locals[parameter.0 as usize].ty,
                 function.span,
                 module,
@@ -733,12 +736,12 @@ pub(super) fn preflight(
         for local in &function.locals {
             budget.input(1, "local type preflight")?;
             budget.input(local.name.len(), "local metadata")?;
-            local_value(&local.ty, local.span, module, budget)?;
+            product_store |= local_value(&local.ty, local.span, module, budget)?;
             package |= scoped_aggregate(&local.ty);
         }
         for ty in &function.values {
             budget.input(1, "value type preflight")?;
-            local_value(ty, function.span, module, budget)?;
+            product_store |= local_value(ty, function.span, module, budget)?;
             package |= scoped_aggregate(ty);
         }
         for block in &function.blocks {
@@ -835,6 +838,17 @@ pub(super) fn preflight(
             budget.input(operands, "terminator operand preflight")?;
         }
         package_functions.push(package);
+        if product_store {
+            if budget.ordinary_store_functions.is_empty() {
+                budget.spend(
+                    module.functions.len(),
+                    "ordinary Product Store function flags",
+                )?;
+                budget.ordinary_store_functions = vec![false; module.functions.len()];
+            }
+            budget.spend(1, "ordinary Product Store function flag")?;
+            budget.ordinary_store_functions[function_index] = true;
+        }
     }
     // All raw type and capture trees are now bounded. Admission must include
     // resource-only and unused Store occurrences, not just body operations.
