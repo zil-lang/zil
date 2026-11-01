@@ -1,0 +1,11 @@
+{
+  "status": "NarrowTestOracleCorrection",
+  "reason": "§8.1.5 requires rejecting illegal ErrorUnion positions but does not assign an Analyze diagnostic category. The initial new test assumed Unsupported for every Analyze path.",
+  "source_and_raw_shapes": "unchanged",
+  "approved_by_root": "Message following Q-preflight01: permit only exact Analyze E-ANALYZE-IR plus Copy-error reason if no category-specific contract.",
+  "change": "Only Analyze routes for owned-enum-error-managed and illegal-slot-inside-enum may also reject with SafeReject/E-ANALYZE-IR and exact message resource closure: Managed success requires a Copy error payload.",
+  "verify": "Still strictly Unsupported; no generic error acceptance.",
+  "other_negative_shapes": "Still Unsupported in both kernels.",
+  "prior_failure": "Root Q-preflight01 original log retained; P false accept source/raw/Wire logs unchanged.",
+  "test_sha256": "66a4e7301ccdcbceaf4c8ac33f1ed1207646ae1ea1eb68d62aac7412ffc13d9e"
+}

@@ -419,6 +419,15 @@ fn unused_error_union_slots_preserve_the_old_managed_success_profile() {
                     if errors
                         .iter()
                         .any(|d| d.category == ResultCategory::Unsupported) => {}
+                (false, Err(errors))
+                    if route == "analyze"
+                        && matches!(label, "owned-enum-error-managed" | "illegal-slot-inside-enum")
+                        && !errors.is_empty()
+                        && errors.iter().all(|d|
+                            d.phase == zil_base::Phase::Analyze
+                                && d.category == ResultCategory::SafeReject
+                                && d.code == "E-ANALYZE-IR"
+                                && d.message == "resource closure: Managed success requires a Copy error payload") => {}
                 (_, result) => failures.push(format!(
                     "{label}/{route} expected admitted={accept}, actual={result:?}"
                 )),
