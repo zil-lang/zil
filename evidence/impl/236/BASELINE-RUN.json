@@ -1,0 +1,38 @@
+{
+  "scope": "Existing-shape calibration and baseline rejection, not 236 acceptance",
+  "status": "Pass",
+  "consumer_commit": "463d4783279ed2808eb9828837a4decb3c4ba5a9",
+  "compiler_source_commit_supplied_by_integrator": "36c0d32e911aaeb030f7e34eb1740de322854ad5",
+  "compiler_production_matches_baseline": "a68398ad7714e2749e7f263b191c0ed78d36b3c8",
+  "compiler_cli_sha256": "0097217fc6f938079969277c5cb4541c0129f60d10da9111dd1b5a7352ae462e",
+  "compiler_build_attestation": "Integrator reports cargo build --locked -p zil-cli successful; this consumer did not rebuild the compiler. git diff of production crates/Cargo/toolchain between supplied source and baseline is empty.",
+  "command": [
+    "python3",
+    "-B",
+    "tools/language/236/controls.py",
+    "--repo",
+    "/workspace/zil-236",
+    "--cli",
+    "/workspace/.zil-env/target-integration/debug/zil",
+    "--compiler-source-commit",
+    "36c0d32e9",
+    "--clang",
+    "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+    "--out",
+    "/workspace/.zil-env/run236-controls01"
+  ],
+  "exit_code": 0,
+  "ordinary_leaf_executions": 2,
+  "instrumented_leaf_executions": 6,
+  "actual_leaf_allocation_failures": 2,
+  "combined_consumer": "NotRun",
+  "raw_directory": "/workspace/.zil-env/run236-controls01",
+  "early_observation": {
+    "file": "early-unattested-check.json",
+    "compiler_cli_sha256": "386879de794722c46085b2ba8f7075a9db0fecc997c825f4e1d4ac7c6a86c643",
+    "compiler_source_commit": "Unknown",
+    "status": "Unsupported",
+    "phase": "types",
+    "note": "Read-only preliminary check used an unbound older CLI before the integrator designated target-integration; preserved, not used as authoritative baseline or acceptance."
+  }
+}

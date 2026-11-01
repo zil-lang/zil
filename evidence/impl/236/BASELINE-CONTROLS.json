@@ -1,0 +1,126 @@
+{
+  "status": "Pass",
+  "scope": "baseline rejection and existing leaf only",
+  "consumer_commit": "463d4783279ed2808eb9828837a4decb3c4ba5a9",
+  "compiler_source_commit_supplied_by_integrator": "36c0d32e9",
+  "cli_sha256": "0097217fc6f938079969277c5cb4541c0129f60d10da9111dd1b5a7352ae462e",
+  "combined_consumer": "NotRun",
+  "full_language": "NotSatisfied",
+  "full_zui": "NotClaimed",
+  "checks": [
+    {
+      "name": "main",
+      "status": "Unsupported",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    },
+    {
+      "name": "defer_control",
+      "status": "Unsupported",
+      "phase": "types",
+      "codes": [
+        "E-UNSUPPORTED"
+      ]
+    }
+  ],
+  "leaf": [
+    {
+      "opt": "O0",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "api_object_sha256": "eab1564d52112712e12bd36e9932eae13f90f8dbe1fc91af754ab04dc9e5f0fb"
+    },
+    {
+      "opt": "O0",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "api_object_sha256": "eab1564d52112712e12bd36e9932eae13f90f8dbe1fc91af754ab04dc9e5f0fb"
+    },
+    {
+      "opt": "O0",
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "api_object_sha256": "eab1564d52112712e12bd36e9932eae13f90f8dbe1fc91af754ab04dc9e5f0fb"
+    },
+    {
+      "opt": "O2",
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "api_object_sha256": "837cb23079c64c8f7131ba9d3ffa9e5ccd4066c648945dc30b24fcff82d09000"
+    },
+    {
+      "opt": "O2",
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "api_object_sha256": "837cb23079c64c8f7131ba9d3ffa9e5ccd4066c648945dc30b24fcff82d09000"
+    },
+    {
+      "opt": "O2",
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "api_object_sha256": "837cb23079c64c8f7131ba9d3ffa9e5ccd4066c648945dc30b24fcff82d09000"
+    }
+  ]
+}

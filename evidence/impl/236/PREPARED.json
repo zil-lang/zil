@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "status": "Prepared",
+  "baseline": "a68398ad7714e2749e7f263b191c0ed78d36b3c8",
+  "dependencies": ["227", "235"],
+  "source": "examples/mainline/zui_core236/main.zil",
+  "module_count": 5,
+  "oracle": "tools/language/236/ORACLE.json",
+  "ordinary_per_optimization": 24,
+  "allocator_probes_per_optimization": 151,
+  "combined_source_verify": "NotRun",
+  "combined_native": "NotRun",
+  "combined_allocator_faults": "NotRun",
+  "nearest_counterexamples": "NotRun",
+  "static_python_parse_and_model_assertions": "Pass",
+  "rust_tests": "NotRun",
+  "full_language": "NotSatisfied",
+  "full_zui": "NotClaimed",
+  "product": "NotRun",
+  "rust_comparative_runtime_memory_maintenance_compile": "NotMeasured",
+  "note": "Source and oracle preparation is not implementation acceptance. Baseline controls, if executed, are recorded separately."
+}
