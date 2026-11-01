@@ -1,0 +1,24 @@
+{
+  "status": "Pass",
+  "source_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "git_status": "",
+  "git_status_before_build": "",
+  "exit_code": 0,
+  "cli_sha256": "ebc418f594c91f1c54b4f655cf6fdd0d99a9461852aec8e1f7ad09701d433395",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli",
+    "--features",
+    "llvm-api"
+  ],
+  "cargo_seconds": 24.67,
+  "CARGO_TARGET_DIR": "/workspace/.zil-env/target-236",
+  "CARGO_BUILD_JOBS": 1,
+  "CARGO_INCREMENTAL": 0,
+  "clang": "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+  "LD_LIBRARY_PATH": "/workspace/.zil-env/llvm-23.1.4/lib",
+  "performance_sampling": false
+}

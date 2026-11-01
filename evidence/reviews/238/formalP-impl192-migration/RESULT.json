@@ -1,0 +1,130 @@
+{
+  "task": "238 integration / impl192 boundary migration",
+  "status": "Patch ready; isolated exact-source and migrated-test checks passed",
+  "production_checkpoint": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "production_not_modified": true,
+  "core_never_written": true,
+  "patch": "impl192-boundary.patch",
+  "patch_sha256": "3e49f9f254ed031c76e5eb9efd68f13190702943c085ae8d86c7b7a390de01f7",
+  "old_test_sha256": "332db70294b5ac52004ffb0e9214567557878b1d953218219bdf2f8b1cc3b41c",
+  "new_test_sha256": "050fb077855a0a5318f98e74f1a948e7f25893c057d7e2d7b30296a028b25d31",
+  "apply_check": "Read-only git apply --check passed in an isolated directory materialized from the exact original P test file. A later check against the live core no longer applied because root had already integrated this same migration; the live core file then matched the proposed new test bytes.",
+  "commands": [
+    {
+      "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 cargo test --manifest-path /tmp/review192-boundary/Cargo.toml --offline --test check -- --nocapture",
+      "log": "isolated-probe.tar.gz:review192-boundary/check.log",
+      "passed": 1,
+      "failed": 0,
+      "filtered": 0,
+      "scope": "Exact two original source strings via compile_project against P production path dependencies; positive native O0/O2 exit20 and empty stdout/stderr."
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/review192-boundary/migrated cargo test --manifest-path /tmp/review192-boundary/Cargo.toml --offline --test impl192_migrated whole_parent_replacement -- --nocapture",
+      "log": "isolated-probe.tar.gz:review192-boundary/migrated.log",
+      "passed": 2,
+      "failed": 0,
+      "filtered": 19,
+      "scope": "The complete patched original Rust test file compiled outside core in the original relative include layout; only the two migrated tests executed."
+    }
+  ],
+  "exact_observations": {
+    "first_source": {
+      "status": "Success",
+      "phase": "Verify",
+      "verification_runs": 1,
+      "native": [
+        "O0 exit20, empty stdout/stderr",
+        "O2 exit20, empty stdout/stderr"
+      ]
+    },
+    "second_source": {
+      "status": "SafeReject",
+      "phase": "Verify",
+      "diagnostic": "E-BORROW-CONFLICT",
+      "message": "write or storage change overlaps a shared address still required by a later use"
+    }
+  },
+  "harness_failure_preserved": {
+    "log": "isolated-probe.tar.gz:review192-boundary/migrated-relocation-failure.log",
+    "cause": "The first attempt moved the complete test file to a different relative include layout, so its four existing include_str fixtures were not found. Restoring crates/zil-driver/tests plus unchanged copied examples fixed only the harness layout; no source/oracle was changed."
+  },
+  "formal_log_observed": {
+    "origin": "/workspace/.zil-env/formal-language23/workspace.log",
+    "bytes": 379107,
+    "sha256": "7b904ff2190552d45b62153a205dc0fac1d459dd0cf3ab865c4c066c58f8bb38",
+    "failed_test_names": [
+      "semantic_cache::tests::private_format_roundtrips_all_raw_program_fields_for_real_projects",
+      "bounded_ui_events_move_complete_packages_without_losing_field_descriptions",
+      "helper064_public_field_view_survives_two_calls_and_whole_package_move",
+      "captures077_refill_after_take_and_conditional_take_is_repeatable",
+      "captures079_complete_and_partial_env_exits_match_exact_fixed_cleanup_order",
+      "outer_package_refill_after_nested_move_keeps_fnmut",
+      "consuming_and_refilling_a_package_method_receiver_remains_fnmut",
+      "package_receiver_error_before_refill_is_once_and_keeps_unique_cleanup",
+      "whole_parent_overwrite_keeps_its_existing_unpaid_owner_gate",
+      "literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruptions",
+      "frozen_mutable_product_raw_and_wire_must_be_rejected"
+    ],
+    "snapshot_only": true,
+    "formal_run_not_executed_by_this_agent": true
+  },
+  "other_failures_triage": [
+    {
+      "tests": [
+        "whole_parent_overwrite_keeps_its_existing_unpaid_owner_gate"
+      ],
+      "classification": "Old acceptance boundary intentionally opened by238",
+      "action": "Split the exact first source into Success/Verify1 plus original O0/O2 exit20, and the exact second source into Verify E-BORROW-CONFLICT. No production change."
+    },
+    {
+      "tests": [
+        "semantic_cache::tests::private_format_roundtrips_all_raw_program_fields_for_real_projects",
+        "bounded_ui_events_move_complete_packages_without_losing_field_descriptions",
+        "helper064_public_field_view_survives_two_calls_and_whole_package_move"
+      ],
+      "classification": "Production regression; do not weaken original expected Success",
+      "observed": "Types E-FIELD-PRIVATE in the original package_ui/helper_ui source",
+      "likely_boundary": "Self-call lowering re-enters source Record/Member privacy on whole imported Product values. Whole-value transfer must not require private fields to be source-public; user explicit private access must remain rejected."
+    },
+    {
+      "tests": [
+        "captures077_refill_after_take_and_conditional_take_is_repeatable",
+        "captures079_complete_and_partial_env_exits_match_exact_fixed_cleanup_order",
+        "outer_package_refill_after_nested_move_keeps_fnmut",
+        "consuming_and_refilling_a_package_method_receiver_remains_fnmut",
+        "package_receiver_error_before_refill_is_once_and_keeps_unique_cleanup"
+      ],
+      "classification": "Production regression; do not weaken original expected Success",
+      "observed": "Analyze E-UNINITIALIZED after captured Package whole take and refill",
+      "likely_boundary": "BindPackageCapture views have an existing retained-environment restoration protocol. The ordinary-local no-resurrection transaction must not intercept this path; use the actual capture-view table, never a name convention."
+    },
+    {
+      "tests": [
+        "literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruptions"
+      ],
+      "classification": "Stale unknown-opcode assertion after public IR migration",
+      "observed": "review177_public.rs treats89 as unknown;89 is now RegisterDefer",
+      "action": "Use genuinely unknown90 (and retain254); this changes the unknown-tag probe, not decoder admission."
+    },
+    {
+      "tests": [
+        "frozen_mutable_product_raw_and_wire_must_be_rejected"
+      ],
+      "classification": "Frozen old Wire fixture needs explicit version-boundary handling plus current semantic replay",
+      "observed": "review223_replay.rs unwraps decode of old public version and gets correct E-WIRE-VERSION under29",
+      "action": "Preserve the frozen bytes and require their old-version rejection. Separately migrate an equivalent executable candidate into current schema and keep the original mutable-authority safety rejection; do not call a mere version mismatch a replacement for that semantic check."
+    }
+  ],
+  "artifacts": {
+    "archive": "isolated-probe.tar.gz",
+    "archive_sha256": "4b7862653523f87e1f5e620da5a4ca40e3d66d2fca760d6742b1acc4a442e46d",
+    "files": 126,
+    "inventory": "isolated-probe.files.json"
+  },
+  "limits": "Only192 is proposed for acceptance-oracle migration here. The private-field and retained-capture positive regressions require production repair; schema fixture migration requires preserving the old-wire rejection and the actual unsafe semantic oracle. No full workspace command was run by this agent.",
+  "later_core_state": {
+    "head": "e92508be996a190fa188d08319d37cc8b522bae6",
+    "root_already_has_identical_test_patch": true,
+    "scope": "Root advanced source/repair commits after the isolated checks. No test result here is presented as validation of that later production repair."
+  }
+}

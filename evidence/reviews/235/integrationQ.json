@@ -1,0 +1,72 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "verdict": "Pass",
+  "record_kind": "Q affected-path independent reacceptance; prior P/history receipts preserved",
+  "schema_version": 29,
+  "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+  "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854",
+  "current_execution": {
+    "selected": 40,
+    "passed": 40,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_unrelated": 196,
+    "counts_shared_across_four_receipts": true
+  },
+  "execution_report": "../238/integrationQ-execution.json",
+  "raw_archive": "../238/integrationQ-artifacts.tar.gz",
+  "prior_P_review_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "production_delta": [
+    "crates/zil-types/src/addresses.rs",
+    "crates/zil-types/src/aggregates.rs",
+    "crates/zil-types/src/closures.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/product_replacement.rs",
+    "crates/zil-types/src/program.rs"
+  ],
+  "static_review": [
+    "Capture views are detected by the existing exact package_captures local map and use the established whole-Store restoration path. Ordinary locals retain the live-shell precondition; no kernel age, restoration or loan rule is weakened.",
+    "Self packing is triggered only after the static call and sole direct target argument/free-reference constraints pass. Builder-local pending LocalId is checked against lexical lookup, cleared once at actual Name evaluation and restored after RHS evaluation; nested Builders start with None.",
+    "The owned-union prelude runs before the hook. Only the selected payload Name is internally packed; existing Package→union injection is retained.",
+    "Private field exceptions are compiler-only function/block/instruction-position receipts with the full emitted InstructionKind. Public Core/Typed/Wire cannot forge these receipts. Source extra-argument/private read/write/construction accesses remain checked.",
+    "Both mid-block insertion sites in Builder.temp prepay and relocate receipt positions. Search confirmed remaining operations only append or pop the unmarked temporary StorageLive. Receipt lookup/insert/relocation are paid; empty-map legacy path keeps its fees.",
+    "Packing uses declaration-order Read/Take and MakePackage at the real argument position. RHS is complete before old-field cleanup/publication. Recoverable before/after-self errors, partial state, exact source provenance, loans and ordinary dead-shell negatives still pass the independent kernels."
+  ],
+  "reuse": "Historical P74 was not repeated or added to Q40. Exact unchanged modules/inputs and inactive common branches are documented in the execution report.",
+  "limits": [
+    "Bounded synchronous language profiles on Linux only; no full-language, product gate, async/unwind, Windows or Rust parity acceptance.",
+    "Root full-workspace/default/reference executions are separate and not claimed by this reviewer."
+  ],
+  "rust_goals_reflection": {
+    "safety": "Actual unchanged kernel rules plus exact source/raw/Wire controls; privacy exception cannot be supplied by user IR.",
+    "runtime_memory": "No new runtime opcode/hidden allocation/Box/RC/lock; 16 allocator probes with 8 actual failures and live0. Rust harnesses are correctness controls only.",
+    "expression_maintenance": "Opaque public APIs and existing captured Package move/refill work without rewriting original programs; full maintenance advantage unmeasured.",
+    "compile_cost": "New provenance and relocation are prepaid; exact N712 boundary and prior budget controls pass. No performance advantage claimed.",
+    "breakthrough": "Finite compositional functionality and compatibility recovered; product-level four-goal breakthrough not established."
+  },
+  "implementation_author": "/root/impl_product_store235",
+  "scope": "Ordinary complete Product Store ownership at Q, plus actual original wrapper and affected transaction compatibility; old bounded edb receipt unchanged.",
+  "prior_receipts": [
+    "review.json (edb04408)",
+    "integration42.json (P)"
+  ],
+  "affected_actual_checks": [
+    "Original235 byte-identical callback Store wrapper LLVM API O0/O2 stdout AZ.",
+    "Full 238 loan/debt/dead-shell and allocator controls at Q.",
+    "Exact ordinary Product Store new and legacy Types/Analyze/Verify budgets rerun."
+  ],
+  "budget": {
+    "legacy": [
+      835,
+      7129,
+      12161
+    ],
+    "nested": [
+      3943,
+      82079,
+      173575
+    ]
+  },
+  "reuse_scope": "Canonical Store definitions, qualifiers, actual Created/Incoming/source/window checks are byte-identical to P; prior raw/Wire results are explicitly reused, not counted as executions."
+}

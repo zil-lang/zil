@@ -1,0 +1,140 @@
+[
+  {
+    "bytes": 1434,
+    "mode": 420,
+    "path": "receipts/clippy.log",
+    "sha256": "8b16e603f0ea5d4f619dd1b0346e45c17d81de27ba6dd31a70b5208d5a0ef53c"
+  },
+  {
+    "bytes": 41,
+    "mode": 420,
+    "path": "receipts/commit.txt",
+    "sha256": "d9e43797137a87099f0e96e1e164020dcb74a03d626f177cd8a907e1eef9ae21"
+  },
+  {
+    "bytes": 1494,
+    "mode": 420,
+    "path": "receipts/disk-space-before-build.json",
+    "sha256": "28c412260fbe6491aec4dfcd58db754c0658f519036513e2d5157b6c719f3794"
+  },
+  {
+    "bytes": 35125,
+    "mode": 420,
+    "path": "llvm-23.1.4/install-receipt.json",
+    "sha256": "86a1aae2a771654af29f07d0510af6faec2b715baeedf43287bbb47fd0848ce3"
+  },
+  {
+    "bytes": 35125,
+    "mode": 420,
+    "path": "receipts/llvm-install.json",
+    "sha256": "86a1aae2a771654af29f07d0510af6faec2b715baeedf43287bbb47fd0848ce3"
+  },
+  {
+    "bytes": 1397,
+    "mode": 420,
+    "path": "receipts/llvm-api-toolchain.json",
+    "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+  },
+  {
+    "bytes": 107,
+    "mode": 420,
+    "path": "receipts/migration-runner.log",
+    "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+  },
+  {
+    "bytes": 13872736,
+    "mode": 420,
+    "path": "receipts/reference-native-manifest.json",
+    "sha256": "d7a11fdac4d915ca88c1ad2b6242b83586a2e753a89ff3c91bd98c17708d31dc"
+  },
+  {
+    "bytes": 393,
+    "mode": 420,
+    "path": "receipts/reference-resources-after.log",
+    "sha256": "0d03fa789366903fa19da5f8b149971cb6b7b2767e291ce062bb8818bdf29ef2"
+  },
+  {
+    "bytes": 231,
+    "mode": 420,
+    "path": "receipts/reference-resources-before.log",
+    "sha256": "7b4767455df090fea80fdde8eba35d15e9cfe187c3e7437d84f8b4ecfbd252ad"
+  },
+  {
+    "bytes": 355591,
+    "mode": 420,
+    "path": "receipts/reference.log",
+    "sha256": "4f5831f9b3ac1547d7f41cfc3fb8eb7562fcd8bb24db4c6306b0c9343e59b462"
+  },
+  {
+    "bytes": 1171564,
+    "mode": 420,
+    "path": "receipts/source-inputs.json",
+    "sha256": "dfe3fff007c7bd4f2578019b66a7fb12ae5662f5eb279bc9bb6cf8d94679ed23"
+  },
+  {
+    "bytes": 6539140,
+    "mode": 420,
+    "path": "receipts/source-inputs.tar.gz",
+    "sha256": "bd43e4d0b51821074c8b45d095ed8780bda9f16d5dcefd6cf4cae7061191bd08"
+  },
+  {
+    "bytes": 446,
+    "mode": 420,
+    "path": "receipts/source-restore.txt",
+    "sha256": "c2eb5e687abc00646fc5d879aea0c75d0235ba85d2dc9b18b8df350d93165fc2"
+  },
+  {
+    "bytes": 13285403,
+    "mode": 420,
+    "path": "receipts/source-tree.txt",
+    "sha256": "0d483d0640da496d7921c5140239f3f0e53fc2cf30bc4008cdc98176526e1c35"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/fmt.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 76480,
+    "mode": 420,
+    "path": "receipts/consumer209.json",
+    "sha256": "ef5bba635df200841c97e38999b78f28501f70bbb8e7ccde66919885aa80970d"
+  },
+  {
+    "bytes": 7309,
+    "mode": 420,
+    "path": "receipts/text-reference.log",
+    "sha256": "ec8f1877807e63156f817c83010d54c73118d1102fa59793bdf65edf84785aeb"
+  },
+  {
+    "bytes": 404,
+    "mode": 420,
+    "path": "receipts/toolchain.txt",
+    "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+  },
+  {
+    "bytes": 14532790,
+    "mode": 420,
+    "path": "receipts/workspace-native-manifest.json",
+    "sha256": "015ab6babf8e48fe9d540ea2967915b1dcfa7a050732a5141d95287ad52165f0"
+  },
+  {
+    "bytes": 344,
+    "mode": 420,
+    "path": "receipts/workspace-resources-after.log",
+    "sha256": "e4ef2c9f2ff9b6677d20bcf3bc30c8e4b03e9357a73e73541b62ee924748271a"
+  },
+  {
+    "bytes": 144,
+    "mode": 420,
+    "path": "receipts/workspace-resources-before.log",
+    "sha256": "a0fd98f2ff9e1067d64c9c3ecc34eb06bd0634941dfb5926da75fa531fb42196"
+  },
+  {
+    "bytes": 357919,
+    "mode": 420,
+    "path": "receipts/workspace.log",
+    "sha256": "4f0b732fc1180e46d038a81f1ea7196f8c3387dbb9415dd75cf2cc75d7b9d0df"
+  }
+]

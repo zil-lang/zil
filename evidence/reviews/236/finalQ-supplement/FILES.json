@@ -1,0 +1,10 @@
+{
+  "sha256": {
+    "RAW-MANIFEST.json": "8c13abb50fa5dccc626c7c96fbfddfa6ef734f9a2acbb59b8e61779f9e36df2c",
+    "audit.py": "1c6a97784e231e25e094043bb48db7b4f5c493f43f3d3697910ad3514060123d",
+    "finalQ-negative-supplement.json": "2859683a2b0235acd8150a659e32c8d7dbe1c8a76f8ae9d1804acde6d5193d9c",
+    "impl236-Q-excerpt.log": "66de31cb581b35fa708e4e4e4a02ba8c9ab35906b0442fc874cd893c0fe67a18",
+    "source-phase-artifacts.tar.gz": "b937a7c1911c4133c02056e6cf57cb3eba63e37173ec9de0a27fc108cabe0131",
+    "workspace.log.gz": "d3c407b53853dc450c0f125fc18ce99c4d63a0e2183b793e5b2e3c39395c5167"
+  }
+}

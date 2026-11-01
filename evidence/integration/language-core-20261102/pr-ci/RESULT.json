@@ -1,0 +1,97 @@
+{
+  "status": "Pass",
+  "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "runs": [
+    {
+      "run_id": "41345639328",
+      "url": "https://github.com/zil-lang/zil/actions/runs/41345639328",
+      "head": "e92508be996a190fa188d08319d37cc8b522bae6",
+      "actual_checkout": "fae6bc0d169fa64655a37b46d486fd781bb3063e",
+      "tree": "4e75f9ae8dff62f0bf2d0fcfaac088d099cf7c48",
+      "tree_listing_sha256": "0d483d0640da496d7921c5140239f3f0e53fc2cf30bc4008cdc98176526e1c35",
+      "tree_identical_to_candidate": true,
+      "current_non_evidence_file_hashes_checked": 4025,
+      "mismatches": [],
+      "conclusion": "success",
+      "tests": {
+        "workspace": {
+          "passed": 3446,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        "reference": {
+          "passed": 3347,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        "text-reference": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      },
+      "recovery": {
+        "bytes": 80150248,
+        "checkout": "fae6bc0d169fa64655a37b46d486fd781bb3063e",
+        "chunks": 19568,
+        "files": 141377,
+        "run_id": "41345639328",
+        "sha256": "9e49890e67d55b2a1c81a51934771204140cfe5f73de7814a1f19aa5a2b88095"
+      },
+      "raw_archive": "/workspace/.zil-env/ci-Q/41345639328/evidence-recovery.tar.zst",
+      "upload_note": "Artifact API returned zero artifacts. Complete log transport recovered locally and all indexed blobs verified before merge; uploader action conclusions do not imply successful storage."
+    },
+    {
+      "run_id": "41345639259",
+      "url": "https://github.com/zil-lang/zil/actions/runs/41345639259",
+      "head": "e92508be996a190fa188d08319d37cc8b522bae6",
+      "actual_checkout": "fae6bc0d169fa64655a37b46d486fd781bb3063e",
+      "tree": "4e75f9ae8dff62f0bf2d0fcfaac088d099cf7c48",
+      "tree_listing_sha256": "0d483d0640da496d7921c5140239f3f0e53fc2cf30bc4008cdc98176526e1c35",
+      "tree_identical_to_candidate": true,
+      "current_non_evidence_file_hashes_checked": 4025,
+      "mismatches": [],
+      "conclusion": "success",
+      "tests": {
+        "workspace": {
+          "passed": 3446,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        "reference": {
+          "passed": 3347,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        "text-reference": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      },
+      "recovery": {
+        "bytes": 80411932,
+        "checkout": "fae6bc0d169fa64655a37b46d486fd781bb3063e",
+        "chunks": 19632,
+        "files": 141548,
+        "run_id": "41345639259",
+        "sha256": "82a85d24086caa2a748864218bdae90a34b70e8159d9993b69d7c2f663a43a5c"
+      },
+      "raw_archive": "/workspace/.zil-env/ci-Q/41345639259/evidence-recovery.tar.zst",
+      "upload_note": "Artifact API returned zero artifacts. Complete log transport recovered locally and all indexed blobs verified before merge; uploader action conclusions do not imply successful storage."
+    }
+  ],
+  "scope": "Both required PR source gates plus independently recovered complete evidence"
+}

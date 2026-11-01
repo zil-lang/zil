@@ -1,0 +1,118 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "verdict": "Pass",
+  "record_kind": "Q affected-path independent reacceptance; prior P/history receipts preserved",
+  "schema_version": 29,
+  "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+  "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854",
+  "current_execution": {
+    "selected": 40,
+    "passed": 40,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_unrelated": 196,
+    "counts_shared_across_four_receipts": true
+  },
+  "execution_report": "../238/integrationQ-execution.json",
+  "raw_archive": "../238/integrationQ-artifacts.tar.gz",
+  "prior_P_review_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "production_delta": [
+    "crates/zil-types/src/addresses.rs",
+    "crates/zil-types/src/aggregates.rs",
+    "crates/zil-types/src/closures.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/product_replacement.rs",
+    "crates/zil-types/src/program.rs"
+  ],
+  "static_review": [
+    "Capture views are detected by the existing exact package_captures local map and use the established whole-Store restoration path. Ordinary locals retain the live-shell precondition; no kernel age, restoration or loan rule is weakened.",
+    "Self packing is triggered only after the static call and sole direct target argument/free-reference constraints pass. Builder-local pending LocalId is checked against lexical lookup, cleared once at actual Name evaluation and restored after RHS evaluation; nested Builders start with None.",
+    "The owned-union prelude runs before the hook. Only the selected payload Name is internally packed; existing Package→union injection is retained.",
+    "Private field exceptions are compiler-only function/block/instruction-position receipts with the full emitted InstructionKind. Public Core/Typed/Wire cannot forge these receipts. Source extra-argument/private read/write/construction accesses remain checked.",
+    "Both mid-block insertion sites in Builder.temp prepay and relocate receipt positions. Search confirmed remaining operations only append or pop the unmarked temporary StorageLive. Receipt lookup/insert/relocation are paid; empty-map legacy path keeps its fees.",
+    "Packing uses declaration-order Read/Take and MakePackage at the real argument position. RHS is complete before old-field cleanup/publication. Recoverable before/after-self errors, partial state, exact source provenance, loans and ordinary dead-shell negatives still pass the independent kernels."
+  ],
+  "reuse": "Historical P74 was not repeated or added to Q40. Exact unchanged modules/inputs and inactive common branches are documented in the execution report.",
+  "limits": [
+    "Bounded synchronous language profiles on Linux only; no full-language, product gate, async/unwind, Windows or Rust parity acceptance.",
+    "Root full-workspace/default/reference executions are separate and not claimed by this reviewer."
+  ],
+  "rust_goals_reflection": {
+    "safety": "Actual unchanged kernel rules plus exact source/raw/Wire controls; privacy exception cannot be supplied by user IR.",
+    "runtime_memory": "No new runtime opcode/hidden allocation/Box/RC/lock; 16 allocator probes with 8 actual failures and live0. Rust harnesses are correctness controls only.",
+    "expression_maintenance": "Opaque public APIs and existing captured Package move/refill work without rewriting original programs; full maintenance advantage unmeasured.",
+    "compile_cost": "New provenance and relocation are prepaid; exact N712 boundary and prior budget controls pass. No performance advantage claimed.",
+    "breakthrough": "Finite compositional functionality and compatibility recovered; product-level four-goal breakthrough not established."
+  },
+  "implementation_author": "/root",
+  "contributors": [
+    "/root/impl_defer227",
+    "/root/impl_product_store235"
+  ],
+  "scope": "§8.1.3/238 ordinary complete Product replacement and the Q fixes for opaque private arguments and old captured-view restoration.",
+  "current_scope_checks": {
+    "review238_contracts": 14,
+    "review238_compatibility": 4,
+    "author_private": 4,
+    "allocator_test": 1,
+    "original_historical_regressions": 8,
+    "new_192_cases": 2,
+    "new_budget": 1
+  },
+  "findings": [
+    {
+      "id": "private-whole-rebuild",
+      "original": "P rewrote a legal complete opaque argument into source Member/Record accesses, rejecting semantic-cache/060/064 and the independent minimal positive.",
+      "fixed": "Q generates only internal complete-value field instructions; private extra-argument and later reads/writes/construction still reject.",
+      "original_evidence": [
+        "evidence/integration/language-core-20261102/compatibility-pre-fix/RESULT.json",
+        "evidence/integration/language-core-20261102/formal23-failed/RESULT.json"
+      ]
+    },
+    {
+      "id": "captured-whole-refill",
+      "original": "P treated a moved capture view as an ordinary live shell, causing five original077/079/161/163 E-UNINITIALIZED failures.",
+      "fixed": "Only exact capture-view locals select the old path. Original FnMut repeats and FnOnce error-before-refill remain unchanged; ordinary dead/maybe-dead local negatives reject."
+    },
+    {
+      "id": "union-hook-order",
+      "original": "Intermediate privacy fix ran the pending hook before existing union injection and rejected legal void!Owner input with E-TYPE-MISMATCH.",
+      "fixed": "Hook moved after injection selection; independent private-library union input now runs O0/O2 stdout AA, cleaning both actual values.",
+      "original_evidence": "evidence/impl/238/privacy/union-before.log"
+    }
+  ],
+  "coverage_gap": "P bounded review focused ordinary local shells, not opaque imported field privacy or fully moved Package capture views; full workspace found the missing combinations. P receipt is preserved, not relabeled.",
+  "budget": {
+    "238_new_Types_N": 712,
+    "238_prior_author_N_record": 617,
+    "same_source_transition": "P transaction used generated source AST; Q uses paid internal instruction provenance and relocation. N712/N−1/fresh independently executed. P617 retained in historical 238 receipt.",
+    "old202_Types": [
+      6326,
+      29030,
+      29566
+    ],
+    "old235_Types_Analyze_Verify": [
+      835,
+      7129,
+      12161
+    ],
+    "new235_Types_Analyze_Verify": [
+      3943,
+      82079,
+      173575
+    ],
+    "generic237_Types_Analyze_Verify": [
+      237893,
+      48812,
+      100192
+    ]
+  },
+  "native": {
+    "explicit_independent_LLVM_API_source_runs": 40,
+    "allocator_probes": 16,
+    "actual_allocation_failures": 8,
+    "all_probes_live": 0,
+    "details": "Shared execution includes old native/Rust controls; full census and limitations in integrationQ-runtime.json."
+  }
+}

@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.46s
+     Running tests/review237_contracts.rs (/workspace/.zil-env/target-237/debug/deps/review237_contracts-ca5b32177a052f8f)
+
+running 1 test
+test original235_success_obligation_is_preserved_byte_for_byte_and_executes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.39s
+

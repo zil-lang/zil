@@ -1,0 +1,613 @@
+{
+  "candidate_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "head": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "git_status": "",
+  "P_to_Q_files": [
+    ".task/impl/238.md",
+    "crates/zil-driver/tests/impl192_copy_fields.rs",
+    "crates/zil-driver/tests/impl238_private_replacement.rs",
+    "crates/zil-driver/tests/review177_public.rs",
+    "crates/zil-driver/tests/review223_fixtures/mutable-product-schema29.json",
+    "crates/zil-driver/tests/review223_fixtures/mutable-product-schema29.wire",
+    "crates/zil-driver/tests/review223_replay.rs",
+    "crates/zil-driver/tests/review238_compatibility.rs",
+    "crates/zil-types/src/addresses.rs",
+    "crates/zil-types/src/aggregates.rs",
+    "crates/zil-types/src/closures.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/product_replacement.rs",
+    "crates/zil-types/src/program.rs",
+    "evidence/impl/236/finalP/ARTIFACT-MANIFEST.json",
+    "evidence/impl/236/finalP/CONTROLS-ARTIFACT-MANIFEST.json",
+    "evidence/impl/236/finalP/CONTROLS-RESULT.json",
+    "evidence/impl/236/finalP/MATRIX-ARTIFACT-MANIFEST.json",
+    "evidence/impl/236/finalP/MATRIX-RESULT.json",
+    "evidence/impl/236/finalP/REPORT.md",
+    "evidence/impl/236/finalP/RESULT.json",
+    "evidence/impl/236/finalP/RUN.json",
+    "evidence/impl/236/finalP/candidate-controls.py",
+    "evidence/impl/236/finalP/cli-build-clean-P.log",
+    "evidence/impl/236/finalP/cli-build.log",
+    "evidence/impl/236/finalP/compiler-build.json",
+    "evidence/impl/236/finalP/controls.log",
+    "evidence/impl/236/finalP/initial-build-identity-interruption/RESULT.json",
+    "evidence/impl/236/finalP/initial-build-identity-interruption/cli-build.log",
+    "evidence/impl/236/finalP/kernel236-reference/ORIGINAL-ARTIFACT-MANIFEST.json",
+    "evidence/impl/236/finalP/kernel236-reference/REFERENCE.json",
+    "evidence/impl/236/finalP/kernel236-reference/consumer236-counterexample-control-95727.json",
+    "evidence/impl/236/finalP/kernel236-reference/consumer236-live-window-95727.json",
+    "evidence/impl/236/finalP/kernel236-reference/consumer236-missing-refill-95727.json",
+    "evidence/impl/236/finalP/kernel236-reference/consumer236-native-O0-95727.json",
+    "evidence/impl/236/finalP/kernel236-reference/consumer236-native-O2-95727.json",
+    "evidence/impl/236/finalP/kernel236-reference/consumer236-verify-95727.json",
+    "evidence/impl/236/finalP/kernel236-reference/impl236-excerpt.log",
+    "evidence/impl/236/finalP/kernel236-reference/review238-joint-final.log",
+    "evidence/impl/236/finalP/matrix.log",
+    "evidence/impl/238/privacy/AUTHOR-REPORT.json",
+    "evidence/impl/238/privacy/COMMANDS.txt",
+    "evidence/impl/238/privacy/cache.log",
+    "evidence/impl/238/privacy/clippy.log",
+    "evidence/impl/238/privacy/coercion-clippy.log",
+    "evidence/impl/238/privacy/final-clippy.log",
+    "evidence/impl/238/privacy/final-coercion.log",
+    "evidence/impl/238/privacy/final-replacement.log",
+    "evidence/impl/238/privacy/limited.log",
+    "evidence/impl/238/privacy/native-union-final.log",
+    "evidence/impl/238/privacy/old-private.log",
+    "evidence/impl/238/privacy/old-verify.log",
+    "evidence/impl/238/privacy/private-final.log",
+    "evidence/impl/238/privacy/union-before.log",
+    "evidence/integration/language-core-20261102/compatibility-pre-fix/RESULT.json",
+    "evidence/integration/language-core-20261102/compatibility-pre-fix/cargo.log.gz",
+    "evidence/integration/language-core-20261102/compatibility-pre-fix/native.tar.gz",
+    "evidence/integration/language-core-20261102/component-gates/RESULT.json",
+    "evidence/integration/language-core-20261102/component-gates/clippy-P.log.gz",
+    "evidence/integration/language-core-20261102/component-gates/migration.log.gz",
+    "evidence/integration/language-core-20261102/component-gates/plan.json",
+    "evidence/integration/language-core-20261102/component-gates/text-reference.log.gz",
+    "evidence/integration/language-core-20261102/component-gates/transport.log.gz",
+    "evidence/integration/language-core-20261102/formal23-failed/RESULT.json",
+    "evidence/integration/language-core-20261102/formal23-failed/fmt.log.gz",
+    "evidence/integration/language-core-20261102/formal23-failed/workspace.log.gz",
+    "evidence/reviews/227/integration42.json",
+    "evidence/reviews/235/integration42.json",
+    "evidence/reviews/236/FILES.json",
+    "evidence/reviews/236/audit.json",
+    "evidence/reviews/236/audit.py",
+    "evidence/reviews/236/final42.json",
+    "evidence/reviews/236/negative-audit.json",
+    "evidence/reviews/236/preflight-audit.json",
+    "evidence/reviews/237/integration42-artifacts.json",
+    "evidence/reviews/237/integration42-artifacts.tar.gz",
+    "evidence/reviews/237/integration42-budget235.log",
+    "evidence/reviews/237/integration42-ct.log",
+    "evidence/reviews/237/integration42-driver.log",
+    "evidence/reviews/237/integration42-execution.json",
+    "evidence/reviews/237/integration42-kernel.log",
+    "evidence/reviews/237/integration42-legacy202.log",
+    "evidence/reviews/237/integration42-raw-manifest.json",
+    "evidence/reviews/237/integration42-runtime.json",
+    "evidence/reviews/237/integration42-toolchain.txt",
+    "evidence/reviews/237/integration42.json",
+    "evidence/reviews/238/FINAL-BINDING.json",
+    "evidence/reviews/238/FINAL-SOURCE-SHA256.json",
+    "evidence/reviews/238/RAW-REJECTIONS.json",
+    "evidence/reviews/238/README.md",
+    "evidence/reviews/238/REVIEW.json",
+    "evidence/reviews/238/SHA256SUMS",
+    "evidence/reviews/238/logs/review238-joint-final.log.gz",
+    "evidence/reviews/238/logs/review238-joint-final02.log.gz",
+    "evidence/reviews/238/review238-joint-final.files.json",
+    "evidence/reviews/238/review238-joint-final.tar.gz",
+    "evidence/reviews/238/review238-joint-final02.files.json",
+    "evidence/reviews/238/review238-joint-final02.tar.gz",
+    "evidence/reviews/wire-schema29-migration/RESULT.json",
+    "evidence/reviews/wire-schema29-migration/generate.log.gz",
+    "evidence/reviews/wire-schema29-migration/generate02.log.gz",
+    "evidence/reviews/wire-schema29-migration/limited.log.gz",
+    "evidence/reviews/wire-schema29-migration/migrated-raw.txt.gz",
+    "evidence/reviews/wire-schema29-migration/raw-final.txt",
+    "evidence/reviews/wire-schema29-migration/raw.txt.gz",
+    "evidence/reviews/wire-schema29-migration/wire-final.txt",
+    "evidence/reviews/wire-schema29-migration/wire.txt.gz"
+  ],
+  "source_manifest": {
+    "count": 15,
+    "sha256": "c539d3c7a9054b33d6cce1987ac8fd1dfedcd1e590b064ae67ce5aff0c04f4ab",
+    "mismatches": []
+  },
+  "compiler_build": {
+    "status": "Pass",
+    "source_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+    "git_status": "",
+    "git_status_before_build": "",
+    "exit_code": 0,
+    "cli_sha256": "ebc418f594c91f1c54b4f655cf6fdd0d99a9461852aec8e1f7ad09701d433395",
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "-p",
+      "zil-cli",
+      "--features",
+      "llvm-api"
+    ],
+    "cargo_seconds": 24.67,
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-236",
+    "CARGO_BUILD_JOBS": 1,
+    "CARGO_INCREMENTAL": 0,
+    "clang": "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+    "LD_LIBRARY_PATH": "/workspace/.zil-env/llvm-23.1.4/lib",
+    "performance_sampling": false
+  },
+  "cli_actual_sha256": "ebc418f594c91f1c54b4f655cf6fdd0d99a9461852aec8e1f7ad09701d433395",
+  "scheduler_sha256": "33e66f6033803670c2fe0b6928bb75910b5cb4dd68cc1673767bb65b36b84175",
+  "matrices": {
+    "matrix": {
+      "status": "Pass",
+      "identity": {
+        "consumer_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "compiler_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "cli_sha256": "ebc418f594c91f1c54b4f655cf6fdd0d99a9461852aec8e1f7ad09701d433395",
+        "compiler_build_receipt_sha256": "4b528e2b07069739b284889b38d149923db9adcda45361cf127f56b96a9bbdea",
+        "source_manifest_sha256": "c539d3c7a9054b33d6cce1987ac8fd1dfedcd1e590b064ae67ce5aff0c04f4ab",
+        "oracle_sha256": "5d3928abeb65d677518a93c9649ac3641ba2d403c448be0a59b4dcbbb5e12c25"
+      },
+      "manifest": {
+        "count": 1096,
+        "sha256": "3de4db928b2f24303d762dce2f3bbb179407667c7483de79c4a519300e06a26b",
+        "mismatches": []
+      },
+      "observations_identical_to_independently_prechecked_joint02": true,
+      "observations": 350,
+      "ordinary": 48,
+      "allocator": 302,
+      "actual_allocation_failures": 206,
+      "all_live_zero": true,
+      "all_allocated_equal_frees": true,
+      "max_peak_live": 12,
+      "max_peak_requested_bytes": 417,
+      "per_optimization": {
+        "O0": 175,
+        "O2": 175
+      },
+      "duplicate_keys": false,
+      "raw_mismatches": []
+    },
+    "controls": {
+      "status": "Pass",
+      "identity": {
+        "candidate_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+        "cli_sha256": "ebc418f594c91f1c54b4f655cf6fdd0d99a9461852aec8e1f7ad09701d433395"
+      },
+      "manifest": {
+        "count": 131,
+        "sha256": "042198ea6990b85451045b32af08a742571763f313c9bb595c4ac1527e6572ec",
+        "mismatches": []
+      },
+      "observations_identical_to_independently_prechecked_joint02": true,
+      "observations": 14,
+      "ordinary": 4,
+      "allocator": 10,
+      "actual_allocation_failures": 2,
+      "all_live_zero": true,
+      "all_allocated_equal_frees": true,
+      "max_peak_live": 1,
+      "max_peak_requested_bytes": 1,
+      "per_optimization": {
+        "O0": 7,
+        "O2": 7
+      },
+      "duplicate_keys": false,
+      "raw_mismatches": []
+    }
+  },
+  "objects": [
+    {
+      "path": "matrix/O0",
+      "source_modules": 5,
+      "verification_runs": 1,
+      "status": "Success",
+      "phase": "link",
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "input_kinds": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_bytes": [
+        31424
+      ],
+      "actual_bytes": 31424,
+      "object_sha256": "a97dfb1ab0606d8da530898f7c5975cbd20328f2cffd98d2480c76143f250e02",
+      "program_sha256": "75f573953275ddbd5496283dd665eb14457148679e0e98fa4648c8e589f5222c",
+      "probe_sha256": "60a103ad10e1e5d07d80180ea4898fe0e64075a6e906e73bd83d3385ef37625b",
+      "link_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "/workspace/.zil-env/236-finalQ/matrix/O0/api.o",
+        "/workspace/zil-core/tools/language/173/allocator_probe.c",
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/matrix/O0/probe"
+      ],
+      "build_command": [
+        "/workspace/.zil-env/target-236/debug/zil",
+        "build",
+        "/workspace/zil-core/examples/mainline/zui_core236/main.zil",
+        "--opt",
+        "O0",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/.zil-env/236-finalQ/matrix/O0/capture-object.sh",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/matrix/O0/program",
+        "--emit-dir",
+        "/workspace/.zil-env/236-finalQ/matrix/O0/phases",
+        "--json"
+      ],
+      "capture_wrapper": "#!/bin/sh\nset -eu\nfor arg in \"$@\"; do\ncase \"$arg\" in *.o|*.obj) cp -- \"$arg\" /workspace/.zil-env/236-finalQ/matrix/O0/api.o ;; esac\ndone\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "reported_native_link": [
+        [
+          "/workspace/.zil-env/236-finalQ/matrix/O0/capture-object.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O0",
+          "/workspace/.zil-env/236-finalQ/matrix/O0/.zil-driver-141496-10/.zil-build-141496-0/unit-0.o",
+          "-o",
+          "/workspace/.zil-env/236-finalQ/matrix/O0/.zil-driver-141496-10/.zil-build-141496-0/program"
+        ]
+      ],
+      "undefined_symbols": [
+        "U free",
+        "U getchar",
+        "U putchar",
+        "U realloc"
+      ]
+    },
+    {
+      "path": "matrix/O2",
+      "source_modules": 5,
+      "verification_runs": 1,
+      "status": "Success",
+      "phase": "link",
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "input_kinds": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_bytes": [
+        9480
+      ],
+      "actual_bytes": 9480,
+      "object_sha256": "fc3504e69c49f031ce863c4d91f43bd5841cdcb09395af4af1f90ad43aa15234",
+      "program_sha256": "e57313eb358f856b6eec2687bda5615143b1ea85597bf3929727f2445eaff663",
+      "probe_sha256": "add969995bea1ce181f20149497ab17c96660b90643897152e47a4bd63a71671",
+      "link_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "/workspace/.zil-env/236-finalQ/matrix/O2/api.o",
+        "/workspace/zil-core/tools/language/173/allocator_probe.c",
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/matrix/O2/probe"
+      ],
+      "build_command": [
+        "/workspace/.zil-env/target-236/debug/zil",
+        "build",
+        "/workspace/zil-core/examples/mainline/zui_core236/main.zil",
+        "--opt",
+        "O2",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/.zil-env/236-finalQ/matrix/O2/capture-object.sh",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/matrix/O2/program",
+        "--emit-dir",
+        "/workspace/.zil-env/236-finalQ/matrix/O2/phases",
+        "--json"
+      ],
+      "capture_wrapper": "#!/bin/sh\nset -eu\nfor arg in \"$@\"; do\ncase \"$arg\" in *.o|*.obj) cp -- \"$arg\" /workspace/.zil-env/236-finalQ/matrix/O2/api.o ;; esac\ndone\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "reported_native_link": [
+        [
+          "/workspace/.zil-env/236-finalQ/matrix/O2/capture-object.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/workspace/.zil-env/236-finalQ/matrix/O2/.zil-driver-141840-10/.zil-build-141840-0/unit-0.o",
+          "-o",
+          "/workspace/.zil-env/236-finalQ/matrix/O2/.zil-driver-141840-10/.zil-build-141840-0/program"
+        ]
+      ],
+      "undefined_symbols": [
+        "U free",
+        "U getchar",
+        "U putchar",
+        "U realloc"
+      ]
+    },
+    {
+      "path": "controls/O0/leaf_control",
+      "source_modules": 3,
+      "verification_runs": 1,
+      "status": "Success",
+      "phase": "link",
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "input_kinds": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_bytes": [
+        4904
+      ],
+      "actual_bytes": 4904,
+      "object_sha256": "eab1564d52112712e12bd36e9932eae13f90f8dbe1fc91af754ab04dc9e5f0fb",
+      "program_sha256": "f3fd1b4fe33c373dd664bdc9bc9edf7b86093a3cf8ca48cb32383f3e8588eb9b",
+      "probe_sha256": "056525719b2ed46c7753655afbb8b9a14100f226640b025c43491e21bbc2f8fd",
+      "link_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "/workspace/.zil-env/236-finalQ/controls/O0/leaf_control/api.o",
+        "/workspace/zil-core/tools/language/173/allocator_probe.c",
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/controls/O0/leaf_control/probe"
+      ],
+      "build_command": [
+        "/workspace/.zil-env/target-236/debug/zil",
+        "build",
+        "/workspace/zil-core/examples/mainline/zui_core236/leaf_control.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--clang",
+        "/workspace/.zil-env/236-finalQ/controls/O0/leaf_control/capture-object.sh",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/controls/O0/leaf_control/program",
+        "--emit-dir",
+        "/workspace/.zil-env/236-finalQ/controls/O0/leaf_control/phases",
+        "--json"
+      ],
+      "capture_wrapper": "#!/bin/sh\nset -eu\nfor arg in \"$@\"; do\ncase \"$arg\" in *.o|*.obj) cp -- \"$arg\" /workspace/.zil-env/236-finalQ/controls/O0/leaf_control/api.o ;; esac\ndone\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "reported_native_link": [
+        [
+          "/workspace/.zil-env/236-finalQ/controls/O0/leaf_control/capture-object.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O0",
+          "/workspace/.zil-env/236-finalQ/controls/O0/leaf_control/.zil-driver-141501-10/.zil-build-141501-0/unit-0.o",
+          "-o",
+          "/workspace/.zil-env/236-finalQ/controls/O0/leaf_control/.zil-driver-141501-10/.zil-build-141501-0/program"
+        ]
+      ],
+      "undefined_symbols": [
+        "U free",
+        "U getchar",
+        "U putchar",
+        "U realloc"
+      ]
+    },
+    {
+      "path": "controls/O0/defer_control",
+      "source_modules": 2,
+      "verification_runs": 1,
+      "status": "Success",
+      "phase": "link",
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "input_kinds": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_bytes": [
+        1696
+      ],
+      "actual_bytes": 1696,
+      "object_sha256": "e30813887635d8436545ba54328a00e494f8f647d5bbdf28bcfde9e7bc575ade",
+      "program_sha256": "eb420435d4be33e619a79aa7b90c9f7c13e769694f602bffd5c39182fec10373",
+      "probe_sha256": "503deccea35d98d069649afe9f6fadea6e622bb272738c6ba781ac39d9230326",
+      "link_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "/workspace/.zil-env/236-finalQ/controls/O0/defer_control/api.o",
+        "/workspace/zil-core/tools/language/173/allocator_probe.c",
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/controls/O0/defer_control/probe"
+      ],
+      "build_command": [
+        "/workspace/.zil-env/target-236/debug/zil",
+        "build",
+        "/workspace/zil-core/examples/mainline/zui_core236/defer_control.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--clang",
+        "/workspace/.zil-env/236-finalQ/controls/O0/defer_control/capture-object.sh",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/controls/O0/defer_control/program",
+        "--emit-dir",
+        "/workspace/.zil-env/236-finalQ/controls/O0/defer_control/phases",
+        "--json"
+      ],
+      "capture_wrapper": "#!/bin/sh\nset -eu\nfor arg in \"$@\"; do\ncase \"$arg\" in *.o|*.obj) cp -- \"$arg\" /workspace/.zil-env/236-finalQ/controls/O0/defer_control/api.o ;; esac\ndone\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "reported_native_link": [
+        [
+          "/workspace/.zil-env/236-finalQ/controls/O0/defer_control/capture-object.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O0",
+          "/workspace/.zil-env/236-finalQ/controls/O0/defer_control/.zil-driver-141526-10/.zil-build-141526-0/unit-0.o",
+          "-o",
+          "/workspace/.zil-env/236-finalQ/controls/O0/defer_control/.zil-driver-141526-10/.zil-build-141526-0/program"
+        ]
+      ],
+      "undefined_symbols": [
+        "U getchar",
+        "U putchar"
+      ]
+    },
+    {
+      "path": "controls/O2/leaf_control",
+      "source_modules": 3,
+      "verification_runs": 1,
+      "status": "Success",
+      "phase": "link",
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "input_kinds": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_bytes": [
+        1904
+      ],
+      "actual_bytes": 1904,
+      "object_sha256": "837cb23079c64c8f7131ba9d3ffa9e5ccd4066c648945dc30b24fcff82d09000",
+      "program_sha256": "25ce1b54338b43ae625801b4e7732ecfc89301d9191c61bd8aa6019ecbf0ab6c",
+      "probe_sha256": "9a29e2c076ebd49f95bdadf00d4dae274b287144d38443736d56c25fd582d54a",
+      "link_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "/workspace/.zil-env/236-finalQ/controls/O2/leaf_control/api.o",
+        "/workspace/zil-core/tools/language/173/allocator_probe.c",
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/controls/O2/leaf_control/probe"
+      ],
+      "build_command": [
+        "/workspace/.zil-env/target-236/debug/zil",
+        "build",
+        "/workspace/zil-core/examples/mainline/zui_core236/leaf_control.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "--clang",
+        "/workspace/.zil-env/236-finalQ/controls/O2/leaf_control/capture-object.sh",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/controls/O2/leaf_control/program",
+        "--emit-dir",
+        "/workspace/.zil-env/236-finalQ/controls/O2/leaf_control/phases",
+        "--json"
+      ],
+      "capture_wrapper": "#!/bin/sh\nset -eu\nfor arg in \"$@\"; do\ncase \"$arg\" in *.o|*.obj) cp -- \"$arg\" /workspace/.zil-env/236-finalQ/controls/O2/leaf_control/api.o ;; esac\ndone\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "reported_native_link": [
+        [
+          "/workspace/.zil-env/236-finalQ/controls/O2/leaf_control/capture-object.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/workspace/.zil-env/236-finalQ/controls/O2/leaf_control/.zil-driver-141541-10/.zil-build-141541-0/unit-0.o",
+          "-o",
+          "/workspace/.zil-env/236-finalQ/controls/O2/leaf_control/.zil-driver-141541-10/.zil-build-141541-0/program"
+        ]
+      ],
+      "undefined_symbols": [
+        "U free",
+        "U getchar",
+        "U putchar",
+        "U realloc"
+      ]
+    },
+    {
+      "path": "controls/O2/defer_control",
+      "source_modules": 2,
+      "verification_runs": 1,
+      "status": "Success",
+      "phase": "link",
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "input_kinds": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_bytes": [
+        1048
+      ],
+      "actual_bytes": 1048,
+      "object_sha256": "451ed22eda27bbea408c2a1dab3c164fd4b24c24c1f0407a49eca2c6ab724f5b",
+      "program_sha256": "0739581b6d463ab1ab651051432141834221a664c76c9b84c5f0c2f31cada18a",
+      "probe_sha256": "23d4580aa684abeda2193e974c1f4612cba616b4dcb2b5bbd093ecb37627a89a",
+      "link_command": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "/workspace/.zil-env/236-finalQ/controls/O2/defer_control/api.o",
+        "/workspace/zil-core/tools/language/173/allocator_probe.c",
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/controls/O2/defer_control/probe"
+      ],
+      "build_command": [
+        "/workspace/.zil-env/target-236/debug/zil",
+        "build",
+        "/workspace/zil-core/examples/mainline/zui_core236/defer_control.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "--clang",
+        "/workspace/.zil-env/236-finalQ/controls/O2/defer_control/capture-object.sh",
+        "-o",
+        "/workspace/.zil-env/236-finalQ/controls/O2/defer_control/program",
+        "--emit-dir",
+        "/workspace/.zil-env/236-finalQ/controls/O2/defer_control/phases",
+        "--json"
+      ],
+      "capture_wrapper": "#!/bin/sh\nset -eu\nfor arg in \"$@\"; do\ncase \"$arg\" in *.o|*.obj) cp -- \"$arg\" /workspace/.zil-env/236-finalQ/controls/O2/defer_control/api.o ;; esac\ndone\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "reported_native_link": [
+        [
+          "/workspace/.zil-env/236-finalQ/controls/O2/defer_control/capture-object.sh",
+          "--target=x86_64-unknown-linux-gnu",
+          "-O2",
+          "/workspace/.zil-env/236-finalQ/controls/O2/defer_control/.zil-driver-141595-10/.zil-build-141595-0/unit-0.o",
+          "-o",
+          "/workspace/.zil-env/236-finalQ/controls/O2/defer_control/.zil-driver-141595-10/.zil-build-141595-0/program"
+        ]
+      ],
+      "undefined_symbols": [
+        "U getchar",
+        "U putchar"
+      ]
+    }
+  ],
+  "compiler_build_receipt_sha256": "4b528e2b07069739b284889b38d149923db9adcda45361cf127f56b96a9bbdea",
+  "preflight_audit_sha256": "bc7f1d222074a74ec61bf88e2c83b173369567881dbc01566b7990bc11c49fee"
+}

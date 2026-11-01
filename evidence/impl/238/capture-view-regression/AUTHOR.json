@@ -1,0 +1,125 @@
+{
+  "task": "238",
+  "scope": "Captured Package view whole-move/refill compatibility regression",
+  "status": "AuthorScopedPassPendingIndependentReviewAndIntegration",
+  "implementation_commit": "b29c3bcfd408b377c987d4061bd8af911e05b1a3",
+  "base_P": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "branch": "task/238-regression",
+  "source_tree": "/workspace/zil-238-regression",
+  "independent_review": "NotRunByAuthor",
+  "full_language_gate": "NotRun",
+  "product_gate": "NotRun",
+  "origin": "Root formal P run reported five failures in unchanged 077/079/161/163 capture tests; full log /workspace/.zil-env/formal-language23/workspace.log. Privacy failures belong to a separate fix and are not covered by this receipt.",
+  "root_cause": "The new ordinary Product transaction dispatch also intercepted BindPackageCapture views. Those views alias retained closure environment positions whose whole TakeLocal/Store restoration was already supported. New DropPackageField publication requires a live ordinary shell, so previously consumed views produced E-UNINITIALIZED instead of restoring the captured value.",
+  "fix": "Before new eligibility scanning, exclude only LocalIds actually present in Builder.package_captures. The existing whole-value Store and independent repeatable-call/error-exit completeness checks remain responsible for captured views. Ordinary locals do not get this exception.",
+  "production_change": {
+    "file": "crates/zil-types/src/product_replacement.rs",
+    "added_lines": 7,
+    "kernel_changes": false,
+    "spec_changes": false,
+    "test_source_oracle_changes": false
+  },
+  "environment": {
+    "setup": ". /workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-238",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "feature": "llvm-api"
+  },
+  "runs": [
+    {
+      "id": "P-exact-original-failure",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-regression-baseline-evidence cargo test -p zil-driver --features llvm-api --test impl077_package_captures captures077_refill_after_take_and_conditional_take_is_repeatable -- --nocapture",
+      "commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+      "passed": 0,
+      "failed": 1,
+      "filtered_out": 11,
+      "exit": 101,
+      "diagnostic": "Analyze SafeReject E-UNINITIALIZED local0 at p=whole",
+      "log": "238-regression-baseline.log.gz"
+    },
+    {
+      "id": "original-affected-groups",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-capture-regression-fixed-evidence cargo test -p zil-driver --features llvm-api --test impl077_package_captures --test impl079_package_captures --test impl161_nested_closures --test impl163_resource_methods -- --nocapture",
+      "implementation_commit": "b29c3bcfd408b377c987d4061bd8af911e05b1a3",
+      "passed": 57,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "groups": {
+        "impl077_package_captures": 12,
+        "impl079_package_captures": 4,
+        "impl161_nested_closures": 16,
+        "impl163_resource_methods": 25
+      },
+      "log": "238-capture-regression-fixed.log.gz",
+      "scope": "All original sources/oracles unchanged; covers repeatable restore, conditional take/refill, nested environment moves, method receiver consumption, and FnOnce error before refill. Existing rejection/mode-forgery controls remain enabled."
+    },
+    {
+      "id": "ordinary-new-transaction-controls",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-capture-ordinary-controls-evidence cargo test -p zil-driver --features llvm-api --test impl238_product_replacement --test impl238_machine --test impl236_zui_core -- --nocapture",
+      "implementation_commit": "b29c3bcfd408b377c987d4061bd8af911e05b1a3",
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "groups": {
+        "impl238_product_replacement": 7,
+        "impl238_machine": 1,
+        "impl236_zui_core": 3
+      },
+      "log": "238-capture-ordinary-controls.log.gz",
+      "scope": "Ordinary moved/maybe-dead local and live-window negatives remain rejected; direct template controls, both transaction failure paths and original236 LQabAB family remain unchanged."
+    }
+  ],
+  "counting": "57+11=68 scoped test cases, not a full run. No previous repeats or independent executions are added. Native run counts of old large suites are intentionally not inferred from test counts.",
+  "measured_077_boundaries": {
+    "Types": 1175,
+    "Analyze": 19310,
+    "checks": [
+      "N success",
+      "N-1 ResourceLimit"
+    ]
+  },
+  "source_hashes": "SOURCE-SHA256.json",
+  "logs": [
+    {
+      "file": "238-regression-baseline.log.gz",
+      "sha256": "bef5d22993e3d4c702b131bf4485d90abb4ecb50ab47891398080fc3579b82ff",
+      "original_sha256": "a75f68c5905c90f909654ec872a9eb971412bc57120a8709bcaf7dcbef3c0d8b"
+    },
+    {
+      "file": "238-capture-regression-fixed.log.gz",
+      "sha256": "e1923967bd5285cf5c33db31d3b5dcd0a00002ecbb5fb28120cce5fc3b0788cd",
+      "original_sha256": "a940014e9e23bab1995aea1fea5780f9eb2bfccd38abbc1933670095cd03a819"
+    },
+    {
+      "file": "238-capture-ordinary-controls.log.gz",
+      "sha256": "d3c78485537a36d4aa3d27c11b2179fdfdc3e20a49512e79f76d0d8ec2cd96d6",
+      "original_sha256": "41b938611bda48ee4097da191b228d83c1a00b5add4b4f106be7bde15949cd5e"
+    }
+  ],
+  "archives": [
+    {
+      "file": "238-capture-regression-fixed-evidence.tar.gz",
+      "sha256": "d8d04e12dc30468211ba59bd477379753087ef5dd1aba70b4578a752cd1da17e",
+      "members": 1697,
+      "bytes": 9573386,
+      "inventory": "238-capture-regression-fixed-evidence.files.json",
+      "inventory_sha256": "a83c906517d7f3f946ca620d26e4cdcbdd20a2fe87b83e564fc0a8aeb56955f7"
+    },
+    {
+      "file": "238-capture-ordinary-controls-evidence.tar.gz",
+      "sha256": "49bede56f946ac2661b9a19530843ed458f57efa68b67dbf53b7cea6ea36ee32",
+      "members": 703,
+      "bytes": 2411814,
+      "inventory": "238-capture-ordinary-controls-evidence.files.json",
+      "inventory_sha256": "37885ea9386df7ddd5f50edfbbaaa10bc7cdea79e85f2131e2bf0114dffe4e0f"
+    }
+  ],
+  "limitations": [
+    "Privacy regression is handled by the other author.",
+    "No ordinary dead-local revival, permission, IR or resource-order change.",
+    "Final combined review and full rerun are root-owned."
+  ]
+}

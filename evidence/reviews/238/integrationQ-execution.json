@@ -1,0 +1,257 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "prior_review_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "schema_version": 29,
+  "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+  "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854",
+  "clean_before_and_after": true,
+  "environment": {
+    "cwd": "/workspace/zil-core",
+    "setup": ". /workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-237",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_TEST_REPORT_DIR": "/tmp/review-Q",
+    "feature": "llvm-api",
+    "target": "x86_64-unknown-linux-gnu",
+    "toolchain_identity": "integrationQ-toolchain.txt",
+    "Cargo_lock_sha256": "99b70f5eae3be5aec5d26185cf3ac4a875e3e508751767f11c2204dc2a806fde"
+  },
+  "commands": [
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl192_copy_fields whole_parent_replacement --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 19,
+      "log": "integrationQ-192.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test review237_generic_defer original_self_feeding_generic_defer_sources_execute_alqz_without_editing_the_cleanup --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 3,
+      "log": "integrationQ-alqz.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl202_budget pre202_callback_store_paths_keep_their_recorded_types_boundaries --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 1,
+      "log": "integrationQ-budget202.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl235_budget  --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log": "integrationQ-budget235.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl237_budget generic_product_types_analyze_verify_boundaries --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 1,
+      "log": "integrationQ-budget237.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl238_product_replacement replacement_types_budget_is_paid_before_field_growth --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 6,
+      "log": "integrationQ-budget238.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test review238_compatibility --test review238_contracts --test impl238_private_replacement --test impl238_machine --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 23,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log": "integrationQ-main.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --lib private_format_roundtrips_all_raw_program_fields_for_real_projects --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 63,
+      "log": "integrationQ-old-cache.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl060 bounded_ui_events_move_complete_packages_without_losing_field_descriptions --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 2,
+      "log": "integrationQ-old060.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl064 helper064_public_field_view_survives_two_calls_and_whole_package_move --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 1,
+      "log": "integrationQ-old064.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl077_package_captures captures077_refill_after_take_and_conditional_take_is_repeatable --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 11,
+      "log": "integrationQ-old077.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl079_package_captures captures079_complete_and_partial_env_exits_match_exact_fixed_cleanup_order --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 3,
+      "log": "integrationQ-old079.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl161_nested_closures outer_package_refill_after_nested_move_keeps_fnmut --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 15,
+      "log": "integrationQ-old161.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl163_resource_methods consuming_and_refilling_a_package_method_receiver_remains_fnmut --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 24,
+      "log": "integrationQ-old163-fnmut.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl163_resource_methods package_receiver_error_before_refill_is_once_and_keeps_unique_cleanup --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 24,
+      "log": "integrationQ-old163-once.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test review237_contracts original235_success_obligation_is_preserved_byte_for_byte_and_executes --locked -- --nocapture",
+      "exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 23,
+      "log": "integrationQ-original235.log"
+    }
+  ],
+  "current_execution": {
+    "selected": 40,
+    "passed": 40,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_unrelated": 196
+  },
+  "not_reexecuted_or_recounted": "Historical P74 remains a separate bounded receipt; it is not added to this current total.",
+  "production_delta": [
+    "crates/zil-types/src/addresses.rs",
+    "crates/zil-types/src/aggregates.rs",
+    "crates/zil-types/src/closures.rs",
+    "crates/zil-types/src/lib.rs",
+    "crates/zil-types/src/product_replacement.rs",
+    "crates/zil-types/src/program.rs"
+  ],
+  "unchanged_dependencies": [
+    "crates/zil-base",
+    "crates/zil-ir",
+    "crates/zil-expand",
+    "crates/zil-analyze",
+    "crates/zil-verify",
+    "crates/zil-lower",
+    "crates/zil-backend-llvm",
+    "Cargo.lock",
+    "data/normative-inputs.json",
+    "_zil_design.md",
+    "crates/zil-types/src/aggregate_templates.rs",
+    "crates/zil-types/src/store_templates.rs"
+  ],
+  "old_regression_test_bytes_unchanged": [
+    "crates/zil-driver/tests/impl060.rs",
+    "crates/zil-driver/tests/impl064.rs",
+    "crates/zil-driver/tests/impl077_package_captures.rs",
+    "crates/zil-driver/tests/impl079_package_captures.rs",
+    "crates/zil-driver/tests/impl161_nested_closures.rs",
+    "crates/zil-driver/tests/impl163_resource_methods.rs",
+    "crates/zil-driver/src/semantic_cache.rs",
+    "crates/zil-driver/tests/review237_contracts.rs",
+    "crates/zil-driver/tests/review237_generic_defer.rs"
+  ],
+  "reuse_reasoning": [
+    "Base/IR/Expand/Analyze/Verify/Lower/LLVM, Cargo.lock, schema and all normative bytes are identical to P.",
+    "Types aggregate_templates/store_templates, element/capture qualifiers, actual resource/origin kernels and CT transports are unchanged. Prior malformed metadata cases reject before the new IR building hooks.",
+    "Common Types changes add an inactive-by-default Builder pending option and a private empty receipt map. Untouched non-transaction paths retain the same branches and logical fees; legacy controls were actually rerun.",
+    "Affected whole-Product transaction and captured-view paths were actually rerun on Q, including exact eight historical regressions, private additional arguments, union injection, original ALQZ, 238 source/raw/Wire and failures."
+  ],
+  "policy": "docs/WORKFLOW.md §6 evidence reuse: unchanged dependencies and inactive paths proved, affected paths newly executed.",
+  "test_sha256": {
+    "crates/zil-driver/tests/impl060.rs": "c12ebda1c343191022addc82c12f4c76ce1d8f5e8bd00320e60bed91f3e0e7d3",
+    "crates/zil-driver/tests/impl064.rs": "077ef1e00c2fdb9674d91ebdcb94d13ed947bab7f6b3903b6703d2f9c895fbe8",
+    "crates/zil-driver/tests/impl077_package_captures.rs": "55618466af18473135520d128876334646f7ea5b9a00bb64b4b5311b59b70c52",
+    "crates/zil-driver/tests/impl079_package_captures.rs": "1dd41f210e61b8fdb3022c30daea7479a894aef836ee08181d32e7a5b23890c1",
+    "crates/zil-driver/tests/impl161_nested_closures.rs": "23d3d2f0c7c881010fcdaab5a636eff9caf7444fe9750b7efa1b9a3f27a36e78",
+    "crates/zil-driver/tests/impl163_resource_methods.rs": "bc3585bbec508d232b154ae73da33aae66e9f4e8f63cfe561c7ca4f39ae3392c",
+    "crates/zil-driver/src/semantic_cache.rs": "04d03826d1b86bdc340755e0fcaa2a1edff84487f3a1e9cc61a626c81560836a",
+    "crates/zil-driver/tests/review237_contracts.rs": "1c65d2dd0beb2042bdac4820d67bbe96b55ce0a5e0fcb59fd8cbcc422be276ba",
+    "crates/zil-driver/tests/review237_generic_defer.rs": "21770e69ea154d33585b78c1273a8449db3495acb4bef704fe066df1c6995e7f",
+    "crates/zil-driver/tests/review238_contracts.rs": "8d50e8423660dfaa28e04bf42237fec9b97f62a4c269fb864be2c46e0ba78ac3",
+    "crates/zil-driver/tests/review238_compatibility.rs": "d96670835cd849a48b63dea9480a01ce14b0b4cb2a8bd49a72515f38cf5721d9"
+  },
+  "budget": {
+    "238_new_Types_N": 712,
+    "238_prior_author_N_record": 617,
+    "same_source_transition": "P transaction used generated source AST; Q uses paid internal instruction provenance and relocation. N712/N−1/fresh independently executed. P617 retained in historical 238 receipt.",
+    "old202_Types": [
+      6326,
+      29030,
+      29566
+    ],
+    "old235_Types_Analyze_Verify": [
+      835,
+      7129,
+      12161
+    ],
+    "new235_Types_Analyze_Verify": [
+      3943,
+      82079,
+      173575
+    ],
+    "generic237_Types_Analyze_Verify": [
+      237893,
+      48812,
+      100192
+    ]
+  },
+  "runtime": "integrationQ-runtime.json",
+  "raw_archive": "integrationQ-artifacts.tar.gz",
+  "raw_manifest": "integrationQ-raw-manifest.json",
+  "full_workspace_or_product_gate_run_by_reviewer": false
+}

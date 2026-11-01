@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.44s
+     Running tests/impl192_copy_fields.rs (/workspace/.zil-env/target-237/debug/deps/impl192_copy_fields-a46d3e41db54432d)
+
+running 2 tests
+test whole_parent_replacement_rejects_a_live_field_loan ... ok
+test whole_parent_replacement_succeeds_without_a_field_loan ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.22s
+

@@ -1,0 +1,9 @@
+     Running tests/impl236_zui_core.rs (/workspace/.zil-env/target-core/debug/deps/impl236_zui_core-1bb77d0930b99f49)
+
+running 3 tests
+test complete_session_reaches_independent_verify ... ok
+test nearest_missing_refill_and_live_window_counterexamples ... ok
+test runtime_counts_exit_modes_and_declared_shutdown_order ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.45s
+

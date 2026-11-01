@@ -1,0 +1,52 @@
+--- a/crates/zil-driver/tests/impl192_copy_fields.rs
++++ b/crates/zil-driver/tests/impl192_copy_fields.rs
+@@ -210,32 +210,23 @@
+ }
+ 
+ #[test]
+-fn whole_parent_overwrite_keeps_its_existing_unpaid_owner_gate() {
+-    // Whole-Package overwrite already rejects an unpaid owner, with or
+-    // without a field loan. This is not credited as a new loan proof.
+-    for body in [
+-        "state=make();return state.x;",
+-        "let p=&state.x;state=make();return *p;",
+-    ] {
+-        let report = check(&format!(
+-            "{SIMPLE}fn main()->i32{{var state=make();{body}}}"
+-        ));
+-        assert_eq!(
+-            report.status,
+-            ResultCategory::SafeReject,
+-            "{}",
+-            report.to_json()
+-        );
+-        assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+-        assert!(
+-            report
+-                .diagnostics
+-                .iter()
+-                .any(|d| d.message.contains("unpaid resource")),
+-            "{}",
+-            report.to_json()
+-        );
+-    }
++fn whole_parent_replacement_succeeds_without_a_field_loan() {
++    let source = format!("{SIMPLE}fn main()->i32{{var state=make();state=make();return state.x;}}");
++    let report = check(&source);
++    assert_eq!(
++        report.status,
++        ResultCategory::Success,
++        "{}",
++        report.to_json()
++    );
++    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
++    assert_eq!(report.verification_runs, 1);
++    native(&[("main", &source)], b"", 20);
++}
++
++#[test]
++fn whole_parent_replacement_rejects_a_live_field_loan() {
++    conflict("let p=&state.x;state=make();return *p;");
+ }
+ 
+ #[test]

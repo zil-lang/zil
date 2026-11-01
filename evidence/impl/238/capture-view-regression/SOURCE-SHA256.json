@@ -1,0 +1,47 @@
+{
+  "implementation_commit": "b29c3bcfd408b377c987d4061bd8af911e05b1a3",
+  "parent": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "captured_at_utc": "2026-11-01T20:13:37.048366+00:00",
+  "files": [
+    {
+      "path": "crates/zil-types/src/product_replacement.rs",
+      "sha256": "4c0855e4d7e258528e587d812be7b62bdf4cf0e4ada51c1053dd09d1c3654967",
+      "git_blob": "6a0274e27802dff3dfb6f8e553fb2185d1939722"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl077_package_captures.rs",
+      "sha256": "55618466af18473135520d128876334646f7ea5b9a00bb64b4b5311b59b70c52",
+      "git_blob": "8ebe9e803b283318b37c89447c7bb8fdc5ad130f"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl079_package_captures.rs",
+      "sha256": "1dd41f210e61b8fdb3022c30daea7479a894aef836ee08181d32e7a5b23890c1",
+      "git_blob": "79c4ef9c49d9dffb2447c155b812fabf4fb9ba15"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl161_nested_closures.rs",
+      "sha256": "23d3d2f0c7c881010fcdaab5a636eff9caf7444fe9750b7efa1b9a3f27a36e78",
+      "git_blob": "1226296185c6884cf42212e81a65b1f094033b7e"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl163_resource_methods.rs",
+      "sha256": "bc3585bbec508d232b154ae73da33aae66e9f4e8f63cfe561c7ca4f39ae3392c",
+      "git_blob": "ed65670d214b72af676eba113682c4c841fbc502"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl238_product_replacement.rs",
+      "sha256": "4d321fbe45de936fa023ba698806dfd0a3abfeedfa3cbe0ba3611680289f0674",
+      "git_blob": "f3c5472f2236b4403f5c779e2c9e9a9c70b6287a"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl238_machine.rs",
+      "sha256": "c25d8dcf447101fe541d10631cd93821fcf6d66697f6fbb9aa8be44628de65f1",
+      "git_blob": "84024c0343ead5bb40a6a3266eb417e2d94ac136"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl236_zui_core.rs",
+      "sha256": "cf74ddf21291e71c240ebc6e58c3a4e8b57bf4c014ffaf4729a8b94c8dba46fb",
+      "git_blob": "b418b076c0010a36a6b829f962b899406ca17111"
+    }
+  ]
+}

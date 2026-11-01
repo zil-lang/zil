@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.88s
+     Running tests/review237_generic_defer.rs (/workspace/.zil-env/target-237/debug/deps/review237_generic_defer-daab9a9b6daba4b2)
+
+running 1 test
+test original_self_feeding_generic_defer_sources_execute_alqz_without_editing_the_cleanup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.70s
+

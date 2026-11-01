@@ -1,0 +1,16 @@
+[
+  {
+    "group": "native",
+    "files": 72032,
+    "bytes": 3441176403,
+    "manifest": "native-manifest.json.gz",
+    "manifest_sha256": "a40d10716f9f0bb7d9823a732ceeeb92c10496384a09537a211b102ae718ad17"
+  },
+  {
+    "group": "reference-native",
+    "files": 68826,
+    "bytes": 3375674818,
+    "manifest": "reference-native-manifest.json.gz",
+    "manifest_sha256": "fdbac9d23c337cc514e1ea1f44a3dff3fb9735dcb4230849d12391a9842aa8d5"
+  }
+]

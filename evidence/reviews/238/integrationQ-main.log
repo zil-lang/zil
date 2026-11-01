@@ -1,0 +1,50 @@
+   Compiling zil-types v0.1.0 (/workspace/zil-core/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 33.49s
+     Running tests/impl238_machine.rs (/workspace/.zil-env/target-237/debug/deps/impl238_machine-a36910be570ef2c8)
+
+running 1 test
+test rhs_preparation_and_self_transfer_failures_preserve_actual_debt ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.78s
+
+     Running tests/impl238_private_replacement.rs (/workspace/.zil-env/target-237/debug/deps/impl238_private_replacement-9569567b1e554f48)
+
+running 4 tests
+test source_private_accesses_are_never_internal_transaction_operations ... ok
+test opaque_independent_and_self_replacement_preserve_private_fields ... ok
+test original_cross_module_projects_reach_analyze_unchanged ... ok
+test opaque_replacement_with_later_temporaries_runs_on_both_native_levels ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/review238_compatibility.rs (/workspace/.zil-env/target-237/debug/deps/review238_compatibility-92b9fa6074a0573d)
+
+running 4 tests
+test internal_whole_pack_does_not_grant_source_field_access_to_other_arguments ... ok
+test capture_view_compatibility_does_not_reopen_an_ordinary_dead_product_local ... ok
+test internal_self_pack_preserves_existing_owned_union_argument_injection ... ok
+test imported_private_product_self_argument_is_an_opaque_complete_move ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+     Running tests/review238_contracts.rs (/workspace/.zil-env/target-237/debug/deps/review238_contracts-3d8fe889c7abbdba)
+
+running 14 tests
+test independent_prepare_is_complete_before_all_old_cleanup_and_all_publication ... ok
+test normal_move_and_maybe_moved_shell_cannot_be_resurrected_or_copy_read ... ok
+test raw_duplicate_take_and_wrong_same_type_target_reject_without_prior_analyze ... ok
+test raw_field_publication_cannot_reopen_dead_shell_or_read_after_whole_move ... ok
+test legal_partial_shell_refill_cleans_only_remaining_old_fields ... ok
+test raw_partial_publication_does_not_become_complete_at_join_or_backedge ... ok
+test raw_shared_borrow_of_half_extracted_shell_requires_all_children_live ... ok
+test raw_old_debt_and_incomplete_publication_are_checked_independently ... ok
+test ordinary_static_templates_and_explicit_type_apply_keep_the_same_transaction ... ok
+test self_argument_cannot_enable_copy_read_through_another_argument ... ok
+test whole_product_and_field_windows_stay_live_until_actual_last_use ... ok
+test ordinary_and_self_replacement_preserve_shell_age_and_defer_order ... ok
+test rhs_failure_preserves_only_responsibility_not_explicitly_transferred ... ok
+test scope_shadow_branch_and_loop_keep_real_binding_and_activation ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.62s
+

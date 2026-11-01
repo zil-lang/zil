@@ -1,0 +1,63 @@
+{
+  "status": "Pass",
+  "apply": true,
+  "started_utc": "2026-11-01T20:12:57.720403+00:00",
+  "scope": "Only fixed unused preinstalled toolchains; no project, test, target or evidence deletion",
+  "runner": {
+    "GITHUB_ACTIONS": "true",
+    "RUNNER_ENVIRONMENT": "github-hosted",
+    "RUNNER_OS": "Linux"
+  },
+  "protected": [
+    "/home/runner/work/zil/zil",
+    "/home/runner/work/_temp"
+  ],
+  "before": {
+    "total_bytes": 76887154688,
+    "used_bytes": 65592729600,
+    "free_bytes": 11277647872
+  },
+  "paths": [
+    {
+      "path": "/usr/local/lib/android",
+      "identity": {
+        "device": 66305,
+        "inode": 333664
+      },
+      "status": "Removed",
+      "allocated_bytes_before": 11838300160,
+      "free_bytes_after": 23116062720
+    },
+    {
+      "path": "/usr/share/dotnet",
+      "identity": {
+        "device": 66305,
+        "inode": 2621747
+      },
+      "status": "Removed",
+      "allocated_bytes_before": 6167728128,
+      "free_bytes_after": 29283786752
+    },
+    {
+      "path": "/opt/ghc",
+      "identity": null,
+      "status": "Missing"
+    },
+    {
+      "path": "/usr/local/.ghcup",
+      "identity": {
+        "device": 66305,
+        "inode": 3995553
+      },
+      "status": "Removed",
+      "allocated_bytes_before": 3925286912,
+      "free_bytes_after": 33209073664
+    }
+  ],
+  "after": {
+    "total_bytes": 76887154688,
+    "used_bytes": 43661303808,
+    "free_bytes": 33209073664
+  },
+  "finished_utc": "2026-11-01T20:14:08.963145+00:00"
+}

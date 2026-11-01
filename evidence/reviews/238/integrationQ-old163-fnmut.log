@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.24s
+     Running tests/impl163_resource_methods.rs (/workspace/.zil-env/target-237/debug/deps/impl163_resource_methods-131ef618e5e18518)
+
+running 1 test
+test consuming_and_refilling_a_package_method_receiver_remains_fnmut ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.35s
+

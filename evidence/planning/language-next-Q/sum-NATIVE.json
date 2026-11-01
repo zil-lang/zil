@@ -1,0 +1,414 @@
+{
+  "status": "Pass",
+  "compiler_source_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "cli_sha256": "ebc418f594c91f1c54b4f655cf6fdd0d99a9461852aec8e1f7ad09701d433395",
+  "plan_sha256": "7ce86d69326841b32807fbd424b1e3695ce986b2ba31aca806945b87e90fa876",
+  "selection": "Only nonnegative sources already checked through Verify; stdout/exit expectations frozen before those checks",
+  "builds": [
+    {
+      "name": "01-unit-flat",
+      "opt": "O0",
+      "verification_runs": 1,
+      "executable_sha256": "9c67001cf45d526bab53334d6116449d73fce58f24203ff8fc1e327c791d936a",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 4352,
+            "input_kind": "builder",
+            "preflight_ns": 3032459,
+            "builder_ns": 1232345,
+            "parse_ns": 0,
+            "optimize_ns": 404009,
+            "emit_ns": 22267510,
+            "total_ns": 31575037
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "name": "01-unit-flat",
+      "opt": "O2",
+      "verification_runs": 1,
+      "executable_sha256": "e9f12204588014b7da892731809074df5a018badb4cf6c8acf26c5d65cdd0da9",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1720,
+            "input_kind": "builder",
+            "preflight_ns": 2017188,
+            "builder_ns": 2948620,
+            "parse_ns": 0,
+            "optimize_ns": 7988854,
+            "emit_ns": 25619075,
+            "total_ns": 41334612
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "opt": "O0",
+      "verification_runs": 1,
+      "executable_sha256": "ce7245b863a40d5f95769cc8f50d86fb505412ad076c90d784b47d0b22199230",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 5888,
+            "input_kind": "builder",
+            "preflight_ns": 2310606,
+            "builder_ns": 5296853,
+            "parse_ns": 0,
+            "optimize_ns": 5566415,
+            "emit_ns": 405154302,
+            "total_ns": 422040405
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "opt": "O2",
+      "verification_runs": 1,
+      "executable_sha256": "c2bacb8175dfcbaa51e499385ecab58e40fa88777e2eb86181bb25ddb9a90157",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2008,
+            "input_kind": "builder",
+            "preflight_ns": 2244657,
+            "builder_ns": 1883867,
+            "parse_ns": 0,
+            "optimize_ns": 13385791,
+            "emit_ns": 13688141,
+            "total_ns": 33682023
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "name": "04-both-owned-flat",
+      "opt": "O0",
+      "verification_runs": 1,
+      "executable_sha256": "9128892d421ae54c3ac53d022e6be74976213ac8a4b718e41a9e0c36fed238e6",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 5600,
+            "input_kind": "builder",
+            "preflight_ns": 9283517,
+            "builder_ns": 1862466,
+            "parse_ns": 0,
+            "optimize_ns": 486121,
+            "emit_ns": 16492155,
+            "total_ns": 29864222
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "name": "04-both-owned-flat",
+      "opt": "O2",
+      "verification_runs": 1,
+      "executable_sha256": "107a60c962c09e4b68c500bf4753b17c773f7ec2c7b68fff3ce624eed942ebaa",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1952,
+            "input_kind": "builder",
+            "preflight_ns": 3238586,
+            "builder_ns": 3692786,
+            "parse_ns": 0,
+            "optimize_ns": 20763242,
+            "emit_ns": 39433029,
+            "total_ns": 69107124
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    }
+  ],
+  "observations": [
+    {
+      "name": "01-unit-flat",
+      "opt": "O0",
+      "input": "0",
+      "exit": 0,
+      "stdout": "SRA",
+      "stderr": ""
+    },
+    {
+      "name": "01-unit-flat",
+      "opt": "O0",
+      "input": "1",
+      "exit": 1,
+      "stdout": "SA",
+      "stderr": ""
+    },
+    {
+      "name": "01-unit-flat",
+      "opt": "O2",
+      "input": "0",
+      "exit": 0,
+      "stdout": "SRA",
+      "stderr": ""
+    },
+    {
+      "name": "01-unit-flat",
+      "opt": "O2",
+      "input": "1",
+      "exit": 1,
+      "stdout": "SA",
+      "stderr": ""
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "opt": "O0",
+      "input": "0",
+      "exit": 0,
+      "stdout": "SRA",
+      "stderr": ""
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "opt": "O0",
+      "input": "1",
+      "exit": 1,
+      "stdout": "SA",
+      "stderr": ""
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "opt": "O0",
+      "input": "2",
+      "exit": 0,
+      "stdout": "SER",
+      "stderr": ""
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "opt": "O2",
+      "input": "0",
+      "exit": 0,
+      "stdout": "SRA",
+      "stderr": ""
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "opt": "O2",
+      "input": "1",
+      "exit": 1,
+      "stdout": "SA",
+      "stderr": ""
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "opt": "O2",
+      "input": "2",
+      "exit": 0,
+      "stdout": "SER",
+      "stderr": ""
+    },
+    {
+      "name": "04-both-owned-flat",
+      "opt": "O0",
+      "input": "0",
+      "exit": 0,
+      "stdout": "SAR",
+      "stderr": ""
+    },
+    {
+      "name": "04-both-owned-flat",
+      "opt": "O0",
+      "input": "1",
+      "exit": 0,
+      "stdout": "SER",
+      "stderr": ""
+    },
+    {
+      "name": "04-both-owned-flat",
+      "opt": "O2",
+      "input": "0",
+      "exit": 0,
+      "stdout": "SAR",
+      "stderr": ""
+    },
+    {
+      "name": "04-both-owned-flat",
+      "opt": "O2",
+      "input": "1",
+      "exit": 0,
+      "stdout": "SER",
+      "stderr": ""
+    }
+  ],
+  "allocator_instrumentation": "NotRun",
+  "native_builds": 6,
+  "native_executions": 14
+}

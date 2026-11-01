@@ -1,0 +1,77 @@
+{
+  "status": "Pass",
+  "scope": "Bind research LLVM CI to its actual DSO and preserve bounded build evidence.",
+  "verifier": {
+    "path": "/home/runner/work/zil/zil/tools/ci/research_llvm_manifest.py",
+    "sha256": "a087ba1816a0f258b3c55a7b23a7fc913b57dd57dcd58cb1590ffc16d9e13e4d",
+    "bytes": 11128
+  },
+  "revision": "fae6bc0d169fa64655a37b46d486fd781bb3063e",
+  "candidate_receipt": {
+    "path": "/home/runner/work/_temp/llvm-research/candidate/native-toolchain-receipt.json",
+    "sha256": "c904420919cb9987bc23ec77f989565f45dd50e6d1639c7463d5b98a0e3d9a77",
+    "bytes": 160652
+  },
+  "original_receipt": {
+    "path": "/home/runner/work/_temp/llvm-research/original/native-toolchain-receipt.json",
+    "sha256": "74e1e04c109cca5a409d73365e3eb6034a9a17ef195615af337e54c6d2289f59",
+    "bytes": 160555
+  },
+  "source_files": {
+    "original/JumpThreading.cpp": {
+      "path": "/home/runner/work/_temp/llvm-research/source/original/JumpThreading.cpp",
+      "sha256": "735bdb11bc0a10b549a430eb69863dce4f64a4be48f878f47c380b6898caaf62",
+      "bytes": 129818
+    },
+    "candidate/JumpThreading.cpp": {
+      "path": "/home/runner/work/_temp/llvm-research/source/candidate/JumpThreading.cpp",
+      "sha256": "2bd8a656d9f792c957c59c27d7b64bea3d1d8b73a868a4c88a301b0c1bde8d8b",
+      "bytes": 132011
+    },
+    "original/SSAUpdaterBulk.cpp": {
+      "path": "/home/runner/work/_temp/llvm-research/source/original/SSAUpdaterBulk.cpp",
+      "sha256": "923fa36dd298d9241894db6214f2bfe0c6f08d8123343526a917bff67c40a2ed",
+      "bytes": 11544
+    },
+    "candidate/SSAUpdaterBulk.cpp": {
+      "path": "/home/runner/work/_temp/llvm-research/source/candidate/SSAUpdaterBulk.cpp",
+      "sha256": "05fa00c1627dd08b5c8a5bde835debc681f945b6da456b4c121fda59ab8ec279",
+      "bytes": 12653
+    },
+    "original/LazyValueInfo.cpp": {
+      "path": "/home/runner/work/_temp/llvm-research/source/original/LazyValueInfo.cpp",
+      "sha256": "acba830547744352e9ec983f3f7574a48e28a736c512fae7721afe0ac746cbe7",
+      "bytes": 91791
+    },
+    "candidate/LazyValueInfo.cpp": {
+      "path": "/home/runner/work/_temp/llvm-research/source/candidate/LazyValueInfo.cpp",
+      "sha256": "1fee6f482ff9afd73272a2cd7290f78d395de3d399596587b140fbeecb93e6bd",
+      "bytes": 92434
+    },
+    "original/PassBuilderPipelines.cpp": {
+      "path": "/home/runner/work/_temp/llvm-research/source/original/PassBuilderPipelines.cpp",
+      "sha256": "b9c1d966a530d87054513e6dddda3b78115d6e92dec421753df4a07f0c713fa0",
+      "bytes": 110681
+    },
+    "candidate/PassBuilderPipelines.cpp": {
+      "path": "/home/runner/work/_temp/llvm-research/source/candidate/PassBuilderPipelines.cpp",
+      "sha256": "263b8d608412729bf7758330bda7016817e05865c64614969956bb4b7c8f3af1",
+      "bytes": 111136
+    }
+  },
+  "patch": {
+    "path": "/home/runner/work/_temp/llvm-research/source/combined.patch",
+    "sha256": "bce8d77663f0fc3bab812175297b275dc9b73459941b2848836e84a28044b72d",
+    "bytes": 14299
+  },
+  "library": {
+    "path": "/home/runner/work/_temp/llvm-research/candidate/lib/libLLVM.so.23.1",
+    "sha256": "9211d3f231c929866e3f0eb26cede80afe3f0277cdb7e8eec8dd0a101c2b3b12",
+    "bytes": 72097864
+  },
+  "toolchain_check": {
+    "path": "/home/runner/work/_temp/receipts/llvm-api-toolchain.json",
+    "sha256": "2ac678b45a31af04deb34a9d9ebbbffc422f0074ae36c8672366dd4df78d981f",
+    "bytes": 1409
+  }
+}

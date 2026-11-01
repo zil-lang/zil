@@ -1,0 +1,91 @@
+{
+  "status": "Pass",
+  "scope": "Formal local joint source acceptance; remote PR/main CI tracked separately",
+  "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "source_clean_before_and_after": true,
+  "schema": 29,
+  "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+  "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854",
+  "environment": "source /workspace/.zil-env/env.sh; CARGO_BUILD_JOBS=1; CARGO_INCREMENTAL=0; independent target-core / target-reference-core / target-236-release",
+  "timing": "Concurrent correctness runs; no compiler-performance conclusion",
+  "checks": [
+    {
+      "name": "workspace",
+      "command": "cargo test --locked --workspace --no-fail-fast",
+      "exit_code": 0,
+      "log_sha256": "e22a71e3667087bcaaa23b347ebb123f999f7afab01c35bdfd84ef60a41855d6",
+      "totals": {
+        "passed": 3446,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "result_groups": 378,
+      "nonempty_execution_groups": 361
+    },
+    {
+      "name": "reference",
+      "command": "cargo test --locked --workspace --no-default-features --no-fail-fast",
+      "exit_code": 0,
+      "log_sha256": "c6ef4a8a237aebd382d4e7d1ab6b2d0df95aa7d5286b1ffd5f3e1e1c558bbaf1",
+      "totals": {
+        "passed": 3347,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "result_groups": 378,
+      "nonempty_execution_groups": 345
+    },
+    {
+      "name": "clippy",
+      "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+      "exit_code": 0,
+      "log_sha256": "ff28d4337dd51b05d034161571bda7c4169cf3a376b41d0448b3e9c2693f92cd"
+    },
+    {
+      "name": "fmt-confirmed",
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "consumer209",
+      "command": "python3 tools/research/208/validate.py --repo . --cli /workspace/.zil-env/target-236/release/zil --clang \"$ZIL_CLANG\" --out /workspace/.zil-env/formal-languageQ/consumer209",
+      "exit_code": 0,
+      "log_sha256": "94491c3fda930c37b535f112cf1899f84e99c525535407364e6fa047cb660b0a"
+    }
+  ],
+  "reused_component_gates": {
+    "receipt": "../component-gates/RESULT.json",
+    "scope": "LLVM API text-reference64, migration9, evidence-transport5 and plan consistency",
+    "proof": "P→Q production changes are limited to Types. LLVM API and transitive crates, Python gate inputs, toolchain, Cargo.lock and selected component tests are unchanged. Final Q all-target Clippy is freshly executed, not reused."
+  },
+  "full_native_artifacts": {
+    "workspace": "/workspace/.zil-env/formal-languageQ/native",
+    "reference": "/workspace/.zil-env/formal-languageQ/reference-native",
+    "archive": {
+      "path": "/workspace/.zil-env/formal-languageQ-native.tar.zst",
+      "bytes": 261223687,
+      "sha256": "015758613ea8e63c57f06eaa37a91551a421615ac98dde3ac47ba84b1e2d875e",
+      "manifest": "NATIVE-MANIFESTS.json",
+      "files": 140858
+    }
+  },
+  "consumer236": "../../../impl/236/finalQ/RESULT.json",
+  "independent_reviews": [
+    "../../../reviews/227/integrationQ.json",
+    "../../../reviews/235/integrationQ.json",
+    "../../../reviews/237/integrationQ.json",
+    "../../../reviews/238/integrationQ.json",
+    "../../../reviews/236/finalQ.json",
+    "../../../reviews/236/finalQ-supplement/finalQ-negative-supplement.json"
+  ],
+  "previous_failure_preserved": "../formal23-failed/RESULT.json",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "rust_parity": "NotEstablished",
+  "counts_note": "Default/reference/author/reviewer/consumer repetitions are not summed as independent coverage."
+}

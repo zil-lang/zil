@@ -1,0 +1,4 @@
+Current CI input bytes only; this is not a Git history bundle or full historical/handoff recovery.
+For the complete Git repository, historical evidence and Git-dependent commands, fetch https://github.com/zil-lang/zil and checkout exact commit fae6bc0d169fa64655a37b46d486fd781bb3063e.
+source-tree.txt inventories the entire recorded Git tree, including excluded evidence/.
+Pinned external SDK and Rust dependency installation is still required.

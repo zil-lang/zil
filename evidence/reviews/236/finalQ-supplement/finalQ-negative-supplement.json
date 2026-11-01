@@ -1,0 +1,197 @@
+{
+  "reviewer": "/root/ir_defer227",
+  "verdict": "Pass",
+  "status": "Pass",
+  "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "reviewed_at_utc": "2026-11-01T20:29:34.778204+00:00",
+  "scope": "Supplement to unchanged finalQ236 review: actual Q formal default workspace source controls and ownership counterexamples, read-only verification of root execution receipts.",
+  "execution_owner": "/root",
+  "reviewer_new_native_executions": 0,
+  "production_or_core_HEAD_modified_by_reviewer": false,
+  "identity": {
+    "formal_commit_file_sha256": "ec7d2d9f778b070da7004d8d8443c908b7910f45ecb138439d541061dbbc57cc",
+    "formal_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+    "formal_status_before": "",
+    "core_current_status": "",
+    "formal_workspace_log_sha256": "e22a71e3667087bcaaa23b347ebb123f999f7afab01c35bdfd84ef60a41855d6",
+    "formal_workspace_exit": 0,
+    "unchanged_finalQ_review_sha256": "3d80a2d905a927d9dda4464c30f6c86493cf9aefc0550821fd05e0cfaf7089e6",
+    "unchanged_finalQ_review_path": "evidence/reviews/236/finalQ.json"
+  },
+  "impl236_subbinary": {
+    "tests_passed": 3,
+    "tests_failed": 0,
+    "tests_ignored": 0,
+    "tests_filtered": 0,
+    "excerpt_sha256": "66de31cb581b35fa708e4e4e4a02ba8c9ab35906b0442fc874cd893c0fe67a18",
+    "root_native_executions_in_runtime_test": 40,
+    "these_executions_added_to_consumer364": false
+  },
+  "source_cases": [
+    {
+      "case": "counterexample-control",
+      "original_directory": "/workspace/.zil-env/formal-languageQ/native/consumer236-counterexample-control-184928",
+      "source_modules": 5,
+      "source_matches_exact_expected_mutation": true,
+      "source_sha256": {
+        "main.zil": "90cca8a6c30d2980e5dc8c6bb19dae46272f8f9f783d30a7ad32a871a67fdde6",
+        "portable.zil": "c2f3baff8bebdd3a40a37c92082697f14d5db4c2c04427a669b3a49870cc8b28",
+        "model.zil": "3176eb3da5332bd95dbe8eec6596037e2191fa0bfdd10c1035a3bcf7283569c1",
+        "collections.zil": "fab1ed8cbdb11abb6015bcda0b803c610d9f2f2dcff1b54329e085a36ca2a4a8",
+        "session.zil": "edb299e3e0407d6e961ca4f2dde316cf30026a8b5b91a4f1ab392b6796dcc198"
+      },
+      "report_sha256": "a6533b4dc32d96eaa1cfb5861ba90d368d22fb56dc282067b3643d303bc6608b",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "executable_artifact": null,
+      "program_file_exists": false,
+      "diagnostics": [],
+      "executed_phases": [
+        "parse",
+        "parse",
+        "parse",
+        "parse",
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "source_expectation": "All four original library modules plus exact no-defer main returning0; independent valid five-module control."
+    },
+    {
+      "case": "missing-refill",
+      "original_directory": "/workspace/.zil-env/formal-languageQ/native/consumer236-missing-refill-184928",
+      "source_modules": 5,
+      "source_matches_exact_expected_mutation": true,
+      "source_sha256": {
+        "main.zil": "90cca8a6c30d2980e5dc8c6bb19dae46272f8f9f783d30a7ad32a871a67fdde6",
+        "portable.zil": "c2f3baff8bebdd3a40a37c92082697f14d5db4c2c04427a669b3a49870cc8b28",
+        "model.zil": "3176eb3da5332bd95dbe8eec6596037e2191fa0bfdd10c1035a3bcf7283569c1",
+        "collections.zil": "fab1ed8cbdb11abb6015bcda0b803c610d9f2f2dcff1b54329e085a36ca2a4a8",
+        "session.zil": "984cf301d9cba7f59478238af0ba375d2ab034ec4c3724578f24d96376fae123"
+      },
+      "report_sha256": "6400ea8118fb0d377aafa9de6434e540d93657a28914ac8825269b023de44e35",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "executable_artifact": null,
+      "program_file_exists": false,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: whole aggregate move requires every owned element or field live",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "executed_phases": [
+        "parse",
+        "parse",
+        "parse",
+        "parse",
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze"
+      ],
+      "source_expectation": "Same control project; remove only the first current.nodes=node_set refill. Whole current later moves with that owned child absent."
+    },
+    {
+      "case": "live-window",
+      "original_directory": "/workspace/.zil-env/formal-languageQ/native/consumer236-live-window-184928",
+      "source_modules": 5,
+      "source_matches_exact_expected_mutation": true,
+      "source_sha256": {
+        "main.zil": "90cca8a6c30d2980e5dc8c6bb19dae46272f8f9f783d30a7ad32a871a67fdde6",
+        "portable.zil": "c2f3baff8bebdd3a40a37c92082697f14d5db4c2c04427a669b3a49870cc8b28",
+        "model.zil": "3176eb3da5332bd95dbe8eec6596037e2191fa0bfdd10c1035a3bcf7283569c1",
+        "collections.zil": "fab1ed8cbdb11abb6015bcda0b803c610d9f2f2dcff1b54329e085a36ca2a4a8",
+        "session.zil": "a6d1f5b5ded02bf40643691c949137b6176d73a6667a59e317416ce625b59a31"
+      },
+      "report_sha256": "5862986587fc96b9839dae9c770593e1fd17e5a233626854adbe965a98aa980b",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "executable_artifact": null,
+      "program_file_exists": false,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "captured Store transition invalidates a live element window",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "executed_phases": [
+        "parse",
+        "parse",
+        "parse",
+        "parse",
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze"
+      ],
+      "source_expectation": "Same control project; append exactly the unused held_then_move function: take nodes, retain store_at element, refill nodes, then read held.id after the transition."
+    },
+    {
+      "case": "verify",
+      "original_directory": "/workspace/.zil-env/formal-languageQ/native/consumer236-verify-184928",
+      "source_modules": 5,
+      "source_matches_exact_expected_mutation": true,
+      "source_sha256": {
+        "main.zil": "ca084ec0317c7ce9d88620cd419bb147fde1394b2d2b03d5a6b00c12ce0cc5cf",
+        "portable.zil": "c2f3baff8bebdd3a40a37c92082697f14d5db4c2c04427a669b3a49870cc8b28",
+        "model.zil": "3176eb3da5332bd95dbe8eec6596037e2191fa0bfdd10c1035a3bcf7283569c1",
+        "collections.zil": "fab1ed8cbdb11abb6015bcda0b803c610d9f2f2dcff1b54329e085a36ca2a4a8",
+        "session.zil": "edb299e3e0407d6e961ca4f2dde316cf30026a8b5b91a4f1ab392b6796dcc198"
+      },
+      "report_sha256": "35da78f52a57ad318fa00a4a57b97466ae95f5e697bdb952217dbda5d65bf823",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "executable_artifact": null,
+      "program_file_exists": false,
+      "diagnostics": [],
+      "executed_phases": [
+        "parse",
+        "parse",
+        "parse",
+        "parse",
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "source_expectation": "All five original frozen consumer sources unchanged, including ordinary defer."
+    }
+  ],
+  "raw_artifacts": {
+    "files": 54,
+    "manifest_sha256": "8c13abb50fa5dccc626c7c96fbfddfa6ef734f9a2acbb59b8e61779f9e36df2c",
+    "archive_sha256": "b937a7c1911c4133c02056e6cf57cb3eba63e37173ec9de0a27fc108cabe0131",
+    "archive_members_match_source_manifest": true
+  },
+  "counting": {
+    "original_Q_consumer_matrix_and_controls": 364,
+    "original_Q_injected_failures": 208,
+    "original_Q_report_overwritten": false,
+    "new_review_or_supplement_native_executions": 0,
+    "root_workspace_runtime_test_native_executions": 40,
+    "overlapping_runs_not_summed_as_independent_coverage": true
+  },
+  "conclusion": "The actual Q no-defer control and original consumer reach Verify once. Both exact nearest ownership mutations pass Types and are rejected at Analyze with the original exact E-ANALYZE-IR messages, Verify0 and no executable. This adds current-Q negative evidence without relabeling P/42 or changing the364 matrix count.",
+  "findings": [],
+  "limits": "Finite236 ownership/control-flow slice only; does not promote full language/ZUI, product, native Windows or Rust comparative goals."
+}

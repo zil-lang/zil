@@ -1,0 +1,7 @@
+2026-11-01T20:33:44Z
+Filesystem     1024-blocks     Used Available Capacity Mounted on
+/dev/root         75085112 65383456   9685272      88% /
+7003012	/home/runner/work/_temp/target
+6625848	/home/runner/work/_temp/target-reference
+7063432	/home/runner/work/_temp/native-evidence
+4f5831f9b3ac1547d7f41cfc3fb8eb7562fcd8bb24db4c6306b0c9343e59b462  /home/runner/work/_temp/receipts/reference.log

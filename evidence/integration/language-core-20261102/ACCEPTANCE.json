@@ -1,0 +1,22 @@
+{
+  "status": "Pass",
+  "implementation_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "integration_commit": "fde8081418454acc51d9c7e937e76e063ffacd92",
+  "pull_request": "https://github.com/zil-lang/zil/pull/16",
+  "scope": "227/235/236/237/238 finite synchronous language composition",
+  "formal": "evidence/integration/language-core-20261102/formalQ/RESULT.json",
+  "ci": "evidence/integration/language-core-20261102/pr-ci/RESULT.json",
+  "reviews": {
+    "227": "evidence/reviews/227/integrationQ.json",
+    "235": "evidence/reviews/235/integrationQ.json",
+    "237": "evidence/reviews/237/integrationQ.json",
+    "238": "evidence/reviews/238/integrationQ.json",
+    "236": "evidence/reviews/236/finalQ.json"
+  },
+  "consumer236": "evidence/impl/236/finalQ/RESULT.json",
+  "main_replay": "Running separately; no result claimed yet",
+  "history": "P full workspace3425/11 and all intermediate failures retained. Author/reviewer/default/reference/native counts are not added.",
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "B0": "Doing"
+}

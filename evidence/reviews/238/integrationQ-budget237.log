@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.17s
+     Running tests/impl237_budget.rs (/workspace/.zil-env/target-237/debug/deps/impl237_budget-4558b22460fb73ba)
+
+running 1 test
+nested: types=237893,analyze=48812,verify=100192
+test generic_product_types_analyze_verify_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.79s
+

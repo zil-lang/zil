@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.15s
+     Running tests/impl064.rs (/workspace/.zil-env/target-237/debug/deps/impl064-6af64de1973dd1a4)
+
+running 1 test
+test helper064_public_field_view_survives_two_calls_and_whole_package_move ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 1.62s
+

@@ -1,0 +1,12 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.65s
+     Running tests/impl235_budget.rs (/workspace/.zil-env/target-237/debug/deps/impl235_budget-a4fea5dbbe58043b)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries_unchanged ... ok
+nested: types=3943,analyze=82079,verify=173575
+test ordinary_product_store_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+

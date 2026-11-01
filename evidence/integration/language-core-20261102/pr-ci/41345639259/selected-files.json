@@ -1,0 +1,1166 @@
+[
+  {
+    "bytes": 132011,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/source/0/JumpThreading.cpp",
+    "sha256": "2bd8a656d9f792c957c59c27d7b64bea3d1d8b73a868a4c88a301b0c1bde8d8b"
+  },
+  {
+    "bytes": 132011,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/candidate/JumpThreading.cpp",
+    "sha256": "2bd8a656d9f792c957c59c27d7b64bea3d1d8b73a868a4c88a301b0c1bde8d8b"
+  },
+  {
+    "bytes": 131631,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v1-source/bulk/JumpThreading.cpp",
+    "sha256": "4c3d38773c22419bbd2ef5e422a714bd16796f9770e42a74b3e406245e10444e"
+  },
+  {
+    "bytes": 131631,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v4-source/grouped/JumpThreading.cpp",
+    "sha256": "4c3d38773c22419bbd2ef5e422a714bd16796f9770e42a74b3e406245e10444e"
+  },
+  {
+    "bytes": 130198,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/entry-source/entry/JumpThreading.cpp",
+    "sha256": "52da374dbcf57cda9e2c8d698dd593399da93d7dd7cb0bb3b33214efb8c798e3"
+  },
+  {
+    "bytes": 129818,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/entry-source/original/JumpThreading.cpp",
+    "sha256": "735bdb11bc0a10b549a430eb69863dce4f64a4be48f878f47c380b6898caaf62"
+  },
+  {
+    "bytes": 129818,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/source/0/JumpThreading.cpp",
+    "sha256": "735bdb11bc0a10b549a430eb69863dce4f64a4be48f878f47c380b6898caaf62"
+  },
+  {
+    "bytes": 129818,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/original/JumpThreading.cpp",
+    "sha256": "735bdb11bc0a10b549a430eb69863dce4f64a4be48f878f47c380b6898caaf62"
+  },
+  {
+    "bytes": 129818,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v1-source/original/JumpThreading.cpp",
+    "sha256": "735bdb11bc0a10b549a430eb69863dce4f64a4be48f878f47c380b6898caaf62"
+  },
+  {
+    "bytes": 129818,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v4-source/original/JumpThreading.cpp",
+    "sha256": "735bdb11bc0a10b549a430eb69863dce4f64a4be48f878f47c380b6898caaf62"
+  },
+  {
+    "bytes": 9432,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/entry-source/JumpThreading.h",
+    "sha256": "5abd69e54d52f6b9b0c47dc1332fa1c034ee718d9c53567a6bc93eee12350688"
+  },
+  {
+    "bytes": 9432,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v1-source/JumpThreading.h",
+    "sha256": "5abd69e54d52f6b9b0c47dc1332fa1c034ee718d9c53567a6bc93eee12350688"
+  },
+  {
+    "bytes": 15141,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/lvi-source/LICENSE.TXT",
+    "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee"
+  },
+  {
+    "bytes": 92434,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/source/2/LazyValueInfo.cpp",
+    "sha256": "1fee6f482ff9afd73272a2cd7290f78d395de3d399596587b140fbeecb93e6bd"
+  },
+  {
+    "bytes": 92434,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/lvi-source/indexed/LazyValueInfo.cpp",
+    "sha256": "1fee6f482ff9afd73272a2cd7290f78d395de3d399596587b140fbeecb93e6bd"
+  },
+  {
+    "bytes": 92434,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/candidate/LazyValueInfo.cpp",
+    "sha256": "1fee6f482ff9afd73272a2cd7290f78d395de3d399596587b140fbeecb93e6bd"
+  },
+  {
+    "bytes": 91791,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/lvi-source/original/LazyValueInfo.cpp",
+    "sha256": "acba830547744352e9ec983f3f7574a48e28a736c512fae7721afe0ac746cbe7"
+  },
+  {
+    "bytes": 91791,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/source/2/LazyValueInfo.cpp",
+    "sha256": "acba830547744352e9ec983f3f7574a48e28a736c512fae7721afe0ac746cbe7"
+  },
+  {
+    "bytes": 91791,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/original/LazyValueInfo.cpp",
+    "sha256": "acba830547744352e9ec983f3f7574a48e28a736c512fae7721afe0ac746cbe7"
+  },
+  {
+    "bytes": 27931,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/MANIFEST.json",
+    "sha256": "c4e5317f5806d1aabfb1443800c020dd8e0a63de531208f265d4bffac6ad4eea"
+  },
+  {
+    "bytes": 819,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/lvi-source/PROVENANCE.json",
+    "sha256": "fd3013ca9abb6253c8b469d3169d532b05a063032771e8428bcee478dde31be0"
+  },
+  {
+    "bytes": 111136,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/source/3/PassBuilderPipelines.cpp",
+    "sha256": "263b8d608412729bf7758330bda7016817e05865c64614969956bb4b7c8f3af1"
+  },
+  {
+    "bytes": 111136,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/cfg-source/cfg/PassBuilderPipelines.cpp",
+    "sha256": "263b8d608412729bf7758330bda7016817e05865c64614969956bb4b7c8f3af1"
+  },
+  {
+    "bytes": 111136,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/candidate/PassBuilderPipelines.cpp",
+    "sha256": "263b8d608412729bf7758330bda7016817e05865c64614969956bb4b7c8f3af1"
+  },
+  {
+    "bytes": 110681,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/cfg-source/original/PassBuilderPipelines.cpp",
+    "sha256": "b9c1d966a530d87054513e6dddda3b78115d6e92dec421753df4a07f0c713fa0"
+  },
+  {
+    "bytes": 110681,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/source/3/PassBuilderPipelines.cpp",
+    "sha256": "b9c1d966a530d87054513e6dddda3b78115d6e92dec421753df4a07f0c713fa0"
+  },
+  {
+    "bytes": 110681,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/original/PassBuilderPipelines.cpp",
+    "sha256": "b9c1d966a530d87054513e6dddda3b78115d6e92dec421753df4a07f0c713fa0"
+  },
+  {
+    "bytes": 12653,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/source/1/SSAUpdaterBulk.cpp",
+    "sha256": "05fa00c1627dd08b5c8a5bde835debc681f945b6da456b4c121fda59ab8ec279"
+  },
+  {
+    "bytes": 12653,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/candidate/SSAUpdaterBulk.cpp",
+    "sha256": "05fa00c1627dd08b5c8a5bde835debc681f945b6da456b4c121fda59ab8ec279"
+  },
+  {
+    "bytes": 12653,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v4-source/grouped/SSAUpdaterBulk.cpp",
+    "sha256": "05fa00c1627dd08b5c8a5bde835debc681f945b6da456b4c121fda59ab8ec279"
+  },
+  {
+    "bytes": 11544,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/source/1/SSAUpdaterBulk.cpp",
+    "sha256": "923fa36dd298d9241894db6214f2bfe0c6f08d8123343526a917bff67c40a2ed"
+  },
+  {
+    "bytes": 11544,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/original/SSAUpdaterBulk.cpp",
+    "sha256": "923fa36dd298d9241894db6214f2bfe0c6f08d8123343526a917bff67c40a2ed"
+  },
+  {
+    "bytes": 11544,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v4-source/original/SSAUpdaterBulk.cpp",
+    "sha256": "923fa36dd298d9241894db6214f2bfe0c6f08d8123343526a917bff67c40a2ed"
+  },
+  {
+    "bytes": 730699,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/archive-list.stdout",
+    "sha256": "c0f15d62ca82a2b556612368658809b0dad14fc948da7c13dd19458f7ddae32b"
+  },
+  {
+    "bytes": 4,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/assertions.stdout",
+    "sha256": "0855c353c8a126265186a268bbc57583247a8d131a7e602f0e48ac6105a09c48"
+  },
+  {
+    "bytes": 4,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/assertions.stdout",
+    "sha256": "0855c353c8a126265186a268bbc57583247a8d131a7e602f0e48ac6105a09c48"
+  },
+  {
+    "bytes": 226,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/build-id.stdout",
+    "sha256": "4e72ae27b7dba9a9c6a2f9108b3995e4191700e283db5b733047222fa8b10ad9"
+  },
+  {
+    "bytes": 226,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/build-id.stdout",
+    "sha256": "6be12c19ac6c85cceab39ec53853815e5f550e2d8a1054dee3ff1db60fa50ade"
+  },
+  {
+    "bytes": 2861,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v1-source/bulk.patch",
+    "sha256": "f8db862e383b847ce56382b649afebe53b85408be23e5f523ab7577fe2250ad2"
+  },
+  {
+    "bytes": 2218,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/candidate-recipe.json",
+    "sha256": "77e138b2656d96b1e77048ace36b27c0ed91b03ee877b750f559318fdf41afe5"
+  },
+  {
+    "bytes": 157,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/candidate-toolchain.stdout",
+    "sha256": "52b628f6b362d0657cad347d3e257bfe0b2a3166cdecefbf16f715f305522212"
+  },
+  {
+    "bytes": 690,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/cfg-source/cfg-recipe.json",
+    "sha256": "2e88e2ea1eac2fbc37d13ce9b98d92e42e245e610e275f463383e54a7936e0b2"
+  },
+  {
+    "bytes": 192,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/cfg-source.stdout",
+    "sha256": "fb05f9a688b7afbe2eba7040818126a213329807d77217b3480a4d946d49d8de"
+  },
+  {
+    "bytes": 208,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/clang-version.stdout",
+    "sha256": "5bd7f7a8c744b29dd95c839285591392ae41ed1c6cc3ad6a5b5957ed493a936f"
+  },
+  {
+    "bytes": 1434,
+    "mode": 420,
+    "path": "receipts/clippy.log",
+    "sha256": "8f58ab72b1f38b65b718931c1211828f85157cad896157bc103719a95827c1be"
+  },
+  {
+    "bytes": 139,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/combined-source.stdout",
+    "sha256": "e951e6803a6e8d7225c986ff248b4bfa5ea2a69dbdcf9fb0c9838b0fbd83b1df"
+  },
+  {
+    "bytes": 14299,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/combined.patch",
+    "sha256": "bce8d77663f0fc3bab812175297b275dc9b73459941b2848836e84a28044b72d"
+  },
+  {
+    "bytes": 41,
+    "mode": 420,
+    "path": "receipts/commit.txt",
+    "sha256": "d9e43797137a87099f0e96e1e164020dcb74a03d626f177cd8a907e1eef9ae21"
+  },
+  {
+    "bytes": 3681,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/component-libraries.stdout",
+    "sha256": "cd513d07781e5679e8a875a8662c9fd277703f9fb4a9243b32e60bc04bdd1412"
+  },
+  {
+    "bytes": 195,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/cxxflags.stdout",
+    "sha256": "3b246cf3cf0f65fa95cb28dc5a3e77f003ef51dc5a33c273b80a5720a15c1c50"
+  },
+  {
+    "bytes": 195,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/cxxflags.stdout",
+    "sha256": "3b246cf3cf0f65fa95cb28dc5a3e77f003ef51dc5a33c273b80a5720a15c1c50"
+  },
+  {
+    "bytes": 818,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/dependencies.stdout",
+    "sha256": "01e7a6d3d2466c605660612328ee1d04b5f7c8fff45ef230d32ef14b28b9a579"
+  },
+  {
+    "bytes": 818,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/dependencies.stdout",
+    "sha256": "34d4c2882b936d5f0d4dd82cac349266c3fd97978a87edb0d8345ad3d32f49be"
+  },
+  {
+    "bytes": 818,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/dependencies.stdout",
+    "sha256": "7a7e69f884acbb1a5fbb2bb48ab439b2dfcf3f46fef592edca0e26ef7c645172"
+  },
+  {
+    "bytes": 1491,
+    "mode": 420,
+    "path": "receipts/disk-space-before-build.json",
+    "sha256": "f25daa5654a98d5a9e16d4cdf5aa2be87c2b1ad37c92d9e4a322b1ddcafc4b6e"
+  },
+  {
+    "bytes": 713,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-headers/download.log",
+    "sha256": "724860ad9f6ee47d94c6f3e2a03f0f03cc133a5a1396a0f2525fe53b562298b8"
+  },
+  {
+    "bytes": 2013,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/dynamic-section.stdout",
+    "sha256": "455e21f2fb87cb96858d505df6a29e1d5b0dbd88b012fd8d589ad896d6cccac8"
+  },
+  {
+    "bytes": 2013,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/dynamic-section.stdout",
+    "sha256": "ef43a1a6728f58a2c8283b17d1cab1847c5c99fa8312d8110e0fd6c70ea0dfd6"
+  },
+  {
+    "bytes": 2013,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/dynamic-section.stdout",
+    "sha256": "f1c88a37b437abbca9b3fa0c0d49583b3ce9de7399fbef019761434d6027111c"
+  },
+  {
+    "bytes": 240,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/entry-source.stdout",
+    "sha256": "78cdc847cfbbea54c4b76002bf6b60bb355e5234e01f1055ccde3aab3a8eabba"
+  },
+  {
+    "bytes": 3013,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v4-source/grouped-bulk.patch",
+    "sha256": "120ef2952ac75a09d81aefa930d91aca04991ff7d1cd20791b962dee8ee4e7a9"
+  },
+  {
+    "bytes": 1214,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v4-source/grouped-recipe.json",
+    "sha256": "e2fc2afbe0b52d94a0f97650caeaf0b7c25ed3c64ba14d5ee2651a35b676fbb2"
+  },
+  {
+    "bytes": 277552,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-headers/headers-receipt.json",
+    "sha256": "32f35901f390126ea5c342e5694781d88fd3221ec0e68c5d8dca36f9cdc3c6cd"
+  },
+  {
+    "bytes": 678,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/lvi-source/indexed-recipe.json",
+    "sha256": "08dbd8e734261deeeefd7defa68e3308bce75d71ea520384e706a5482ae9d98d"
+  },
+  {
+    "bytes": 35143,
+    "mode": 420,
+    "path": "llvm-23.1.4/install-receipt.json",
+    "sha256": "a0c86f9dd33c14a2c241898a589a5842dabdfcf34ffdc52503f00af19c5fe477"
+  },
+  {
+    "bytes": 35143,
+    "mode": 420,
+    "path": "receipts/llvm-install.json",
+    "sha256": "a0c86f9dd33c14a2c241898a589a5842dabdfcf34ffdc52503f00af19c5fe477"
+  },
+  {
+    "bytes": 35143,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/install-receipt.json",
+    "sha256": "a0c86f9dd33c14a2c241898a589a5842dabdfcf34ffdc52503f00af19c5fe477"
+  },
+  {
+    "bytes": 91,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/lld-link-version.stdout",
+    "sha256": "8c0455ba6d118efcd627d1b661b9012d90307a536deb4d2e836fca76695697e1"
+  },
+  {
+    "bytes": 1409,
+    "mode": 420,
+    "path": "receipts/llvm-api-toolchain.json",
+    "sha256": "2ac678b45a31af04deb34a9d9ebbbffc422f0074ae36c8672366dd4df78d981f"
+  },
+  {
+    "bytes": 7,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/llvm-config-version.stdout",
+    "sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36"
+  },
+  {
+    "bytes": 7,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/llvm-version.stdout",
+    "sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36"
+  },
+  {
+    "bytes": 7,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/version.stdout",
+    "sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36"
+  },
+  {
+    "bytes": 7,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/version.stdout",
+    "sha256": "78f2ccd8940c1e6bc812b09fdb7d917a66342d0b4991219e5dd7afc73bc46b36"
+  },
+  {
+    "bytes": 3383,
+    "mode": 420,
+    "path": "receipts/llvm-research-identity.json",
+    "sha256": "e4ca1d25b67157137738766f8a57818ca212c362bfa7f6d8d40e1cd17f0eba57"
+  },
+  {
+    "bytes": 26,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/llvm.map",
+    "sha256": "7e6c6fb86f956727d860bfe92be44d248413de3e382ae51dba9fc796d0553454"
+  },
+  {
+    "bytes": 26,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/llvm.map",
+    "sha256": "7e6c6fb86f956727d860bfe92be44d248413de3e382ae51dba9fc796d0553454"
+  },
+  {
+    "bytes": 26,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/llvm.map",
+    "sha256": "7e6c6fb86f956727d860bfe92be44d248413de3e382ae51dba9fc796d0553454"
+  },
+  {
+    "bytes": 236,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/lvi-source.stdout",
+    "sha256": "d493d48902a60a857da08ca6431393359099a0ba7eac5b993e1bc1f0c497cf0e"
+  },
+  {
+    "bytes": 107,
+    "mode": 420,
+    "path": "receipts/migration-runner.log",
+    "sha256": "d041de1238c0ff86f970a1ff7932c08b9ea56782fc94936eb6589c72421feaf7"
+  },
+  {
+    "bytes": 160555,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/native-toolchain-receipt.json",
+    "sha256": "74e1e04c109cca5a409d73365e3eb6034a9a17ef195615af337e54c6d2289f59"
+  },
+  {
+    "bytes": 160652,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/native-toolchain-receipt.json",
+    "sha256": "c904420919cb9987bc23ec77f989565f45dd50e6d1639c7463d5b98a0e3d9a77"
+  },
+  {
+    "bytes": 4772,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/entry-source/native.patch",
+    "sha256": "306b9564e93642f1fa3eab106a9ce1509b6769cc7fc765e4efbce8d018b9e148"
+  },
+  {
+    "bytes": 3103,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/lvi-source/native.patch",
+    "sha256": "74dc6fd7b8a816f78a3317326cf632dac8b58e9bd270072cf9aad8a224f5a86a"
+  },
+  {
+    "bytes": 842,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/cfg-source/native.patch",
+    "sha256": "b2431ca00a2131231044bf05cea11fc438207a9766359515278ba0f4196160c2"
+  },
+  {
+    "bytes": 136,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/opt-version.stdout",
+    "sha256": "fb7ea79a1fedd16faf62eb0f15c99a7697dbb509fef2051914869874b6603d51"
+  },
+  {
+    "bytes": 1217,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v4-source/original-recipe.json",
+    "sha256": "2853a740589940804f1c7d8cbfc0afb87ee8856ecd1ac9d4b23332a12b61e46d"
+  },
+  {
+    "bytes": 700,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/cfg-source/original-recipe.json",
+    "sha256": "676de17a7e4b17620e2cf87688292d6bd571bb79fd274009545ba7301a7effbf"
+  },
+  {
+    "bytes": 680,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/lvi-source/original-recipe.json",
+    "sha256": "7afc5ccf0671441c088860a195f29d05c644cc1ee3afec0266a5bb6bba008cd6"
+  },
+  {
+    "bytes": 2210,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/original-recipe.json",
+    "sha256": "8c1f8d1b15a6577939263d50818ae600f713455ae06726293a923a7a0e39ecf8"
+  },
+  {
+    "bytes": 152,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/original-toolchain.stdout",
+    "sha256": "0a3a8d53d9e894aae9a8da416d6adca05ae7ee06aeac697a23b0b134830dc3aa"
+  },
+  {
+    "bytes": 4694,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/rebuild-receipt.json",
+    "sha256": "a5476b21fec83a47d74a2a09b5f696852c7ce9f7d3913041cb15684515fc6336"
+  },
+  {
+    "bytes": 13872880,
+    "mode": 420,
+    "path": "receipts/reference-native-manifest.json",
+    "sha256": "1cbdc1018f2b10f7a6eb692f285c1276e01c9dce539ba7637209b900ad8b8dd4"
+  },
+  {
+    "bytes": 393,
+    "mode": 420,
+    "path": "receipts/reference-resources-after.log",
+    "sha256": "08528e5d52bcb45e11071f491bcc22edabd1b0d0fa064b545dd8603123381105"
+  },
+  {
+    "bytes": 231,
+    "mode": 420,
+    "path": "receipts/reference-resources-before.log",
+    "sha256": "5d7ab198b48acc45cdcb6721ea2d5d69d06d20afcf7d54d0ccfc5ed60693ac29"
+  },
+  {
+    "bytes": 355592,
+    "mode": 420,
+    "path": "receipts/reference.log",
+    "sha256": "fadb95d1876324b008e175d951f5eeaceda6cb017ebd69e3a7860002adbeaad1"
+  },
+  {
+    "bytes": 113,
+    "mode": 420,
+    "path": "receipts/research-headers.log",
+    "sha256": "2054dc174d29927da490fa986dd65469b1aeb0b67c36e4ead12fac4507b6458d"
+  },
+  {
+    "bytes": 105,
+    "mode": 420,
+    "path": "receipts/research-official-install.log",
+    "sha256": "877bed16ad9666f8af57f0459e58240d97b9d466176a9eca40e9007d9b9a5f3d"
+  },
+  {
+    "bytes": 176,
+    "mode": 420,
+    "path": "receipts/research-rebuild.log",
+    "sha256": "d967e410715620cc58ea5ef4685c76c73e199b7716d446c5ef75ca527a37353c"
+  },
+  {
+    "bytes": 3,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/rtti.stdout",
+    "sha256": "cfe72034a9f298fb79a6c1f2302673bb449c826d446b3efafdde95e6c48dc3ca"
+  },
+  {
+    "bytes": 3,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/rtti.stdout",
+    "sha256": "cfe72034a9f298fb79a6c1f2302673bb449c826d446b3efafdde95e6c48dc3ca"
+  },
+  {
+    "bytes": 1171564,
+    "mode": 420,
+    "path": "receipts/source-inputs.json",
+    "sha256": "dfe3fff007c7bd4f2578019b66a7fb12ae5662f5eb279bc9bb6cf8d94679ed23"
+  },
+  {
+    "bytes": 6539140,
+    "mode": 420,
+    "path": "receipts/source-inputs.tar.gz",
+    "sha256": "bd43e4d0b51821074c8b45d095ed8780bda9f16d5dcefd6cf4cae7061191bd08"
+  },
+  {
+    "bytes": 1528,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/entry-source/source-manifest.json",
+    "sha256": "016bf5c03bb0413ab8297e56430699e237df271ed4abe5a318311857f20169d4"
+  },
+  {
+    "bytes": 1605,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v4-source/source-manifest.json",
+    "sha256": "3e6864f64ccef7fd99610a10403cdd602c5903304b20362ac042a32b5335451a"
+  },
+  {
+    "bytes": 2524,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/source/source-manifest.json",
+    "sha256": "551e5e742a3ba334269489a3573f6616ea654f93db239b928fcdbf644310aa97"
+  },
+  {
+    "bytes": 1601,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/ssa-v1-source/source-manifest.json",
+    "sha256": "78899debef28c463e2d0524c5f5d8743aaa3c2c4e45fda0c42e2b4f5a93a5b8a"
+  },
+  {
+    "bytes": 1482,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/cfg-source/source-manifest.json",
+    "sha256": "a7283d2dabc8410d8eee8ddef5d6aa3ba60d227c85412982074c28cdb5f22a8d"
+  },
+  {
+    "bytes": 2049,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/lvi-source/source-manifest.json",
+    "sha256": "a958f8b3d8c85fb52ef155964ab36b53ae0d625157e7d8f23fe0840b8fd74a49"
+  },
+  {
+    "bytes": 446,
+    "mode": 420,
+    "path": "receipts/source-restore.txt",
+    "sha256": "c2eb5e687abc00646fc5d879aea0c75d0235ba85d2dc9b18b8df350d93165fc2"
+  },
+  {
+    "bytes": 13285403,
+    "mode": 420,
+    "path": "receipts/source-tree.txt",
+    "sha256": "0d483d0640da496d7921c5140239f3f0e53fc2cf30bc4008cdc98176526e1c35"
+  },
+  {
+    "bytes": 173,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/ssa-v1-source.stdout",
+    "sha256": "626fd72e3216f894594db05426fd5bf38108ef843d7c195a8e7605835e434dd7"
+  },
+  {
+    "bytes": 150,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/ssa-v4-source.stdout",
+    "sha256": "7bc0ef571f86e7ad14b24da6754f502cbc3a23a3a530f47e4aa17a1a56cc9fcb"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/fmt.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/archive-list.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/clang-version.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/component-libraries.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/dependencies.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/dynamic-section.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/extract.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/extract.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/link-dso.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/link-dso.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/lld-link-version.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/llvm-config-version.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/llvm-version.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/opt-version.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/system-libraries.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-headers/extract.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/assertions.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/build-id.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/compile-0.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/compile-0.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/compile-1.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/compile-1.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/compile-2.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/compile-2.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/compile-3.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/compile-3.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/cxxflags.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/dependencies.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/dynamic-section.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/link-dso.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/link-dso.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/replace-0.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/replace-0.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/replace-1.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/replace-1.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/replace-2.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/replace-2.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/replace-3.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/replace-3.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/rtti.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/candidate/logs/version.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/candidate-toolchain.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/cfg-source.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/combined-source.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/entry-source.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/lvi-source.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/original-toolchain.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/ssa-v1-source.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/logs/ssa-v4-source.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/assertions.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/build-id.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/compile-0.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/compile-0.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/compile-1.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/compile-1.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/compile-2.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/compile-2.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/compile-3.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/compile-3.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/cxxflags.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/dependencies.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/dynamic-section.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/link-dso.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/link-dso.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/replace-0.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/replace-0.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/replace-1.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/replace-1.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/replace-2.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/replace-2.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/replace-3.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/replace-3.stdout",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/rtti.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 0,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-research/original/logs/version.stderr",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "bytes": 76486,
+    "mode": 420,
+    "path": "receipts/consumer209.json",
+    "sha256": "b62ed7ece71017b1e403f9dd11c73d72b7adc31699c489b5c246ffd77c5290fe"
+  },
+  {
+    "bytes": 61,
+    "mode": 420,
+    "path": "receipts/llvm-research-evidence/llvm-23.1.4/installation-logs/system-libraries.stdout",
+    "sha256": "510cd326ef7cd383cd610d12e255217c203f0d0ed8a055bfb9dbc7be055c8b62"
+  },
+  {
+    "bytes": 7309,
+    "mode": 420,
+    "path": "receipts/text-reference.log",
+    "sha256": "ada5dd7c9e227a3248c4088f718a950414f96193bbdb96a7fa8e1b775f54570a"
+  },
+  {
+    "bytes": 404,
+    "mode": 420,
+    "path": "receipts/toolchain.txt",
+    "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+  },
+  {
+    "bytes": 14532748,
+    "mode": 420,
+    "path": "receipts/workspace-native-manifest.json",
+    "sha256": "7591e77e778882ab1a658e583a254e65a2bde1a5b9f45241a5d76a866920904f"
+  },
+  {
+    "bytes": 344,
+    "mode": 420,
+    "path": "receipts/workspace-resources-after.log",
+    "sha256": "fbaa1f25144eaf0d7e264624650feaa743058c6b451be43444141262d2aff768"
+  },
+  {
+    "bytes": 144,
+    "mode": 420,
+    "path": "receipts/workspace-resources-before.log",
+    "sha256": "ec6cb750d7ea95958f04899bc975d4df402cb946745bd7da22e1b5657e54a135"
+  },
+  {
+    "bytes": 357918,
+    "mode": 420,
+    "path": "receipts/workspace.log",
+    "sha256": "33e631e00d8b6b0e4506894ecde4cce0c3e0dd746ed4a9a754e35e32d602e55c"
+  }
+]

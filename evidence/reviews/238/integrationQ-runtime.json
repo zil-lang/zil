@@ -1,0 +1,708 @@
+{
+  "explicit_new_LLVM_API_source_runs": 40,
+  "additional_author_private_LLVM_API_runs": 2,
+  "legacy_ZIL_Clang_source_runs": 68,
+  "legacy_Rust_correctness_control_runs": 60,
+  "allocator_LLVM_API_probes": 16,
+  "actual_injected_failures": 8,
+  "total_ZIL_target_runs_including_probes": 126,
+  "total_Rust_control_runs": 60,
+  "overall_target_processes": 186,
+  "derivation": {
+    "review238_contracts": 30,
+    "review238_compatibility": 4,
+    "original_ALQZ": 4,
+    "original235": 2,
+    "author_private_native": 2,
+    "impl060": "10 inputs × (2 ZIL text-LLVM + 2 Rust) = 40",
+    "impl064": "10 inputs × (2 ZIL text-LLVM + 2 Rust) = 40",
+    "impl079": "10 inputs × (2 ZIL text-LLVM + 2 Rust) = 40",
+    "impl161": 2,
+    "impl163_two_tests": 4,
+    "impl192_legal_replacement": 2,
+    "allocator": "2 modes × 2 optimizations × 4 probe cases = 16"
+  },
+  "evidence_limits": "Counts follow completed harness loop bounds and exact successful assertions, not compile-report counts. Legacy060 and author-private temporary directories are deleted by their unmodified harnesses; their streams were asserted but are not archived. Legacy064/079 saved 80 complete run receipts; other surviving outputs and all new independent source streams are archived. Rust controls establish correctness only, not runtime/RSS parity.",
+  "native_compile_reports": [
+    {
+      "report": "fields192-150793-2/compile.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    },
+    {
+      "report": "fields192-150793-3/compile.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    },
+    {
+      "report": "machine238-independent-O0-143908/compile.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "machine238-independent-O2-143908/compile.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "machine238-self-O0-143908/compile.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "machine238-self-O2-143908/compile.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "nested161-147107-0/compile.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    },
+    {
+      "report": "nested161-147107-1/compile.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    },
+    {
+      "report": "resource-methods163-147222-0/compile.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    },
+    {
+      "report": "resource-methods163-147222-1/compile.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    },
+    {
+      "report": "resource-methods163-147258-0/compile.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    },
+    {
+      "report": "resource-methods163-147258-1/compile.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    },
+    {
+      "report": "review237-generic-defer-original-explicit-147340-2/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review237-generic-defer-original-explicit-147340-3/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review237-generic-defer-original-implicit-147340-0/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review237-generic-defer-original-implicit-147340-1/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review237-original235-147470-0/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review237-original235-147470-1/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-argument-shadow-144056-38/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-argument-shadow-144056-45/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-branch-complete-144056-51/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-branch-complete-144056-52/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-branch-complete-144056-53/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-branch-complete-144056-54/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-compat-private-owned-union-injection-144026-1/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-compat-private-owned-union-injection-144026-7/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-compat-private-whole-positive-144026-3/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-compat-private-whole-positive-144026-8/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-fail-after-self-144056-29/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-fail-after-self-144056-33/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-fail-before-self-144056-21/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-fail-before-self-144056-26/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-fail-independent-144056-42/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-fail-independent-144056-49/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-generated-binding-144056-48/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-generated-binding-144056-50/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-generic-self-144056-17/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-generic-self-144056-3/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-independent-age-144056-23/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-independent-age-144056-28/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-loop-144056-30/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-loop-144056-32/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-no-defer-relay-144056-34/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-no-defer-relay-144056-40/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-partial-independent-144056-1/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-partial-independent-144056-10/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-phantom-family-self-144056-27/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-phantom-family-self-144056-31/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-self-age-144056-12/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-self-age-144056-2/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-shadow-144056-22/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "review238-shadow-144056-25/report.json",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ],
+      "fallback": null
+    },
+    {
+      "report": "zil-helper-ui-146542-0/main-compile-report.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    },
+    {
+      "report": "zil-owned-component-146890-0/lifecycle-compile-report.json",
+      "backend": "clang",
+      "pipelines": [],
+      "fallback": null
+    }
+  ],
+  "allocator_statistics": [
+    {
+      "path": "machine238-independent-O0-143908/fail-0.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 14
+      },
+      "stdout_hex": "414c5142",
+      "exit": "Some(0)"
+    },
+    {
+      "path": "machine238-independent-O0-143908/fail-1.stderr",
+      "stats": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stdout_hex": "",
+      "exit": "Some(1)"
+    },
+    {
+      "path": "machine238-independent-O0-143908/fail-2.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 7
+      },
+      "stdout_hex": "4c5141",
+      "exit": "Some(1)"
+    },
+    {
+      "path": "machine238-independent-O0-143908/fail-3.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 14
+      },
+      "stdout_hex": "414c5142",
+      "exit": "Some(0)"
+    },
+    {
+      "path": "machine238-independent-O2-143908/fail-0.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 14
+      },
+      "stdout_hex": "414c5142",
+      "exit": "Some(0)"
+    },
+    {
+      "path": "machine238-independent-O2-143908/fail-1.stderr",
+      "stats": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stdout_hex": "",
+      "exit": "Some(1)"
+    },
+    {
+      "path": "machine238-independent-O2-143908/fail-2.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 7
+      },
+      "stdout_hex": "4c5141",
+      "exit": "Some(1)"
+    },
+    {
+      "path": "machine238-independent-O2-143908/fail-3.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 14
+      },
+      "stdout_hex": "414c5142",
+      "exit": "Some(0)"
+    },
+    {
+      "path": "machine238-self-O0-143908/fail-0.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 18
+      },
+      "stdout_hex": "4c5141",
+      "exit": "Some(0)"
+    },
+    {
+      "path": "machine238-self-O0-143908/fail-1.stderr",
+      "stats": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stdout_hex": "",
+      "exit": "Some(1)"
+    },
+    {
+      "path": "machine238-self-O0-143908/fail-2.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 7
+      },
+      "stdout_hex": "414c51",
+      "exit": "Some(1)"
+    },
+    {
+      "path": "machine238-self-O0-143908/fail-3.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 18
+      },
+      "stdout_hex": "4c5141",
+      "exit": "Some(0)"
+    },
+    {
+      "path": "machine238-self-O2-143908/fail-0.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 18
+      },
+      "stdout_hex": "4c5141",
+      "exit": "Some(0)"
+    },
+    {
+      "path": "machine238-self-O2-143908/fail-1.stderr",
+      "stats": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stdout_hex": "",
+      "exit": "Some(1)"
+    },
+    {
+      "path": "machine238-self-O2-143908/fail-2.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 7
+      },
+      "stdout_hex": "414c51",
+      "exit": "Some(1)"
+    },
+    {
+      "path": "machine238-self-O2-143908/fail-3.stderr",
+      "stats": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 18
+      },
+      "stdout_hex": "4c5141",
+      "exit": "Some(0)"
+    }
+  ],
+  "new_independent_streams": [
+    "review237-generic-defer-original-explicit-147340-2/stdout",
+    "review237-generic-defer-original-explicit-147340-3/stdout",
+    "review237-generic-defer-original-implicit-147340-0/stdout",
+    "review237-generic-defer-original-implicit-147340-1/stdout",
+    "review237-original235-147470-0/stdout",
+    "review237-original235-147470-1/stdout",
+    "review238-argument-shadow-144056-38/stdout",
+    "review238-argument-shadow-144056-45/stdout",
+    "review238-branch-complete-144056-51/stdout",
+    "review238-branch-complete-144056-52/stdout",
+    "review238-branch-complete-144056-53/stdout",
+    "review238-branch-complete-144056-54/stdout",
+    "review238-compat-private-owned-union-injection-144026-1/stdout",
+    "review238-compat-private-owned-union-injection-144026-7/stdout",
+    "review238-compat-private-whole-positive-144026-3/stdout",
+    "review238-compat-private-whole-positive-144026-8/stdout",
+    "review238-fail-after-self-144056-29/stdout",
+    "review238-fail-after-self-144056-33/stdout",
+    "review238-fail-before-self-144056-21/stdout",
+    "review238-fail-before-self-144056-26/stdout",
+    "review238-fail-independent-144056-42/stdout",
+    "review238-fail-independent-144056-49/stdout",
+    "review238-generated-binding-144056-48/stdout",
+    "review238-generated-binding-144056-50/stdout",
+    "review238-generic-self-144056-17/stdout",
+    "review238-generic-self-144056-3/stdout",
+    "review238-independent-age-144056-23/stdout",
+    "review238-independent-age-144056-28/stdout",
+    "review238-loop-144056-30/stdout",
+    "review238-loop-144056-32/stdout",
+    "review238-no-defer-relay-144056-34/stdout",
+    "review238-no-defer-relay-144056-40/stdout",
+    "review238-partial-independent-144056-1/stdout",
+    "review238-partial-independent-144056-10/stdout",
+    "review238-phantom-family-self-144056-27/stdout",
+    "review238-phantom-family-self-144056-31/stdout",
+    "review238-self-age-144056-12/stdout",
+    "review238-self-age-144056-2/stdout",
+    "review238-shadow-144056-22/stdout",
+    "review238-shadow-144056-25/stdout"
+  ]
+}

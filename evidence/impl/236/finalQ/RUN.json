@@ -1,0 +1,62 @@
+{
+  "status": "Pass",
+  "candidate_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "-p",
+        "zil-cli",
+        "--features",
+        "llvm-api"
+      ],
+      "cwd": "/workspace/zil-core",
+      "exit": 0,
+      "log": "cli-build.log"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "tools/language/236/run.py",
+        "--repo",
+        "/workspace/zil-core",
+        "--cli",
+        "/workspace/.zil-env/target-236/debug/zil",
+        "--compiler-build-receipt",
+        "/workspace/.zil-env/236-finalQ/compiler-build.json",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "--out",
+        "/workspace/.zil-env/236-finalQ/matrix"
+      ],
+      "cwd": "/workspace/zil-core",
+      "exit": 0,
+      "log": "matrix.log"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "/workspace/.zil-env/236-finalQ/candidate-controls.py",
+        "--repo",
+        "/workspace/zil-core",
+        "--cli",
+        "/workspace/.zil-env/target-236/debug/zil",
+        "--compiler-build-receipt",
+        "/workspace/.zil-env/236-finalQ/compiler-build.json",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "--out",
+        "/workspace/.zil-env/236-finalQ/controls"
+      ],
+      "cwd": "/workspace/zil-core",
+      "exit": 0,
+      "log": "controls.log"
+    }
+  ],
+  "tracked_baseline_controls_not_run": "tools/language/236/controls.py intentionally asserts old baseline Unsupported; the unchanged current-candidate control scheduler is recorded instead.",
+  "performance_sampling": false
+}
