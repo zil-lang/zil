@@ -14,7 +14,15 @@
     "236": "evidence/reviews/236/finalQ.json"
   },
   "consumer236": "evidence/impl/236/finalQ/RESULT.json",
-  "main_replay": "Running separately; no result claimed yet",
+  "main_replay": {
+    "status": "Pass",
+    "evidence": "evidence/integration/language-core-20261102/main-ci/RESULT.json",
+    "run_ids": [
+      "41348687045",
+      "41348687154"
+    ],
+    "counts_not_added_to_local_or_pr": true
+  },
   "history": "P full workspace3425/11 and all intermediate failures retained. Author/reviewer/default/reference/native counts are not added.",
   "full_language": "NotSatisfied",
   "product": "NotRun",
