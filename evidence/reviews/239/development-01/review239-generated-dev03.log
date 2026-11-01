@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.34s
+     Running tests/review239_generation.rs (/workspace/.zil-env/target-244/debug/deps/review239_generation-1729ef8f1b3c325d)
+
+running 2 tests
+test generation_preserves_private_iteration_identity_and_closed_payload_profiles ... ok
+test generated_manages_and_handwritten_fields_execute_the_same_declared_order ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
