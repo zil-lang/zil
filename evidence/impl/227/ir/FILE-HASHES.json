@@ -1,0 +1,19 @@
+{
+  "identity": "Uncommitted worktree files at evidence capture; not a commit identity",
+  "files_sha256": {
+    "crates/zil-backend-llvm/src/emit.rs": "26406d91b15e8d0730906cfe96ced0546e91511b009725e1d7fd682728a5f77e",
+    "crates/zil-base/src/lib.rs": "7faa4d0a5db49bee9e5683cba1c8b7bb5e3fa62acd6b3d8cd8cd2323d67ced8b",
+    "crates/zil-ct/src/materialize.rs": "d0c0784423fb36e382b24a113a866249c0065a8c1bb82d0f9e5184b96c951a0f",
+    "crates/zil-ct/src/program.rs": "8be8dffeead5ddf1bf7ecbd37f24b475c14288d7a3b16ae3b8a7dcfe237c3232",
+    "crates/zil-ct/src/source.rs": "47e5d6f267671833086acb54f72064931f27b41dfdd46efd1d39398cd82336e0",
+    "crates/zil-ir/src/lib.rs": "727ad1136650ce80e16e78a87aa9e349a2019b743042906881954991b20cb6a7",
+    "crates/zil-ir/src/wire.rs": "cddbbfcc15d7c02e6a673f9e99344ea6ab0f236ee6472c6c3d3ab53e7af32949",
+    "crates/zil-ir/src/wire/state_field_tests.rs": "8be65fa976840ad74e4448ee207ee454ed5398c3b1f35c2cdf43f85565c5485c",
+    "crates/zil-ir/src/wire/store_tests.rs": "a9c6b619526db1ddf68f4ff2971f46f2e3c333b4e6791bac912abad7a0573fad",
+    "crates/zil-ir/src/wire/tests.rs": "134abc7b61a22c08e6bed4bef919bdc0df4a4229c62ee9952926d18a11324126",
+    "crates/zil-ir/tests/cp34_fingerprint.rs": "1db5a5cc095ac5ed51db71f252c3fa1c7319abe1715de8e2f53e68862ea90071",
+    "crates/zil-ir/tests/support/cp34_instruction_cases.rs": "4f1fba65d1aa2dc4fe30d817539b2ea69093de923a3a2d4b23f49f9a0c519322",
+    "crates/zil-ir/tests/support/cp34_legacy_v28.rs": "b2d0d54a6a36a6bbf1d6840e58b7772c1e6fa83e334153c8b60358ce47628fbe",
+    "crates/zil-lower/src/lib.rs": "d914c3c15c6ef382560567e054c7e64507214e053f5fb81df9573534992201f0"
+  }
+}

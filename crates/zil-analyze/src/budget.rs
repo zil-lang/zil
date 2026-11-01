@@ -759,6 +759,7 @@ pub(super) fn preflight(
                         return Err(bad("integer conversion target is not a supported integer"));
                     }
                     InstructionKind::Load(local)
+                    | InstructionKind::RegisterDefer { local, .. }
                     | InstructionKind::Store { local, .. }
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local }

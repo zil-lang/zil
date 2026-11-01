@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/cp34_instruction_cases.rs"]
 mod cases;
-#[path = "support/cp34_legacy_v27.rs"]
+#[path = "support/cp34_legacy_v28.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -155,7 +155,7 @@ fn module(flag: bool) -> TypedModule {
     let all_types = types(flag);
     assert_eq!(all_types.len(), 26);
     let mut operations = cases::instructions(flag);
-    assert_eq!(operations.len(), 90);
+    assert_eq!(operations.len(), 91);
     for value in [
         Constant::Unit,
         Constant::Bool(flag),
@@ -351,12 +351,19 @@ fn equal(module: &TypedModule) {
 
 #[test]
 fn frozen_oracle_is_the_original_encoder_not_the_new_sink() {
-    let source = include_str!("support/cp34_legacy_v27.rs");
+    let source = include_str!("support/cp34_legacy_v28.rs");
     let (_, original) = source
         .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
         .unwrap();
     assert_eq!(
         Fingerprint::of(original.as_bytes()).to_hex(),
+        "18d902acfce7342c5f5d8ec797b282ebbeb120d3e649761b6c520795ed522b56"
+    );
+    let (_, archived) = include_str!("support/cp34_legacy_v27.rs")
+        .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
+        .unwrap();
+    assert_eq!(
+        Fingerprint::of(archived.as_bytes()).to_hex(),
         "51ca6f134a7af5e0abbd18a1f0320201c724240ad1faf64fd309b1b1f435526a"
     );
     for (name, expected) in [
@@ -430,4 +437,15 @@ fn callable_public_fingerprints_keep_the_original_vec_contracts() {
             legacy::callable_return_contract_fingerprint(&value)
         );
     }
+}
+
+#[test]
+fn defer227_domain_rejects_v27_identity_even_with_the_same_schema_claim() {
+    let mut input = module(false);
+    input.schema_version = 27;
+    let mut old_domain = legacy::bytes(&input);
+    let domain = b"ZIL-TYPED-MODULE-V28\0";
+    assert!(old_domain.starts_with(domain));
+    old_domain[..domain.len()].copy_from_slice(b"ZIL-TYPED-MODULE-V27\0");
+    assert_ne!(input.fingerprint(), Fingerprint::of(&old_domain));
 }

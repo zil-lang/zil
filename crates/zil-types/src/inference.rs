@@ -871,9 +871,9 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
                     found |= contains_closure(&arm.body, depth + 1, budget)?;
                 }
             }
-            CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                found |= contains_closure(body, depth + 1, budget)?
-            }
+            CoreStatementKind::Block(body)
+            | CoreStatementKind::Unsafe(body)
+            | CoreStatementKind::Defer(body) => found |= contains_closure(body, depth + 1, budget)?,
             CoreStatementKind::Unsupported(feature) => {
                 budget.work(feature.len(), statement.span)?
             }
@@ -2496,9 +2496,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.scopes.pop();
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                    self.block(body, depth + 1)?
-                }
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => self.block(body, depth + 1)?,
                 CoreStatementKind::Break | CoreStatementKind::Continue => {}
                 CoreStatementKind::Unsupported(feature) => {
                     return Err(unsupported(statement.span, feature));
@@ -3898,7 +3898,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.normalize_block(&mut arm.body, expression, statement)?;
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => {
                     self.normalize_block(body, expression, statement)?
                 }
                 _ => {}

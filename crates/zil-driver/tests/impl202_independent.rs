@@ -1218,7 +1218,10 @@ fn runtime_ct_normalization_retains_full_type_constraints_and_stale_wire_is_reje
     let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
     let mut bytes =
         zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
-    assert_eq!(u32::from_le_bytes(bytes[8..12].try_into().unwrap()), 27);
+    assert_eq!(
+        u32::from_le_bytes(bytes[8..12].try_into().unwrap()),
+        zil_base::SCHEMA_VERSION
+    );
     bytes[8..12].copy_from_slice(&25u32.to_le_bytes());
     case.write("stale25.wire", &bytes);
     let errors =

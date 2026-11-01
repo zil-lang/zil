@@ -1056,7 +1056,17 @@ impl Collector<'_> {
                         self.block(module, &arm.body, depth + 1)?;
                     }
                 }
-                CoreStatementKind::Block(b) => self.block(module, b, depth + 1)?,
+                CoreStatementKind::Defer(b) if self.query => {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(b.span),
+                        "defer is outside the pure compile-time capability set",
+                    )]);
+                }
+                CoreStatementKind::Defer(b) | CoreStatementKind::Block(b) => {
+                    self.block(module, b, depth + 1)?
+                }
                 CoreStatementKind::Unsafe(b) if self.query => {
                     return Err(vec![Diagnostic::error(
                         Phase::Ct,
@@ -1196,7 +1206,9 @@ fn strip_block(block: &mut CoreBlock) {
                     strip_block(&mut arm.body);
                 }
             }
-            CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => strip_block(b),
+            CoreStatementKind::Block(b)
+            | CoreStatementKind::Unsafe(b)
+            | CoreStatementKind::Defer(b) => strip_block(b),
             _ => {}
         }
     }

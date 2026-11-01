@@ -10,6 +10,9 @@
 //! are deterministic logical units, not elapsed time or an allocator byte count.
 mod budget;
 mod callable_fields;
+#[cfg(test)]
+mod defer_tests;
+mod defers;
 mod dynamic_store;
 mod helpers;
 mod holds;
