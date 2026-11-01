@@ -306,6 +306,8 @@ jobs:
           set -euo pipefail
           cargo test --locked -p zil-llvm-api --features text-reference 2>&1 | tee "$RUNNER_TEMP/receipts/text-reference.log"
           python3 tools/llvm/test_validate_migration.py 2>&1 | tee "$RUNNER_TEMP/receipts/migration-runner.log"
+      - name: Test CI evidence recovery
+        run: python3 tools/ci/test_evidence_transport.py
       - name: Small recovery artifact, never target caches
         id: recovery_final
         continue-on-error: true
