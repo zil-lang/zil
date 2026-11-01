@@ -63,7 +63,11 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         | Type::CWideString
         | Type::ForeignCallback { .. } => Layout { size: 8, align: 8 },
         Type::Tuple(fields) => fields_layout(fields)?,
-        Type::Record { fields, .. } => fields_layout(fields.iter().map(|(_, ty)| ty))?,
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            fields_layout(fields.iter().map(|(_, ty)| ty))?
+        }
+        Type::Managed(payload) => physical_layout(payload)?,
+        Type::ByteBuffer | Type::OwnedStore { .. } => Layout { size: 24, align: 8 },
         Type::ErrorUnion { error, result } => {
             fields_layout([&Type::Bool, error.as_ref(), result.as_ref()])?
         }
@@ -368,6 +372,43 @@ impl FunctionEmitter<'_> {
                     align: (physical_layout(ty)?.align) as u32,
                 },
             ))),
+            Type::Managed(payload) => self.store_payload(payload, source, address)?,
+            Type::ByteBuffer | Type::OwnedStore { .. } => {
+                let llvm = llvm_type(ty)?;
+                for (index, field_ty) in [m::Ty::Ptr, m::Ty::Int(64), m::Ty::Int(64)]
+                    .into_iter()
+                    .enumerate()
+                {
+                    let projected = self.temp();
+                    let target = self.temp();
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name(projected.clone())),
+                        m::Op::Extract {
+                            arg: m::Arg::new(llvm.clone(), m::val(source)),
+                            index: index as u32,
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(m::name(target.clone())),
+                        m::Op::Gep {
+                            ty: llvm.clone(),
+                            ptr: m::val(address),
+                            indices: vec![
+                                m::Arg::new(m::Ty::Int(32), 0),
+                                m::Arg::new(m::Ty::Int(32), index as u32),
+                            ],
+                        },
+                    )));
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Store {
+                            arg: m::Arg::new(field_ty, m::val(projected)),
+                            ptr: m::val(target),
+                            align: 8,
+                        },
+                    )));
+                }
+            }
             Type::Enum { .. } => {
                 let llvm = llvm_type(ty)?;
                 let layout = union_layout(ty)?;
@@ -469,7 +510,11 @@ impl FunctionEmitter<'_> {
                 }
             }
             _ => {
-                let fields = ty.aggregate_fields().ok_or_else(|| {
+                let fields = match ty {
+                    Type::Package { fields, .. } => Some(fields.iter().map(|(_, t)| t).collect()),
+                    _ => ty.aggregate_fields(),
+                }
+                .ok_or_else(|| {
                     vec![Diagnostic::unsupported(
                         Phase::Codegen,
                         "non-Copy enum field store",
