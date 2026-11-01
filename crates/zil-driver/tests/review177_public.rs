@@ -133,7 +133,8 @@ fn literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruption
                 ResultCategory::SafeReject,
                 "E-WIRE-BOOL",
             );
-            for unknown in [89, 254] {
+            // Opcode89 is RegisterDefer since schema28;90 is the next unknown.
+            for unknown in [90, 254] {
                 let mut bad = bytes.clone();
                 bad[offset + opcode] = unknown;
                 error(

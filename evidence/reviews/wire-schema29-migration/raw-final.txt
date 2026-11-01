@@ -1,0 +1,20 @@
+Err(
+    [
+        Diagnostic {
+            phase: Verify,
+            category: Unsupported,
+            code: "E-UNSUPPORTED",
+            message: "ordinary Product addresses are shared synchronous inputs",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 134,
+                    end: 145,
+                },
+            ),
+            notes: [],
+        },
+    ],
+)

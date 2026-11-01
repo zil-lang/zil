@@ -1,0 +1,43 @@
+{
+  "status": "Pass",
+  "source_base_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "tested_worktree": "/tmp/zil-wire-fixture-migration",
+  "production_changed": false,
+  "original_wire_and_ORACLE_unchanged": true,
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "review177_public",
+    "--test",
+    "review223_replay",
+    "--",
+    "--nocapture"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-ir",
+    "CARGO_BUILD_JOBS": 1,
+    "CARGO_INCREMENTAL": 0,
+    "ZIL_TEST_REPORT_DIR": "/tmp/wire-fixture-migration-evidence/reports"
+  },
+  "tests": {
+    "review177_public": {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "review223_replay": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    }
+  },
+  "new_native_executions": 0,
+  "patch_apply_check_against_core": "Pass",
+  "temporary_generator_history": "First generator compile failed because SCHEMA_VERSION is exported by zil-base, not public from zil-ir; unchanged failure log retained. Corrected generator1/0; final deliverable suites7/0. No production compiler changes."
+}
