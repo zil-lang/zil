@@ -1,0 +1,22 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.30s
+     Running tests/review240_match_exits.rs (/workspace/.zil-env/target-244/debug/deps/review240_match_exits-39efe94349c5f1de)
+
+running 2 tests
+
+thread 'continue_and_break_each_discharge_only_the_current_pattern_owners' (259492) panicked at crates/zil-driver/tests/review240_match_exits.rs:35:9:
+assertion `left == right` failed: {"status":"SafeReject","phase":"types","diagnostics":[{"phase":"types","category":"SafeReject","code":"E-IMMUTABLE-ASSIGNMENT","message":"i is not mutable","span":{"file":0,"start":245,"end":246},"notes":[]}],"artifacts":{"core":"/tmp/review240-exits-dev02/review240-exits-loop-O0-259491/phases/core.txt","ct-core":"/tmp/review240-exits-dev02/review240-exits-loop-O0-259491/phases/ct-core.txt","source-map":"/tmp/review240-exits-dev02/review240-exits-loop-O0-259491/phases/source-map.txt","syntax":"/tmp/review240-exits-dev02/review240-exits-loop-O0-259491/phases/syntax.txt"},"input_fingerprint":"e02486676bcb7e08660492181b5ccbe7fdc9acc38fd362d9ace8021578fbdc68","seconds":0.012772838,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"match-exits240.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test continue_and_break_each_discharge_only_the_current_pattern_owners ... FAILED
+test early_arm_return_runs_defer_then_recursive_pattern_leaves ... ok
+
+failures:
+
+failures:
+    continue_and_break_each_discharge_only_the_current_pattern_owners
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+error: test failed, to rerun pass `-p zil-driver --test review240_match_exits`
