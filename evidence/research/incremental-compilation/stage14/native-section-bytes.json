@@ -1,0 +1,190 @@
+{
+  "limits": "Finite saved artifacts only; section/text equality does not establish universal runtime, ABI, locality or cache behavior.",
+  "pairs": [
+    {
+      "baseline": {
+        "elf_bytes": 260728,
+        "elf_sha256": "b054af688adbaf0e3da5bb4232a7b1147af903345b21e9bbc17bceb90694de1d",
+        "path": "/workspace/.zil-env/research/stage14/confirmed-target/opaque-2048-branch/0-default-baseline/program",
+        "strtab_file_range": [
+          234624,
+          258613
+        ],
+        "text_sections": {
+          ".text": {
+            "bytes": 173895,
+            "file_offset": 4160,
+            "sha256": "c87b38ffabe797cddfb17461a9bf6d688b49ced09e65aab2290c1e2752f5b49a"
+          }
+        }
+      },
+      "candidate": {
+        "elf_bytes": 260728,
+        "elf_sha256": "b054af688adbaf0e3da5bb4232a7b1147af903345b21e9bbc17bceb90694de1d",
+        "path": "/workspace/.zil-env/research/stage14/confirmed-target/opaque-2048-branch/0-default-candidate/program",
+        "strtab_file_range": [
+          234624,
+          258613
+        ],
+        "text_sections": {
+          ".text": {
+            "bytes": 173895,
+            "file_offset": 4160,
+            "sha256": "c87b38ffabe797cddfb17461a9bf6d688b49ced09e65aab2290c1e2752f5b49a"
+          }
+        }
+      },
+      "changed_bytes_outside_common_strtab": 0,
+      "differing_section_payload_names": [],
+      "label": "confirmed-target-opaque-2048-branch-0-default",
+      "nonidentical_elf_changes_confined_to_strtab": false,
+      "strtab_file_ranges_equal": true,
+      "text_section_payloads_equal": true,
+      "whole_elf_equal": true,
+      "whole_file_changed_byte_count": 0
+    },
+    {
+      "baseline": {
+        "elf_bytes": 376080,
+        "elf_sha256": "2bb7a4f6e9e7ad92cdd10ef3e90a9203a19e27d1e350db659f0e0469c69f8e22",
+        "path": "/workspace/.zil-env/research/stage14/confirmed-guards/large-8192/0-default-baseline/program",
+        "strtab_file_range": [
+          275680,
+          373969
+        ],
+        "text_sections": {
+          ".text": {
+            "bytes": 66421,
+            "file_offset": 4160,
+            "sha256": "117ad9d8c155bb2416ef88516353668dda95264b839788eb8588f0310826934c"
+          }
+        }
+      },
+      "candidate": {
+        "elf_bytes": 376080,
+        "elf_sha256": "b3d7196f8617ad60e919bb0e179434a32e2b7e31281d686aa5b56230561e2c2e",
+        "path": "/workspace/.zil-env/research/stage14/confirmed-guards/large-8192/0-default-candidate/program",
+        "strtab_file_range": [
+          275680,
+          373969
+        ],
+        "text_sections": {
+          ".text": {
+            "bytes": 66421,
+            "file_offset": 4160,
+            "sha256": "117ad9d8c155bb2416ef88516353668dda95264b839788eb8588f0310826934c"
+          }
+        }
+      },
+      "changed_bytes_outside_common_strtab": 0,
+      "differing_section_payload_names": [
+        ".strtab"
+      ],
+      "label": "confirmed-guards-large-8192-0-default",
+      "nonidentical_elf_changes_confined_to_strtab": true,
+      "strtab_file_ranges_equal": true,
+      "text_section_payloads_equal": true,
+      "whole_elf_equal": false,
+      "whole_file_changed_byte_count": 472
+    },
+    {
+      "baseline": {
+        "elf_bytes": 376568,
+        "elf_sha256": "62890ccb28e7e6bf4bb229d4164917e040808c0c52807efa3feea15f770345f5",
+        "path": "/workspace/.zil-env/research/stage14/confirmed-guards/large-even-8x1024/0-default-baseline/program",
+        "strtab_file_range": [
+          275920,
+          374456
+        ],
+        "text_sections": {
+          ".text": {
+            "bytes": 66485,
+            "file_offset": 4160,
+            "sha256": "dbdc6d89404fc3bb440fee061eba2c845a6b994dbd8a758caeed6debde37c86d"
+          }
+        }
+      },
+      "candidate": {
+        "elf_bytes": 376568,
+        "elf_sha256": "be31f59e925ae94dd61df4745bd8d3b3a34f8940cfaec53b6cff9a8f11e4193c",
+        "path": "/workspace/.zil-env/research/stage14/confirmed-guards/large-even-8x1024/0-default-candidate/program",
+        "strtab_file_range": [
+          275920,
+          374456
+        ],
+        "text_sections": {
+          ".text": {
+            "bytes": 66485,
+            "file_offset": 4160,
+            "sha256": "dbdc6d89404fc3bb440fee061eba2c845a6b994dbd8a758caeed6debde37c86d"
+          }
+        }
+      },
+      "changed_bytes_outside_common_strtab": 0,
+      "differing_section_payload_names": [
+        ".strtab"
+      ],
+      "label": "confirmed-guards-large-even-8x1024-0-default",
+      "nonidentical_elf_changes_confined_to_strtab": true,
+      "strtab_file_ranges_equal": true,
+      "text_section_payloads_equal": true,
+      "whole_elf_equal": false,
+      "whole_file_changed_byte_count": 608
+    },
+    {
+      "baseline": {
+        "elf_bytes": 15792,
+        "elf_sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+        "path": "/workspace/.zil-env/research/stage14/confirmed-closed-guard/large-even-8x1024/0-closed-baseline/program",
+        "strtab_file_range": [
+          13200,
+          13679
+        ],
+        "text_sections": {
+          ".text": {
+            "bytes": 274,
+            "file_offset": 4160,
+            "sha256": "30368e679c1b0fc9204a1a17c6ac104ff8959eed81fdb25c520e8efe3932d2d4"
+          }
+        }
+      },
+      "candidate": {
+        "elf_bytes": 15792,
+        "elf_sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+        "path": "/workspace/.zil-env/research/stage14/confirmed-closed-guard/large-even-8x1024/0-closed-candidate/program",
+        "strtab_file_range": [
+          13200,
+          13679
+        ],
+        "text_sections": {
+          ".text": {
+            "bytes": 274,
+            "file_offset": 4160,
+            "sha256": "30368e679c1b0fc9204a1a17c6ac104ff8959eed81fdb25c520e8efe3932d2d4"
+          }
+        }
+      },
+      "changed_bytes_outside_common_strtab": 0,
+      "differing_section_payload_names": [],
+      "label": "confirmed-closed-guard-large-even-8x1024-0-closed",
+      "nonidentical_elf_changes_confined_to_strtab": false,
+      "strtab_file_ranges_equal": true,
+      "text_section_payloads_equal": true,
+      "whole_elf_equal": true,
+      "whole_file_changed_byte_count": 0
+    }
+  ],
+  "quality_results_path": "/workspace/.zil-env/research/stage14/quality/results.json",
+  "quality_results_sha256": "dac205597f5e54ad8e2f4016174754787864dd3db44e0273a9c5c0dfe2c4e181",
+  "scope": "Offline comparison of existing Stage14 edited ELF files; no builds, native tools, programs, tests or timings.",
+  "script_path": "/workspace/.zil-env/research/stage14/section_byte_inspection.py",
+  "script_sha256": "8d3c4e36da4de4d8426e47e34e58c6d451ebcc2d6dfe71634a1fc21acb74f47b",
+  "source_commit_requested": "75178b1cfb42bfd37746b7573999d74d7d7668db",
+  "summary": {
+    "changed_bytes_outside_strtab_total": 0,
+    "nonidentical_pairs_confined_to_strtab": 2,
+    "pairs": 4,
+    "text_equal_pairs": 4,
+    "whole_elf_equal_pairs": 2
+  }
+}

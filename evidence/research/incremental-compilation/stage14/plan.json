@@ -1,0 +1,57 @@
+{
+  "baseline_delivery": "5821120ac5952bcf799afe76de1030741d9ccb89",
+  "baseline_production": "4bbbce204bb468d83eaebb78573c98104c3de348",
+  "selected": [
+    "direct byte-identical text writer",
+    "bounded deterministic parallel machine lowering",
+    "bounded current-validation small-function scratch reuse",
+    "single-file no-import exact semantic candidate probe before discovery parse"
+  ],
+  "final_windows": [
+    {
+      "name": "confirmed-target",
+      "cases": [
+        "opaque-2048-branch"
+      ],
+      "contract": "default",
+      "histories": 1,
+      "rust": "no repeated cold Rust, separate newly measured warm follows"
+    },
+    {
+      "name": "confirmed-guards",
+      "cases": [
+        "large-even-8x1024",
+        "large-8192"
+      ],
+      "contract": "default",
+      "histories": 1,
+      "rust": "new complete Rust requests"
+    },
+    {
+      "name": "confirmed-closed-guard",
+      "cases": [
+        "large-even-8x1024"
+      ],
+      "contract": "closed",
+      "histories": 1,
+      "rust": "new complete Rust requests"
+    }
+  ],
+  "warm_followup": {
+    "tool": "stage14_warm.py",
+    "seed": "confirmed-target",
+    "rust_seed": "final-target",
+    "repeated_pairs": 5,
+    "scope": "two current ZIL edited histories and one existing identical-source Rust history, no reused timings and no new cold Rust history"
+  },
+  "scope": "No broad old matrix or component ablation. First target window determines whether selected combination should continue; preserve any failed/adverse observations. Independent complete requests and native oracles; unchanged Rust/LLVM/settings. Whole-text/artifact quality verification after measurements.",
+  "initial_production": "70ba1b271b19bd01f0c0c4803b490f2d218428d7",
+  "initial_window_names": [
+    "final-target",
+    "final-guards",
+    "final-closed-guard",
+    "warm-followup"
+  ],
+  "initial_interpretation": "Preserved intermediate results: 36 complete +15 repeated warm requests; not final source. Parallel threshold refined after adverse uniform CPU/RSS; single-file exact semantic discovery shortcut selected.",
+  "final_production": "75178b1cfb42bfd37746b7573999d74d7d7668db"
+}

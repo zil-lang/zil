@@ -1,0 +1,165 @@
+{
+  "environment_overrides": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/research/stage8/target-test",
+    "ZIL_LLVM_LIB_DIR": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib",
+    "LD_LIBRARY_PATH": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib"
+  },
+  "checks": [
+    {
+      "name": "text",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native",
+        "--lib",
+        "model::text_reference_tests"
+      ],
+      "exit": 0,
+      "passed": 2
+    },
+    {
+      "name": "preflight",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "native",
+        "--lib",
+        "preflight::"
+      ],
+      "exit": 0,
+      "passed": 22
+    },
+    {
+      "name": "parallel",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "--features",
+        "llvm-api",
+        "--lib",
+        "emit::parallel_lowering::tests"
+      ],
+      "exit": 0,
+      "passed": 3
+    },
+    {
+      "name": "source-parallel",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "object_cache212",
+        "parallel_lowering_keeps_source_order_text_cache_keys_and_owned_cleanup",
+        "--",
+        "--exact"
+      ],
+      "exit": 0,
+      "passed": 1
+    },
+    {
+      "name": "source-overflow",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "object_cache212",
+        "current_checked_overflow_still_traps_on_cache_hits",
+        "--",
+        "--exact"
+      ],
+      "exit": 0,
+      "passed": 1
+    },
+    {
+      "name": "text-native",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "text-reference",
+        "--test",
+        "builder210",
+        "rendered_and_direct_modes_have_same_behavior",
+        "--",
+        "--exact"
+      ],
+      "exit": 0,
+      "passed": 1
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "-p",
+        "zil-backend-llvm",
+        "-p",
+        "zil-driver",
+        "--features",
+        "zil-driver/llvm-api,zil-llvm-api/text-reference",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "passed": null
+    },
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit": 0,
+      "passed": null
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "passed": null
+    }
+  ]
+}

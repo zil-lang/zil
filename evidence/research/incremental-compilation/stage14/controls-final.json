@@ -1,0 +1,106 @@
+{
+  "environment_overrides": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/research/stage8/target-test",
+    "ZIL_LLVM_LIB_DIR": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib",
+    "LD_LIBRARY_PATH": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib"
+  },
+  "checks": [
+    {
+      "name": "discovery",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--lib",
+        "discovery"
+      ],
+      "exit": 0,
+      "passed": 8
+    },
+    {
+      "name": "semantic",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "semantic_cache"
+      ],
+      "exit": 0,
+      "passed": 7
+    },
+    {
+      "name": "source-parallel-refined",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "object_cache212",
+        "parallel_lowering_keeps_source_order_text_cache_keys_and_owned_cleanup",
+        "--",
+        "--exact"
+      ],
+      "exit": 0,
+      "passed": 1
+    },
+    {
+      "name": "clippy-final",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-backend-llvm",
+        "-p",
+        "zil-driver",
+        "--features",
+        "zil-driver/llvm-api",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "passed": null
+    },
+    {
+      "name": "fmt-final",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit": 0,
+      "passed": null
+    },
+    {
+      "name": "diff-final",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "passed": null
+    }
+  ]
+}
