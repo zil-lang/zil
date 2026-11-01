@@ -1,0 +1,11 @@
+{
+ "status":"construction checkpoint; front-end only, not acceptance",
+ "schema":30,
+ "spec_hash":"47e90dcf92adffe3d23696a4b4a7128864b7e667cf47e86a2fb23de33bfa2f52",
+ "normative_hash":"e587b977f43efa4eb4bab75c33b72b25b90619426da41949cb6cbedf493d947e",
+ "checks":["Syntax 2/0","Expand original normalization +237 recipes limited regression pass","Syntax/Expand/Types cargo check","Expand/Types all-target clippy -Dwarnings","Public source->Syntax->Expand->Types six author tests pass; test file loaded unchanged by temporary path-dependency harness because downstream kernels are implementing new opcodes independently"],
+ "source_fixtures":"driver/tests/impl240_fixtures original03/05 are byte-for-byte Q inputs; nested/product are new author fixtures",
+ "unverified":["Analyze/Verify/Lower/backend for new source shapes","source budget tails and expanded negative/cross-module matrix","actual new native machine cleanup/allocator failure"],
+ "preserved_failures":["First external harness used include! on inner doc comment, causing Rust E0753; replaced by #[path] module without production change","First Copy-generic author fixture omitted required newline between match arms; fixed fixture layout only"],
+ "permissions":"No default limits, public IR/schema, main tasks/norms, legacy capture/shared/element/array permission or Cargo.lock edited by240; root-authorized commits merged normally."
+}
