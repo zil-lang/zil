@@ -1,0 +1,17 @@
+{
+  "status": "PredeclaredBeforeFinalQExecution",
+  "original915_three_positive_and_seven_negative_sources": "preserved",
+  "additional_positive_sources": [
+    "enum-give-relay actual give producer -> owning Binding -> give consumer",
+    "global resource F stays distinct from helper binder F"
+  ],
+  "expected_stdout": "AB",
+  "expected_exit": 0,
+  "optimization_levels": [
+    "O0",
+    "O2"
+  ],
+  "new_cases_native_runs": 0,
+  "P_extra_probe": "ResourceF vs callbackF lexical collision already reached Types Success at P; no native claimed.",
+  "test_sha256": "8b7be79a0386c4c76ae023c3ab88db194bd542e6687d507710eba7202b6e1dea"
+}
