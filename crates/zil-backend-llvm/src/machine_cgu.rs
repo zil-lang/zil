@@ -1,6 +1,8 @@
 //! Partition the owned machine IR by semantic symbol references, never by parsing
 //! LLVM assembly. Local-linkage definitions and all users remain co-located.
 use crate::EntryPoint;
+
+pub(crate) mod layout;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{FileId, Fingerprint};
 #[cfg(test)]
@@ -104,6 +106,7 @@ fn small_caller_components(
 pub(crate) fn partition(module: Module, lir: &LirModule, entry: EntryPoint, count: usize) -> Plan {
     partition_view(module, &lir.as_view(), entry, count, false, false)
 }
+#[cfg(test)]
 pub(crate) fn partition_view(
     module: Module,
     lir: &LirView<'_>,
@@ -111,6 +114,77 @@ pub(crate) fn partition_view(
     count: usize,
     split_large_files: bool,
     import_complete_call_closures: bool,
+) -> Plan {
+    partition_view_recorded(
+        module,
+        lir,
+        entry,
+        count,
+        split_large_files,
+        import_complete_call_closures,
+        &mut None,
+    )
+}
+
+/// Reuse only the exact current input's layout; validation authority remains in
+/// the current lowering/Verify request and the native units' full preflight.
+pub(crate) fn partition_view_cached(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    import_complete_call_closures: bool,
+    cache_root: Option<&std::path::Path>,
+) -> (Plan, Option<layout::Pending>) {
+    let cache = cache_root.and_then(|root| {
+        layout::Cache::new(
+            root,
+            &module,
+            lir,
+            entry,
+            count,
+            split_large_files,
+            import_complete_call_closures,
+        )
+    });
+    if let Some(cached) = cache
+        .as_ref()
+        .and_then(|cache| cache.load(&module, lir, count))
+        && valid_declaration_prelude(&module)
+    {
+        return (
+            Plan {
+                units: cached.replay(module),
+                fallback: None,
+            },
+            None,
+        );
+    }
+    let mut recorded = None;
+    let plan = partition_view_recorded(
+        module,
+        lir,
+        entry,
+        count,
+        split_large_files,
+        import_complete_call_closures,
+        &mut recorded,
+    );
+    let pending = cache
+        .zip(recorded)
+        .and_then(|(cache, layout)| cache.pending(&layout));
+    (plan, pending)
+}
+
+fn partition_view_recorded(
+    module: Module,
+    lir: &LirView<'_>,
+    entry: EntryPoint,
+    count: usize,
+    split_large_files: bool,
+    import_complete_call_closures: bool,
+    recorded: &mut Option<layout::Layout>,
 ) -> Plan {
     let fallback = |module, reason| Plan {
         units: vec![module],
@@ -282,21 +356,8 @@ pub(crate) fn partition_view(
     // malformed types, ABI attributes or local declarations still fail. It has
     // no function bodies and does not repeat whole-program SSA preflight.
     // Named types remain in every unit in this first dependency-closure slice.
-    if prelude
-        .iter()
-        .any(|&index| !matches!(module.items[index], Item::NamedType(..)))
-    {
-        let declarations = Module {
-            triple: module.triple.clone(),
-            fingerprint: module.fingerprint.clone(),
-            items: prelude
-                .iter()
-                .map(|&index| module.items[index].clone())
-                .collect(),
-        };
-        if zil_llvm_api::validate_module(&declarations).is_err() {
-            return fallback(module, "invalid machine declaration prelude");
-        }
+    if !valid_declaration_prelude(&module) {
+        return fallback(module, "invalid machine declaration prelude");
     }
     // Import a complete direct-call closure, not a definition-ID prefix. Mere
     // function addresses retain canonical declarations without copying a body.
@@ -375,71 +436,33 @@ pub(crate) fn partition_view(
             imports.insert(owner, imported);
         }
     }
-    let mut prototypes = BTreeMap::new();
-    let mut uses_left = vec![1usize; defs.len()];
-    for (&owner, definitions) in &members {
-        let imported = imports.entry(owner).or_default();
-        for &id in definitions.iter().chain(imported.iter()) {
-            for symbol in &defs[id].refs {
-                if let Some(&dependency) = names.get(symbol.as_str())
-                    && owners[dependency] != owner
-                    && !imported.contains(&dependency)
-                {
-                    prototypes.entry(dependency).or_insert_with(|| {
-                        match &module.items[defs[dependency].index] {
-                            Item::Function(f) => Item::Function(f.declaration()),
-                            Item::Global(g) => Item::Global(g.declaration()),
-                            Item::NamedType(..) => unreachable!(),
-                        }
-                    });
-                }
-            }
-        }
-        for &id in imported.iter() {
-            uses_left[id] += 1;
+    for (&owner, imported) in &imports {
+        for &id in imported {
             let clone_name = format!("zil.import.{owner}.{}", defs[id].name);
             if symbols.contains(clone_name.as_str()) {
                 return fallback(module, "O2 implementation clone symbol collision");
             }
-            prototypes.entry(id).or_insert_with(|| {
-                let Item::Function(function) = &module.items[defs[id].index] else {
-                    unreachable!()
-                };
-                Item::Function(function.declaration())
-            });
         }
     }
-    let mut original = module.items.into_iter().map(Some).collect::<Vec<_>>();
-    let prelude = prelude
-        .into_iter()
-        .map(|index| original[index].take().expect("unique prelude item"))
-        .collect::<Vec<_>>();
-    let mut units = Vec::with_capacity(members.len());
+    let mut layout = layout::Layout {
+        units: Vec::with_capacity(members.len()),
+    };
     for (owner, definitions) in members {
-        let imported = &imports[&owner];
-        let clone_names = imported
-            .iter()
-            .map(|&id| {
-                (
-                    defs[id].name.clone(),
-                    format!("zil.import.{owner}.{}", defs[id].name),
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
+        let imported = imports.entry(owner).or_default();
         let referenced = definitions
             .iter()
             .chain(imported.iter())
             .flat_map(|&id| defs[id].refs.iter())
             .collect::<BTreeSet<_>>();
-        let mut items = prelude
+        let retained_prelude = prelude
             .iter()
-            .filter(|item| match item {
+            .copied()
+            .filter(|&index| match &module.items[index] {
                 Item::NamedType(..) => true,
                 Item::Function(f) => referenced.contains(&f.name),
                 Item::Global(g) => referenced.contains(&g.name),
             })
-            .cloned()
-            .collect::<Vec<_>>();
+            .collect();
         let mut needed = BTreeSet::new();
         for &id in definitions.iter().chain(imported.iter()) {
             needed.extend(
@@ -449,43 +472,50 @@ pub(crate) fn partition_view(
                     .filter_map(|name| names.get(name.as_str()).copied()),
             );
         }
-        for id in needed {
-            if owners[id] != owner && !imported.contains(&id) {
+        let declarations = needed
+            .into_iter()
+            .filter(|&id| owners[id] != owner && !imported.contains(&id))
+            .map(|id| {
                 debug_assert!(!defs[id].local);
-                items.push(prototypes[&id].clone());
-            }
-        }
-        for &id in imported {
-            // Address operands and callback arguments must still resolve to
-            // the canonical owner even when the direct callee is a clone.
-            items.push(prototypes[&id].clone());
-            let Item::Function(mut function) =
-                distribute_item(&mut original[defs[id].index], &mut uses_left[id])
-            else {
-                unreachable!()
-            };
-            function.linkage = zil_llvm_api::model::Linkage::Internal;
-            function.name = clone_names[&defs[id].name].clone();
-            rewrite_direct_calls(&mut function, &clone_names);
-            items.push(Item::Function(function));
-        }
-        items.extend(definitions.iter().map(|&id| {
-            let mut item = distribute_item(&mut original[defs[id].index], &mut uses_left[id]);
-            if let Item::Function(function) = &mut item {
-                rewrite_direct_calls(function, &clone_names);
-            }
-            item
-        }));
-        units.push(Module {
-            triple: module.triple.clone(),
-            fingerprint: module.fingerprint.clone(),
-            items,
+                defs[id].index
+            })
+            .collect();
+        layout.units.push(layout::Unit {
+            owner,
+            prelude: retained_prelude,
+            declarations,
+            imports: imported.iter().map(|&id| defs[id].index).collect(),
+            definitions: definitions.iter().map(|&id| defs[id].index).collect(),
         });
     }
+    let units = layout.replay(module);
+    *recorded = Some(layout);
     Plan {
         units,
         fallback: None,
     }
+}
+
+fn valid_declaration_prelude(module: &Module) -> bool {
+    let is_prelude = |item: &&Item| match item {
+        Item::Function(f) => f.blocks.is_none(),
+        Item::Global(g) => g.initializer.is_none(),
+        Item::NamedType(..) => true,
+    };
+    if !module
+        .items
+        .iter()
+        .filter(is_prelude)
+        .any(|item| !matches!(item, Item::NamedType(..)))
+    {
+        return true;
+    }
+    let declarations = Module {
+        triple: module.triple.clone(),
+        fingerprint: module.fingerprint.clone(),
+        items: module.items.iter().filter(is_prelude).cloned().collect(),
+    };
+    zil_llvm_api::validate_module(&declarations).is_ok()
 }
 
 fn distribute_item(original: &mut Option<Item>, remaining: &mut usize) -> Item {

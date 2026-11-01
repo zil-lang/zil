@@ -120,6 +120,42 @@ pub(super) struct State {
 }
 
 impl State {
+    // Private work-product receipts record only shared accounting, never proof.
+    pub(super) fn accounting(&self) -> [usize; 6] {
+        [
+            self.blocks,
+            self.locals,
+            self.values,
+            self.instructions,
+            self.limits.max_analysis_steps - self.work_left,
+            self.limits.max_nodes - self.nodes_left,
+        ]
+    }
+
+    pub(super) fn replay_accounting(&mut self, cost: [usize; 6]) -> bool {
+        let before = self.accounting();
+        let maxima = [
+            self.limits.max_blocks,
+            self.limits.max_locals,
+            self.limits.max_values,
+            self.limits.max_instructions,
+            self.limits.max_analysis_steps,
+            self.limits.max_nodes,
+        ];
+        let mut after = [0; 6];
+        for i in 0..6 {
+            let Some(value) = before[i].checked_add(cost[i]).filter(|n| *n <= maxima[i]) else {
+                return false;
+            };
+            after[i] = value;
+        }
+        [self.blocks, self.locals, self.values, self.instructions] =
+            [after[0], after[1], after[2], after[3]];
+        self.work_left = maxima[4] - after[4];
+        self.nodes_left = maxima[5] - after[5];
+        true
+    }
+
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
         retained::self_contained(&self.pending, id, &mut self.work_left, span)
     }

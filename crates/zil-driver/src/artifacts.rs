@@ -33,9 +33,16 @@ pub(super) struct ArtifactPlan {
 }
 impl ArtifactPlan {
     pub(super) fn semantic_cache(&mut self, path: &Path) -> CompileResult<PathBuf> {
+        self.cache_destination("semantic-cache", path)
+    }
+    pub(super) fn cache_destination(
+        &mut self,
+        name: &'static str,
+        path: &Path,
+    ) -> CompileResult<PathBuf> {
         let path = destination(path)?;
         self.files.push(PlannedFile {
-            name: "semantic-cache",
+            name,
             path: path.clone(),
         });
         self.validate()?;

@@ -99,9 +99,13 @@ fn parallel_lowering_keeps_source_order_text_cache_keys_and_owned_cleanup() {
     let mut source = String::from(
         "extern \"C\" fn putchar(n:i32)->i32;\nresource Token{code:i32}\nimpl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}\nfn make(n:i32)->Token contract{result(create)}{return Token{code:n}}\nfn early()->i32{let t=make(65);let f=move()=>t.code;return f()-65;}\n",
     );
-    // Cross several lowering batches, including a short final batch. These
-    // parameter-dependent bodies also require checked arithmetic intrinsics.
-    for i in 0..201 {
+    // Cross several lowering batches, including a short final batch. Each
+    // parameter-dependent helper has at least nine SSA values/instructions,
+    // one parameter/local and three blocks: >=23 estimated work units. Thus
+    // 401 helpers contribute >=9223 total and >=7751 outside any 64-function
+    // batch, forcing two lowering workers under the 4096-per-worker gate.
+    // Branching also prevents the compact scalar-leaf fast path.
+    for i in 0..401 {
         source += &format!("fn padding{i}(x:i32)->i32{{if x<0{{return x-1;}}return x+1;}}\n");
     }
     source += "fn late()->i32{let t=make(66);let f=move()=>t.code;let p:fn(i32)->i32=padding0;return f()+p(0)-67;}\nfn main()->i32{return early()+late();}\n";
