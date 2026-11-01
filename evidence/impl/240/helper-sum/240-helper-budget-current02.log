@@ -1,0 +1,10 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.01s
+     Running `/workspace/.zil-env/target-240/debug/impl240-helper-budget-current /tmp/impl240-helper-budget /tmp/impl240-helper-budget/receipts-current old-give-param old-package-field sum-direct sum-relay`
+old-give-param Expand N=389 N-1 ResourceLimit, cold/warm/fresh output equal
+old-give-param Types N=544 N-1 ResourceLimit, cold/warm/fresh output equal
+old-package-field Expand N=430 N-1 ResourceLimit, cold/warm/fresh output equal
+old-package-field Types N=711 N-1 ResourceLimit, cold/warm/fresh output equal
+sum-direct Expand N=598 N-1 ResourceLimit, cold/warm/fresh output equal
+sum-direct Types N=2020 N-1 ResourceLimit, cold/warm/fresh output equal
+sum-relay Expand N=640 N-1 ResourceLimit, cold/warm/fresh output equal
+sum-relay Types N=2141 N-1 ResourceLimit, cold/warm/fresh output equal

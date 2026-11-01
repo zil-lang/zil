@@ -1,0 +1,9 @@
+     Locking 14 packages to highest Rust 1.99.1 compatible versions
+   Compiling zil-types v0.1.0 (/workspace/zil-238-regression/crates/zil-types)
+   Compiling impl240-helper-budget-q v0.0.0 (/tmp/impl240-helper-budget/q)
+    Finished `dev` profile [unoptimized] target(s) in 7.76s
+     Running `/workspace/.zil-env/target-240-q-budget/debug/impl240-helper-budget-q /tmp/impl240-helper-budget /tmp/impl240-helper-budget/receipts-q old-give-param old-package-field`
+old-give-param Expand N=389 N-1 ResourceLimit, cold/warm/fresh output equal
+old-give-param Types N=544 N-1 ResourceLimit, cold/warm/fresh output equal
+old-package-field Expand N=430 N-1 ResourceLimit, cold/warm/fresh output equal
+old-package-field Types N=711 N-1 ResourceLimit, cold/warm/fresh output equal

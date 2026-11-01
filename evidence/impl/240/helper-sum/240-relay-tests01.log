@@ -1,0 +1,33 @@
+   Compiling impl240-front-probe v0.0.0 (/tmp/impl240-front-probe)
+    Finished `test` profile [unoptimized] target(s) in 1.07s
+     Running tests/front.rs (/workspace/.zil-env/target-240/debug/deps/front-3cfc3c7d81940023)
+
+running 11 tests
+test front::ordinary_sum_does_not_acquire_store_element_or_resource_header_permission ... ok
+test front::copy_generic_enum_is_preserved_but_new_owning_generic_enum_is_closed ... ok
+test front::resource_field_requires_explicit_ownership_and_cannot_upgrade_ref ... ok
+test front::product_sum_fields_and_error_payloads_are_complete_values ... ok
+test front::right_nested_pattern_uses_local_observation_and_real_reverse_dfs_publication ... ok
+test front::same_module_sum_crosses_an_actual_project_import ... ok
+test front::right_nested_runtime_tags_leave_payloads_in_recursive_declaration_order ... ok
+test front::scrutinee_copy_scratch_cleans_before_hidden_owner_registration ... ok
+test front::unused_new_definitions_keep_exact_field_and_variant_names ... ok
+test front::original_q_sources_reach_types_without_source_changes ... ok
+Types nested owning Sum exact N=5594; old Product N=418
+test front::old_product_type_budget_and_new_sum_boundary_retry_are_exact ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/helpers.rs (/workspace/.zil-env/target-240/debug/deps/helpers-6edcc12cd32d2cb3)
+
+running 7 tests
+test helpers::a_plain_resource_descriptor_parameter_cannot_use_the_enum_ownership_route ... ok
+test helpers::module_declared_field_ownership_crosses_the_real_helper_instantiation ... ok
+test helpers::managed_store_pattern_relay_preserves_an_incoming_carrier ... ok
+test helpers::old_explicit_give_resource_parameter_control_remains_legal ... ok
+test helpers::real_enum_managed_name_binding_remains_owned_in_a_finite_helper ... ok
+test helpers::actual_give_resource_results_retain_ownership_through_local_bindings ... ok
+test helpers::unused_helper_checks_real_marker_and_actual_linear_give ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
