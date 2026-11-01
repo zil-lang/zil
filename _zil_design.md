@@ -391,6 +391,14 @@ Analyze与Verify分别按实际SSA/Local及子树叶位置重建每个Managed叶
 
 普通拥有准入与共享Product、StoreElement、closure capture、拥有数组及Sum准入明确分开。新的含Store递归Product不因本片自动进入这些位置；已支持的旧平坦State/Store/capture资格保持。复用既有Package、Managed<OwnedStore<T>>、实际字段指令与布局，不增加本片专用权限位；随227发布的Wire28不授予额外资格。新遍历/布局/复制预费，默认额度及既有无新组合的逻辑费用保持。支持范围须经原样近邻反例、raw/Wire和O0/O2真实失败清理验证。
 
+#### 8.1.3.1 普通Product整值赋值事务（238）
+
+无整体用户teardown的既有普通拥有Product，其可写局部完整替换可保留已初始化的同形词法shell。首片覆盖两类RHS：完全不引用该目标绑定的既有合法表达式；或已静态解析普通调用中恰一个直接整值实参为目标绑定、其余实参无该绑定自由引用。按真实词法绑定判断，不能按函数名字或消费者特判；复杂嵌套self使用仍保留明确缺口。
+
+先按原源顺序准备RHS；第二类仅在该实参求值处把目标完整字段组成同名完整Product，直接child整体转交，不引入deep Place。其他整值移动沿原语义，不能借此允许move后Copy偷读；禁止在上述拆分与提交之间再次通过源路径读取目标。实际别名、Desc、地址及捕获来源继续由两核按字段操作独立检查，不能依赖前端声明无冲突。
+
+RHS完整成功后，按字段声明序清理目标尚存旧责任，再无失败发布全部新字段。不得提前覆盖Copy字段、释放旧字段或复活已显式移交的值；独立RHS失败保留旧责任，self转交后的失败仅清实际剩余责任。目标须仍有存活Product shell；独立RHS可补齐合法部分字段，但此前整值移走或live/moved合流不能经字段发布复活。目标shell只在首次初始化时构造，整值赋值以既有Read/Take/Drop/StorePackageField及完整MakePackage实现，其词法清理年龄保持；prepared临时与各项责任照常结算。资源核的成功初始化逆序规则及defer混合次序不变，不新增运行时指令或权限位。新扫描、复制、字段准备与临时预付费用，旧未命中路径费用保持。必须原样复验236、无defer对照、普通替换与准备失败、move后读取/活窗口反例、raw核及O0/O2分配失败。
+
 #### 8.1.4 StoreElement泛型Product的完整身份（237）
 
 在§8.1.3普通完整Product及§8.2.1保留函数模板范围，允许恰一个 `T:StoreElement` 参数的有限Package声明，经直接实例或延后普通函数实例组合、返回完整Product。字段recipe限具体既有类型、本声明参数、Store包装及同范围有限子Package应用；递归by-value仍拒绝。定义本体按声明约束检查，未使用的声明及元数据同样检查；这不开放T字段访问、任意类型泛型或新的StoreElement/capture/shared资格。
