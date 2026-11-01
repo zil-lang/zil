@@ -1,0 +1,9 @@
+{
+  "commit": "b51dc2043ae51ec42c1bec964bec0623df152431",
+  "command": [
+    "python3",
+    "tools/llvm/test_validate_migration.py"
+  ],
+  "exit": 0,
+  "seconds": 0.19398210500366986
+}

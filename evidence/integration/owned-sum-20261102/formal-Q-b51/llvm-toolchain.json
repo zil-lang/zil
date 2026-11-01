@@ -1,0 +1,36 @@
+{
+  "status": "Pass",
+  "checks": {
+    "llvm": {
+      "path": "/workspace/.zil-env/llvm-23.1.4/lib/libLLVM.so.23.1",
+      "sha256": "2bf890dac0d0a9e2bf2a81abf0a611e6893a06cbd827c525abaa1114f1ec8250",
+      "version": "23.1.4"
+    },
+    "clang": {
+      "path": "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+      "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+      "version": "23.1.4",
+      "banner": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+    },
+    "lld_link": {
+      "path": "/workspace/.zil-env/llvm-23.1.4/bin/lld",
+      "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b",
+      "version": "23.1.4",
+      "banner": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+    },
+    "rustc": {
+      "path": "/workspace/.zil-env/cargo/bin/rustup",
+      "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+      "version": "1.99.1",
+      "banner": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+    },
+    "cargo": {
+      "path": "/workspace/.zil-env/cargo/bin/rustup",
+      "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+      "version": "1.99.1",
+      "banner": "cargo 1.99.1 (5f94df478 2026-08-27)"
+    }
+  },
+  "required_llvm": "23.1.4",
+  "required_rust": "1.99.1"
+}
