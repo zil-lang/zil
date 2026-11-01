@@ -411,6 +411,24 @@ impl Builder<'_, '_> {
         if let Some(expected) = expected {
             self.same(ty, expected, span)?;
         }
+        if owned_shapes::enumeration(ty) {
+            let work = inference::type_snapshot_work(ty, span, self.limits)?;
+            self.closures
+                .snapshot(work.saturating_mul(4).saturating_add(fields.len()), span)?;
+            let mut staged = Vec::new();
+            for (expression, expected) in expressions.iter().zip(fields) {
+                let (value, actual) = self.argument_expr(expression, expected)?;
+                self.same(&actual, expected, expression.span)?;
+                staged.push(self.stage_argument(value, &actual, expression.span)?);
+            }
+            let fields = self.commit_arguments(staged, span)?;
+            let value = self.value(
+                InstructionKind::MakeVariant { variant, fields },
+                ty.clone(),
+                span,
+            )?;
+            return Ok((value, ty.clone()));
+        }
         let mut values = Vec::new();
         for (expression, expected) in expressions.iter().zip(fields) {
             let (value, actual) = self.expr(expression, Some(expected))?;
@@ -435,40 +453,19 @@ impl Builder<'_, '_> {
         arms: &[CoreMatchArm],
         span: Span,
     ) -> R<()> {
+        if self
+            .known_type(expression)
+            .as_ref()
+            .is_some_and(owned_shapes::enumeration)
+        {
+            return self.owned_enum_match(expression, arms, span);
+        }
         let (value, ty) = self.expr(expression, None)?;
         if !ty.is_copy_value() {
             return Err(unsupported(span, "match requires a finite Copy value"));
         }
         self.finish_resource_temps(expression.span)?;
-        let mut coverage = Coverage {
-            remaining: &mut self.match_work_left,
-            depth_limit: self.limits.max_call_depth,
-            span,
-        };
-        let mut rows = Vec::new();
-        for arm in arms {
-            let pattern = coverage.pattern(&arm.pattern, &ty, &mut BTreeSet::new(), 0)?;
-            if !coverage.useful(
-                &rows,
-                std::slice::from_ref(&pattern),
-                std::slice::from_ref(&ty),
-                0,
-            )? {
-                return Err(error(
-                    "E-MATCH-UNREACHABLE",
-                    arm.span,
-                    "match arm is already covered by previous arms",
-                ));
-            }
-            rows.push(vec![pattern]);
-        }
-        if coverage.useful(&rows, &[Pattern::Any], std::slice::from_ref(&ty), 0)? {
-            return Err(error(
-                "E-MATCH-NONEXHAUSTIVE",
-                span,
-                "match does not cover every possible value",
-            ));
-        }
+        self.check_match_coverage(&ty, arms, span)?;
         let mut ends = Vec::new();
         for arm in arms {
             let fail = self.block_id()?;
@@ -499,7 +496,44 @@ impl Builder<'_, '_> {
         }
         Ok(())
     }
-    fn pattern_branch(
+    pub(super) fn check_match_coverage(
+        &mut self,
+        ty: &Type,
+        arms: &[CoreMatchArm],
+        span: Span,
+    ) -> R<()> {
+        let mut coverage = Coverage {
+            remaining: &mut self.match_work_left,
+            depth_limit: self.limits.max_call_depth,
+            span,
+        };
+        let mut rows = Vec::new();
+        for arm in arms {
+            let pattern = coverage.pattern(&arm.pattern, ty, &mut BTreeSet::new(), 0)?;
+            if !coverage.useful(
+                &rows,
+                std::slice::from_ref(&pattern),
+                std::slice::from_ref(ty),
+                0,
+            )? {
+                return Err(error(
+                    "E-MATCH-UNREACHABLE",
+                    arm.span,
+                    "match arm is already covered by previous arms",
+                ));
+            }
+            rows.push(vec![pattern]);
+        }
+        if coverage.useful(&rows, &[Pattern::Any], std::slice::from_ref(ty), 0)? {
+            return Err(error(
+                "E-MATCH-NONEXHAUSTIVE",
+                span,
+                "match does not cover every possible value",
+            ));
+        }
+        Ok(())
+    }
+    pub(super) fn pattern_branch(
         &mut self,
         value: ValueId,
         expected: Constant,
