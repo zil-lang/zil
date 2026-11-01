@@ -1,0 +1,17 @@
+{
+  "baseline_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "source_unit_path": "generated-enums230.zil",
+  "source_sha256": "3f08482c95dd9995e1194f3c4d65119800ed9a8268601a6553d905c97d648008",
+  "exact_budget_nodes": 871,
+  "exact_budget_work": 2698,
+  "original_records": {
+    "budget-nodes": {
+      "path": "/workspace/.zil-env/formal-languageQ/native/enums230-183773/budget-nodes/minimum.json",
+      "sha256": "0ea19cdc3130024119b87012f0ee12a12da8e031a2f863a497e1dd97ff2fa311"
+    },
+    "budget-work": {
+      "path": "/workspace/.zil-env/formal-languageQ/native/enums230-183773/budget-work/minimum.json",
+      "sha256": "b324d7306a9c4ab829caefd7d4348649436e3421582944a91ff8804a7c53beec"
+    }
+  }
+}

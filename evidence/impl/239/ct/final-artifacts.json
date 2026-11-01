@@ -1,0 +1,17 @@
+{
+  "original_base": "/workspace/zil-239/evidence/impl/239/ct/final-raw",
+  "sha256": {
+    "ct239-245090/local-false-ct-errors.txt": "f6dffc5cffaab803a78781f7b73a23f6826fe91430a41690e315153eb768c241",
+    "ct239-245090/local-false-raw.txt": "a2c23ef3cf7ae5269c8b26d77492532932e5f3d391b6992e3e856b6dc425830b",
+    "ct239-245090/local-false.wire": "2b41f7038f78c44c1d4f602798e329ca750e0bbfc262ab97f8e240907d5af480",
+    "ct239-245090/local-true-ct-errors.txt": "f6dffc5cffaab803a78781f7b73a23f6826fe91430a41690e315153eb768c241",
+    "ct239-245090/local-true-raw.txt": "53c0454156ec00b8828781b4900422283f56e2d2baa0fa2d576b8579ff996204",
+    "ct239-245090/local-true.wire": "ba562414196ef0dabac080b76babc93dc98a0c28c1dd1d16bc2f1ac53c561e69",
+    "ct239-245090/owned-false-ct-errors.txt": "0b0feebcd5066d06d861fb6b382b4be5166ee043dded960c871d0509b73e2095",
+    "ct239-245090/owned-false-raw.txt": "82f3e24d49c6c11a78bea510358c1d6349d4d601ae92ece2d338b5c6fefbdfa5",
+    "ct239-245090/owned-false.wire": "e1257b3157d947a490cbd6a881fd046ac73e93c0996c0e058487fb61fac59f71",
+    "ct239-245090/owned-true-ct-errors.txt": "0b0feebcd5066d06d861fb6b382b4be5166ee043dded960c871d0509b73e2095",
+    "ct239-245090/owned-true-raw.txt": "8e8764c42cf87b246fbb1de28f6a191f66383d330bff1578bcd7c5cd0297e585",
+    "ct239-245090/owned-true.wire": "9e39069999049b1880ef37479c7baa97eabffa2046332e1e0d01edfdd73475ee"
+  }
+}
