@@ -27,6 +27,8 @@ mod cgu;
 mod emit;
 mod machine_cgu;
 mod machine_checked_add_chain;
+#[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
+mod machine_object_patch;
 mod machine_scalar;
 mod machine_stable_identity;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]

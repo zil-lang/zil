@@ -355,6 +355,11 @@ pub fn build_view_with_cancellation_and_stable_names(
             lir.target,
             options.optimization,
             options.function_merging,
+            (options.incremental_o2
+                && options.optimization == Optimization::O2
+                && !options.closed_executable
+                && lir.target.triple == "x86_64-unknown-linux-gnu")
+                .then_some(options.clang.as_path()),
         ) {
             Ok(cache) => {
                 cache_summary.enabled = true;
@@ -493,9 +498,7 @@ pub fn build_view_with_cancellation_and_stable_names(
             cancelled,
         )?;
         for result in compiled {
-            if let Some(command) = result.command {
-                commands.push(command);
-            }
+            commands.extend(result.commands);
             if let Some(receipt) = result.receipt {
                 codegen.object_reports.push(receipt);
             }
@@ -569,7 +572,7 @@ struct UnitInput {
     module: zil_llvm_api::model::Module,
 }
 struct UnitResult {
-    command: Option<Vec<String>>,
+    commands: Vec<Vec<String>>,
     receipt: Option<String>,
     access: Option<Access>,
     pending: Option<PendingObject>,
@@ -633,7 +636,7 @@ fn compile_units(
                                         ));
                                     }
                                     Ok(UnitResult {
-                                        command: Some(command),
+                                        commands: vec![command],
                                         receipt: None,
                                         access: None,
                                         pending: None,
@@ -755,13 +758,90 @@ fn compile_api_unit(
                 lookup.key_ns + lookup.lookup_ns + lookup.preflight_ns
             );
             return Ok(UnitResult {
-                command: None,
+                commands: Vec::new(),
                 receipt: Some(receipt),
                 access: Some(lookup),
                 pending: None,
             });
         }
         access = Some(lookup);
+    }
+    let snapshot = cache
+        .filter(|cache| cache.patch_policy.is_some())
+        .and_then(|_| crate::machine_object_patch::Snapshot::new(&unit.module));
+    let mut commands = Vec::new();
+    let mut patch_fallback = None;
+    if let (Some(cache), Some(snapshot), Some(lookup)) = (cache, snapshot.as_ref(), access.as_ref())
+        && let Some(record) = cache.patch_record(snapshot.index_key)
+        && let Some(plan) = snapshot.plan(&unit.module, &record)
+        && let Some(base) = cache.base_object(plan.base_key)
+    {
+        // The old object is raw cached data. Check the entire current model,
+        // including unchanged definitions, before deriving any current product.
+        let t = std::time::Instant::now();
+        zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
+        let current_preflight = crate::object_cache::elapsed_ns(t);
+        check_cancelled(cancelled)?;
+        match zil_llvm_api::compile_module_with_function_merging(
+            &plan.module,
+            &config,
+            function_merging,
+            cancelled,
+        ) {
+            Ok(patch) => {
+                check_cancelled(cancelled)?;
+                let t = std::time::Instant::now();
+                let attempt = plan.derive(
+                    cache.patch_policy.as_ref().expect("eligible patch policy"),
+                    &base,
+                    &patch.bytes,
+                    &unit.object,
+                    lookup.key,
+                );
+                let derive_ns = crate::object_cache::elapsed_ns(t);
+                commands.extend(attempt.commands);
+                check_cancelled(cancelled)?;
+                if let Some(bytes) = attempt.bytes {
+                    let mut lookup = access.take().expect("current cache action");
+                    lookup.preflight_ns = current_preflight;
+                    let q = zil_base::json_string;
+                    let r = &patch.receipt;
+                    let receipt = format!(
+                        "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-patch\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"patched_functions\":{},\"reused_functions\":{},\"base_action_key\":{},\"llvm_verification_scope\":\"current-patch\",\"base_producer_verified_before_after\":true,\"current_full_machine_preflight\":true,\"verify_before_after\":true,\"cache\":{},\"preflight_ns\":{},\"builder_ns\":{},\"parse_ns\":0,\"optimize_ns\":{},\"emit_ns\":{},\"derive_ns\":{},\"total_ns\":{}}}",
+                        q(&r.llvm_version),
+                        q(target),
+                        q(&r.pipeline),
+                        bytes.len(),
+                        plan.replacements.len(),
+                        plan.reused_functions,
+                        q(&plan.base_key.to_hex()),
+                        lookup.to_json(),
+                        current_preflight + r.preflight_ns,
+                        r.builder_ns,
+                        r.optimize_ns,
+                        r.emit_ns,
+                        derive_ns,
+                        current_preflight + r.total_ns + derive_ns
+                    );
+                    let pending = PendingObject {
+                        key: lookup.key,
+                        bytes,
+                        base: None,
+                    };
+                    return Ok(UnitResult {
+                        commands,
+                        receipt: Some(receipt),
+                        access: Some(lookup),
+                        pending: Some(pending),
+                    });
+                }
+                patch_fallback = attempt.reason;
+            }
+            Err(error) => {
+                check_cancelled(cancelled)?;
+                patch_fallback = Some(error.to_string());
+            }
+        }
     }
     let object = zil_llvm_api::compile_module_with_function_merging(
         &unit.module,
@@ -802,12 +882,27 @@ fn compile_api_unit(
         receipt.push_str(&access.to_json());
         receipt.push('}');
     }
-    let pending = access.as_ref().map(|a| PendingObject {
-        key: a.key,
-        bytes: object.bytes,
+    if let Some(reason) = patch_fallback {
+        receipt.pop();
+        receipt.push_str(",\"patch_fallback\":");
+        receipt.push_str(&q(&reason));
+        receipt.push('}');
+    }
+    let pending = access.as_ref().map(|a| {
+        let base = snapshot.map(|s| {
+            (
+                s.index_key,
+                s.encode_base(a.key, zil_base::Fingerprint::of(&object.bytes)),
+            )
+        });
+        PendingObject {
+            key: a.key,
+            bytes: object.bytes,
+            base,
+        }
     });
     Ok(UnitResult {
-        command: None,
+        commands,
         receipt: Some(receipt),
         access,
         pending,

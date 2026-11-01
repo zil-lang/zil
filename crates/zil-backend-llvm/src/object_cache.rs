@@ -76,6 +76,8 @@ pub struct PendingObjectCache {
 pub(crate) struct PendingObject {
     pub(crate) key: Fingerprint,
     pub(crate) bytes: Vec<u8>,
+    // Only a full native compilation may replace the reusable base index.
+    pub(crate) base: Option<(Fingerprint, Vec<u8>)>,
 }
 impl PendingObjectCache {
     /// Best effort after a successful request. Failed/cancelled callers drop the
@@ -84,7 +86,14 @@ impl PendingObjectCache {
         if let Some(directory) = self.directory {
             for object in self.objects {
                 match store(&directory, object.key, &object.bytes) {
-                    Ok(()) => summary.stored += 1,
+                    Ok(()) => {
+                        summary.stored += 1;
+                        if let Some((key, bytes)) = object.base
+                            && store(&directory.join("full-bases-v1"), key, &bytes).is_err()
+                        {
+                            summary.write_failures += 1;
+                        }
+                    }
                     Err(_) => summary.write_failures += 1,
                 }
             }
@@ -96,6 +105,7 @@ pub(crate) struct PreparedCache {
     pub(crate) directory: PathBuf,
     pub(crate) llvm_version: String,
     namespace: Fingerprint,
+    pub(crate) patch_policy: Option<crate::machine_object_patch::Policy>,
 }
 pub(crate) struct Access {
     pub(crate) key: Fingerprint,
@@ -127,6 +137,7 @@ impl PreparedCache {
         target: &TargetProfile,
         opt: Optimization,
         function_merging: FunctionMerging,
+        patch_clang: Option<&Path>,
     ) -> Result<Self, String> {
         // Interposed LLVM functions may come from another DSO. Do not reuse
         // objects under an incomplete tool identity in that environment.
@@ -146,10 +157,15 @@ impl PreparedCache {
         let (version, library) = zil_llvm_api::cache_runtime(&config).map_err(|e| e.to_string())?;
         let compiler = std::env::current_exe().map_err(|e| e.to_string())?;
         let mut state = FingerprintBuilder::new();
+        let patch_policy = patch_clang.and_then(crate::machine_object_patch::Policy::discover);
         // Versioned exact protocol. Compiler-specific derived Hash cannot cross
         // a compiler identity boundary. Generic CPU/features/pipeline/relocation
         // and layout derivation are fixed in that very compiler's native adapter.
         ACTION_PROTOCOL.hash(&mut state);
+        if let Some(policy) = &patch_policy {
+            "bounded-full-base-object-patch-v1".hash(&mut state);
+            policy.identity.hash(&mut state);
+        }
         installed_identity(&compiler)
             .map_err(|e| e.to_string())?
             .hash(&mut state);
@@ -177,7 +193,30 @@ impl PreparedCache {
             directory,
             llvm_version: version,
             namespace,
+            patch_policy,
         })
+    }
+    pub(crate) fn patch_record(&self, key: Fingerprint) -> Option<Vec<u8>> {
+        let directory = self.directory.join("full-bases-v1");
+        let meta = fs::symlink_metadata(&directory).ok()?;
+        if !meta.is_dir() || meta.file_type().is_symlink() {
+            return None;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if meta.permissions().mode() & 0o022 != 0 {
+                return None;
+            }
+        }
+        let metadata = fs::symlink_metadata(entry_path(&directory, key)).ok()?;
+        if metadata.len() > 2 * 1024 * 1024 + HEADER as u64 {
+            return None;
+        }
+        load(&directory, key).ok()
+    }
+    pub(crate) fn base_object(&self, key: Fingerprint) -> Option<Vec<u8>> {
+        load(&self.directory, key).ok()
     }
     pub(crate) fn key(&self, module: &Module) -> Fingerprint {
         machine_key(self.namespace, module)
@@ -366,7 +405,7 @@ pub fn installed_compiler_identity() -> io::Result<Fingerprint> {
     installed_identity(&std::env::current_exe()?)
 }
 
-fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
+pub(crate) fn installed_identity(path: &Path) -> io::Result<Fingerprint> {
     let mut file = File::open(path)?;
     let meta = file.metadata()?;
     if !meta.is_file() {
@@ -709,6 +748,7 @@ mod tests {
             objects: vec![PendingObject {
                 key: Fingerprint::ZERO,
                 bytes: b"complete-object".to_vec(),
+                base: Some((Fingerprint::of(b"base-index"), b"base-record".to_vec())),
             }],
         };
         drop(make());
@@ -716,6 +756,27 @@ mod tests {
         make().commit(&mut summary);
         assert_eq!(summary.stored, 1);
         assert_eq!(summary.write_failures, 0);
+        assert_eq!(
+            load(&d.0.join("full-bases-v1"), Fingerprint::of(b"base-index")).unwrap(),
+            b"base-record"
+        );
+        // A delayed derived result can replace the same action key after a
+        // full compile commits. It must not relabel the full-base record; its
+        // bound full-object digest will reject these different bytes on reuse.
+        PendingObjectCache {
+            directory: Some(d.0.clone()),
+            objects: vec![PendingObject {
+                key: Fingerprint::ZERO,
+                bytes: b"derived-object".to_vec(),
+                base: None,
+            }],
+        }
+        .commit(&mut summary);
+        assert_eq!(load(&d.0, Fingerprint::ZERO).unwrap(), b"derived-object");
+        assert_eq!(
+            load(&d.0.join("full-bases-v1"), Fingerprint::of(b"base-index")).unwrap(),
+            b"base-record"
+        );
     }
     #[test]
     fn unwritable_cache_cannot_revoke_success() {
@@ -728,6 +789,7 @@ mod tests {
             objects: vec![PendingObject {
                 key: Fingerprint::ZERO,
                 bytes: b"object".to_vec(),
+                base: None,
             }],
         }
         .commit(&mut summary);

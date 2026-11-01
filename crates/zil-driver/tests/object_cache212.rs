@@ -60,9 +60,16 @@ impl Drop for Dir {
 fn success(r: &CompileReport, expected: i32) {
     assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
     assert_eq!(r.verification_runs, 1, "current Verify must execute");
+    let patches = r.native_codegen.as_ref().map_or(0, |codegen| {
+        codegen
+            .object_reports
+            .iter()
+            .filter(|report| report.contains("\"input_kind\":\"object-patch\""))
+            .count()
+    });
     assert_eq!(
         r.commands.len(),
-        1,
+        1 + 2 * patches,
         "linking must execute on cache hits too"
     );
     let out = Command::new(&r.artifacts["executable"])
@@ -708,6 +715,192 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
             executable
         );
     }
+}
+
+#[test]
+fn object_patch_preserves_merged_exports_and_always_uses_a_full_base() {
+    fn source(changed: usize, delta: usize, called: usize, neighbor: usize) -> String {
+        let mut source = String::new();
+        for i in 0..600 {
+            source += &format!(
+                "fn f{i}(x:i32)->i32{{return x+{};}}\n",
+                if i == changed { delta } else { 1 }
+            );
+        }
+        source += &format!(
+            "extern \"C\" fn getchar()->i32;fn main()->i32{{let p:fn(i32)->i32=f{called};let q:fn(i32)->i32=f{neighbor};var x:i32=0;unsafe{{x=getchar();}}if x==0{{return p(2147483647);}}return p(x)-q(x);}}\n"
+        );
+        source
+    }
+    fn execute(report: &CompileReport, seed: u8, result: Option<i32>) {
+        use std::io::Write;
+        use std::os::unix::process::ExitStatusExt;
+        use std::process::Stdio;
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let mut child = Command::new(&report.artifacts["executable"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(&[seed]).unwrap();
+        let output = child.wait_with_output().unwrap();
+        if let Some(code) = result {
+            assert_eq!(output.status.code(), Some(code), "{output:?}");
+        } else {
+            assert_eq!(output.status.signal(), Some(4), "{output:?}");
+        }
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+    fn patch_report(report: &CompileReport) -> &str {
+        report
+            .native_codegen
+            .as_ref()
+            .unwrap()
+            .object_reports
+            .iter()
+            .find(|r| r.contains("\"input_kind\":\"object-patch\""))
+            .unwrap_or_else(|| panic!("{}", report.to_json()))
+    }
+    fn base_key(report: &str) -> &str {
+        report
+            .split("\"base_action_key\":\"")
+            .nth(1)
+            .unwrap()
+            .split('"')
+            .next()
+            .unwrap()
+    }
+    let d = Dir::new();
+    let original = source(usize::MAX, 1, 0, 1);
+    d.write("main.zil", &original);
+    let mut options = d.options(8, Optimization::O2);
+    options.incremental_o2 = true;
+    options.function_merging = zil_driver::FunctionMerging::AfterOptimization;
+    let cold = d.build(&options);
+    execute(&cold, 7, Some(0));
+    // Inspect actual LLVM output, choosing a merged representative rather than
+    // assuming that f0 is the shared implementation. Calls stay opaque in ZIL.
+    let symbols = Command::new("nm")
+        .args(["-S", "--defined-only"])
+        .arg(&cold.artifacts["executable"])
+        .output()
+        .unwrap();
+    assert!(symbols.status.success());
+    let leader = String::from_utf8(symbols.stdout)
+        .unwrap()
+        .lines()
+        .find_map(|line| {
+            let fields = line.split_whitespace().collect::<Vec<_>>();
+            if fields.len() != 4 || fields[2] != "T" {
+                return None;
+            }
+            let id = fields[3].strip_prefix("zil.fn.")?.parse::<usize>().ok()?;
+            (id < 256 && usize::from_str_radix(fields[1], 16).ok()? > 5).then_some(id)
+        })
+        .expect("LLVM emitted a full merged representative in the first leaf unit");
+    let assembly = Command::new("objdump")
+        .args(["-d", "--no-show-raw-insn"])
+        .arg(&cold.artifacts["executable"])
+        .output()
+        .unwrap();
+    assert!(assembly.status.success());
+    let mut current = None;
+    let neighbor = String::from_utf8(assembly.stdout)
+        .unwrap()
+        .lines()
+        .find_map(|line| {
+            if line.ends_with(">:") {
+                current = line
+                    .split("<zil.fn.")
+                    .nth(1)
+                    .and_then(|name| name.strip_suffix(">:"))
+                    .and_then(|id| id.parse::<usize>().ok());
+                return None;
+            }
+            let id = current?;
+            let instruction = line
+                .split_once(':')?
+                .1
+                .split_whitespace()
+                .collect::<Vec<_>>();
+            (id < 256
+                && id != leader
+                && instruction.first() == Some(&"jmp")
+                && instruction.last() == Some(&format!("<zil.fn.{leader}>").as_str()))
+            .then_some(id)
+        })
+        .expect("an unchanged canonical function really jumps to the chosen merged representative");
+    d.write("main.zil", &source(leader, 2, leader, neighbor));
+    let first = d.build(&options);
+    execute(&first, 7, Some(1));
+    execute(&first, 0, None);
+    let first_patch = patch_report(&first);
+    assert!(first_patch.contains("\"current_full_machine_preflight\":true"));
+    assert_eq!(first.commands.len(), 3);
+    let cumulative = source(leader, 2, leader, neighbor).replace(
+        &format!("fn f{neighbor}(x:i32)->i32{{return x+1;}}"),
+        &format!("fn f{neighbor}(x:i32)->i32{{return x+3;}}"),
+    );
+    d.write("main.zil", &cumulative);
+    let second = d.build(&options);
+    execute(&second, 7, Some(255));
+    assert_eq!(base_key(first_patch), base_key(patch_report(&second)));
+    assert!(patch_report(&second).contains("\"patched_functions\":2"));
+    d.write("main.zil", &original);
+    let restored = d.build(&options);
+    execute(&restored, 7, Some(0));
+    assert_eq!(
+        restored
+            .native_codegen
+            .as_ref()
+            .unwrap()
+            .object_cache
+            .misses,
+        0
+    );
+    // A damaged optional base index cannot authorize reuse or prevent a fresh
+    // build. Corrupt only private base records, preserving exact-object entries.
+    fn corrupt_bases(path: &Path, inside: bool) {
+        for entry in fs::read_dir(path).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                let is_base = inside || path.file_name().unwrap() == "full-bases-v1";
+                corrupt_bases(&path, is_base);
+            } else if inside {
+                fs::write(path, b"broken base record").unwrap();
+            }
+        }
+    }
+    corrupt_bases(options.object_cache.as_ref().unwrap(), false);
+    d.write("main.zil", &source(leader, 4, leader, neighbor));
+    let recovered = d.build(&options);
+    execute(&recovered, 7, Some(3));
+    assert!(
+        recovered
+            .native_codegen
+            .as_ref()
+            .unwrap()
+            .object_reports
+            .iter()
+            .all(|r| !r.contains("\"input_kind\":\"object-patch\""))
+    );
+    let output = fs::read(&recovered.artifacts["executable"]).unwrap();
+    d.write(
+        "main.zil",
+        &source(leader, 4, leader, neighbor).replace("return x+4;", "return true;"),
+    );
+    let rejected = d.build(&options);
+    assert_eq!(rejected.status, ResultCategory::SafeReject);
+    assert!(rejected.native_codegen.is_none());
+    assert_eq!(fs::read(options.output.as_ref().unwrap()).unwrap(), output);
 }
 
 #[test]
