@@ -12,7 +12,7 @@
     "seven finite helper positive variants/17 unused-definition negatives",
     "actual resourceF versus callable binderF lexical scope, bare Desc not owner, stale roots"
   ],
-  "validation": "review240_helper_sum2/0 and match_exits4/0;20 native, plus R14 semantic checks/4 native; Q branch-join blocker prevents240 Pass",
+  "validation": "review240_helper_sum2/0 and match_exits4/0;20 native, plus R14 semantic checks/4 native; Q previously blocked240 Pass. At R the original owner-join sources succeed, while stale Desc and invalid ownership controls remain rejected.",
   "candidate_overall_verdict": "PassBounded",
   "common_evidence": "evidence/reviews/239/integrationR/COMMON-RESULT.json",
   "raw_archive": {
