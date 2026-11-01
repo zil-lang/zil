@@ -11,7 +11,7 @@ pub use source_map::*;
 use std::fmt;
 
 pub const RULE_VERSION: &str = "ZIL-LANG-1.4";
-pub const SCHEMA_VERSION: u32 = 27;
+pub const SCHEMA_VERSION: u32 = 28;
 
 // Keep identities untrusted and trivially constructible. They confer no authority.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

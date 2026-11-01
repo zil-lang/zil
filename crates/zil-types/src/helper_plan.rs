@@ -431,9 +431,9 @@ impl Walk<'_, '_> {
                         self.patterned(&arm.pattern, &shape, &arm.body, depth + 1)?;
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                    self.block(body, depth + 1)?
-                }
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => self.block(body, depth + 1)?,
                 _ => {}
             }
         }

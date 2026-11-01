@@ -1017,9 +1017,9 @@ impl Resolver<'_> {
                         self.block(&mut arm.body, depth + 1)?;
                     }
                 }
-                CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => {
-                    self.block(b, depth + 1)?
-                }
+                CoreStatementKind::Block(b)
+                | CoreStatementKind::Unsafe(b)
+                | CoreStatementKind::Defer(b) => self.block(b, depth + 1)?,
                 _ => {}
             }
         }

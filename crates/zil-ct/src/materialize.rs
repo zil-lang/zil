@@ -285,9 +285,9 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                         pending.push((Visit::Expr(value), depth + 1));
                         pending.push((Visit::Children(Children::Arms(arms)), depth + 1));
                     }
-                    CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => {
-                        pending.push((Visit::Block(b), depth + 1))
-                    }
+                    CoreStatementKind::Block(b)
+                    | CoreStatementKind::Defer(b)
+                    | CoreStatementKind::Unsafe(b) => pending.push((Visit::Block(b), depth + 1)),
                     _ => {}
                 }
             }
@@ -675,5 +675,54 @@ mod tests {
         };
         callee.id = NodeId(u32::MAX);
         assert!(first_free_id(&core, &Limits::default()).is_err());
+    }
+
+    #[test]
+    fn defer227_body_identity_and_depth_are_visited_before_reification() {
+        let mut core = input();
+        core.functions = vec![function(
+            1,
+            block(
+                10,
+                vec![statement(
+                    11,
+                    CoreStatementKind::Defer(block(
+                        12,
+                        vec![statement(
+                            13,
+                            CoreStatementKind::Expression(expression(900, CoreExprKind::Unit)),
+                        )],
+                    )),
+                )],
+            ),
+        )];
+        let limits = Limits {
+            max_nodes: 5,
+            max_call_depth: 4,
+            ..Limits::default()
+        };
+        assert_eq!(first_free_id(&core, &limits).unwrap(), 901);
+        assert_eq!(
+            first_free_id(
+                &core,
+                &Limits {
+                    max_nodes: 4,
+                    ..limits.clone()
+                }
+            )
+            .unwrap_err(),
+            quota(span(900))
+        );
+        assert_eq!(
+            first_free_id(
+                &core,
+                &Limits {
+                    max_call_depth: 3,
+                    ..limits
+                }
+            )
+            .unwrap_err(),
+            quota(span(900))
+        );
     }
 }

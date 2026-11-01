@@ -965,3 +965,52 @@ fn bytes083_scalar_ct_current_wire_preserves_byte_conversion_and_all_prefixes_re
         );
     }
 }
+
+#[test]
+fn defer227_registration_preserves_raw_ids_and_binds_both_fingerprint_fields() {
+    let limits = Limits::default();
+    for (scope, local) in [(0, 0), (7, 11), (u32::MAX, u32::MAX)] {
+        let original = Instruction {
+            result: None,
+            kind: InstructionKind::RegisterDefer {
+                scope: ScopeId(scope),
+                local: LocalId(local),
+            },
+            span: Span::new(FileId(3), 5, 11),
+        };
+        let mut writer = Writer::new(&limits);
+        writer.instruction(&original).unwrap();
+        assert_eq!(
+            &writer.output[..10],
+            &[&[0, 89][..], &scope.to_le_bytes(), &local.to_le_bytes()].concat()
+        );
+        let mut reader = Reader::new(&writer.output, &limits).unwrap();
+        assert_eq!(reader.instruction().unwrap(), original);
+        assert_eq!(reader.remaining(), 0);
+        for length in 0..writer.output.len() {
+            assert!(
+                Reader::new(&writer.output[..length], &limits)
+                    .unwrap()
+                    .instruction()
+                    .is_err()
+            );
+        }
+    }
+    let identity = |scope, local| {
+        let mut bytes = vec![];
+        encode_instruction(
+            &mut bytes,
+            &InstructionKind::RegisterDefer {
+                scope: ScopeId(scope),
+                local: LocalId(local),
+            },
+        );
+        bytes
+    };
+    assert_eq!(
+        identity(7, 11),
+        [&[89][..], &7u32.to_le_bytes(), &11u32.to_le_bytes()].concat()
+    );
+    assert_ne!(identity(7, 11), identity(8, 11));
+    assert_ne!(identity(7, 11), identity(7, 12));
+}

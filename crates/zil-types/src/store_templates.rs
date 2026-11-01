@@ -827,9 +827,9 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
                         self.block(&mut arm.body, depth + 2)?;
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                    self.block(body, depth + 2)?
-                }
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => self.block(body, depth + 2)?,
                 _ => {}
             }
         }

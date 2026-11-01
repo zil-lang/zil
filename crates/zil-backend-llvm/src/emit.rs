@@ -1262,6 +1262,7 @@ impl FunctionEmitter<'_> {
             | InstructionKind::EndPackageCapture { .. }
             | InstructionKind::UnsafeEnter { .. }
             | InstructionKind::UnsafeExit { .. }
+            | InstructionKind::RegisterDefer { .. }
             | InstructionKind::ScopeEnter { .. }
             | InstructionKind::ScopeExit { .. } => {}
             InstructionKind::MakeErrorUnion { is_error, value } => {

@@ -230,6 +230,14 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                         .expect("verified local initialized")
                         .clone(),
                 ),
+                InstructionKind::RegisterDefer { .. } => {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(instruction.span),
+                        "defer is forbidden during compile-time execution",
+                    )]);
+                }
                 InstructionKind::ScopeEnter { .. } | InstructionKind::ScopeExit { .. } => None,
                 InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
                     frame.locals[local.0 as usize] = None;

@@ -49,6 +49,9 @@ mod cleanup;
 mod closure_tests;
 mod closures;
 mod ct_program;
+#[cfg(test)]
+mod defer_tests;
+mod defers;
 mod dynamic_store;
 #[cfg(test)]
 mod error_scope_tests;
@@ -1055,6 +1058,7 @@ fn check_function(
             }
             match instruction.kind {
                 InstructionKind::Load(local)
+                | InstructionKind::RegisterDefer { local, .. }
                 | InstructionKind::DescribeLocal { local }
                 | InstructionKind::ReadPackageField { local, .. }
                 | InstructionKind::DescribePackageField { local, .. }
@@ -1120,7 +1124,7 @@ fn check_function(
         package_views,
     };
     foreign::check_regions(function, &graph, budget)?;
-    cleanup::check_function(function, &graph, budget)?;
+    cleanup::check_function(module, function, &graph, budget)?;
     Ok(graph)
 }
 
@@ -1202,6 +1206,10 @@ fn check_instruction(
         | InstructionKind::CallClosureBorrowed { .. }
         | InstructionKind::DropClosure { .. } => {
             closures::check_resource_instruction(module, function, instruction, budget)?
+        }
+        InstructionKind::RegisterDefer { local, .. } => {
+            local_type(function, *local, span)?;
+            None
         }
         InstructionKind::UnsafeEnter { .. }
         | InstructionKind::UnsafeExit { .. }
@@ -2304,6 +2312,7 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
         InstructionKind::Constant(_)
+        | InstructionKind::RegisterDefer { .. }
         | InstructionKind::UnsafeEnter { .. }
         | InstructionKind::UnsafeExit { .. }
         | InstructionKind::ScopeEnter { .. }

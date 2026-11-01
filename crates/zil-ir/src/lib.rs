@@ -497,6 +497,8 @@ pub enum CoreStatementKind {
         arms: Vec<CoreMatchArm>,
     },
     Block(CoreBlock),
+    /// Register an ordinary synchronous cleanup body at this declaration point.
+    Defer(CoreBlock),
     Unsafe(CoreBlock),
     Break,
     Continue,
@@ -935,6 +937,13 @@ pub enum InstructionKind {
     ScopeExit {
         scope: ScopeId,
         kind: CleanupExitKind,
+    },
+    /// Register an initialized hidden FnOnce local in the current activation.
+    /// This fact has no machine action; TakeLocal followed by CallClosureOnce
+    /// performs the required cleanup, independently checked at every exit.
+    RegisterDefer {
+        scope: ScopeId,
+        local: LocalId,
     },
     MakeErrorUnion {
         is_error: bool,
@@ -1560,7 +1569,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V27\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V28\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1972,6 +1981,11 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             b.push(58);
             encode_u32(b, local.0);
             encode_u32(b, *index);
+        }
+        InstructionKind::RegisterDefer { scope, local } => {
+            b.push(89);
+            encode_u32(b, scope.0);
+            encode_u32(b, local.0);
         }
         InstructionKind::ScopeEnter { scope } => {
             b.push(44);

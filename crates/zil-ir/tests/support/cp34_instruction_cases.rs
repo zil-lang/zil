@@ -51,6 +51,10 @@ pub fn instructions(flag: bool) -> Vec<InstructionKind> {
             buffer: ValueId(897),
             mutable: flag,
         },
+        InstructionKind::RegisterDefer {
+            scope: ScopeId(901),
+            local: LocalId(907),
+        },
         InstructionKind::ScopeEnter {
             scope: ScopeId(961),
         },

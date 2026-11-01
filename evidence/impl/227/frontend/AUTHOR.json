@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "task": "227",
+  "role": "frontend author",
+  "status": "AuthorScopedPass",
+  "implementation_commit": null,
+  "checkout_head": "1bd2beddc53600a1351c3f3035a7472e579da89e",
+  "worktree": "/workspace/zil-227",
+  "independent_review": "NotRun",
+  "full_language_gate": "NotRun",
+  "product_gate": "NotRun",
+  "scope": "Ordinary synchronous defer frontend and source-to-LLVM API execution; independent raw/Wire obligation evidence is maintained by the kernel author/reviewer, not counted here.",
+  "environment": {
+    "setup": ". /workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-227",
+    "CARGO_BUILD_JOBS": "1",
+    "native_backend": "LlvmApi",
+    "feature": "llvm-api",
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "fallback": false,
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+  },
+  "runs": [
+    {
+      "id": "initial-source",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/227-front-evidence cargo test -p zil-driver --features llvm-api --test impl227_defer -- --nocapture",
+      "log": "227-front-first.log.gz",
+      "result": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 0
+      },
+      "native_source_cases": 5,
+      "native_builds_and_runs": 10,
+      "raw_archive": "227-front-evidence.tar.gz",
+      "counting": "Historical first source revision, superseded by final-source-and-machine for current scope; not added to final coverage."
+    },
+    {
+      "id": "initial-machine",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/227-front-evidence cargo test -p zil-driver --features llvm-api --test impl227_machine -- --nocapture",
+      "log": "227-front-machine-first.log.gz",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 0
+      },
+      "llvm_api_object_builds": 2,
+      "probe_runs": 10,
+      "real_allocation_failures": 6,
+      "raw_archive": "227-front-evidence.tar.gz",
+      "counting": "Historical machine source revision with first buffer held by ordinary local; superseded by final owned-capture revision, not added."
+    },
+    {
+      "id": "final-source-and-machine",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/227-front-owning-evidence cargo test -p zil-driver --features llvm-api --test impl227_defer --test impl227_machine -- --nocapture",
+      "log": "227-front-owning-first.log.gz",
+      "result": {
+        "source_tests_passed": 11,
+        "machine_tests_passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 0
+      },
+      "source_native": {
+        "cases": 7,
+        "builds": 14,
+        "executions": 14,
+        "oracle": "Exact stdout, exit, empty stderr; actual LLVM API backend and no fallback."
+      },
+      "machine": {
+        "llvm_api_object_builds": 2,
+        "executions": 10,
+        "real_allocation_failures": 6,
+        "control_executions": 4,
+        "failure_indices": [
+          1,
+          2,
+          3
+        ],
+        "control_indices": [
+          0,
+          4
+        ],
+        "oracle": "Real realloc/free wrapping; registration-before failure, registered-action owning buffer after later failure, and allocation failure inside cleanup all settle exact stdout/exit and live=0. Actual calls/allocations/frees/failure count asserted."
+      },
+      "raw_archive": "227-front-owning-evidence.tar.gz",
+      "counting": "Current author acceptance scope; do not sum initial/repeated runs into these counts."
+    },
+    {
+      "id": "affected-regressions",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/227-front-regression-evidence cargo test -p zil-driver --features llvm-api --test impl226_budget --test impl226_shared_product_capture --test impl222_generation --test closures_frontend -- --nocapture",
+      "log": "227-front-regressions-first.log.gz",
+      "result": {
+        "passed": 38,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 0
+      },
+      "groups": {
+        "closures_frontend": 22,
+        "impl222_generation": 6,
+        "impl226_budget": 2,
+        "impl226_shared_product_capture": 8
+      },
+      "raw_archive": "227-front-regression-evidence.tar.gz",
+      "counting": "Existing regressions are distinct from new 227 tests; old native runs are not added to new native coverage."
+    }
+  ],
+  "budgets": {
+    "new_defer_types": {
+      "minimum": 51,
+      "n_success": true,
+      "n_minus_one_resource_limit": true,
+      "fresh_n_success": true,
+      "raw": "227-front-owning-evidence.tar.gz:defer227-types-budget-*/boundary.json"
+    },
+    "unchanged_named_inputs": {
+      "legacy_candidate": {
+        "Types": 835,
+        "Analyze": 7129,
+        "Verify": 12161
+      },
+      "new_local_shared": {
+        "Types": 1787,
+        "Analyze": 15791,
+        "Verify": 30761
+      }
+    },
+    "baseline_reference": {
+      "path": "evidence/impl/226/AUTHOR.json",
+      "sha256": "f517df7558e36bc3af4072378150c2b6ffeaf8daf65a026a1a1e59e2de9d4bd7",
+      "field": "budgets",
+      "values": {
+        "legacy_candidate": {
+          "Types": 835,
+          "Analyze": 7129,
+          "Verify": 12161
+        },
+        "new_local_shared": {
+          "Types": 1787,
+          "Analyze": 15791,
+          "Verify": 30761
+        },
+        "checks": [
+          "N success",
+          "N-1 ResourceLimit only",
+          "fresh N success"
+        ]
+      },
+      "comparison": "Each measured Types/Analyze/Verify value matches the prior author receipt for the same input; no claim for all programs."
+    }
+  },
+  "schema_assertion_migration": {
+    "files": [
+      "crates/zil-driver/tests/impl202_independent.rs",
+      "crates/zil-driver/tests/impl203_independent.rs"
+    ],
+    "change": "Current header assertions use SCHEMA_VERSION; original stale25/stale26 rejected byte mutations remain unchanged. These two large suites were not rerun by frontend author in these logs."
+  },
+  "logs": [
+    {
+      "original_path": "/tmp/227-front-first.log",
+      "archive": "227-front-first.log.gz",
+      "uncompressed_sha256": "7d29e47afa048319ea053df81544f2dff98a0f834e806911aa61611b6f7e2d9f",
+      "gzip_sha256": "8f49cf011f0e554fa7c8ce198945d64841d351cf392ae1e898fc0a9ad64dd12f",
+      "uncompressed_bytes": 1586
+    },
+    {
+      "original_path": "/tmp/227-front-machine-first.log",
+      "archive": "227-front-machine-first.log.gz",
+      "uncompressed_sha256": "205e7134fa751a5e0098e87d9f539ebde02cc1796788c689b83e531d7ef53f4e",
+      "gzip_sha256": "76f30cbac1adb49bd7e041a7dff201bd9ee678678fa8325c3c5125e8dc8516f7",
+      "uncompressed_bytes": 427
+    },
+    {
+      "original_path": "/tmp/227-front-owning-first.log",
+      "archive": "227-front-owning-first.log.gz",
+      "uncompressed_sha256": "7cb2dcc4582895697174ad0bfe7bfaf62408b40d6635adc0adad0567035b4d40",
+      "gzip_sha256": "11aec098af93a01cc1b75a751a7635a1256b0e960213815b634b39bcbe8787fe",
+      "uncompressed_bytes": 1770
+    },
+    {
+      "original_path": "/tmp/227-front-regressions-first.log",
+      "archive": "227-front-regressions-first.log.gz",
+      "uncompressed_sha256": "044a99e763567c6f97dfe200f9ff07e3ee19a20cafeb8cd1c6128e09f727473b",
+      "gzip_sha256": "fe8bb0a967cc9533a4d0b5681b3b88bddbe3eb4d83c35f28bb98b836680684c7",
+      "uncompressed_bytes": 3944
+    }
+  ],
+  "raw_archives": [
+    {
+      "source_path": "/tmp/227-front-evidence",
+      "archive": "227-front-evidence.tar.gz",
+      "archive_sha256": "19bab9b93162faed1f2680892c2bba84ad2eef00fe508fdc2b95dece4b405623",
+      "archive_bytes": 317515,
+      "files": 220,
+      "inventory": "227-front-evidence.files.json",
+      "inventory_sha256": "777e8b4a957b8a2b7f687b8dc0b2eb18ae28df73d81782a09dff2c03a0eab1f8"
+    },
+    {
+      "source_path": "/tmp/227-front-owning-evidence",
+      "archive": "227-front-owning-evidence.tar.gz",
+      "archive_sha256": "4eeb19c05b8288c40d0604936fee20cb023cabeaa2b177127d779a1aed7fdb01",
+      "archive_bytes": 406313,
+      "files": 280,
+      "inventory": "227-front-owning-evidence.files.json",
+      "inventory_sha256": "d1922f2defa73c05e7dffcc322779f4da59d4b299a67e008d2b131638661017c"
+    },
+    {
+      "source_path": "/tmp/227-front-regression-evidence",
+      "archive": "227-front-regression-evidence.tar.gz",
+      "archive_sha256": "7c015921fcadc2b93963634a124e5d6a72d0469d866a488a2d16d57b3eb51eb7",
+      "archive_bytes": 1307670,
+      "files": 1542,
+      "inventory": "227-front-regression-evidence.files.json",
+      "inventory_sha256": "1c44b44a5f6379522f7972f41a555efc0b97d321a504607133d967fe3e98eb5d"
+    }
+  ],
+  "source_manifest": "SOURCE-SHA256.json",
+  "limitations": [
+    "No implementation commit is claimed; root owns the final commit.",
+    "Author scope only; independent review/full CI/product gates are NotRun in this receipt.",
+    "Native evidence is Linux LLVM API O0/O2; no native Windows or Rust-equivalence/performance claim.",
+    "Closure capture limitations remain those of the frozen existing profiles; nested defer and outward control/error/suspend remain closed."
+  ]
+}

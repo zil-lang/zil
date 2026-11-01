@@ -398,7 +398,9 @@ fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut Type)) {
                         block(&mut a.body, replace)
                     }
                 }
-                CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => block(b, replace),
+                CoreStatementKind::Block(b)
+                | CoreStatementKind::Unsafe(b)
+                | CoreStatementKind::Defer(b) => block(b, replace),
                 _ => {}
             }
         }
