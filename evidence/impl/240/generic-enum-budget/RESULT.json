@@ -21,5 +21,15 @@
   "attribution": "Engine::instantiate checks each actual substituted generic enum field with copy::concrete_storage. For i32, ty() charges 1 node +3 bytes and copy classification charges 1 node: +2 nodes/+5 work. This keeps an existing Copy generic enum from gaining ordinary owning payload after generic erasure.",
   "boundary_controls": "Each dimension measured in three cycles; N-1 ResourceLimit then fresh N Core equality; subsequent calls reuse same parsed AST at N and equal Core. Comparison is within each schema, not schema29==schema30.",
   "owner_control": "Current Expand rejects actual Package field; Q Expand accepted it and historically Types global enum Copy gate owned the rejection. No claim Q whole pipeline accepted owners.",
-  "limits": "Default limits and product thresholds unchanged; scoped explicit budget exception, not all old Ns identical."
+  "limits": "Default limits and product thresholds unchanged; scoped explicit budget exception, not all old Ns identical.",
+  "exact_followup": {
+    "producer_commit": "34a52e554c72d6b8bfe42a08fe57e0a046d1ff73",
+    "production_dirty": false,
+    "expand_work_n": 336,
+    "expand_nodes_n": 126,
+    "log": "current-exact/run.log",
+    "fixed_regression_tests": "fixed-test.log 2/0"
+  },
+  "final_spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "final_normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66"
 }
