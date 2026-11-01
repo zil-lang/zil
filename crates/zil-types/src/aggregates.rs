@@ -718,7 +718,7 @@ impl Resolver<'_> {
                             || (d.kind == AggregateKind::Package
                                 && !f.manages
                                 && matches!(ty, Type::Package { .. })
-                                && packages::product::supported(&ty))
+                                && packages::product::owned_supported(&ty))
                             || (d.kind == AggregateKind::Package
                                 && f.manages
                                 && matches!(ty, Type::Managed(_))
@@ -735,7 +735,7 @@ impl Resolver<'_> {
                     if d.kind == AggregateKind::Package {
                         let ty = Type::Package { name, fields };
                         if packages::product::nested(&ty) {
-                            packages::product::validate(
+                            packages::product::validate_owned(
                                 &ty,
                                 &mut self.remaining,
                                 self.depth_limit,
@@ -762,7 +762,7 @@ impl Resolver<'_> {
                 result
             }
             ty @ Type::Package { .. } if packages::product::nested(ty) => {
-                packages::product::validate(ty, &mut self.remaining, self.depth_limit, span)?;
+                packages::product::validate_owned(ty, &mut self.remaining, self.depth_limit, span)?;
                 ty.clone()
             }
             Type::OwnedStore { element } => {

@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "ordinary Product Store requires exactly one canonical definition",
+        span: None,
+        notes: [],
+    },
+]

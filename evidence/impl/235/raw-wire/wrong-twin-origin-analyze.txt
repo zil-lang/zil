@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "resource closure: create result forwards an incoming responsibility",
+        span: None,
+        notes: [],
+    },
+]
