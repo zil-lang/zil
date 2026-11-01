@@ -1,0 +1,86 @@
+{
+  "scope": "241 helper ordinary data/closed profile repair only;239 supplemental reviewer role remains separate",
+  "author": "/root/impl_defer227",
+  "production_checkpoint": "4c88858508474470cecc0505b49dc292961fb0df",
+  "prior_production_checkpoint": "5fc277c9cd53a90b260ba58c774600fca7d0b44c",
+  "joint_source_checkpoint": "5be212ffe",
+  "baseline_P": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "status": {
+    "241_author_scoped": "Pass",
+    "whole_shared_helper_suite_at5be": "1 pass / 1 fail; final resource-named-F source fails Expand, assigned240 by root",
+    "independent_241": "NotRun",
+    "formal_full": "NotRun"
+  },
+  "changes": [
+    "ordinary concrete helper data parameters accept independently preflighted Enum/ErrorUnion; invocation signatures/results unchanged",
+    "single-F State Sum companions rejected by flags computed during original paid parameter envelope visit, no second parameter loop",
+    "each ErrorUnion node retains Copy-error!Managed or Copy/Product/Enum slots; each new repeated Copy-slot walk individually prepaid",
+    "direct owned Enum capture already refused by paid capture_owner preflight; added unread capture negative and old Copy capture positive"
+  ],
+  "checks": [
+    {
+      "log": "logs/241-helper-lib02.log.gz",
+      "result": "67/0,0ignored,0filtered",
+      "note": "Includes the3 added raw/Wire profile groups; small Sum N4303/N-1/fresh/cold/warm retained"
+    },
+    {
+      "log": "logs/241-helper-clippy02.log.gz",
+      "command": "cargo clippy -p zil-analyze --all-targets -- -D warnings",
+      "result": "Pass"
+    },
+    {
+      "logs": [
+        "logs/241-helper-slot-final.log.gz",
+        "logs/241-helper-state-final.log.gz",
+        "logs/241-helper-capture-final.log.gz"
+      ],
+      "result": "each targeted1/0,66filtered; no full crate rerun counted"
+    },
+    {
+      "log": "logs/241-helper-budget.log.gz",
+      "result": "old2062/0+old2352/0; Analyze8673,7129,82079,Verify12161,173575 unchanged"
+    },
+    {
+      "log": "logs/241-helper-final.log.gz",
+      "command": "cargo test -p zil-driver --features llvm-api --test review240_helper_sum --test impl206_budget --test impl235_budget -- --nocapture",
+      "result": "budget4/0; helper suite1/1 atExpand resource-named-F; first4source positives8LLVM API O0/O2native passed before that unrelated front-end blocker",
+      "no_oracle_changed": true
+    },
+    {
+      "archive": "relay-source-native.tar.gz",
+      "result": "Enum,Product,ErrorUnion actual ordinary relay→helper sources,6LLVM API O0/O2native all stdoutAB/exit0/stderr empty/no fallback"
+    }
+  ],
+  "original_failures": [
+    "independent P source enum Analyze Unsupported preserved root/reviewer receipts; local same source red before fix archived",
+    "ordinary helper gate patch before Verify fix moves original source from Analyze rejection to Verify rejection, kept as failure not success",
+    "P production exact snapshot plus added test-only overlay really accepts consistent invalid parameter+DropErrorUnion and single-F State companion; each targeted test red0/1, original source hashes retained"
+  ],
+  "prepaid_notes": "State flags reuse existing paid envelope visit, no second scan. New ErrorUnion non-Product/Enum Copy-slot classification and Managed-success Copy-error classification reserve type_work at every occurrence before recursive is_copy_value, including nested Copy unions. No quota increase.",
+  "source_manifest": {
+    "crates/zil-analyze/src/helpers.rs": "4e9bdc4d302485ac02bd47c1ee251ce0d84487a5470ac06caf3e027bb6c1509f",
+    "crates/zil-analyze/src/resources/sums.rs": "166039aa956e7b4737379c5da85a21836ad078604768b6fe4df212172e78b65c",
+    "crates/zil-analyze/src/sum_tests.rs": "63d47ef98f1f5214c998002d0e440858ea4caf31946277c46cab1d780733e8b3",
+    "crates/zil-driver/tests/review240_helper_sum.rs": "8b7be79a0386c4c76ae023c3ab88db194bd542e6687d507710eba7202b6e1dea",
+    "crates/zil-driver/tests/impl206_budget.rs": "4d1ca1d75ba6516ee7da06546ec4413b7864be241353f1da1f26ac638505cd33",
+    "crates/zil-driver/tests/impl235_budget.rs": "e9135f8369990032d360fbe1627e7b33919ee7cf2fa057b2805b63e085f92798"
+  },
+  "archives": [
+    {
+      "path": "historical-P-raw-red.tar.gz",
+      "sha256": "2bd2c6a9d5f06e9044f62598bcfaef0222fe64441a8e51c40320b8da80f9c4ed",
+      "bytes": 115922
+    },
+    {
+      "path": "helper-source-at-5be.tar.gz",
+      "sha256": "1cb45f35d8c4cdcadc49507e5d4e8e4077420474728756273be784a87f0cecf3",
+      "bytes": 545868
+    },
+    {
+      "path": "relay-source-native.tar.gz",
+      "sha256": "a282c45c0d8055ee486ededd9e06d32b49b73bb0817ac69ca720629fdeff6b58",
+      "bytes": 285625
+    }
+  ],
+  "recorded_at": "2026-11-01T22:58:38.888251+00:00"
+}
