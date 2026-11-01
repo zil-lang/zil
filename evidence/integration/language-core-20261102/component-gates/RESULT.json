@@ -1,0 +1,45 @@
+{
+  "status": "Pass",
+  "scope": "Separate component gates, not final workspace acceptance",
+  "production_identical_to": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "checks": [
+    {
+      "name": "clippy-P",
+      "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+      "exit_code": 0,
+      "log_sha256": "236f78e12bcbc2478c6626a4f88f6df745a2c1f6dca5c8e007f533fd32b9fe61",
+      "actual_commit": "0eee91a9d5e3a72c5b02540f11239dd3f40fc7fa"
+    },
+    {
+      "name": "text-reference",
+      "command": "cargo test --locked -p zil-llvm-api --features text-reference",
+      "exit_code": 0,
+      "log_sha256": "c498e95f323b171f82af2239b450a1bf495a9eff77296de3fc0beb2bba261f59",
+      "actual_commit": "b044fc96cdb6a2f051f990368361cbb9e8f1fc06",
+      "totals": {
+        "passed": 64,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      }
+    },
+    {
+      "name": "migration",
+      "command": "python3 tools/llvm/test_validate_migration.py",
+      "exit_code": 0,
+      "log_sha256": "1393ebb7eebf7e2622afc9e4e459701f4bbc92ac47f6c4b5e6911c4e0137e7c1",
+      "actual_commit": "0eee91a9d5e3a72c5b02540f11239dd3f40fc7fa"
+    },
+    {
+      "name": "transport",
+      "command": "python3 tools/ci/test_evidence_transport.py",
+      "exit_code": 0,
+      "log_sha256": "a4f47603dad8ff0790812ccf44049bc9b9e6e798b188d1b92015ab6a93db0cc8",
+      "actual_commit": "0eee91a9d5e3a72c5b02540f11239dd3f40fc7fa"
+    }
+  ],
+  "plan_command": "python3 tools/check-plan.py --self-test",
+  "plan_exit": 0,
+  "reuse_rule": "Later Types-only changes do not change LLVM API/text-reference or Python tool dependencies; final Clippy must run again after production repair."
+}
