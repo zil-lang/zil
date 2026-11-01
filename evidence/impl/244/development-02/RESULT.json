@@ -1,0 +1,83 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "production_checkpoint": "627b222ae52e5c4db1f0cd317c8502f1a8fc9082",
+  "worktree_source_commit": "5f055d9fec72b96924dc73e5324db25ee0697f6f",
+  "schema": 30,
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "feature": "llvm-api",
+  "jobs": 1,
+  "limits": "unchanged default",
+  "production_edited_by_reviewer": false,
+  "role": "244 consumer implementation; root independently reviews source/oracle and final consumer",
+  "selected": 8,
+  "passed": 8,
+  "failed": 0,
+  "actual_native_builds": 14,
+  "actual_native_runs": 476,
+  "original_probes": {
+    "source_bytes": "frozen Q original 01..06 unchanged",
+    "native_builds": 10,
+    "native_runs": 22,
+    "negative_analyze_rejections": 2
+  },
+  "five_module": {
+    "source_bytes": "33590ffe8 syntax-corrected five modules unchanged; original ec358 parse failure preserved",
+    "normal_input_cases": 32,
+    "invalid_input_cases": 5,
+    "optimization_levels": [
+      "O0",
+      "O2"
+    ],
+    "normal_invalid_native_runs": 74,
+    "allocator_native_runs": 380,
+    "actual_allocation_failure_runs": 252,
+    "allocator_controls": 128,
+    "verify_runs_per_build": 1,
+    "backend": "LLVM API builder",
+    "fallback": false,
+    "parse_ns_all_builders": 0,
+    "builder_verify_before_after": true,
+    "success_live_allocations": 0,
+    "failure_live_allocations": 0,
+    "checked": [
+      "stdout",
+      "exit",
+      "allocation calls",
+      "allocated blocks",
+      "free blocks",
+      "failure count",
+      "live blocks",
+      "peak live blocks"
+    ],
+    "bytes": "observed in shim reports only; no guessed byte oracle"
+  },
+  "oracle_adjusted": false,
+  "first_failures": [
+    "Original ec358 source had Unit-pattern syntax errors identical on Q and new compiler; explicitly corrected only () in335.",
+    "Corrected original five modules initially exhausted Analyze/Verify budgets; source/limits unchanged.",
+    "1f43 reached Codegen and exhausted Sum plan budget; retained development-01 raw.",
+    "627b actual shared memo/helper DAG implementation now passes original matrix without changing source/oracle/limits."
+  ],
+  "source_sha256": {
+    "tests/impl244/project/storage.zil": "6dfcadb8bc885fbefb87179db748ddb4645036abfda677e27dd3a8b4a72c37e3",
+    "tests/impl244/project/portable.zil": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+    "tests/impl244/project/main.zil": "7dfd2262f9a69936ffb95ae1f2058bd5f077659c4231238658c2fb9db3f0f018",
+    "tests/impl244/project/model.zil": "314afdcd4066b37a24c10043eda04449f031a2668f1cd12a6395cdf5ef23bd4b",
+    "tests/impl244/project/state.zil": "895d1fa3126aee1bd56daa993efb192707a4415b5df3be99fa8b8ce458b4feec",
+    "tests/impl244/frozen-Q/01-unit-flat/main.zil": "ca1b2ad3ee2fc50293458e996537be8ffaf8438b500db89dcf2d847b6d333fd7",
+    "tests/impl244/frozen-Q/05-owned-option-session/main.zil": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+    "tests/impl244/frozen-Q/04-both-owned-flat/main.zil": "f205b79668d60de59e38c48fa82dea544bcb7d98661e70c327b1b75f5c514d49",
+    "tests/impl244/frozen-Q/02-unit-nested-and-owned-error-unit/main.zil": "ee7903a07715d935a37f2c3b3294250cb2ca8b1470c860670755cf7bf3b0512d",
+    "tests/impl244/frozen-Q/03-unit-store-session/main.zil": "711e96d70a4225254168ec1134d678baeb5f934a5fb75dbe0fe7d98adeaa434c",
+    "tests/impl244/frozen-Q/06-negative-double-consume/main.zil": "16fb83ba3a1a3541422dbad23ec6f7f405b053a74d805328ccf449a6b3effa0e",
+    "tests/impl244/ORACLE.json": "e357f2d4f553f87d6b5ba0d3570fcc133d2582895c8708aecd6752fdbcc0b254"
+  },
+  "rust_goals": {
+    "safety": "Actual tags/flags and separate Store owners survive nested Sum/Product/error transfer, with zero live allocations after all injected failures. Independent hostile raw and loan tests remain separate from consumer authorship.",
+    "performance": "Default quotas now pass through actual structural sharing and paid typed memo/helper DAG; no limit increases. Native execution is correctness evidence, not a speed benchmark.",
+    "ergonomics": "Original 03/05 natural complete Session APIs now carry Store-owning Products through ordinary error/Enum values without manual teardown.",
+    "predictability": "Source-derived frozen oracle exactly matches successful replacement, failed RHS preparation, right-nested pattern cleanup, defer/return/? and each allocation failure ordinal.",
+    "bounded_breakthrough": "Prior Unsupported original03/05 ordinary owning Sum consumers execute through O0/O2; no full-language, product-parity or Rust-performance claim."
+  }
+}

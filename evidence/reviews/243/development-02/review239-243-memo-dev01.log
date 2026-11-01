@@ -1,0 +1,49 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.58s
+     Running tests/review239_generation.rs (/workspace/.zil-env/target-244/debug/deps/review239_generation-1729ef8f1b3c325d)
+
+running 3 tests
+test new_local_observers_cannot_enter_ct_even_when_the_enum_is_copy ... ok
+test generation_preserves_private_iteration_identity_and_closed_payload_profiles ... ok
+test generated_manages_and_handwritten_fields_execute_the_same_declared_order ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests/review240_match_exits.rs (/workspace/.zil-env/target-244/debug/deps/review240_match_exits-39efe94349c5f1de)
+
+running 4 tests
+test pending_defer_borrow_blocks_consuming_a_published_pattern_leaf ... ok
+test defer_borrows_actual_published_leaf_locals_before_their_drop ... ok
+test early_arm_return_runs_defer_then_recursive_pattern_leaves ... ok
+test continue_and_break_each_discharge_only_the_current_pattern_owners ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/review241_freshness.rs (/workspace/.zil-env/target-244/debug/deps/review241_freshness-3dd680795a02d4be)
+
+running 4 tests
+test value_identity_does_not_reexport_a_created_leaf ... ok
+test same_typed_inline_fields_keep_their_actual_freshness_separate ... ok
+test value_factories_and_nonidentity_repacking_do_not_export_freshness ... ok
+test direct_pack_unpack_and_explicit_managed_create_remain_fresh ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/review241_store_windows.rs (/workspace/.zil-env/target-244/debug/deps/review241_store_windows-d5ea9e8c2ed6fb34)
+
+running 2 tests
+test forged_reserve_cannot_switch_to_the_borrowed_twin_after_sum_unpack ... ok
+test recursive_sum_roundtrip_retains_distinct_store_windows_and_last_use ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/review242_tag_edges.rs (/workspace/.zil-env/target-244/debug/deps/review242_tag_edges-edf470a3725cec4e)
+
+running 4 tests
+test a_bypass_predecessor_cannot_inherit_only_the_guarded_tag ... ok
+test each_sealed_request_keeps_its_limits_through_shared_wire_clone_and_emission ... ok
+test recursive_path_requires_both_actual_edges_and_actual_local ... ok
+test loop_at_one_write_site_needs_a_new_observation_after_each_swap ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
