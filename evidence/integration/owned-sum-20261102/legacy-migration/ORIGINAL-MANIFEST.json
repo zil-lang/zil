@@ -1,0 +1,15 @@
+{
+  "baseline": "d393f47db",
+  "files": {
+    "crates/zil-driver/tests/impl166_owned_results.rs": "3450888e3b6a0b09d66255c0056e58f88a0215ca6e62e7a52f2af86462016b96",
+    "crates/zil-driver/tests/impl183_owned_resource_results.rs": "03a800cf44ad56013813af903e3666950104d5ad36e8a7aeba0d5bb6ea9852fe",
+    "crates/zil-driver/tests/impl206_analyze.rs": "5bce3f433c6e93724e4f55e9fcf4383f8e1430ddf0610856fca90a93189f46b0",
+    "crates/zil-driver/tests/impl206_independent.rs": "371b45e768027d0825e0eaa86ee8cb25934615a3bac1716543e09ccf40f23a5f",
+    "crates/zil-driver/tests/impl223_product_store.rs": "44a41e9b680995eff6ce71e1a0d4e016d7b953d71b1eb343585dd5fd2424dd7c",
+    "crates/zil-driver/tests/impl235_product_store.rs": "9c3b73d46e3a0c7d5e2e57287e256dbad2b04c91799aaf564d9f981e4a77e748",
+    "crates/zil-driver/tests/review223_boundaries.rs": "b52354a1b05a2ea27a41cf7708b875ba1d5814b06dbc665cd12d4668a48ec61d",
+    "crates/zil-driver/tests/review235_contracts.rs": "f84260bb2ad8d7e8bf87111ce17f98a9501546e92b89af58269e9527caa30962",
+    "crates/zil-driver/tests/impl206_independent_fixtures/25_sum_parent.zil": "7bd766dcbd96741f240a3f14565bd66ddd6c066194b72f7014e8320642358752",
+    "crates/zil-driver/tests/impl206_independent_fixtures/28_inner_owning_sum.zil": "f7c600588f73f285f6b560a13a21fdda09bf8cfbed0fc53a88ace37699d55bfd"
+  }
+}

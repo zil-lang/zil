@@ -236,7 +236,11 @@ fn new_owned_products_do_not_gain_other_shape_permissions() {
         source(
             label,
             &format!("{MODEL} {body}"),
-            ResultCategory::Unsupported,
+            if label == "sum" {
+                ResultCategory::Success
+            } else {
+                ResultCategory::Unsupported
+            },
         )
     }
 }

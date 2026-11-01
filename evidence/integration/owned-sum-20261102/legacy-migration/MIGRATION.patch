@@ -1,0 +1,268 @@
+diff --git a/crates/zil-driver/tests/impl166_owned_results.rs b/crates/zil-driver/tests/impl166_owned_results.rs
+index 8a1e0767a..1c02ef96a 100644
+--- a/crates/zil-driver/tests/impl166_owned_results.rs
++++ b/crates/zil-driver/tests/impl166_owned_results.rs
+@@ -161,27 +161,14 @@ fn main()->i32{{success();failure();let a=success();let b=failure();return 0}}
+ }
+ 
+ #[test]
+-fn whole_local_reassignment_is_explicitly_outside_first_owned_union_profile() {
++fn whole_local_reassignment_preserves_outer_slot_and_cleanup_order() {
+     let source = format!(
+         r#"{RESOURCE}
+ fn main()->i32{{var v:E!P=P{{r:R{{code:65}}}};let later=R{{code:90}};v=P{{r:R{{code:66}}}};return 0}}
+ "#
+     );
+-    let report = check(&source);
+-    assert_eq!(
+-        report.status,
+-        ResultCategory::Unsupported,
+-        "{}",
+-        report.to_json()
+-    );
+-    assert_eq!(report.phase, zil_base::Phase::Types);
+-    assert!(
+-        report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
+-            && d.message
+-                .contains("whole-local reassignment requires a retained slot")),
+-        "{}",
+-        report.to_json()
+-    );
++    // §8.1.5 promotes the unchanged original source and fixed cleanup oracle.
++    native(&[("main", &source)], b"AZB", 0);
+ }
+ 
+ #[test]
+diff --git a/crates/zil-driver/tests/impl183_owned_resource_results.rs b/crates/zil-driver/tests/impl183_owned_resource_results.rs
+index 03b0a4bc1..ffc073ab0 100644
+--- a/crates/zil-driver/tests/impl183_owned_resource_results.rs
++++ b/crates/zil-driver/tests/impl183_owned_resource_results.rs
+@@ -421,13 +421,6 @@ fn source_ownership_modes_and_existing_rejection_boundaries_stay_explicit() {
+             Phase::Analyze,
+             "E-ANALYZE-IR",
+         ),
+-        (
+-            "union-reassignment",
+-            "fn main(){var u=make();u=make()}",
+-            ResultCategory::Unsupported,
+-            Phase::Types,
+-            "E-UNSUPPORTED",
+-        ),
+         (
+             "union-capture",
+             "fn main(){let u=make();let f=move()=>{let v=u}}",
+@@ -460,6 +453,20 @@ fn source_ownership_modes_and_existing_rejection_boundaries_stay_explicit() {
+         );
+         assert!(!report.artifacts.contains_key("executable"));
+     }
++    // §8.1.5 admits this exact former whole-union replacement boundary.
++    let report = check(
++        "union-reassignment",
++        &format!("{declarations}{}", "fn main(){var u=make();u=make()}"),
++    );
++    assert_eq!(
++        report.status,
++        ResultCategory::Success,
++        "{}",
++        report.to_json()
++    );
++    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
++    assert_eq!(report.verification_runs, 1);
++    assert!(!report.artifacts.contains_key("executable"));
+     let report = check(
+         "live-byte-window",
+         "enum E{Fail}fn wrap(give b:ByteBuffer)->E!ByteBuffer contract{result(give)}=>give b;fn main()->i32{let b=bytes_new();bytes_push(b,u8(65));let w=bytes_view(b);let u=wrap(give b);return i32(w[0])-65}",
+diff --git a/crates/zil-driver/tests/impl206_analyze.rs b/crates/zil-driver/tests/impl206_analyze.rs
+index 096f85b3f..49d3c1b24 100644
+--- a/crates/zil-driver/tests/impl206_analyze.rs
++++ b/crates/zil-driver/tests/impl206_analyze.rs
+@@ -269,9 +269,9 @@ fn ordinary_product_admission_does_not_widen_other_raw_parent_contexts() {
+         fs::write(dir.join("typed.txt"), format!("{module:#?}")).unwrap();
+         let result = zil_analyze::analyze(&module, &Limits::default());
+         fs::write(dir.join("analyze.txt"), format!("{result:#?}")).unwrap();
+-        if label == "address" {
+-            // 224 admits this unchanged, internally consistent shared Outer
+-            // parameter. The other coordinated mutations remain controls.
++        if label == "address" || label == "sum" {
++            // 224 admits shared Outer; §8.1.5 now also admits the unchanged
++            // internally consistent bool!Outer parameter/result mutation.
+             assert!(result.is_ok(), "{label}: {result:#?}");
+             continue;
+         }
+diff --git a/crates/zil-driver/tests/impl206_independent.rs b/crates/zil-driver/tests/impl206_independent.rs
+index 8f3325bb1..03181b405 100644
+--- a/crates/zil-driver/tests/impl206_independent.rs
++++ b/crates/zil-driver/tests/impl206_independent.rs
+@@ -436,6 +436,19 @@ fn raw_unused_nested_metadata_does_not_gain_ordinary_or_legacy_authority() {
+             }
+             _ => unreachable!(),
+         }
++        if variant == 5 {
++            // The original raw Product contains a legal E!Leaf field. Its
++            // unused local has no initialized payload responsibility.
++            let case = Case::new("unused-nested-metadata-5-promoted");
++            let actual = zil_analyze::analyze(&module, &Limits::default());
++            case.write("analyze.txt", format!("{actual:#?}"));
++            let actual = actual.unwrap();
++            verify_pair("unused-nested-metadata-5-actual", &module, &actual, true);
++            let mut rebound = plan.clone();
++            rebound.module_fingerprint = module.fingerprint();
++            verify_pair("unused-nested-metadata-5-rebound", &module, &rebound, true);
++            continue;
++        }
+         attack(
+             &format!("unused-nested-metadata-{variant}"),
+             &module,
+@@ -812,14 +825,8 @@ fn source_24_array_parent() {
+ 
+ #[test]
+ fn source_25_sum_parent() {
+-    rejected(
+-        "25_sum_parent",
+-        source!("25_sum_parent"),
+-        Phase::Types,
+-        ResultCategory::Unsupported,
+-        None,
+-        None,
+-    );
++    // §8.1.5 promotes the original frozen fixture bytes.
++    accepted("25_sum_parent", source!("25_sum_parent"));
+ }
+ 
+ #[test]
+@@ -848,14 +855,8 @@ fn source_27_inner_owning_array() {
+ 
+ #[test]
+ fn source_28_inner_owning_sum() {
+-    rejected(
+-        "28_inner_owning_sum",
+-        source!("28_inner_owning_sum"),
+-        Phase::Types,
+-        ResultCategory::Unsupported,
+-        None,
+-        None,
+-    );
++    // §8.1.5 promotes the original frozen fixture bytes.
++    accepted("28_inner_owning_sum", source!("28_inner_owning_sum"));
+ }
+ 
+ #[test]
+diff --git a/crates/zil-driver/tests/impl223_product_store.rs b/crates/zil-driver/tests/impl223_product_store.rs
+index 9436df947..a75b705b4 100644
+--- a/crates/zil-driver/tests/impl223_product_store.rs
++++ b/crates/zil-driver/tests/impl223_product_store.rs
+@@ -233,7 +233,7 @@ fn source_cannot_push_partial_or_previously_transferred_products() {
+ }
+ 
+ #[test]
+-fn only_the_exact_unit_protocol_shells_gain_product_payloads() {
++fn ordinary_sum_payloads_extend_unit_protocols_without_other_shape_permissions() {
+     pass(
+         "pop-protocol",
+         &format!("{MODEL} fn pop(s:Store<Root>)->void!Root{{return store_pop(s)}} fn main(){{}}"),
+@@ -244,8 +244,8 @@ fn only_the_exact_unit_protocol_shells_gain_product_payloads() {
+             "{MODEL} fn push(s:Store<Root>,value:Root)->Root!void{{return store_push(s,value)}} fn main(){{}}"
+         ),
+     );
+-    // 225 explicitly promotes the same original input; all other boundaries
+-    // below retain their prior Unsupported expectation.
++    // 225 explicitly promotes the same original capture input; §8.1.5
++    // also promotes the two original ordinary Product Sum sources below.
+     pass(
+         "captured-product-store",
+         &format!(
+@@ -261,6 +261,10 @@ fn only_the_exact_unit_protocol_shells_gain_product_payloads() {
+             "product-result-i32",
+             format!("{MODEL} fn unsupported(x:Root)->Root!i32{{return x}} fn main(){{}}"),
+         ),
++    ] {
++        pass(label, &source);
++    }
++    for (label, source) in [
+         (
+             "product-owned-array",
+             format!("{MODEL} fn unused(x:[Root;2]){{}} fn main(){{}}"),
+diff --git a/crates/zil-driver/tests/impl235_product_store.rs b/crates/zil-driver/tests/impl235_product_store.rs
+index d062d182d..d465c20c9 100644
+--- a/crates/zil-driver/tests/impl235_product_store.rs
++++ b/crates/zil-driver/tests/impl235_product_store.rs
+@@ -236,7 +236,11 @@ fn new_owned_products_do_not_gain_other_shape_permissions() {
+         source(
+             label,
+             &format!("{MODEL} {body}"),
+-            ResultCategory::Unsupported,
++            if label == "sum" {
++                ResultCategory::Success
++            } else {
++                ResultCategory::Unsupported
++            },
+         )
+     }
+ }
+diff --git a/crates/zil-driver/tests/review223_boundaries.rs b/crates/zil-driver/tests/review223_boundaries.rs
+index 225d01a11..1e83cdd6b 100644
+--- a/crates/zil-driver/tests/review223_boundaries.rs
++++ b/crates/zil-driver/tests/review223_boundaries.rs
+@@ -17,7 +17,7 @@ fn typed(source: &str) -> TypedModule {
+     let core = zil_expand::expand(&unit, &syntax).unwrap();
+     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
+ }
+-fn rejected(label: &str, module: TypedModule, mut plan: CandidatePlan) {
++fn verify_expected(label: &str, module: TypedModule, mut plan: CandidatePlan, accept: bool) {
+     plan.module_fingerprint = module.fingerprint();
+     let out = directory(label);
+     fs::write(out.join("module.txt"), format!("{module:#?}")).unwrap();
+@@ -36,6 +36,10 @@ fn rejected(label: &str, module: TypedModule, mut plan: CandidatePlan) {
+         ),
+     ] {
+         fs::write(out.join(format!("{route}.txt")), format!("{result:#?}")).unwrap();
++        if accept {
++            result.unwrap();
++            continue;
++        }
+         let errors = result.expect_err(label);
+         assert!(
+             errors
+@@ -89,11 +93,11 @@ fn unused_mutable_nested_product_parameter_cannot_gain_a_write_capability() {
+     for value in &mut f.values {
+         replace(value, &product);
+     }
+-    rejected("mutable-product-parameter", module, plan);
++    verify_expected("mutable-product-parameter", module, plan, false);
+ }
+ 
+ #[test]
+-fn exact_unit_protocols_cannot_admit_other_or_nested_owning_sums() {
++fn ordinary_product_sums_are_admitted_but_direct_nested_union_stays_closed() {
+     let source = include_str!("review223_fixtures/unit_protocols.zil");
+     let original = typed(source);
+     let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+@@ -137,6 +141,13 @@ fn exact_unit_protocols_cannot_admit_other_or_nested_owning_sums() {
+         for value in &mut f.values {
+             change(value, variant);
+         }
+-        rejected(&format!("non-unit-sum-{variant}"), module, plan.clone());
++        // §8.1.5 permits Product alternatives, not direct non-Copy
++        // ErrorUnion nesting in an ErrorUnion error slot (variant 2).
++        verify_expected(
++            &format!("non-unit-sum-{variant}"),
++            module,
++            plan.clone(),
++            variant != 2,
++        );
+     }
+ }
+diff --git a/crates/zil-driver/tests/review235_contracts.rs b/crates/zil-driver/tests/review235_contracts.rs
+index 8be895d11..082d6de19 100644
+--- a/crates/zil-driver/tests/review235_contracts.rs
++++ b/crates/zil-driver/tests/review235_contracts.rs
+@@ -266,7 +266,8 @@ fn ordinary_composition_does_not_open_capture_or_containers() {
+         ),
+         ("shared", "fn unused(value:&Pair){}fn main(){}"),
+     ] {
+-        source(label, &format!("{HEAD}{tail}"), false);
++        // §8.1.5 promotes only the original ordinary Sum payload case.
++        source(label, &format!("{HEAD}{tail}"), label == "sum");
+     }
+ }
+ 

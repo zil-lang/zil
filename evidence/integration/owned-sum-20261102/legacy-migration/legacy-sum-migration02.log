@@ -1,0 +1,14 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/review235_contracts.rs (/workspace/.zil-env/target-243/debug/deps/review235_contracts-f6e5573014e21f4c)
+
+running 7 tests
+test direct_callback_store_and_noncallback_generic_wrapper_controls ... ok
+test remembered_header_description_blocks_parent_transfer_until_its_actual_last_use ... ok
+test ordinary_composition_does_not_open_capture_or_containers ... ok
+test unused_product_parameters_still_require_exact_canonical_store_metadata ... ok
+test pop_and_failed_full_push_then_parent_drop_settle_only_actual_prefix ... ok
+test generic_store_element_binder_survives_a_non_element_product_wrapper ... ok
+test same_typed_store_leaves_preserve_incoming_and_created_through_child_transfer ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
