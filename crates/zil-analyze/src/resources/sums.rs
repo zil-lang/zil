@@ -91,6 +91,30 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 Ok((store, owner))
             }
             Type::ErrorUnion { error: e, result } => {
+                // Direct Managed success keeps its existing Copy-error rule.
+                // Other owning slots are complete Products/Enums; an owning
+                // ErrorUnion is not itself a permitted ErrorUnion slot.
+                if matches!(result.as_ref(), Type::Managed(_)) {
+                    budget.type_work(e, true, "Managed success Copy-error qualification")?;
+                    if !e.is_copy_value() {
+                        return Err(error("Managed success requires a Copy error payload"));
+                    }
+                } else {
+                    for slot in [e.as_ref(), result.as_ref()] {
+                        if !matches!(slot, Type::Package { .. } | Type::Enum { .. }) {
+                            budget.type_work(
+                                slot,
+                                true,
+                                "ordinary ErrorUnion Copy-slot qualification",
+                            )?;
+                            if !slot.is_copy_value() {
+                                return Err(error(
+                                    "ordinary ErrorUnion slots require Copy, Product or Enum",
+                                ));
+                            }
+                        }
+                    }
+                }
                 let (a, b) = walk(module, e, budget)?;
                 let (c, d) = walk(module, result, budget)?;
                 Ok((a | c, b | d))
