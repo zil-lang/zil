@@ -38,7 +38,7 @@ impl<'a> Budget<'a> {
     }
     fn copy_work(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
         match ty {
-            Type::Record { fields, .. } => {
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (_, t) in fields {
                     self.pay(t, depth)?;
                     self.copy_work(t, depth + 1)?;
@@ -50,9 +50,26 @@ impl<'a> Budget<'a> {
                     self.copy_work(t, depth + 1)?;
                 }
             }
-            Type::Array { element, .. } => {
+            Type::Managed(element)
+            | Type::Desc(element)
+            | Type::OwnedStore { element }
+            | Type::Array { element, .. } => {
                 self.pay(element, depth)?;
                 self.copy_work(element, depth + 1)?;
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    for t in fields {
+                        self.pay(t, depth)?;
+                        self.copy_work(t, depth + 1)?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                self.pay(error, depth)?;
+                self.copy_work(error, depth + 1)?;
+                self.pay(result, depth)?;
+                self.copy_work(result, depth + 1)?;
             }
             _ => {}
         }
@@ -66,7 +83,13 @@ impl<'a> Budget<'a> {
     ) -> CompileResult<bool> {
         self.pay(ty, depth)?;
         match ty {
-            Type::Managed(_) => Ok(resource_type(ty, resources)),
+            Type::Managed(payload) => {
+                for _ in resources {
+                    self.pay(ty, depth)?;
+                    self.copy_work(payload, depth + 1)?;
+                }
+                Ok(resource_type(ty, resources))
+            }
             Type::Package { fields, .. } => {
                 for (_, t) in fields {
                     if !self.admits(t, resources, depth + 1)? {
@@ -100,4 +123,49 @@ fn limit() -> Vec<Diagnostic> {
         "ordinary Sum layout admission budget exceeded",
         None,
     )]
+}
+
+#[cfg(test)]
+mod impl243_tests {
+    use super::*;
+    #[test]
+    fn impl243_lower_uses_one_actual_request_budget_and_fresh_boundary() {
+        let ty = Type::Enum {
+            name: "Choice".into(),
+            variants: vec![
+                ("None".into(), vec![]),
+                (
+                    "Some".into(),
+                    vec![Type::Managed(Box::new(Type::ByteBuffer))],
+                ),
+            ],
+        };
+        let resources = vec![zil_ir::ResourceDefinition {
+            name: zil_ir::BYTE_BUFFER_RESOURCE_NAME.into(),
+            payload: Type::ByteBuffer,
+            teardown: None,
+        }];
+        let mut limits = zil_base::Limits::default();
+        let needed = {
+            let mut budget = Budget::new(&limits);
+            assert!(budget.admits(&ty, &resources, 0).unwrap());
+            budget.work
+        };
+        limits.max_analysis_steps = needed;
+        assert!(Budget::new(&limits).admits(&ty, &resources, 0).unwrap());
+        limits.max_analysis_steps = needed - 1;
+        assert_eq!(
+            Budget::new(&limits).admits(&ty, &resources, 0).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        limits.max_analysis_steps = needed;
+        assert!(Budget::new(&limits).admits(&ty, &resources, 0).unwrap());
+        // The same phase may not restart its remaining count for a second type.
+        let mut shared = Budget::new(&limits);
+        assert!(shared.admits(&ty, &resources, 0).unwrap());
+        assert_eq!(
+            shared.admits(&ty, &resources, 0).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+    }
 }

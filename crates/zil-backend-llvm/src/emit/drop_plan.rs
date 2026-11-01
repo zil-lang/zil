@@ -29,19 +29,18 @@ fn has_store(ty: &Type) -> bool {
         _ => false,
     }
 }
+fn legacy_flat(ty: &Type) -> bool {
+    matches!(ty,Type::Package{fields,..} if fields.iter().all(|(_,t)| t.is_copy_value() || matches!(t,Type::Managed(_) | Type::Closure(_))))
+}
 /// Old Copy and already implemented flat error protocols retain their old path.
-pub(super) fn new_shape(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+pub(super) fn new_shape(ty: &Type) -> bool {
     match ty {
         Type::Enum { .. } => !ty.is_copy_value(),
-        Type::Package { fields, .. } => fields
-            .iter()
-            .any(|(_, t)| owned_sum(t) || new_shape(t, resources)),
+        Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned_sum(t) || new_shape(t)),
         Type::ErrorUnion { error, result } => [error.as_ref(), result.as_ref()].iter().any(|t| {
             owned_sum(t)
-                || new_shape(t, resources)
-                || (matches!(t, Type::Package { .. })
-                    && has_store(t)
-                    && !packages::supported_type(t, resources))
+                || new_shape(t)
+                || (matches!(t, Type::Package { .. }) && has_store(t) && !legacy_flat(t))
         }),
         _ => false,
     }
@@ -101,6 +100,7 @@ impl<'a> Budget<'a> {
                 }
             }
             Type::Managed(t) | Type::Desc(t) => self.tree(t, depth + 1)?,
+            Type::OwnedStore { element } => self.tree(element, depth + 1)?,
             Type::Array { element, length } => {
                 self.pay(depth, (*length as usize).saturating_mul(32))?;
                 for _ in 0..*length {
@@ -143,6 +143,9 @@ fn plan(
     Ok(match ty {
         t if t.is_copy_value() => DropPlan::Empty,
         Type::Managed(payload) => {
+            for _ in resources {
+                budget.tree(ty, depth)?;
+            }
             if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
                 DropPlan::Leaf(dynamic_store::helper(payload, resources, "drop")?)
             } else {
@@ -360,7 +363,7 @@ pub(super) fn functions(
         depth: usize,
     ) -> CompileResult<()> {
         budget.tree(ty, depth)?;
-        if !force && !new_shape(ty, resources) {
+        if !force && !new_shape(ty) {
             return Ok(());
         }
         if !ty.is_copy_value()
@@ -461,4 +464,119 @@ pub(super) fn functions(
         code.append(emitter.code);
     }
     Ok(code)
+}
+
+#[cfg(test)]
+mod impl243_plan_tests {
+    use super::*;
+    fn packet() -> Type {
+        let leaf = Type::Package {
+            name: "Leaf".into(),
+            fields: vec![("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer)))],
+        };
+        Type::Enum {
+            name: "Packet".into(),
+            variants: vec![
+                ("Empty".into(), vec![]),
+                ("Pair".into(), vec![leaf.clone(), leaf]),
+            ],
+        }
+    }
+    fn resources() -> Vec<ResourceDefinition> {
+        vec![ResourceDefinition {
+            name: zil_ir::BYTE_BUFFER_RESOURCE_NAME.into(),
+            payload: Type::ByteBuffer,
+            teardown: None,
+        }]
+    }
+    // Private recipe input only. This is deliberately not VerifiedModule or a
+    // source/native acceptance fixture, and cannot enter the public backend.
+    fn recipe_input() -> LirModule {
+        LirModule {
+            schema_version: SCHEMA_VERSION,
+            module_id: zil_base::ModuleId(0),
+            verified_fingerprint: zil_base::Fingerprint::ZERO,
+            target: TargetProfile::host_llvm(),
+            resources: resources(),
+            closures: vec![],
+            layouts: vec![],
+            functions: vec![TypedFunction {
+                id: FunctionId(0),
+                name: "recipe".into(),
+                parameters: vec![],
+                return_type: Type::Unit,
+                locals: vec![],
+                values: vec![packet()],
+                blocks: vec![],
+                entry: zil_ir::BlockId(0),
+                span: Span::default(),
+                foreign: None,
+                environment: None,
+                callable_contract: None,
+                callable_return_contract: None,
+                result_mode: zil_ir::PassingMode::Infer,
+            }],
+        }
+    }
+    #[test]
+    fn impl243_drop_plan_keeps_variant_choice_above_owned_fields() {
+        let limits = zil_base::Limits::default();
+        let p = plan(&packet(), &resources(), &mut Budget::new(&limits), 0).unwrap();
+        let DropPlan::Enum(_, variants) = p else {
+            panic!("expected structural Sum")
+        };
+        assert!(matches!(variants[0], DropPlan::Empty));
+        let DropPlan::Product(_, fields) = &variants[1] else {
+            panic!("variant tuple must retain ordered product")
+        };
+        assert_eq!(
+            fields.iter().map(|(i, _)| *i).collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        for (_, child) in fields {
+            assert!(
+                matches!(child,DropPlan::Product(_,nested) if matches!(&nested[0].1,DropPlan::Leaf(name) if name=="zil.bytes.drop"))
+            );
+        }
+        let code = functions(&recipe_input().as_view(), &limits, true).unwrap();
+        let text = m::Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: String::new(),
+            items: code.into_items().unwrap(),
+        }
+        .to_text();
+        assert!(text.contains("icmp eq i32"));
+        assert!(text.contains("br i1"));
+        assert!(text.contains("call void @llvm.trap()"));
+    }
+    #[test]
+    fn impl243_drop_plan_honors_current_shared_limit_and_fresh_boundary() {
+        let lir = recipe_input();
+        let mut limits = zil_base::Limits::default();
+        limits.max_analysis_steps = 0;
+        assert!(functions(&lir.as_view(), &limits, false).is_ok());
+        assert_eq!(
+            functions(&lir.as_view(), &limits, true).err().unwrap()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        let (mut low, mut high) = (0, 100_000);
+        while low + 1 < high {
+            let mid = (low + high) / 2;
+            limits.max_analysis_steps = mid;
+            if functions(&lir.as_view(), &limits, true).is_ok() {
+                high = mid
+            } else {
+                low = mid
+            }
+        }
+        limits.max_analysis_steps = high;
+        assert!(functions(&lir.as_view(), &limits, true).is_ok());
+        limits.max_analysis_steps = high - 1;
+        assert_eq!(
+            functions(&lir.as_view(), &limits, true).err().unwrap()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        limits.max_analysis_steps = high;
+        assert!(functions(&lir.as_view(), &limits, true).is_ok());
+    }
 }

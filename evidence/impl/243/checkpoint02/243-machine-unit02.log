@@ -1,0 +1,150 @@
+warning: enum `Source` is never used
+   --> crates/zil-verify/src/sums.rs:235:6
+    |
+235 | enum Source {
+    |      ^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: enum `Content` is never used
+   --> crates/zil-verify/src/sums.rs:243:6
+    |
+243 | enum Content {
+    |      ^^^^^^^
+
+warning: methods `cost`, `duplicate`, `merge`, and `fresh` are never used
+   --> crates/zil-verify/src/sums.rs:251:8
+    |
+250 | impl Content {
+    | ------------ methods in this implementation
+251 |     fn cost(&self, budget: &mut Budget) -> Check<()> {
+    |        ^^^^
+...
+281 |     fn duplicate(&self, budget: &mut Budget) -> Check<Self> {
+    |        ^^^^^^^^^
+...
+285 |     fn merge(&mut self, other: &Self, budget: &mut Budget) -> Check<bool> {
+    |        ^^^^^
+...
+320 |     fn fresh(&self) -> u8 {
+    |        ^^^^^
+
+warning: function `content` is never used
+   --> crates/zil-verify/src/sums.rs:332:4
+    |
+332 | fn content(
+    |    ^^^^^^^
+
+warning: type alias `Prefix` is never used
+   --> crates/zil-verify/src/sums.rs:390:6
+    |
+390 | type Prefix = Vec<(u32, u32)>;
+    |      ^^^^^^
+
+warning: type alias `Fact` is never used
+   --> crates/zil-verify/src/sums.rs:391:6
+    |
+391 | type Fact = (LocalId, Prefix, u32);
+    |      ^^^^
+
+warning: struct `State` is never constructed
+   --> crates/zil-verify/src/sums.rs:393:8
+    |
+393 | struct State {
+    |        ^^^^^
+
+warning: methods `cost`, `duplicate`, and `merge` are never used
+   --> crates/zil-verify/src/sums.rs:402:8
+    |
+401 | impl State {
+    | ---------- methods in this implementation
+402 |     fn cost(&self, budget: &mut Budget) -> Check<()> {
+    |        ^^^^
+...
+419 |     fn duplicate(&self, budget: &mut Budget) -> Check<Self> {
+    |        ^^^^^^^^^
+...
+423 |     fn merge(&mut self, other: &Self, budget: &mut Budget) -> Check<bool> {
+    |        ^^^^^
+
+warning: struct `Proofs` is never constructed
+   --> crates/zil-verify/src/sums.rs:450:19
+    |
+450 | pub(super) struct Proofs {
+    |                   ^^^^^^
+
+warning: struct `Bridge` is never constructed
+   --> crates/zil-verify/src/sums.rs:454:19
+    |
+454 | pub(super) struct Bridge {
+    |                   ^^^^^^
+
+warning: function `direct_fields` is never used
+   --> crates/zil-verify/src/sums.rs:460:4
+    |
+460 | fn direct_fields(value: &Content) -> Vec<(usize, u8)> {
+    |    ^^^^^^^^^^^^^
+
+warning: struct `Flow` is never constructed
+   --> crates/zil-verify/src/sums.rs:471:8
+    |
+471 | struct Flow<'a> {
+    |        ^^^^
+
+warning: methods `kill`, `selected`, `require_tag`, `edge`, `instantiate`, and `block` are never used
+   --> crates/zil-verify/src/sums.rs:481:8
+    |
+480 | impl Flow<'_> {
+    | ------------- methods in this implementation
+481 |     fn kill(&self, state: &mut State, local: LocalId, budget: &mut Budget) -> Check<()> {
+    |        ^^^^
+...
+491 |     fn selected<'a>(
+    |        ^^^^^^^^
+...
+535 |     fn require_tag(
+    |        ^^^^^^^^^^^
+...
+560 |     fn edge(&self, state: &mut State, block: usize, next: usize, budget: &mut Budget) -> Check<()> {
+    |        ^^^^
+...
+609 |     fn instantiate(
+    |        ^^^^^^^^^^^
+...
+683 |     fn block(
+    |        ^^^^^
+
+warning: function `run` is never used
+   --> crates/zil-verify/src/sums.rs:889:4
+    |
+889 | fn run(
+    |    ^^^
+
+warning: function `check_module` is never used
+   --> crates/zil-verify/src/sums.rs:988:15
+    |
+988 | pub(super) fn check_module(
+    |               ^^^^^^^^^^^^
+
+warning: `zil-verify` (lib) generated 15 warnings
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-243/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/zil-243/crates/zil-lower)
+    Finished `test` profile [unoptimized] target(s) in 5.93s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-243/debug/deps/zil_backend_llvm-801641aa7db5eb21)
+
+running 5 tests
+test emit::drop_plan::impl243_plan_tests::impl243_drop_plan_honors_current_shared_limit_and_fresh_boundary ... ok
+test emit::drop_plan::impl243_plan_tests::impl243_drop_plan_keeps_variant_choice_above_owned_fields ... ok
+test emit::enums::impl243_layout_tests::impl243_enum_managed_headers_keep_aligned_max_payload_abi ... ok
+test emit::enums::impl243_layout_tests::impl243_product_sum_nested_layout_preserves_field_offsets_and_bool_storage ... ok
+test tests::impl243_false_presence_cannot_authorize_mutated_raw_lir_new_opcode ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 126 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target-243/debug/deps/zil_lower-77c77ba71a1e202b)
+
+running 1 test
+test owned_sums::impl243_tests::impl243_lower_uses_one_actual_request_budget_and_fresh_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
