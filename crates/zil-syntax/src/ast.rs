@@ -198,8 +198,27 @@ pub struct Variant {
 #[derive(Clone, Debug, PartialEq)]
 pub enum VariantFields {
     Unit,
-    Tuple(Vec<TypeRef>),
+    Tuple(Vec<VariantTupleField>),
     Record(Vec<Field>),
+}
+
+/// Explicit ownership belongs to this enum field, not to a general type name.
+#[derive(Clone, Debug, PartialEq)]
+pub struct VariantTupleField {
+    pub ty: TypeRef,
+    pub manages: bool,
+    pub span: Span,
+}
+impl std::ops::Deref for VariantTupleField {
+    type Target = TypeRef;
+    fn deref(&self) -> &TypeRef {
+        &self.ty
+    }
+}
+impl std::ops::DerefMut for VariantTupleField {
+    fn deref_mut(&mut self) -> &mut TypeRef {
+        &mut self.ty
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

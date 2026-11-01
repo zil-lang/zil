@@ -248,6 +248,12 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                                 VariantFields::Unit => {}
                                 VariantFields::Tuple(fields) => {
                                     for field in fields {
+                                        if field.manages {
+                                            return Err(error(
+                                                field.span,
+                                                "Copy enum field cannot own resources",
+                                            ));
+                                        }
                                         let field_type = self.substitute(field, &substitutions)?;
                                         self.copy(&field_type)?;
                                     }
