@@ -1,0 +1,18 @@
+{
+  "status": "PredeclaredBeforeFinalQExecution",
+  "request": "root requested only Desc-after-give invalidation neighbors; root/kernel author discovery attribution retained",
+  "new_negative_cases": [
+    "Name origin",
+    "Group origin and read",
+    "transitive Name alias chain",
+    "if source joining two different actual Enum leaf roots through existing aliases"
+  ],
+  "all_are_unused_helpers": true,
+  "global_resource_and_callback_binder": "both spelledF; actual resource declaration scope must be retained, owner permission remains false on descriptions",
+  "invalidation": "Giving root a invalidates every later read of a possible derived Desc. Joined different roots may not be erased as None/empty.",
+  "positive_sources": 7,
+  "negative_unused_definitions_total": 17,
+  "existing_source_forms_and_oracles": "unchanged",
+  "new_cases_executed": 0,
+  "test_sha256": "ee1783f06f7049ca0befb5a4e5f9150241e10af34b536df02c1f66b92bf98a92"
+}
