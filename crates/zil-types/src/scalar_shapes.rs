@@ -15,7 +15,9 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
     // trivial, and all owning-mode and receiver transformations inapplicable.
     // Current inference bounded this immutable input before preparation.
     if program.modules.iter().any(|module| {
-        !module.core.aggregates.is_empty()
+        !module.core.aggregate_templates.is_empty()
+            || !module.core.aggregate_applications.is_empty()
+            || !module.core.aggregates.is_empty()
             || !module.core.enums.is_empty()
             || module.core.functions.iter().any(|function| {
                 !function.type_parameters.is_empty()
@@ -129,7 +131,9 @@ impl Walker {
                     self.expr(condition, depth + 1)?;
                     self.block(body, depth + 1)?;
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => {
                     self.block(body, depth + 1)?;
                 }
                 CoreStatementKind::Return(None)
@@ -246,6 +250,8 @@ mod tests {
                 imports: vec![],
                 exports: vec![],
                 core: CoreModule {
+                    aggregate_templates: Vec::new(),
+                    aggregate_applications: Vec::new(),
                     schema_version: SCHEMA_VERSION,
                     module_id: ModuleId(0),
                     source_fingerprint: Fingerprint::ZERO,

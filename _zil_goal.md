@@ -1,5 +1,9 @@
 # ZIL 施工总计划
 
+## 2026-11-02：ZUI语言核心前置重新集中施工
+
+以已合Stage15编译专项的a68398ad主线为基线，227普通同步defer、235普通Product内Store组合及236真实联合消费者并行。227公共注册义务、前端和Analyze/Verify按不相交写集推进，schema/Wire28同批核验；235仅扩普通拥有资格，不自动开放新capture/StoreElement/Sum。实施者使用gpt-6.1-sol/high，复杂责任核及独审xhigh；root负责合同、集成和正式全量。当前均为施工，历史Fail、B0/181、完整1.4/ZUI及产品门保持，源码/原生/失败清理与非作者证据完成后再裁决。后续由同一真实API继续拥有Sum、通用抽象/生成和长期外部生命周期，当前优先ZIL语言，不扩框架与性能实验。
+
 ## 2026-10-31 施工11已合入及状态核查
 
 232普通局部Product默认只读捕获、233跨模块普通trait实现、234LLVM窄整数常量正确性修复已随PR15进入实际main `f2572502beb76eb86e9254dea855404e4998a64d`。原main run41198113948全部25步骤成功，默认3027/0/0、reference2983/0/0，零过滤。本次状态核查补发布review分支的14个遗留提交（相对受测main净差异仅docs/evidence），并恢复三单工单及真实main连续性；不变更语言、schema/Wire27、预算或产品门。当前按功能进度见docs/LANGUAGE-STATUS-20261031.md，交接与清理以docs/CURRENT-HANDOFF.md为准。227普通defer及一般拥有组合、Type/Syntax、长期外部生命周期和挂起并发继续待施工；完整1.4/ZUI NotSatisfied、B0 Doing、181施工及产品/原生WindowsNotRun保持。
@@ -193,3 +197,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 
 四片有限能力经三位非作者绑定P2 `75d08022213a5da96e1968d7fe7d1d1e341b5907` 审查，PR14合入实际M `9e7072b1ebdc6900c7370863c27c7432953bd830`。PR/main runs 41184530698/41186163758 各25步骤通过，默认2976/0/0、reference2933/0/0，零过滤；原首轮Fail与恢复边界完整保留。source/schema/Wire27、默认预算及产品门不改。见docs/LANGUAGE-CONSTRUCTION10.md和新final-summary。下一优先默认只读Product捕获及227注册/必须执行合同；完整1.4/ZUI、B0/181、四目标产品和原生Windows状态保持，未合编译研究支线保留。
 
+
+## 2026-11-02 语言主线组合缺口
+
+用户优先完整语言及ZUI前置，编译优化研究不占主线必要时段。227同步defer、235普通嵌套Store Product已有可恢复候选，236真实消费者暴露whole-Product再赋值缺口，独审暴露泛型Product完整身份缺口，由238与237分别承接；保留原失败，不改oracle规避。主线以实际组合运行、错误退出、替换和清理闭环验收，形式工单及完整1.4/ZUI/产品门不随候选推送晋升。

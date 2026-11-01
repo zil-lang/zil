@@ -8,7 +8,9 @@ use zil_ir::{CallableKind, LirModule, LirView, ScalarLayout, Type};
 use zil_verify::VerifiedModule;
 
 /// Retain the independently checked CFG and concrete closure definitions, and
-/// attach the supported target layout. No source AST, candidate plan, or raw
+/// attach the supported target layout. RegisterDefer stays in the retained CFG
+/// as a checked fact; its adjacent TakeLocal/CallClosureOnce carries the action.
+/// No source AST, candidate plan, or raw
 /// typed module is an entry point.
 ///
 /// ```compile_fail
@@ -177,7 +179,7 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
 // Keep the existing predicate above for error-payload and array qualification.
 // Verify has already bounded the full inline type and its cleanup paths.
 fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
-    package_type(ty, resources) || product_type(ty, resources)
+    package_type(ty, resources) || owned_product_type(ty, resources)
 }
 
 fn package_capture_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
@@ -198,6 +200,24 @@ fn product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
                 owns = true;
             }
             Type::Package { .. } if product_type(field, resources) => owns = true,
+            field if field.is_copy_value() => {}
+            _ => return false,
+        }
+    }
+    owns
+}
+
+fn owned_product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    let Type::Package { fields, .. } = ty else {
+        return false;
+    };
+    let mut owns = false;
+    for (_, field) in fields {
+        match field {
+            Type::Managed(_) if resource_type(field, resources) => {
+                owns = true;
+            }
+            Type::Package { .. } if owned_product_type(field, resources) => owns = true,
             field if field.is_copy_value() => {}
             _ => return false,
         }

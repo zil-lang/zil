@@ -5,11 +5,13 @@ use std::collections::BTreeMap;
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
 mod addresses;
+mod aggregate_templates;
 mod aggregates;
 mod byte_buffer;
 mod callable_fields;
 mod closures;
 mod conditions;
+mod deferred;
 mod dynamic_store;
 mod enums;
 mod errors;
@@ -25,6 +27,7 @@ mod names;
 mod owning_factory;
 mod packages;
 mod preparation;
+mod product_replacement;
 mod program;
 pub use preparation::{
     InferredProgram, PreparedProgram, check_prepared_program, infer_program_for_ct,
@@ -305,6 +308,12 @@ pub fn check(
         })
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
+    let mut product_work = limits.max_analysis_steps;
+    closure_state.products =
+        aggregate_templates::origins(&[core], limits, &mut product_work).map_err(|e| vec![e])?;
+    closure_state
+        .snapshot(limits.max_analysis_steps - product_work, Span::default())
+        .map_err(|e| vec![e])?;
     closure_state.resource_writes =
         resource_effects::single(core, &signatures, limits).map_err(|e| vec![e])?;
     helpers::install_single(core, &signatures, &enum_types, &mut closure_state, limits)
@@ -425,6 +434,8 @@ struct Builder<'a, 'c> {
     match_work_left: usize,
     closures: &'c mut closures::State,
     first_closure: usize,
+    defer_body: bool,
+    defer_locals: std::collections::BTreeSet<LocalId>,
     borrowed_captures: BTreeMap<LocalId, Type>,
     written_captures: BTreeMap<LocalId, u32>,
     stored_copy_captures: BTreeMap<LocalId, u32>,
@@ -442,6 +453,7 @@ struct Builder<'a, 'c> {
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
     managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
+    replacement_input: Option<LocalId>,
 }
 struct LoopContext {
     continue_target: BlockId,
@@ -500,6 +512,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             match_work_left: limits.max_analysis_steps,
             closures,
             first_closure,
+            defer_body: false,
+            defer_locals: std::collections::BTreeSet::new(),
             borrowed_captures: BTreeMap::new(),
             written_captures: BTreeMap::new(),
             stored_copy_captures: BTreeMap::new(),
@@ -515,6 +529,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             resource_temps: Vec::new(),
             sequenced_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
+            replacement_input: None,
             managed_slot_work: limits.max_analysis_steps,
             managed_rebindings: managed_slots::reassigned_bindings(&f.body, limits)?,
         };
@@ -721,6 +736,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         }) {
             position += 1;
         }
+        self.closures
+            .inserted_instruction(self.function.id, entry, position + 1, span)?;
         instructions.insert(position + 1, instruction);
         // Earlier exits already emitted in this scope also see the reserved
         // vacant slot. Close its storage there without inventing a cleanup.
@@ -738,6 +755,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                         Some(span),
                     ));
                 }
+                self.closures
+                    .inserted_instruction(self.function.id, block.id, position, span)?;
                 block.instructions.insert(
                     position,
                     Instruction {
@@ -857,7 +876,17 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )?;
                     continue;
                 }
-                if !self.temporary_locals.contains(&local) || self.resource_temps.contains(&local) {
+                let deferred = if self.defer_locals.is_empty() {
+                    false
+                } else {
+                    self.closures.snapshot(self.defer_locals.len(), span)?;
+                    self.defer_locals.contains(&local)
+                };
+                if deferred {
+                    self.invoke_defer(local, span)?;
+                } else if !self.temporary_locals.contains(&local)
+                    || self.resource_temps.contains(&local)
+                {
                     self.drop_owned_local(local, span)?;
                 }
                 if let Some(capture) = self.address_written_captures.get(&local).copied() {
@@ -912,7 +941,15 @@ impl<'a, 'c> Builder<'a, 'c> {
         Ok(())
     }
     fn stmt_inner(&mut self, s: &CoreStatement) -> R<()> {
+        if self.defer_body && matches!(s.kind, CoreStatementKind::Return(_)) {
+            return Err(error(
+                "E-DEFER-CONTROL",
+                s.span,
+                "return cannot leave a defer cleanup body",
+            ));
+        }
         match &s.kind {
+            CoreStatementKind::Defer(body) => self.register_defer(body, s.span)?,
             CoreStatementKind::Binding {
                 name,
                 mutable,
@@ -996,6 +1033,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                         target.span,
                         format!("{name} is not mutable"),
                     ));
+                }
+                if self.replace_product(l, &d.ty, value, s.span)? {
+                    return Ok(());
                 }
                 if errors::owned(&d.ty) {
                     return Err(unsupported(
@@ -1339,6 +1379,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.expr_raw(e, expected)
     }
     fn expr_raw(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        if let Some(value) = self.take_replacement_input(e, expected)? {
+            return Ok(value);
+        }
+
         let result = match &e.kind {
             CoreExprKind::Literal(value) => {
                 foreign::check_literal(value, e.span)?;
@@ -1372,7 +1416,16 @@ impl<'a, 'c> Builder<'a, 'c> {
                 )?;
                 (result, target.clone())
             }
-            CoreExprKind::Try(operand) => self.try_expr(operand, e.span)?,
+            CoreExprKind::Try(operand) => {
+                if self.defer_body {
+                    return Err(error(
+                        "E-DEFER-CONTROL",
+                        e.span,
+                        "a defer body cannot propagate an error outside its cleanup boundary",
+                    ));
+                }
+                self.try_expr(operand, e.span)?
+            }
             CoreExprKind::Integer(text) => {
                 self.constant(integer(text, expected, false, e.span)?, e.span)?
             }
@@ -1743,6 +1796,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 body,
             } => {
                 let input = closures::Input {
+                    defer_action: false,
                     move_capture: *move_capture,
                     parameters,
                     result: return_type.as_ref(),
@@ -2308,6 +2362,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         builder.imports = self.imports;
         builder.enums = self.enums;
         builder.function.environment = Some(id);
+        builder.defer_body = builder.closures.pending[id.0 as usize].defer_action;
         let lends = lending::supported_result(&function.return_type);
         for (index, capture) in captures.iter().enumerate() {
             let stored = capture.stored_type();
@@ -2766,6 +2821,8 @@ mod tests {
     }
     fn module(value: CoreExpr) -> CoreModule {
         CoreModule {
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,

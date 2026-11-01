@@ -845,7 +845,10 @@ fn raw_store_two_root_work_bounds_replay_the_same_fresh_result() {
     let case = Case::new("stale-schema26-wire");
     let mut wire =
         zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
-    assert_eq!(u32::from_le_bytes(wire[8..12].try_into().unwrap()), 27);
+    assert_eq!(
+        u32::from_le_bytes(wire[8..12].try_into().unwrap()),
+        zil_base::SCHEMA_VERSION
+    );
     wire[8..12].copy_from_slice(&26u32.to_le_bytes());
     case.write("stale26.wire", &wire);
     let errors =

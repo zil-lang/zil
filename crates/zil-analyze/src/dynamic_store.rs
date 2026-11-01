@@ -169,6 +169,71 @@ pub(super) fn callback_element(
     Ok(())
 }
 
+/// Newly composed ordinary Products recheck their actual Store, independently
+/// of capture qualification. This path accepts exactly the existing element
+/// shapes and requires one canonical resource even in unused metadata.
+pub(super) fn ordinary_owned(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    const WORK: &str = "ordinary Product canonical Store";
+    let Type::Managed(payload) = ty else {
+        return Err(super::bad("ordinary Product Store must be owned"));
+    };
+    let Type::OwnedStore { element } = payload.as_ref() else {
+        return Err(super::bad("ordinary Product Store payload is absent"));
+    };
+    budget.type_work(element, true, WORK)?;
+    let Type::Package { name, fields } = element.as_ref() else {
+        return Err(super::bad(
+            "ordinary Product Store requires an actual Package element",
+        ));
+    };
+    if fields
+        .iter()
+        .any(|(_, field)| matches!(field, Type::Closure(_)))
+    {
+        callback_element(module, element, budget)?;
+    } else {
+        product_element(element, budget)?;
+    }
+    budget.spend(name.len().saturating_add(32), WORK)?;
+    let canonical = format!("@builtin:OwnedStore<{name}>");
+    budget.spend(module.resources.len(), WORK)?;
+    let mut found = 0usize;
+    for resource in &module.resources {
+        budget.spend(resource.name.len().saturating_add(canonical.len()), WORK)?;
+        let related = if let Type::OwnedStore { element: actual } = &resource.payload
+            && let Type::Package { name: actual, .. } = actual.as_ref()
+        {
+            budget.spend(actual.len().saturating_add(name.len()), WORK)?;
+            actual == name
+        } else {
+            false
+        };
+        if resource.name != canonical && !related {
+            continue;
+        }
+        budget.type_work(&resource.payload, true, WORK)?;
+        if resource.name != canonical
+            || resource.payload != **payload
+            || resource.teardown.is_some()
+        {
+            return Err(super::bad(
+                "ordinary Product Store requires its exact canonical definition and no user teardown",
+            ));
+        }
+        found += 1;
+    }
+    if found != 1 {
+        return Err(super::bad(
+            "ordinary Product Store requires exactly one canonical definition",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn is_carrier(ty: &Type) -> bool {
     matches!(ty, Type::Managed(inner) | Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. }))
 }

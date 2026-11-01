@@ -79,6 +79,8 @@ impl materialize::Materializer<'_, '_> {
             )]
         })?;
         let query = CoreModule {
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: self.module,
             source_fingerprint: self.context.program.source_fingerprint,

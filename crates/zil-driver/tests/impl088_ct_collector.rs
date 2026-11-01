@@ -47,6 +47,8 @@ fn program() -> CoreProgram {
             imports: vec![],
             exports: vec![NodeId(1)],
             core: CoreModule {
+                aggregate_templates: Vec::new(),
+                aggregate_applications: Vec::new(),
                 schema_version: SCHEMA_VERSION,
                 module_id: ModuleId(0),
                 source_fingerprint: Fingerprint::ZERO,

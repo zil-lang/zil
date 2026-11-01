@@ -17,6 +17,8 @@ struct Budget<'a> {
     inside_store: bool,
     store_shapes: bool,
     direct_type_callee: bool,
+    products: aggregate_templates::Products,
+    current_module: zil_base::ModuleId,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -29,6 +31,8 @@ impl<'a> Budget<'a> {
             inside_store: false,
             store_shapes: false,
             direct_type_callee: false,
+            products: None,
+            current_module: zil_base::ModuleId(0),
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -189,7 +193,9 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
     let mut budget = Budget::new(limits);
+    budget.current_module = core.module_id;
     budget.ordinary_functions = core.functions.len();
+    aggregate_templates::Index::new(&[core], limits, &mut budget.work).map_err(|e| vec![e])?;
     let table = headers(core, None, 0, &mut budget).map_err(|e| vec![e])?;
     let flags = core
         .functions
@@ -201,12 +207,17 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
         .collect::<R<Vec<_>>>()
         .map_err(|e| vec![e])?;
     names::check(core, limits).map_err(|e| vec![e])?;
-    let normalized = if flags.iter().any(|f| *f) {
+    let normalized = if flags.iter().any(|f| *f)
+        || !core.aggregate_templates.is_empty()
+        || !core.aggregate_applications.is_empty()
+    {
         Some(aggregates::resolve(core.clone(), limits)?)
     } else {
         None
     };
     let core = normalized.as_ref().unwrap_or(core);
+    budget.products =
+        aggregate_templates::origins(&[core], limits, &mut budget.work).map_err(|e| vec![e])?;
     let table = if normalized.is_some() {
         headers(core, None, 0, &mut budget).map_err(|e| vec![e])?
     } else {
@@ -241,6 +252,15 @@ pub(super) fn infer_program_closures_borrowed<'a>(
     let original = program;
     let mut budget = Budget::new(limits);
     let mut tables = BTreeMap::new();
+    if program.modules.iter().any(|m| {
+        !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
+    }) {
+        budget
+            .work(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        aggregate_templates::Index::new(&modules, limits, &mut budget.work).map_err(|e| vec![e])?;
+    }
     let mut count = 0usize;
     if program.modules.len() > limits.max_nodes {
         return Err(vec![Diagnostic::limit(
@@ -336,7 +356,10 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         );
     }
     names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
-    let normalized = if flags.iter().flatten().any(|f| *f) {
+    let normalized = if flags.iter().flatten().any(|f| *f)
+        || program.modules.iter().any(|m| {
+            !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
+        }) {
         let normalized = aggregates::resolve_program(program, limits)?;
         let mut offset = 0;
         for module in &normalized.modules {
@@ -352,6 +375,18 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         None
     };
     let program = normalized.as_ref().unwrap_or(program);
+    if program
+        .modules
+        .iter()
+        .any(|m| !m.core.aggregate_applications.is_empty())
+    {
+        budget
+            .work(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        budget.products = aggregate_templates::origins(&modules, limits, &mut budget.work)
+            .map_err(|e| vec![e])?;
+    }
     let mut modules = Vec::new();
     let mut enum_work = limits.max_analysis_steps;
     for (module, flags) in program.modules.iter().zip(flags) {
@@ -387,6 +422,7 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         validate_module_metadata(&module.core, &mut budget).map_err(|e| vec![e])?;
         let enum_types = enums::project_definitions(program, &module.core, &mut enum_work, limits)?;
         let mut functions = Vec::new();
+        budget.current_module = module.core.module_id;
         for (function, flag) in module.core.functions.iter().zip(flags) {
             functions.push(
                 prepare(
@@ -583,6 +619,16 @@ fn prepare<'a>(
     has_closure: bool,
     budget: &mut Budget<'_>,
 ) -> R<Cow<'a, CoreFunction>> {
+    if let Some(products) = &budget.products {
+        budget.work = budget.work.checked_sub(1).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "generic Product caller binding work exceeded",
+                Some(function.span),
+            )
+        })?;
+        aggregate_templates::source_owner(products, (budget.current_module, function.id));
+    }
     // Scalar-only functions retain their existing inference/default behavior.
     if !has_closure && function.type_parameters.is_empty() && function.state_parameters.is_empty() {
         let dependencies = retained::dependencies(
@@ -603,6 +649,8 @@ fn prepare<'a>(
 
 fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> CoreModule {
     CoreModule {
+        aggregate_templates: core.aggregate_templates.clone(),
+        aggregate_applications: core.aggregate_applications.clone(),
         schema_version: core.schema_version,
         module_id: core.module_id,
         source_fingerprint: core.source_fingerprint,
@@ -613,6 +661,7 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
     }
 }
 fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()> {
+    aggregate_templates::metadata_snapshot(core, budget.limits, &mut budget.work)?;
     for aggregate in &core.aggregates {
         budget.node(0, aggregate.span)?;
         budget.work(aggregate.name.len(), aggregate.span)?;
@@ -871,9 +920,9 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
                     found |= contains_closure(&arm.body, depth + 1, budget)?;
                 }
             }
-            CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                found |= contains_closure(body, depth + 1, budget)?
-            }
+            CoreStatementKind::Block(body)
+            | CoreStatementKind::Unsafe(body)
+            | CoreStatementKind::Defer(body) => found |= contains_closure(body, depth + 1, budget)?,
             CoreStatementKind::Unsupported(feature) => {
                 budget.work(feature.len(), statement.span)?
             }
@@ -1668,6 +1717,20 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )),
         }
     }
+    fn product_term_type(&mut self, term: &Term, span: Span) -> R<Type> {
+        match term {
+            Term::Scalar(variable) => self.graph.injection_type(*variable, span),
+            Term::ClosurePackage { shape, .. } | Term::StatePackage { shape, .. } => {
+                validate_type(shape, 0, span, self.budget)?;
+                Ok(shape.as_ref().clone())
+            }
+            _ => Err(error(
+                "E-TYPE-APPLICATION",
+                span,
+                "generic Product inference requires a complete actual value type",
+            )),
+        }
+    }
     fn infer_value_term(
         &mut self,
         pattern: &Type,
@@ -1694,6 +1757,22 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let (failure, success) = self.value_union_parts(value, span)?;
             self.infer_value_term(error, &failure, name, actual, span)?;
             return self.infer_value_term(result, &success, name, actual, span);
+        }
+        if matches!(pattern, Type::Package { .. }) && self.budget.products.is_some() {
+            let ty = self.product_term_type(value, span)?;
+            let products = self.budget.products.clone();
+            let limits = self.budget.limits;
+            if let Some(pairs) =
+                aggregate_templates::input_pairs(pattern, &ty, &products, limits, span, &mut |n| {
+                    self.budget.work(n, span)
+                })?
+            {
+                for (wanted, got) in pairs {
+                    let term = self.known_term(&got, span)?;
+                    self.infer_value_term(&wanted, &term, name, actual, span)?;
+                }
+                return Ok(());
+            }
         }
         self.bind_term(value, pattern, span)
     }
@@ -1726,6 +1805,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 result: Rc::new(success),
             });
         }
+        if matches!(pattern, Type::Package { .. }) && self.budget.products.is_some() {
+            let actual = self.product_term_type(actual, span)?;
+            let products = self.budget.products.clone();
+            let limits = self.budget.limits;
+            let ty = store_templates::substitute_type(
+                pattern,
+                name,
+                &actual,
+                limits,
+                &products,
+                span,
+                &mut |n| self.budget.work(n, span),
+            )?;
+            return self.known_term(&ty, span);
+        }
         self.known_term(pattern, span)
     }
     fn value_type_call(
@@ -1750,7 +1844,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         self.budget.work(arguments.len().saturating_mul(2), span)?;
         let mut actual = None;
         for (argument, pattern) in arguments.iter().zip(&signature.parameters) {
-            let hint = (!store_templates::has_parameter(pattern, name)).then_some(pattern);
+            let products = self.budget.products.clone();
+            let limits = self.budget.limits;
+            let parameterized = aggregate_templates::parameter_in(
+                pattern,
+                name,
+                &products,
+                limits,
+                argument.span,
+                &mut |n| self.budget.work(n, argument.span),
+            )?;
+            let hint = (!parameterized).then_some(pattern);
             let value = self.expr_expected(argument, hint, depth + 1, false)?;
             self.infer_value_term(pattern, &value, name, &mut actual, argument.span)?;
         }
@@ -2496,9 +2600,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.scopes.pop();
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                    self.block(body, depth + 1)?
-                }
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => self.block(body, depth + 1)?,
                 CoreStatementKind::Break | CoreStatementKind::Continue => {}
                 CoreStatementKind::Unsupported(feature) => {
                     return Err(unsupported(statement.span, feature));
@@ -3097,12 +3201,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         )
                     })?;
                     let limits = self.budget.limits;
+                    let products = self.budget.products.clone();
                     for parameter in &mut signature.parameters {
                         *parameter = store_templates::substitute_type(
                             parameter,
                             &bound.name,
                             actual,
                             limits,
+                            &products,
                             span,
                             &mut |work| self.budget.work(work, span),
                         )?;
@@ -3112,6 +3218,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         &bound.name,
                         actual,
                         limits,
+                        &products,
                         span,
                         &mut |work| self.budget.work(work, span),
                     )?;
@@ -3898,7 +4005,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.normalize_block(&mut arm.body, expression, statement)?;
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => {
                     self.normalize_block(body, expression, statement)?
                 }
                 _ => {}

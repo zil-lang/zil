@@ -5,7 +5,8 @@ use zil_base::{
 use zil_driver::{CompilationSession, CompileOptions, Stage};
 use zil_ir::{CoreProgram, TypedModule};
 
-#[path = "../../zil-ir/tests/support/cp34_legacy_v27.rs"]
+// The v27/v28 oracle files remain archived byte-for-byte; current source uses v29.
+#[path = "../../zil-ir/tests/support/cp34_legacy_v29.rs"]
 mod legacy;
 
 fn check_identity_and_verify(module: TypedModule) {
@@ -25,6 +26,7 @@ fn source_modules_match_frozen_identity_and_each_request_verifies() {
         "fn main()->i32=>7",
         "// Unicode λ changes positions\nfn main()->i32 { let x:i32=11; return x+2; }",
         "fn main()->i32 { let f=(x)=>x; return f(7); }",
+        "fn main()->i32 { defer {}; return 7; }",
         "struct Cell { value:i32 }\nfn get(c:Cell)->i32=>c.value\nfn main()->i32=>0",
     ];
     let mut session = CompilationSession::default();

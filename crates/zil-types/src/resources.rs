@@ -48,7 +48,7 @@ pub(super) fn definitions(
 }
 impl Builder<'_, '_> {
     pub(super) fn owned_closure(&self, ty: &Type) -> bool {
-        matches!(ty, Type::Closure(id) if self.closures.pending[id.0 as usize].owns_resources())
+        matches!(ty, Type::Closure(id) if (self.closures.pending[id.0 as usize].defer_action || self.closures.pending[id.0 as usize].owns_resources()))
     }
     pub(super) fn has_cleanup(&self, ty: &Type) -> bool {
         matches!(ty, Type::Managed(_) | Type::Package { .. })

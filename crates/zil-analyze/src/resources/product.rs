@@ -16,10 +16,44 @@ pub(crate) fn nested(ty: &Type) -> bool {
 }
 
 pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    admit_shape(ty, budget, false).map(|_| ())
+}
+
+/// Admission for ordinary complete ownership, independent of element/capture
+/// and shared-head profiles. Actual Store resources are checked by preflight.
+pub(crate) fn admit_owned(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let has_stores = admit_shape(ty, budget, true)?;
+    fn stores(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+        let Type::Package { fields, .. } = ty else {
+            unreachable!("admitted Product")
+        };
+        budget.spend(fields.len(), "ordinary Product Store field scan")?;
+        for (_, field) in fields {
+            if dynamic_store::is_owned_carrier(field) {
+                dynamic_store::ordinary_owned(module, field, budget)?;
+            } else if matches!(field, Type::Package { .. }) {
+                stores(module, field, budget)?;
+            }
+        }
+        Ok(())
+    }
+    // The already charged admission visit records the new shape. Legacy
+    // Products allocate no new state and retain their historical charge.
+    if has_stores {
+        stores(module, ty, budget)?;
+    }
+    Ok(has_stores)
+}
+
+fn admit_shape(ty: &Type, budget: &mut Budget, stores: bool) -> CompileResult<bool> {
     // Raw preflight has bounded depth already. Pay before any new identity
     // collection, Copy classification or repeated complete-type traversal.
     budget.type_work(ty, true, "ordinary Product admission")?;
-    fn fields(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    fn fields(ty: &Type, budget: &mut Budget, stores: bool) -> CompileResult<bool> {
         let Type::Package {
             name,
             fields: entries,
@@ -35,6 +69,7 @@ pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
         )?;
         let mut names = BTreeSet::new();
         let mut owned = false;
+        let mut has_stores = false;
         if name.is_empty() {
             return Err(error("Product nominal identity is empty"));
         }
@@ -50,14 +85,16 @@ pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
             }
             match ty {
                 Type::Managed(payload)
-                    if **payload == Type::ByteBuffer
+                    if (stores && dynamic_store::is_owned_carrier(ty))
+                        || **payload == Type::ByteBuffer
                         || (matches!(payload.as_ref(), Type::Record { .. })
                             && payload.is_copy_value()) =>
                 {
-                    owned = true
+                    owned = true;
+                    has_stores |= dynamic_store::is_owned_carrier(ty);
                 }
                 Type::Package { .. } => {
-                    fields(ty, budget)?;
+                    has_stores |= fields(ty, budget, stores)?;
                     owned = true;
                 }
                 ty if ty.is_copy_value() => {}
@@ -71,9 +108,9 @@ pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
         if !owned {
             return Err(error("Product has no transitive Managed leaf"));
         }
-        Ok(())
+        Ok(has_stores)
     }
-    fields(ty, budget)
+    fields(ty, budget, stores)
 }
 
 fn visit(

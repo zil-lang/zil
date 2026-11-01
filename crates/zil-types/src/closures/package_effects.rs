@@ -767,7 +767,9 @@ impl Scan<'_> {
                 }
                 return Ok(flow);
             }
-            CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+            CoreStatementKind::Block(body)
+            | CoreStatementKind::Unsafe(body)
+            | CoreStatementKind::Defer(body) => {
                 return self.block(state, body, depth + 1);
             }
             CoreStatementKind::Break => {

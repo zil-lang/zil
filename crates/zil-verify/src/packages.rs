@@ -137,7 +137,7 @@ pub(super) fn check_capture_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    check_ordinary_type(module, ty, span, budget)
+    check_product_type(module, ty, span, budget, false)
 }
 
 /// Qualification of an actual complete ordinary Product head. This does not
@@ -159,7 +159,7 @@ pub(super) fn check_shared_product_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    check_ordinary_type(module, ty, span, budget)?;
+    check_product_type(module, ty, span, budget, false)?;
     if !has_children(ty) {
         let Type::Package { fields, .. } = ty else {
             unreachable!("checked Package")
@@ -179,6 +179,17 @@ pub(super) fn check_ordinary_type(
     ty: &Type,
     span: Option<Span>,
     budget: &mut Budget,
+) -> Check<()> {
+    check_product_type(module, ty, span, budget, true)
+}
+
+/// The old complete Product gate for container and capture consumers.
+pub(super) fn check_product_type(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+    stores: bool,
 ) -> Check<()> {
     if !has_children(ty) {
         return check_type_for(module, ty, span, budget);
@@ -217,7 +228,8 @@ pub(super) fn check_ordinary_type(
                     pending.push((field, depth + 1));
                 }
                 Type::Managed(inner)
-                    if matches!(inner.as_ref(), Type::ByteBuffer | Type::Record { .. }) =>
+                    if matches!(inner.as_ref(), Type::ByteBuffer | Type::Record { .. })
+                        || (stores && matches!(inner.as_ref(), Type::OwnedStore { .. })) =>
                 {
                     resources::check_type_for(module, field, span, budget)?;
                     owns = true;

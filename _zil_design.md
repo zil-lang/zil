@@ -321,6 +321,20 @@ close 返回错误不必意味着资源仍然 Live；例如外部关闭结果含
 
 prepare/slot/publish/abort 是同一责任规则的实例：构造 RHS 先成功，再写槽与提交完成记录；中间没有可恢复失败/回调/挂起；不完整发布拒绝；异常出口清理实际完成内容。with 由控制流激活持责，用户 ticket 丢弃不取消这项义务。
 
+### 7.1 普通同步 defer（227）
+
+`defer { ... }` 在声明点按普通闭包的真实捕获规则建立零参数、Unit结果的清理动作；名字和捕获来源在注册点绑定，后续同名遮蔽不改变它。普通共享捕获保留原来源与活借用，不把Copy类型一律改成声明时快照。动作自身选择一次消费调用，不增加 `defer move` 语法或隐藏分配。
+
+环境成功构造并存入当前最内层词法作用域的独立局部后，才登记必须履行的动作。正常落出、return、`?`可恢复错误、break和continue均履行实际离开的作用域内已注册动作；未注册路径零次，每次循环激活独立结算。返回结果先按既有临时责任规则准备，再清理，最后转交。动作与局部成功构造共享逆序：A、defer(A)、B的退出顺序为B、动作、A。Trap/abort不承诺unwind履行。
+
+本片清理正文限同步Unit；拒绝向外return、`?`错误传播、跨清理边界break/continue和挂起。正文自身循环的局部break/continue可按普通规则处理；嵌套defer暂不开放。真实捕获借用持续到动作实际调用，较早移动、失效或销毁相交来源仍拒绝；动作产生的局部按自身普通清理规则结算。
+
+公开Core保留Defer正文；TypedIR增加 `RegisterDefer { scope, local }`，绑定当前真实scope及已初始化具体FnOnce、零参数、Unit局部。现有 `TakeLocal(local)` 后紧邻对其结果的零参数 `CallClosureOnce` 是唯一履行序列；Take本身不结清义务。注册槽不得通过普通Load、借用、再写、Drop或逃逸取消义务。Analyze和Verify各自重建每次激活的注册、实际调用及与资源构造的混合次序，拒绝漏调用、重复调用、错scope/来源、未履行离域及回边；不得信任前端履行位或仅凭FnOnce的至多一次性质。机器层注册无运行时动作，调用和环境剩余清理沿现有已核路径。
+
+注册要求local实际归属当前scope、完整初始化且本次激活尚未注册；Register必须紧邻该槽唯一初始Store，以成功注册时点确定动作年龄，不能以预留StorageLive定序。Take不得提前遗忘用于逆序检查的责任。动作调用必须位于到其所属ScopeExit的可核清理suffix中；首片要求同一基本块，只允许既有清理、必要捕获回写、后续动作履行和scope退出，不允许返回普通正文或新注册。独立核不能把普通正文中的提前调用当作正确退出履行。
+
+公共schema/Wire及指纹域升至28以拒绝旧公开/缓存身份；当前独立Verify、默认预算和产品门保留。新增状态/队列/正文遍历及复制在增长前计费，旧无defer路径不增逻辑费用。规范登记不代表实现完成，实际支持由源码、raw/Wire、预算、独审及原生退出/清理证据裁决。
+
 <a id="ZIL-PACKAGE"></a>
 
 ## 8. 资源包、替换与返回
@@ -366,6 +380,36 @@ Analyze与Verify分别按实际SSA/Local及子树叶位置重建每个Managed叶
 §8.1.1完整Product可形成共享 `&Product` 普通参数、局部及同步转借，递归读取Copy字段和既有有限用户资源头的只读投影。建立整值借入前必须核全部子责任完整；真实根来源沿每次字段投影保留。活动借用阻止相交位置的取走、替换、整值移动和析构，最后使用后沿既有NLL释放。共享借入不产生可变Desc、独占权或拥有子值，ByteBuffer叶不因此获得可变资源访问。
 
 普通Product借入与Store元素窗口分别建立资格，不能互相借用分类结果授信；Analyze与Verify各自从实际位置、来源、完整性与指令重建。借入返回/长期捕获/异步及 `&mut Product` 不由本片开放。布局内联、schema/Wire27、默认预算和产品门不变；实际准入以source/raw/Wire、活跃/结束窗口反例、预算和O0/O2机器证据为准。
+
+#### 8.1.3 普通 Product 完整拥有 Store 字段（235）
+
+普通完整Product允许直接拥有既有合法 `Store<T>` 字段，或含此类字段的完整child Product；T仍逐项满足既有StoreElement资格。Store在父中保留真实头、初始化前缀与唯一责任，按每层字段声明序清理，即使没有用户teardown也必须执行内建前缀及分配释放。有限递归by-value继续拒绝；同型两个字段或child不得合并实例、来源或清理义务。
+
+本片贯通普通完整构造、参数、返回、局部整值转交及完整字段take/refill/replace；操作深层child仍先完整取到独立局部，不新增deep Place。完整字段取出后父暂不完整，回填前不能整值转交或返回。替换先准备新值，失败保留尚未显式移出的旧责任；成功后清旧值再无失败发布。Store的push失败返还、pop后尾槽无责任和reserve失败保持规则不变。
+
+字段描述及元素窗口继续绑定实际父/字段/Store来源；相交活窗口阻止父或child移动、替换、清理和会失效的Store操作，最后使用后沿既有规则释放。各核分别重建canonical Store定义、实际叶来源、完整性和责任；不能把同元素类型或头地址相等当作同实例证明。
+
+普通拥有准入与共享Product、StoreElement、closure capture、拥有数组及Sum准入明确分开。新的含Store递归Product不因本片自动进入这些位置；已支持的旧平坦State/Store/capture资格保持。复用既有Package、Managed<OwnedStore<T>>、实际字段指令与布局，不增加本片专用权限位；随227发布的Wire28不授予额外资格。新遍历/布局/复制预费，默认额度及既有无新组合的逻辑费用保持。支持范围须经原样近邻反例、raw/Wire和O0/O2真实失败清理验证。
+
+#### 8.1.3.1 普通Product整值赋值事务（238）
+
+无整体用户teardown的既有普通拥有Product，其可写局部完整替换可保留已初始化的同形词法shell。首片覆盖两类RHS：完全不引用该目标绑定的既有合法表达式；或已静态解析普通调用中恰一个直接整值实参为目标绑定、其余实参无该绑定自由引用。静态调用包含可按现有规则唯一实例化的普通模板，显式TypeApply与合法实参推导保留相同完整类型约束，不能因该调用进入赋值事务而省略实例检查。按真实词法绑定判断，不能按函数名字或消费者特判；复杂嵌套self使用仍保留明确缺口。
+
+先按原源顺序准备RHS；第二类仅在该实参求值处把目标完整字段组成同名完整Product，直接child整体转交，不引入deep Place。其他整值移动沿原语义，不能借此允许move后Copy偷读；禁止在上述拆分与提交之间再次通过源路径读取目标。实际别名、Desc、地址及捕获来源继续由两核按字段操作独立检查，不能依赖前端声明无冲突。
+
+RHS完整成功后，按字段声明序清理目标尚存旧责任，再无失败发布全部新字段。不得提前覆盖Copy字段、释放旧字段或复活已显式移交的值；独立RHS失败保留旧责任，self转交后的失败仅清实际剩余责任。目标须仍有存活Product shell；独立RHS可补齐合法部分字段，但此前整值移走或live/moved合流不能经字段发布复活。目标shell只在首次初始化时构造，整值赋值以既有Read/Take/Drop/StorePackageField及完整MakePackage实现，其词法清理年龄保持；prepared临时与各项责任照常结算。资源核的成功初始化逆序规则及defer混合次序不变，不新增运行时指令或权限位。新扫描、复制、字段准备与临时预付费用，旧未命中路径费用保持。必须原样复验236、无defer对照、普通替换与准备失败、move后读取/活窗口反例、raw核及O0/O2分配失败。
+
+#### 8.1.4 StoreElement泛型Product的完整身份（237）
+
+在§8.1.3普通完整Product及§8.2.1保留函数模板范围，允许恰一个 `T:StoreElement` 参数的有限Package声明，经直接实例或延后普通函数实例组合、返回完整Product。字段recipe限具体既有类型、本声明参数、Store包装及同范围有限子Package应用；递归by-value仍拒绝。定义本体按声明约束检查，未使用的声明及元数据同样检查；这不开放T字段访问、任意类型泛型或新的StoreElement/capture/shared资格。
+
+CoreModule新增独立aggregate_templates与aggregate_applications两表。template记录原声明NodeId、名字、唯一CoreTypeParameter、原字段名字/public/manages/span及完整类型recipe。application记录generated aggregate NodeId、原template的ModuleId/NodeId、精确可选owner函数ModuleId/NodeId及完整有序实参。recipe内Parameter(index)仅指该族自己的声明槽；application内Parameter(index)仅指其真实owner函数的普通类型槽。具体实参含尚未绑定callable类型时同样携带owner；不能凭同拼写T/F、名字前缀或全模块白名单授信。
+
+Types独立核所有表、唯一性、owner/参数范围和约束、完整字段recipe与生成header的一致性，并保留私有原声明/实参映射。直接与延后实例均从同一原族和完整实际Type实参重建统一名义身份；phantom参数、模块身份、字段序与具体ClosureId不得丢失，同布局不是同类型。沿202完整类型实例键、有限队列和有界替换，在具体化后彻底消费元数据；最终TypedIR不含自由T/F，Analyze及Verify仍各自核实际Package/Store树，不相信模板表已证明资格。
+
+普通模板的Product值参数可提供唯一T约束：从已核原family及完整实际参数映射正规匹配，包含不出现在字段中的phantom实参。各参数推得的约束必须一致，显式类型实参继续精确约束；不同family、同布局异类型、错误owner或缺少完整映射均不得按字段布局猜测。此为202/203普通实参推导的有限扩展，不开放新泛型类别或把opaque T当可投影结构。普通Product仍使用已有Value参数/移动语法，不新增`give Product`语法。
+
+新表、名字、类型recipe、实例复制、比较、替换、参数推导和队列在增长前预付；旧空表路径费用保持，不提高默认额度。CT正规化保留完整表与词法身份，CT执行这些运行时模板仍明确禁止。公共Core版本随本片为schema/Wire/指纹29，无新运行时opcode；必须保存原235独审泛型返回失败，并经原样正例、跨模块/phantom/跨binder/未用非法表、raw入口、预算及O0/O2机器清理验证。登记不代表完成。
 
 ### 8.2 泛型 Store 元素资格
 

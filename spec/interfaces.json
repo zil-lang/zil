@@ -93,6 +93,35 @@
       "state": "ContractToImplement",
       "representation": "Existing ordinary trait/receiver/static-call identity after real project module resolution; local concrete Self only.",
       "responsibility": "Public imported ordinary trait; actual signature/receiver, nominal ownership, duplicate/collision and reserved-name validation; no implicit permissions or runtime dictionary."
+    },
+    "synchronous_defer_227": {
+      "authority": "_zil_design.md §7.1",
+      "state": "ContractToImplement",
+      "representation": "Core Defer block and Typed RegisterDefer { scope, local }; schema/Wire/fingerprint28. Actual adjacent TakeLocal + zero-argument CallClosureOnce discharges the obligation, never a producer claim.",
+      "responsibility": "Independent Analyze and Verify track pending actions per scope activation and mixed reverse successful-construction order, including empty/Copy environments. Current Verify always executes."
+    },
+    "ordinary_product_store_235": {
+      "authority": "_zil_design.md §8.1.3",
+      "state": "ContractToImplement",
+      "representation": "Existing Package and Managed<OwnedStore<T>> with actual field operations, complete child and prefix layout. No new instruction or capability bit for 235.",
+      "responsibility": "Ordinary ownership admission only; independent canonical definitions, provenance, complete-state and cleanup checks. Preserve prior shared/capture/StoreElement/array/Sum gates."
+    },
+    "generic_product_identity_237": {
+      "authority": "_zil_design.md §8.1.4",
+      "state": "ContractToImplement",
+      "representation": "CoreModule.aggregate_templates: Vec<CoreAggregateTemplate>; aggregate_applications: Vec<CoreAggregateApplication>. First profile finite Package with one index0 StoreElement formal; old modules have empty tables.",
+      "template": "CoreAggregateTemplate { id:NodeId, name:String, parameter:CoreTypeParameter, fields:Vec<CoreAggregateFieldRecipe>, span:Span }; field { name:String, public:bool, manages:bool, ty:CoreAggregateTypeRecipe, span:Span }. Recipe = Concrete(Type) | Parameter{index:u32} | Store{element:Box<Recipe>} | Apply{module:ModuleId,template:NodeId,arguments:Vec<Recipe>}.",
+      "application": "CoreAggregateApplication { aggregate:NodeId, template_module:ModuleId, template:NodeId, owner:Option<CoreAggregateOwner>, arguments:Vec<CoreAggregateArgument> }; Owner { module:ModuleId,function:NodeId }; Argument = Concrete(Type) | Parameter{index:u32}. Template formal and caller formal are distinct binders.",
+      "responsibility": "All unused metadata checked and prepaid. Resolve by exact caller owner; canonical identity uses original family and full concrete arguments including phantom. Generated headers must match recipes. No capability grant; final actual Package/Store independently checked by Analyze and Verify.",
+      "compatibility": "schema/Wire/fingerprint29; no new Typed instruction. CT normalization preserves tables; CT execution forbidden. Empty old-table fees unchanged.",
+      "inference": "Ordinary Product value parameters infer the unique T from checked original family and full actual argument registry, including phantom. All constraints and explicit arguments must agree; no field-layout guessing or cross-owner permission."
+    },
+    "ordinary_product_assignment_238": {
+      "authority": "_zil_design.md §8.1.3.1",
+      "state": "ContractToImplement",
+      "representation": "Existing same-shape Package shell and Read/Take/Drop/StorePackageField, MakePackage and ordinary temporary cleanup. No new runtime opcode or permission.",
+      "scope": "Mutable ordinary Product without whole user teardown; independent RHS, or static ordinary call (including uniquely instantiated ordinary templates and explicit TypeApply) with exactly one direct target-local argument and no other free target reference. Other whole moves preserve TakeLocal semantics.",
+      "responsibility": "Keep original shell construction age; fully prepare before ordered old-field cleanup and infallible publication. Actual source/loan/debt and failed preparation checked by existing independent kernels; no Copy read after whole move admitted."
     }
   },
   "schemas": [
@@ -714,9 +743,9 @@
   ],
   "bootstrap_handoff": "B0 owns minimal formal production paths once; after Done, module ownership moves to T01/T02/T04/T05 and later descendants. Skeletons are not completed capabilities.",
   "implemented_partial_schema": {
-    "compiler_schema_version": 27,
-    "raw_wire_version": 27,
-    "typed_fingerprint_domain": "ZIL-TYPED-MODULE-V27",
+    "compiler_schema_version": 29,
+    "raw_wire_version": 29,
+    "typed_fingerprint_domain": "ZIL-TYPED-MODULE-V29",
     "scope": "B0 implemented finite Copy aggregates/enums and error unions, public finite templates/aliases, thin callbacks, local Copy/address/Desc/Managed/explicit-move Package Fn/FnMut/FnOnce environments, one-level addresses and interprocedural origins, u8/u16 checked integer values and explicit preserving integer conversions, private scalar and synchronous borrowed-buffer C imports with explicit unsafe regions, finite resource heads with Copy payload and give/create results, complete finite owning Package values with local direct-field transfer, conditional cleanup, refill and replacement, bounded synchronous nonescaping concrete callback helpers, and ordinary factories returning one self-contained concrete Fn/FnMut/FnOnce environment for caller-owned synchronous storage; synchronous error propagation and explicit lexical storage scopes are implemented, not nested/general partial package construction, unwind/cancel or complete schema.v1 handoff; schema15 adds finite x64 static foreign handles, readonly UTF16 literals, environment-free C callbacks, by-address natural-layout records, and Win64 PE construction; implementation evidence is required separately. Schema16 adds bounded borrowed slices of finite Copy elements from fixed arrays or existing slices, ordinary parameter-origin returns, checked ranges/indexing and length on supported x64 LLVM profiles; implementation evidence is required separately. Schema17 declares sealed Managed/Desc ByteBuffer storage, explicit fallible reserve and capacity-bounded append, dynamic-backed borrowed slices and generic place/range composition; real implementation and admission evidence remain separate. Schema18 adds bytes_truncate, explicit fallible length reduction with independently checked write effects and live-window conflicts. Schema19 registers finite owning ErrorUnion and fixed-array carrier operations plus concrete environment composition; producer, independent Verify and machine admission are established by the associated implementation receipts, not by this declaration. Schema20 declares finite Package owning-array fields, actual shared user-resource head addresses, and sealed homogeneous owning Store prefixes. Individual producer, independent Verify and machine admission require implementation receipts; registration alone is not completion. Schema21 registers direct owning Store fields, shared initialized Store element windows, and concrete self-contained Closure fields in finite generic Packages. Public transport registration is not executable admission; implementation and independent review receipts remain required. Schema22 registers exclusive initialized Store element windows and sealed StoreElement generic obligations; registration does not establish production acceptance. Schema23 registers actual environment lending source indices on concrete definitions and opaque return contracts; declarations alone do not admit lending execution. Schema24 transports explicit Finite/Flow callable contracts; this registration alone does not admit cyclic helper execution. Schema25 registers ordered actual-parameter callable roles and joint parameter-tagged events. Multiple-role admission and finite/cyclic behavior require the separately frozen 196 implementation and independent review; registration alone is not completion.",
     "core_closure_inference": "CoreClosureParameter.ty and Closure.return_type use Option<Type>; unresolved types cannot enter TypedModule",
     "source_constraint_stage": "infer_source_closures/infer_program_closures collect whole-function constraints after the original Core stop point and before CT evaluation; raw Type/body/metadata traversal is bounded before cloning, and the resulting Core grants no execution authority",
@@ -755,7 +784,8 @@
       "BorrowCapture (actual nested concrete environment position)",
       "OwnedStoreNew / OwnedStoreReserve / OwnedStorePush / OwnedStorePop / OwnedStoreLen / OwnedStoreCapacity",
       "OwnedStoreBorrow { store, index } / BorrowPackageField { local, index, mutable }",
-      "OwnedStoreBorrowMut { store, index } (exclusive initialized Store element window)"
+      "OwnedStoreBorrowMut { store, index } (exclusive initialized Store element window)",
+      "RegisterDefer { scope, local } (schema28 pending must-call action; adjacent TakeLocal/CallClosureOnce discharges only in verified cleanup suffix)"
     ],
     "trusted_boundary": "Independent verify reconstructs typing, CFG/dominance, initialization/storage, affine address/environment transfers, closure call kind, shape/bounds and origin/liveness/loan-parent facts. It independently checks scalar and bounded borrowed-buffer foreign declaration shape, exact noescape indices, simultaneous address permissions and balanced lexical unsafe CFG regions. C implementation behavior and the truth of explicit unsafe foreign contracts remain trusted; neither source spans nor a declaration prove them. Analyze and verify do not share their safety solver. LLVM consumes LIR bound to immutable VerifiedModule; no Rust borrow checker, implicit Box/RC or default noalias is used. Finite resource origin, linear SSA/local obligations, description liveness and conditional cleanup are independently reconstructed. Drop hidden entry points cannot be ordinary calls or function references. Explicit scopes independently bind parameter/local storage activation, exact stack/storage joins and ordered exits. The scope checker concerns local storage, while owned SSA block results remain subject to the full-function affine responsibility checker. Error exit labels must accompany an actual constructed error result; ordinary Return may return either tag. All executable non-foreign source-defined functions use scopes; legacy unscoped non-error raw IR retains its independent resource checks without a lexical scope claim. Local resource environments carry affine debts; Analyze and Verify independently reconstruct owned/borrowed capture roots, liveness, transfer, normal cleanup and transitive descriptor write effects. Copy payload snapshots do not inherit write-through descriptor provenance. ReadCapture cannot copy Managed; shared owned calls use the actual local environment. Field and local liveness flags enforce the checked normal and finite synchronous error cleanup at machine level. Package type shape, owned field arity/consumption, exact field Desc roots and whole carrier debt are independently checked. Every Package type or operation requires strict explicit storage scopes, including raw IR. Concrete helper contracts are independently rebuilt; public claims cannot grant a borrow, authorize borrowed-environment teardown or hide captured-address loans. Borrowing the environment position preserves its captured address Hold. Ordinary helper calls compare all carried loan windows and actual shared/exclusive permissions; future-live captured field descriptions prevent whole Package movement. Package locals additionally retain independent owning-field debts (a complete owning-array field is one field obligation) and an active shell; complete SSA/ABI transfers require every owned field LIVE. Exact field Desc roots block only the invalidated field, while whole operations check all roots. Explicit conditional field cleanup precedes a prepared mutable field Store; raw Store cannot overwrite live debt. Partial local cleanup visits only actually live fields in declaration order. Package environment views are uniquely rebound from raw entry structure by each checker; Shared indirect writes and all normal/error nonconsuming exit shapes are independently checked. Bind/End cannot reset the persistent environment debt.",
     "compatibility": "Only raw wire/schema version26 is accepted; versions0-25 and unknown future versions reject. Typed fingerprint domain V26; callable parameter contract fingerprint domain3, callable return contract domain2, verified interface domain5. Historical frozen baselines and receipts retain their original identity. Core type-template registration alone is not implementation acceptance. Not complete schema.v1 handoff.",
@@ -1216,6 +1246,14 @@
         "readonly default borrowed Product capture"
       ],
       "acceptance": "Limited owning214-216 profile only; exact source/independent review in task records and integration receipt. No claim of complete §9.1.2, 1.4, ZUI or product acceptance."
+    },
+    "synchronous_defer_registration": {
+      "scope": "227 contract; executable support requires independent acceptance",
+      "core": "Defer(CoreBlock)",
+      "typed_instruction": "RegisterDefer { scope: ScopeId, local: LocalId }",
+      "wire_opcode": 89,
+      "wire_payload": "scope u32 little-endian, then local u32 little-endian",
+      "obligation": "Immediately follows initial Store; local is a nonparameter, initialized zero-argument Unit FnOnce closure in current scope. Adjacent TakeLocal/CallClosureOnce is the only discharge, within the scope cleanup suffix. Independent current Analyze/Verify reject omission, duplicate, early or reordered invocation."
     }
   }
 }
