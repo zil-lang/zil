@@ -18,7 +18,7 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
 /// Complete nested Products use the ordinary value ABI. The old predicate
 /// remains the admission route for arrays and error payloads.
 pub(super) fn supported_value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    supported_type(ty, resources) || product_type(ty, resources)
+    supported_type(ty, resources) || owned_product_type(ty, resources)
 }
 
 pub(super) fn supported_capture_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
@@ -39,6 +39,24 @@ fn product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
                 owns = true;
             }
             Type::Package { .. } if product_type(field, resources) => owns = true,
+            field if field.is_copy_value() => {}
+            _ => return false,
+        }
+    }
+    owns
+}
+
+fn owned_product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    let Type::Package { fields, .. } = ty else {
+        return false;
+    };
+    let mut owns = false;
+    for (_, field) in fields {
+        match field {
+            Type::Managed(_) if resources::supported_type(field, resources) => {
+                owns = true;
+            }
+            Type::Package { .. } if owned_product_type(field, resources) => owns = true,
             field if field.is_copy_value() => {}
             _ => return false,
         }

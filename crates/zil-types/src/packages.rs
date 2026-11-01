@@ -37,7 +37,7 @@ pub(super) fn supported(ty: &Type) -> bool {
 /// Ordinary owned values have a separate Product gate. Store, Sum and
 /// owned-array callers deliberately retain the older `supported` profile.
 pub(super) fn ordinary(ty: &Type) -> bool {
-    supported(ty) || (product::nested(ty) && product::supported(ty))
+    supported(ty) || (product::nested(ty) && product::owned_supported(ty))
 }
 
 /// Capture qualification is separate from ordinary/container admission. The

@@ -11,6 +11,16 @@ pub(crate) fn nested(ty: &Type) -> bool {
 // Callers already bound and reserve the complete input type tree. This walk
 // allocates no auxiliary collection and cannot follow a recursive type ID.
 pub(crate) fn supported(ty: &Type) -> bool {
+    shape(ty, false)
+}
+
+/// Ordinary ownership alone admits Store leaves; container, shared and capture
+/// callers retain `supported` and never inherit this qualification.
+pub(crate) fn owned_supported(ty: &Type) -> bool {
+    shape(ty, true)
+}
+
+fn shape(ty: &Type, stores: bool) -> bool {
     let Type::Package { name, fields } = ty else {
         return false;
     };
@@ -22,14 +32,34 @@ pub(crate) fn supported(ty: &Type) -> bool {
             !name.is_empty()
                 && (field.is_copy_value()
                     || matches!(field, Type::Managed(payload)
-                        if **payload == Type::ByteBuffer
+                        if (stores && dynamic_store::is_carrier(field))
+                            || **payload == Type::ByteBuffer
                             || (matches!(payload.as_ref(), Type::Record { .. })
                                 && payload.is_copy_value()))
-                    || supported(field))
+                    || shape(field, stores))
         })
 }
 
 pub(crate) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, span: Span) -> R<()> {
+    validate_shape(ty, remaining, depth_limit, span, false)
+}
+
+pub(crate) fn validate_owned(
+    ty: &Type,
+    remaining: &mut usize,
+    depth_limit: usize,
+    span: Span,
+) -> R<()> {
+    validate_shape(ty, remaining, depth_limit, span, true)
+}
+
+fn validate_shape(
+    ty: &Type,
+    remaining: &mut usize,
+    depth_limit: usize,
+    span: Span,
+    stores: bool,
+) -> R<()> {
     let work = inference::type_snapshot_work(
         ty,
         span,
@@ -40,10 +70,14 @@ pub(crate) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, spa
         },
     )?;
     *remaining -= work;
-    if !supported(ty) {
+    if !shape(ty, stores) {
         return Err(unsupported(
             span,
-            "ordinary Package Product requires complete children, finite Copy fields and explicit Managed ByteBuffer or user-resource leaves",
+            if stores {
+                "ordinary Package Product requires complete children, finite Copy fields and explicit supported Managed leaves"
+            } else {
+                "ordinary Package Product requires complete children, finite Copy fields and explicit Managed ByteBuffer or user-resource leaves"
+            },
         ));
     }
     fn names(ty: &Type, remaining: &mut usize, span: Span) -> R<()> {
