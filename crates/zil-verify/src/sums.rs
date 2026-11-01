@@ -159,7 +159,7 @@ pub(super) fn check_instruction(
     budget: &mut Budget,
 ) -> Check<Option<Type>> {
     let span = Some(i.span);
-    budget.sums = true;
+    budget.mark_sum(Some(f.id.0 as usize))?;
     match &i.kind {
         InstructionKind::VariantTagLocal { local, path }
         | InstructionKind::ReadVariantLocal { local, path } => {
@@ -235,6 +235,8 @@ pub(super) fn check_instruction(
 enum Source {
     Fresh,
     Input(u32, Vec<u32>),
+    ReturnedFresh,
+    ReturnedInput(u32, Vec<u32>),
     Unknown,
 }
 
@@ -254,7 +256,7 @@ impl Content {
             Self::Leaf(sources) => {
                 budget.spend(sources.len())?;
                 for source in sources {
-                    if let Source::Input(_, path) = source {
+                    if let Source::Input(_, path) | Source::ReturnedInput(_, path) = source {
                         budget.spend(path.len())?;
                     }
                 }
@@ -336,6 +338,37 @@ impl Content {
             _ => 2,
         }
     }
+    /// Ordinary Value results have no per-leaf create contract (§8.1.1).
+    /// Keep their actual roots/routes, but never retain fresh authority.
+    fn returned(&mut self, budget: &mut Budget) -> Check<()> {
+        self.cost(budget)?;
+        match self {
+            Self::Leaf(sources) => {
+                *sources = sources
+                    .iter()
+                    .map(|source| match source {
+                        Source::Fresh => Source::ReturnedFresh,
+                        Source::Input(p, path) => Source::ReturnedInput(*p, path.clone()),
+                        source => source.clone(),
+                    })
+                    .collect();
+            }
+            Self::Product(fields) => {
+                for field in fields {
+                    field.returned(budget)?;
+                }
+            }
+            Self::Sum(variants, _) => {
+                for fields in variants.values_mut() {
+                    for field in fields {
+                        field.returned(budget)?;
+                    }
+                }
+            }
+            Self::Copy => {}
+        }
+        Ok(())
+    }
 }
 
 fn content(
@@ -363,6 +396,9 @@ fn content(
             Content::Product(children)
         }
         Type::Enum { variants, .. } => {
+            if bottom {
+                return Ok(Content::Sum(BTreeMap::new(), None));
+            }
             budget.spend(variants.len())?;
             let mut alternatives = BTreeMap::new();
             for (variant, (_, fields)) in variants.iter().enumerate() {
@@ -380,6 +416,9 @@ fn content(
             Content::Sum(alternatives, parameter.map(|p| (p, path.clone())))
         }
         Type::ErrorUnion { error, result } => {
+            if bottom {
+                return Ok(Content::Sum(BTreeMap::new(), None));
+            }
             budget.spend(2)?;
             let mut alternatives = BTreeMap::new();
             for (variant, ty) in [(0, error.as_ref()), (1, result.as_ref())] {
@@ -401,8 +440,8 @@ type Fact = (LocalId, Prefix, u32);
 #[derive(Clone, PartialEq, Eq)]
 struct State {
     initialized: Vec<u8>, // 1 vacant, 2 initialized; join is may-union.
-    locals: Vec<Content>,
-    values: Vec<Content>,
+    locals: Vec<Arc<Content>>,
+    values: Vec<Arc<Content>>,
     facts: BTreeSet<Fact>,
     observations: BTreeSet<ValueId>,
 }
@@ -417,9 +456,6 @@ impl State {
                 .saturating_add(self.observations.len())
                 .saturating_add(self.facts.len()),
         )?;
-        for c in self.locals.iter().chain(&self.values) {
-            c.cost(budget)?;
-        }
         for (_, path, _) in &self.facts {
             budget.spend(path.len())?;
         }
@@ -443,7 +479,12 @@ impl State {
             .zip(&other.locals)
             .chain(self.values.iter_mut().zip(&other.values))
         {
-            changed |= a.merge(b, budget)?;
+            if !Arc::ptr_eq(a, b) {
+                if Arc::strong_count(a) > 1 {
+                    a.cost(budget)?;
+                }
+                changed |= Arc::make_mut(a).merge(b, budget)?;
+            }
         }
         let old = self.facts.len();
         self.facts.retain(|f| other.facts.contains(f));
@@ -459,11 +500,13 @@ impl State {
 pub(super) struct Proofs {
     pub(super) rows: Vec<Vec<Vec<Bridge>>>,
 }
+type FieldFresh = Vec<(usize, u8)>;
+type UnpackedFresh = (LocalId, u8, FieldFresh);
 #[derive(Clone, Default)]
 pub(super) struct Bridge {
     pub(super) result: Option<u8>,
-    pub(super) package: Vec<(usize, u8)>,
-    pub(super) unpack: Vec<(LocalId, u8, Vec<(usize, u8)>)>,
+    pub(super) package: FieldFresh,
+    pub(super) unpack: Vec<UnpackedFresh>,
 }
 
 fn direct_fields(value: &Content, budget: &mut Budget) -> Check<Vec<(usize, u8)>> {
@@ -499,6 +542,7 @@ impl Flow<'_> {
         });
         Ok(())
     }
+    #[allow(clippy::too_many_arguments)]
     fn selected<'a>(
         &self,
         state: &'a State,
@@ -509,7 +553,7 @@ impl Flow<'_> {
         span: Span,
         budget: &mut Budget,
     ) -> Check<&'a Content> {
-        let mut current = &state.locals[local.0 as usize];
+        let mut current = state.locals[local.0 as usize].as_ref();
         let mut prefix = Vec::new();
         budget.spend(path.len().saturating_mul(path.len().saturating_add(2)))?;
         if validate && state.initialized[local.0 as usize] != 2 {
@@ -543,6 +587,7 @@ impl Flow<'_> {
         }
         Ok(current)
     }
+    #[allow(clippy::too_many_arguments)]
     fn require_tag(
         &self,
         state: &State,
@@ -630,9 +675,11 @@ impl Flow<'_> {
                 let mut result = BTreeSet::new();
                 for source in sources {
                     match source {
-                        Source::Input(parameter, path) => {
+                        Source::Input(parameter, path) | Source::ReturnedInput(parameter, path) => {
+                            let returned = matches!(source, Source::ReturnedInput(..));
                             budget.spend(path.len().saturating_add(1))?;
-                            let mut source = &state.values[args[*parameter as usize].0 as usize];
+                            let mut source =
+                                state.values[args[*parameter as usize].0 as usize].as_ref();
                             let mut cursor = 0;
                             while cursor < path.len() {
                                 match (path[cursor], source) {
@@ -653,7 +700,19 @@ impl Flow<'_> {
                             if cursor == path.len() {
                                 if let Content::Leaf(origins) = source {
                                     budget.spend(origins.len())?;
-                                    result.extend(origins.iter().cloned());
+                                    result.extend(origins.iter().map(|origin| {
+                                        if returned {
+                                            match origin {
+                                                Source::Fresh => Source::ReturnedFresh,
+                                                Source::Input(p, path) => {
+                                                    Source::ReturnedInput(*p, path.clone())
+                                                }
+                                                source => source.clone(),
+                                            }
+                                        } else {
+                                            origin.clone()
+                                        }
+                                    }));
                                 } else {
                                     result.insert(Source::Unknown);
                                 }
@@ -676,7 +735,7 @@ impl Flow<'_> {
             ),
             Content::Sum(_, Some((parameter, path))) => {
                 budget.spend(path.len().saturating_add(1))?;
-                let mut actual = &state.values[args[*parameter as usize].0 as usize];
+                let mut actual = state.values[args[*parameter as usize].0 as usize].as_ref();
                 let mut cursor = 0;
                 while cursor < path.len() {
                     match (path[cursor], actual) {
@@ -729,9 +788,12 @@ impl Flow<'_> {
         block: usize,
         state: &mut State,
         validate: bool,
+        record: bool,
         budget: &mut Budget,
     ) -> Check<Vec<Bridge>> {
-        budget.spend(self.f.blocks[block].instructions.len())?;
+        if record {
+            budget.spend(self.f.blocks[block].instructions.len())?;
+        }
         let mut bridges = Vec::new();
         for instruction in &self.f.blocks[block].instructions {
             budget.spend(1)?;
@@ -775,16 +837,16 @@ impl Flow<'_> {
                     ))
                 }
                 InstructionKind::TakeErrorUnion { value, is_error } => {
-                    if let Content::Sum(variants, _) = &state.values[value.0 as usize] {
-                        if let Some(fields) = variants.get(&(if *is_error { 0 } else { 1 })) {
-                            result = Some(fields[0].duplicate(budget)?);
-                        }
+                    if let Content::Sum(variants, _) = state.values[value.0 as usize].as_ref()
+                        && let Some(fields) = variants.get(&(if *is_error { 0 } else { 1 }))
+                    {
+                        result = Some(fields[0].duplicate(budget)?);
                     }
                 }
                 InstructionKind::Store { local, value } => {
                     self.kill(state, *local, budget)?;
-                    state.locals[local.0 as usize] =
-                        state.values[value.0 as usize].duplicate(budget)?;
+                    budget.spend(1)?;
+                    state.locals[local.0 as usize] = state.values[value.0 as usize].clone();
                     state.initialized[local.0 as usize] = 2;
                 }
                 InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
@@ -796,7 +858,7 @@ impl Flow<'_> {
                 }
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::ReadPackageField { local, index } => {
-                    if let Content::Product(fields) = &state.locals[local.0 as usize] {
+                    if let Content::Product(fields) = state.locals[local.0 as usize].as_ref() {
                         result = Some(fields[*index as usize].duplicate(budget)?);
                     }
                     self.kill(state, *local, budget)?;
@@ -807,7 +869,12 @@ impl Flow<'_> {
                     value,
                 } => {
                     self.kill(state, *local, budget)?;
-                    if let Content::Product(fields) = &mut state.locals[local.0 as usize] {
+                    if Arc::strong_count(&state.locals[local.0 as usize]) > 1 {
+                        state.locals[local.0 as usize].cost(budget)?;
+                    }
+                    if let Content::Product(fields) =
+                        Arc::make_mut(&mut state.locals[local.0 as usize])
+                    {
                         fields[*index as usize] =
                             state.values[value.0 as usize].duplicate(budget)?;
                     }
@@ -851,7 +918,7 @@ impl Flow<'_> {
                             "every Unpack destination must be vacant on every incoming path before the atomic transfer",
                         ));
                     }
-                    let payload = match &state.locals[local.0 as usize] {
+                    let payload = match state.locals[local.0 as usize].as_ref() {
                         Content::Sum(variants, _) => variants.get(variant),
                         _ => None,
                     };
@@ -873,10 +940,14 @@ impl Flow<'_> {
                     state.initialized[local.0 as usize] = 1;
                     for (&target, value) in fields.iter().zip(prepared) {
                         self.kill(state, target, budget)?;
-                        bridge
-                            .unpack
-                            .push((target, value.fresh(), direct_fields(&value, budget)?));
-                        state.locals[target.0 as usize] = value;
+                        if record {
+                            bridge.unpack.push((
+                                target,
+                                value.fresh(),
+                                direct_fields(&value, budget)?,
+                            ));
+                        }
+                        state.locals[target.0 as usize] = Arc::new(value);
                         state.initialized[target.0 as usize] = 2;
                     }
                 }
@@ -895,12 +966,23 @@ impl Flow<'_> {
                     function,
                     arguments,
                 } => {
-                    result = Some(self.instantiate(
+                    let mut returned = self.instantiate(
                         &self.summaries[function.0 as usize],
                         arguments,
                         state,
                         budget,
-                    )?);
+                    )?;
+                    returned.returned(budget)?;
+                    if self.module.functions[function.0 as usize].result_mode == PassingMode::Create
+                        && errors::managed_success(
+                            &self.module.functions[function.0 as usize].return_type,
+                        )
+                        && let Content::Sum(variants, _) = &mut returned
+                        && let Some(fields) = variants.get_mut(&1)
+                    {
+                        fields[0] = Content::Leaf(BTreeSet::from([Source::Fresh]));
+                    }
+                    result = Some(returned);
                     if matches!(
                         self.f
                             .values
@@ -926,11 +1008,15 @@ impl Flow<'_> {
                         budget,
                     )?
                 };
-                bridge.result = matches!(value, Content::Leaf(_)).then(|| value.fresh());
-                bridge.package = direct_fields(&value, budget)?;
-                state.values[output.0 as usize] = value;
+                if record {
+                    bridge.result = matches!(value, Content::Leaf(_)).then(|| value.fresh());
+                    bridge.package = direct_fields(&value, budget)?;
+                }
+                state.values[output.0 as usize] = Arc::new(value);
             }
-            bridges.push(bridge);
+            if record {
+                bridges.push(bridge);
+            }
         }
         Ok(bridges)
     }
@@ -953,10 +1039,16 @@ fn run(
             .saturating_add(f.blocks.len().saturating_mul(3)),
     )?;
     for local in &f.locals {
-        locals.push(content(&local.ty, None, &mut Vec::new(), false, budget)?);
+        locals.push(Arc::new(content(
+            &local.ty,
+            None,
+            &mut Vec::new(),
+            true,
+            budget,
+        )?));
     }
     for ty in &f.values {
-        values.push(content(ty, None, &mut Vec::new(), false, budget)?);
+        values.push(Arc::new(content(ty, None, &mut Vec::new(), true, budget)?));
     }
     let mut state = State {
         initialized: vec![1; f.locals.len()],
@@ -967,13 +1059,13 @@ fn run(
     };
     for (index, local) in f.parameters.iter().enumerate() {
         state.initialized[local.0 as usize] = 2;
-        state.locals[local.0 as usize] = content(
+        state.locals[local.0 as usize] = Arc::new(content(
             &f.locals[local.0 as usize].ty,
             Some(index as u32),
             &mut Vec::new(),
             false,
             budget,
-        )?;
+        )?);
     }
     let mut definitions = vec![None; f.values.len()];
     let mut observers = vec![None; f.values.len()];
@@ -1005,7 +1097,7 @@ fn run(
     while let Some(block) = pending.pop_front() {
         queued[block] = false;
         let mut output = inputs[block].as_ref().unwrap().duplicate(budget)?;
-        flow.block(block, &mut output, false, budget)?;
+        flow.block(block, &mut output, false, false, budget)?;
         for &next in &graph.successors[block] {
             let mut edge = output.duplicate(budget)?;
             flow.edge(&mut edge, block, next, budget)?;
@@ -1025,7 +1117,7 @@ fn run(
     let mut rows = vec![Vec::new(); f.blocks.len()];
     for (block, input) in inputs.into_iter().enumerate() {
         if let Some(mut state) = input {
-            rows[block] = flow.block(block, &mut state, validate, budget)?;
+            rows[block] = flow.block(block, &mut state, validate, validate, budget)?;
             if let Terminator::Return(Some(value)) = f.blocks[block].terminator {
                 result.merge(&state.values[value.0 as usize], budget)?;
             }
@@ -1053,22 +1145,93 @@ pub(super) fn check_module(
             budget,
         )?);
     }
-    loop {
-        let mut changed = false;
-        for (index, f) in module.functions.iter().enumerate() {
-            if f.foreign.is_some() {
-                continue;
-            }
-            let (result, _) = run(module, f, &graphs[index], &summaries, false, budget)?;
-            changed |= summaries[index].merge(&result, budget)?;
+    let count = module.functions.len();
+    for f in &module.functions {
+        resources::charge_payload(&f.return_type, budget)?;
+    }
+    budget.spend(count.saturating_mul(6))?;
+    let needed = module
+        .functions
+        .iter()
+        .map(|f| {
+            f.foreign.is_none()
+                && (matches!(f.return_type, Type::Managed(_) | Type::Package { .. })
+                    || owned(&f.return_type))
+        })
+        .collect::<Vec<_>>();
+    let mut users = vec![BTreeSet::new(); count];
+    let mut callees = vec![BTreeSet::new(); count];
+    for (index, f) in module.functions.iter().enumerate() {
+        if !needed[index] {
+            continue;
         }
-        if !changed {
-            break;
+        for block in &f.blocks {
+            for instruction in &block.instructions {
+                budget.spend(1)?;
+                if let InstructionKind::Call { function, .. } = instruction.kind {
+                    let callee = function.0 as usize;
+                    if needed[callee] {
+                        budget.spend(
+                            users[callee]
+                                .len()
+                                .saturating_add(callees[index].len())
+                                .saturating_add(2),
+                        )?;
+                        users[callee].insert(index);
+                        callees[index].insert(callee);
+                    }
+                }
+            }
+        }
+    }
+    let mut visited = vec![0u8; count];
+    let mut order = VecDeque::new();
+    for index in 0..count {
+        if !needed[index] || visited[index] != 0 {
+            continue;
+        }
+        let mut stack = vec![(index, false)];
+        while let Some((node, finish)) = stack.pop() {
+            budget.spend(1)?;
+            if finish {
+                visited[node] = 2;
+                order.push_back(node);
+            } else if visited[node] == 0 {
+                visited[node] = 1;
+                budget.spend(callees[node].len().saturating_add(1))?;
+                stack.push((node, true));
+                for &callee in &callees[node] {
+                    if visited[callee] == 0 {
+                        stack.push((callee, false));
+                    }
+                }
+            }
+        }
+    }
+    let mut queued = needed.clone();
+    while let Some(index) = order.pop_front() {
+        queued[index] = false;
+        let (result, _) = run(
+            module,
+            &module.functions[index],
+            &graphs[index],
+            &summaries,
+            false,
+            budget,
+        )?;
+        if summaries[index].merge(&result, budget)? {
+            budget.spend(users[index].len())?;
+            for &user in &users[index] {
+                if !queued[user] {
+                    queued[user] = true;
+                    order.push_back(user);
+                }
+            }
         }
     }
     let mut rows = Vec::new();
     for (index, f) in module.functions.iter().enumerate() {
-        rows.push(if f.foreign.is_some() {
+        rows.push(if f.foreign.is_some() || !budget.sum_function(f.id) {
             Vec::new()
         } else {
             run(module, f, &graphs[index], &summaries, true, budget)?.1
