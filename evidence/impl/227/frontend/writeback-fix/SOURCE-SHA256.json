@@ -1,0 +1,117 @@
+{
+  "captured_at_utc": "2026-11-01T18:26:10.959872+00:00",
+  "checkout_head": "fa184f94f8d9b4ca695cd467f6d507767af8db10",
+  "implementation_commit": null,
+  "files": [
+    {
+      "path": "crates/zil-driver/src/ct_program.rs",
+      "sha256": "6e55f9487ea3cff38358da3ac5db7a26ae1b369264f0f872eb847865cde6a3b1",
+      "bytes": 61922
+    },
+    {
+      "path": "crates/zil-driver/tests/impl202_independent.rs",
+      "sha256": "5fea58f227c356587aedfb240ef5a692571df53768fbc906f95dff18aa36f1c9",
+      "bytes": 47843
+    },
+    {
+      "path": "crates/zil-driver/tests/impl203_independent.rs",
+      "sha256": "401411adcf956fbb9866928bf39427ff5acadf3c5a4ddc8af3e0003fb86690ad",
+      "bytes": 77385
+    },
+    {
+      "path": "crates/zil-driver/tests/impl227_defer.rs",
+      "sha256": "8b0ae31661993e2e3e1843b0319481596765082d5e926be35707f474fed42959",
+      "bytes": 12332
+    },
+    {
+      "path": "crates/zil-driver/tests/impl227_machine.rs",
+      "sha256": "89f5bfc79a8336e22f73b6c46a78a6f51d666c2487aad6414d8c6f3c57df0ad9",
+      "bytes": 5301
+    },
+    {
+      "path": "crates/zil-expand/src/lib.rs",
+      "sha256": "fecedc067ad783cf1a0972574bd0a263bf93331186e5e3f21e47931480782721",
+      "bytes": 50741
+    },
+    {
+      "path": "crates/zil-types/src/aggregates.rs",
+      "sha256": "0f945f70f74c333ed4c519821bd1cfb3e31631909388697c1ce676b82997be99",
+      "bytes": 70161
+    },
+    {
+      "path": "crates/zil-types/src/callable_fields.rs",
+      "sha256": "3161ddf9b9d59c72e764e592cd7a1eb38d40e7f2df481055d85b8d254e04d7f3",
+      "bytes": 16813
+    },
+    {
+      "path": "crates/zil-types/src/closures.rs",
+      "sha256": "89fe86a61d0d021cc4eb96045060305366a84e0e599d16c2f1407e6698afb020",
+      "bytes": 130649
+    },
+    {
+      "path": "crates/zil-types/src/closures/package_effects.rs",
+      "sha256": "82a2c6ed02f448f49c9f6125b6fe0892dd3fde6cfc5b9a6f916154c03ddd30dd",
+      "bytes": 30851
+    },
+    {
+      "path": "crates/zil-types/src/deferred.rs",
+      "sha256": "1508a116fb49813ea386970b12f509133bf5efca462a4ba5e017fe35b1a9da1c",
+      "bytes": 10107
+    },
+    {
+      "path": "crates/zil-types/src/helper_plan.rs",
+      "sha256": "4a1f813e812fcea74ae356a41e3a940a2f01715fb21e8c7f802194872fb30500",
+      "bytes": 50582
+    },
+    {
+      "path": "crates/zil-types/src/inference.rs",
+      "sha256": "02735b2dbe9179a356e91336c9641f12e4d77c9ae0d621065754f9efc7471eaf",
+      "bytes": 169790
+    },
+    {
+      "path": "crates/zil-types/src/lib.rs",
+      "sha256": "999a1569999014ea7bfff8d5ebde9ef1f4b04881853a1c6c2bdd6d88ecbc0b3c",
+      "bytes": 116322
+    },
+    {
+      "path": "crates/zil-types/src/managed_slots.rs",
+      "sha256": "1f89b1378e58d611363e0f15fd1033ded9882d21cab57437e525fd1ced3cd074",
+      "bytes": 20178
+    },
+    {
+      "path": "crates/zil-types/src/names.rs",
+      "sha256": "0d8016f697b41cf6200b804b6734809db4ce548ef5f51c0bda919e82d050a7a8",
+      "bytes": 13464
+    },
+    {
+      "path": "crates/zil-types/src/resource_effects.rs",
+      "sha256": "b73331d49aa66c5218abf7b0d610ce8901b42ae42c412ac9c30a2b8b9d7f1106",
+      "bytes": 32560
+    },
+    {
+      "path": "crates/zil-types/src/resources.rs",
+      "sha256": "63f57b88a118640a2332f54899642986998cb799352b558f684ef5ae6daa8835",
+      "bytes": 9182
+    },
+    {
+      "path": "crates/zil-types/src/retained.rs",
+      "sha256": "7c253c8ca7f4e1d10bdb21888d52def9a35819fd6ead3e17b54115e9e72a76de",
+      "bytes": 21590
+    },
+    {
+      "path": "crates/zil-types/src/scalar_shapes.rs",
+      "sha256": "6d6e590383778a7230b6ca6ba2ccce8dd62a6e9167abfd638c627cf7bdde3f41",
+      "bytes": 18700
+    },
+    {
+      "path": "crates/zil-types/src/state_origins.rs",
+      "sha256": "504f031db807d6380c39c271bbe996fbe7f9e5a6f904cbb170b7f5d1edeb1f7c",
+      "bytes": 96251
+    },
+    {
+      "path": "crates/zil-types/src/store_templates.rs",
+      "sha256": "510ffe52093d7919e36bab3ccaf4bf0cff4bc6874df02026fa86d41b8e87eddb",
+      "bytes": 29989
+    }
+  ]
+}

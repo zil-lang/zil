@@ -1,0 +1,167 @@
+[
+  {
+    "path": "238-root-generic-joint/RESULT.json",
+    "bytes": 2697,
+    "sha256": "69698573e2091097b56d50b377c995eb004b94799c00b2fbabcdc89f7d49c43f"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_explicit-O0/command.json",
+    "bytes": 347,
+    "sha256": "f215ab0daea9ce1a85c47ff1f3e91588634e29d424b821354186abd61b9f79dd"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_explicit-O0/compile.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_explicit-O0/compile.stderr",
+    "bytes": 155,
+    "sha256": "1d244b75292a73d144cc0fd733709c9ec4e11ab896cf13e5ddf03a5e8942d7fe"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_explicit-O0/source.zil",
+    "bytes": 1186,
+    "sha256": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_explicit-O2/command.json",
+    "bytes": 347,
+    "sha256": "3d54e89588e333f058f4ad84a38e2520a6a1b837b70bfafc323677f3e680f639"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_explicit-O2/compile.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_explicit-O2/compile.stderr",
+    "bytes": 155,
+    "sha256": "1d244b75292a73d144cc0fd733709c9ec4e11ab896cf13e5ddf03a5e8942d7fe"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_explicit-O2/source.zil",
+    "bytes": 1186,
+    "sha256": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_implicit-O0/command.json",
+    "bytes": 347,
+    "sha256": "556b4675d235fdd34b090dc500ec2f515a3fcbe0cce2abe20820ee1c88cdcb15"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_implicit-O0/compile.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_implicit-O0/compile.stderr",
+    "bytes": 155,
+    "sha256": "1d244b75292a73d144cc0fd733709c9ec4e11ab896cf13e5ddf03a5e8942d7fe"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_implicit-O0/source.zil",
+    "bytes": 1175,
+    "sha256": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_implicit-O2/command.json",
+    "bytes": 347,
+    "sha256": "43b3edb8b070dba78b05d4de072af075bbce29944cf09026bc2f27f6189f23f8"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_implicit-O2/compile.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_implicit-O2/compile.stderr",
+    "bytes": 155,
+    "sha256": "1d244b75292a73d144cc0fd733709c9ec4e11ab896cf13e5ddf03a5e8942d7fe"
+  },
+  {
+    "path": "238-root-generic-joint/root_f_helper_implicit-O2/source.zil",
+    "bytes": 1175,
+    "sha256": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_explicit-O0/command.json",
+    "bytes": 338,
+    "sha256": "d5e4e764670cc5c01408c3a829e2663463328b0e6a23f467c9e7018ede5007d0"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_explicit-O0/compile.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_explicit-O0/compile.stderr",
+    "bytes": 155,
+    "sha256": "1d244b75292a73d144cc0fd733709c9ec4e11ab896cf13e5ddf03a5e8942d7fe"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_explicit-O0/source.zil",
+    "bytes": 576,
+    "sha256": "b12640fe92b1841fbab4dea89cfa5fcbca5b1ab5c3cad484327194dc3e24b834"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_explicit-O2/command.json",
+    "bytes": 338,
+    "sha256": "b14fb80b266a636ab9b8b7ea1a7a4f5fe1fa4d74244f1b8a9139114ea9d64ac8"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_explicit-O2/compile.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_explicit-O2/compile.stderr",
+    "bytes": 155,
+    "sha256": "1d244b75292a73d144cc0fd733709c9ec4e11ab896cf13e5ddf03a5e8942d7fe"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_explicit-O2/source.zil",
+    "bytes": 576,
+    "sha256": "b12640fe92b1841fbab4dea89cfa5fcbca5b1ab5c3cad484327194dc3e24b834"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_implicit-O0/command.json",
+    "bytes": 338,
+    "sha256": "f8afbbfc6660db5da3a268fe4412dd24f1f7e0171ec533202ee9799588609d80"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_implicit-O0/compile.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_implicit-O0/compile.stderr",
+    "bytes": 155,
+    "sha256": "1d244b75292a73d144cc0fd733709c9ec4e11ab896cf13e5ddf03a5e8942d7fe"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_implicit-O0/source.zil",
+    "bytes": 568,
+    "sha256": "316a0e08a8d7cb51c2594a278ff3d89fbcff95669da9e9cbb5bad578d00895ec"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_implicit-O2/command.json",
+    "bytes": 338,
+    "sha256": "426d46da8d2c0e686d27aa86f5faf6609b13a8a9640bbf862f097cb8cfbe186f"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_implicit-O2/compile.json",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_implicit-O2/compile.stderr",
+    "bytes": 155,
+    "sha256": "1d244b75292a73d144cc0fd733709c9ec4e11ab896cf13e5ddf03a5e8942d7fe"
+  },
+  {
+    "path": "238-root-generic-joint/root_plain_implicit-O2/source.zil",
+    "bytes": 568,
+    "sha256": "316a0e08a8d7cb51c2594a278ff3d89fbcff95669da9e9cbb5bad578d00895ec"
+  }
+]

@@ -1,0 +1,88 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "implementation_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "source_execution_commit": "42c247be845212b624413a1791eb4f7ab3b8dc75",
+  "verdict": "Pass",
+  "schema_version": 29,
+  "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+  "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854",
+  "evidence_reuse": "42→P: only unrelated review238 assertion changed; see ../237/integration42-execution.json and WORKFLOW §6. No duplicate execution counted.",
+  "shared_execution_report": "../237/integration42-execution.json",
+  "shared_raw_archive": "../237/integration42-artifacts.tar.gz",
+  "aggregate_selected_executed": {
+    "selected": 74,
+    "passed": 74,
+    "failed": 0,
+    "ignored": 0,
+    "note": "Single joint scoped run. Per-card suites overlap; do not sum receipt counts."
+  },
+  "limitations": [
+    "Finite Linux synchronous language profiles only; no full ZIL 1.4, ZUI/product gate, async/unwind, native Windows or Rust parity conclusion.",
+    "Reviewer did not run the full workspace. Root integration remains a separate execution."
+  ],
+  "rust_goals_reflection": {
+    "safety": "Finite source/raw/Wire contracts checked; private template facts do not replace independent actual-resource verification.",
+    "runtime_memory": "LLVM builder O0/O2 and actual allocator failures with live0; no hidden Box/RC/lock introduced. This is not a Rust runtime/RSS comparison.",
+    "expression_maintenance": "Original Product wrapper and ALQZ sources execute without source workarounds; full framework maintenance advantage remains unmeasured.",
+    "compile_cost": "Growth prepaid and exact N/N−1/fresh boundaries checked, legacy controls retained, default limits unchanged; no compile-performance win claimed.",
+    "product_breakthrough": "Not established; finite executable composition is an engineering increment only."
+  },
+  "implementation_author": "/root/impl_product_store235",
+  "record_kind": "schema29 supplemental acceptance; historical edb bounded receipt unchanged",
+  "prior_review": {
+    "implementation_commit": "edb044089592ff73832040ed52057f78eb9b419b",
+    "receipt": "review.json",
+    "preserved": true
+  },
+  "scope": "Ordinary complete Product ownership of existing legal Store elements under schema29; historical retained-wrapper gap now separately fulfilled by 237, without rewriting the old bounded Pass.",
+  "production_delta": [
+    "Concrete Product Store Types/Analyze/Verify qualification, origin handling and machine ownership paths unchanged from edb.",
+    "237 supplies exact generic family/actual/owner facts and instantiation, now allowing the preserved original 235 Success obligation.",
+    "227 adds separate RegisterDefer validation and schema migration; 238 preserves stable shells in supported ordinary replacement lowering. Neither opens capture/shared/container/element permission."
+  ],
+  "current_suites": {
+    "review235_contracts": 7,
+    "impl235_machine": 1,
+    "impl235_budget": 2
+  },
+  "original_open_obligation": {
+    "status": "Fixed by 237; original source Success expectation retained and now actually passes Types/Analyze/Verify plus LLVM API O0/O2 stdout AZ",
+    "source_sha256": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d",
+    "success_also_independently_rechecked": "review237 original fixture"
+  },
+  "coverage": [
+    "Unused-only canonical Store metadata rejected when absent/aliased/wrong/duplicated/teardown-forged, through independent raw/Wire.",
+    "Same-typed Created/Incoming Store leaves remain distinct across child transfer; forged source rejected.",
+    "Actual header description window, complete child transfer and live initialization prefixes preserve ownership and cleanup.",
+    "Closed capture/shared/array/Sum/nested-element boundaries retain earlier acceptance classes."
+  ],
+  "native": {
+    "own235_source_runs": 6,
+    "allocator_probes": 18,
+    "real_failures": 14,
+    "all_probes_live": 0,
+    "backend": "LLVM API builder",
+    "optimizations": [
+      "O0",
+      "O2"
+    ]
+  },
+  "budget": {
+    "legacy": [
+      835,
+      7129,
+      12161
+    ],
+    "nested": [
+      3943,
+      82079,
+      173575
+    ],
+    "order": [
+      "Types",
+      "Analyze",
+      "Verify"
+    ],
+    "checks": "Same source N/N−1 ResourceLimit/fresh N; matches edb minima"
+  }
+}

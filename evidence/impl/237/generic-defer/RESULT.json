@@ -1,0 +1,85 @@
+{
+  "task": "227/237 interaction",
+  "status": "Expand implementation and limited tests complete; original joint native obligation awaits common candidate including238",
+  "source_identity": "Uncommitted source file hashes; root owns checkpoint and final shared SHA",
+  "files_sha256": {
+    "crates/zil-expand/src/generic_check.rs": "027627e424eb7b1c0bc00a1a5f5ed38739bdf657a253a27f5f5a6831c3ebe6be",
+    "crates/zil-expand/src/generic_defer.rs": "51b879f6841ae8d110ed64e79fd3d37004a24c2445a375fa0ea2a2e5d806e526",
+    "crates/zil-expand/tests/impl227_generic_defer.rs": "d805af6c8fea35c58f53acbc3400bbdd34f3e82da8bef3aebef62bb2a24dfcf9",
+    "crates/zil-driver/tests/impl237_generic_defer.rs": "37d3b58489052064ad68e2366a9561c505f2803bd398da28a1c78c4c898f14ca",
+    "crates/zil-driver/tests/impl237_fixtures/defer_f_implicit.zil": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9",
+    "crates/zil-driver/tests/impl237_fixtures/defer_f_explicit.zil": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295"
+  },
+  "original_sources": [
+    {
+      "mode": "implicit",
+      "original": "/workspace/zil-238/evidence/impl/238/generic-probes/root_f_helper_implicit.zil",
+      "sha256": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9",
+      "fixture_byte_equal": true,
+      "expected_stdout": "ALQZ",
+      "expected_exit": 0
+    },
+    {
+      "mode": "explicit",
+      "original": "/workspace/zil-238/evidence/impl/238/generic-probes/root_f_helper_explicit.zil",
+      "sha256": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295",
+      "fixture_byte_equal": true,
+      "expected_stdout": "ALQZ",
+      "expected_exit": 0
+    }
+  ],
+  "changes": [
+    "ordinary generic Defer statement enters independent Unit cleanup boundary through existing symbolic checks",
+    "outward return/error propagation/loop control and nested defer rejected, own loops retain old checks",
+    "F declaration kind/mode preserved; source owning uses transferred at registration and pending generic borrows held to lexical block end",
+    "cleanup C scalar markers use existing declaration checks and explicit unsafe; outer generic FFI profile unchanged"
+  ],
+  "closed_qualification": "Types existing helper-local F/nested-environment and new State declaration source capture gates remain closed. No new generic capture profile or runtime opcode.",
+  "validation": [
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo check -p zil-expand",
+      "status": "Pass",
+      "log": "logs/237-generic-defer-check.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test -p zil-expand --test impl227_generic_defer --test impl202_store_templates --test impl203_state_bindings -- --nocapture",
+      "status": "Pass",
+      "new_tests": 3,
+      "old_202_tests": 17,
+      "old_203_tests": 15,
+      "new_work_N": 155,
+      "new_work_boundary": "N success, N-1 ResourceLimit, fresh N same Core",
+      "old_203_N": [
+        3993,
+        4386,
+        4249
+      ],
+      "log": "logs/237-generic-defer-expand-tests.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo clippy -p zil-expand --all-targets -- -D warnings",
+      "status": "Pass",
+      "log": "logs/237-generic-defer-clippy.log.gz"
+    }
+  ],
+  "joint_native_attempt": {
+    "status": "Blocked by missing238 dependency, not a new kernel defect",
+    "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/237-generic-defer-native cargo test -p zil-driver --features llvm-api --test impl237_generic_defer -- --nocapture",
+    "attempted_case": "implicit/O0",
+    "phase": "Analyze",
+    "code": "E-ANALYZE-IR",
+    "message": "defer: cleanup is not reverse successful construction/registration order",
+    "native_executions": 0,
+    "remaining_cases": "not reached after first failed attempt",
+    "raw_directory": "/tmp/237-generic-defer-native/author237-defer-implicit-O0-93197",
+    "log": "logs/237-generic-defer-native.log.gz",
+    "dependency_evidence": "DEPENDENCY.json",
+    "classification_correction": "Root identified that task237 lacked238 product_replacement.rs. Initial suspicion of a new mixed-age kernel defect was withdrawn; no kernel change made."
+  },
+  "not_run": [
+    "No full workspace suite",
+    "No236 source/oracle changes or execution repeat",
+    "Original ALQZ API O0/O2 still to run on common source including238"
+  ],
+  "rust_goals": "A missing ordinary cleanup entry is connected without changing default budgets, runtime opcodes or generic capture qualification. Limited symbolic tests do not establish full language/product/Rust cost comparison."
+}

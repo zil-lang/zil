@@ -202,7 +202,9 @@ impl Rewriter<'_> {
                     }
                 }
             }
-            CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => {
+            CoreStatementKind::Block(b)
+            | CoreStatementKind::Unsafe(b)
+            | CoreStatementKind::Defer(b) => {
                 if nested {
                     self.block(b, shadow, depth + 1)?
                 }
@@ -459,7 +461,9 @@ impl BindingScan {
                     self.scopes.pop();
                 }
             }
-            CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => self.block(b, d + 1)?,
+            CoreStatementKind::Block(b)
+            | CoreStatementKind::Unsafe(b)
+            | CoreStatementKind::Defer(b) => self.block(b, d + 1)?,
             CoreStatementKind::Break
             | CoreStatementKind::Continue
             | CoreStatementKind::Return(None)

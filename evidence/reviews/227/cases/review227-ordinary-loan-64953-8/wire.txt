@@ -1,0 +1,20 @@
+Err(
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-DEFER",
+            message: "registered action storage cannot be loaded, borrowed, described or called ordinarily",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 9,
+                    end: 18,
+                },
+            ),
+            notes: [],
+        },
+    ],
+)

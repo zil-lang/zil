@@ -1,0 +1,56 @@
+{
+  "status": "Fail",
+  "implementation_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-core CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/workspace/.zil-env/formal-language23/native cargo test --locked --workspace --no-fail-fast",
+  "setup": "source /workspace/.zil-env/env.sh",
+  "cwd": "/workspace/zil-core",
+  "exit_code": 101,
+  "clean_source_before_and_after": true,
+  "format_exit_code": 0,
+  "totals": {
+    "passed": 3425,
+    "failed": 11,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "result_groups": 376,
+  "nonempty_execution_groups": 359,
+  "failed_tests": [
+    "semantic_cache::tests::private_format_roundtrips_all_raw_program_fields_for_real_projects",
+    "bounded_ui_events_move_complete_packages_without_losing_field_descriptions",
+    "helper064_public_field_view_survives_two_calls_and_whole_package_move",
+    "captures077_refill_after_take_and_conditional_take_is_repeatable",
+    "captures079_complete_and_partial_env_exits_match_exact_fixed_cleanup_order",
+    "outer_package_refill_after_nested_move_keeps_fnmut",
+    "consuming_and_refilling_a_package_method_receiver_remains_fnmut",
+    "package_receiver_error_before_refill_is_once_and_keeps_unique_cleanup",
+    "whole_parent_overwrite_keeps_its_existing_unpaid_owner_gate",
+    "literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruptions",
+    "frozen_mutable_product_raw_and_wire_must_be_rejected"
+  ],
+  "classification": {
+    "cross_module_opaque_product_regressions": [
+      "semantic_cache::tests::private_format_roundtrips_all_raw_program_fields_for_real_projects",
+      "bounded_ui_events_move_complete_packages_without_losing_field_descriptions",
+      "helper064_public_field_view_survives_two_calls_and_whole_package_move"
+    ],
+    "capture_whole_move_refill_regressions": [
+      "captures077_refill_after_take_and_conditional_take_is_repeatable",
+      "captures079_complete_and_partial_env_exits_match_exact_fixed_cleanup_order",
+      "outer_package_refill_after_nested_move_keeps_fnmut",
+      "consuming_and_refilling_a_package_method_receiver_remains_fnmut",
+      "package_receiver_error_before_refill_is_once_and_keeps_unique_cleanup"
+    ],
+    "old_negative_promoted_by_frozen238_contract": [
+      "whole_parent_overwrite_keeps_its_existing_unpaid_owner_gate"
+    ],
+    "schema_fixture_migrations": [
+      "literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruptions",
+      "frozen_mutable_product_raw_and_wire_must_be_rejected"
+    ]
+  },
+  "workspace_log_sha256": "7b904ff2190552d45b62153a205dc0fac1d459dd0cf3ab865c4c066c58f8bb38",
+  "native_artifact_root": "/workspace/.zil-env/formal-language23/native",
+  "note": "Original full-workspace failure preserved. Scoped reviews and consumer Pass do not upgrade this run. Zero-test doc crates are not additional successful executions."
+}

@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "resource closure: SSA responsibility was already consumed or absent",
+        span: None,
+        notes: [],
+    },
+]

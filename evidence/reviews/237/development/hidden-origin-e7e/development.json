@@ -1,0 +1,25 @@
+{
+  "kind": "development-only-independent-counterexample",
+  "verdict": "not-a-final-review",
+  "production_commit": "e7e98934f0dbb7b462e7692ba30217aa105105c2",
+  "production_diff_at_run": "empty; only author/reviewer test files differed",
+  "valid_source": {
+    "explicit_and_bare": "both Success; LLVM API O0/O2 exit0",
+    "core_call": "both Expand normalized TypeApply<Item<F>>; no alleged source failure"
+  },
+  "raw_mutations": [
+    "remove only run Carrier application owner",
+    "replace only run Carrier application owner by pack with same-spelled F"
+  ],
+  "expected": "Types semantic rejection at public check/resolve_program_shapes/check_program and preparation downstream check",
+  "observed": "all three public checking entries returned Ok for each mutation; preparation downstream check also accepted",
+  "test_run": {
+    "selected": 2,
+    "pass": 0,
+    "fail": 2,
+    "filtered": 17,
+    "log": "review237-hidden-before02.log"
+  },
+  "invalid_native_executions": 0,
+  "harness_note": "review237_contracts.rs remains an evolving independent test file; no byte-identical final-harness identity is claimed for this development run. Original raw inputs and complete public results are preserved."
+}

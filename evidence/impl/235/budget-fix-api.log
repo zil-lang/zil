@@ -1,0 +1,61 @@
+   Compiling zil-analyze v0.1.0 (/workspace/zil-235/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/zil-235/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 5.99s
+     Running tests/impl206_budget.rs (/workspace/.zil-env/target-235/debug/deps/impl206_budget-9dbef93c347da278)
+
+running 2 tests
+old-flat: Types=418, Analyze=8673
+test old_flat_package_records_exact_phase_boundaries ... ok
+mixed: Types=753, Analyze=21120
+whole: Types=796, Analyze=27114
+wrappers: Types=752, Analyze=26951
+test new_product_leaf_tables_have_exact_fresh_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/impl206_verify.rs (/workspace/.zil-env/target-235/debug/deps/impl206_verify-cc86d461db71459a)
+
+running 5 tests
+test original_flat186_verify_boundary_stays_10398_without_product_leaf_table ... ok
+test unused_nested_metadata_has_no_source_or_candidate_exemption ... ok
+created: verify_work=27075
+test incoming_and_unknown_call_leaves_cannot_forge_create_with_a_candidate ... ok
+test exact_frozen_complete_products_reach_independent_raw_and_wire_verify ... ok
+two-whole-transfers: verify_work=33259
+three-wrappers: verify_work=31077
+test real_product_verify_work_has_exact_n_minus_one_and_fresh_boundaries ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/impl235_budget.rs (/workspace/.zil-env/target-235/debug/deps/impl235_budget-a4fea5dbbe58043b)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries_unchanged ... ok
+nested: types=3943,analyze=82079,verify=173575
+test ordinary_product_store_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests/impl235_machine.rs (/workspace/.zil-env/target-235/debug/deps/impl235_machine-c204c2b1e6f593e4)
+
+running 1 test
+test replacement_preparation_and_moved_child_failures_settle_actual_store_prefixes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/impl235_product_store.rs (/workspace/.zil-env/target-235/debug/deps/impl235_product_store-70c2e80add4d2727)
+
+running 9 tests
+test original206_inner_store_is_promoted_without_rewriting ... ok
+test raw_and_wire_rebuild_exact_store_definitions_for_new_products ... ok
+test new_owned_products_do_not_gain_other_shape_permissions ... ok
+test raw_and_wire_recover_the_actual_store_root_of_an_element_window ... ok
+test raw_and_wire_reject_duplicate_child_ssa ... ok
+test same_typed_store_leaves_keep_created_and_incoming_origins ... ok
+test partial_and_live_windows_reject_but_last_use_and_other_store_are_allowed ... ok
+test a_complete_taken_store_field_can_be_refilled_and_replaced ... ok
+test two_same_typed_stores_move_refill_and_drop_their_actual_prefixes ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+

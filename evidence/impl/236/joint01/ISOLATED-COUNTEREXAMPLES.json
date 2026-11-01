@@ -1,0 +1,45 @@
+{
+  "status": "Pass",
+  "scope": "Isolated ownership source counterexamples only",
+  "compiler_candidate_commit": "bf7b1de72ac1483bfa9364f7da946eed76ccf5f0",
+  "production_source_unmodified": true,
+  "test_source_sha256": "cf74ddf21291e71c240ebc6e58c3a4e8b57bf4c014ffaf4729a8b94c8dba46fb",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl236_zui_core",
+    "nearest_missing_refill_and_live_window_counterexamples",
+    "--",
+    "--exact",
+    "--test-threads=1"
+  ],
+  "exit_code": 0,
+  "tests_passed": 1,
+  "tests_failed": 0,
+  "tests_filtered_out": 2,
+  "valid_control_verification_runs": 1,
+  "missing_refill": {
+    "status": "SafeReject",
+    "phase": "analyze",
+    "code": "E-ANALYZE-IR",
+    "message": "resource closure: whole aggregate move requires every owned element or field live"
+  },
+  "live_window": {
+    "status": "SafeReject",
+    "phase": "analyze",
+    "code": "E-ANALYZE-IR",
+    "message": "captured Store transition invalidates a live element window"
+  },
+  "reason_for_harness_refinement": "The initial full entry has an unrelated defer/local-slot rejection. A positive no-defer entry establishes the ownership shape before checking exact invalidation reasons; changing expected source rejection phase does not promote an unrelated early error.",
+  "combined_positive_source_and_oracle_unchanged": true,
+  "combined_native_executions": 0,
+  "combined_allocator_executions": 0,
+  "combined_consumer": "Blocked by whole-Product local reinitialization; root assigns238",
+  "raw_directory": "/workspace/.zil-env/236-joint01/isolated-test-reports"
+}

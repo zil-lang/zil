@@ -1,0 +1,97 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "source_execution_commit": "42c247be845212b624413a1791eb4f7ab3b8dc75",
+  "accepted_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "schema_version": 29,
+  "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+  "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854",
+  "environment": {
+    "cwd": "/workspace/zil-core",
+    "setup": ". /workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-237",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "ZIL_TEST_REPORT_DIR": "/tmp/review-integration42",
+    "target": "x86_64-unknown-linux-gnu",
+    "driver_feature": "llvm-api",
+    "locked": true
+  },
+  "commands": [
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test review237_contracts --test review237_generic_defer --test review227_contracts --test review235_contracts --test impl237_machine --test impl237_budget --test impl227_machine --test impl235_machine --locked -- --nocapture",
+      "passed": 48,
+      "filtered": 0,
+      "log": "integration42-driver.log",
+      "exit_code": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "command": "cargo test -p zil-analyze -p zil-verify --lib defer_tests --locked -- --nocapture",
+      "passed": 22,
+      "filtered": 296,
+      "log": "integration42-kernel.log",
+      "selection": "11 defer raw/Wire tests in each independent kernel; other library tests excluded",
+      "exit_code": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl202_budget pre202_callback_store_paths_keep_their_recorded_types_boundaries --locked -- --nocapture",
+      "passed": 1,
+      "filtered": 1,
+      "log": "integration42-legacy202.log",
+      "exit_code": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --lib product237 --locked -- --nocapture",
+      "passed": 1,
+      "filtered": 63,
+      "log": "integration42-ct.log",
+      "exit_code": 0,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test impl235_budget --locked -- --nocapture",
+      "passed": 2,
+      "filtered": 0,
+      "log": "integration42-budget235.log",
+      "exit_code": 0,
+      "failed": 0,
+      "ignored": 0
+    }
+  ],
+  "totals": {
+    "selected": 74,
+    "passed": 74,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_unrelated": 360
+  },
+  "evidence_reuse": {
+    "policy": "docs/WORKFLOW.md section 6, line 57",
+    "only_committed_delta": [
+      "crates/zil-driver/tests/review238_contracts.rs"
+    ],
+    "delta_sha256": "01a2825211e8e514b6404a3d8896d5d0f3be3421523995559ed7ba6731954cbd",
+    "proof": "42 to P changes one unrelated review238 assertion only. All production, selected tests, fixtures, Cargo.lock, normative inputs, feature, target, toolchain and artifact dependencies are unchanged. No additional execution is claimed for P.",
+    "parallel_test_note": "Initial 42 status read was clean; another reviewer then edited this same unrelated test. Production and selected-test bytes matched 42 throughout. P commits exactly that unrelated test delta and is clean."
+  },
+  "test_sha256": {
+    "crates/zil-driver/tests/review227_contracts.rs": "ef0bb23918b3ca80aea8d1c94a27518ea6c888f5596881f629fa7870e86e343e",
+    "crates/zil-driver/tests/review235_contracts.rs": "f84260bb2ad8d7e8bf87111ce17f98a9501546e92b89af58269e9527caa30962",
+    "crates/zil-driver/tests/review237_contracts.rs": "1c65d2dd0beb2042bdac4820d67bbe96b55ce0a5e0fcb59fd8cbcc422be276ba",
+    "crates/zil-driver/tests/review237_generic_defer.rs": "21770e69ea154d33585b78c1273a8449db3495acb4bef704fe066df1c6995e7f",
+    "crates/zil-driver/tests/review237_fixtures/original238_defer_implicit.zil": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9",
+    "crates/zil-driver/tests/review237_fixtures/original238_defer_explicit.zil": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295",
+    "crates/zil-driver/tests/review237_fixtures/original235.zil": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d"
+  },
+  "cargo_lock_sha256": "99b70f5eae3be5aec5d26185cf3ac4a875e3e508751767f11c2204dc2a806fde",
+  "full_workspace_or_product_gates_run_by_reviewer": false,
+  "raw_archive": "integration42-artifacts.tar.gz",
+  "raw_manifest": "integration42-raw-manifest.json",
+  "runtime": "integration42-runtime.json"
+}

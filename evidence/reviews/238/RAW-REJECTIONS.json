@@ -1,0 +1,222 @@
+{
+  "reviewed_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "scope": "Post-run inspection of actual executable rejection diagnostics, separately excluding initialization-claim errors as well as the plan/Hold mismatch exclusions in the harness.",
+  "modules": [
+    {
+      "directory": "review238-backedge-incomplete-96273-23",
+      "wire_sha256": "ccb69682efcdacafcdfe36dbb6694740a2693e68b9aee38786f2c6ffa31fbce3",
+      "routes": {
+        "raw": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "986411c494b389a90a37d06ac22aa3f4b042c6f26e0823cb0fbcc97ee924d12a"
+        },
+        "wire": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "986411c494b389a90a37d06ac22aa3f4b042c6f26e0823cb0fbcc97ee924d12a"
+        },
+        "analyze": {
+          "codes": [
+            "E-ANALYZE-IR"
+          ],
+          "report_sha256": "347d475635102391789a49610cfe8f766fcd39b334d04edeef3452372cc390cc"
+        }
+      }
+    },
+    {
+      "directory": "review238-borrow-half-extracted-shell-96273-21",
+      "wire_sha256": "d72779c5a25c4f84b12974e6640e1a16847682a9bf0be7fabfdfbad66c549983",
+      "routes": {
+        "raw": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "0ad5b7d4a9fe7a4228d741126ba439d7cc7587c0c5eacaaef91abd9e33eabaa2"
+        },
+        "wire": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "0ad5b7d4a9fe7a4228d741126ba439d7cc7587c0c5eacaaef91abd9e33eabaa2"
+        },
+        "analyze": {
+          "codes": [
+            "E-ANALYZE-IR"
+          ],
+          "report_sha256": "78efb2f45d794f5bcfd1eea9d6a6e340283966032005e1c613951627e920770d"
+        }
+      }
+    },
+    {
+      "directory": "review238-copy-after-normal-whole-move-96273-17",
+      "wire_sha256": "1546ca1f1b69c8586f3fda287ff70289c8c3bcd80afde47559710df267bc34e4",
+      "routes": {
+        "raw": {
+          "codes": [
+            "E-VERIFY-INITIALIZATION"
+          ],
+          "report_sha256": "17a0b8285d2f1f5a381210cf7e5d10d816f706954df2b89027da67dc9091d27d"
+        },
+        "wire": {
+          "codes": [
+            "E-VERIFY-INITIALIZATION"
+          ],
+          "report_sha256": "17a0b8285d2f1f5a381210cf7e5d10d816f706954df2b89027da67dc9091d27d"
+        },
+        "analyze": {
+          "codes": [
+            "E-UNINITIALIZED"
+          ],
+          "report_sha256": "96df99689731e97e9734a5c04a150786a884aeb1288655c8f9300fb790ed983d"
+        }
+      }
+    },
+    {
+      "directory": "review238-duplicate-self-take-96273-12",
+      "wire_sha256": "50ee269abfacdeeecac722ee3b7511cc7917fc3f99f6f1b86a9b393768439f40",
+      "routes": {
+        "raw": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "2d35800576f6b63133bcc928a434e8a4cd7f204dc613fafed504e034f8c64f18"
+        },
+        "wire": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "2d35800576f6b63133bcc928a434e8a4cd7f204dc613fafed504e034f8c64f18"
+        },
+        "analyze": {
+          "codes": [
+            "E-ANALYZE-IR"
+          ],
+          "report_sha256": "da3217499c2fa34321cffe75cd199b07c52084aec580a35527d56db6fd1b2c02"
+        }
+      }
+    },
+    {
+      "directory": "review238-missing-publish-owner-96273-18",
+      "wire_sha256": "b4c28d8176c163dce6e9db881724ed07f16d60d0a4534e8f653522eceecfa230",
+      "routes": {
+        "raw": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "fc112a75c010674efd6328cd9e14b4e7db3c45e4da3c6dd0b78590cf9c48bcb7"
+        },
+        "wire": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "fc112a75c010674efd6328cd9e14b4e7db3c45e4da3c6dd0b78590cf9c48bcb7"
+        },
+        "analyze": {
+          "codes": [
+            "E-ANALYZE-IR"
+          ],
+          "report_sha256": "bbfef5794511d68bb0347bdd5ae133cf45c64f9656bfd5cd52f70904eabc22b5"
+        }
+      }
+    },
+    {
+      "directory": "review238-phi-incomplete-96273-19",
+      "wire_sha256": "8e2f790ccce0108d9240a910cec994ccdf7078ea86298274097ee3af9976889c",
+      "routes": {
+        "raw": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "de9331586d704ec2ea3dc601bdd4c8f85814584ec8f870f195364a4b68d10a3f"
+        },
+        "wire": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "de9331586d704ec2ea3dc601bdd4c8f85814584ec8f870f195364a4b68d10a3f"
+        },
+        "analyze": {
+          "codes": [
+            "E-ANALYZE-IR"
+          ],
+          "report_sha256": "bbfef5794511d68bb0347bdd5ae133cf45c64f9656bfd5cd52f70904eabc22b5"
+        }
+      }
+    },
+    {
+      "directory": "review238-publish-after-whole-shell-death-96273-14",
+      "wire_sha256": "ab2b40f5408ea33103e80583a4f2fb7205e6c4512f1065c06832bb31f8ddcebe",
+      "routes": {
+        "raw": {
+          "codes": [
+            "E-VERIFY-INITIALIZATION"
+          ],
+          "report_sha256": "bb20c8abdd9eddc07380aa11f7d637e1140829b6b0be696b7fef50f324857dca"
+        },
+        "wire": {
+          "codes": [
+            "E-VERIFY-INITIALIZATION"
+          ],
+          "report_sha256": "bb20c8abdd9eddc07380aa11f7d637e1140829b6b0be696b7fef50f324857dca"
+        },
+        "analyze": {
+          "codes": [
+            "E-UNINITIALIZED"
+          ],
+          "report_sha256": "bceff9a6f12f53f1481e341483e6b004948265036c3727a5183d70e084dbdfa2"
+        }
+      }
+    },
+    {
+      "directory": "review238-publish-over-old-live-owner-96273-15",
+      "wire_sha256": "463cf96fb3fe12650ab0c2d0c35ed74ec9efdd137e613cb3c5d4e90658147e7a",
+      "routes": {
+        "raw": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "30d9ad7c1107139d3d6331e61ad4d735618103918f12981828ee959626b7f278"
+        },
+        "wire": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "30d9ad7c1107139d3d6331e61ad4d735618103918f12981828ee959626b7f278"
+        },
+        "analyze": {
+          "codes": [
+            "E-ANALYZE-IR"
+          ],
+          "report_sha256": "736b37c6d3a1978d52681815ae06948b58bf81171e2b7750840e582d91f07049"
+        }
+      }
+    },
+    {
+      "directory": "review238-same-type-wrong-target-96273-13",
+      "wire_sha256": "0b71fde2e9e3c6eccd20a1eda9bbfead5b263a785cbbdee7883447f30a8a5b12",
+      "routes": {
+        "raw": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "062608fab7948046d5a76fe934d1f75d0afb4defdb7a018275c8231a98c746c1"
+        },
+        "wire": {
+          "codes": [
+            "E-VERIFY-RESOURCE"
+          ],
+          "report_sha256": "062608fab7948046d5a76fe934d1f75d0afb4defdb7a018275c8231a98c746c1"
+        },
+        "analyze": {
+          "codes": [
+            "E-ANALYZE-IR"
+          ],
+          "report_sha256": "736b37c6d3a1978d52681815ae06948b58bf81171e2b7750840e582d91f07049"
+        }
+      }
+    }
+  ]
+}

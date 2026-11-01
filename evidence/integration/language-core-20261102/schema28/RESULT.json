@@ -1,0 +1,30 @@
+{
+  "status": "ScopedPass",
+  "implementation_commit": "6693e7748ac7626b106a5cf1da97c46c6d68e097",
+  "integrator": "/root",
+  "schema": 28,
+  "feature": "llvm-api",
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-core CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/workspace/.zil-env/integration28-02/native cargo test --locked -p zil-driver --features llvm-api --test impl206_independent --test review227_contracts --test impl227_machine --test review235_contracts --test impl235_machine --test impl235_budget -- --skip generic_store_element_binder_survives_a_non_element_product_wrapper --nocapture",
+  "passed": 63,
+  "failed": 0,
+  "ignored": 0,
+  "filtered": 1,
+  "filtered_reason": "237 retained generic Product success obligation remains open; exact original source and expectation preserved. This is not full integration acceptance.",
+  "groups": {
+    "impl206_independent": 45,
+    "review227_contracts": 8,
+    "impl227_machine": 1,
+    "review235_contracts": 6,
+    "impl235_machine": 1,
+    "impl235_budget": 2
+  },
+  "first_launch": {
+    "exit_code": 127,
+    "cause": "shell had not sourced existing environment; no compiler or tests executed",
+    "log": "launch01-no-env.log"
+  },
+  "full_workspace": "NotRun",
+  "consumer236": "BlockedBy238",
+  "product": "NotRun",
+  "archive_sha256": "24e16a85471cbc49b7f3385bfa875bf89c86b5905ee3a58f91082518b2b6f59d"
+}

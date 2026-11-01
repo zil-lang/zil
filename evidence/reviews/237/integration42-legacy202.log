@@ -1,0 +1,12 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.25s
+     Running tests/impl202_budget.rs (/workspace/.zil-env/target-237/debug/deps/impl202_budget-9d36d2eac6207aff)
+
+running 1 test
+old-original02: types_work=6326, locals=16, functions=5
+old-two-elements: types_work=29030, locals=39, functions=7
+old-nested-helper: types_work=29566, locals=40, functions=8
+test pre202_callback_store_paths_keep_their_recorded_types_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.38s
+

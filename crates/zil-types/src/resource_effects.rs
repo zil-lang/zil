@@ -450,9 +450,9 @@ impl<T: Tracking> Scan<'_, '_, T> {
                         self.scopes.pop();
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                    self.block(body, depth + 1)?
-                }
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => self.block(body, depth + 1)?,
                 _ => {}
             }
         }

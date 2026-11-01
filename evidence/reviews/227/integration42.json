@@ -1,0 +1,83 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "implementation_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "source_execution_commit": "42c247be845212b624413a1791eb4f7ab3b8dc75",
+  "verdict": "Pass",
+  "schema_version": 29,
+  "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+  "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854",
+  "evidence_reuse": "42→P: only unrelated review238 assertion changed; see ../237/integration42-execution.json and WORKFLOW §6. No duplicate execution counted.",
+  "shared_execution_report": "../237/integration42-execution.json",
+  "shared_raw_archive": "../237/integration42-artifacts.tar.gz",
+  "aggregate_selected_executed": {
+    "selected": 74,
+    "passed": 74,
+    "failed": 0,
+    "ignored": 0,
+    "note": "Single joint scoped run. Per-card suites overlap; do not sum receipt counts."
+  },
+  "limitations": [
+    "Finite Linux synchronous language profiles only; no full ZIL 1.4, ZUI/product gate, async/unwind, native Windows or Rust parity conclusion.",
+    "Reviewer did not run the full workspace. Root integration remains a separate execution."
+  ],
+  "rust_goals_reflection": {
+    "safety": "Finite source/raw/Wire contracts checked; private template facts do not replace independent actual-resource verification.",
+    "runtime_memory": "LLVM builder O0/O2 and actual allocator failures with live0; no hidden Box/RC/lock introduced. This is not a Rust runtime/RSS comparison.",
+    "expression_maintenance": "Original Product wrapper and ALQZ sources execute without source workarounds; full framework maintenance advantage remains unmeasured.",
+    "compile_cost": "Growth prepaid and exact N/N−1/fresh boundaries checked, legacy controls retained, default limits unchanged; no compile-performance win claimed.",
+    "product_breakthrough": "Not established; finite executable composition is an engineering increment only."
+  },
+  "implementation_author": "/root",
+  "record_kind": "schema29 supplemental acceptance; historical 258 receipt unchanged",
+  "prior_review": {
+    "implementation_commit": "2587538fa4060ec951facc4f26a304c65f3d0b37",
+    "receipt": "review.json",
+    "preserved": true
+  },
+  "scope": "Ordinary synchronous defer §7.1, including the newly connected parametric-checker admission on existing capture profiles. This does not certify the entire 238 replacement profile.",
+  "production_delta": [
+    "Schema/Wire/fingerprint 28→29 for independent Product template tables; runtime RegisterDefer and both must-call kernels retain their semantics.",
+    "Analyze defer inventory and Types defer-expression match changed only equivalent Clippy syntax. Capture writeback fix from 258 remains.",
+    "Generic checker now recognizes ordinary Unit cleanup boundaries, registration-time moves/holds, declared callable kinds and loop/control restrictions.",
+    "237/235 actual Product type support and 238 lowering compose with existing defer age; no kernel age relaxation."
+  ],
+  "current_suites": {
+    "review227_contracts": 8,
+    "analyze_defer_tests": 11,
+    "verify_defer_tests": 11,
+    "review237_generic_defer": 4,
+    "impl227_machine": 1,
+    "legacy202_control": 1
+  },
+  "new_frontend_checks": {
+    "ALQZ_original_sources": "implicit and explicit original source bytes, both O0/O2 exit0 stdout ALQZ",
+    "unused_definition_rejections": {
+      "Expand": 12,
+      "existing_State_capture_Types_Unsupported": 2
+    },
+    "existing_direct_callable_helper_boundary": "Both captured-F and empty-capture helper-local nested defer remain Types Unsupported; not a loan proof.",
+    "own_loop": "Concrete T:Copy specialization permits cleanup-local break/continue, O0/O2 native."
+  },
+  "must_call_review": [
+    "FnOnce at-most-once does not discharge must-call. Both kernels require the matching adjacent actual CallClosureOnce before the owning ScopeExit.",
+    "Construction/registration ordering, activation state, cleanup suffix, no ordinary registered-slot uses and preserved captured loan/resource sources independently rechecked.",
+    "Pending outer actions may cross inner loops; empty/Copy actions remain mandatory; Trap has no unwind obligation. Verify does not call Analyze/Types proof routines."
+  ],
+  "native": {
+    "own227": 6,
+    "shared_generic_defer": 6,
+    "allocator_probes": 10,
+    "real_failures": 6,
+    "all_probes_live": 0,
+    "backend": "LLVM API builder",
+    "optimizations": [
+      "O0",
+      "O2"
+    ]
+  },
+  "budget": {
+    "Analyze_defer_raw": 3320,
+    "Verify_defer_raw": 3324,
+    "checks": "N/N−1 ResourceLimit/fresh N; old non-defer generic controls remain 6326/29030/29566"
+  }
+}

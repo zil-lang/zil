@@ -1,0 +1,32 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-237/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.58s
+     Running tests/review237_contracts.rs (/workspace/.zil-env/target-237/debug/deps/review237_contracts-ca5b32177a052f8f)
+
+running 24 tests
+test an_uninstantiated_family_still_has_complete_recipe_and_ownership_checks ... ok
+test an_unused_concrete_recipe_cannot_capture_f_hidden_in_another_familys_arguments ... ok
+test concrete_arguments_with_free_f_cannot_borrow_another_functions_same_f_binder ... ok
+test a_same_spelled_parameter_in_another_function_cannot_supply_application_authority ... ok
+test hidden_phantom_arguments_cannot_borrow_another_functions_same_f_owner ... ok
+test canonical_product_names_do_not_erase_cross_module_field_privacy ... ok
+test hidden_phantom_arguments_cannot_erase_their_outer_application_owner ... ok
+test natural_input_inference_requires_the_same_family_and_one_complete_actual_t ... ok
+test direct_and_retained_applications_share_family_identity_across_function_owners ... ok
+test imported_family_preserves_the_callers_lexical_callable_owner_through_ct ... ok
+test natural_input_finds_t_in_nested_family_arguments_even_when_inner_t_is_phantom ... ok
+test nested_nominal_inference_work_has_an_exact_fresh_limit_boundary ... ok
+test natural_phantom_input_infers_actual_arguments_that_do_not_appear_in_fields ... ok
+test nested_phantom_identity_survives_rebinding_between_two_ordinary_t_owners ... ok
+test raw_static_call_can_infer_t_through_nested_phantom_origin_arguments ... ok
+test recursive_query_accepts_two_finite_instances_of_the_same_phantom_family ... ok
+test runtime_ct_folding_preserves_both_tables_and_exact_owner_ids ... ok
+test phantom_actuals_participate_in_identity_but_resolved_function_owners_do_not ... ok
+test unused_metadata_text_is_prepaid_in_types_and_ct_before_any_clone ... ok
+test unused_recursive_recipe_is_rejected_without_relying_on_a_value_use ... ok
+test original235_success_obligation_is_preserved_byte_for_byte_and_executes ... ok
+test types_new_recipe_work_has_an_exact_fresh_limit_boundary ... ok
+test unused_template_and_application_tables_cannot_override_the_generated_header ... ok
+test natural_product_input_infers_t_across_two_retained_function_owners ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+

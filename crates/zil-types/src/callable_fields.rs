@@ -239,7 +239,7 @@ pub(super) fn specialize_all(function: &mut CoreFunction, bindings: &[(&str, Clo
     visit(function, &mut |ty| specialize_type_all(ty, bindings));
 }
 
-fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut Type)) {
+pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut Type)) {
     fn expr(e: &mut CoreExpr, replace: &mut impl FnMut(&mut Type)) {
         match &mut e.kind {
             CoreExprKind::Unary { operand, .. } | CoreExprKind::Try(operand) => {
@@ -398,7 +398,9 @@ fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut Type)) {
                         block(&mut a.body, replace)
                     }
                 }
-                CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => block(b, replace),
+                CoreStatementKind::Block(b)
+                | CoreStatementKind::Unsafe(b)
+                | CoreStatementKind::Defer(b) => block(b, replace),
                 _ => {}
             }
         }

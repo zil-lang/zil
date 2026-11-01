@@ -2,6 +2,8 @@
 //! presumed numeric, Copy, or equipped with members because one instance is.
 use super::*;
 use loop_control::BlockFlow;
+#[path = "generic_defer.rs"]
+mod deferred;
 #[path = "generic_factory.rs"]
 mod factory;
 
@@ -74,6 +76,9 @@ pub(super) fn validate_parametric<'l>(
         signatures,
         foreign_signatures,
         unsafe_scope: false,
+        defer_depth: 0,
+        defer_body: false,
+        defer_captures: None,
         pattern_types,
         result_mode: stores::result_mode(function)?,
         result: function
@@ -127,6 +132,7 @@ pub(super) fn validate_parametric<'l>(
         invalidated_stores: BTreeSet::new(),
         fresh_stores: BTreeSet::new(),
         aliases: None,
+        defer_holds: BTreeSet::new(),
     };
     for (id, parameter) in function.params.iter().enumerate() {
         check.traits.store_types(
@@ -402,6 +408,7 @@ struct State {
     // Package field takes do not.
     fresh_stores: BTreeSet<usize>,
     aliases: Option<state_aliases::AliasState>,
+    defer_holds: BTreeSet<usize>,
 }
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
@@ -422,6 +429,9 @@ struct Check<'s, 'b, 'l> {
     signatures: &'s BTreeMap<String, Cow<'l, Function>>,
     foreign_signatures: &'s BTreeMap<&'l str, (&'l str, &'l Function)>,
     unsafe_scope: bool,
+    defer_depth: usize,
+    defer_body: bool,
+    defer_captures: Option<deferred::Captures>,
     pattern_types: &'s BTreeMap<String, TypeRef>,
     result: TypeRef,
     result_mode: zil_ir::PassingMode,
@@ -1049,6 +1059,9 @@ impl Check<'_, '_, '_> {
         for _ in &state.store_results {
             self.budget.node(self.result.span, 0)?;
         }
+        for _ in &state.defer_holds {
+            self.budget.node(self.result.span, 0)?;
+        }
         Ok(state.clone())
     }
     fn join_states(&mut self, state: &mut State, branches: &[&State], span: Span) -> R<()> {
@@ -1617,6 +1630,12 @@ impl Check<'_, '_, '_> {
                 let id = ty.id;
                 self.budget.ty(&ty.ty)?;
                 let ty = ty.ty.clone();
+                let defer_consumes = if self.defer_captures.is_some() {
+                    !borrowing && !self.known_copy(&ty)?
+                } else {
+                    false
+                };
+                self.defer_use(id, defer_consumes, e.span)?;
                 if !self.factory_scopes.is_empty() {
                     let consumes = !borrowing && !self.known_copy(&ty)?;
                     self.factory_use(id, false, consumes, e.span)?;
@@ -1646,6 +1665,7 @@ impl Check<'_, '_, '_> {
                     .is_some_and(|bound| bound.owned_state)
                     && self.package_local(e, state).is_some();
                 if !borrowing && (!self.known_copy(&ty)? || owning_package) {
+                    self.defer_held(state, id, true, e.span)?;
                     self.alias_invalidate(state, id, None, e.span)?;
                     for ((owner, _), field) in &self.package_slots {
                         self.budget.node(e.span, 0)?;
@@ -2226,6 +2246,13 @@ impl Check<'_, '_, '_> {
                             "generic callable used after its environment was consumed",
                         ));
                     }
+                    self.defer_use(local.id, kind == zil_ir::CallableKind::FnOnce, callee.span)?;
+                    self.defer_held(
+                        state,
+                        local.id,
+                        kind != zil_ir::CallableKind::Fn,
+                        callee.span,
+                    )?;
                     self.factory_use(
                         local.id,
                         kind == zil_ir::CallableKind::FnMut,
@@ -2276,10 +2303,11 @@ impl Check<'_, '_, '_> {
                     return Ok(result);
                 }
                 if let Some((abi, function)) = self.foreign_signatures.get(target.as_str()) {
-                    if !self
-                        .callable
-                        .as_ref()
-                        .is_some_and(|b| b.dual_names().is_some())
+                    if !self.defer_body
+                        && !self
+                            .callable
+                            .as_ref()
+                            .is_some_and(|b| b.dual_names().is_some())
                     {
                         return Err(unsupported(
                             e.span,
@@ -2494,6 +2522,12 @@ impl Check<'_, '_, '_> {
                 }
             }
             ExprKind::Try(operand) => {
+                if self.defer_body {
+                    return Err(Self::defer_control(
+                        e.span,
+                        "a defer body cannot propagate an error outside its cleanup boundary",
+                    ));
+                }
                 let union = self.expr(operand, state, None, false)?;
                 let TypeKind::Error {
                     error: actual_error,
@@ -2662,7 +2696,8 @@ impl Check<'_, '_, '_> {
                 .as_ref()
                 .is_some_and(|bounds| bounds.owned_factory) =>
             {
-                self.factory_closure(
+                let saved_cleanup = std::mem::replace(&mut self.defer_body, false);
+                let checked = self.factory_closure(
                     *move_capture,
                     params,
                     return_type.as_ref(),
@@ -2670,7 +2705,9 @@ impl Check<'_, '_, '_> {
                     expected,
                     state,
                     e.span,
-                )
+                );
+                self.defer_body = saved_cleanup;
+                checked
             }
             _ => Err(unsupported(
                 e.span,
@@ -2807,6 +2844,10 @@ impl Check<'_, '_, '_> {
     // on a distinct fallthrough path.
     fn block(&mut self, block: &Block, state: &mut State) -> R<BlockFlow> {
         self.tick(block.span)?;
+        for _ in &state.defer_holds {
+            self.budget.node(block.span, 0)?;
+        }
+        let outer_holds = state.defer_holds.clone();
         let mut flow = BlockFlow::NEXT;
         for statement in &block.statements {
             self.tick(statement.span)?;
@@ -2923,6 +2964,12 @@ impl Check<'_, '_, '_> {
                     while let ExprKind::Group(inner) = &whole.kind {
                         whole = inner;
                     }
+                    if let ExprKind::Name(name) = &whole.kind
+                        && let Some(local) = state.locals.get(name)
+                    {
+                        self.defer_use(local.id, false, target.span)?;
+                        self.defer_held(state, local.id, true, target.span)?;
+                    }
                     let store_target = if stores::element(&ty).is_some() {
                         let slot = match &whole.kind {
                             ExprKind::Name(name) => Some((
@@ -3006,7 +3053,14 @@ impl Check<'_, '_, '_> {
                         }
                     }
                 }
+                StmtKind::Defer(body) => self.defer_statement(body, state, statement.span)?,
                 StmtKind::Return(value) => {
+                    if self.defer_body {
+                        return Err(Self::defer_control(
+                            statement.span,
+                            "return cannot leave a defer cleanup body",
+                        ));
+                    }
                     if !self.factory_scopes.is_empty() {
                         self.factory_body_return(value.as_ref(), state, statement.span)?;
                         flow.fallthrough = false;
@@ -3121,7 +3175,8 @@ impl Check<'_, '_, '_> {
                     if self
                         .callable
                         .as_ref()
-                        .is_some_and(|b| b.dual_names().is_some()) =>
+                        .is_some_and(|b| b.dual_names().is_some())
+                        || self.defer_body =>
                 {
                     let mut inner = self.clone_state(state)?;
                     let saved = self.unsafe_scope;
@@ -3133,6 +3188,12 @@ impl Check<'_, '_, '_> {
                     flow.returns |= inner_flow.returns;
                 }
                 StmtKind::Break | StmtKind::Continue => {
+                    if self.defer_body && self.loops.is_empty() {
+                        return Err(Self::defer_control(
+                            statement.span,
+                            "loop control cannot cross a defer cleanup boundary",
+                        ));
+                    }
                     self.loop_control(
                         state,
                         matches!(statement.kind, StmtKind::Continue),
@@ -3148,6 +3209,7 @@ impl Check<'_, '_, '_> {
                 }
             }
         }
+        state.defer_holds = outer_holds;
         Ok(flow)
     }
 }

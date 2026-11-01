@@ -1,0 +1,27 @@
+[
+  {
+    "path": "development.json",
+    "bytes": 1217,
+    "sha256": "9bb13f9db7ad03bb128797020876adee8ed1664cfae969ebc6edd51683a4be47"
+  },
+  {
+    "path": "raw-hidden-owner-before.tar.gz",
+    "bytes": 48630,
+    "sha256": "cd5d322fb4e99b4175fea5c78588c67f75ebd9c709d859646ddb8fb40deedabe"
+  },
+  {
+    "path": "review237-hidden-before02.log",
+    "bytes": 1323,
+    "sha256": "d8681781a138501a19083c351037e2aa0da2f0267df102be5ed3202b4bd74600"
+  },
+  {
+    "path": "review237-nested-before.log",
+    "bytes": 457,
+    "sha256": "1f2af176a5b18ac21f5e9291477e65d0593d088c6453dd3cc43c97a4e8151fae"
+  },
+  {
+    "path": "valid-nested-source-before.tar.gz",
+    "bytes": 2451,
+    "sha256": "dee88a2fc4f9a900416d4f0cc04051e3fd5f91cfeb355d1d9265d9dfafdda710"
+  }
+]

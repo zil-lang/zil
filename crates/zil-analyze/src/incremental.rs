@@ -165,6 +165,7 @@ impl Operation {
     pub(super) fn of(instruction: &InstructionKind) -> Self {
         match *instruction {
             InstructionKind::Load(local)
+            | InstructionKind::RegisterDefer { local, .. }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::BorrowLocalMut { local }
             | InstructionKind::DescribeLocal { local }

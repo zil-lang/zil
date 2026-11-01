@@ -1,0 +1,31 @@
+{
+  "status": "Pass",
+  "scope": "Rust integration-test compilation only; no test body executed",
+  "source_commit": "d413266443f61c9000cb46d96f33e169239993e0",
+  "production_and_test_sources_unmodified": true,
+  "uncommitted_inputs_not_consumed_by_cargo": [
+    "tools/language/236/run.py",
+    "tools/language/236/controls.py"
+  ],
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl236_zui_core",
+    "--no-run"
+  ],
+  "exit_code": 0,
+  "seconds_reported_by_cargo": 28.99,
+  "CARGO_TARGET_DIR": "/workspace/.zil-env/target-236",
+  "CARGO_BUILD_JOBS": 1,
+  "CARGO_INCREMENTAL": 0,
+  "test_source_sha256": "ab1fae1b5539abaa15e34df00ab5e0c5897335e7dfb6121ccda0c7bba62aa7ee",
+  "combined_consumer": "NotRun",
+  "rust_test_bodies": "NotRun",
+  "note": "Subsequent runner preflight now enforces one verified LLVM builder object. Saved baseline build reports already satisfy these stricter assertions; original execution identity stays 463d4783279ed2808eb9828837a4decb3c4ba5a9."
+}

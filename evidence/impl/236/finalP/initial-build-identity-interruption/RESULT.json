@@ -1,0 +1,21 @@
+{
+  "status": "BuildSucceededIdentityInterrupted",
+  "candidate_commit": "42c247be845212b624413a1791eb4f7ab3b8dc75",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli",
+    "--features",
+    "llvm-api"
+  ],
+  "build_exit_code": 0,
+  "cargo_seconds": 34.46,
+  "git_status_before_build": "",
+  "git_status_after_build": " M crates/zil-driver/tests/review238_contracts.rs",
+  "cli_sha256": "8c6fea5ffc32ca1a25b1804249e3a9f016f78d86db8057311335910ff80ca914",
+  "ordinary_native_executions": 0,
+  "allocator_executions": 0,
+  "note": "Reviewer-only test assertion changed during the build. No production source or consumer input change observed. Matrix not started; awaiting integrator clean restoration and fresh clean build binding."
+}

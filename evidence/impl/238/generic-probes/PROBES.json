@@ -1,0 +1,74 @@
+{
+  "purpose": "Required generic Root<T> and F-helper self-call targets; direct T controls alone do not close this obligation.",
+  "prerequisite": "Full237 producer and family/complete-argument inference; schema29 empty tables alone are insufficient.",
+  "cases": [
+    {
+      "source": "root_plain_implicit.zil",
+      "sha256": "316a0e08a8d7cb51c2594a278ff3d89fbcff95669da9e9cbb5bad578d00895ec",
+      "expected_stdout": "LQA",
+      "expected_exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "status": "PassedOnCombinedE5c9dO0O2"
+    },
+    {
+      "source": "root_plain_explicit.zil",
+      "sha256": "b12640fe92b1841fbab4dea89cfa5fcbca5b1ab5c3cad484327194dc3e24b834",
+      "expected_stdout": "LQA",
+      "expected_exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "status": "PassedOnCombinedE5c9dO0O2"
+    },
+    {
+      "source": "root_f_helper_implicit.zil",
+      "sha256": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9",
+      "expected_stdout": "ALQZ",
+      "expected_exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "status": "BlockedAtGenericDefer;OriginalALQZObligationUnchanged"
+    },
+    {
+      "source": "root_f_helper_explicit.zil",
+      "sha256": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295",
+      "expected_stdout": "ALQZ",
+      "expected_exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "status": "BlockedAtGenericDefer;OriginalALQZObligationUnchanged"
+    },
+    {
+      "source": "root_f_helper_relay_only_implicit.zil",
+      "sha256": "0ee78230d4c948c946714e616ca7ce128aa4cd8a3339f29b820eeef86b27e8b3",
+      "expected_stdout": "ALZ",
+      "expected_exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "status": "PassedOnCombinedE5c9dO0O2",
+      "control": "Only extra helper-local defer omitted to isolate required generic relay path."
+    },
+    {
+      "source": "root_f_helper_relay_only_explicit.zil",
+      "sha256": "602333f4eeab7d0d3bb52bf8e2eddeac2cd085e28bb94855c68512df2cf1482f",
+      "expected_stdout": "ALZ",
+      "expected_exit": 0,
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "status": "PassedOnCombinedE5c9dO0O2",
+      "control": "Only extra helper-local defer omitted to isolate required generic relay path."
+    }
+  ]
+}

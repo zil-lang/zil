@@ -1,0 +1,61 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-237/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.70s
+     Running tests/impl206_budget.rs (/workspace/.zil-env/target-237/debug/deps/impl206_budget-9dbef93c347da278)
+
+running 2 tests
+old-flat: Types=418, Analyze=8673
+test old_flat_package_records_exact_phase_boundaries ... ok
+mixed: Types=753, Analyze=21120
+whole: Types=796, Analyze=27114
+wrappers: Types=752, Analyze=26951
+test new_product_leaf_tables_have_exact_fresh_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests/impl206_verify.rs (/workspace/.zil-env/target-237/debug/deps/impl206_verify-cc86d461db71459a)
+
+running 5 tests
+test original_flat186_verify_boundary_stays_10398_without_product_leaf_table ... ok
+test unused_nested_metadata_has_no_source_or_candidate_exemption ... ok
+created: verify_work=27075
+test incoming_and_unknown_call_leaves_cannot_forge_create_with_a_candidate ... ok
+test exact_frozen_complete_products_reach_independent_raw_and_wire_verify ... ok
+two-whole-transfers: verify_work=33259
+three-wrappers: verify_work=31077
+test real_product_verify_work_has_exact_n_minus_one_and_fresh_boundaries ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/impl237_budget.rs (/workspace/.zil-env/target-237/debug/deps/impl237_budget-4558b22460fb73ba)
+
+running 2 tests
+legacy: types=418,analyze=8673,verify=10398
+test empty_table_flat_186_boundaries_are_unchanged ... ok
+nested: types=237893,analyze=48812,verify=100192
+test generic_product_types_analyze_verify_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/impl237_machine.rs (/workspace/.zil-env/target-237/debug/deps/impl237_machine-63a14e5193631e1c)
+
+running 1 test
+test original_generic_wrapper_allocation_failure_keeps_actual_responsibility ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/impl237_types.rs (/workspace/.zil-env/target-237/debug/deps/impl237_types-42c79595fba46c23)
+
+running 10 tests
+test phantom_actual_bound_is_checked_from_raw_metadata ... ok
+test phantom_arguments_are_complete_nominal_identity_even_without_fields ... ok
+test prepared_and_function_session_recheck_unused_metadata_after_a_scalar_success ... ok
+test direct_and_retained_application_have_one_complete_nominal_identity ... ok
+test original235_generic_wrapper_reaches_types ... ok
+test a_free_binder_hidden_in_phantom_arguments_requires_the_actual_outer_owner ... ok
+test unused_recipe_cannot_hide_unknown_types_or_recursion ... ok
+test unused_owner_and_recipe_mutations_are_rejected ... ok
+test product_input_infers_complete_element_type_through_ordinary_value_relay ... ok
+test preserved_source_executes_at_both_optimization_levels ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+

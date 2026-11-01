@@ -1,0 +1,70 @@
+{
+  "implementation_commit": "0af913ff3b282816b0cdbfe7c3b158a6bfadc3d8",
+  "captured_at_utc": "2026-11-01T19:00:17.874433+00:00",
+  "files": [
+    {
+      "path": "crates/zil-types/src/lib.rs",
+      "sha256": "83b13de785cd52f98937d8ab05d17101fc7046b8e9cab01670b3a2c5028e3d92",
+      "git_blob": "43f19fbd3fccbda741c63855b5a7577f9d2d8f8c"
+    },
+    {
+      "path": "crates/zil-types/src/product_replacement.rs",
+      "sha256": "0e6df2492b524cfcaa975f35450f10f0d791d047577f70ebba7f9426c565e56d",
+      "git_blob": "a6eb5c2ad98d5c78db1f6fa64dcb65d2429803ef"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl238_product_replacement.rs",
+      "sha256": "067ec09f5f2f0e9d17197a8f6ee57aba15561df6815cf9cd18c340af6033b670",
+      "git_blob": "7da0017aba4ea95ee5709b3e29a9da3303a41e5d"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl238_machine.rs",
+      "sha256": "c25d8dcf447101fe541d10631cd93821fcf6d66697f6fbb9aa8be44628de65f1",
+      "git_blob": "84024c0343ead5bb40a6a3266eb417e2d94ac136"
+    }
+  ],
+  "original236_consumer_unchanged_against": "165409481",
+  "consumer_files": [
+    {
+      "path": "crates/zil-driver/tests/impl236_zui_core.rs",
+      "sha256": "cf74ddf21291e71c240ebc6e58c3a4e8b57bf4c014ffaf4729a8b94c8dba46fb"
+    },
+    {
+      "path": "examples/mainline/zui_core236/README.md",
+      "sha256": "3efa4e4f754bc7fb5993903b0bb71fcd4168393fa81f421a47e924d58c09a72d"
+    },
+    {
+      "path": "examples/mainline/zui_core236/collections.zil",
+      "sha256": "fab1ed8cbdb11abb6015bcda0b803c610d9f2f2dcff1b54329e085a36ca2a4a8"
+    },
+    {
+      "path": "examples/mainline/zui_core236/defer_control.zil",
+      "sha256": "113588160c5d8ed9ed8dbbf8a52742176555cc4e7dad7f3a75473fd2d6007e16"
+    },
+    {
+      "path": "examples/mainline/zui_core236/leaf_control.zil",
+      "sha256": "37e035932af277c9c2123e9ddb47d8cbe50bee5365fb14625d0e7e0b291769cc"
+    },
+    {
+      "path": "examples/mainline/zui_core236/main.zil",
+      "sha256": "ca084ec0317c7ce9d88620cd419bb147fde1394b2d2b03d5a6b00c12ce0cc5cf"
+    },
+    {
+      "path": "examples/mainline/zui_core236/model.zil",
+      "sha256": "3176eb3da5332bd95dbe8eec6596037e2191fa0bfdd10c1035a3bcf7283569c1"
+    },
+    {
+      "path": "examples/mainline/zui_core236/portable.zil",
+      "sha256": "c2f3baff8bebdd3a40a37c92082697f14d5db4c2c04427a669b3a49870cc8b28"
+    },
+    {
+      "path": "examples/mainline/zui_core236/session.zil",
+      "sha256": "edb299e3e0407d6e961ca4f2dde316cf30026a8b5b91a4f1ab392b6796dcc198"
+    }
+  ],
+  "original_minimal_failure_source_sha256": "5a2e5d8ff214763d3307d7bd22423a6022fce7965d3d870ef469619a98c2eab2",
+  "final_O0_O2_original_source_hashes": [
+    "5a2e5d8ff214763d3307d7bd22423a6022fce7965d3d870ef469619a98c2eab2",
+    "5a2e5d8ff214763d3307d7bd22423a6022fce7965d3d870ef469619a98c2eab2"
+  ]
+}

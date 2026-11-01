@@ -138,6 +138,22 @@ pub(super) fn check_resolved_program_with_reuse(
     // Reserve the complete ordinary-function range before any local closure
     // gets an identity. Generated environment entries never enter interfaces.
     let mut closure_state = closures::State::new(count, limits);
+    if program
+        .modules
+        .iter()
+        .any(|m| !m.core.aggregate_applications.is_empty())
+    {
+        closure_state
+            .snapshot(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        let mut product_work = limits.max_analysis_steps;
+        closure_state.products = aggregate_templates::origins(&modules, limits, &mut product_work)
+            .map_err(|e| vec![e])?;
+        closure_state
+            .snapshot(limits.max_analysis_steps - product_work, Span::default())
+            .map_err(|e| vec![e])?;
+    }
     closure_state.resource_writes =
         resource_effects::program(program, &signatures_by_module, limits).map_err(|e| vec![e])?;
     let mut enum_work = limits.max_analysis_steps;
@@ -218,14 +234,26 @@ pub(super) fn check_resolved_program_with_reuse(
         builder.imports = Some(&imports);
         builder.enums = Some(&enum_types);
         let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
-        visibility.check(&typed, core.module_id)?;
+        visibility.check(
+            &typed,
+            core.module_id,
+            &closure_state.internal_product_fields,
+        )?;
         for closure in &closure_state.pending[pending_start..] {
             if let Some(function) = &closure.typed {
-                visibility.check(function, core.module_id)?;
+                visibility.check(
+                    function,
+                    core.module_id,
+                    &closure_state.internal_product_fields,
+                )?;
             }
         }
         for function in closure_state.thin[thin_start..].iter().flatten() {
-            visibility.check(function, core.module_id)?;
+            visibility.check(
+                function,
+                core.module_id,
+                &closure_state.internal_product_fields,
+            )?;
         }
         signatures_by_module
             .get_mut(&core.module_id)
@@ -270,7 +298,11 @@ pub(super) fn check_resolved_program_with_reuse(
                 .as_mut()
                 .and_then(|reuse| reuse.get(core.module_id, f, &mut closure_state))
             {
-                visibility.check(&typed, core.module_id)?;
+                visibility.check(
+                    &typed,
+                    core.module_id,
+                    &closure_state.internal_product_fields,
+                )?;
                 typed
             } else {
                 let accounting_before = closure_state.accounting();
@@ -281,14 +313,26 @@ pub(super) fn check_resolved_program_with_reuse(
                 builder.imports = Some(&imports);
                 builder.enums = Some(&enum_types);
                 let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
-                visibility.check(&typed, core.module_id)?;
+                visibility.check(
+                    &typed,
+                    core.module_id,
+                    &closure_state.internal_product_fields,
+                )?;
                 for closure in &closure_state.pending[pending_start..] {
                     if let Some(function) = &closure.typed {
-                        visibility.check(function, core.module_id)?;
+                        visibility.check(
+                            function,
+                            core.module_id,
+                            &closure_state.internal_product_fields,
+                        )?;
                     }
                 }
                 for function in closure_state.thin[thin_start..].iter().flatten() {
-                    visibility.check(function, core.module_id)?;
+                    visibility.check(
+                        function,
+                        core.module_id,
+                        &closure_state.internal_product_fields,
+                    )?;
                 }
                 if let Some(reuse) = &mut reuse {
                     reuse.save(
@@ -343,7 +387,11 @@ pub(super) fn check_resolved_program_with_reuse(
         .iter()
         .zip(&closure_state.helper_exports)
     {
-        visibility.check(function, export.module)?;
+        visibility.check(
+            function,
+            export.module,
+            &closure_state.internal_product_fields,
+        )?;
         if export.public {
             let interface = interfaces
                 .iter_mut()

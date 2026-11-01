@@ -1,0 +1,21 @@
+{
+  "checkpoint_after_limited_tests": "6e5b6686f6f87653624295c95bf4f1754ff4809a",
+  "scope": "Author public IR, Expand, CT and driver collector files; no review files; later unexecuted test additions excluded",
+  "files_sha256": {
+    "crates/zil-ct/src/aggregate_metadata.rs": "f3f054ebfa1c7933e1d59c58dda4656a2b21f03c8fb821f184a8bd6418c92f73",
+    "crates/zil-ct/src/lib.rs": "42d81986fb4abf36f3b69d00d610605cdf7baae89d9e35c3514ab15b752d88c6",
+    "crates/zil-ct/src/materialize.rs": "3c2121c8c2ad59ecdcc93b01dec6ce07a6d66db2bfba328a3039c7c4566787fa",
+    "crates/zil-ct/src/source.rs": "28e1a0670eb0aa7af27875b68dcfb0c9fb01a0c7b9f83f61699fdabd5384355d",
+    "crates/zil-driver/src/ct_program.rs": "d7ec707844502d6668f52990a7e121ca7537fb501e596e18ef4ff0ea60f72eb0",
+    "crates/zil-expand/src/generic_budget.rs": "9209d7e679ae364d1409358d5fa03ff963964ccbf414b42495f973eb3a2bc2ed",
+    "crates/zil-expand/src/generic_products.rs": "c95b5d517596e0f93999b765c3d0ecaf7238a6dbefa86c025372cdbd231b2d53",
+    "crates/zil-expand/src/generics.rs": "87f353559fb542b996bac635b207fb5ec3f8cb111e8fe9511e870bdb450ff9cb",
+    "crates/zil-expand/src/lib.rs": "4c6295767a4ad52ccaff73a0dd600866a00c4c059b61cbaba470965abec250e3",
+    "crates/zil-expand/src/modules.rs": "7899335183c3b8cc62e52a317026a59d6b9814b0ad32a857c0cdeb1684d3a744",
+    "crates/zil-expand/tests/impl237_product_recipes.rs": "a479ea37221b8155d98aabca0557746a5062d644b9511fdde2d765334899c856",
+    "crates/zil-ir/src/lib.rs": "114437894d88459d7bf4b2587af2cebd97c59c8e02f347ca48a3286ac0d4d2f4",
+    "crates/zil-ir/src/wire/store_tests.rs": "9a1363d8b80c753e757c5274c4114b9eb9d1fc3aa87b405bd683f15c697a2a47",
+    "crates/zil-ir/tests/cp34_fingerprint.rs": "52e4ed0faf28f2adb5b06472feed06cc05456bf7a4dffae3b28813cc7de557ab",
+    "crates/zil-ir/tests/support/cp34_legacy_v29.rs": "9016b82fce966e519c0ea6f8901aef78bea34f0b672c6e14e39cdac0ac5c0aca"
+  }
+}

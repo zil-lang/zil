@@ -1,0 +1,52 @@
+[
+  {
+    "path": "original236-relay-failure/check.json",
+    "bytes": 1666,
+    "sha256": "a68a31c60a7673dc227c97b1a3a33cb92e467dc3905559f62d93500020230c62"
+  },
+  {
+    "path": "original236-relay-failure/command.json",
+    "bytes": 281,
+    "sha256": "6f0a6146ca433c2d365d0fbcafd2295f4cb7f7bc91529e0b5527fad3f7a5cd0a"
+  },
+  {
+    "path": "original236-relay-failure/main.zil",
+    "bytes": 362,
+    "sha256": "5a2e5d8ff214763d3307d7bd22423a6022fce7965d3d870ef469619a98c2eab2"
+  },
+  {
+    "path": "original236-relay-failure/phases/core.txt",
+    "bytes": 53531,
+    "sha256": "5c2acdaf247c09247cbb317ae2c0c3a5e23a22f74e1a29b9c3f5022efccf80e0"
+  },
+  {
+    "path": "original236-relay-failure/phases/ct-core.txt",
+    "bytes": 53531,
+    "sha256": "5c2acdaf247c09247cbb317ae2c0c3a5e23a22f74e1a29b9c3f5022efccf80e0"
+  },
+  {
+    "path": "original236-relay-failure/phases/interfaces.txt",
+    "bytes": 1720,
+    "sha256": "3eac64fdbf3ff95a867e4fd9c2cc75bb013d1f3261f0a73b2a1fb812957cfa13"
+  },
+  {
+    "path": "original236-relay-failure/phases/source-map.txt",
+    "bytes": 32951,
+    "sha256": "1e40e7cb9fa96d886cae9fe383235211d895bc6d4640bf4d318d35aed6016982"
+  },
+  {
+    "path": "original236-relay-failure/phases/syntax.txt",
+    "bytes": 104914,
+    "sha256": "66e6c06e9de138687b078429ef15b4375f80963a0190a80f27a3ed7dd4edd858"
+  },
+  {
+    "path": "original236-relay-failure/phases/typed.txt",
+    "bytes": 83207,
+    "sha256": "4e114ece2aef6b6d6a05cd1f31e66221a9aaacecd08ac494b6d38f81a5e5635a"
+  },
+  {
+    "path": "original236-relay-failure/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

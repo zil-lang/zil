@@ -1,0 +1,105 @@
+   Compiling zil-types v0.1.0 (/workspace/zil-core/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-core/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 12.86s
+     Running tests/impl206_independent.rs (/workspace/.zil-env/target-core/debug/deps/impl206_independent-ff750aabfb0f8606)
+
+running 45 tests
+test raw_late_desc_read_cannot_revive_after_child_refill_and_embedding ... ok
+test raw_ordinary_call_and_pure_input_cannot_forge_create ... ok
+test raw_actual_sibling_and_leaf_positions_keep_distinct_freshness ... ok
+test raw_complete_child_operands_are_affine_and_wrong_sibling_drop_is_not_refill ... ok
+test raw_unused_nested_metadata_does_not_gain_ordinary_or_legacy_authority ... ok
+test source_00_original120 ... ok
+test source_01_incoming_child_only ... ok
+test raw_unused_resource_head_cannot_hide_an_ordinary_product ... ok
+test source_02_incoming_forged_create ... ok
+test source_03_twins_left_created ... ok
+test source_05_twins_left_incoming ... ok
+test source_06_twins_right_incoming ... ok
+test source_04_twins_right_created ... ok
+test source_08_refill_other_stays_incoming ... ok
+test source_07_refill_actual_created ... ok
+test source_10_join_mixed ... ok
+test source_11_unknown_call_not_create ... ok
+test source_09_join_created ... ok
+test source_12_unknown_call_give ... ok
+test source_15_partial_child_embed ... ok
+test source_14_zero_iteration_incoming ... ok
+test source_16_partial_parent_return ... ok
+test source_13_managed_create_contract ... ok
+test source_18_child_value_reused_after_refill ... ok
+test source_17_child_take_twice ... ok
+test source_20_desc_does_not_revive ... ok
+test source_22_inner_store ... ok
+test source_19_desc_last_use ... ok
+test source_24_array_parent ... ok
+test source_23_store_parent ... ok
+test source_26_borrowed_companion ... ok
+test source_25_sum_parent ... ok
+test nested_actual_leaf_paths_have_exact_fresh_phase_work_boundaries ... ok
+test source_27_inner_owning_array ... ok
+test source_28_inner_owning_sum ... ok
+test source_30_inner_concrete_closure ... ok
+test source_31_wrong_nominal_child ... ok
+test source_21_copy_companions ... ok
+test source_29_product_capture_admitted_after_214_216 ... ok
+test source_32_recursive_drop ... ok
+test source_35_failed_rhs_keeps_old ... ok
+test source_34_replace_complete_child ... ok
+test source_33_partial_refill ... ok
+test source_36_failed_rhs_no_rollback ... ok
+test source_37_layout_actual_values ... ok
+
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+
+     Running tests/impl227_machine.rs (/workspace/.zil-env/target-core/debug/deps/impl227_machine-cd80a80f7c8924eb)
+
+running 1 test
+test registration_and_cleanup_preserve_actual_allocation_debt ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/impl235_budget.rs (/workspace/.zil-env/target-core/debug/deps/impl235_budget-a4fea5dbbe58043b)
+
+running 2 tests
+legacy: types=835,analyze=7129,verify=12161
+test legacy_flat_capture_boundaries_unchanged ... ok
+nested: types=3943,analyze=82079,verify=173575
+test ordinary_product_store_new_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running tests/impl235_machine.rs (/workspace/.zil-env/target-core/debug/deps/impl235_machine-c204c2b1e6f593e4)
+
+running 1 test
+test replacement_preparation_and_moved_child_failures_settle_actual_store_prefixes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/review227_contracts.rs (/workspace/.zil-env/target-core/debug/deps/review227_contracts-93ec38064baa81cf)
+
+running 8 tests
+test an_early_actual_call_cannot_resume_the_ordinary_body ... ok
+test empty_actions_still_require_the_actual_adjacent_call_at_scope_exit ... ok
+test borrowing_a_callback_does_not_erase_the_deferred_future_resource_use ... ok
+test ordinary_once_transfer_preserves_shared_address_holds_until_actual_invocation ... ok
+test ordinary_once_transfer_cannot_launder_registered_action_resource_sources ... ok
+test deferred_capture_mutation_survives_outer_callback_writeback ... ok
+test owned_resource_and_callback_returns_are_prepared_before_cleanup ... ok
+test pending_outer_action_crosses_internal_loops_and_inner_actions_close_first ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/review235_contracts.rs (/workspace/.zil-env/target-core/debug/deps/review235_contracts-f6e5573014e21f4c)
+
+running 6 tests
+test ordinary_composition_does_not_open_capture_or_containers ... ok
+test remembered_header_description_blocks_parent_transfer_until_its_actual_last_use ... ok
+test unused_product_parameters_still_require_exact_canonical_store_metadata ... ok
+test direct_callback_store_and_noncallback_generic_wrapper_controls ... ok
+test pop_and_failed_full_push_then_parent_drop_settle_only_actual_prefix ... ok
+test same_typed_store_leaves_preserve_incoming_and_created_through_child_transfer ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.29s
+

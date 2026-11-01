@@ -1,0 +1,16 @@
+{
+  "status": "Fail",
+  "implementation_commit": "b044fc96cdb6a2f051f990368361cbb9e8f1fc06",
+  "production_identical_to": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "command": "cargo test --locked -p zil-driver --test review238_compatibility -- --nocapture",
+  "environment": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-core CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/workspace/.zil-env/compatibility-pre-fix/native",
+  "exit_code": 101,
+  "passed": 2,
+  "failed": 1,
+  "ignored": 0,
+  "filtered": 0,
+  "failure": "Opaque whole imported Product argument incorrectly requires private fields to be visible; Types E-FIELD-PRIVATE",
+  "preserved_controls": "Both explicit-private-access group and ordinary dead-shell group pass their original rejection expectations",
+  "log_sha256": "6e4e9edadab0cb09877200bceb7c34b0d08d44665b1f14c626131f758dc3c6eb",
+  "archive_sha256": "36ef57de2e39a4187480932c0b81f76225a861630845b2e9e8f180db901ea9e0"
+}

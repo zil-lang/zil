@@ -431,9 +431,9 @@ impl Walk<'_, '_> {
                         self.patterned(&arm.pattern, &shape, &arm.body, depth + 1)?;
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                    self.block(body, depth + 1)?
-                }
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => self.block(body, depth + 1)?,
                 _ => {}
             }
         }
@@ -521,11 +521,13 @@ impl Walk<'_, '_> {
                     self.state
                         .snapshot(tree_work(self.found.len()).saturating_add(1), callee.span)?;
                     self.found.insert(Node::Store(index));
+                    let products = self.state.products.clone();
                     let result = store_templates::substitute_type(
                         &signature.result,
                         &bound.name,
                         &actual,
                         self.limits,
+                        &products,
                         callee.span,
                         &mut |n| self.state.snapshot(n, callee.span),
                     )?;
@@ -567,10 +569,18 @@ impl Walk<'_, '_> {
                             ));
                         }
                         let mut actual = None;
+                        let products = self.state.products.clone();
                         for ((pattern, shape), argument) in
                             signature.parameters.iter().zip(&shapes).zip(arguments)
                         {
-                            if !store_templates::has_parameter(pattern, &bound.name) {
+                            if !aggregate_templates::parameter_in(
+                                pattern,
+                                &bound.name,
+                                &products,
+                                self.limits,
+                                argument.span,
+                                &mut |n| self.state.snapshot(n, argument.span),
+                            )? {
                                 continue;
                             }
                             let Shape::Complete { ty, .. } = shape else {
@@ -584,7 +594,7 @@ impl Walk<'_, '_> {
                                 ty,
                                 &bound.name,
                                 &mut actual,
-                                self.limits,
+                                (self.limits, &products),
                                 argument.span,
                                 &mut |work| self.state.snapshot(work, argument.span),
                             )?;
@@ -603,11 +613,13 @@ impl Walk<'_, '_> {
                             expression.span,
                         )?;
                         self.found.insert(Node::Store(index));
+                        let products = self.state.products.clone();
                         let result = store_templates::substitute_type(
                             &signature.result,
                             &bound.name,
                             &actual,
                             self.limits,
+                            &products,
                             expression.span,
                             &mut |work| self.state.snapshot(work, expression.span),
                         )?;

@@ -1,0 +1,233 @@
+{
+  "task": "237",
+  "component": "IR versions, Expand recipe/application publication, CT/driver metadata transport",
+  "status": "Assigned IR/Expand/CT/collector implementation and limited tests complete; independent review and integration pending",
+  "worktree": "/workspace/zil-237",
+  "source_identity": "Checkpoint file hashes in CHECKPOINT-FILES.json; tests ran on the shared worktree before checkpoint, not a claimed frozen final candidate",
+  "protocol": {
+    "schema": 29,
+    "wire": 29,
+    "fingerprint": "ZIL-TYPED-MODULE-V29",
+    "runtime_opcodes_added": 0
+  },
+  "commands": [
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test -p zil-ir -p zil-base -p zil-ct",
+      "status": "Pass",
+      "exit_code": 0,
+      "suites": [
+        {
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 28,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 37,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 6,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      ],
+      "log": "logs/237-ir-ct-tests.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test -p zil-expand --test impl237_product_recipes --test impl202_store_templates --test impl203_state_bindings",
+      "status": "Pass",
+      "exit_code": 0,
+      "suites": [
+        {
+          "passed": 17,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 15,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        },
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 0
+        }
+      ],
+      "log": "logs/237-expand-regression.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --lib product237_",
+      "status": "Pass",
+      "exit_code": 0,
+      "suites": [
+        {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "measured": 0,
+          "filtered": 62
+        }
+      ],
+      "log": "logs/237-driver-ct-tests.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test -p zil-expand --test impl237_product_recipes -- --nocapture",
+      "status": "Pass, superseded only for new explicit scope-copy fees by final boundary receipt",
+      "exit_code": 0,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log": "logs/237-expand-boundaries.log.gz",
+      "exact_boundaries": {
+        "work": 5260,
+        "nodes": 1352,
+        "depth": 7
+      },
+      "boundary_assertions": "N success, N-1 ResourceLimit, fresh N identical Core for every dimension"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo clippy -p zil-expand -p zil-ct --all-targets -- -D warnings",
+      "status": "Pass",
+      "exit_code": 0,
+      "log": "logs/237-clippy.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test -p zil-expand --test impl237_product_recipes -- --nocapture",
+      "status": "Pass",
+      "exit_code": 0,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log": "logs/237-expand-final-boundaries.log.gz",
+      "exact_boundaries": {
+        "work": 5298,
+        "nodes": 1363,
+        "depth": 7
+      },
+      "boundary_assertions": "N success, N-1 ResourceLimit, fresh N identical Core for every dimension"
+    }
+  ],
+  "checks": [
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo check -p zil-expand",
+      "status": "Pass",
+      "log": "logs/237-expand-check-retry.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-237 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo check -p zil-ct -p zil-driver",
+      "status": "Pass",
+      "log": "logs/237-ct-driver-check.log.gz"
+    }
+  ],
+  "original_failures": [
+    {
+      "log": "logs/237-expand-check.log.gz",
+      "kind": "Compile scaffolding failure",
+      "cause": "new nested module used insufficient visibility and ambiguous glob AggregateKind; corrected before successful checks"
+    },
+    {
+      "log": "logs/237-concrete-recipe-original.log.gz",
+      "kind": "Missing positive source handling",
+      "cause": "Original recipe Concrete(Cell<i32>) reached type_ref before generic specialization and became Unsupported while its generated header already had a valid Cell instance. Closed recipe subtrees now reuse existing AST specialization before Core publication; exact original source positive is retained.",
+      "fixed_log": "logs/237-concrete-recipe-fixed.log.gz"
+    }
+  ],
+  "pending": [
+    "Independent review of cross-module/owner/phantom/raw unused tables and native cleanup",
+    "Full integration; native author/reviewer evidence tracked separately"
+  ],
+  "rust_goals": {
+    "safety": "Bounded untrusted metadata transport; Types author independently checks owner, recipe/header identity; runtime Analyze/Verify remain unchanged",
+    "runtime_memory": "No runtime opcode added; native/Rust cost comparison not measured here",
+    "expression_maintenance": "One StoreElement Product wrapper now has explicit original recipe and application identity; original source case is separately tested by Types author",
+    "compile_cost": "Default limits unchanged; empty-table logical fees retained; original Expand202/203 suites passed. Final new metadata exact work5298/nodes1363/depth7 tested N/N-1/fresh N; earlier snapshot5260/1352/7 retained with reason for additional explicit fees.",
+    "breakthrough": "Finite source composition increment only; product-level repeatable breakthrough not established"
+  },
+  "fee_history": {
+    "earlier_new_table_snapshot": {
+      "work": 5260,
+      "nodes": 1352,
+      "depth": 7,
+      "log": "logs/237-expand-boundaries.log.gz"
+    },
+    "final_new_table_snapshot": {
+      "work": 5298,
+      "nodes": 1363,
+      "depth": 7,
+      "log": "logs/237-expand-final-boundaries.log.gz"
+    },
+    "reason": "Explicit prepayment for private lexical-scope name copies, repeated binder scans, and project owner restoration. Only nonempty new metadata path. Original earlier receipt retained."
+  }
+}

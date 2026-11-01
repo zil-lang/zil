@@ -1,0 +1,82 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "implementation_author": "/root/impl_product_store235",
+  "implementation_commit": "edb044089592ff73832040ed52057f78eb9b419b",
+  "verdict": "Pass",
+  "scope": "Bounded independent review of ordinary complete concrete Product ownership of existing legal Store elements. This is not a pass of retained generic T-to-Root<T> composition, full ZIL 1.4, ZUI, product gates, Windows, or integrated Wire28.",
+  "baseline": "a68398ad7714e2749e7f263b191c0ed78d36b3c8",
+  "schema_version": 27,
+  "spec_hash": "3621ce7eb5a679c77a248a81e6a35c348ee346609502dfca1e7353c5c1bc4661",
+  "normative_hash": "a4f488e662c4e1e0e8f1627d63a825bc3c37e64a92754ca3b3208fccb956a813",
+  "review_test": "crates/zil-driver/tests/review235_contracts.rs",
+  "review_test_sha256": "f84260bb2ad8d7e8bf87111ce17f98a9501546e92b89af58269e9527caa30962",
+  "commands": [
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-235 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/review235-final04 cargo test -p zil-driver --features llvm-api --test review235_contracts --test impl235_machine --test impl235_budget --locked -- --skip generic_store_element_binder_survives_a_non_element_product_wrapper --nocapture",
+      "exit_code": 0,
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 1,
+      "log": "bounded-tests.log"
+    },
+    {
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-235 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/review235-open237-final cargo test -p zil-driver --features llvm-api --test review235_contracts --locked generic_store_element_binder_survives_a_non_element_product_wrapper -- --exact --nocapture",
+      "exit_code": 101,
+      "passed": 0,
+      "failed": 1,
+      "filtered": 6,
+      "log": "open237-failure.log",
+      "classification": "Preserved unmet Success obligation, assigned to independent follow-up 237; not counted as a passed rejection."
+    }
+  ],
+  "findings": [
+    {
+      "id": "235-budget-prepay",
+      "status": "Fixed",
+      "details": "Removed an unpaid recursive Product Store classification from holds. The already prepaid admission records a private per-function bit, allocated/charged only on the new shape and indexed by actual function-table position."
+    },
+    {
+      "id": "235-retained-wrapper",
+      "status": "Open-237",
+      "expected": "Success",
+      "actual": "Expand SafeReject E-GENERIC-ARGUMENT: StoreElement requires a complete nominal Package or declared resource",
+      "details": "Direct callback Store and noncallback generic wrapper controls pass separately. The complete actual/owner identity needed by the retained generic return remains a separate public representation obligation. Original Success expectation is retained."
+    }
+  ],
+  "coverage": [
+    "No-constructor unused ordinary parameter metadata: missing/aliased/mismatched/duplicated/user-teardown canonical Store definitions rejected independently through raw/Wire.",
+    "Same-typed Store leaves retain Created/Incoming across complete child transfer; forged create rejects independently.",
+    "Capture, shared Product, owned array, Sum and nested Store element boundaries remain closed.",
+    "Actual header description holds prevent parent transfer until last use; full push/pop leave exactly actual prefix debts.",
+    "LLVM API O0/O2 independent cleanup oracles plus allocator-injected preparation/replacement failures; no fallback.",
+    "Legacy exact costs remain; new work is prepaid and N/N-1/fresh limits tested."
+  ],
+  "native": {
+    "independent_program_runs": 4,
+    "allocator_program_runs": 18,
+    "real_injected_failures": 14,
+    "targets": [
+      "x86_64-unknown-linux-gnu"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "backend": "LLVM API builder",
+    "allocator_live_after_each_run": 0
+  },
+  "budget": {
+    "legacy_flat_types": 835,
+    "legacy_flat_analyze": 7129,
+    "legacy_flat_verify": 12161,
+    "nested_types": 3943,
+    "nested_analyze": 82079,
+    "nested_verify": 173575
+  },
+  "limits": [
+    "Final combined schema28 integration must revalidate the migrated compiler snapshot.",
+    "No full workspace or product gate was run by the reviewer.",
+    "The complete independent test file still contains the active failing Success obligation tracked by 237."
+  ]
+}

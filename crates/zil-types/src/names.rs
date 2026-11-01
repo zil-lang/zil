@@ -196,9 +196,9 @@ impl Names<'_> {
                         self.block(&arm.body, receiver, depth + 1)?;
                     }
                 }
-                CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => {
-                    self.block(b, receiver, depth + 1)?
-                }
+                CoreStatementKind::Block(b)
+                | CoreStatementKind::Unsafe(b)
+                | CoreStatementKind::Defer(b) => self.block(b, receiver, depth + 1)?,
                 _ => {}
             }
         }
@@ -318,6 +318,8 @@ mod tests {
     }
     fn module(kind: CoreStatementKind) -> CoreModule {
         CoreModule {
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
             schema_version: zil_base::SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,

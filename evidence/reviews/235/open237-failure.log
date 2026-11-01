@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+     Running tests/review235_contracts.rs (/workspace/.zil-env/target-235/debug/deps/review235_contracts-f6e5573014e21f4c)
+
+running 1 test
+
+thread 'generic_store_element_binder_survives_a_non_element_product_wrapper' (63724) panicked at crates/zil-driver/tests/review235_contracts.rs:105:9:
+assertion `left == right` failed: generic-callback-element: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"StoreElement requires a complete nominal Package or declared resource","span":{"file":0,"start":388,"end":389},"notes":[]}],"artifacts":{"syntax":"/tmp/review235-open237-final/review235-generic-callback-element-63723-0/phases/syntax.txt"},"input_fingerprint":"693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d","seconds":0.008192116,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"review235.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test generic_store_element_binder_survives_a_non_element_product_wrapper ... FAILED
+
+failures:
+
+failures:
+    generic_store_element_binder_survives_a_non_element_product_wrapper
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test review235_contracts`

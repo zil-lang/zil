@@ -1,0 +1,15 @@
+    Finished `test` profile [unoptimized] target(s) in 0.04s
+     Running tests/impl206_verify.rs (/workspace/.zil-env/target-238-privacy/debug/deps/impl206_verify-cc86d461db71459a)
+
+running 5 tests
+test original_flat186_verify_boundary_stays_10398_without_product_leaf_table ... ok
+test unused_nested_metadata_has_no_source_or_candidate_exemption ... ok
+test incoming_and_unknown_call_leaves_cannot_forge_create_with_a_candidate ... ok
+test exact_frozen_complete_products_reach_independent_raw_and_wire_verify ... ok
+created: verify_work=27075
+two-whole-transfers: verify_work=33259
+three-wrappers: verify_work=31077
+test real_product_verify_work_has_exact_n_minus_one_and_fresh_boundaries ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+

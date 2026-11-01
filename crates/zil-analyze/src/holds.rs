@@ -45,9 +45,14 @@ fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     if let Type::Package { fields, .. } = ty {
         budget.spend(fields.len(), "captured Store whole-position classification")?;
-        return Ok(fields
-            .iter()
-            .any(|(_, ty)| dynamic_store::is_owned_carrier(ty)));
+        for (_, field) in fields {
+            if dynamic_store::is_owned_carrier(field)
+                || (matches!(field, Type::Package { .. }) && contains_owned_store(field, budget)?)
+            {
+                return Ok(true);
+            }
+        }
+        return Ok(false);
     }
     Ok(false)
 }
@@ -83,8 +88,17 @@ fn store_window_transition(
         InstructionKind::TakePackageField { local, index }
         | InstructionKind::DropPackageField { local, index }
         | InstructionKind::StorePackageField { local, index, .. }
-            if matches!(&f.locals[local.0 as usize].ty, Type::Package { fields, .. }
-                if fields.get(index as usize).is_some_and(|(_, ty)| dynamic_store::is_owned_carrier(ty))) =>
+            if match &f.locals[local.0 as usize].ty {
+                Type::Package { fields, .. } => match fields.get(index as usize) {
+                    Some((_, ty)) => {
+                        dynamic_store::is_owned_carrier(ty)
+                            || (matches!(ty, Type::Package { .. })
+                                && contains_owned_store(ty, budget)?)
+                    }
+                    None => false,
+                },
+                _ => false,
+            } =>
         {
             Some(Root::Field(local, index))
         }
@@ -525,6 +539,20 @@ pub(super) fn infer_module(
     Ok(result)
 }
 
+// Preflight records these private bits during paid complete-type admission.
+// Index by the actual function table position, never producer FunctionId.
+fn ordinary_store_function(index: usize, budget: &mut Budget) -> CompileResult<bool> {
+    if budget.ordinary_store_functions.is_empty() {
+        return Ok(false);
+    }
+    budget.spend(1, "ordinary Product Store function flag lookup")?;
+    budget
+        .ordinary_store_functions
+        .get(index)
+        .copied()
+        .ok_or_else(|| bad("ordinary Product Store function profile is absent"))
+}
+
 fn infer_module_inner(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
@@ -540,7 +568,8 @@ fn infer_module_inner(
             .functions
             .iter()
             .zip(graphs)
-            .map(|(f, (preds, reachable))| {
+            .enumerate()
+            .map(|(index, (f, (preds, reachable)))| {
                 infer(
                     module,
                     &[],
@@ -549,7 +578,7 @@ fn infer_module_inner(
                     reachable,
                     f.environment.is_some_and(|id| {
                         store_profiles.get(id.0 as usize).copied().unwrap_or(false)
-                    }),
+                    }) || ordinary_store_function(index, budget)?,
                     budget,
                 )
             })
@@ -610,7 +639,8 @@ fn infer_module_inner(
             reachable,
             function
                 .environment
-                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false)),
+                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false))
+                || ordinary_store_function(index, budget)?,
             budget,
         )?;
         let mut changed = false;

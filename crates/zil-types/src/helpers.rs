@@ -703,6 +703,14 @@ impl Builder<'_, '_> {
                 };
             }
         }
+        aggregate_templates::rebind_callable_function(
+            &mut function,
+            bounds,
+            bindings,
+            self.closures,
+            self.limits,
+            span,
+        )?;
         self.closures.snapshot(24, span)?;
         let label = bindings.label();
         let id = self.closures.allocate_function(span)?;

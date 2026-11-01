@@ -1,0 +1,10 @@
+{
+  "base_checkpoint": "6e5b6686f6f87653624295c95bf4f1754ff4809a",
+  "identity": "Shared worktree after concrete generic field recipe fix and explicit owner-copy prepayment; not an implementation commit",
+  "files_sha256": {
+    "crates/zil-expand/src/generic_products.rs": "e7d100c4d740966f3158f7fc2febdccac1c0d03c414288f7571589d165fcbfdc",
+    "crates/zil-expand/src/generics.rs": "c43acc1a0326297a8f9d8457401299269428ba341a6d383dce8df8ef5cca3654",
+    "crates/zil-expand/src/modules.rs": "750c31dbe63e6d13cbf5a23c97f0cb46c73a709b7986cfcee9abafd3f6b366fc",
+    "crates/zil-expand/tests/impl237_product_recipes.rs": "9e9f3479839e241b8bf47c2ec7571d7da2deb1f67f1c12fe8617cc7624880bd0"
+  }
+}

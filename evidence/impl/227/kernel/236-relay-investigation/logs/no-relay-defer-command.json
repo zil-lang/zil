@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/workspace/.zil-env/target-core/debug/zil",
+    "check",
+    "/workspace/.zil-env/236-joint01/minimal02/without-relay/main.zil",
+    "--emit-dir",
+    "/workspace/.zil-env/236-joint01/minimal02/without-relay/phases",
+    "--json"
+  ],
+  "exit": 0
+}

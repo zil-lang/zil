@@ -1,0 +1,157 @@
+{
+  "task": "238",
+  "status": "AuthorScopedBudgetAndOrdinaryTemplateChecksPass;GenericHelperDeferCombinationPending",
+  "implementation_commit": "3fdd02070b417a027444143f0c03d55c7b11c5bb",
+  "combined_probe_commit": "e5c9dedda53bee9befe325b283e4f33c47432071",
+  "independent_acceptance": "PendingSeparateReceipt",
+  "full_language_gate": "NotRun",
+  "product_gate": "NotRun",
+  "supersedes": "Initial0af receipt is historical. Independent source inspection found the new owned_supported recursive eligibility walk ran before its fee, and the concrete-only call gate was narrower than the frozen ordinary-static-template contract.",
+  "fixes": [
+    "Before recursive eligibility, run the bounded type inventory and reserve two inventory units in the closure budget; scalar/field/Managed/Closure dispatch stays outside this new whole-Package path.",
+    "Unwrap static TypeApply for ordinary signature resolution; allow the existing type-parameter template dispatcher to instantiate after the single self argument is reconstructed. Foreign/cleanup/receiver/callable/State role mismatches remain closed."
+  ],
+  "runs": [
+    {
+      "id": "budget-and-source",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-budget-fix-evidence cargo test -p zil-driver --features llvm-api --test impl238_product_replacement --test impl238_machine --test impl235_budget -- --nocapture",
+      "passed": 9,
+      "failed": 0,
+      "filtered_out": 0,
+      "log": "238-budget-fix-first.log.gz",
+      "note": "Before adding the direct-template control test; no aggregate37 reclassification."
+    },
+    {
+      "id": "ordinary-direct-T-controls",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-generic-controls-evidence cargo test -p zil-driver --features llvm-api --test impl238_product_replacement self_call_reuses_ordinary_inferred_and_explicit_template_instantiation -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "filtered_out": 6,
+      "native_cases": 2,
+      "native_executions": 4,
+      "log": "238-generic-controls-first.log.gz",
+      "scope": "Existing T:StoreElement direct-T relay inferred/explicit controls. These alone do not prove Root<T>/F-helper targets."
+    },
+    {
+      "id": "combined-cli-build",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 cargo build -p zil-cli --features llvm-api",
+      "cwd": "/workspace/zil-core",
+      "commit": "e5c9dedda53bee9befe325b283e4f33c47432071",
+      "exit": 0,
+      "log": "238-joint-generic-build.log.gz"
+    },
+    {
+      "id": "loader-failure",
+      "archive": "238-root-generic-joint.tar.gz",
+      "compile_attempts": 8,
+      "native_executions": 0,
+      "status": "InfrastructureFailureBeforeCompiler",
+      "cause": "This author omitted sourcing env.sh in the first CLI invocation process; libLLVM.so.23.1 could not be loaded, exit127. Corrected environment only; source/compiler hashes unchanged. Not counted as language Unsupported or acceptance."
+    },
+    {
+      "id": "combined-extended-targets",
+      "archive": "238-root-generic-joint-ready.tar.gz",
+      "commit": "e5c9dedda53bee9befe325b283e4f33c47432071",
+      "setup": ". /workspace/.zil-env/env.sh",
+      "command_per_case": "zil build SOURCE --backend llvm-api --opt O0|O2 --emit-dir DIR/phases -o DIR/program --json; then execute DIR/program",
+      "source_cases": 4,
+      "build_attempts": 8,
+      "native_executions": 4,
+      "native_passed": 4,
+      "compile_unsupported": 4,
+      "scope": "Root<Item> inferred/explicit cases each pass O0/O2 exact LQA. Two F-helper cases include an added ordinary defer, rejected in Expand generic_check at that Defer statement, so no native acceptance is claimed for them.",
+      "unclosed_obligation": "Original ALQZ defer cases and oracles remain unchanged for the next combined candidate."
+    },
+    {
+      "id": "isolated-F-helper-relay-controls",
+      "archive": "238-root-generic-f-controls.tar.gz",
+      "commit": "e5c9dedda53bee9befe325b283e4f33c47432071",
+      "setup": ". /workspace/.zil-env/env.sh",
+      "command_per_case": "zil build SOURCE --backend llvm-api --opt O0|O2 --emit-dir DIR/phases -o DIR/program --json; then execute DIR/program",
+      "source_cases": 2,
+      "native_executions": 4,
+      "native_passed": 4,
+      "scope": "Only added helper-local defer is removed from original extended F-helper probes. The generic relay and late resource remain: inferred/explicit Item<F> pass O0/O2 exact ALZ. These isolate family+complete-argument inference and 238 transaction composition and do not replace the original ALQZ acceptance obligation."
+    }
+  ],
+  "budget": {
+    "new238_Types": 617,
+    "previous_unpaid_version": 531,
+    "n_success": true,
+    "n_minus_one_resource_limit": true,
+    "fresh_n_success": true,
+    "unchanged_legacy": [
+      835,
+      7129,
+      12161
+    ],
+    "unchanged235": [
+      3943,
+      82079,
+      173575
+    ],
+    "order": "Types/Analyze/Verify"
+  },
+  "probe_sources": "../generic-probes/",
+  "counting": "Current generic target evidence has eight actual successful LLVM API native executions (four Root<Item>, four isolated F-helper), kept separate from earlier author/reviewer test replays and four currently blocked helper-defer compilations. No run totals are summed across revisions.",
+  "logs": [
+    {
+      "file": "238-budget-fix-first.log.gz",
+      "sha256": "bc12000f5e8502bdf1cba378c9f99bb25cdafb6ebd4117d8b1cdf6d61d002260",
+      "original_sha256": "d72887d8cb3422eba3ae30cc6df766e41f7d3b5cf9123d915e42894dfb7e2314"
+    },
+    {
+      "file": "238-generic-controls-first.log.gz",
+      "sha256": "f4e1cb7d25a9a2923afd79a8430b46b55214a68c21268bd6c96d0f5f715b59f2",
+      "original_sha256": "633614b50e63e3d40e05d318c458bb48551fd8e9494c2df837b4dd0a56081ac6"
+    },
+    {
+      "file": "238-joint-generic-build.log.gz",
+      "sha256": "65c839161ae9df7ead79b4c4fa30e73943165dee4cf7268f767980becd17b591",
+      "original_sha256": "2d963bca55fdf55829ea89e2f7aff881b64697ac0d34d430cc619337487cd0ea"
+    }
+  ],
+  "archives": [
+    {
+      "file": "238-budget-fix-evidence.tar.gz",
+      "sha256": "97095159b92f63449918cfc4fd84705d5b64bb6e61d09c6d50148134f737750c",
+      "bytes": 1008903,
+      "members": 475,
+      "inventory": "238-budget-fix-evidence.files.json",
+      "inventory_sha256": "31f94deee3660f2b591b5c353b428254d9a32855671d4fbcea49fc3579fb6183"
+    },
+    {
+      "file": "238-generic-controls-evidence.tar.gz",
+      "sha256": "f2503bd5036525c6024aa56a4afd5c318d308d7e3804e41e44c70da037e81963",
+      "bytes": 124234,
+      "members": 60,
+      "inventory": "238-generic-controls-evidence.files.json",
+      "inventory_sha256": "b54087203fe011e58be55a978453dda6b15a9a370d9857772c568d02f15d60b4"
+    },
+    {
+      "file": "238-root-generic-joint.tar.gz",
+      "sha256": "93a5aabddf81ae2ab9314c793d53ecb0de9f4708a5db9668e3d193f686297437",
+      "bytes": 2010,
+      "members": 33,
+      "inventory": "238-root-generic-joint.files.json",
+      "inventory_sha256": "1a01eee83b8086cd329108e68aaeabd50a62299b7a0db6afe027aa82d942793f"
+    },
+    {
+      "file": "238-root-generic-joint-ready.tar.gz",
+      "sha256": "eae079837ad22fc47e6ffe6c29a748e7205901b840b6e0d3cba68e2869d42fc0",
+      "bytes": 232466,
+      "members": 101,
+      "inventory": "238-root-generic-joint-ready.files.json",
+      "inventory_sha256": "709c0718d94ac7e4720629048bb67e8cf2a572cc1e8a9c9756be95031b9a301a"
+    },
+    {
+      "file": "238-root-generic-f-controls.tar.gz",
+      "sha256": "5dc4a7e80d24e18602b43f673eea8dc0901a7bd82b9a0b88b5e27c199bf5b1cf",
+      "bytes": 304965,
+      "members": 81,
+      "inventory": "238-root-generic-f-controls.files.json",
+      "inventory_sha256": "88482b27d8d62b319eb17af7844d47e54e1550c08221f85f43e036aab8580620"
+    }
+  ],
+  "source_hashes": "SOURCE-SHA256.json"
+}

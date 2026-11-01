@@ -1,0 +1,42 @@
+{
+  "status": "BuildFailure",
+  "candidate_commit": "c470c0a04c276e0266b28d98728c9e510760eb85",
+  "git_status": "",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli",
+    "--features",
+    "llvm-api"
+  ],
+  "exit_code": 101,
+  "CARGO_TARGET_DIR": "/workspace/.zil-env/target-core",
+  "CARGO_BUILD_JOBS": 1,
+  "CARGO_INCREMENTAL": 0,
+  "diagnostics": [
+    {
+      "code": "E0062",
+      "file": "crates/zil-types/src/inference.rs",
+      "first_line": 638,
+      "duplicate_line": 645,
+      "field": "aggregate_templates"
+    },
+    {
+      "code": "E0062",
+      "file": "crates/zil-types/src/inference.rs",
+      "first_line": 639,
+      "duplicate_line": 646,
+      "field": "aggregate_applications"
+    }
+  ],
+  "consumer_source_and_oracle_changed": false,
+  "cli_invocations": 0,
+  "ordinary_native_executions": 0,
+  "allocator_executions": 0,
+  "source_manifest_sha256": "c539d3c7a9054b33d6cce1987ac8fd1dfedcd1e590b064ae67ce5aff0c04f4ab",
+  "oracle_sha256": "5d3928abeb65d677518a93c9649ac3641ba2d403c448be0a59b4dcbbb5e12c25",
+  "stale_cli": "Not used; no successful compiler receipt for this candidate",
+  "note": "Integrator notified to repair duplicate aggregate metadata fields; consumer agent did not edit production."
+}

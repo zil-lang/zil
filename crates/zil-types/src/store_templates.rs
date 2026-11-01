@@ -65,10 +65,11 @@ pub(super) fn infer_argument(
     actual: &Type,
     name: &str,
     inferred: &mut Option<Type>,
-    limits: &Limits,
+    context: (&Limits, &aggregate_templates::Products),
     span: Span,
     charge: &mut impl FnMut(usize) -> R<()>,
 ) -> R<()> {
+    let (limits, products) = context;
     let pattern_work = inference::type_snapshot_work(pattern, span, limits)?;
     let actual_work = inference::type_snapshot_work(actual, span, limits)?;
     charge(pattern_work.saturating_add(actual_work).saturating_mul(2))?;
@@ -87,12 +88,20 @@ pub(super) fn infer_argument(
         }
         return Ok(());
     }
+    if let Some(pairs) =
+        aggregate_templates::input_pairs(pattern, actual, products, limits, span, charge)?
+    {
+        for (wanted, got) in pairs {
+            infer_argument(&wanted, &got, name, inferred, context, span, charge)?;
+        }
+        return Ok(());
+    }
     match (pattern, actual) {
         (Type::Managed(wanted) | Type::Desc(wanted), Type::Managed(got) | Type::Desc(got)) => {
             if let (Type::OwnedStore { element: wanted }, Type::OwnedStore { element: got }) =
                 (wanted.as_ref(), got.as_ref())
             {
-                return infer_argument(wanted, got, name, inferred, limits, span, charge);
+                return infer_argument(wanted, got, name, inferred, context, span, charge);
             }
         }
         (
@@ -105,8 +114,8 @@ pub(super) fn infer_argument(
                 result: d,
             },
         ) => {
-            infer_argument(a, c, name, inferred, limits, span, charge)?;
-            return infer_argument(b, d, name, inferred, limits, span, charge);
+            infer_argument(a, c, name, inferred, context, span, charge)?;
+            return infer_argument(b, d, name, inferred, context, span, charge);
         }
         _ => {}
     }
@@ -217,6 +226,14 @@ pub(super) fn resolve_argument(
             })
             .collect::<R<Vec<_>>>()?;
         callable_fields::specialize_type_all(&mut actual, &replacements);
+        aggregate_templates::rebind_callable_type(
+            &mut actual,
+            bounds,
+            bindings,
+            state,
+            limits,
+            span,
+        )?;
         return Ok(actual);
     }
     for bound in bounds {
@@ -227,6 +244,7 @@ pub(super) fn resolve_argument(
             bindings.get(bound.generic_index, span)?,
         );
     }
+    aggregate_templates::rebind_callable_type(&mut actual, bounds, bindings, state, limits, span)?;
     Ok(actual)
 }
 
@@ -257,6 +275,15 @@ pub(super) fn specialize(
     }
     substitution.ty(&mut result.return_type, 0)?;
     substitution.block(&mut result.body, 0)?;
+    let products = state.products.clone();
+    aggregate_templates::rebind_function(
+        &mut result,
+        &[(name, actual)],
+        &products,
+        limits,
+        span,
+        &mut |n| state.snapshot(n, span),
+    )?;
     result.type_parameters.clear();
     Ok(result)
 }
@@ -266,6 +293,7 @@ pub(super) fn substitute_type(
     name: &str,
     actual: &Type,
     limits: &Limits,
+    products: &aggregate_templates::Products,
     span: Span,
     charge: &mut impl FnMut(usize) -> R<()>,
 ) -> R<Type> {
@@ -282,6 +310,14 @@ pub(super) fn substitute_type(
         charge,
     }
     .ty(&mut result, 0)?;
+    aggregate_templates::rebind_type(
+        &mut result,
+        &[(name, actual)],
+        products,
+        limits,
+        span,
+        charge,
+    )?;
     Ok(result)
 }
 
@@ -313,8 +349,16 @@ impl Builder<'_, '_> {
         let mut inferred = None;
         let mut staged = Vec::new();
         let mut actuals = Vec::new();
+        let products = self.closures.products.clone();
         for (argument, parameter) in arguments.iter().zip(&signature.parameters) {
-            let (value, actual) = if has_parameter(parameter, &name) {
+            let (value, actual) = if aggregate_templates::parameter_in(
+                parameter,
+                &name,
+                &products,
+                self.limits,
+                argument.span,
+                &mut |n| self.closures.snapshot(n, argument.span),
+            )? {
                 let (value, actual) = self.expr(argument, None)?;
                 if matches!(parameter, Type::Desc(_)) {
                     self.resource_descriptor(value, actual, argument.span)?
@@ -329,7 +373,7 @@ impl Builder<'_, '_> {
                 &actual,
                 &name,
                 &mut inferred,
-                self.limits,
+                (self.limits, &products),
                 argument.span,
                 &mut |work| self.closures.snapshot(work, argument.span),
             )?;
@@ -441,12 +485,14 @@ impl Builder<'_, '_> {
                     "completed ordinary template is absent from its instance plan",
                 )
             })?;
+        let products = self.closures.products.clone();
         for parameter in &mut signature.parameters {
             *parameter = substitute_type(
                 parameter,
                 &bound.name,
                 actual,
                 self.limits,
+                &products,
                 span,
                 &mut |work| self.closures.snapshot(work, span),
             )?;
@@ -456,6 +502,7 @@ impl Builder<'_, '_> {
             &bound.name,
             actual,
             self.limits,
+            &products,
             span,
             &mut |work| self.closures.snapshot(work, span),
         )?;
@@ -827,9 +874,9 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
                         self.block(&mut arm.body, depth + 2)?;
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                    self.block(body, depth + 2)?
-                }
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => self.block(body, depth + 2)?,
                 _ => {}
             }
         }

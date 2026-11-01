@@ -1,0 +1,96 @@
+{
+  "task": "227",
+  "component": "public IR, Wire, CT walkers, Lower/LLVM integration",
+  "status": "Implemented in assigned write set; listed limited validation passed; full integration and independent review remain separate",
+  "worktree": "/workspace/zil-227",
+  "branch": "task/227",
+  "base_head": "1bd2beddc53600a1351c3f3035a7472e579da89e",
+  "source_identity": "FILE-HASHES.json; tested worktree, no implementation commit claimed",
+  "commands": [
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test -p zil-ir -p zil-base",
+      "status": "Pass",
+      "exit_code": 0,
+      "passed": 59,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "suite_pass_counts": [
+        8,
+        2,
+        37,
+        5,
+        3,
+        2,
+        2,
+        0,
+        0
+      ],
+      "log": "logs/ir227-tests-current.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo check -p zil-ct -p zil-lower -p zil-backend-llvm",
+      "status": "Blocked at first attempt",
+      "exit_code": 101,
+      "cause": "Independent Verify match sites did not yet cover new public enum while parallel implementation was incomplete; not CT/backend verification",
+      "log": "logs/ir227-check.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo test -p zil-ct --lib",
+      "status": "Pass",
+      "exit_code": 0,
+      "passed": 26,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log": "logs/ir227-ct-tests-retry.log.gz"
+    },
+    {
+      "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo check -p zil-lower -p zil-backend-llvm",
+      "status": "Pass",
+      "exit_code": 0,
+      "log": "logs/ir227-backend-check.log.gz"
+    }
+  ],
+  "original_failures": [
+    {
+      "log": "logs/ir227-tests.log.gz",
+      "cause": "Existing wire tests used newly assigned opcode89 as unknown; migrated unknown tags to90/91"
+    },
+    {
+      "log": "logs/ir227-tests-retry.log.gz",
+      "cause": "Existing cp34 count expected90 variants; now91 with RegisterDefer"
+    },
+    {
+      "log": "logs/ir227-tests-final.log.gz",
+      "status": "Pass before final additional domain separation test and formatting; superseded by current log"
+    },
+    {
+      "log": "logs/ir227-ct-tests.log.gz",
+      "cause": "Two new test oracle assumptions failed: plain scalar API returns E-UNSUPPORTED for runtime names, so name-scan test now uses the compiler callback path; rebuilding depth limit3 was not below actual body depth2, so negative boundary uses1. Production logic unchanged by correction."
+    }
+  ],
+  "protocol": {
+    "schema_version": 28,
+    "wire_version": 28,
+    "typed_fingerprint_domain": "ZIL-TYPED-MODULE-V28",
+    "register_defer_opcode": 89,
+    "register_defer_payload": [
+      "scope:u32 little-endian",
+      "local:u32 little-endian"
+    ]
+  },
+  "not_run": [
+    "full workspace",
+    "independent review",
+    "native O0/O2 defer execution",
+    "same-semantics Rust comparison"
+  ],
+  "rust_goals": {
+    "safety": "Public registration identity and raw transport tests pass; independent obligation checking belongs to separate kernel implementer and is not yet certified",
+    "runtime_memory": "Registration machine emission is empty; no runtime or Rust comparison measured here",
+    "expression_maintenance": "Core retains explicit deferred body and concrete scope/local registration; no maintenance-cost claim",
+    "compile_cost": "Default budgets unchanged, old no-defer visitor logic preserved; new CT body identity/node/depth/name traversal covered by three passing tests. No compile-time performance comparison measured.",
+    "breakthrough": "Finite interface implementation increment only; product-level repeatable breakthrough not established"
+  }
+}

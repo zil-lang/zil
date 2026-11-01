@@ -1,0 +1,10 @@
+{
+  "sha256": {
+    "audit.json": "bd4851e67ef1368f59a5dbb65ec789c129e02aed8ab727801e826d355feccffd",
+    "audit.py": "bd262d59cb57354af2bdb50313a85232559924e7a55b441d07f9a623857f375e",
+    "final42.json": "9cc710e42c37be66ed5b0a874372a2969df1ac3c6f08fd38f5ce5a282c1d5ad1",
+    "make-report.py": "859c56120cefd04db174ae33a40d20fa8b30fbe4df80e85c4058b762c20b896b",
+    "negative-audit.json": "57223d41bf31413b6a2e8a1c3bdbf496b5c6fed5f622bcb6ec226d81845e870e",
+    "preflight-audit.json": "bc7f1d222074a74ec61bf88e2c83b173369567881dbc01566b7990bc11c49fee"
+  }
+}

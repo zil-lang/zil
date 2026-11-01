@@ -1,0 +1,274 @@
+{
+  "schema_version": 1,
+  "task": "238",
+  "status": "AuthorScopedPassPendingIndependentAcceptanceAndIntegration",
+  "implementation_commit": "0af913ff3b282816b0cdbfe7c3b158a6bfadc3d8",
+  "remote_branch": "origin/task/238",
+  "remote_readback_commit": "0af913ff3b282816b0cdbfe7c3b158a6bfadc3d8",
+  "baseline_dispatch": "6693e7748ac7626b106a5cf1da97c46c6d68e097",
+  "public29_mechanical_repair": "165409481",
+  "independent_review": "NotRunByAuthor",
+  "full_language_gate": "NotRun",
+  "product_gate": "NotRun",
+  "scope": "Complete replacement of an existing live ordinary Product shell: target-free RHS or one direct target argument of a resolved ordinary static call with all other arguments target-free. Existing whole moves, field/source/borrow qualifications and both responsibility kernels stay unchanged.",
+  "change": "The unique self argument is reconstructed with existing Read/TakePackageField and MakePackage at its original evaluation position. A complete RHS temporary protects obligations; every old owning field is cleaned in declaration order before any Copy or owning field is published. The original target shell is never moved or re-stored by a replacement transaction.",
+  "environment": {
+    "setup": ". /workspace/.zil-env/env.sh",
+    "target_dir": "/workspace/.zil-env/target-238",
+    "build_jobs": 1,
+    "incremental": 0,
+    "feature": "llvm-api",
+    "native_backend": "LlvmApi",
+    "native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "fallback": false
+  },
+  "historical_failures": [
+    {
+      "id": "original236-relay",
+      "origin": "Root integration minimal02; imported original source/check report and phase artifacts, not a new author test.",
+      "archive": "original236-relay-failure.tar.gz",
+      "source_sha256": "5a2e5d8ff214763d3307d7bd22423a6022fce7965d3d870ef469619a98c2eab2",
+      "observation": "Whole Take/Store re-aged current after late/defer and the existing responsibility checker rejected reverse cleanup order."
+    },
+    {
+      "id": "public29-check",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 cargo check -p zil-types",
+      "exit": 101,
+      "log": "238-types-first.log.gz",
+      "cause": "Previously incomplete public schema29 CoreModule metadata-copy constructor omitted both aggregate tables; root fixed separately in 165409481. No private schema workaround."
+    },
+    {
+      "id": "first-author-source",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-first-evidence cargo test -p zil-driver --features llvm-api --test impl238_product_replacement -- --nocapture",
+      "passed": 5,
+      "failed": 1,
+      "log": "238-source-first.log.gz",
+      "cause": "Target-reference traversal omitted the If expression arm. Complex self expression reached later Analyze SafeReject instead of the frozen Unsupported boundary. Fixed exhaustive If/Pattern traversal and cloning fees without changing the oracle.",
+      "archive": "238-first-evidence.tar.gz"
+    }
+  ],
+  "runs": [
+    {
+      "id": "source-after-fix",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-second-evidence cargo test -p zil-driver --features llvm-api --test impl238_product_replacement -- --nocapture",
+      "passed": 6,
+      "failed": 0,
+      "filtered_out": 0,
+      "log": "238-source-second.log.gz",
+      "archive": "238-second-evidence.tar.gz",
+      "counting": "Development replay, included again in final scope; do not add to final counts."
+    },
+    {
+      "id": "machine-first",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-machine-first-evidence cargo test -p zil-driver --features llvm-api --test impl238_machine -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "filtered_out": 0,
+      "log": "238-machine-first.log.gz",
+      "archive": "238-machine-first-evidence.tar.gz",
+      "counting": "Development replay, included again in final scope."
+    },
+    {
+      "id": "original236-first",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-joint-first-evidence cargo test -p zil-driver --features llvm-api --test impl236_zui_core -- --nocapture",
+      "passed": 3,
+      "failed": 0,
+      "filtered_out": 0,
+      "log": "238-joint-first.log.gz",
+      "archive": "238-joint-first-evidence.tar.gz",
+      "counting": "Original unchanged consumer replay, included again in final scope."
+    },
+    {
+      "id": "final-exact-checkpoint",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 ZIL_TEST_REPORT_DIR=/tmp/238-final-evidence cargo test -p zil-driver --features llvm-api --test impl238_product_replacement --test impl238_machine --test impl236_zui_core --test impl235_product_store --test impl235_budget --test impl235_machine --test impl227_defer --test impl227_machine -- --nocapture",
+      "implementation_commit": "0af913ff3b282816b0cdbfe7c3b158a6bfadc3d8",
+      "passed": 37,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "log": "238-final-first.log.gz",
+      "archive": "238-final-evidence.tar.gz",
+      "groups": {
+        "impl238_product_replacement": 6,
+        "impl238_machine": 1,
+        "impl236_zui_core": 3,
+        "impl235_product_store": 9,
+        "impl235_budget": 2,
+        "impl235_machine": 1,
+        "impl227_defer": 14,
+        "impl227_machine": 1
+      }
+    }
+  ],
+  "current_new_scope_counts": {
+    "source_tests": 6,
+    "source_native_variants": 10,
+    "source_native_builds_and_executions": 20,
+    "allocation_tests": 1,
+    "allocation_llvm_api_objects": 4,
+    "allocation_probe_executions": 16,
+    "real_allocation_failures": 8,
+    "allocation_controls": 8,
+    "counting": "Only final 238 acceptance counts. Prior/repeated source and machine runs, old227/235 regressions and independent review executions are not added."
+  },
+  "original236_consumer": {
+    "source_and_oracle": "Unchanged; SOURCE-SHA256.json proves no diff from public29 checkpoint.",
+    "final_native_builds": 2,
+    "final_executions": 40,
+    "inputs": "count 0..3 times modes 0..4 at O0/O2",
+    "oracles": "Original S...LQabAB family and declared child order, return/error/loop/replacement outputs; original missing-refill and live-window rejects unchanged."
+  },
+  "negative_controls": [
+    "Ordinary whole move followed by Copy read",
+    "Whole moved shell cannot be revived by field publication",
+    "Active Copy-field address across replacement",
+    "Active whole-Product address across replacement",
+    "A callback alias still carrying the target borrow",
+    "Second self access in another argument",
+    "Unsupported complex nested self expression"
+  ],
+  "budgets": {
+    "new238_Types": {
+      "minimum": 531,
+      "checks": [
+        "N success",
+        "N-1 ResourceLimit only",
+        "fresh N success"
+      ]
+    },
+    "legacy": {
+      "Types": 835,
+      "Analyze": 7129,
+      "Verify": 12161
+    },
+    "ordinary235": {
+      "Types": 3943,
+      "Analyze": 82079,
+      "Verify": 173575
+    },
+    "prior_references": [
+      {
+        "path": "evidence/impl/226/AUTHOR.json",
+        "sha256": "f517df7558e36bc3af4072378150c2b6ffeaf8daf65a026a1a1e59e2de9d4bd7",
+        "field": "budgets.legacy_candidate"
+      },
+      {
+        "path": "evidence/impl/235/budget235-nested-post-fix.json",
+        "sha256": "ae3568537e2d99741194e44b83f18e26fd6b477dac5b3acb9f0530e1d4a6a7d9"
+      }
+    ],
+    "comparison": "All six prior named-input budget values match exactly; not a universal performance claim."
+  },
+  "logs": [
+    {
+      "file": "238-handoff.json.gz",
+      "gzip_sha256": "143b764a534c9abcc7e60c863d12b4fd1f1db5ee79bb07885d173742dadaac4b",
+      "original_sha256": "05d7fe39998f77e73f57d9a1e7ee8ba76f823e9d136e0dfb342d0dea2adb2891",
+      "original_bytes": 538748
+    },
+    {
+      "file": "238-types-first.log.gz",
+      "gzip_sha256": "8508c5d3bcd96f8d98b140f5d60ec1c46e1ea37127e9688e83811877dd6c8898",
+      "original_sha256": "9f9928da4c851f92186adab26f9778195739d40038fb51ab53f68b68f80dfcdc",
+      "original_bytes": 921
+    },
+    {
+      "file": "238-source-first.log.gz",
+      "gzip_sha256": "8ec94554a8fd7389a75a9638c746f01b0618db910e8dba51e823cf93ae110b28",
+      "original_sha256": "7b8d45aca1aec9abc165222ff8f1f8c81b7a7474295ee6cee02df53f34b21f55",
+      "original_bytes": 3636
+    },
+    {
+      "file": "238-source-second.log.gz",
+      "gzip_sha256": "572aae37779184a4a104e52733a28479c2640685292ab0f77afff74c6182fc10",
+      "original_sha256": "2c2a5efaf0c190e3cac4ad8b1c0c80772d1379100fec381a79c83ae3a2174ccf",
+      "original_bytes": 929
+    },
+    {
+      "file": "238-machine-first.log.gz",
+      "gzip_sha256": "a39fd2ba42dac17cbafd3b9583bb7fe610a3fdf288e11ee9f926c4910a7603c4",
+      "original_sha256": "17e7a9fa0340e39d646411ec689c95448b2bb8f034c29453c72e8afe38a3d50b",
+      "original_bytes": 502
+    },
+    {
+      "file": "238-joint-first.log.gz",
+      "gzip_sha256": "05984252b036a8068b6affa05d56fe49e6c922e28d3d042697ef718278321d06",
+      "original_sha256": "347399e6c1aac748dd209b43da7d264285b59fc7ce5d499d3e52fbf5f588fb0b",
+      "original_bytes": 550
+    },
+    {
+      "file": "238-final-first.log.gz",
+      "gzip_sha256": "8f011d63185ccb444c3dfcb43a04bfd069d895d66f4071cc7e5d09ff0a65a63b",
+      "original_sha256": "3e5bf3eacba82fa68d0fbbf7a6cc0811fd5dcdb72f20dca8227ea04d57d12503",
+      "original_bytes": 4706
+    }
+  ],
+  "archives": [
+    {
+      "file": "original236-relay-failure.tar.gz",
+      "sha256": "787ef9e34f03b7a215749fea69073ea107d8b97a41034dcbf541a086e7fcfd86",
+      "bytes": 15014,
+      "members": 10,
+      "inventory": "original236-relay-failure.files.json",
+      "inventory_sha256": "aff3eab7136f8e349f3f8d473f454e99488774ba27593e57772f67ba2527b7a0"
+    },
+    {
+      "file": "238-first-evidence.tar.gz",
+      "sha256": "96e67ab24feef0adad67ea18e15ca6b6fb6c5d1c713a359584604cc4093462ae",
+      "bytes": 811396,
+      "members": 352,
+      "inventory": "238-first-evidence.files.json",
+      "inventory_sha256": "733ae4d6472a2581a314fa11aad863139a82ef69e2b11329ce0803e407f71324"
+    },
+    {
+      "file": "238-second-evidence.tar.gz",
+      "sha256": "1e63da0523bca8d997db49a7e75b039b1a4f3adc4d9f72702612c3ffff753495",
+      "bytes": 807764,
+      "members": 351,
+      "inventory": "238-second-evidence.files.json",
+      "inventory_sha256": "78e1165b645af59ec3385d513d9c6b328c56a2aebc3447de70fa9576d0a01c40"
+    },
+    {
+      "file": "238-machine-first-evidence.tar.gz",
+      "sha256": "7bd8f0ab616f87f8dd4e13ba2ab59c4f7139e8196eae3c4e2c3f8e35d5ad02fa",
+      "bytes": 199642,
+      "members": 120,
+      "inventory": "238-machine-first-evidence.files.json",
+      "inventory_sha256": "dd488cc53c1b6f308ce8dcaa146050b1bc024a680aaec6834fd699bd1da44ab4"
+    },
+    {
+      "file": "238-joint-first-evidence.tar.gz",
+      "sha256": "70392807bed7f27caa5836c085b465fd549bb7af2e53197657b704c6998a55de",
+      "bytes": 1277171,
+      "members": 172,
+      "inventory": "238-joint-first-evidence.files.json",
+      "inventory_sha256": "151dbfa75e6f7614f6f0c91fd25d406d486f9ba72d9ee77fc48e07fa3df81963"
+    },
+    {
+      "file": "238-final-evidence.tar.gz",
+      "sha256": "f1817ba8f932e5778ee9f3fc8ae9d476e0c4a75f536cfcff4d0c57ddd325d8bd",
+      "bytes": 3759265,
+      "members": 1427,
+      "inventory": "238-final-evidence.files.json",
+      "inventory_sha256": "c4898fd2b5b9ef4e1d13eac6920f3c9956cc88b4aecd1a03f89d5f177fcbc271"
+    }
+  ],
+  "source_manifest": "SOURCE-SHA256.json",
+  "rust_goals": {
+    "safety": "Source/native and existing independent Verify/Wire paths exercise original fields and loans; final independent review is separate.",
+    "runtime_memory": "Real realloc/free probes show exact cleanup/live0 in covered cases; no Rust runtime/RSS equivalence measurement.",
+    "expression_maintenance": "Ordinary whole Product replacement now composes with Store-owning Session/defer in the unchanged five-module consumer. Complete framework-maintenance advantage is unmeasured.",
+    "compile_cost": "Both legacy named budget profiles unchanged; no Rust compile-time comparison.",
+    "repeatable_net_breakthrough": "Scoped language composition improved; product-level four-goal conjunction and repeatable net breakthrough remain unestablished."
+  },
+  "limitations": [
+    "No whole moved/mixed live-moved shell revival.",
+    "No complex nested self RHS, new deep Place, shared Product/Store or capture qualification.",
+    "No resource-kernel order changes, schema/runtime opcode additions or default limit changes.",
+    "No full-language/product/native-Windows promotion."
+  ],
+  "limits_self_call_signature": "The self-feeding form requires an ordinary concrete Signature. A generic already specialized by Expand to such a static call can match; retained TypeApply/type parameters, receiver, foreign/cleanup, callable or State role templates are not newly opened. Target-free RHS still uses existing expression support."
+}

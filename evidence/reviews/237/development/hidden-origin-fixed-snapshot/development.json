@@ -1,0 +1,28 @@
+{
+  "kind": "development-only",
+  "verdict": "not-a-final-review",
+  "tests": {
+    "pass": 24,
+    "fail": 0,
+    "filtered": 0
+  },
+  "native_executions": 22,
+  "runtime_assertions": "all22 exit0 and exact expected stdout/stderr; 20 saved stdout/stderr streams, 2 crossmodule streams asserted but not saved by this harness revision; final harness now saves those streams too",
+  "resource_boundaries": [
+    {
+      "types_N": 30862,
+      "N_pass": true,
+      "N_minus_one_resource_limit": true,
+      "fresh_N_pass": true
+    },
+    {
+      "types_N": 617379,
+      "N_pass": true,
+      "N_minus_one_resource_limit": true,
+      "fresh_N_pass": true
+    }
+  ],
+  "production_identity": "see snapshot.json: e7e HEAD plus stable tracked diff hash, not a frozen final SHA",
+  "old_counterexamples": "../hidden-origin-e7e",
+  "formal_review": "await common integration candidate and normative registry"
+}

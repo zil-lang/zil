@@ -1,0 +1,161 @@
+{
+  "task": "227",
+  "status": "AuthorScopedPassAfterIndependentFindingRepair",
+  "implementation_commit": null,
+  "checkpoint_before_repair": "fa184f94f8d9b4ca695cd467f6d507767af8db10",
+  "independent_review": "NotRun",
+  "full_language_gate": "NotRun",
+  "product_gate": "NotRun",
+  "supersedes": "../AUTHOR.json describes the pre-fix author scope. Its passing runs did not cover the independently discovered persistent Copy capture mutation bug, so they do not establish correctness of the repaired final candidate.",
+  "finding": {
+    "reported_by": "/root/review_language_contracts",
+    "original_test": "review227_contracts::deferred_capture_mutation_survives_outer_callback_writeback",
+    "observed": "Types, Analyze, raw Verify and Wire Verify accepted; original LLVM API O0 executable returned 2 instead of 0 when the second call failed to observe count=2.",
+    "preservation": "Unchanged pre-fix source/typed/LLVM/executable/report/streams from two independent reviewer runs are archived; ORIGINAL-EXIT2-REPLAY.json records actual author replay of each unchanged executable returning 2. Imported reviewer artifacts and author replays are not counted as independent acceptance.",
+    "original_log_availability": "Reviewer confirmed dev01/dev02 cargo stderr existed only in tool replies and was not saved as a local log. No original cargo log is fabricated; unchanged executables are retained and their exit2 results are explicitly author replays."
+  },
+  "root_cause": "InferBuilder::block traversed Defer as an ordinary Block, so nested_depth was not increased. The outer move closure was correctly FnMut with written=true, but address_written remained false. Inner defer wrote the outer activation local through BorrowLocalMut; without Load/WriteCapture at exit, later callback invocations reloaded the old stored Copy capture.",
+  "fix": "Give Defer its own capture-use traversal branch, temporarily increasing nested_depth exactly as for a non-move nested closure. Existing nested_writeback classification then emits final Copy capture writeback through the ordinary scope cleanup path. Nested move snapshot suppression and capture permissions are unchanged.",
+  "production_files": [
+    "crates/zil-types/src/closures.rs"
+  ],
+  "new_author_test_file": "crates/zil-driver/tests/impl227_defer.rs",
+  "runs": [
+    {
+      "id": "original-reviewer-source-replayed-by-author",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/227-writeback-original-evidence cargo test -p zil-driver --features llvm-api --test review227_contracts deferred_capture_mutation_survives_outer_callback_writeback -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "filtered_out": 6,
+      "native_source_cases": 1,
+      "native_runs": 2,
+      "note": "Original reviewer test unchanged; this author replay is not an independent review."
+    },
+    {
+      "id": "new-nearest-neighbors",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/227-writeback-neighbors-evidence cargo test -p zil-driver --features llvm-api --test impl227_defer deferred_mutation -- --nocapture",
+      "passed": 3,
+      "failed": 0,
+      "filtered_out": 11,
+      "source_variants": 5,
+      "native_runs": 10,
+      "cases": [
+        "original 1/2/3 persistent state",
+        "mutation across borrowed callable layers",
+        "inner move snapshot remains distinct",
+        "early return cleanup writes back",
+        "try-error cleanup writes back"
+      ],
+      "counting": "Subset replayed by final run; not added to final scope counts."
+    },
+    {
+      "id": "final-scoped",
+      "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-227 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/227-writeback-final-evidence cargo test -p zil-driver --features llvm-api --test impl227_defer --test impl227_machine --test impl161_nested_closures --test impl151_closure_methods --test impl184_lending --test impl226_budget -- --nocapture",
+      "passed": 53,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0,
+      "groups": {
+        "impl227_defer": 14,
+        "impl227_machine": 1,
+        "impl151_closure_methods": 7,
+        "impl161_nested_closures": 16,
+        "impl184_lending": 13,
+        "impl226_budget": 2
+      },
+      "new_source_native": {
+        "source_variants": 12,
+        "optimizations": [
+          "O0",
+          "O2"
+        ],
+        "executions": 24
+      },
+      "machine": {
+        "object_builds": 2,
+        "executions": 10,
+        "real_allocation_failures": 6,
+        "controls": 4
+      },
+      "counting": "Only current new source/native scope is counted here; older runs and neighbor subsets are not summed. Existing regressions are listed separately."
+    }
+  ],
+  "backend": {
+    "feature": "llvm-api",
+    "actual": "LlvmApi",
+    "fallback": false,
+    "target_dir": "/workspace/.zil-env/target-227",
+    "build_jobs": 1
+  },
+  "budget": {
+    "new_defer_Types_minimum": 51,
+    "legacy_candidate": {
+      "Types": 835,
+      "Analyze": 7129,
+      "Verify": 12161
+    },
+    "local_shared": {
+      "Types": 1787,
+      "Analyze": 15791,
+      "Verify": 30761
+    },
+    "reference": "evidence/impl/226/AUTHOR.json:budgets",
+    "comparison": "All six old measured values remain identical; N/N-1/fresh-N tests passed."
+  },
+  "logs": [
+    {
+      "file": "227-writeback-original.log.gz",
+      "gzip_sha256": "269241edba7b2b9c3fd434745916bc0407094dcf75291ae9f365fc70f7848f74",
+      "original_sha256": "8cd97614353b8d48f5d80383f984a3bac40727244ec5aca1ede74c44e7e9daa8"
+    },
+    {
+      "file": "227-writeback-neighbors-first.log.gz",
+      "gzip_sha256": "4c92eec8566458a94a78e17c04ba18e26bb3cd9caf7473746356f9bf7b37559e",
+      "original_sha256": "e2c6163eef9f71b1dddd0da4001d9149a72057b8a23ed59862369b52bd9a3d06"
+    },
+    {
+      "file": "227-writeback-final.log.gz",
+      "gzip_sha256": "ac9b79516da94bdc35bb0cbf23031134c3a8e1e994bde37a558f37669b0d9413",
+      "original_sha256": "f8f9d05a69374a6ca54d1a4bf184d1d03a35f8686f97b6f0162cb83ae0dae93d"
+    }
+  ],
+  "archives": [
+    {
+      "file": "independent-original-failure.tar.gz",
+      "sha256": "eb5c5e7e0c45d01ff0aea3f0f8cb08b51d378dea9c5732125998294aefe4c42e",
+      "bytes": 54578,
+      "files": 30,
+      "inventory": "independent-original-failure.files.json",
+      "inventory_sha256": "9f33ead02f17ec13e07f6311a84fd726fe929c05827efa2e5306c5a45ecdc1ad"
+    },
+    {
+      "file": "227-writeback-original-evidence.tar.gz",
+      "sha256": "0acb78cfd5fe54a5d872f3c249141e2c7cd37f8f096948d95c33a88911d8ae4b",
+      "bytes": 67959,
+      "files": 34,
+      "inventory": "227-writeback-original-evidence.files.json",
+      "inventory_sha256": "510fcbc920b09eacd340b84a5965e1505e8d6c63a9bb5766deb7ac51dc979f5a"
+    },
+    {
+      "file": "227-writeback-neighbors-evidence.tar.gz",
+      "sha256": "322616ded45c2f552b0a36a85eda0a932055ffb63a6acd3ee59c125336f908a4",
+      "bytes": 243357,
+      "files": 150,
+      "inventory": "227-writeback-neighbors-evidence.files.json",
+      "inventory_sha256": "51ca203914179d2f97e5cc97a14c1548e1084ef739874d2734842da8b7afa3a1"
+    },
+    {
+      "file": "227-writeback-final-evidence.tar.gz",
+      "sha256": "32a3172703ae962e29938f972f8bf0ab96436e2335a06a96612e75f11e07d615",
+      "bytes": 2268200,
+      "files": 1464,
+      "inventory": "227-writeback-final-evidence.files.json",
+      "inventory_sha256": "889a1ed85032cbd4cbdba699f21b3252121ef42f3efbca263ebe8000231485b9"
+    }
+  ],
+  "source_hashes": "SOURCE-SHA256.json",
+  "limitations": [
+    "Author repair and scoped checks only. Final repaired commit and independent/full acceptance are root-owned.",
+    "No product, Rust-equivalence/performance or native Windows promotion."
+  ]
+}

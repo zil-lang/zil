@@ -1,0 +1,23 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-237/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.33s
+     Running tests/review237_generic_defer.rs (/workspace/.zil-env/target-237/debug/deps/review237_generic_defer-daab9a9b6daba4b2)
+
+running 3 tests
+
+thread 'a_generic_cleanup_has_its_own_legal_loop_control_boundary' (94332) panicked at crates/zil-driver/tests/review237_generic_defer.rs:45:9:
+assertion `left == right` failed: own-loop: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"helper-local nested environments require an additional contract","span":{"file":0,"start":41,"end":94},"notes":[]}],"artifacts":{"core":"/tmp/review237-generic-defer-second/review237-generic-defer-own-loop-94328-0/phases/core.txt","ct-core":"/tmp/review237-generic-defer-second/review237-generic-defer-own-loop-94328-0/phases/ct-core.txt","source-map":"/tmp/review237-generic-defer-second/review237-generic-defer-own-loop-94328-0/phases/source-map.txt","syntax":"/tmp/review237-generic-defer-second/review237-generic-defer-own-loop-94328-0/phases/syntax.txt"},"input_fingerprint":"fbd2b253e26dce6b5658a9bb3e0f5118a3cd2ff96a7ec55556384262bad42210","seconds":0.009846487,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"generic_defer.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test a_generic_cleanup_has_its_own_legal_loop_control_boundary ... FAILED
+test generic_defer_keeps_the_existing_helper_local_environment_capture_boundary ... ok
+test unused_generic_defer_definitions_preserve_declared_capabilities_and_cleanup_control ... ok
+
+failures:
+
+failures:
+    a_generic_cleanup_has_its_own_legal_loop_control_boundary
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p zil-driver --test review237_generic_defer`
