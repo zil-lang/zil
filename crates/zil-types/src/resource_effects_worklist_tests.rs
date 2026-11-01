@@ -40,6 +40,8 @@ fn call(callee: CoreExpr, swap: bool) -> CoreStatement {
 }
 fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
     CoreModule {
+        aggregate_templates: Vec::new(),
+        aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,

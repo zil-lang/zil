@@ -77,6 +77,8 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 .collect();
             modules.push(ProgramModule {
                 core: CoreModule {
+                    aggregate_templates: Vec::new(),
+                    aggregate_applications: Vec::new(),
                     schema_version: module.core.schema_version,
                     module_id: module.core.module_id,
                     source_fingerprint: module.core.source_fingerprint,
