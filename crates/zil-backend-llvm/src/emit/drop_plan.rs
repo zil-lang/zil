@@ -46,9 +46,12 @@ pub(super) fn new_shape(ty: &Type) -> bool {
     }
 }
 pub(super) fn symbol(ty: &Type) -> String {
+    format!("zil.sum.drop.{}", key(ty))
+}
+fn key(ty: &Type) -> zil_base::Fingerprint {
     let mut hash = zil_base::FingerprintBuilder::new();
     ty.hash(&mut hash);
-    format!("zil.sum.drop.{}", hash.digest())
+    hash.digest()
 }
 struct Budget<'a> {
     limits: &'a zil_base::Limits,
@@ -74,6 +77,83 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    fn machine_weight(&mut self, ty: &Type, depth: usize) -> CompileResult<usize> {
+        self.pay(depth, 1)?;
+        Ok(match ty {
+            Type::Managed(t) => self.machine_weight(t, depth + 1)?,
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                let mut n = 1usize;
+                for (_, t) in fields {
+                    n = n
+                        .checked_add(self.machine_weight(t, depth + 1)?)
+                        .ok_or_else(limit)?;
+                }
+                n
+            }
+            Type::Tuple(fields) => {
+                let mut n = 1usize;
+                for t in fields {
+                    n = n
+                        .checked_add(self.machine_weight(t, depth + 1)?)
+                        .ok_or_else(limit)?;
+                }
+                n
+            }
+            Type::ErrorUnion { error, result } => 2usize
+                .checked_add(self.machine_weight(error, depth + 1)?)
+                .and_then(|n| n.checked_add(self.machine_weight(result, depth + 1).ok()?))
+                .ok_or_else(limit)?,
+            Type::Array { element, .. } => 1usize
+                .checked_add(self.machine_weight(element, depth + 1)?)
+                .ok_or_else(limit)?,
+            Type::Enum { .. } | Type::ByteBuffer | Type::OwnedStore { .. } => 4,
+            _ => 1,
+        })
+    }
+    fn store_bound(&mut self, ty: &Type, depth: usize) -> CompileResult<usize> {
+        self.pay(depth, 1)?;
+        let weight = self.machine_weight(ty, depth)?;
+        let unit = 16usize
+            .checked_mul(weight.saturating_add(1))
+            .ok_or_else(limit)?;
+        Ok(match ty {
+            Type::Unit => 0,
+            Type::Managed(t) => self.store_bound(t, depth + 1)?,
+            Type::Array { element, length } => self
+                .store_bound(element, depth + 1)?
+                .checked_add(unit)
+                .and_then(|n| n.checked_mul(*length as usize))
+                .ok_or_else(limit)?,
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                let mut n = unit;
+                for (_, t) in fields {
+                    n = n
+                        .checked_add(unit)
+                        .and_then(|n| n.checked_add(self.store_bound(t, depth + 1).ok()?))
+                        .ok_or_else(limit)?;
+                }
+                n
+            }
+            Type::Tuple(fields) => {
+                let mut n = unit;
+                for t in fields {
+                    n = n
+                        .checked_add(unit)
+                        .and_then(|n| n.checked_add(self.store_bound(t, depth + 1).ok()?))
+                        .ok_or_else(limit)?;
+                }
+                n
+            }
+            Type::ErrorUnion { error, result } => unit
+                .checked_mul(3)
+                .and_then(|n| n.checked_add(self.store_bound(error, depth + 1).ok()?))
+                .and_then(|n| n.checked_add(self.store_bound(result, depth + 1).ok()?))
+                .ok_or_else(limit)?,
+            Type::Enum { .. } | Type::ByteBuffer | Type::OwnedStore { .. } => 128,
+            _ => unit,
+        })
+    }
+
     // Prepay the complete subtree before LLVM type construction or Type clones.
     fn tree(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
         self.pay(depth, 32)?;
@@ -99,13 +179,23 @@ impl<'a> Budget<'a> {
                     self.tree(t, depth + 1)?;
                 }
             }
-            Type::Managed(t) | Type::Desc(t) => self.tree(t, depth + 1)?,
+            Type::Managed(t)
+            | Type::Desc(t)
+            | Type::Address { inner: t, .. }
+            | Type::Slice { element: t }
+            | Type::Opaque { hidden: t, .. } => self.tree(t, depth + 1)?,
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                for t in parameters {
+                    self.tree(t, depth + 1)?;
+                }
+                self.tree(result, depth + 1)?;
+            }
+            Type::Named(name) | Type::Unsupported(name) => self.pay(depth, name.len())?,
             Type::OwnedStore { element } => self.tree(element, depth + 1)?,
             Type::Array { element, length } => {
-                self.pay(depth, (*length as usize).saturating_mul(32))?;
-                for _ in 0..*length {
-                    self.tree(element, depth + 1)?;
-                }
+                let _ = length;
+                self.tree(element, depth + 1)?;
             }
             Type::ErrorUnion { error, result } => {
                 self.tree(error, depth + 1)?;
@@ -133,6 +223,64 @@ enum DropPlan {
     Enum(m::Ty, Vec<DropPlan>),
     Error(m::Ty, Box<DropPlan>, Box<DropPlan>),
 }
+fn link(
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> CompileResult<DropPlan> {
+    budget.tree(ty, depth)?;
+    if ty.is_copy_value() {
+        return Ok(DropPlan::Empty);
+    }
+    if matches!(
+        ty,
+        Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+    ) {
+        return Ok(DropPlan::Leaf(symbol(ty)));
+    }
+    if let Type::Managed(payload) = ty {
+        for _ in resources {
+            budget.tree(ty, depth)?;
+        }
+        if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
+            return Ok(DropPlan::Leaf(dynamic_store::helper(
+                payload, resources, "drop",
+            )?));
+        }
+        let Some(r) = resources.iter().find(|r| r.payload == **payload) else {
+            return invalid(
+                "E-CODEGEN-CFG",
+                "Sum leaf has no actual resource definition",
+                None,
+            );
+        };
+        return Ok(if r.payload == Type::ByteBuffer {
+            DropPlan::Leaf("zil.bytes.drop".into())
+        } else if let Some(f) = r.teardown {
+            DropPlan::Leaf(super::symbol(f))
+        } else {
+            DropPlan::Empty
+        });
+    }
+    unsupported("unsupported complete Sum cleanup leaf", None)
+}
+fn product_plan(
+    ty: &Type,
+    fields: &[&Type],
+    resources: &[ResourceDefinition],
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> CompileResult<DropPlan> {
+    let mut children = Vec::new();
+    for (index, t) in fields.iter().enumerate() {
+        // A typed GEP clones the product machine type. Pay its complete size
+        // before building it, without re-planning each descendant's cleanup.
+        budget.tree(ty, depth)?;
+        children.push((index as u32, link(t, resources, budget, depth + 1)?));
+    }
+    Ok(DropPlan::Product(llvm_type(ty)?, children))
+}
 fn plan(
     ty: &Type,
     resources: &[ResourceDefinition],
@@ -142,55 +290,37 @@ fn plan(
     budget.tree(ty, depth)?;
     Ok(match ty {
         t if t.is_copy_value() => DropPlan::Empty,
-        Type::Managed(payload) => {
-            for _ in resources {
-                budget.tree(ty, depth)?;
-            }
-            if matches!(payload.as_ref(), Type::OwnedStore { .. }) {
-                DropPlan::Leaf(dynamic_store::helper(payload, resources, "drop")?)
-            } else {
-                let r = resources
-                    .iter()
-                    .find(|r| r.payload == **payload)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            Phase::Codegen,
-                            "E-CODEGEN-CFG",
-                            None,
-                            "Sum leaf has no actual resource definition",
-                        )]
-                    })?;
-                if r.payload == Type::ByteBuffer {
-                    DropPlan::Leaf("zil.bytes.drop".into())
-                } else if let Some(f) = r.teardown {
-                    DropPlan::Leaf(super::symbol(f))
-                } else {
-                    DropPlan::Empty
-                }
-            }
-        }
+        Type::Managed(_) => return link(ty, resources, budget, depth),
         Type::Package { fields, .. } => {
-            let mut children = Vec::new();
-            for (i, (_, t)) in fields.iter().enumerate() {
-                budget.tree(ty, depth)?;
-                children.push((i as u32, plan(t, resources, budget, depth + 1)?));
-            }
-            DropPlan::Product(llvm_type(ty)?, children)
+            return product_plan(
+                ty,
+                &fields.iter().map(|(_, t)| t).collect::<Vec<_>>(),
+                resources,
+                budget,
+                depth,
+            );
         }
         Type::Tuple(fields) => {
-            let mut children = Vec::new();
-            for (i, t) in fields.iter().enumerate() {
-                budget.tree(ty, depth)?;
-                children.push((i as u32, plan(t, resources, budget, depth + 1)?));
-            }
-            DropPlan::Product(llvm_type(ty)?, children)
+            return product_plan(
+                ty,
+                &fields.iter().collect::<Vec<_>>(),
+                resources,
+                budget,
+                depth,
+            );
         }
         Type::Enum { variants, .. } => {
             let mut children = Vec::new();
             for (_, fields) in variants {
                 budget.tree(ty, depth)?;
-                children.push(plan(
-                    &Type::Tuple(fields.clone()),
+                if fields.iter().all(Type::is_copy_value) {
+                    children.push(DropPlan::Empty);
+                    continue;
+                }
+                let tuple = Type::Tuple(fields.clone());
+                children.push(product_plan(
+                    &tuple,
+                    &fields.iter().collect::<Vec<_>>(),
                     resources,
                     budget,
                     depth + 1,
@@ -200,12 +330,13 @@ fn plan(
         }
         Type::ErrorUnion { error, result } => DropPlan::Error(
             llvm_type(ty)?,
-            Box::new(plan(error, resources, budget, depth + 1)?),
-            Box::new(plan(result, resources, budget, depth + 1)?),
+            Box::new(link(error, resources, budget, depth + 1)?),
+            Box::new(link(result, resources, budget, depth + 1)?),
         ),
         _ => return unsupported("unsupported complete Sum cleanup leaf", None),
     })
 }
+
 struct Emitter {
     code: m::Code,
     next: usize,
@@ -348,22 +479,43 @@ pub(super) fn functions(
     lir: &LirView<'_>,
     limits: &zil_base::Limits,
     enabled: bool,
+    entry: EntryPoint,
 ) -> CompileResult<m::Code> {
     if !enabled {
         return Ok(m::Code::new());
     }
     let mut budget = Budget::new(limits);
-    let mut found = BTreeSet::new();
+    let mut found = BTreeMap::new();
+    let mut seen = BTreeMap::new();
     fn visit<'a>(
         ty: &'a Type,
-        resources: &[ResourceDefinition],
-        found: &mut BTreeSet<&'a Type>,
+        found: &mut BTreeMap<zil_base::Fingerprint, &'a Type>,
+        seen: &mut BTreeMap<zil_base::Fingerprint, (&'a Type, bool)>,
         budget: &mut Budget<'_>,
         force: bool,
         depth: usize,
     ) -> CompileResult<()> {
+        // Hash and equality consume the actual complete type. Hashes only
+        // locate memo candidates; distinct types are never equated by digest.
         budget.tree(ty, depth)?;
-        if !force && !new_shape(ty) {
+        budget.pay(depth, usize::BITS as usize)?;
+        let hash = key(ty);
+        if let Some((previous, expanded)) = seen.get(&hash) {
+            budget.tree(ty, depth)?;
+            if *previous != ty {
+                return invalid(
+                    "E-CODEGEN-SUM-HASH",
+                    "distinct complete Sum types share a helper key",
+                    None,
+                );
+            }
+            if *expanded || !force {
+                return Ok(());
+            }
+        }
+        let expand = force || new_shape(ty);
+        seen.insert(hash, (ty, expand));
+        if !expand {
             return Ok(());
         }
         if !ty.is_copy_value()
@@ -372,27 +524,24 @@ pub(super) fn functions(
                 Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
             )
         {
-            for _ in 0..=found.len() {
-                budget.tree(ty, depth)?;
-            }
-            found.insert(ty);
+            found.insert(hash, ty);
         }
         match ty {
             Type::Package { fields, .. } => {
                 for (_, t) in fields {
-                    visit(t, resources, found, budget, true, depth + 1)?;
+                    visit(t, found, seen, budget, true, depth + 1)?;
                 }
             }
             Type::Enum { variants, .. } => {
                 for (_, fields) in variants {
                     for t in fields {
-                        visit(t, resources, found, budget, true, depth + 1)?;
+                        visit(t, found, seen, budget, true, depth + 1)?;
                     }
                 }
             }
             Type::ErrorUnion { error, result } => {
-                visit(error, resources, found, budget, true, depth + 1)?;
-                visit(result, resources, found, budget, true, depth + 1)?;
+                visit(error, found, seen, budget, true, depth + 1)?;
+                visit(result, found, seen, budget, true, depth + 1)?;
             }
             _ => {}
         }
@@ -403,7 +552,20 @@ pub(super) fn functions(
             .chain(f.locals.iter().map(|l| &l.ty))
             .chain(f.values.iter())
         {
-            visit(ty, lir.resources, &mut found, &mut budget, false, 0)?;
+            visit(ty, &mut found, &mut seen, &mut budget, false, 0)?;
+        }
+    }
+    // Entry error extraction, storage, typed cleanup GEPs and helper names
+    // are emitted outside the ordinary instruction loop, once per module.
+    if let Some(entry) = lir.functions.iter().find(|f| match entry {
+        EntryPoint::None => false,
+        EntryPoint::Main => f.name == "main",
+        EntryPoint::ReturnValue(id) => f.id == id,
+    }) && let Type::ErrorUnion { error, .. } = &entry.return_type
+        && !error.is_copy_value()
+    {
+        for _ in 0..8 {
+            budget.tree(&entry.return_type, 0)?;
         }
     }
     // Pay new local operations, complete layout copies, and their emission
@@ -430,8 +592,38 @@ pub(super) fn functions(
                         }
                         budget.pay(0, fields.len().saturating_mul(64))?;
                     }
-                    InstructionKind::DropEnum { local } => {
-                        budget.tree(&f.locals[local.0 as usize].ty, 0)?;
+                    InstructionKind::DropEnum { local }
+                    | InstructionKind::DropPackage { local }
+                    | InstructionKind::DropErrorUnion { local } => {
+                        // Existing cleanup opcodes also hash Sum helper keys and
+                        // construct typed GEPs at every distinct cleanup site.
+                        let ty = &f.locals[local.0 as usize].ty;
+                        let repeats = match ty {
+                            Type::Package { fields, .. } => fields.len().saturating_add(4),
+                            _ => 8,
+                        };
+                        for _ in 0..repeats {
+                            budget.tree(ty, 0)?;
+                        }
+                    }
+                    InstructionKind::DropPackageField { local, index } => {
+                        let ty = &f.locals[local.0 as usize].ty;
+                        budget.tree(ty, 0)?;
+                        if let Type::Package { fields, .. } = ty {
+                            for _ in 0..8 {
+                                budget.tree(&fields[*index as usize].1, 0)?;
+                            }
+                        }
+                    }
+                    InstructionKind::MakeVariant { fields, .. }
+                        if !f.values
+                            [instruction.result.expect("verified variant result").0 as usize]
+                            .is_copy_value() =>
+                    {
+                        for field in fields {
+                            let bound = budget.store_bound(&f.values[field.0 as usize], 0)?;
+                            budget.pay(0, bound)?;
+                        }
                     }
                     _ => {}
                 }
@@ -439,7 +631,7 @@ pub(super) fn functions(
         }
     }
     let mut code = m::Code::new();
-    for ty in found {
+    for ty in found.into_values() {
         let p = plan(ty, lir.resources, &mut budget, 0)?;
         let mut emitter = Emitter {
             code: m::Code::new(),
@@ -534,11 +726,9 @@ mod impl243_plan_tests {
             vec![0, 1]
         );
         for (_, child) in fields {
-            assert!(
-                matches!(child,DropPlan::Product(_,nested) if matches!(&nested[0].1,DropPlan::Leaf(name) if name=="zil.bytes.drop"))
-            );
+            assert!(matches!(child,DropPlan::Leaf(name) if name.starts_with("zil.sum.drop.")));
         }
-        let code = functions(&recipe_input().as_view(), &limits, true).unwrap();
+        let code = functions(&recipe_input().as_view(), &limits, true, EntryPoint::None).unwrap();
         let text = m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
             fingerprint: String::new(),
@@ -552,31 +742,39 @@ mod impl243_plan_tests {
     #[test]
     fn impl243_drop_plan_honors_current_shared_limit_and_fresh_boundary() {
         let lir = recipe_input();
-        let mut limits = zil_base::Limits::default();
-        limits.max_analysis_steps = 0;
-        assert!(functions(&lir.as_view(), &limits, false).is_ok());
+        let mut limits = zil_base::Limits {
+            max_analysis_steps: 0,
+            ..zil_base::Limits::default()
+        };
+        assert!(functions(&lir.as_view(), &limits, false, EntryPoint::None).is_ok());
         assert_eq!(
-            functions(&lir.as_view(), &limits, true).err().unwrap()[0].category,
+            functions(&lir.as_view(), &limits, true, EntryPoint::None)
+                .err()
+                .unwrap()[0]
+                .category,
             zil_base::ResultCategory::ResourceLimit
         );
         let (mut low, mut high) = (0, 100_000);
         while low + 1 < high {
             let mid = (low + high) / 2;
             limits.max_analysis_steps = mid;
-            if functions(&lir.as_view(), &limits, true).is_ok() {
+            if functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok() {
                 high = mid
             } else {
                 low = mid
             }
         }
         limits.max_analysis_steps = high;
-        assert!(functions(&lir.as_view(), &limits, true).is_ok());
+        assert!(functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok());
         limits.max_analysis_steps = high - 1;
         assert_eq!(
-            functions(&lir.as_view(), &limits, true).err().unwrap()[0].category,
+            functions(&lir.as_view(), &limits, true, EntryPoint::None)
+                .err()
+                .unwrap()[0]
+                .category,
             zil_base::ResultCategory::ResourceLimit
         );
         limits.max_analysis_steps = high;
-        assert!(functions(&lir.as_view(), &limits, true).is_ok());
+        assert!(functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok());
     }
 }

@@ -302,13 +302,18 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
         },
     })
 }
-fn package_owned_field(ty: &Type) -> bool {
-    sums::owned(ty)
-        || matches!(
-            ty,
-            Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
-        )
-        || matches!(ty, Type::Array { element, length } if *length > 0 && matches!(element.as_ref(), Type::Package { .. }))
+fn package_owned_field(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+        if budget.sum_functions.is_empty() {
+            return Ok(false);
+        }
+        budget.type_work(ty, false, "ordinary Sum field ownership classification")?;
+        return Ok(sums::owned(ty));
+    }
+    Ok(matches!(
+        ty,
+        Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
+    ) || matches!(ty,Type::Array { element,length } if *length>0 && matches!(element.as_ref(),Type::Package { .. })))
 }
 
 fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Shapes> {
@@ -328,7 +333,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
         if let (Place::Local(local), Type::Package { fields, .. }) = (place, ty) {
             budget.spend(fields.len(), "package field shapes")?;
             for (index, (_, field)) in fields.iter().enumerate() {
-                if package_owned_field(field) {
+                if package_owned_field(field, budget)? {
                     budget.lookup(result.len(), "package field shape insertion")?;
                     result.insert(
                         Place::PackageField {
@@ -386,7 +391,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             if let Type::Package { fields, .. } = ty {
                 budget.spend(fields.len(), "capture Package field shapes")?;
                 for (field, (_, ty)) in fields.iter().enumerate() {
-                    if package_owned_field(ty) {
+                    if package_owned_field(ty, budget)? {
                         budget.lookup(result.len(), "capture Package field insertion")?;
                         result.insert(
                             Place::CaptureField {
@@ -772,7 +777,7 @@ fn package_transition(
     budget.spend(count, "owned aggregate slot lifecycle")?;
     for index in 0..count {
         let place = if let Some(fields) = fields {
-            if !package_owned_field(&fields[index].1) {
+            if !package_owned_field(&fields[index].1, budget)? {
                 continue;
             }
             Place::PackageField {
@@ -1162,7 +1167,7 @@ impl Flow<'_> {
                     };
                     budget.spend(fields.len(), "Package capture binding fields")?;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !package_owned_field(ty) {
+                        if !package_owned_field(ty, budget)? {
                             continue;
                         }
                         let source = Place::CaptureField {
@@ -1224,7 +1229,7 @@ impl Flow<'_> {
                     };
                     budget.spend(fields.len(), "Package capture end fields")?;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !package_owned_field(ty) {
+                        if !package_owned_field(ty, budget)? {
                             continue;
                         }
                         let source = Place::PackageField {
@@ -1576,11 +1581,8 @@ impl Flow<'_> {
                             }
                         }
                     } else if let InstructionKind::StorePackageField { value, .. } = i.kind {
-                        budget.type_work(
-                            ty,
-                            !package_owned_field(ty),
-                            "package field store type checks",
-                        )?;
+                        let owns_field = package_owned_field(ty, budget)?;
+                        budget.type_work(ty, !owns_field, "package field store type checks")?;
                         if !decl.mutable
                             || i.result.is_some()
                             || f.values.get(value.0 as usize) != Some(ty)
@@ -1589,7 +1591,7 @@ impl Flow<'_> {
                                 "package field store requires a mutable shell and matching value",
                             ));
                         }
-                        if package_owned_field(ty) {
+                        if owns_field {
                             let place = Place::PackageField {
                                 local: *local,
                                 index: *index,
@@ -1641,7 +1643,7 @@ impl Flow<'_> {
                             ));
                         }
                     } else {
-                        if !package_owned_field(ty) {
+                        if !package_owned_field(ty, budget)? {
                             return Err(error(
                                 "package ownership operation requires an owning field",
                             ));
@@ -1748,7 +1750,7 @@ impl Flow<'_> {
                             ));
                         }
                         for (index, (_, field)) in fields.iter().enumerate() {
-                            if package_owned_field(field)
+                            if package_owned_field(field, budget)?
                                 && !exact(
                                     &copied(
                                         state,

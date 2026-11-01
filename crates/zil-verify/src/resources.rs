@@ -334,6 +334,7 @@ impl Slots {
         }
         let mut debt_count = 0usize;
         let mut desc_count = 0usize;
+        let sum_extension = budget.sums;
         let mut slot = |ty: &Type, managed: bool| {
             let count = if managed {
                 &mut debt_count
@@ -343,7 +344,8 @@ impl Slots {
             if matches!(
                 (ty, managed),
                 (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
-            ) || (managed && (errors::owned(ty) || sums::owned_enum(ty)))
+            ) || (managed
+                && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned_enum(ty))))
                 || (managed
                     && matches!(ty, Type::Array { element, length }
                     if *length > 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))))
@@ -414,7 +416,7 @@ impl Slots {
             package_fields[local] = fields
                 .iter()
                 .map(|(_, ty)| {
-                    if packages::owned_field(ty) {
+                    if packages::owned_field(ty, sum_extension) {
                         let next = debt_count;
                         debt_count += 1;
                         Some(next)
@@ -1027,7 +1029,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::ErrorTag { value }
-                    if errors::owned(&f.values[value.0 as usize]) =>
+                    if errors::owned(&f.values[value.0 as usize], budget.sums) =>
                 {
                     let debt = slots.managed_value[value.0 as usize].expect("typed owned union");
                     if validate && state.debt[debt] != LIVE {

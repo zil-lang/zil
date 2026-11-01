@@ -53,9 +53,23 @@ impl<'a> Budget<'a> {
             Type::Managed(element)
             | Type::Desc(element)
             | Type::OwnedStore { element }
-            | Type::Array { element, .. } => {
+            | Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::Address { inner: element, .. }
+            | Type::Opaque {
+                hidden: element, ..
+            } => {
                 self.pay(element, depth)?;
                 self.copy_work(element, depth + 1)?;
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                for t in parameters {
+                    self.pay(t, depth)?;
+                    self.copy_work(t, depth + 1)?;
+                }
+                self.pay(result, depth)?;
+                self.copy_work(result, depth + 1)?;
             }
             Type::Enum { variants, .. } => {
                 for (_, fields) in variants {
