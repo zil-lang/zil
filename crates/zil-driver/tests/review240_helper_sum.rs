@@ -157,6 +157,22 @@ fn ordinary_sum_argument_does_not_expand_callable_or_state_permissions() {
             "scope-F-description-give",
             "fn bad<F:Fn()->i32>(f:F,e:E)->i32{match e{E.Empty()=>{return f()}\nE.Pair(a,b)=>{let description=a;sink(give description);return f()}}}",
         ),
+        (
+            "scope-F-stale-desc-name",
+            "fn bad<F:Fn()->i32>(f:F,e:E)->i32{match e{E.Empty()=>{return f()}\nE.Pair(a,b)=>{let description=a;sink(give a);return description.n}}}",
+        ),
+        (
+            "scope-F-stale-desc-group",
+            "fn bad<F:Fn()->i32>(f:F,e:E)->i32{match e{E.Empty()=>{return f()}\nE.Pair(a,b)=>{let description=(a);sink(give a);return (description).n}}}",
+        ),
+        (
+            "scope-F-stale-desc-chain",
+            "fn bad<F:Fn()->i32>(f:F,e:E)->i32{match e{E.Empty()=>{return f()}\nE.Pair(a,b)=>{let first=a;let description=first;sink(give a);return description.n}}}",
+        ),
+        (
+            "scope-F-stale-desc-if",
+            "fn bad<F:Fn()->i32>(f:F,e:E)->i32{match e{E.Empty()=>{return f()}\nE.Pair(a,b)=>{let first=a;let second=b;let description=if f()==0{(first)}else{second};sink(give a);return description.n}}}",
+        ),
     ] {
         let text = format!("{MODEL}{helper}fn main(){{}}");
         let text = if label.starts_with("scope-F-") {
