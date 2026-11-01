@@ -266,7 +266,8 @@ fn ordinary_composition_does_not_open_capture_or_containers() {
         ),
         ("shared", "fn unused(value:&Pair){}fn main(){}"),
     ] {
-        source(label, &format!("{HEAD}{tail}"), false);
+        // §8.1.5 promotes only the original ordinary Sum payload case.
+        source(label, &format!("{HEAD}{tail}"), label == "sum");
     }
 }
 

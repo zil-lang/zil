@@ -161,27 +161,14 @@ fn main()->i32{{success();failure();let a=success();let b=failure();return 0}}
 }
 
 #[test]
-fn whole_local_reassignment_is_explicitly_outside_first_owned_union_profile() {
+fn whole_local_reassignment_preserves_outer_slot_and_cleanup_order() {
     let source = format!(
         r#"{RESOURCE}
 fn main()->i32{{var v:E!P=P{{r:R{{code:65}}}};let later=R{{code:90}};v=P{{r:R{{code:66}}}};return 0}}
 "#
     );
-    let report = check(&source);
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.phase, zil_base::Phase::Types);
-    assert!(
-        report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
-            && d.message
-                .contains("whole-local reassignment requires a retained slot")),
-        "{}",
-        report.to_json()
-    );
+    // §8.1.5 promotes the unchanged original source and fixed cleanup oracle.
+    native(&[("main", &source)], b"AZB", 0);
 }
 
 #[test]
