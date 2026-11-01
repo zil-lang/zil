@@ -391,6 +391,16 @@ Analyze与Verify分别按实际SSA/Local及子树叶位置重建每个Managed叶
 
 普通拥有准入与共享Product、StoreElement、closure capture、拥有数组及Sum准入明确分开。新的含Store递归Product不因本片自动进入这些位置；已支持的旧平坦State/Store/capture资格保持。复用既有Package、Managed<OwnedStore<T>>、实际字段指令与布局，不增加本片专用权限位；随227发布的Wire28不授予额外资格。新遍历/布局/复制预费，默认额度及既有无新组合的逻辑费用保持。支持范围须经原样近邻反例、raw/Wire和O0/O2真实失败清理验证。
 
+#### 8.1.4 StoreElement泛型Product的完整身份（237）
+
+在§8.1.3普通完整Product及§8.2.1保留函数模板范围，允许恰一个 `T:StoreElement` 参数的有限Package声明，经直接实例或延后普通函数实例组合、返回完整Product。字段recipe限具体既有类型、本声明参数、Store包装及同范围有限子Package应用；递归by-value仍拒绝。定义本体按声明约束检查，未使用的声明及元数据同样检查；这不开放T字段访问、任意类型泛型或新的StoreElement/capture/shared资格。
+
+CoreModule新增独立aggregate_templates与aggregate_applications两表。template记录原声明NodeId、名字、唯一CoreTypeParameter、原字段名字/public/manages/span及完整类型recipe。application记录generated aggregate NodeId、原template的ModuleId/NodeId、精确可选owner函数ModuleId/NodeId及完整有序实参。recipe内Parameter(index)仅指该族自己的声明槽；application内Parameter(index)仅指其真实owner函数的普通类型槽。具体实参含尚未绑定callable类型时同样携带owner；不能凭同拼写T/F、名字前缀或全模块白名单授信。
+
+Types独立核所有表、唯一性、owner/参数范围和约束、完整字段recipe与生成header的一致性，并保留私有原声明/实参映射。直接与延后实例均从同一原族和完整实际Type实参重建统一名义身份；phantom参数、模块身份、字段序与具体ClosureId不得丢失，同布局不是同类型。沿202完整类型实例键、有限队列和有界替换，在具体化后彻底消费元数据；最终TypedIR不含自由T/F，Analyze及Verify仍各自核实际Package/Store树，不相信模板表已证明资格。
+
+新表、名字、类型recipe、实例复制、比较、替换和队列在增长前预付；旧空表路径费用保持，不提高默认额度。CT正规化保留完整表与词法身份，CT执行这些运行时模板仍明确禁止。公共Core版本随本片为schema/Wire/指纹29，无新运行时opcode；必须保存原235独审泛型返回失败，并经原样正例、跨模块/phantom/跨binder/未用非法表、raw入口、预算及O0/O2机器清理验证。登记不代表完成。
+
 ### 8.2 泛型 Store 元素资格
 
 `StoreElement` 是编译器保留的有限形状约束，使用既有 `T: StoreElement` bound 语法；它不是可由用户 impl 授予的普通 trait，也不是一个可构造的值类型。其含义是 T 满足当前公开的完整 Store 元素形状：有限非零大小 Package，Copy 字段或直接拥有的已支持 ByteBuffer/用户资源字段，以及确定的移动、实际布局和清理。201增加下述有限具体callback字段元素；嵌套Store、递归拥有或地址字段不由此自动获得资格。
