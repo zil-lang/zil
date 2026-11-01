@@ -25,7 +25,7 @@ pub(crate) fn admit_owned(
     module: &TypedModule,
     ty: &Type,
     budget: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<bool> {
     let has_stores = admit_shape(ty, budget, true)?;
     fn stores(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
         let Type::Package { fields, .. } = ty else {
@@ -44,10 +44,9 @@ pub(crate) fn admit_owned(
     // The already charged admission visit records the new shape. Legacy
     // Products allocate no new state and retain their historical charge.
     if has_stores {
-        stores(module, ty, budget)
-    } else {
-        Ok(())
+        stores(module, ty, budget)?;
     }
+    Ok(has_stores)
 }
 
 fn admit_shape(ty: &Type, budget: &mut Budget, stores: bool) -> CompileResult<bool> {
