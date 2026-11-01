@@ -6,6 +6,7 @@
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION};
 use zil_ir::{CallableKind, LirModule, LirView, ScalarLayout, Type};
 use zil_verify::VerifiedModule;
+mod owned_sums;
 
 /// Retain the independently checked CFG and concrete closure definitions, and
 /// attach the supported target layout. RegisterDefer stays in the retained CFG
@@ -79,31 +80,55 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             )]);
         }
     }
+    let mut sum_budget = verified
+        .uses_owned_sum_extension()
+        .then(|| owned_sums::Budget::new(verified.limits()));
     for function in &module.functions {
-        if !(function.return_type.is_copy_value()
+        let old_return = function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resource_type(&function.return_type, &module.resources)
             || package_value_type(&function.return_type, &module.resources)
             || error_type(&function.return_type, &module.resources)
             || owned_array_type(&function.return_type, &module.resources)
             || (matches!(function.return_type, Type::Closure(_))
-                && function.callable_return_contract.is_some()))
-            || function.parameters.iter().any(|id| {
-                let ty = &function.locals[id.0 as usize].ty;
-                !(ty.is_copy_value()
-                    || ty.is_scalar_or_address()
-                    || resource_type(ty, &module.resources)
-                    || package_value_type(ty, &module.resources)
-                    || error_type(ty, &module.resources)
-                    || owned_array_type(ty, &module.resources)
-                    || callable_parameter_type(ty, &module.closures))
-            })
-        {
+                && function.callable_return_contract.is_some());
+        let extra_return = if old_return {
+            false
+        } else if let Some(budget) = &mut sum_budget {
+            budget.admits(&function.return_type, &module.resources, 0)?
+        } else {
+            false
+        };
+        if !old_return && !extra_return {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
-                "lowering requires a scalar function signature",
+                "lowering requires a supported ordinary function result",
                 Some(function.span),
             )]);
+        }
+        for id in &function.parameters {
+            let ty = &function.locals[id.0 as usize].ty;
+            let old = ty.is_copy_value()
+                || ty.is_scalar_or_address()
+                || resource_type(ty, &module.resources)
+                || package_value_type(ty, &module.resources)
+                || error_type(ty, &module.resources)
+                || owned_array_type(ty, &module.resources)
+                || callable_parameter_type(ty, &module.closures);
+            let extra = if old {
+                false
+            } else if let Some(budget) = &mut sum_budget {
+                budget.admits(ty, &module.resources, 0)?
+            } else {
+                false
+            };
+            if !old && !extra {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Lower,
+                    "lowering requires a supported ordinary parameter",
+                    Some(function.span),
+                )]);
+            }
         }
         for ty in function
             .locals
@@ -121,6 +146,11 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 && !package_value_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)
                 && !owned_array_type(ty, &module.resources)
+                && !if let Some(budget) = &mut sum_budget {
+                    budget.admits(ty, &module.resources, 0)?
+                } else {
+                    false
+                }
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Lower,

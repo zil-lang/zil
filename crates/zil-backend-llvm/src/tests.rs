@@ -1598,3 +1598,18 @@ fn borrowed_lir_aliases_bind_length_and_the_current_capability() {
         "E-CODEGEN-UNBOUND-LIR"
     );
 }
+
+#[test]
+fn impl243_false_presence_cannot_authorize_mutated_raw_lir_new_opcode() {
+    let verified = checked_simple(returning(Constant::I64(1024)));
+    assert!(!verified.uses_owned_sum_extension());
+    let mut changed = lir(&verified);
+    changed.functions[0].blocks[0]
+        .instructions
+        .push(instruction(
+            None,
+            InstructionKind::DropEnum { local: LocalId(0) },
+        ));
+    let errors = emit(&verified, &changed).unwrap_err();
+    assert_eq!(errors[0].code, "E-CODEGEN-UNBOUND-LIR");
+}

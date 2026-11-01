@@ -152,19 +152,34 @@ enum Exit {
     Branch(BlockId, BlockId),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Operation {
     Other,
     Read(LocalId),
     Store(LocalId),
     Take(LocalId),
     Kill(LocalId),
+    Unpack {
+        source: LocalId,
+        fields: Vec<LocalId>,
+    },
 }
 
 impl Operation {
     pub(super) fn of(instruction: &InstructionKind) -> Self {
+        match instruction {
+            InstructionKind::UnpackVariant { local, fields, .. } => Self::Unpack {
+                source: *local,
+                fields: fields.clone(),
+            },
+            _ => Self::single(instruction),
+        }
+    }
+    fn single(instruction: &InstructionKind) -> Self {
         match *instruction {
-            InstructionKind::Load(local)
+            InstructionKind::VariantTagLocal { local, .. }
+            | InstructionKind::ReadVariantLocal { local, .. }
+            | InstructionKind::Load(local)
             | InstructionKind::RegisterDefer { local, .. }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::BorrowLocalMut { local }
@@ -189,6 +204,7 @@ impl Operation {
             | InstructionKind::StorageDead(local)
             | InstructionKind::DropManaged { local }
             | InstructionKind::DropErrorUnion { local }
+            | InstructionKind::DropEnum { local }
             | InstructionKind::DropPackage { local }
             | InstructionKind::DropOwnedArray { local }
             | InstructionKind::EndPackageCapture { local, .. }

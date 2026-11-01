@@ -22,6 +22,8 @@ mod resource_tests;
 mod resources;
 mod retained;
 mod scopes;
+#[cfg(test)]
+mod sum_tests;
 
 use std::collections::{BTreeSet, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase};
@@ -241,6 +243,16 @@ fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initializ
         let mut state = clone_set(&ins[bi], budget)?;
         for i in &b.instructions {
             budget.spend(1, "initialization instruction scan")?;
+            if let InstructionKind::UnpackVariant { local, fields, .. } = &i.kind {
+                budget.spend(fields.len().saturating_add(1), "Unpack initialization atom")?;
+                budget.lookup(state.len(), "Unpack initialized source")?;
+                if !state.contains(local) || fields.iter().any(|l| state.contains(l)) {
+                    return Err(bad("Unpack source must be initialized and targets vacant"));
+                }
+                state.remove(local);
+                state.extend(fields.iter().copied());
+                continue;
+            }
             match incremental::Operation::of(&i.kind) {
                 incremental::Operation::Read(local) | incremental::Operation::Take(local) => {
                     budget.lookup(state.len(), "initialized local lookup")?;
@@ -266,6 +278,18 @@ fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initializ
                 incremental::Operation::Kill(local) => {
                     budget.lookup(state.len(), "storage initialization removal")?;
                     state.remove(&local);
+                }
+                incremental::Operation::Unpack { source, fields } => {
+                    budget.lookup(state.len(), "Unpack initialized source")?;
+                    if !state.contains(&source) {
+                        return Err(bad("Unpack source is not initialized on all paths"));
+                    }
+                    budget.spend(fields.len(), "Unpack initialization publication")?;
+                    if fields.iter().any(|l| state.contains(l)) {
+                        return Err(bad("Unpack target is already initialized"));
+                    }
+                    state.remove(&source);
+                    state.extend(fields);
                 }
                 incremental::Operation::Other => {}
             }
@@ -301,6 +325,15 @@ fn transfer(
     let mut state = clone_set(input, budget)?;
     for instruction in &block.instructions {
         budget.spend(1, "initialization transfer")?;
+        if let InstructionKind::UnpackVariant { local, fields, .. } = &instruction.kind {
+            budget.spend(
+                fields.len().saturating_add(1),
+                "Unpack initialization transfer atom",
+            )?;
+            state.remove(local);
+            state.extend(fields.iter().copied());
+            continue;
+        }
         match incremental::Operation::of(&instruction.kind) {
             incremental::Operation::Store(local) => {
                 budget.lookup(state.len(), "initialization insert")?;
@@ -309,6 +342,14 @@ fn transfer(
             incremental::Operation::Take(local) | incremental::Operation::Kill(local) => {
                 budget.lookup(state.len(), "initialization remove")?;
                 state.remove(&local);
+            }
+            incremental::Operation::Unpack { source, fields } => {
+                budget.spend(
+                    fields.len().saturating_add(1),
+                    "Unpack initialization transfer",
+                )?;
+                state.remove(&source);
+                state.extend(fields);
             }
             _ => {}
         }

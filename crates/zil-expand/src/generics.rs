@@ -653,6 +653,21 @@ impl<'a> Engine<'a> {
         let mut instance = item.clone();
         substitute_item(&mut instance, &substitution)?;
         self.budget.item(&instance)?;
+        // Original generic enums retain their existing Copy payload profile,
+        // even though ordinary monomorphic enums now admit owners. Inspect the
+        // actual substituted fields while the real template identity exists.
+        if let ItemKind::Enum(e) = &instance.kind {
+            for variant in &e.variants {
+                if let VariantFields::Tuple(fields) = &variant.fields {
+                    for field in fields {
+                        if field.manages {
+                            return Err(unsupported(field.span, "owned generic enum payload"));
+                        }
+                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                    }
+                }
+            }
+        }
         match &mut instance.kind {
             ItemKind::Function(f) => {
                 f.generics.retain(|parameter| {

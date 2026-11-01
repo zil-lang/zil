@@ -119,6 +119,7 @@ pub(super) fn owned_field(ty: &Type) -> bool {
         ty,
         Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
     ) || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+        || sums::owned(ty)
 }
 
 /// A shape classification only. Admission remains independently checked at
@@ -180,6 +181,9 @@ pub(super) fn check_ordinary_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    if sums::needs_shape(ty, budget)? {
+        return sums::check_type_for(module, ty, span, budget);
+    }
     check_product_type(module, ty, span, budget, true)
 }
 
