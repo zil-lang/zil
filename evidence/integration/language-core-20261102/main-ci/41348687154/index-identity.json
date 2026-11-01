@@ -1,0 +1,24 @@
+{
+  "checkout": "fde8081418454acc51d9c7e937e76e063ffacd92",
+  "format": "zil-ci-evidence-v1",
+  "missing_roots": [],
+  "producer_sha256": "d42d485328fc094cb637ecf4e268cc6d16f4cf926c31dfb288970518bc814f74",
+  "roots": [
+    "receipts",
+    "native-evidence",
+    "consumer209",
+    "llvm-23.1.4/install-receipt.json",
+    "llvm-23.1.4/installation-logs"
+  ],
+  "run_attempt": "1",
+  "run_id": "41348687154",
+  "uploads": {
+    "disk_checkpoint": "failure",
+    "recovery_final": "failure",
+    "reference_native": "failure",
+    "reference_receipts": "failure",
+    "toolchain_checkpoint": "failure",
+    "workspace_native": "failure",
+    "workspace_receipts": "failure"
+  }
+}
