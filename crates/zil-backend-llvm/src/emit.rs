@@ -93,7 +93,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     closed_scalar_collection: bool,
     jobs: usize,
 ) -> CompileResult<(m::Module, bool)> {
-    bind_lir(verified, lir)?;
+    let sum_helpers = bind_lir(verified, lir)?;
     let functions = lir
         .functions
         .iter()
@@ -104,8 +104,6 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         .iter()
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
-    let sum_helpers =
-        drop_plan::functions(lir, verified.limits(), verified.uses_owned_sum_extension())?;
     let wrapper = entry_wrapper(&functions, options.entry, lir.resources)?;
     let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
     let collected = (closed_scalar_collection
@@ -510,7 +508,7 @@ fn same_slice<T: PartialEq>(a: &[T], b: &[T]) -> bool {
     std::ptr::eq(a, b) || a == b
 }
 
-fn bind_lir(verified: &VerifiedModule, lir: &LirView<'_>) -> CompileResult<()> {
+fn bind_lir(verified: &VerifiedModule, lir: &LirView<'_>) -> CompileResult<m::Code> {
     let module = verified.module();
     let layouts = vec![
         ScalarLayout {
@@ -579,6 +577,10 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirView<'_>) -> CompileResult<()> {
             None,
         );
     }
+    // The public LIR has now been exactly rebound. The sealed bit only
+    // enables payment; qualification and actual layouts are still rebuilt.
+    let sum_helpers =
+        drop_plan::functions(lir, verified.limits(), verified.uses_owned_sum_extension())?;
     for closure in lir.closures {
         if !matches!(
             closure.kind,
@@ -657,7 +659,7 @@ fn bind_lir(verified: &VerifiedModule, lir: &LirView<'_>) -> CompileResult<()> {
             }
         }
     }
-    Ok(())
+    Ok(sum_helpers)
 }
 
 fn entry_wrapper(
