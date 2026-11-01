@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
-        Type::Managed(_) | Type::Package { .. } => true,
+        Type::Managed(_) => true,
+        Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned(t)),
         Type::Enum { variants, .. } => variants.iter().any(|(_, fs)| fs.iter().any(owned)),
         Type::ErrorUnion { error, result } => owned(error) || owned(result),
         _ => false,
@@ -14,13 +15,13 @@ pub(crate) fn owned(ty: &Type) -> bool {
 
 pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.type_work(ty, true, "ordinary Sum admission")?;
-    fn walk(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    fn walk(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<(bool, bool)> {
         budget.spend(1, "ordinary Sum shape")?;
         match ty {
             Type::Managed(_) => {
                 if dynamic_store::is_owned_carrier(ty) {
                     dynamic_store::ordinary_owned(module, ty, budget)?;
-                    Ok(true)
+                    Ok((true, true))
                 } else {
                     crate::budget::legacy_value(
                         ty,
@@ -30,16 +31,17 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                             .map_or(zil_base::Span::default(), |f| f.span),
                         module,
                     )?;
-                    Ok(false)
+                    Ok((false, true))
                 }
             }
             Type::Package { name, fields } => {
-                if name.is_empty() || !owned(ty) {
+                if name.is_empty() {
                     return Err(error("ordinary Product identity or owner is absent"));
                 }
                 budget.spend(fields.len(), "ordinary Sum Product fields")?;
                 let mut names = BTreeSet::new();
                 let mut store = false;
+                let mut owner = false;
                 for (n, t) in fields {
                     budget.lookup(names.len(), "ordinary Sum field identity")?;
                     budget.product(
@@ -51,9 +53,14 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                     if n.is_empty() || !names.insert(n) {
                         return Err(error("duplicate Product field"));
                     }
-                    store |= walk(module, t, budget)?;
+                    let (has_store, has_owner) = walk(module, t, budget)?;
+                    store |= has_store;
+                    owner |= has_owner;
                 }
-                Ok(store)
+                if !owner {
+                    return Err(error("ordinary Product has no transitive Managed leaf"));
+                }
+                Ok((store, owner))
             }
             Type::Enum { name, variants } => {
                 if name.is_empty() || variants.is_empty() {
@@ -61,6 +68,7 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                 }
                 let mut names = BTreeSet::new();
                 let mut store = false;
+                let mut owner = false;
                 budget.spend(variants.len(), "ordinary Sum variants")?;
                 for (n, fields) in variants {
                     budget.lookup(names.len(), "ordinary Sum variant identity")?;
@@ -75,21 +83,25 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                         return Err(error("duplicate Enum variant"));
                     }
                     for t in fields {
-                        store |= walk(module, t, budget)?;
+                        let (has_store, has_owner) = walk(module, t, budget)?;
+                        store |= has_store;
+                        owner |= has_owner;
                     }
                 }
-                Ok(store)
+                Ok((store, owner))
             }
             Type::ErrorUnion { error: e, result } => {
-                Ok(walk(module, e, budget)? | walk(module, result, budget)?)
+                let (a, b) = walk(module, e, budget)?;
+                let (c, d) = walk(module, result, budget)?;
+                Ok((a | c, b | d))
             }
-            t if t.is_copy_value() => Ok(false),
+            t if t.is_copy_value() => Ok((false, false)),
             _ => Err(error(
                 "ordinary Sum contains an unsupported borrowed or owning shape",
             )),
         }
     }
-    walk(module, ty, budget)
+    walk(module, ty, budget).map(|(store, _)| store)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -556,7 +568,7 @@ impl Plan {
         let Type::Enum { variants, .. } = &f.locals[local.0 as usize].ty else {
             return Err(error("Unpack requires an Enum local"));
         };
-        if !owned(&f.locals[local.0 as usize].ty) || i.result.is_some() {
+        if !budget.sum_type(&f.locals[local.0 as usize].ty)? || i.result.is_some() {
             return Err(error("Unpack requires an owning Enum and no result"));
         }
         let fs = variants
@@ -796,7 +808,7 @@ impl Plan {
             }
             InstructionKind::DropEnum { local } => {
                 if !matches!(f.locals[local.0 as usize].ty, Type::Enum { .. })
-                    || !owned(&f.locals[local.0 as usize].ty)
+                    || !budget.sum_type(&f.locals[local.0 as usize].ty)?
                     || i.result.is_some()
                 {
                     return Err(error("DropEnum requires owning Enum and no result"));
