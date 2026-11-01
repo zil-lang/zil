@@ -1,0 +1,20 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.01s
+     Running `/workspace/.zil-env/target-240/debug/impl240-front-probe /tmp/240-desc-probes/array-used-F.zil`
+Types [
+    Diagnostic {
+        phase: Types,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 145,
+                end: 150,
+            },
+        ),
+        notes: [],
+    },
+]

@@ -1,0 +1,20 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.01s
+     Running `/workspace/.zil-env/target-240/debug/impl240-front-probe /tmp/240-desc-probes/echo.zil`
+Types [
+    Diagnostic {
+        phase: Types,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "return type Desc(Record { name: \"@module0:R\", fields: [(\"n\", I32)] })",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 59,
+                end: 88,
+            },
+        ),
+        notes: [],
+    },
+]

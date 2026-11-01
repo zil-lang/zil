@@ -1,0 +1,17 @@
+   Compiling zil-expand v0.1.0 (/workspace/zil-240/crates/zil-expand)
+   Compiling impl240-front-probe v0.0.0 (/tmp/impl240-front-probe)
+    Finished `test` profile [unoptimized] target(s) in 5.24s
+     Running tests/helpers.rs (/workspace/.zil-env/target-240/debug/deps/helpers-6edcc12cd32d2cb3)
+
+running 8 tests
+test helpers::a_plain_resource_descriptor_parameter_cannot_use_the_enum_ownership_route ... ok
+test helpers::managed_store_pattern_relay_preserves_an_incoming_carrier ... ok
+test helpers::module_declared_field_ownership_crosses_the_real_helper_instantiation ... ok
+test helpers::old_explicit_give_resource_parameter_control_remains_legal ... ok
+test helpers::unused_helper_checks_real_marker_and_actual_linear_give ... ok
+test helpers::real_enum_managed_name_binding_remains_owned_in_a_finite_helper ... ok
+test helpers::actual_give_resource_results_retain_ownership_through_local_bindings ... ok
+test helpers::concrete_enum_field_uses_its_declaration_scope_when_helper_binder_has_same_name ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

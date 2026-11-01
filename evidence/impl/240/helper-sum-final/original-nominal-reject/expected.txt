@@ -1,0 +1,2 @@
+stdout=AB
+exit=0
