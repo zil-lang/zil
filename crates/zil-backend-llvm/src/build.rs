@@ -231,11 +231,14 @@ pub fn build_view_with_cancellation_and_stable_names(
             None,
         )]);
     }
-    let mut machine = crate::emit::lower_view_with_incremental_scalar_policy(
+    let (mut machine, collected_closed) = crate::emit::lower_view_with_closed_scalar_policy(
         verified,
         lir,
         &options.emit,
         options.optimization == Optimization::O2 && options.incremental_o2,
+        options.closed_executable
+            && options.backend == NativeBackend::LlvmApi
+            && options.codegen.units >= 2,
     )?;
     // The opt-in O2 strategy contracts strict checked-add chains before
     // scalar evaluation. Each nonempty plan validates its complete unchanged
@@ -244,7 +247,8 @@ pub fn build_view_with_cancellation_and_stable_names(
         crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
         crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
     }
-    let mut stable = if options.closed_executable
+    let mut stable = if !collected_closed
+        && options.closed_executable
         && options.backend == NativeBackend::LlvmApi
         && options.optimization == Optimization::O2
         && options.incremental_o2
@@ -273,7 +277,16 @@ pub fn build_view_with_cancellation_and_stable_names(
     // complete original-model preflight. Existing per-unit API preflight still runs
     // immediately before its LLVMBuilder calls and cannot be bypassed.
     let llvm = machine.to_text();
-    let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
+    let (mut plan, stable_candidates, stable_diagnostic) = if collected_closed {
+        (
+            crate::machine_cgu::Plan {
+                units: vec![machine],
+                fallback: None,
+            },
+            None,
+            None,
+        )
+    } else if let Some(stable) = stable {
         let trace =
             std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
         let (plan, candidates, diagnostic) = stable.partition(machine, trace);

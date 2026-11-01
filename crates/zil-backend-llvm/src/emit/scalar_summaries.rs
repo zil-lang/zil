@@ -266,6 +266,73 @@ pub(super) fn argument(c: &Constant) -> m::Arg {
     m::Arg::new(ty, value)
 }
 
+/// Closed collection is deliberately narrower than general reachability. All
+/// omitted bodies have already become valid scalar returns; the remaining
+/// source can refer to them only through calls replaced by the same facts.
+pub(super) fn can_collect_closed(
+    lir: &LirView<'_>,
+    facts: &BTreeMap<FunctionId, Constant>,
+) -> bool {
+    if !lir.closures.is_empty() || !lir.resources.is_empty() || facts.is_empty() {
+        return false;
+    }
+    let mut kept = 0usize;
+    let mut work = 4096usize;
+    let mut omitted = false;
+    for f in lir.functions {
+        if f.foreign.is_some() {
+            // Declarations still take the complete original ABI emission path.
+            continue;
+        }
+        if f.name != "main" && facts.contains_key(&f.id) {
+            omitted = true;
+            continue;
+        }
+        kept += 1;
+        let Some(remaining) = work.checked_sub(f.locals.len() + f.values.len() + f.blocks.len())
+        else {
+            return false;
+        };
+        work = remaining;
+        if kept > 8
+            || f.environment.is_some()
+            || !scalar(&f.return_type)
+            || f.locals.iter().any(|l| !scalar(&l.ty))
+            || f.values.iter().any(|ty| !scalar(ty))
+        {
+            return false;
+        }
+        for block in &f.blocks {
+            let Some(remaining) = work.checked_sub(block.instructions.len()) else {
+                return false;
+            };
+            work = remaining;
+            for instruction in &block.instructions {
+                match &instruction.kind {
+                    InstructionKind::Constant(c) if scalar(&c.ty()) => {}
+                    InstructionKind::Load(_)
+                    | InstructionKind::Store { .. }
+                    | InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::ScopeEnter { .. }
+                    | InstructionKind::ScopeExit { .. }
+                    | InstructionKind::UnsafeEnter { .. }
+                    | InstructionKind::UnsafeExit { .. }
+                    | InstructionKind::Unary { .. }
+                    | InstructionKind::Binary { .. }
+                    | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::Call { .. }
+                    | InstructionKind::ForeignCall { .. } => {}
+                    // Addresses, closure/resource helpers and future operations
+                    // keep the original complete machine-generation path.
+                    _ => return false,
+                }
+            }
+        }
+    }
+    omitted
+}
+
 pub(super) fn emit(f: &TypedFunction, c: &Constant) -> m::Function {
     let argument = argument(c);
     m::Function {

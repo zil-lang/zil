@@ -35,6 +35,23 @@ impl Dir {
             output: Some(self.0.join("program")),
             ..CompileOptions::default()
         };
+        self.compile_options(text, options)
+    }
+    fn compile_main(&self, text: &str, closed: bool) -> String {
+        let mut options = CompileOptions {
+            backend: NativeBackend::LlvmApi,
+            incremental_o2: true,
+            closed_executable: closed,
+            optimization: Optimization::O2,
+            stop_after: Stage::Build,
+            output: Some(self.0.join("program")),
+            ..CompileOptions::default()
+        };
+        options.codegen.units = 8;
+        options.codegen.jobs = 2;
+        self.compile_options(text, options)
+    }
+    fn compile_options(&self, text: &str, options: CompileOptions) -> String {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),
@@ -244,4 +261,50 @@ fn constant_fact_does_not_hide_a_later_effectful_or_trapping_zero_arg_call() {
     let output = dir.run(0);
     assert!(output.status.success(), "{output:?}");
     assert_eq!(output.stdout, b"12\n");
+}
+
+#[test]
+fn closed_collection_omits_known_definitions_but_keeps_entry_and_effectful_helpers() {
+    let source = "fn unused()->i32{return 19;}fn known()->i32{return 66;}fn effect()->i32{unsafe{putchar(65);}return 0;}extern \"C\" fn putchar(x:i32)->i32;fn main()->i32{effect();unsafe{putchar(known());}return 0;}";
+    for closed in [false, true] {
+        let dir = Dir::new();
+        let llvm = dir.compile_main(source, closed);
+        let output = dir.run(0);
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"AB");
+        assert!(output.stderr.is_empty());
+        assert_eq!(llvm.contains("@zil.fn.0("), !closed);
+        assert_eq!(llvm.contains("@zil.fn.1("), !closed);
+        assert!(llvm.contains("@zil.fn.2("), "effect helper remains: {llvm}");
+        assert!(llvm.contains("@zil.fn.4("), "source entry remains: {llvm}");
+        assert!(llvm.contains("define i32 @main("), "native wrapper remains");
+    }
+}
+
+#[test]
+fn closed_collection_falls_back_when_a_function_address_can_be_observed() {
+    let source = "fn known()->i32{return 65;}extern \"C\" fn putchar(x:i32)->i32;fn main()->i32{let f:fn()->i32=known;unsafe{putchar(f());}return 0;}";
+    let dir = Dir::new();
+    let llvm = dir.compile_main(source, true);
+    assert!(
+        llvm.contains("@zil.fn.0("),
+        "addressed definition remains: {llvm}"
+    );
+    assert!(llvm.contains("call i32 %"), "indirect path remains: {llvm}");
+    let output = dir.run(0);
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"A");
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn closed_collection_removes_a_known_callee_without_hiding_a_trapping_callee() {
+    let source = "fn known()->i32{return 1;}fn fail()->i32{return 2147483647+1;}fn main()->i32{return known()+fail();}";
+    let dir = Dir::new();
+    let llvm = dir.compile_main(source, true);
+    assert!(!llvm.contains("@zil.fn.0("), "known definition is omitted");
+    assert!(llvm.contains("@zil.fn.1("), "trapping definition remains");
+    let output = dir.run(0);
+    assert_eq!(output.status.signal(), Some(4), "{output:?}");
+    assert!(output.stdout.is_empty());
 }
