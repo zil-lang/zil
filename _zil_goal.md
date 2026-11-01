@@ -1,5 +1,9 @@
 # ZIL 施工总计划
 
+## 2026-10-31 施工11已合入及状态核查
+
+232普通局部Product默认只读捕获、233跨模块普通trait实现、234LLVM窄整数常量正确性修复已随PR15进入实际main `f2572502beb76eb86e9254dea855404e4998a64d`。原main run41198113948全部25步骤成功，默认3027/0/0、reference2983/0/0，零过滤。本次状态核查补发布review分支的14个遗留提交（相对受测main净差异仅docs/evidence），并恢复三单工单及真实main连续性；不变更语言、schema/Wire27、预算或产品门。当前按功能进度见docs/LANGUAGE-STATUS-20261031.md，交接与清理以docs/CURRENT-HANDOFF.md为准。227普通defer及一般拥有组合、Type/Syntax、长期外部生命周期和挂起并发继续待施工；完整1.4/ZUI NotSatisfied、B0 Doing、181施工及产品/原生WindowsNotRun保持。
+
 ## 2026-10-31 施工11接续
 
 以施工10收尾main 0a3d0021fa788a27c87df20454c34c338039f1c5建立独立工作副本。232继续普通局部Product默认只读捕获，233推进跨模块普通trait实现；两个独立写集并行，第三代理进行非作者审核，root负责规范、集成与正式LLVM23全门。只按真实已核来源放宽，历史1145项交接错误保留，完整1.4/ZUI与Rust四目标状态不随派工升级。原227 defer注册和全部退出合同仍待独立冻结，未作为已实现能力。
@@ -188,3 +192,4 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-10-31 施工10验收225/226/230/231
 
 四片有限能力经三位非作者绑定P2 `75d08022213a5da96e1968d7fe7d1d1e341b5907` 审查，PR14合入实际M `9e7072b1ebdc6900c7370863c27c7432953bd830`。PR/main runs 41184530698/41186163758 各25步骤通过，默认2976/0/0、reference2933/0/0，零过滤；原首轮Fail与恢复边界完整保留。source/schema/Wire27、默认预算及产品门不改。见docs/LANGUAGE-CONSTRUCTION10.md和新final-summary。下一优先默认只读Product捕获及227注册/必须执行合同；完整1.4/ZUI、B0/181、四目标产品和原生Windows状态保持，未合编译研究支线保留。
+

@@ -1,0 +1,215 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/closeout_review",
+  "implementation_author": "/root",
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewed_at_utc": "2026-10-31T13:43:38.922283+00:00",
+  "scope": "Small metadata correction after actual clean-up preflight rejection; not compiler validation or a claim the revised handoff already passed.",
+  "base_commit": "7e8c645d8e671fd95ac7dc38922e8f804af12c49",
+  "content_binding": {
+    "algorithm": "SHA256 of sorted path + NUL + file SHA256 + LF, UTF-8",
+    "sha256": "4657c049607278a8a8a9b939a667049172bbc711b42dca178fac2c587bcac1e1",
+    "files": [
+      {
+        "path": ".task/impl/232.md",
+        "bytes": 4642,
+        "sha256": "61bf1d2bb914b65a79b75fa3935b5ab4ba739ac3a4b5c6e3f4dc55806c9f38a6"
+      },
+      {
+        "path": ".task/impl/233.md",
+        "bytes": 3541,
+        "sha256": "421cb5414e9181cad7b39bcb6095eec60ff8db50299a9524b69dcbe69cfb343c"
+      },
+      {
+        "path": ".task/impl/234.md",
+        "bytes": 2834,
+        "sha256": "ef35fd67baa16b6c0f2909db7296c723b4e780438a8c36868e2b8a3116835aa1"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/042-baseline-handoff.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/042-baseline-handoff.stdout.gz",
+        "bytes": 56834,
+        "sha256": "4d781f9a313c0a4e4c95d75f4a28cef21eddc09334a82438d5307550488d9ed4"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/043-baseline-plan-self-test.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/043-baseline-plan-self-test.stdout",
+        "bytes": 877,
+        "sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/046-candidate-handoff.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/046-candidate-handoff.stdout.gz",
+        "bytes": 57329,
+        "sha256": "7ca3e459767c8ba3d596ad8949505c9dae2cab88b031cb053824a17b9687000d"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/047-candidate-plan-self-test.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/047-candidate-plan-self-test.stdout",
+        "bytes": 877,
+        "sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/FAILURE.json",
+        "bytes": 2118,
+        "sha256": "d5496a15fedf06d0d78e570b86b7aa09ee08b56ef7078857303a648cf0d8fc9d"
+      },
+      {
+        "path": "evidence/integration/construction-status-20261031/attempt1/receipt.json.gz",
+        "bytes": 19351,
+        "sha256": "e9d2fffb0479ca41437bb77632a30b7a133aad96afb922afd0ca510e368f1c8c"
+      }
+    ],
+    "file_count": 13,
+    "review_receipt_excluded": true
+  },
+  "failure_preserved": {
+    "run_id": 41206556938,
+    "job_id": 124552697430,
+    "artifact_id": 13044686083,
+    "zip_sha256": "985d9fa0288adac6a3e7fe939136cd978db24ba23988633e4bb758a4de8b5ca5",
+    "mutation_attempted": false,
+    "baseline_handoff": {
+      "head": "f2572502beb76eb86e9254dea855404e4998a64d",
+      "errors": 1145,
+      "warnings": 0
+    },
+    "candidate_handoff": {
+      "head": "7e8c645d8e671fd95ac7dc38922e8f804af12c49",
+      "errors": 1148,
+      "warnings": 0
+    },
+    "new_errors": "Exactly three author-limited evidence outcomes, one per232/233/234; no historical error removed.",
+    "plans": "Both snapshots passed14 task consistency checks and7 negative self-tests."
+  },
+  "validator_contract": {
+    "path": "tools/handoff.mjs",
+    "rule": "Merged task.evidence requires each referenced JSON result to have a recognized passing outcome; pending-review task.evidence does not. Review evidence separately requires independent reviewer and exact implementation identity.",
+    "author_reports": {
+      "232": "status AuthorLimitedPass",
+      "233": "No top-level recognized passing outcome",
+      "234": "status ReferencePassedApiPending"
+    },
+    "remedy": "Keep limited author reports in explicit historical_evidence_before_acceptance and preserve their unchanged files/statuses; formal accepted evidence refers to existing independent FINAL, MAIN-CONTINUITY and successful actual main CI.",
+    "checker_changed": false,
+    "acceptance_threshold_changed": false,
+    "final_evidence_dropped": false
+  },
+  "cards": [
+    {
+      "path": ".task/impl/232.md",
+      "changed_json_fields": [
+        "evidence",
+        "historical_evidence_before_acceptance"
+      ],
+      "preserved_author_evidence": "evidence/impl/232/AUTHOR.json",
+      "formal_evidence": [
+        "evidence/reviews/232/FINAL.json",
+        "evidence/reviews/232/MAIN-CONTINUITY.json",
+        "evidence/integration/construction-status-20261031/MAIN-CI.json"
+      ]
+    },
+    {
+      "path": ".task/impl/233.md",
+      "changed_json_fields": [
+        "evidence",
+        "historical_evidence_before_acceptance"
+      ],
+      "preserved_author_evidence": "evidence/impl/233/author-final/RESULT.json",
+      "formal_evidence": [
+        "evidence/reviews/233/FINAL.json",
+        "evidence/reviews/233/MAIN-CONTINUITY.json",
+        "evidence/integration/construction-status-20261031/MAIN-CI.json"
+      ]
+    },
+    {
+      "path": ".task/impl/234.md",
+      "changed_json_fields": [
+        "evidence",
+        "historical_evidence_before_acceptance"
+      ],
+      "preserved_author_evidence": "evidence/impl/234/AUTHOR.json",
+      "formal_evidence": [
+        "evidence/reviews/234/FINAL.json",
+        "evidence/reviews/234/MAIN-CONTINUITY.json",
+        "evidence/integration/construction-status-20261031/MAIN-CI.json"
+      ]
+    }
+  ],
+  "raw_archive_comparisons": [
+    {
+      "path": "evidence/integration/construction-status-20261031/attempt1/042-baseline-handoff.stderr",
+      "uncompressed_bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zip_member": "_temp/status-audit-dry/042-baseline-handoff.stderr"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/attempt1/042-baseline-handoff.stdout.gz",
+      "uncompressed_bytes": 527218,
+      "uncompressed_sha256": "899bacd2222e7636e1de6e5c91ec2bbcab3b3764fc328caae499a1f50f9d965c",
+      "zip_member": "_temp/status-audit-dry/042-baseline-handoff.stdout"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/attempt1/043-baseline-plan-self-test.stderr",
+      "uncompressed_bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zip_member": "_temp/status-audit-dry/043-baseline-plan-self-test.stderr"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/attempt1/043-baseline-plan-self-test.stdout",
+      "uncompressed_bytes": 877,
+      "uncompressed_sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916",
+      "zip_member": "_temp/status-audit-dry/043-baseline-plan-self-test.stdout"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/attempt1/046-candidate-handoff.stderr",
+      "uncompressed_bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zip_member": "_temp/status-audit-dry/046-candidate-handoff.stderr"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/attempt1/046-candidate-handoff.stdout.gz",
+      "uncompressed_bytes": 530936,
+      "uncompressed_sha256": "6d399024868143af83a7dfef7ffa4f0ffa3fc1cbc98ca0ba98152f0ef07e1cc9",
+      "zip_member": "_temp/status-audit-dry/046-candidate-handoff.stdout"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/attempt1/047-candidate-plan-self-test.stderr",
+      "uncompressed_bytes": 0,
+      "uncompressed_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "zip_member": "_temp/status-audit-dry/047-candidate-plan-self-test.stderr"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/attempt1/047-candidate-plan-self-test.stdout",
+      "uncompressed_bytes": 877,
+      "uncompressed_sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916",
+      "zip_member": "_temp/status-audit-dry/047-candidate-plan-self-test.stdout"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/attempt1/receipt.json.gz",
+      "uncompressed_bytes": 323155,
+      "uncompressed_sha256": "bf10fd623ae4c9b0c8f64dfab417fa6c340ff1018479de2b1542e235a40eedde",
+      "zip_member": "_temp/status-audit-dry/receipt.json"
+    }
+  ],
+  "previous_audit_limit": "Earlier static METADATA-REVIEW did not execute handoff and missed the all-formal-evidence passing-outcome rule for newly merged cards. The real guard rejected before any ref mutation; this correction and the original failure are preserved.",
+  "retest_status": "Pending exact revised main and unchanged cleanup script; no1145/zero-new-issues result claimed before rerun.",
+  "publication_condition": "Publish only these13 hashed files plus this receipt, then rerun unchanged guarded validation against the new exact main; refuse mutations on any new issue."
+}

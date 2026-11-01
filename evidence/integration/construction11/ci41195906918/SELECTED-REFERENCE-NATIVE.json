@@ -1,0 +1,25 @@
+{
+  "status": "Pass",
+  "files_checked": 3903,
+  "bytes_checked": 125267546,
+  "manifest_files": 65632,
+  "artifact": {
+    "artifact_id": 13041099023,
+    "file": "reference-native.zip",
+    "bytes": 195353181,
+    "sha256": "c95b1ac782aab626beb26132fe8663f7e33bb655392954e7b48c1290b55bb9b4",
+    "members": 65632,
+    "extracted_members": 3903,
+    "include_top_level_markers": [
+      "232",
+      "233",
+      "234",
+      "construction11",
+      "077",
+      "192",
+      "225",
+      "226"
+    ],
+    "extracted_to": "/workspace/scratch/994319f2ba02/z11-ci41195906918/reference-native"
+  }
+}

@@ -1,0 +1,1123 @@
+{
+  "review234": [
+    {
+      "case": "review234-Clang-O0-69000-0",
+      "compiles": [
+        {
+          "report": "review234-Clang-O0-69000-0/compile-false.json",
+          "input_fingerprint": "ce06e803c781c967c228974dd1a37278cc83694660d1ce51f18c451abb8a6cc0",
+          "warm": false,
+          "optimization": "O0",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        },
+        {
+          "report": "review234-Clang-O0-69000-0/compile-true.json",
+          "input_fingerprint": "ce06e803c781c967c228974dd1a37278cc83694660d1ce51f18c451abb8a6cc0",
+          "warm": true,
+          "optimization": "O0",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "case": "review234-Clang-O2-69000-1",
+      "compiles": [
+        {
+          "report": "review234-Clang-O2-69000-1/compile-false.json",
+          "input_fingerprint": "ce06e803c781c967c228974dd1a37278cc83694660d1ce51f18c451abb8a6cc0",
+          "warm": false,
+          "optimization": "O2",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        },
+        {
+          "report": "review234-Clang-O2-69000-1/compile-true.json",
+          "input_fingerprint": "ce06e803c781c967c228974dd1a37278cc83694660d1ce51f18c451abb8a6cc0",
+          "warm": true,
+          "optimization": "O2",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 0,
+          "input_hex": "",
+          "i32": -2147483648,
+          "i64": -9223372036854775808,
+          "expected_hex": "000000800000000000000080",
+          "actual_hex": "000000800000000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 1,
+          "input_hex": "00",
+          "i32": -257,
+          "i64": -4294967297,
+          "expected_hex": "fffefffffffffffffeffffff",
+          "actual_hex": "fffefffffffffffffeffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 2,
+          "input_hex": "01",
+          "i32": -256,
+          "i64": -4294967296,
+          "expected_hex": "00ffffff00000000ffffffff",
+          "actual_hex": "00ffffff00000000ffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 3,
+          "input_hex": "02",
+          "i32": -1,
+          "i64": -1,
+          "expected_hex": "ffffffffffffffffffffffff",
+          "actual_hex": "ffffffffffffffffffffffff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_hex": "03",
+          "i32": 2147483647,
+          "i64": 9223372036854775807,
+          "expected_hex": "ffffff7fffffffffffffff7f",
+          "actual_hex": "ffffff7fffffffffffffff7f",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_hex": "04",
+          "i32": -2147483392,
+          "i64": -9223372036854775552,
+          "expected_hex": "000100800001000000000080",
+          "actual_hex": "000100800001000000000080",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_hex": "ff",
+          "i32": -2,
+          "i64": -2,
+          "expected_hex": "fefffffffeffffffffffffff",
+          "actual_hex": "fefffffffeffffffffffffff",
+          "exit": 0
+        }
+      ]
+    }
+  ],
+  "impl234": [
+    {
+      "case": "zil-impl234-narrow-66384-0",
+      "fixture": "byte_stream",
+      "identification": "byte-stream report source path, otherwise emitted subtraction-loop CFG; never selected from runtime output",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-66384-0/compile-0.json",
+          "input_fingerprint": "65b4a2b091a82f94727375f5b8d3daae10d41aa69624f7d7f804a86817b2b5ac",
+          "warm": false,
+          "optimization": "O0",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        },
+        {
+          "report": "zil-impl234-narrow-66384-0/compile-1.json",
+          "input_fingerprint": "65b4a2b091a82f94727375f5b8d3daae10d41aa69624f7d7f804a86817b2b5ac",
+          "warm": true,
+          "optimization": "O0",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 3,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-66384-1",
+      "fixture": "negative_loop",
+      "identification": "byte-stream report source path, otherwise emitted subtraction-loop CFG; never selected from runtime output",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-66384-1/compile-0.json",
+          "input_fingerprint": "0e6a999f985ec26bfe19b1afd0d6f23ac07a107f1b7ab851fe9883545be64321",
+          "warm": false,
+          "optimization": "O0",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        },
+        {
+          "report": "zil-impl234-narrow-66384-1/compile-1.json",
+          "input_fingerprint": "0e6a999f985ec26bfe19b1afd0d6f23ac07a107f1b7ab851fe9883545be64321",
+          "warm": true,
+          "optimization": "O0",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 7,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-66384-2",
+      "fixture": "negative_loop",
+      "identification": "byte-stream report source path, otherwise emitted subtraction-loop CFG; never selected from runtime output",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-66384-2/compile-0.json",
+          "input_fingerprint": "0e6a999f985ec26bfe19b1afd0d6f23ac07a107f1b7ab851fe9883545be64321",
+          "warm": false,
+          "optimization": "O2",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        },
+        {
+          "report": "zil-impl234-narrow-66384-2/compile-1.json",
+          "input_fingerprint": "0e6a999f985ec26bfe19b1afd0d6f23ac07a107f1b7ab851fe9883545be64321",
+          "warm": true,
+          "optimization": "O2",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 7,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-66384-3",
+      "fixture": "byte_stream",
+      "identification": "byte-stream report source path, otherwise emitted subtraction-loop CFG; never selected from runtime output",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-66384-3/compile-0.json",
+          "input_fingerprint": "65b4a2b091a82f94727375f5b8d3daae10d41aa69624f7d7f804a86817b2b5ac",
+          "warm": false,
+          "optimization": "O2",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        },
+        {
+          "report": "zil-impl234-narrow-66384-3/compile-1.json",
+          "input_fingerprint": "65b4a2b091a82f94727375f5b8d3daae10d41aa69624f7d7f804a86817b2b5ac",
+          "warm": true,
+          "optimization": "O2",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 3,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_bytes": 14,
+          "input_sha256": "dc2293aaea821fa185630e950723c830dcba57bd5b360c6b6db9369be155affe",
+          "stdout_sha256": "986baf20646a3eccdc164156d7fd7f0343c86c836d1022f8724b0be77cfefb19",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_bytes": 600,
+          "input_sha256": "76a84342bca6ff861fa896af855f7ddd2fd99c3dc78ed6e5c293b9689f1718e6",
+          "stdout_sha256": "17743786152fb4b24abc62ef287b2e48608c1385b4c42969a0a1f855bd8498ff",
+          "exit": 0
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-66384-4",
+      "fixture": "negative_branch",
+      "identification": "byte-stream report source path, otherwise emitted subtraction-loop CFG; never selected from runtime output",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-66384-4/compile-0.json",
+          "input_fingerprint": "7eedef9136537803ad8e5e8c9138567ef8a768725f665332c97c1bc2d367f6b1",
+          "warm": false,
+          "optimization": "O0",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        },
+        {
+          "report": "zil-impl234-narrow-66384-4/compile-1.json",
+          "input_fingerprint": "7eedef9136537803ad8e5e8c9138567ef8a768725f665332c97c1bc2d367f6b1",
+          "warm": true,
+          "optimization": "O0",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "warm": true,
+          "index": 7,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    },
+    {
+      "case": "zil-impl234-narrow-66384-5",
+      "fixture": "negative_branch",
+      "identification": "byte-stream report source path, otherwise emitted subtraction-loop CFG; never selected from runtime output",
+      "compiles": [
+        {
+          "report": "zil-impl234-narrow-66384-5/compile-0.json",
+          "input_fingerprint": "7eedef9136537803ad8e5e8c9138567ef8a768725f665332c97c1bc2d367f6b1",
+          "warm": false,
+          "optimization": "O2",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        },
+        {
+          "report": "zil-impl234-narrow-66384-5/compile-1.json",
+          "input_fingerprint": "7eedef9136537803ad8e5e8c9138567ef8a768725f665332c97c1bc2d367f6b1",
+          "warm": true,
+          "optimization": "O2",
+          "verification_runs": 1,
+          "backend": "clang",
+          "object_reports": [],
+          "object_cache": {
+            "requested": false,
+            "enabled": false,
+            "hits": 0,
+            "misses": 0,
+            "corrupt": 0,
+            "stored": 0,
+            "write_failures": 0,
+            "key_ns": 0,
+            "lookup_ns": 0,
+            "current_preflight_ns": 0,
+            "disabled_reason": null
+          },
+          "requested_units": 1,
+          "actual_units": 1,
+          "jobs": 1,
+          "fallback": null
+        }
+      ],
+      "observations": [
+        {
+          "warm": false,
+          "index": 0,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": false,
+          "index": 1,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": false,
+          "index": 2,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "warm": false,
+          "index": 3,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": true,
+          "index": 4,
+          "input_bytes": 0,
+          "input_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        },
+        {
+          "warm": true,
+          "index": 5,
+          "input_bytes": 1,
+          "input_sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 0
+        },
+        {
+          "warm": true,
+          "index": 6,
+          "input_bytes": 1,
+          "input_sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 255
+        },
+        {
+          "warm": true,
+          "index": 7,
+          "input_bytes": 1,
+          "input_sha256": "bbeebd879e1dff6918546dc0c179fdde505f2a21591c9a9c96e36b054ec5af83",
+          "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "exit": 254
+        }
+      ]
+    }
+  ],
+  "api_cold_warm_pairs": []
+}

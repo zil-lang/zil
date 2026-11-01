@@ -1,0 +1,594 @@
+{
+  "reviewer": "/root/handoff_integrity",
+  "slice": "233",
+  "review_stage": "DefaultApiEvidenceAudited",
+  "formal_acceptance": "Pending final required gate verification; no FINAL verdict issued here",
+  "implementation_commit": "6d087050f232e8e8939aff297af0acc89e11bd20",
+  "original_production_commit": "6d087050f232e8e8939aff297af0acc89e11bd20",
+  "candidate_commit": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "actual_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+  "run_id": 41195906918,
+  "phase": "workspace",
+  "source_tree_equal_candidate": true,
+  "source_tree_sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f",
+  "source_scope_equal_implementation": [
+    "crates/zil-expand/src",
+    "crates/zil-driver/tests/impl233_modules.rs",
+    "crates/zil-expand/tests/impl233_project_traits.rs",
+    "examples/mainline/trait_modules233"
+  ],
+  "source_scope_diff": [],
+  "toolchain": {
+    "llvm": "23.1.4",
+    "clang": "23.1.4",
+    "rust": "1.99.1"
+  },
+  "original_log_sha256": "918ad121c3b491ee81f5bdb3c0189734b1d665d28b77a9aaf494c6ffd917fc23",
+  "original_manifest_sha256": "3aafe77c3a0627a35113146c51f302dd29dab055527bdff09d9e32d3c49b9e2e",
+  "run_counts": {
+    "passed": 3027,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "run_groups": 336,
+  "relevant_tests": {
+    "review233_independent.rs": [
+      9,
+      0,
+      0,
+      0,
+      0
+    ],
+    "impl233_modules.rs": [
+      9,
+      0,
+      0,
+      0,
+      0
+    ],
+    "impl233_project_traits.rs": [
+      2,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "checked_original_artifact_files": 516,
+  "manifest_entries_all_match": true,
+  "checks": {
+    "source_files_equal_local_review": 161,
+    "native": [
+      {
+        "case": "resource-cleanup-O0",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1472,
+            "input_kind": "builder",
+            "preflight_ns": 342379,
+            "builder_ns": 187500,
+            "parse_ns": 0,
+            "optimize_ns": 79218,
+            "emit_ns": 1284890,
+            "total_ns": 2081377
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/resource-cleanup-O0/.zil-driver-36459-104/.zil-build-36459-2/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/resource-cleanup-O0/.zil-driver-36459-104/.zil-build-36459-2/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "41",
+        "report_sha256": "380b1eea94cc6949489d8d2c5bf6324f86a4690191bd1b0434eb9e867afb779f"
+      },
+      {
+        "case": "resource-cleanup-O2",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 904,
+            "input_kind": "builder",
+            "preflight_ns": 274012,
+            "builder_ns": 206887,
+            "parse_ns": 0,
+            "optimize_ns": 1612482,
+            "emit_ns": 2400403,
+            "total_ns": 4677847
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/resource-cleanup-O2/.zil-driver-36459-127/.zil-build-36459-4/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/resource-cleanup-O2/.zil-driver-36459-127/.zil-build-36459-4/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "41",
+        "report_sha256": "094ea6085325170dd9e0fd2a84b0669c37824ecb8d769628a665729590555297"
+      },
+      {
+        "case": "separate-library-distinct-implementations-O0",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1808,
+            "input_kind": "builder",
+            "preflight_ns": 435573,
+            "builder_ns": 294530,
+            "parse_ns": 0,
+            "optimize_ns": 77144,
+            "emit_ns": 1592305,
+            "total_ns": 2602571
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/separate-library-distinct-implementations-O0/.zil-driver-36459-117/.zil-build-36459-3/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/separate-library-distinct-implementations-O0/.zil-driver-36459-117/.zil-build-36459-3/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "9fba15da205f7460f942cc97d15f477ce2a5e7cd0b85ff9822d895f6f3576dac"
+      },
+      {
+        "case": "separate-library-distinct-implementations-O2",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 808,
+            "input_kind": "builder",
+            "preflight_ns": 448718,
+            "builder_ns": 275164,
+            "parse_ns": 0,
+            "optimize_ns": 2123385,
+            "emit_ns": 3161966,
+            "total_ns": 6226910
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/separate-library-distinct-implementations-O2/.zil-driver-36459-144/.zil-build-36459-5/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/separate-library-distinct-implementations-O2/.zil-driver-36459-144/.zil-build-36459-5/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "b2bff927c760c9d24713b0a78e6344fa9e52c6739f75764e23f2dbf5e810dac4"
+      },
+      {
+        "case": "signature-owner-O0",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1560,
+            "input_kind": "builder",
+            "preflight_ns": 515162,
+            "builder_ns": 547452,
+            "parse_ns": 0,
+            "optimize_ns": 184745,
+            "emit_ns": 2808936,
+            "total_ns": 4757365
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/signature-owner-O0/.zil-driver-36459-39/.zil-build-36459-0/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/signature-owner-O0/.zil-driver-36459-39/.zil-build-36459-0/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "94a6b3414cb4b4b3dfcbfe7bae016b714b9391d6a3065d50b9bf87d242f75dba"
+      },
+      {
+        "case": "signature-owner-O2",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 720,
+            "input_kind": "builder",
+            "preflight_ns": 392422,
+            "builder_ns": 246981,
+            "parse_ns": 0,
+            "optimize_ns": 2258067,
+            "emit_ns": 2758262,
+            "total_ns": 5873169
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/signature-owner-O2/.zil-driver-36459-67/.zil-build-36459-1/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/signature-owner-O2/.zil-driver-36459-67/.zil-build-36459-1/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "b965cfdaad472c5c0e0163682a189d72b7f0a8bd2584e26581bf75a0cc2003a4"
+      },
+      {
+        "case": "split-inline-O0",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1352,
+            "input_kind": "builder",
+            "preflight_ns": 280253,
+            "builder_ns": 182912,
+            "parse_ns": 0,
+            "optimize_ns": 77885,
+            "emit_ns": 1344662,
+            "total_ns": 2066610
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/split-inline-O0/.zil-driver-36459-227/.zil-build-36459-10/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/split-inline-O0/.zil-driver-36459-227/.zil-build-36459-10/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "ec8405f8730977e6275bf33389074138af15a5b14a5ec32575945bdf73e51e30"
+      },
+      {
+        "case": "split-inline-O2",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 672,
+            "input_kind": "builder",
+            "preflight_ns": 218818,
+            "builder_ns": 127438,
+            "parse_ns": 0,
+            "optimize_ns": 1244694,
+            "emit_ns": 1852520,
+            "total_ns": 3588181
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/split-inline-O2/.zil-driver-36459-248/.zil-build-36459-11/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/split-inline-O2/.zil-driver-36459-248/.zil-build-36459-11/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "cd539aa8b7023f1787b3b5f99c0e98135e80c7aa52ca35e5f8671f12d6160e89"
+      },
+      {
+        "case": "split-where-O0",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1352,
+            "input_kind": "builder",
+            "preflight_ns": 243735,
+            "builder_ns": 167563,
+            "parse_ns": 0,
+            "optimize_ns": 75391,
+            "emit_ns": 1220760,
+            "total_ns": 1881674
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/split-where-O0/.zil-driver-36459-169/.zil-build-36459-6/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/split-where-O0/.zil-driver-36459-169/.zil-build-36459-6/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "de865051bb5b4ba4274bc7327a62d57cbc2879bf29d2bd9128c576a79803fb07"
+      },
+      {
+        "case": "split-where-O2",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 672,
+            "input_kind": "builder",
+            "preflight_ns": 263863,
+            "builder_ns": 214330,
+            "parse_ns": 0,
+            "optimize_ns": 1436643,
+            "emit_ns": 2181395,
+            "total_ns": 4277870
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/split-where-O2/.zil-driver-36459-190/.zil-build-36459-8/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/split-where-O2/.zil-driver-36459-190/.zil-build-36459-8/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "5f4c29c8e6f6799f5a60153acc13c943ce5d6048555a5ac1be273a5852d525a5"
+      },
+      {
+        "case": "two-impl-modules-O0",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1784,
+            "input_kind": "builder",
+            "preflight_ns": 383437,
+            "builder_ns": 260406,
+            "parse_ns": 0,
+            "optimize_ns": 80501,
+            "emit_ns": 1517665,
+            "total_ns": 2463501
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/two-impl-modules-O0/.zil-driver-36459-176/.zil-build-36459-7/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/two-impl-modules-O0/.zil-driver-36459-176/.zil-build-36459-7/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "30cbcdf57fd6c763ae28ea7ea787f7a9aa68253c2134a679fe70a6b379082433"
+      },
+      {
+        "case": "two-impl-modules-O2",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 776,
+            "input_kind": "builder",
+            "preflight_ns": 449770,
+            "builder_ns": 286765,
+            "parse_ns": 0,
+            "optimize_ns": 1963878,
+            "emit_ns": 2747562,
+            "total_ns": 5657646
+          }
+        ],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/two-impl-modules-O2/.zil-driver-36459-201/.zil-build-36459-9/unit-0.o",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/workspace/review233-36459-1793445709145191451/two-impl-modules-O2/.zil-driver-36459-201/.zil-build-36459-9/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "b82d7ae5c409b51d77f8ab25232bb7e4aa8583236f9458ff633bc774473043b4"
+      }
+    ],
+    "budgets": {
+      "counter": {
+        "minimum_analysis_steps": 16012,
+        "cold_warm_fresh": "Pass"
+      },
+      "trait-library": {
+        "minimum_analysis_steps": 2003,
+        "cold_warm_fresh": "Pass"
+      }
+    }
+  },
+  "previous_failed_run": {
+    "run_id": 41194080948,
+    "workspace": [
+      3020,
+      4,
+      0
+    ],
+    "reference": [
+      2976,
+      4,
+      0
+    ],
+    "status": "Fail retained"
+  },
+  "accounting": "Original author, local independent, default API, reference and later main replays remain separate; no summed new coverage.",
+  "raw_identity_evidence": {
+    "level": "Original exact AST-mutating test source and originalCI pass log; existing test does not serialize mutated ASTs. No claim of a233 Wire attack.",
+    "source_path": "crates/zil-expand/tests/impl233_project_traits.rs",
+    "source_blob": "904fda54d1e3ce30b9496d2f35727cec5b245310",
+    "source_sha256": "d05abca8bdf30c974aac69b8432e59b6d08ed82c14136118a2f2a4992dbab8c5",
+    "source_copy": "raw-identity-test-source.rs",
+    "cases": [
+      "raw_hygienic_trait_spelling_cannot_replace_an_actual_import",
+      "static_reserved_exclusion_uses_the_exact_module_prefix_without_weakening_identity"
+    ]
+  }
+}

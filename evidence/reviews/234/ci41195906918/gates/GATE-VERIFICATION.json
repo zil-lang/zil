@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/next_language_slices",
+  "run_id": 41195906918,
+  "run_attempt": 1,
+  "event": "pull_request",
+  "candidate_commit": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "actual_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+  "verdict": "Pass",
+  "source_tree_sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f",
+  "full_source_tree_byte_equal_across_all_three_receipt_sets": true,
+  "run_and_job_completed_success": true,
+  "successful_steps": 25,
+  "stage_totals": {
+    "workspace": {
+      "groups": 336,
+      "passed": 3027,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "groups": 336,
+      "passed": 2983,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "text_reference": {
+      "groups": 8,
+      "passed": 37,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    }
+  },
+  "migration_runner_passed": 9,
+  "consumer_receipt_structure": {
+    "builds": 16,
+    "objects": 40,
+    "observations": 128,
+    "allocation_observations": 88,
+    "actual_failure_injections": 56,
+    "all_observed_live_zero": true
+  },
+  "consumer_boundary": "Producer receipt identities, builder reports and counts rechecked; no new business oracle or executable run during this artifact audit.",
+  "final_zip": {
+    "artifact_id": 13041600359,
+    "file": "final.zip",
+    "bytes": 404180838,
+    "sha256": "a865329e4323662990b8139eb6ca0a4406f18d18486352329522ffe605afabcf",
+    "members": 46,
+    "extracted_to": "/workspace/scratch/994319f2ba02/z11-ci41195906918/final",
+    "reviewer_rehashed": true
+  },
+  "verified_final_receipts": [
+    {
+      "name": "bundle-verify.log",
+      "bytes": 2356,
+      "sha256": "fc19369d611d318c72b6ce1b1fbcf5c2b54100af83c468ebf6df140ed33fcb75"
+    },
+    {
+      "name": "clippy.log",
+      "bytes": 1190,
+      "sha256": "636c24d2025f881e91cc96500673f79754e1d4ed24caa64e52976dafe58a8a42"
+    },
+    {
+      "name": "commit.txt",
+      "bytes": 41,
+      "sha256": "9b1669f76a956dd2b7338075f336377a9d7cacf418eda3acf86c00d44285ebcd"
+    },
+    {
+      "name": "consumer209.json",
+      "bytes": 76504,
+      "sha256": "319b680132a200b1e7dd25bf752c2c6114414b0c2d2959346b50e6ba41326c57"
+    },
+    {
+      "name": "fmt.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "llvm-api-toolchain.json",
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    {
+      "name": "llvm-install.json",
+      "bytes": 35125,
+      "sha256": "ec27845a20e3124221f459a9156d6a18a18edc6079578ef1a619fedc03175f72"
+    },
+    {
+      "name": "migration-runner.log",
+      "bytes": 107,
+      "sha256": "d041de1238c0ff86f970a1ff7932c08b9ea56782fc94936eb6589c72421feaf7"
+    },
+    {
+      "name": "reference-native-manifest.json",
+      "bytes": 13224563,
+      "sha256": "878d33bfea7dd6ef530d39dc93958fe90748e38e70e0b7d031f94c06efd90a8c"
+    },
+    {
+      "name": "reference-resources-after.log",
+      "bytes": 388,
+      "sha256": "dfc5508690bd22f3aa8e198b8850d0e7683d58333ec91f2cc637a3085db63a52"
+    },
+    {
+      "name": "reference-resources-before.log",
+      "bytes": 220,
+      "sha256": "097bf121e6dd286d3103e6a787b86d3b64a5ec4f0550c36c5d24d739a7690199"
+    },
+    {
+      "name": "reference.log",
+      "bytes": 312355,
+      "sha256": "9072013d05927350e792d47b409cecdddeda155140d0d26463c03b31511e38e6"
+    },
+    {
+      "name": "source-tree.txt",
+      "bytes": 11910416,
+      "sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f"
+    },
+    {
+      "name": "text-reference.log",
+      "bytes": 4019,
+      "sha256": "976e82ddc492b189bc6a877b81bda29bf87c436ebce371671d354786040f3624"
+    },
+    {
+      "name": "toolchain.txt",
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    {
+      "name": "workspace-native-manifest.json",
+      "bytes": 13822203,
+      "sha256": "3aafe77c3a0627a35113146c51f302dd29dab055527bdff09d9e32d3c49b9e2e"
+    },
+    {
+      "name": "workspace-resources-after.log",
+      "bytes": 344,
+      "sha256": "0928d9461f3d359db6007d55e69ec4137822813de04f895a0212e2766e72f571"
+    },
+    {
+      "name": "workspace-resources-before.log",
+      "bytes": 144,
+      "sha256": "9a5d91ed5e5eb919252547ddc248d07a056be060484933e0bb9240dabf32b47e"
+    },
+    {
+      "name": "workspace.log",
+      "bytes": 310339,
+      "sha256": "918ad121c3b491ee81f5bdb3c0189734b1d665d28b77a9aaf494c6ffd917fc23"
+    }
+  ],
+  "root_gate_audit_sha256": "e052f0227e9038379cdbf527e839d3c016d5ba48b80747e9c40f62c0357727ca",
+  "main_ci_acceptance": "NotClaimed; this is the pull_request run."
+}

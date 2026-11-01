@@ -1,0 +1,366 @@
+{
+  "reviewer": "/root/handoff_integrity",
+  "slice": "233",
+  "review_stage": "ReferenceEvidenceAudited",
+  "formal_acceptance": "Pending final required gate verification; no FINAL verdict issued here",
+  "implementation_commit": "6d087050f232e8e8939aff297af0acc89e11bd20",
+  "original_production_commit": "6d087050f232e8e8939aff297af0acc89e11bd20",
+  "candidate_commit": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "actual_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+  "run_id": 41195906918,
+  "phase": "reference",
+  "source_tree_equal_candidate": true,
+  "source_tree_sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f",
+  "source_scope_equal_implementation": [
+    "crates/zil-expand/src",
+    "crates/zil-driver/tests/impl233_modules.rs",
+    "crates/zil-expand/tests/impl233_project_traits.rs",
+    "examples/mainline/trait_modules233"
+  ],
+  "source_scope_diff": [],
+  "toolchain": {
+    "llvm": "23.1.4",
+    "clang": "23.1.4",
+    "rust": "1.99.1"
+  },
+  "original_log_sha256": "9072013d05927350e792d47b409cecdddeda155140d0d26463c03b31511e38e6",
+  "original_manifest_sha256": "878d33bfea7dd6ef530d39dc93958fe90748e38e70e0b7d031f94c06efd90a8c",
+  "run_counts": {
+    "passed": 2983,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "run_groups": 336,
+  "relevant_tests": {
+    "review233_independent.rs": [
+      9,
+      0,
+      0,
+      0,
+      0
+    ],
+    "impl233_modules.rs": [
+      9,
+      0,
+      0,
+      0,
+      0
+    ],
+    "impl233_project_traits.rs": [
+      2,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "checked_original_artifact_files": 516,
+  "manifest_entries_all_match": true,
+  "checks": {
+    "source_files_equal_local_review": 161,
+    "native": [
+      {
+        "case": "resource-cleanup-O0",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/resource-cleanup-O0/.zil-driver-68942-104/.zil-build-68942-2/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/resource-cleanup-O0/.zil-driver-68942-104/.zil-build-68942-2/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "41",
+        "report_sha256": "defedff2fe29d92ed38b33b66fdf7158333e4630505f5e6928b51a505524e5fe"
+      },
+      {
+        "case": "resource-cleanup-O2",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/resource-cleanup-O2/.zil-driver-68942-128/.zil-build-68942-4/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/resource-cleanup-O2/.zil-driver-68942-128/.zil-build-68942-4/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "41",
+        "report_sha256": "9f7592b3f2606a628a8bc05e3390058fc6e1c6aadb3644d1292c08d30947a630"
+      },
+      {
+        "case": "separate-library-distinct-implementations-O0",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/separate-library-distinct-implementations-O0/.zil-driver-68942-115/.zil-build-68942-3/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/separate-library-distinct-implementations-O0/.zil-driver-68942-115/.zil-build-68942-3/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "71a4fb0567ce14686038b4450a4af3696e22baa5b428bf4e76ed78ea5631af5e"
+      },
+      {
+        "case": "separate-library-distinct-implementations-O2",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/separate-library-distinct-implementations-O2/.zil-driver-68942-140/.zil-build-68942-5/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/separate-library-distinct-implementations-O2/.zil-driver-68942-140/.zil-build-68942-5/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "6c0ff91b4d4dadde044e443629dba67aa7d06e4c1825dab5f3970d50f1b7d9bd"
+      },
+      {
+        "case": "signature-owner-O0",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/signature-owner-O0/.zil-driver-68942-40/.zil-build-68942-0/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/signature-owner-O0/.zil-driver-68942-40/.zil-build-68942-0/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "75ed95548d8f422ed309621d7cbb31b72f7241ba601ae868902ec736968deaf3"
+      },
+      {
+        "case": "signature-owner-O2",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/signature-owner-O2/.zil-driver-68942-69/.zil-build-68942-1/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/signature-owner-O2/.zil-driver-68942-69/.zil-build-68942-1/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "679619af13ee91bb064f8b979566251126c95ff65a7c52908fd6a8dcd58603bf"
+      },
+      {
+        "case": "split-inline-O0",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/split-inline-O0/.zil-driver-68942-229/.zil-build-68942-10/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/split-inline-O0/.zil-driver-68942-229/.zil-build-68942-10/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "9f6c523e08531343e6a35da5f7816653f436241ea076d446bcab2b8cdbe273fa"
+      },
+      {
+        "case": "split-inline-O2",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/split-inline-O2/.zil-driver-68942-248/.zil-build-68942-11/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/split-inline-O2/.zil-driver-68942-248/.zil-build-68942-11/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "19ac31f3b6303372e8f2176ad93bb6d2b0577a46205b62e1b621af2c10b3c223"
+      },
+      {
+        "case": "split-where-O0",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/split-where-O0/.zil-driver-68942-171/.zil-build-68942-6/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/split-where-O0/.zil-driver-68942-171/.zil-build-68942-6/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "91be7d3f6271475a20ce7c0e2ce089c5146330c95401bd8dc3a40526ec072471"
+      },
+      {
+        "case": "split-where-O2",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/split-where-O2/.zil-driver-68942-193/.zil-build-68942-8/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/split-where-O2/.zil-driver-68942-193/.zil-build-68942-8/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "8452b99b8e8ae299f6ac06d07bb0fad5f65afa8a8ade86990c692d00d0c2d215"
+      },
+      {
+        "case": "two-impl-modules-O0",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O0",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/two-impl-modules-O0/.zil-driver-68942-176/.zil-build-68942-7/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/two-impl-modules-O0/.zil-driver-68942-176/.zil-build-68942-7/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "c9417a8bdc2b56b1021faaef67e1797aa3ad4304dc6b3f4404dd32091bece795"
+      },
+      {
+        "case": "two-impl-modules-O2",
+        "backend": "clang",
+        "fallback": null,
+        "verification_runs": 1,
+        "object_reports": [],
+        "commands": [
+          [
+            "/home/runner/work/_temp/llvm-23.1.4/bin/clang",
+            "--target=x86_64-unknown-linux-gnu",
+            "-x",
+            "ir",
+            "-O2",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/two-impl-modules-O2/.zil-driver-68942-200/.zil-build-68942-9/module.ll",
+            "-o",
+            "/home/runner/work/_temp/native-evidence/reference/review233-68942-1793446317771292055/two-impl-modules-O2/.zil-driver-68942-200/.zil-build-68942-9/program"
+          ]
+        ],
+        "expected_exit": 0,
+        "stdout_hex": "",
+        "report_sha256": "617dcfccd34c530161064603eda8661ab9dcdf7e633b6673588e9745e0305bf0"
+      }
+    ],
+    "budgets": {
+      "counter": {
+        "minimum_analysis_steps": 16012,
+        "cold_warm_fresh": "Pass"
+      },
+      "trait-library": {
+        "minimum_analysis_steps": 2003,
+        "cold_warm_fresh": "Pass"
+      }
+    }
+  },
+  "previous_failed_run": {
+    "run_id": 41194080948,
+    "workspace": [
+      3020,
+      4,
+      0
+    ],
+    "reference": [
+      2976,
+      4,
+      0
+    ],
+    "status": "Fail retained"
+  },
+  "accounting": "Original author, local independent, default API, reference and later main replays remain separate; no summed new coverage.",
+  "raw_identity_evidence": {
+    "level": "Original exact AST-mutating test source and originalCI pass log; existing test does not serialize mutated ASTs. No claim of a233 Wire attack.",
+    "source_path": "crates/zil-expand/tests/impl233_project_traits.rs",
+    "source_blob": "904fda54d1e3ce30b9496d2f35727cec5b245310",
+    "source_sha256": "d05abca8bdf30c974aac69b8432e59b6d08ed82c14136118a2f2a4992dbab8c5",
+    "source_copy": "raw-identity-test-source.rs",
+    "cases": [
+      "raw_hygienic_trait_spelling_cannot_replace_an_actual_import",
+      "static_reserved_exclusion_uses_the_exact_module_prefix_without_weakening_identity"
+    ]
+  }
+}

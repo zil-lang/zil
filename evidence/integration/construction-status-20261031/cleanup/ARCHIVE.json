@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "file": "cleanup-attempt2.zip",
+  "format": "Concatenate parts in listed order without separators, verify SHA256, then unzip",
+  "bytes": 263349,
+  "sha256": "4d55b12fc7aa89925f3613e8d5473b17af775e67b93cbc6401652bdf8758ff12",
+  "parts": [
+    {
+      "path": "evidence/integration/construction-status-20261031/cleanup/archive/cleanup-attempt2.zip.part-000",
+      "bytes": 48000,
+      "sha256": "4afe9edff85015e172fce509e4f68c9bce23afadbe245d671e22183a3ec8ebb2"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/cleanup/archive/cleanup-attempt2.zip.part-001",
+      "bytes": 48000,
+      "sha256": "d30d88de42ec75c365a1b2e6162e7847158fbd48964ad5637e93c8784d091d66"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/cleanup/archive/cleanup-attempt2.zip.part-002",
+      "bytes": 48000,
+      "sha256": "e0324c40f19d9020be7210c22e8e3b3a458314a938eae101f92fa8568d390874"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/cleanup/archive/cleanup-attempt2.zip.part-003",
+      "bytes": 48000,
+      "sha256": "a4cda4ad8a7d15b4fb5e1d158a53296dd4ac30982e4a6f5522c5e31e1004b067"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/cleanup/archive/cleanup-attempt2.zip.part-004",
+      "bytes": 48000,
+      "sha256": "21b9151e045c763f1149cc671dcd8cb7a152e18ad2e4d7c1b0a21548fb07a297"
+    },
+    {
+      "path": "evidence/integration/construction-status-20261031/cleanup/archive/cleanup-attempt2.zip.part-005",
+      "bytes": 23349,
+      "sha256": "5653764f8866c8f660b1386117444e4795fb6f76328ac38d776dd67742d33448"
+    }
+  ],
+  "original_artifact_id": 13044836251,
+  "original_run_id": 41206556938,
+  "original_attempt": 2
+}

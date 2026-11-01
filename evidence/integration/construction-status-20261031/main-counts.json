@@ -1,0 +1,26 @@
+{
+  "workspace": {
+    "groups": 336,
+    "passed": 3027,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "reference": {
+    "groups": 336,
+    "passed": 2983,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "text_reference": {
+    "groups": 8,
+    "passed": 37,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  }
+}

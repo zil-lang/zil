@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/next_language_slices",
+  "implementation_author": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "32f218d419cc162f8f51e5a24a5e2fb24d50e3b0",
+  "author_evidence_head": "47a327b1282b68209ce5327677de6a1fbbeeb209",
+  "independent_test_commit": "b7d14fbbd750cda415fad3fb2c25b9cb11c9c972",
+  "reviewed_candidate_commit": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "actual_ci_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+  "ci_run_id": 41195906918,
+  "ci_run_attempt": 1,
+  "ci_event": "pull_request",
+  "ci_url": "https://github.com/zil-lang/zil/actions/runs/41195906918",
+  "recorded_at": "2026-10-31T11:41:48.227778+00:00",
+  "acceptance_scope": "Slice234 integer-constant correctness in the exact construction11 PR candidate; not a main CI acceptance or complete language/product acceptance.",
+  "source_identity": {
+    "implementation_and_author_test_files_byte_equal_to_implementation_commit": true,
+    "workspace_reference_and_final_source_trees_byte_equal_to_candidate": true,
+    "source_tree_sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f"
+  },
+  "static_checks": [
+    "only native/builder.rs integer constant canonicalization changes production; no performance branch merge",
+    "preflight valid signed/unsigned integer ranges and type widths unchanged",
+    "64-bits is one of 63/56/48/32/0; no shifting by 64",
+    "mask computes n modulo 2^bits for every preflight-admitted i128 literal, including unsigned u64 maximum",
+    "global/aggregate/operand constants all use the same value constructor; no ABI/schema/optimization gate change",
+    "object cache namespace includes installed compiler and LLVM library identity plus target and optimization"
+  ],
+  "formal_ci": {
+    "successful_steps": 25,
+    "workspace": {
+      "groups": 336,
+      "passed": 3027,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "groups": 336,
+      "passed": 2983,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "text_reference": {
+      "groups": 8,
+      "passed": 37,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "migration_runner_passed": 9,
+    "fmt": "Pass from successful workflow step and exact empty log",
+    "clippy": "Pass from successful all-target workflow step and retained completed log",
+    "consumer_receipt": {
+      "builds": 16,
+      "objects": 40,
+      "observations": 128,
+      "allocation_observations": 88,
+      "actual_failure_injections": 56,
+      "all_observed_live_zero": true
+    },
+    "gate_verification": "ci41195906918/gates/GATE-VERIFICATION.json"
+  },
+  "default_artifact_review": {
+    "receipt": "ci41195906918/workspace/RESULT.json",
+    "review234": {
+      "compilations": 8,
+      "native_observations": 56,
+      "returned_bytes_per_observation": 12,
+      "oracle": "Independently recomputed little-endian signed i32 plus i64; process exit only reports success."
+    },
+    "impl234": {
+      "compilations": 24,
+      "native_observations": 88,
+      "negative_exit_observations": 64,
+      "byte_stream_observations": 24,
+      "source_boundary": "Inline negative SourceUnit bytes were not emitted by the original test; exact pinned Rust source and emitted CFG retained. Negative exit observations are not a full-width integer oracle."
+    },
+    "api_cold_warm_pairs": 8,
+    "actual_modes": [
+      [
+        "clang",
+        "O0"
+      ],
+      [
+        "clang",
+        "O2"
+      ],
+      [
+        "llvm-api",
+        "O0"
+      ],
+      [
+        "llvm-api",
+        "O2"
+      ]
+    ],
+    "verified_native_files": 708,
+    "retained_native_files": 684
+  },
+  "reference_artifact_review": {
+    "receipt": "ci41195906918/reference/RESULT.json",
+    "review234": {
+      "compilations": 4,
+      "native_observations": 28,
+      "returned_bytes_per_observation": 12,
+      "oracle": "Independently recomputed little-endian signed i32 plus i64; process exit only reports success."
+    },
+    "impl234": {
+      "compilations": 12,
+      "native_observations": 44,
+      "negative_exit_observations": 32,
+      "byte_stream_observations": 12,
+      "source_boundary": "Inline negative SourceUnit bytes were not emitted by the original test; exact pinned Rust source and emitted CFG retained. Negative exit observations are not a full-width integer oracle."
+    },
+    "api_cold_warm_pairs": 0,
+    "actual_modes": [
+      [
+        "clang",
+        "O0"
+      ],
+      [
+        "clang",
+        "O2"
+      ]
+    ],
+    "verified_native_files": 350,
+    "retained_native_files": 342
+  },
+  "full_width_oracle": {
+    "source": "crates/zil-driver/tests/review234_full_width.rs",
+    "comparison": "Every observed output byte equals an independently recomputed little-endian signed i32 followed by i64; saved expected bytes are checked too.",
+    "cases": [
+      "minimum signed i32/i64",
+      "-257 and -4294967297",
+      "-256 and -4294967296",
+      "-1",
+      "maximum signed i32/i64",
+      "minimum signed i32/i64 plus 256",
+      "-2"
+    ],
+    "process_exit": "Only success status zero, never the integer value under test.",
+    "default_observations": 56,
+    "reference_observations": 28,
+    "stage_counts_not_added_as_unique_coverage": true
+  },
+  "builder_width_control": {
+    "widths": [
+      1,
+      8,
+      16,
+      32,
+      64
+    ],
+    "default_test": "signed_and_unsigned_spellings_of_integer_bits_are_identical_at_all_widths",
+    "default_test_passed": true,
+    "suite_passed": 9,
+    "generated_model_executions_from_frozen_loops": 40,
+    "full_width_compare_then_boolean_exit": true,
+    "actual_builder_input_zero_parse_verified_before_after": true,
+    "boundary": "Per-case temporary objects were deleted by the original test; exact source plus this run success log is the evidence. Reference builder210 has zero feature-enabled tests, not additional API coverage."
+  },
+  "cache_and_backend": {
+    "actual_llvm_and_clang_version": "23.1.4",
+    "fallbacks": 0,
+    "api_cold_warm_pairs_observed": 8,
+    "cold": "Actual builder input, parse_ns=0, verification before/after optimization; fresh object stored.",
+    "warm": "Actual object-cache reports with the same action keys, producer_verified_before_after=true, llvm_verification_this_request=false; current source verification_runs=1 again.",
+    "compiler_identity": "Existing cache namespace includes installed compiler and LLVM library identity, target and optimization; the static check is retained in REFERENCE.json."
+  },
+  "prior_attempts_preserved": [
+    {
+      "run_id": 41194080948,
+      "candidate_commit": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+      "actual_checkout": "89406b33b43fc17fe967b5bb9f629a16cb44b763",
+      "whole_run_verdict": "Fail",
+      "default_passed": 3020,
+      "default_failed": 4,
+      "scoped_234_joint_receipts_commit": "00ce4eeffe60beba612a9b02e5513d18c047d7b6",
+      "note": "First-run scoped successes and initial review fixture failure remain historical evidence; this FINAL is based on the second run."
+    }
+  ],
+  "audit_execution": "Read-only verification of downloaded CI files plus evidence writing; no new compiler test, model object or native program was executed by this final audit.",
+  "main_ci_acceptance": "NotClaimed; eventual main commit and its CI require separate MAIN-CONTINUITY evidence.",
+  "rust_goals": {
+    "safety": "Finite correctness repair and reviewed capture/trait consumer; complete language safety remains unestablished.",
+    "runtime_memory": "Behavior and cleanup were observed; no new comparative Rust runtime or RSS claim.",
+    "expression_maintenance": "Existing source semantics preserved; this repair does not introduce a new language feature.",
+    "compile_cost": "No performance branch merge, budget change or compilation-speed claim.",
+    "breakthrough": "No product-level four-goal breakthrough is claimed; full 1.4/ZUI and product/native-Windows gates retain their recorded status."
+  }
+}

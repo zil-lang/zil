@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "slice": "232",
+  "parent_task": "B0",
+  "reviewer": "/root/handoff_integrity",
+  "implementation_author": "/root/next_language_slices",
+  "verdict": "Pass",
+  "status": "Pass",
+  "acceptance_scope": "Exact PR15 candidate and frozen finite slice; not a main CI acceptance",
+  "implementation_commit": "507e650d526653ccc79146366e4bb7c30b55ac84",
+  "original_production_commit": "426bbd2066e70acdb5b635ea90694c050c78f764",
+  "baseline_commit": "0a3d0021fa788a27c87df20454c34c338039f1c5",
+  "review_evidence_base_commit": "4f6dc5feab5e77ce2046673f293181f515e3da70",
+  "candidate_commit": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "ci_checkout_commit": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+  "ci_run_id": 41195906918,
+  "ci_run_attempt": 1,
+  "ci_event": "pull_request",
+  "ci_url": "https://github.com/zil-lang/zil/actions/runs/41195906918",
+  "source_identity": {
+    "ci_source_tree_sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f",
+    "ci_source_tree_equals_candidate": true,
+    "implementation_scope_equals_candidate": [
+      "crates/zil-types/src",
+      "crates/zil-driver/tests/impl232_budget.rs",
+      "crates/zil-driver/tests/impl232_readonly_product_capture.rs",
+      "crates/zil-driver/tests/impl072_packages.rs",
+      "crates/zil-driver/tests/impl077_package_captures.rs",
+      "crates/zil-driver/tests/impl192_copy_fields.rs",
+      "crates/zil-driver/tests/impl232_fixture_support",
+      "examples/mainline/readonly_product232"
+    ],
+    "implementation_scope_differences": [],
+    "production_changes_by_reviewer": []
+  },
+  "formal_gates": {
+    "evidence": "evidence/reviews/232/ci41195906918/final-gates/REVIEWED-GATES.json",
+    "required_steps": 25,
+    "successful_steps": 25,
+    "formatting": "Pass",
+    "all_target_clippy": "Pass",
+    "default_configuration": {
+      "groups": 336,
+      "passed": 3027,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "reference_configuration": {
+      "groups": 336,
+      "passed": 2983,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "explicit_text_reference": {
+      "groups": 8,
+      "passed": 37,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "migration_runner": {
+      "status": "Pass",
+      "passed": 9
+    },
+    "consumer209": {
+      "status": "Pass",
+      "builds": 16,
+      "objects": 40,
+      "observations": 128,
+      "allocation_observations": 88,
+      "actual_failure_injections": 56,
+      "all_observed_live_zero": true,
+      "backend": "llvm-api",
+      "llvm_version": "23.1.4",
+      "fallback": null
+    }
+  },
+  "reviewed_original_artifacts": {
+    "default_configuration": {
+      "evidence": "evidence/reviews/232/ci41195906918/workspace/EVIDENCE-AUDIT.json",
+      "manifest_files_verified": 554,
+      "source_files_equal_original_local_review": 33,
+      "explicit_api_native_replays": 14,
+      "llvm_version": "23.1.4",
+      "input_kind": "builder",
+      "verify_before_after": true,
+      "parse_ns": 0,
+      "fallback": null
+    },
+    "reference": {
+      "evidence": "evidence/reviews/232/ci41195906918/reference/EVIDENCE-AUDIT.json",
+      "manifest_files_verified": 554,
+      "source_files_equal_original_local_review": 33,
+      "clang23_native_replays": 14,
+      "fallback": null
+    },
+    "budgets": {
+      "budget225-legacy": {
+        "types": 835,
+        "analyze": 7129,
+        "verify": 12161,
+        "n": true,
+        "n_minus_one_resource_limit": true,
+        "fresh_n": true
+      },
+      "budget225-nested": {
+        "types": 3889,
+        "analyze": 36339,
+        "verify": 56097,
+        "n": true,
+        "n_minus_one_resource_limit": true,
+        "fresh_n": true
+      },
+      "budget226-legacy": {
+        "types": 835,
+        "analyze": 7129,
+        "verify": 12161,
+        "n": true,
+        "n_minus_one_resource_limit": true,
+        "fresh_n": true
+      },
+      "budget226-nested": {
+        "types": 1787,
+        "analyze": 15791,
+        "verify": 30761,
+        "n": true,
+        "n_minus_one_resource_limit": true,
+        "fresh_n": true
+      },
+      "budget232-flat": {
+        "types": 1226,
+        "analyze": 7896,
+        "verify": 16608,
+        "n": true,
+        "n_minus_one_resource_limit": true,
+        "fresh_n": true
+      },
+      "budget232-owned": {
+        "types": 1762,
+        "analyze": 12234,
+        "verify": 17419,
+        "n": true,
+        "n_minus_one_resource_limit": true,
+        "fresh_n": true
+      },
+      "budget232-recursive": {
+        "types": 1788,
+        "analyze": 14756,
+        "verify": 29096,
+        "n": true,
+        "n_minus_one_resource_limit": true,
+        "fresh_n": true
+      }
+    }
+  },
+  "prior_failed_ci": {
+    "run_id": 41194080948,
+    "candidate": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+    "actual_checkout": "89406b33b43fc17fe967b5bb9f629a16cb44b763",
+    "verdict": "Fail retained",
+    "default": [
+      3020,
+      4,
+      0
+    ],
+    "reference": [
+      2976,
+      4,
+      0
+    ],
+    "original_evidence": "evidence/reviews/232/ci41194080948-077/RESULT.json"
+  },
+  "counting_policy": "Author, original local independent, later local migration, default configuration, Clang reference and future main runs remain distinct replays. Counts are not added as new independent coverage.",
+  "main_continuity": {
+    "status": "Pending separate MAIN-CONTINUITY receipt",
+    "main_commit": null,
+    "main_run_id": null
+  },
+  "boundaries": {
+    "complete_language": "NotSatisfied",
+    "B0": "Doing",
+    "product_gates": "NotRun",
+    "native_Windows": "NotRun",
+    "rust_runtime_memory_maintenance_compile_comparison": "Not established by this language slice",
+    "product_level_four_goal_breakthrough": "Not established"
+  },
+  "rust_goal_reflection": {
+    "safety": "Independent finite-source, origin/identity and rejection evidence plus native behavior; not full-language safety.",
+    "runtime_memory": "Observed cleanup and official consumer allocation balance; no matched Rust runtime/RSS comparison.",
+    "expression_maintenance": "Ordinary readonly Product capture and separately defined trait libraries compose in tested native source; general maintenance superiority unmeasured.",
+    "compile_cost": "Old named budgets preserved and new boundaries checked with unchanged limits; no speed-superiority measurement.",
+    "breakthrough": "Finite language composition and concrete defect closure demonstrated; no product-level net-win claim."
+  },
+  "prior_local_evidence": [
+    "evidence/reviews/232/candidate-426bbd20/RESULT.json",
+    "evidence/reviews/232/ci41194080948-077/RESULT.json",
+    "evidence/reviews/232/migration-507e650d/RESULT.json"
+  ],
+  "decision_basis": [
+    "Default local flat/recursive Product readonly captures retain actual shared addresses; final Copy reads do not consume intermediate child.",
+    "Actual whole/Managed consumption remains complete owning capture/FnOnce; explicitmove and responsibility cleanup retain original meaning.",
+    "Source future-live move/take/replace conflict, source-parameter/outer/escaping limits, dynamic Store origin rejection and coherent ordinary-root retarget rejection are preserved.",
+    "232 raw/Wire and077 source/original/mutated Wire plus diagnostics match archived independent inputs byte-for-byte in both formal configurations.",
+    "Named old fixture promotions preserve original source bytes and exit20;192 changes only a diagnostic expression; no production source changed by migration."
+  ],
+  "migration": {
+    "commit": "507e650d526653ccc79146366e4bb7c30b55ac84",
+    "original_production_commit": "426bbd2066e70acdb5b635ea90694c050c78f764",
+    "production_diff": [],
+    "static_review": "evidence/reviews/232/migration-507e650d/STATIC.json",
+    "local_review": "evidence/reviews/232/migration-507e650d/RESULT.json",
+    "original_sources": {
+      "072": {
+        "source_sha256": "8734d76b7460e5888f0933b76d79f8e7aa1516211caf05eb27750f76036458d1",
+        "exit": 20
+      },
+      "077": {
+        "source_sha256": "4273533f354e1efc5027c7ac02ee7f7839fde9074e02eb1ef029fc7be90732e7",
+        "exit": 20
+      }
+    },
+    "default_api_native_replays": 6,
+    "reference_clang_native_replays": 6,
+    "expected_exit": 20,
+    "192_existing_clang_controls_in_default": 2,
+    "192_existing_clang_controls_in_reference": 2,
+    "192_controls_never_counted_as_api": true
+  },
+  "raw_boundary_explanation": {
+    "dynamic_store": "Analyze/raw Verify/Wire reject unsupported source qualification.",
+    "ordinary_local_retarget": "Analyze exactly reconstructs the new ordinary root; raw Verify/Wire independently reject E-BORROW-CONFLICT.226 explicit-address baseline is identical.",
+    "077": "Original selector now hits0 and leaves a valid candidate unchanged; explicitdesc attack hits exactly1, changes Typed/Wire and is independently rejected.0a/current before-and-after byte proof retained.",
+    "scope": "No invalid source or forged IR was lowered to native."
+  }
+}

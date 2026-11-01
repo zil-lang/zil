@@ -1,0 +1,177 @@
+{
+  "run_id": 41195906918,
+  "stage": "workspace",
+  "reviewer": "/root/next_language_slices",
+  "implementation_commit": "32f218d419cc162f8f51e5a24a5e2fb24d50e3b0",
+  "candidate_commit": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "actual_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+  "source_tree_sha256": "d5855a3ee6e2b3cd43416042631f9c9b65bd63a18aa406991dac6536bc066c8f",
+  "source_tree_byte_equal": true,
+  "source_snapshots": [
+    {
+      "path": "crates/zil-llvm-api/src/native/builder.rs",
+      "bytes": 28226,
+      "sha256": "65fdcdc8f7fdc8b4b618d96541db95e370e0e45618e6f95532beb2c4345f4a1c"
+    },
+    {
+      "path": "crates/zil-llvm-api/tests/builder210.rs",
+      "bytes": 8057,
+      "sha256": "089ea7472745f6470705c96324935c8be395545ab297bcb09c880653aec77911"
+    },
+    {
+      "path": "crates/zil-llvm-api/tests/support210/mod.rs",
+      "bytes": 7319,
+      "sha256": "5512149f9c2c52db771f6b1d807604f7b05d992054dd1d7e9885b9ab22a1c07a"
+    },
+    {
+      "path": "crates/zil-driver/tests/impl234_narrow_constants.rs",
+      "bytes": 6817,
+      "sha256": "b0754417d246f9645dec141e0b9141ed6573718895158911fff479f978de5136"
+    },
+    {
+      "path": "crates/zil-driver/tests/review234_full_width.rs",
+      "bytes": 7156,
+      "sha256": "23e111b7d1ca60b49efe3c9d1e0394f72117442d7aa9a4cea69cab1fa540e1a6"
+    },
+    {
+      "path": "crates/zil-driver/tests/construction11_integration.rs",
+      "bytes": 5460,
+      "sha256": "5c484787e512f108b80bbb8a90a1fc160757f60bcb2a3d3703699a61f98191f9"
+    },
+    {
+      "path": "examples/mainline/byte_io/main.zil",
+      "bytes": 635,
+      "sha256": "e52ef18e5502b5f1523913f2a28dbbbcf7d1d4934e23247e481c4219edf6833e"
+    },
+    {
+      "path": "examples/mainline/byte_io/io.zil",
+      "bytes": 2230,
+      "sha256": "6d8fbe85c350ccc396f18cd18fe6708ebada4b3014d7baaa128d877f44e19dc8"
+    }
+  ],
+  "log_sha256": "918ad121c3b491ee81f5bdb3c0189734b1d665d28b77a9aaf494c6ffd917fc23",
+  "native_manifest_sha256": "3aafe77c3a0627a35113146c51f302dd29dab055527bdff09d9e32d3c49b9e2e",
+  "uploaded_manifest_files": 68508,
+  "stage_test_totals": {
+    "passed": 3027,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered_out": 0
+  },
+  "toolchain": {
+    "status": "Pass",
+    "checks": {
+      "llvm": {
+        "path": "/home/runner/work/_temp/llvm-23.1.4/lib/libLLVM.so.23.1",
+        "sha256": "82441dae7d94aac9e1964b06ee6d4bb0f28c0fcf3aaa31df91c886806a112567",
+        "version": "23.1.4"
+      },
+      "clang": {
+        "path": "/home/runner/work/_temp/llvm-23.1.4/bin/clang-23",
+        "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+        "version": "23.1.4",
+        "banner": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+      },
+      "lld_link": {
+        "path": "/home/runner/work/_temp/llvm-23.1.4/bin/lld",
+        "sha256": "0f8d53acaf6ff4990506a26739c12fb90315fdcc0430ec4c305ca75115774d4b",
+        "version": "23.1.4",
+        "banner": "LLD 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+      },
+      "rustc": {
+        "path": "/home/runner/.cargo/bin/rustup",
+        "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+        "version": "1.99.1",
+        "banner": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+      },
+      "cargo": {
+        "path": "/home/runner/.cargo/bin/rustup",
+        "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4",
+        "version": "1.99.1",
+        "banner": "cargo 1.99.1 (5f94df478 2026-08-27)"
+      }
+    },
+    "required_llvm": "23.1.4",
+    "required_rust": "1.99.1"
+  },
+  "download_receipts": [
+    {
+      "receipt": {
+        "artifact_id": 13040823076,
+        "file": "workspace.zip",
+        "bytes": 3616005,
+        "sha256": "cb6d235e7e669ca79f6fb128622fc0516a3bf7722b8f560057553ed2d6bcb061",
+        "members": 8,
+        "extracted_to": "/workspace/scratch/994319f2ba02/z11-ci41195906918/workspace"
+      },
+      "local_zip_rehashed": true
+    },
+    {
+      "receipt": {
+        "artifact_id": 13041046925,
+        "file": "workspace-native.zip",
+        "bytes": 199204017,
+        "sha256": "0dc0fe2934e7e105b90e5493a99f304b9784ab24eb2376b41bfed8cd8f417266",
+        "members": 68508,
+        "extracted_members": 7527,
+        "include_top_level_markers": [
+          "232",
+          "233",
+          "234",
+          "construction11",
+          "077",
+          "192",
+          "225",
+          "226"
+        ],
+        "extracted_to": "/workspace/scratch/994319f2ba02/z11-ci41195906918/workspace-native"
+      },
+      "local_zip_rehashed": true
+    }
+  ],
+  "new_test_or_native_execution_during_audit": false,
+  "verdict": "StageArtifactAuditPass_FinalPending",
+  "rust_tests": 2,
+  "positive_native_observations": 4,
+  "negative_source_rejections": 1,
+  "actual_modes": [
+    [
+      "clang",
+      "O0"
+    ],
+    [
+      "clang",
+      "O2"
+    ],
+    [
+      "llvm-api",
+      "O0"
+    ],
+    [
+      "llvm-api",
+      "O2"
+    ]
+  ],
+  "full_i32_comparison": 14,
+  "cleanup_stdout_hex": "41",
+  "negative": "Verify/E-BORROW-CONFLICT, verification_runs=1, no executable or native commands",
+  "verified_native_files": 91,
+  "retained_native_files": 43,
+  "raw_archive": {
+    "path": "raw-artifacts.tar.gz",
+    "bytes": 37405,
+    "sha256": "b73f12c312c5555ca1ce3fe634c3087602c2dbfa70f1858fc794970cc06e7829"
+  },
+  "audit_command": [
+    "python3",
+    "evidence/reviews/234/ci41195906918/audit_artifacts.py",
+    "--repo",
+    "/workspace/scratch/994319f2ba02/zil-review234",
+    "--artifacts",
+    "/workspace/scratch/994319f2ba02/z11-ci41195906918",
+    "--stage",
+    "workspace"
+  ],
+  "audit_workdir": "/workspace/scratch/994319f2ba02/zil-review234"
+}

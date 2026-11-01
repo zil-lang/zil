@@ -1,0 +1,29 @@
+/home/runner/work/_temp/receipts/repository.bundle is okay
+The bundle contains these 25 refs:
+db07200ba221bdb67f3f1b7bef7f8e9851592a1a HEAD
+acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c refs/remotes/origin/chore/construction10-cleanup
+d6218fe763f13cac89f52f0c6663344bb916b371 refs/remotes/origin/chore/construction10-exact-transport
+88d3e426af67e48d0fbc041ec406f35b54b17b60 refs/remotes/origin/chore/construction10-recovery
+8282d9866fef931ee9afef794fa4f2a69a382eea refs/remotes/origin/chore/construction11-exact-transport
+6f7b7679a4fd54df0e0460a7b61c425710ad0953 refs/remotes/origin/chore/construction8-resume
+c0418f532e750e7df2b00d9b7d76da82baa5086c refs/remotes/origin/integration/construction11
+0a3d0021fa788a27c87df20454c34c338039f1c5 refs/remotes/origin/main
+e7b492c6e04128e6106bbf29c0d6c7b381556d77 refs/remotes/origin/research/compile-performance
+a894f8476cd043314113ba40b4a492deaf281895 refs/remotes/origin/research/compile7-20261031
+8c4fa27f677b992e6d5590493a4ea530b95ae46d refs/remotes/origin/research/cp21-invalidate
+74142bc822c57b1246c9bf328c019fd364ee150a refs/remotes/origin/research/cp22-parse-cache
+1cb27ac6b907aeef28b8a472d15ee1859b9959c1 refs/remotes/origin/research/cp23-query-read
+7e7f8083af9361de17793c602bfaa7117e6f47b9 refs/remotes/origin/research/cp26-parse-publication
+79bb5348fe426a62aecaae808321f70966cbc24c refs/remotes/origin/research/cp27-temp-ownership
+11d88c78037a77d2c188a6684cdaa0300f60b7b9 refs/remotes/origin/research/cp29-types-memo
+df13bc96536c7f775d7227256e45db7fc9e178b2 refs/remotes/origin/research/cp30-published-read
+b9ccf36aac5720886c9e68b3a812b4f61f841626 refs/remotes/origin/research/cp32-bounded-type-retention
+675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17 refs/remotes/origin/research/cp33-parse-budget-receipts
+9fe23d7180b41830f599128324c769deac37211d refs/remotes/origin/research/cp34-streaming-fingerprint
+de0eefdc38e1a25129f219d2a7c7933922790e13 refs/remotes/origin/research/cp35-shared-verify-input
+3d6babe17ee9d0a2f62d123063fb7af6a0886612 refs/remotes/origin/research/incremental-compilation
+c0418f532e750e7df2b00d9b7d76da82baa5086c refs/remotes/origin/review/construction11
+e739f583b63ba8fa44fa26a937d36afb9cbaea2a refs/remotes/origin/task/cp25-reactive-session
+db07200ba221bdb67f3f1b7bef7f8e9851592a1a refs/remotes/pull/15/merge
+The bundle records a complete history.
+The bundle uses this hash algorithm: sha1

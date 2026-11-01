@@ -1,0 +1,111 @@
+{
+  "status": "ahead",
+  "ahead_by": 14,
+  "behind_by": 0,
+  "total_commits": 14,
+  "commits": [
+    {
+      "sha": "f5bef2291dedbd7aff88eda580e59f216f54c4b4",
+      "message": "docs: retain complete first CI failure and all successful gate observations",
+      "parents": [
+        "65550b4791734e8820fbde9b3423319cbf80cba1"
+      ]
+    },
+    {
+      "sha": "c2c073e22577b85237d244139057a502bff24155",
+      "message": "docs: prepare construction11 evidence report with acceptance still pending",
+      "parents": [
+        "f5bef2291dedbd7aff88eda580e59f216f54c4b4"
+      ]
+    },
+    {
+      "sha": "7ed7e07f762895ed7bf6ecd6d90df586f8ce41ae",
+      "message": "docs: tighten independently checked scope and measurement wording",
+      "parents": [
+        "c2c073e22577b85237d244139057a502bff24155"
+      ]
+    },
+    {
+      "sha": "2a8de2613e47010b783fc1349c19046c65f3a60b",
+      "message": "review: audit second-run LLVM23 default artifacts for 234 and joint",
+      "parents": [
+        "53580f806202163182dfc5df065bce200301fe76"
+      ]
+    },
+    {
+      "sha": "4f6dc5feab5e77ce2046673f293181f515e3da70",
+      "message": "review(232,233): bind secondCI default Builder artifacts without final acceptance",
+      "parents": [
+        "1c53fe05936aaa71905a7ad29b0389c46174992c"
+      ]
+    },
+    {
+      "sha": "da28654f642bcd9de199a5b8bb57896507e004f9",
+      "message": "evidence: preserve successful construction11 candidate CI receipts",
+      "parents": [
+        "7ed7e07f762895ed7bf6ecd6d90df586f8ce41ae"
+      ]
+    },
+    {
+      "sha": "b314e476a886433d6fe98d9621f00c3302334148",
+      "message": "docs: record successful candidate gates with main acceptance pending",
+      "parents": [
+        "da28654f642bcd9de199a5b8bb57896507e004f9"
+      ]
+    },
+    {
+      "sha": "1df2d0a5367f5a1c580a1b5899c3a7e4ae5032ec",
+      "message": "review: accept exact LLVM23 PR candidate for 234 and joint consumer",
+      "parents": [
+        "2a8de2613e47010b783fc1349c19046c65f3a60b"
+      ]
+    },
+    {
+      "sha": "a641f53e6186f492d5309ccfbe1f83670be3207b",
+      "message": "review(232,233): accept exactPR candidates after bothLLVM23 configurations and all gates",
+      "parents": [
+        "4f6dc5feab5e77ce2046673f293181f515e3da70"
+      ]
+    },
+    {
+      "sha": "d2cc10ff260faa08d7cf507c498d11270e9d4af0",
+      "message": "review: retain independent 234 and joint final candidate acceptance",
+      "parents": [
+        "b314e476a886433d6fe98d9621f00c3302334148",
+        "1df2d0a5367f5a1c580a1b5899c3a7e4ae5032ec"
+      ]
+    },
+    {
+      "sha": "8d79167b86fa0525576d9057edff27fd194ab4da",
+      "message": "review: retain exact text-reference receipt bytes in compact archive",
+      "parents": [
+        "a641f53e6186f492d5309ccfbe1f83670be3207b"
+      ]
+    },
+    {
+      "sha": "c176513636f3789a111f015dbac8540a023a0d7d",
+      "message": "review: retain independent 232 and 233 final candidate acceptance",
+      "parents": [
+        "d2cc10ff260faa08d7cf507c498d11270e9d4af0",
+        "8d79167b86fa0525576d9057edff27fd194ab4da"
+      ]
+    },
+    {
+      "sha": "ac157a347887eeb226d35643fc6b04d1b8f21788",
+      "message": "integration: retain actual PR15 main merge and post-candidate evidence",
+      "parents": [
+        "c176513636f3789a111f015dbac8540a023a0d7d",
+        "f2572502beb76eb86e9254dea855404e4998a64d"
+      ]
+    },
+    {
+      "sha": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+      "message": "evidence: bind actual PR15 merge and separate pending main verification",
+      "parents": [
+        "ac157a347887eeb226d35643fc6b04d1b8f21788"
+      ]
+    }
+  ],
+  "base_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "merge_base_commit": "f2572502beb76eb86e9254dea855404e4998a64d"
+}

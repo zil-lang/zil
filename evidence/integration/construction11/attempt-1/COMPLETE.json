@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "status": "Fail",
+  "run_id": 41194080948,
+  "run_attempt": 1,
+  "job_id": 124516606353,
+  "head_candidate": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "actual_checkout": "89406b33b43fc17fe967b5bb9f629a16cb44b763",
+  "compared_candidate": "77b30b4e13187ca9e5ddf8b830f11675fcaffa5c",
+  "metadata_only_tree_difference": [],
+  "compiler_test_tool_and_normative_inputs_identical": true,
+  "workspace": {
+    "groups": 335,
+    "passed": 3020,
+    "failed": 4,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "reference": {
+    "groups": 335,
+    "passed": 2976,
+    "failed": 4,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "text_reference": {
+    "groups": 8,
+    "passed": 37,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "migration_runner": {
+    "status": "Pass",
+    "passed": 9
+  },
+  "all_required_steps_success": false,
+  "successful_step_count": 23,
+  "consumer209": {
+    "status": "Pass",
+    "builds": 16,
+    "objects": 40,
+    "observations": 128,
+    "allocation_observations": 88,
+    "actual_failure_injections": 56,
+    "all_observed_live_zero": true,
+    "backend": "llvm-api",
+    "llvm_version": "23.1.4",
+    "fallback": null
+  },
+  "receipt_hashes": {
+    "bundle-verify.log": {
+      "bytes": 2273,
+      "sha256": "95f434446333760b2a88f13e1bc94edcf4066fa93ccb4d8a12203dbe05452474"
+    },
+    "clippy.log": {
+      "bytes": 1190,
+      "sha256": "69918ef7e2cc3b6d472643866c50d9ef50a3fffad6014d035358a6d399610a35"
+    },
+    "commit.txt": {
+      "bytes": 41,
+      "sha256": "02ade84e1f53ce0cb1c6fca81a260d4370f3f70bf7a94f6fc3172d87fb32d524"
+    },
+    "consumer209.json": {
+      "bytes": 76483,
+      "sha256": "71b05b44561538aef47658fc1d59f77313859d3301bb5035275a7a700d510f01"
+    },
+    "fmt.log": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "llvm-api-toolchain.json": {
+      "bytes": 1397,
+      "sha256": "e20ea57eace6a42347a3b99e70813edc241c17eeb145026544e95c412d367c71"
+    },
+    "llvm-install.json": {
+      "bytes": 35125,
+      "sha256": "9d09a5b137066be64bc48d69cc5e69b373b09a9509446e9040cae76a65088f4a"
+    },
+    "migration-runner.log": {
+      "bytes": 107,
+      "sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+    },
+    "reference-native-manifest.json": {
+      "bytes": 13180822,
+      "sha256": "99865d84ddef669149c16bedd4a4a17ce61fb0b2dc90d9c3c2658ded828c8ffa"
+    },
+    "reference-resources-after.log": {
+      "bytes": 388,
+      "sha256": "7814602c1a2042600363acd28cdddb18ce631c02f7b382bf3db48471da8ff3c6"
+    },
+    "reference-resources-before.log": {
+      "bytes": 220,
+      "sha256": "52372d4a86f7bf936bb2024020929eaa5f596c09975a4b90e430f6eb5fbc5baa"
+    },
+    "reference.log": {
+      "bytes": 315222,
+      "sha256": "227c7ee6967e742aed73095f3fce846dc9d696fc9dcdcfa5e9564122b748b26f"
+    },
+    "source-tree.txt": {
+      "bytes": 11746977,
+      "sha256": "7f4bf3e6e02f4d3f9935c86cd6d18089fc892683f67abe942dc9311ca17746d4"
+    },
+    "text-reference.log": {
+      "bytes": 4019,
+      "sha256": "e87730744626d7e55373e25981b1ac7f4c479e01190f81dae577f2ceb6a27c8d"
+    },
+    "toolchain.txt": {
+      "bytes": 404,
+      "sha256": "e4532d2b247ce0e08b5d88173809869836c9efece03a2ed05525e56d96a2d6d0"
+    },
+    "workspace-native-manifest.json": {
+      "bytes": 13778356,
+      "sha256": "aa3458adac01b811ac3fd0f04c691ca65a8fa53498df0c4befbbd7d959278ba8"
+    },
+    "workspace-resources-after.log": {
+      "bytes": 344,
+      "sha256": "e7ddf6076bc209e31d13b711b8df4f80a19c8263a07794e51fe3c469e1ea182b"
+    },
+    "workspace-resources-before.log": {
+      "bytes": 144,
+      "sha256": "3ce93534c79f15bea698b455620ed4494a97a3a749388bbc4f72ce22e6676266"
+    },
+    "workspace.log": {
+      "bytes": 313215,
+      "sha256": "ad4ea2b5fdb0d9ad9595fe8ce4a28a777d1a0af9eb5ea129b28eb1f39f99c2ce"
+    }
+  },
+  "boundaries": {
+    "complete_language": "NotSatisfied",
+    "product_gates": "NotRun",
+    "native_Windows": "NotRun",
+    "default_and_reference_counts_not_added": true
+  }
+}

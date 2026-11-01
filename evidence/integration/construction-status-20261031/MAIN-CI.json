@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "scope": "Read-only reconstruction of the actual main CI result and exact source continuity; no compiler tests rerun in this audit",
+  "observed_at_utc": "2026-10-31T13:15:00Z",
+  "reviewer": "/root/closeout_review",
+  "main_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "pr_candidate": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "pr_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+  "source_tree": "da369979b8a7f7d0a93f14defbb2e68ba9e53142",
+  "all_three_complete_trees_equal": true,
+  "published_review_branch_tip": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+  "review_tip_net_root_changes_from_main": [
+    "docs",
+    "evidence"
+  ],
+  "run_id": 41198113948,
+  "job_id": 124528303818,
+  "url": "https://github.com/zil-lang/zil/actions/runs/41198113948",
+  "workflow": "Main source verification",
+  "event": "push",
+  "conclusion": "success",
+  "successful_steps": 25,
+  "test_counts": {
+    "workspace": {
+      "groups": 336,
+      "passed": 3027,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "groups": 336,
+      "passed": 2983,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "text_reference": {
+      "groups": 8,
+      "passed": 37,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    }
+  },
+  "migration_runner_passed": 9,
+  "other_successful_gates": [
+    "Formatting",
+    "Native API State and allocation-failure controls",
+    "All-target Clippy"
+  ],
+  "decoded_job_log": {
+    "path": "evidence/integration/construction-status-20261031/main-job124528303818.log.gz",
+    "uncompressed_bytes": 1005182,
+    "uncompressed_sha256": "64e3b0f3aae3a8d825a62e47904b38c5207ef35ad3400f3b4bdffac71c14f47b",
+    "compressed_sha256": "a81a1248078aed97f5a85610bc83547e404f442864c67624e5e8e30e9c425a0e"
+  },
+  "counting_policy": "PR, main, author and independent replays remain separate; configurations are not summed as unique coverage",
+  "unpublished_checkpoint": {
+    "prefix": "1c868827",
+    "github_lookup": "No commit found on 2026-10-31; not used as evidence"
+  },
+  "boundaries": {
+    "full_language": "NotSatisfied",
+    "full_ZUI": "NotSatisfied",
+    "B0": "Doing",
+    "native_Windows": "NotRun",
+    "Rust_product_goals": "NotRun"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "status": "Pass",
+  "verdict": "Pass",
+  "reviewer": "/root/closeout_review",
+  "scope": "Existing joint consumer FINAL and exact source tree continuity to successful main run; no new native replay",
+  "candidate_commit": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+  "main_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "main_run_id": 41198113948,
+  "prior_independent_reviewer": "/root/next_language_slices",
+  "prior_final": "evidence/reviews/construction11/FINAL.json",
+  "complete_pr_and_main_trees_equal": true,
+  "evidence": [
+    "evidence/integration/construction-status-20261031/MAIN-CI.json",
+    "evidence/integration/construction-status-20261031/source-identity.json"
+  ]
+}
