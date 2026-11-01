@@ -1,0 +1,11 @@
+{
+  "original_base": "/workspace/zil-239/evidence/impl/239/ct/raw",
+  "sha256": {
+    "ct239-239464/local-false-ct-errors.txt": "f6dffc5cffaab803a78781f7b73a23f6826fe91430a41690e315153eb768c241",
+    "ct239-239464/local-false-raw.txt": "a2c23ef3cf7ae5269c8b26d77492532932e5f3d391b6992e3e856b6dc425830b",
+    "ct239-239464/local-false.wire": "2b41f7038f78c44c1d4f602798e329ca750e0bbfc262ab97f8e240907d5af480",
+    "ct239-239464/local-true-ct-errors.txt": "f6dffc5cffaab803a78781f7b73a23f6826fe91430a41690e315153eb768c241",
+    "ct239-239464/local-true-raw.txt": "53c0454156ec00b8828781b4900422283f56e2d2baa0fa2d576b8579ff996204",
+    "ct239-239464/local-true.wire": "ba562414196ef0dabac080b76babc93dc98a0c28c1dd1d16bc2f1ac53c561e69"
+  }
+}

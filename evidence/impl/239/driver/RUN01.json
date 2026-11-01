@@ -1,0 +1,68 @@
+{
+  "status": "Pass",
+  "scope": "First driver limited window; backend9778d1 checkpoint. Later243 budget/layout updates require separate necessary verification, not overwrite.",
+  "source_checkout_commit": "b053279f9290ed8d3f02dcf93be7b9065bec5c16",
+  "source_state": "Authorized dirty239 files; exact source below, not invented implementation commit",
+  "spec_hash": "47e90dcf92adffe3d23696a4b4a7128864b7e667cf47e86a2fb23de33bfa2f52",
+  "normative_hash": "e587b977f43efa4eb4bab75c33b72b25b90619426da41949cb6cbedf493d947e",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl239_generated_owned_enums",
+    "--test",
+    "review177_public",
+    "--test",
+    "review223_replay",
+    "--",
+    "--nocapture"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-239",
+    "CARGO_BUILD_JOBS": 1,
+    "CARGO_INCREMENTAL": 0,
+    "ZIL_TEST_REPORT_DIR": "/workspace/zil-239/evidence/impl/239/driver/raw"
+  },
+  "tests": {
+    "passed": 13,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "generated_owned_enums": 6,
+    "review177": 5,
+    "review223": 2
+  },
+  "native_executions": 8,
+  "native_backend": "llvm-api",
+  "native_objects": "builder, verify_before_after true, no fallback",
+  "expected_stdout": {
+    "managed_generated_and_plain": "A",
+    "product_generated_and_plain": "BA"
+  },
+  "native_exit": 0,
+  "allocation_failure_tests": 0,
+  "scope_note": "Declaration generation preserves markers; runtime resources execute only in the runtime program. CT execution authority is tested separately by the raw opcode closed-set control.",
+  "new_snapshot_N": {
+    "nodes": 144,
+    "work": 517
+  },
+  "old230_exact_N": {
+    "nodes": 871,
+    "work": 2698,
+    "kept": true
+  },
+  "artifact_files": 243,
+  "artifact_archive_sha256": "68307b6c825febac3fad4aa486e7d1a2e7cf87c0b1d9a63cf75b401faf7f3a26",
+  "source_sha256": {
+    "crates/zil-driver/tests/impl239_generated_owned_enums.rs": "c0892c0ff46cfb8be8bec0fb0dc15ec8885f4d3ca3e01f38e7babda06048e414",
+    "crates/zil-driver/tests/review177_public.rs": "85c5ff62c9e05d4413452f9e80e421a0f06413903185b77855720daaef08577d",
+    "crates/zil-driver/tests/review223_replay.rs": "460e88e79b202c343b891929b6f3f4989713f1d7e837953188e0e4fd239331a3",
+    "crates/zil-driver/src/ct_selection/materialize.rs": "8a51b93ccfcf9328937d280375dc5ce4b88795c395928d7d4b52eaa6efcede06",
+    "crates/zil-driver/src/ct_selection/hygiene_types.rs": "be819839616c27bf776f8a0607556ea941ed38a3fc21e91680f1384129feb8e0"
+  }
+}
