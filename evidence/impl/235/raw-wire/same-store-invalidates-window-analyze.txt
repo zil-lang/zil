@@ -1,0 +1,10 @@
+[
+    Diagnostic {
+        phase: Analyze,
+        category: SafeReject,
+        code: "E-ANALYZE-IR",
+        message: "captured Store transition invalidates a live element window",
+        span: None,
+        notes: [],
+    },
+]

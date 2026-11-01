@@ -45,9 +45,14 @@ fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     if let Type::Package { fields, .. } = ty {
         budget.spend(fields.len(), "captured Store whole-position classification")?;
-        return Ok(fields
-            .iter()
-            .any(|(_, ty)| dynamic_store::is_owned_carrier(ty)));
+        for (_, field) in fields {
+            if dynamic_store::is_owned_carrier(field)
+                || (matches!(field, Type::Package { .. }) && contains_owned_store(field, budget)?)
+            {
+                return Ok(true);
+            }
+        }
+        return Ok(false);
     }
     Ok(false)
 }
@@ -83,8 +88,17 @@ fn store_window_transition(
         InstructionKind::TakePackageField { local, index }
         | InstructionKind::DropPackageField { local, index }
         | InstructionKind::StorePackageField { local, index, .. }
-            if matches!(&f.locals[local.0 as usize].ty, Type::Package { fields, .. }
-                if fields.get(index as usize).is_some_and(|(_, ty)| dynamic_store::is_owned_carrier(ty))) =>
+            if match &f.locals[local.0 as usize].ty {
+                Type::Package { fields, .. } => match fields.get(index as usize) {
+                    Some((_, ty)) => {
+                        dynamic_store::is_owned_carrier(ty)
+                            || (matches!(ty, Type::Package { .. })
+                                && contains_owned_store(ty, budget)?)
+                    }
+                    None => false,
+                },
+                _ => false,
+            } =>
         {
             Some(Root::Field(local, index))
         }
@@ -151,6 +165,19 @@ fn infer(
 ) -> CompileResult<Vec<ValueHold>> {
     let v = f.values.len();
     budget.spend(v, "dense Hold candidate")?;
+    // These complete type trees were bounded and admitted in preflight. Only
+    // the new ordinary composition enables an additional precise transition
+    // pass; legacy functions retain their historical work and candidate rows.
+    fn product_store(ty: &Type) -> bool {
+        matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, field)|
+            dynamic_store::is_owned_carrier(field) || product_store(field)))
+    }
+    let store_windows = store_windows
+        || f.locals
+            .iter()
+            .map(|l| &l.ty)
+            .chain(f.values.iter())
+            .any(|ty| resources::product::nested(ty) && product_store(ty));
     let captured_address = |ty: &Type, budget: &mut Budget| -> CompileResult<bool> {
         let Type::Closure(id) = ty else {
             return Ok(false);
