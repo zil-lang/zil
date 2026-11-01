@@ -1,0 +1,180 @@
+{
+  "reviewed_commit": "ca1520d1b4ac827d81ea8c43e85bff6ab07486ab",
+  "joint_commit": "7bdb0cfbf7f3435d72e5a1c038b7618e533eb06b",
+  "files": [
+    {
+      "path": "crates/zil-base/src/lib.rs",
+      "reviewed_sha256": "324fd823be3d25cf540c181a956f4f275a09e9ceefb7553ebd331b9ee15d1c6a",
+      "joint_sha256": "324fd823be3d25cf540c181a956f4f275a09e9ceefb7553ebd331b9ee15d1c6a",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/src/lib.rs",
+      "reviewed_sha256": "4cc9c76ce88ff334a1648fedba7113523c70ef4e2a4bdcfcafc2807b01f751b7",
+      "joint_sha256": "4cc9c76ce88ff334a1648fedba7113523c70ef4e2a4bdcfcafc2807b01f751b7",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/src/wire.rs",
+      "reviewed_sha256": "f7f71da70ee56492bd7096337d3f26a5a5adc53c736ad19166a43784452b460f",
+      "joint_sha256": "f7f71da70ee56492bd7096337d3f26a5a5adc53c736ad19166a43784452b460f",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/src/wire/owned_sum_tests.rs",
+      "reviewed_sha256": "96b5e4da5721fe4cd476d27698a18a6b920039ccb6bb3800c2254e2c8aceadb0",
+      "joint_sha256": "96b5e4da5721fe4cd476d27698a18a6b920039ccb6bb3800c2254e2c8aceadb0",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/tests/cp34_fingerprint.rs",
+      "reviewed_sha256": "8c8b4379f9cd7c71d6876faa1fb6100e111996a4c4acad8ba2e1c3beed1a48ab",
+      "joint_sha256": "8c8b4379f9cd7c71d6876faa1fb6100e111996a4c4acad8ba2e1c3beed1a48ab",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/tests/support/cp34_instruction_cases.rs",
+      "reviewed_sha256": "108ea3979c96a7b6b97c2f21ca371fe68e739421e4e9b372ce26d62de915a172",
+      "joint_sha256": "108ea3979c96a7b6b97c2f21ca371fe68e739421e4e9b372ce26d62de915a172",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/tests/support/cp34_legacy_v27.rs",
+      "reviewed_sha256": "71e0b62e6770042c91e0d6ef7e207bced51df2b46022a5a304d7ad306a7d370e",
+      "joint_sha256": "71e0b62e6770042c91e0d6ef7e207bced51df2b46022a5a304d7ad306a7d370e",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/tests/support/cp34_legacy_v28.rs",
+      "reviewed_sha256": "b2d0d54a6a36a6bbf1d6840e58b7772c1e6fa83e334153c8b60358ce47628fbe",
+      "joint_sha256": "b2d0d54a6a36a6bbf1d6840e58b7772c1e6fa83e334153c8b60358ce47628fbe",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/tests/support/cp34_legacy_v29.rs",
+      "reviewed_sha256": "9016b82fce966e519c0ea6f8901aef78bea34f0b672c6e14e39cdac0ac5c0aca",
+      "joint_sha256": "9016b82fce966e519c0ea6f8901aef78bea34f0b672c6e14e39cdac0ac5c0aca",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/tests/support/cp34_legacy_v30.rs",
+      "reviewed_sha256": "ac61b15d9b8d05f118f822998e84605ddc229a348071870c4b9754769e175820",
+      "joint_sha256": "ac61b15d9b8d05f118f822998e84605ddc229a348071870c4b9754769e175820",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ct/src/program.rs",
+      "reviewed_sha256": "563508687a2114f95007743700ac6670d5b1773721710a8906d091a3c1989bd1",
+      "joint_sha256": "563508687a2114f95007743700ac6670d5b1773721710a8906d091a3c1989bd1",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ct/tests/impl239_runtime_enum_ops.rs",
+      "reviewed_sha256": "f0a0f7b51a25690bdbf627fb4945312d3bc3a9007a6bfa5124b36e2c7bb80d50",
+      "joint_sha256": "f0a0f7b51a25690bdbf627fb4945312d3bc3a9007a6bfa5124b36e2c7bb80d50",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/materialize.rs",
+      "reviewed_sha256": "8a51b93ccfcf9328937d280375dc5ce4b88795c395928d7d4b52eaa6efcede06",
+      "joint_sha256": "8a51b93ccfcf9328937d280375dc5ce4b88795c395928d7d4b52eaa6efcede06",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/src/ct_selection/hygiene_types.rs",
+      "reviewed_sha256": "be819839616c27bf776f8a0607556ea941ed38a3fc21e91680f1384129feb8e0",
+      "joint_sha256": "be819839616c27bf776f8a0607556ea941ed38a3fc21e91680f1384129feb8e0",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/tests/cp34_fingerprint_sources.rs",
+      "reviewed_sha256": "e72a9de8c841925ca32119a6a52d9ef9d00b02fdfd041c31facd6be34e021595",
+      "joint_sha256": "e72a9de8c841925ca32119a6a52d9ef9d00b02fdfd041c31facd6be34e021595",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/tests/impl239_generated_owned_enums.rs",
+      "reviewed_sha256": "8cce469d514a78463d435b34b48263cb25177f17bb3e0d8ca2e18a0106f5af6b",
+      "joint_sha256": "8cce469d514a78463d435b34b48263cb25177f17bb3e0d8ca2e18a0106f5af6b",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/mutable-product-original.wire",
+      "reviewed_sha256": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+      "joint_sha256": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/mutable-product-schema29.wire",
+      "reviewed_sha256": "3d5bf5e48a6a0856d3fad6c8b7997e8ba5ccb7adfbb0327a2e7e0852d4da4198",
+      "joint_sha256": "3d5bf5e48a6a0856d3fad6c8b7997e8ba5ccb7adfbb0327a2e7e0852d4da4198",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/schema30-mutable-product.wire",
+      "reviewed_sha256": "783db64403cec14468080ce9708d4f25a4cbd315aaed36d2f994994f7f70e3c9",
+      "joint_sha256": "783db64403cec14468080ce9708d4f25a4cbd315aaed36d2f994994f7f70e3c9",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-driver/tests/review223_fixtures/ORACLE.json",
+      "reviewed_sha256": "d4e9dcc8e54b2a3029e9d9820e0ccfe65885a7c19f22eef7193ff00a263ecb94",
+      "joint_sha256": "d4e9dcc8e54b2a3029e9d9820e0ccfe65885a7c19f22eef7193ff00a263ecb94",
+      "byte_identical": true
+    },
+    {
+      "path": "Cargo.toml",
+      "reviewed_sha256": "8f253587aba20a1534d3408d70b623538ffe351f71265dc0c914ceb8b7ac39f8",
+      "joint_sha256": "8f253587aba20a1534d3408d70b623538ffe351f71265dc0c914ceb8b7ac39f8",
+      "byte_identical": true
+    },
+    {
+      "path": "Cargo.lock",
+      "reviewed_sha256": "99b70f5eae3be5aec5d26185cf3ac4a875e3e508751767f11c2204dc2a806fde",
+      "joint_sha256": "99b70f5eae3be5aec5d26185cf3ac4a875e3e508751767f11c2204dc2a806fde",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-base/Cargo.toml",
+      "reviewed_sha256": "24ac2f3a68ad01299be83ac096b40af1acecbbc501191ca36f5575dcb0e79069",
+      "joint_sha256": "24ac2f3a68ad01299be83ac096b40af1acecbbc501191ca36f5575dcb0e79069",
+      "byte_identical": true
+    },
+    {
+      "path": "crates/zil-ir/Cargo.toml",
+      "reviewed_sha256": "7a7692cb5cec45b0e8dddfffd4851d883ccaf05fcef20c8464cc276eaf1c96fe",
+      "joint_sha256": "7a7692cb5cec45b0e8dddfffd4851d883ccaf05fcef20c8464cc276eaf1c96fe",
+      "byte_identical": true
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "reviewed_sha256": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33",
+      "joint_sha256": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33",
+      "byte_identical": true
+    }
+  ],
+  "readonly_cap_surface": {
+    "private_cap_fields": {
+      "reviewed_sha256": "c0abdc0428e4c191d5e8d80ec266c56a6b970b1e2d93b06712dd281836c91965",
+      "joint_sha256": "c0abdc0428e4c191d5e8d80ec266c56a6b970b1e2d93b06712dd281836c91965",
+      "byte_identical": true
+    },
+    "limits_getter": {
+      "reviewed_sha256": "a8fc70f2a52f263b36eb66a168e20d5ad8ca71de4570c97b50cd844fad683321",
+      "joint_sha256": "a8fc70f2a52f263b36eb66a168e20d5ad8ca71de4570c97b50cd844fad683321",
+      "byte_identical": true
+    },
+    "presence_getter": {
+      "reviewed_sha256": "3eac0318b926d008b69cb1d9cc1260fcbb721a686251b0f43e4db6e49e67e49f",
+      "joint_sha256": "3eac0318b926d008b69cb1d9cc1260fcbb721a686251b0f43e4db6e49e67e49f",
+      "byte_identical": true
+    },
+    "verified_constructor": {
+      "reviewed_sha256": "b49de14c7d3c48ec0ada881e259277521af4333a4b9d8d5e32b1ec28b0ec646c",
+      "joint_sha256": "b49de14c7d3c48ec0ada881e259277521af4333a4b9d8d5e32b1ec28b0ec646c",
+      "byte_identical": true
+    }
+  },
+  "all_239_files_identical": true,
+  "all_readonly_cap_sections_identical": true
+}
