@@ -431,6 +431,8 @@ Unpack原子消费一个完整live的拥有Enum local，并初始化所选varian
 
 保留Enum的i32 tag加对齐max-payload内联布局，以及ErrorUnion的i1 tag加固定两侧slots布局；Managed按真实header、Product按真实字段、Sum按真实分支存储，无隐式Box/RC/锁/全局表。后端用私有结构化清理计划表达Leaf/Product/Sum，统一覆盖Package整体/字段、Enum、错误联合及原生入口错误清理；先清实际责任flag，再按真实tag执行声明序清理，非法tag显式trap。计划不是未核LIR权限；Verify仍独立核全部类型、未用定义、实际资源与责任。
 
+Lower/机器生成新增形状的预付使用本次Verify实际请求的Limits；VerifiedModule私有保存该快照并提供只读limits()，owned/shared/缓存命中入口均绑定当前请求，克隆保留该快照。它不是候选或Wire权限，也不能用默认额度覆盖调用者更小限额。旧profile逻辑费用保持。
+
 公共schema/Wire/指纹迁移为30；新增opcode90–93依次对应本地Tag、本地Copy Read、Unpack、Drop。旧版本明确拒绝，历史Wire字节及失败证据保留，已核Copy Enum的CT执行保持，新增运行时拥有操作明确CT禁止。类型/路径/变体/目标索引、完整类型复制、来源映射、合流、布局和清理计划在增长前预付既有数量/深度/工作额度，默认限额不提高；旧无新形状profile费用保持。必须覆盖原Q的03/05失败源原样晋升及已有01/02/04/06、多字段/同型Store/右嵌套pattern、跨模块参数返回、Product<Sum>与错误载荷、准备失败/替换/defer顺序、活窗口与重复消费、raw/Wire陈旧tag及错误目标、N/N−1/fresh和O0/O2真实分配失败。登记仅为施工合同，不代表验收或完整语言完成。
 
 ### 8.2 泛型 Store 元素资格
