@@ -129,3 +129,79 @@ fn generation_preserves_private_iteration_identity_and_closed_payload_profiles()
         );
     }
 }
+
+#[test]
+fn new_local_observers_cannot_enter_ct_even_when_the_enum_is_copy() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::*;
+    let text = "enum E{Some(i32)}fn main()->i32{let e=E.Some(7);match e{E.Some(n)=>{return n}}}";
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "copy-observer239.zil", text);
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let limits = Limits::default();
+    let module = zil_types::check(&core, &TargetProfile::host_llvm(), &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let control = CtProgram {
+        module: module.clone(),
+        plan: plan.clone(),
+        entry: FunctionId(0),
+        max_steps: 1_000,
+        max_call_depth: 32,
+        max_live_slots: 128,
+    };
+    let verified = zil_verify::verify_ct_program(control, &module.target, &limits).unwrap();
+    assert_eq!(
+        zil_ct::evaluate_program(&verified).unwrap().value,
+        zil_ct::CompileTimeValue::Scalar(Constant::I32(7))
+    );
+    for tag in [true, false] {
+        let mut mutated = module.clone();
+        let f = &mut mutated.functions[0];
+        let local = f.locals.iter().find(|l| l.name == "e").unwrap().id;
+        let mut changed = false;
+        for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+            if tag && matches!(i.kind, InstructionKind::VariantTag { .. }) {
+                i.kind = InstructionKind::VariantTagLocal {
+                    local,
+                    path: vec![],
+                };
+                changed = true;
+                break;
+            } else if !tag && let InstructionKind::ReadVariant { variant, index, .. } = i.kind {
+                i.kind = InstructionKind::ReadVariantLocal {
+                    local,
+                    path: vec![VariantProjection { variant, index }],
+                };
+                changed = true;
+                break;
+            }
+        }
+        assert!(changed);
+        let mut plan = plan.clone();
+        plan.module_fingerprint = mutated.fingerprint();
+        zil_verify::verify_module(mutated.clone(), plan.clone(), &module.target, &limits).unwrap();
+        let raw = CtProgram {
+            module: mutated,
+            plan,
+            entry: FunctionId(0),
+            max_steps: 1_000,
+            max_call_depth: 32,
+            max_live_slots: 128,
+        };
+        let bytes = zil_ir::wire::encode_ct_program(&raw, &limits).unwrap();
+        let out = directory(if tag { "ct-new-tag" } else { "ct-new-read" });
+        fs::write(out.join("source-control.zil"), text).unwrap();
+        fs::write(out.join("raw.txt"), format!("{raw:#?}")).unwrap();
+        fs::write(out.join("candidate.wire"), &bytes).unwrap();
+        for result in [
+            zil_verify::verify_ct_program(raw, &module.target, &limits),
+            zil_verify::verify_ct_program_bytes(&bytes, &module.target, &limits),
+        ] {
+            let errors = result.expect_err("new runtime local opcode admitted to CT");
+            assert!(
+                errors.iter().any(|d| d.code == "E-CT-FORBIDDEN"),
+                "{errors:?}"
+            );
+        }
+    }
+}
