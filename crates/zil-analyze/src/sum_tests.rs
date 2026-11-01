@@ -1498,3 +1498,271 @@ fn unused_foreign_signature_cannot_acquire_ordinary_owning_sum_abi() {
         assert!(result.is_err());
     }
 }
+
+fn consistent_union_drop(ty: Type) -> TypedModule {
+    let mut m = module(true, false);
+    let f = &mut m.functions[0];
+    f.locals.truncate(1);
+    f.locals[0].ty = ty;
+    f.values.clear();
+    f.blocks = vec![BasicBlock {
+        id: BlockId(0),
+        instructions: vec![
+            op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+            op(None, InstructionKind::DropErrorUnion { local: LocalId(0) }),
+            op(None, InstructionKind::StorageDead(LocalId(0))),
+            op(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ),
+        ],
+        terminator: Terminator::Return(None),
+    }];
+    m
+}
+fn invalid_union_slots() -> Vec<Type> {
+    let flat = Type::Package {
+        name: "ErrorLeaf".into(),
+        fields: vec![("token".into(), leaf())],
+    };
+    let nested = Type::Package {
+        name: "ErrorOuter".into(),
+        fields: vec![("child".into(), flat.clone())],
+    };
+    let owned_union = Type::ErrorUnion {
+        error: Box::new(Type::Unit),
+        result: Box::new(flat),
+    };
+    vec![
+        Type::ErrorUnion {
+            error: Box::new(nested),
+            result: Box::new(leaf()),
+        },
+        Type::ErrorUnion {
+            error: Box::new(leaf()),
+            result: Box::new(sum()),
+        },
+        Type::ErrorUnion {
+            error: Box::new(owned_union.clone()),
+            result: Box::new(sum()),
+        },
+        Type::ErrorUnion {
+            error: Box::new(sum()),
+            result: Box::new(owned_union),
+        },
+        Type::ErrorUnion {
+            error: Box::new(Type::ErrorUnion {
+                error: Box::new(Type::I32),
+                result: Box::new(leaf()),
+            }),
+            result: Box::new(leaf()),
+        },
+    ]
+}
+#[test]
+fn error_union_slots_are_checked_without_return_mismatch_and_in_unused_metadata() {
+    for ty in invalid_union_slots() {
+        for result in both(&consistent_union_drop(ty.clone())) {
+            assert!(
+                result.is_err(),
+                "consistent parameter/drop signature: {ty:?}"
+            );
+        }
+        for ssa in [false, true] {
+            let mut m = module(true, false);
+            let wrapper = Type::Enum {
+                name: "UnusedBadSlot".into(),
+                variants: vec![("Bad".into(), vec![ty.clone()]), ("Empty".into(), vec![])],
+            };
+            if ssa {
+                m.functions[0].values.push(wrapper);
+            } else {
+                m.functions[0].locals.push(LocalDecl {
+                    id: LocalId(3),
+                    name: "unused".into(),
+                    ty: wrapper,
+                    mutable: false,
+                    span: Span::default(),
+                });
+            }
+            for result in both(&m) {
+                assert!(result.is_err());
+            }
+        }
+    }
+    for ty in [
+        Type::ErrorUnion {
+            error: Box::new(Type::I32),
+            result: Box::new(leaf()),
+        },
+        Type::ErrorUnion {
+            error: Box::new(sum()),
+            result: Box::new(Type::Unit),
+        },
+    ] {
+        for result in both(&consistent_union_drop(ty)) {
+            result.unwrap();
+        }
+    }
+}
+
+fn state_with_extra(ty: Type) -> TypedModule {
+    let mut m = module(true, false);
+    let state = Type::Package {
+        name: "ExistingState".into(),
+        fields: vec![
+            ("callback".into(), Type::Closure(ClosureId(0))),
+            ("guard".into(), leaf()),
+        ],
+    };
+    let drop = match ty {
+        Type::Enum { .. } => InstructionKind::DropEnum { local: LocalId(1) },
+        Type::Package { .. } => InstructionKind::DropPackage { local: LocalId(1) },
+        _ => InstructionKind::DropErrorUnion { local: LocalId(1) },
+    };
+    m.functions.push(TypedFunction {
+        callable_return_contract: None,
+        callable_contract: None,
+        id: FunctionId(1),
+        name: "ordinary_name".into(),
+        foreign: None,
+        environment: None,
+        parameters: vec![LocalId(0), LocalId(1)],
+        return_type: state.clone(),
+        result_mode: PassingMode::Infer,
+        locals: vec![
+            LocalDecl {
+                id: LocalId(0),
+                name: "callback".into(),
+                ty: Type::Closure(ClosureId(0)),
+                mutable: false,
+                span: Span::default(),
+            },
+            LocalDecl {
+                id: LocalId(1),
+                name: "data".into(),
+                ty,
+                mutable: false,
+                span: Span::default(),
+            },
+        ],
+        values: vec![Type::I32, leaf(), Type::Closure(ClosureId(0)), state],
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            instructions: vec![
+                op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+                op(None, drop),
+                op(
+                    Some(ValueId(0)),
+                    InstructionKind::Constant(Constant::I32(4)),
+                ),
+                op(
+                    Some(ValueId(1)),
+                    InstructionKind::MakeManaged {
+                        fields: vec![ValueId(0)],
+                    },
+                ),
+                op(
+                    Some(ValueId(2)),
+                    InstructionKind::TakeLocal { local: LocalId(0) },
+                ),
+                op(
+                    Some(ValueId(3)),
+                    InstructionKind::MakePackage {
+                        fields: vec![ValueId(2), ValueId(1)],
+                    },
+                ),
+                op(None, InstructionKind::StorageDead(LocalId(1))),
+                op(None, InstructionKind::StorageDead(LocalId(0))),
+                op(
+                    None,
+                    InstructionKind::ScopeExit {
+                        scope: ScopeId(0),
+                        kind: CleanupExitKind::Return,
+                    },
+                ),
+            ],
+            terminator: Terminator::Return(Some(ValueId(3))),
+        }],
+        entry: BlockId(0),
+        span: Span::default(),
+    });
+    m.closures.push(ClosureDefinition {
+        id: ClosureId(0),
+        function: FunctionId(2),
+        captures: vec![],
+        parameters: vec![],
+        result: Type::I32,
+        kind: CallableKind::Fn,
+        lending_captures: vec![],
+    });
+    m.functions.push(TypedFunction {
+        callable_return_contract: None,
+        callable_contract: None,
+        id: FunctionId(2),
+        name: "callback_entry".into(),
+        foreign: None,
+        environment: Some(ClosureId(0)),
+        parameters: vec![],
+        return_type: Type::I32,
+        result_mode: PassingMode::Infer,
+        locals: vec![],
+        values: vec![Type::I32],
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            instructions: vec![op(
+                Some(ValueId(0)),
+                InstructionKind::Constant(Constant::I32(7)),
+            )],
+            terminator: Terminator::Return(Some(ValueId(0))),
+        }],
+        entry: BlockId(0),
+        span: Span::default(),
+    });
+    m
+}
+#[test]
+fn single_state_constructor_does_not_acquire_new_sum_companion_parameters() {
+    let wrapped = Type::Package {
+        name: "WrappedSum".into(),
+        fields: vec![("event".into(), sum())],
+    };
+    for ty in [
+        sum(),
+        wrapped.clone(),
+        Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(wrapped),
+        },
+    ] {
+        for result in both(&state_with_extra(ty)) {
+            assert!(result.is_err());
+        }
+    }
+}
+#[test]
+fn unused_owned_enum_capture_does_not_acquire_ordinary_value_qualification() {
+    let mut m = state_with_extra(sum());
+    m.functions.remove(1);
+    m.functions[1].id = FunctionId(1);
+    m.closures[0].function = FunctionId(1);
+    m.closures[0].captures = vec![sum()];
+    for result in both(&m) {
+        assert!(
+            result
+                .unwrap_err()
+                .iter()
+                .any(|d| d.message.contains("qualification"))
+        );
+    }
+    m.closures[0].captures = vec![Type::Enum {
+        name: "ExistingCopyCapture".into(),
+        variants: vec![("N".into(), vec![Type::I32])],
+    }];
+    for result in both(&m) {
+        result.unwrap();
+    }
+}
