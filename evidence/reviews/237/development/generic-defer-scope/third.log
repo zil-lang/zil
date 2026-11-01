@@ -1,0 +1,11 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-237/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.31s
+     Running tests/review237_generic_defer.rs (/workspace/.zil-env/target-237/debug/deps/review237_generic_defer-daab9a9b6daba4b2)
+
+running 3 tests
+test generic_defer_keeps_the_existing_direct_callable_helper_boundary ... ok
+test unused_generic_defer_definitions_preserve_declared_capabilities_and_cleanup_control ... ok
+test a_generic_cleanup_has_its_own_legal_loop_control_boundary ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.09s
+

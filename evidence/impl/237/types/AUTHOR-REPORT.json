@@ -1,0 +1,43 @@
+{
+  "status": "AuthorLimitedPass",
+  "scope": "237 Types implementation and author evidence; final independent review and whole-workspace acceptance owned by root",
+  "original235_sha256": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d",
+  "command_receipt": "FINAL-V4.json",
+  "tests_passed": 20,
+  "tests_failed": 0,
+  "schema": 29,
+  "rust_goals": {
+    "safety": "Exact family/actual arguments and lexical owner reconstructed; original hidden-phantom owner false acceptance repaired; complete Typed Package/Store independently checked downstream. Full-language safety remains open.",
+    "runtime_memory": "Original source LLVM API O0/O2 runs and six allocator observations (two real injected failures) preserve actual marker order and live=0. No Rust runtime/RSS comparison.",
+    "expression_maintenance": "Ordinary generic Product construction, return and bare input relay now compose with existing callback Store elements, including phantom arguments and imported families. General generic programming not claimed.",
+    "compile_cost": "All added recipe/identity/scoping/inference growth prepaid; defaults unchanged; frozen legacy Types418/Analyze8673/Verify10398 retained. New source has exact N237893/N-1 ResourceLimit/fresh N. No Rust compile-time comparison.",
+    "net_breakthrough": "Finite language composition increases; product-level four-goal conjunction and repeatable net breakthrough remain unestablished."
+  },
+  "limits": {
+    "full_suite": "NotRun",
+    "wine": "NotRun",
+    "native_windows": "NotRun",
+    "227_238_defer_age_integration": "Tracked separately by root and 227/238 authors; not counted as this Types identity receipt."
+  },
+  "failures_preserved": {
+    "initial_generic_failure": "235 independent original source remained unchanged and is now accepted/executed.",
+    "nested_source_control": "Nested explicit and bare SOURCE already succeeded before the final repair; no false promotion claim.",
+    "hidden_phantom_raw": "Original e7e raw outer Carrier missing/same-F wrong owner accepted in Types; invalid cases never executed native; independent original receipts owned by review237.",
+    "cache_test_setup": "final-limited.log retains failed warm-cache assertion for a tiny non-cacheable scalar fixture; final-v4.log uses four statements and confirms real reuse before invalid metadata rejection."
+  },
+  "clippy": {
+    "command": [
+      "cargo",
+      "clippy",
+      "-p",
+      "zil-types",
+      "--all-targets",
+      "--locked",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit_code": 0,
+    "notes": "Final Types production snapshot, after root supplied the existing Defer differential-test match arm. Earlier clippy.log failure preserved."
+  }
+}

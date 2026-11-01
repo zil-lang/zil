@@ -1,0 +1,33 @@
+{
+  "status": "Pass",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--locked",
+    "--test",
+    "impl237_types",
+    "--test",
+    "impl237_budget",
+    "--test",
+    "impl237_machine",
+    "--test",
+    "impl206_budget",
+    "--test",
+    "impl206_verify",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "scope": "Author limited Types/metadata/budget/cache and actual LLVM API O0/O2 allocator evidence, not final independent acceptance",
+  "source_checkpoint": "7b964394455fe680f0fa782d29af45d2f00bb4ec",
+  "tracked_diff_sha256": "ce74a91c837f93ef6105524845ff748b7ec8e0f5cd975572448d971cf82fcc87",
+  "schema": 29,
+  "log_sha256": "a739dcd9862e220731184e2987d12d740b1f32df858d3b3217945fac177ae3b4",
+  "full_suite": "NotRun",
+  "native_windows": "NotRun",
+  "wine": "NotRun"
+}

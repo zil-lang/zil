@@ -1,0 +1,23 @@
+{
+  "kind": "development-only-scope-review",
+  "verdict": "not-a-final-review",
+  "first_two_runs": "exploratory harness expected broader direct-F helper admission; Types returned pre-existing Unsupported, not an unsafe acceptance. Inputs and logs remain unchanged in archives.",
+  "final_local_run": {
+    "pass": 3,
+    "fail": 0,
+    "filtered": 1,
+    "filtered_reason": "original ALQZ self-feeding Product sources require 238 lowering absent in this worktree; unchanged Success expectation awaits common candidate"
+  },
+  "checked": {
+    "definition_negatives": 14,
+    "expand_rejections": 12,
+    "existing_state_capture_unsupported_boundaries": 2,
+    "direct_callable_helper_unsupported_boundaries": 2,
+    "finite_copy_generic_cleanup_own_loop_native": "LLVM API O0/O2; exact exit0 and empty stdout/stderr"
+  },
+  "not_claimed": "Types Unsupported capture admission is not an independent loan proof; no final 227/237 Pass on this development snapshot",
+  "original_ALQZ_fixtures": {
+    "original238_defer_explicit.zil": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295",
+    "original238_defer_implicit.zil": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9"
+  }
+}
