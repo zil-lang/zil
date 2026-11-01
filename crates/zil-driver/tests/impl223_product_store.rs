@@ -233,7 +233,7 @@ fn source_cannot_push_partial_or_previously_transferred_products() {
 }
 
 #[test]
-fn only_the_exact_unit_protocol_shells_gain_product_payloads() {
+fn ordinary_sum_payloads_extend_unit_protocols_without_other_shape_permissions() {
     pass(
         "pop-protocol",
         &format!("{MODEL} fn pop(s:Store<Root>)->void!Root{{return store_pop(s)}} fn main(){{}}"),
@@ -244,8 +244,8 @@ fn only_the_exact_unit_protocol_shells_gain_product_payloads() {
             "{MODEL} fn push(s:Store<Root>,value:Root)->Root!void{{return store_push(s,value)}} fn main(){{}}"
         ),
     );
-    // 225 explicitly promotes the same original input; all other boundaries
-    // below retain their prior Unsupported expectation.
+    // 225 explicitly promotes the same original capture input; §8.1.5
+    // also promotes the two original ordinary Product Sum sources below.
     pass(
         "captured-product-store",
         &format!(
@@ -261,6 +261,10 @@ fn only_the_exact_unit_protocol_shells_gain_product_payloads() {
             "product-result-i32",
             format!("{MODEL} fn unsupported(x:Root)->Root!i32{{return x}} fn main(){{}}"),
         ),
+    ] {
+        pass(label, &source);
+    }
+    for (label, source) in [
         (
             "product-owned-array",
             format!("{MODEL} fn unused(x:[Root;2]){{}} fn main(){{}}"),

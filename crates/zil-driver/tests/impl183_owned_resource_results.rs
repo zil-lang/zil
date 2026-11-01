@@ -422,13 +422,6 @@ fn source_ownership_modes_and_existing_rejection_boundaries_stay_explicit() {
             "E-ANALYZE-IR",
         ),
         (
-            "union-reassignment",
-            "fn main(){var u=make();u=make()}",
-            ResultCategory::Unsupported,
-            Phase::Types,
-            "E-UNSUPPORTED",
-        ),
-        (
             "union-capture",
             "fn main(){let u=make();let f=move()=>{let v=u}}",
             ResultCategory::Unsupported,
@@ -460,6 +453,20 @@ fn source_ownership_modes_and_existing_rejection_boundaries_stay_explicit() {
         );
         assert!(!report.artifacts.contains_key("executable"));
     }
+    // §8.1.5 admits this exact former whole-union replacement boundary.
+    let report = check(
+        "union-reassignment",
+        &format!("{declarations}{}", "fn main(){var u=make();u=make()}"),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    assert!(!report.artifacts.contains_key("executable"));
     let report = check(
         "live-byte-window",
         "enum E{Fail}fn wrap(give b:ByteBuffer)->E!ByteBuffer contract{result(give)}=>give b;fn main()->i32{let b=bytes_new();bytes_push(b,u8(65));let w=bytes_view(b);let u=wrap(give b);return i32(w[0])-65}",

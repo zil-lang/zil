@@ -1,0 +1,90 @@
+{
+  "166-REASSIGNMENT.json": {
+    "bytes": 1507,
+    "sha256": "de4d5324573a3f159e433fdc3aa626ecddf30563dd5a2ef796ad0117587911a9"
+  },
+  "DECISIONS.md": {
+    "bytes": 2758,
+    "sha256": "f389dddec809240e62d59c63abc4330640566750d8e47f393a598212dce7cdbc"
+  },
+  "INPUT-PRESERVATION.json": {
+    "bytes": 19198,
+    "sha256": "03e8c7515813a53aa1f1c9eac97e74a142b3c160738ea3ded6f1a6370bdd0fa3"
+  },
+  "MIGRATION.patch": {
+    "bytes": 11425,
+    "sha256": "9f8e9d62470d115c9f60b9aca5f9bedd6484b1cf6a61bc7ba22c12f017c6565b"
+  },
+  "ORIGINAL-MANIFEST.json": {
+    "bytes": 1335,
+    "sha256": "abc276d18a644be398c434842a4d21110d8d6a51699756f760a571968834668b"
+  },
+  "RAW-MANIFEST.json": {
+    "bytes": 536068,
+    "sha256": "1feeb6ece3b8818695c41473fbb7c3719c67232bb158de197dad0524ab58d94e"
+  },
+  "RESULT-P.json": {
+    "bytes": 2170,
+    "sha256": "9d3120430ceb5969e88ba9119a3a9b76d3b4342cf4be53564511e66c6995c975"
+  },
+  "check-input-preservation.py": {
+    "bytes": 1949,
+    "sha256": "33d8f9d9aaa385896ed9bec8fd976bab6d20f9cec0204a2b2d07e2c76d8fd028"
+  },
+  "legacy-sum-migration-clippy01.log": {
+    "bytes": 685,
+    "sha256": "c268fccc49fdc8e0c4c155c25db8db3877fa6e62786abbfeffac4f318e87d982"
+  },
+  "legacy-sum-migration01.log": {
+    "bytes": 16909,
+    "sha256": "3339e0a877e07a3291c189c4f3b82224aac687afc80fdfe6573dd5f31d3776db"
+  },
+  "legacy-sum-migration02.log": {
+    "bytes": 864,
+    "sha256": "6cd904fd55a4c49b8fc326aea7dde020ebf51143108c3f4e7906f5bc50c9b092"
+  },
+  "original-P-formal-workspace.log.gz": {
+    "bytes": 94159,
+    "sha256": "62d142cb4d96812a216ca46e7a82e685feb3d1590fa8377df3127647aee01dd4"
+  },
+  "originals/impl166_owned_results.rs.original": {
+    "bytes": 23291,
+    "sha256": "3450888e3b6a0b09d66255c0056e58f88a0215ca6e62e7a52f2af86462016b96"
+  },
+  "originals/impl183_owned_resource_results.rs.original": {
+    "bytes": 16755,
+    "sha256": "03a800cf44ad56013813af903e3666950104d5ad36e8a7aeba0d5bb6ea9852fe"
+  },
+  "originals/impl206_analyze.rs.original": {
+    "bytes": 15535,
+    "sha256": "5bce3f433c6e93724e4f55e9fcf4383f8e1430ddf0610856fca90a93189f46b0"
+  },
+  "originals/impl206_independent.rs.original": {
+    "bytes": 29343,
+    "sha256": "371b45e768027d0825e0eaa86ee8cb25934615a3bac1716543e09ccf40f23a5f"
+  },
+  "originals/impl223_product_store.rs.original": {
+    "bytes": 20181,
+    "sha256": "44a41e9b680995eff6ce71e1a0d4e016d7b953d71b1eb343585dd5fd2424dd7c"
+  },
+  "originals/impl235_product_store.rs.original": {
+    "bytes": 12855,
+    "sha256": "9c3b73d46e3a0c7d5e2e57287e256dbad2b04c91799aaf564d9f981e4a77e748"
+  },
+  "originals/review223_boundaries.rs.original": {
+    "bytes": 5060,
+    "sha256": "b52354a1b05a2ea27a41cf7708b875ba1d5814b06dbc665cd12d4668a48ec61d"
+  },
+  "originals/review235_contracts.rs.original": {
+    "bytes": 13590,
+    "sha256": "f84260bb2ad8d7e8bf87111ce17f98a9501546e92b89af58269e9527caa30962"
+  },
+  "package-evidence.py": {
+    "bytes": 3874,
+    "sha256": "16eb72b60aaea445a8f7cfd317042e81f5c22ea6ba918edc0a59f51d430631ce"
+  },
+  "raw-P-migration.tar.gz": {
+    "bytes": 5963355,
+    "sha256": "81d6e402ac0ad1fe36e81b0b2b7fd9a62b7a3ac81fb08d1b612be35f68688c78"
+  }
+}

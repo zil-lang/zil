@@ -1,0 +1,601 @@
+{
+  "crates/zil-driver/tests/impl166_owned_results.rs": {
+    "program_literal_multiset_unchanged": true,
+    "program_literal_occurrences": 29,
+    "literal_sha256_multiset": [
+      {
+        "sha256": "0330c32ec26c15c1ac8d241ece92b73975dd783d40858ee901970365da2941f5",
+        "occurrences": 1
+      },
+      {
+        "sha256": "10aa31e5f22560fc5d157ba665f5c37de98c2a9e8d3c704c3037a72c3b742e48",
+        "occurrences": 1
+      },
+      {
+        "sha256": "1815b9028786e75872a43f7f623b7d83d9a6bd22aa63fcb773df5715c6ff12e8",
+        "occurrences": 1
+      },
+      {
+        "sha256": "2abd716f05850ab88461925ccfe11864b37d7ae52618aa53bf5be258b0eaa642",
+        "occurrences": 1
+      },
+      {
+        "sha256": "31c8efd90e23efac0b3b2f28ed5772cb9ff92caf1aa368b35c80e9eb3240e5ba",
+        "occurrences": 1
+      },
+      {
+        "sha256": "36394713649b63d706e8e265f9f029f897e60d640c1caf8e1ed956c431319ba1",
+        "occurrences": 1
+      },
+      {
+        "sha256": "39708944d855db27a690803d975359eec7e5ef5855c523653723d631031347b9",
+        "occurrences": 1
+      },
+      {
+        "sha256": "3b10d856bd91a3d70223c16fb5513795ef4a3bf54e196b50dae2053c923ebd33",
+        "occurrences": 1
+      },
+      {
+        "sha256": "49ea90800e984f78233c1a183de331e76cdfe7a31b7c04213847ddc206723a78",
+        "occurrences": 1
+      },
+      {
+        "sha256": "53afb94b99bfe1513dd3255a0a7992c746759992d0b406d6345b08331ddc6ef1",
+        "occurrences": 1
+      },
+      {
+        "sha256": "55cf0ef8d8dee7bb14c02e1b3422dd60f3fb1be9e3a6d70f836d78d5b2891f5c",
+        "occurrences": 1
+      },
+      {
+        "sha256": "5799c64dd2819bad4d337e39cd278e8ae7d9383daf933b2ce41e31654f3249b3",
+        "occurrences": 1
+      },
+      {
+        "sha256": "64c926f970283082326f4ea332839f2d4b009e2985aa3b6caf5a2a71ed7cb726",
+        "occurrences": 1
+      },
+      {
+        "sha256": "6678e0c84c7b2edc08d556387a40ad73cd0ea5ce8a479089933633f57a202757",
+        "occurrences": 1
+      },
+      {
+        "sha256": "6d9e1c904d721130939e10a22cb7503be94c8ff7c2c69967aa001efe2856d63d",
+        "occurrences": 1
+      },
+      {
+        "sha256": "6fbf43a8b234b6d8e3cdd8f2395791e27f57704220166f4abe0cdf47cfc25965",
+        "occurrences": 1
+      },
+      {
+        "sha256": "8099c14f8204ac40ae50f83760f3c173e04cb2f0d7fddffbacd95a892b813ab3",
+        "occurrences": 1
+      },
+      {
+        "sha256": "89a9b47e3cd0b046c998c3e56180d72b160300fd65dcc667a660516aaee1e0a4",
+        "occurrences": 1
+      },
+      {
+        "sha256": "8aaa4f7b05dcb4ae4219e46cb2b095eb9e885d27913570ab97411aac648fca5d",
+        "occurrences": 1
+      },
+      {
+        "sha256": "94b201dcbf69f2c709a393c177e59c21d137b2bff064007ef97beb643adbc4c3",
+        "occurrences": 1
+      },
+      {
+        "sha256": "a0d724ba5f3d2bd66d4f6f5801ddb754f2166a5ff6a7a451cd383e021474e6f9",
+        "occurrences": 1
+      },
+      {
+        "sha256": "b96cf49f1be15ed60c2d8b6ab4872910d93c604de77094e1444ce5e95c5eedd3",
+        "occurrences": 1
+      },
+      {
+        "sha256": "bbaaf59e84a7edb2c9f8ae36f56caaa6caa9991ef3c773663d5c1b06fa767746",
+        "occurrences": 1
+      },
+      {
+        "sha256": "c1d6241735ad8941484d4124d3e663240e115cd246a5fc45c6ced9c413677cc0",
+        "occurrences": 1
+      },
+      {
+        "sha256": "cb193b6b39083ae2112dafe4d89aea5d753dd55325e83410694c89dd9d8bf996",
+        "occurrences": 1
+      },
+      {
+        "sha256": "ccabeda512b0944877f08138a3548a4e421d5b0025b9fc4e404531fc9a6eabec",
+        "occurrences": 1
+      },
+      {
+        "sha256": "d39961948f9bff4822cb95cd8640bff314c82a07c9a2afb09940bc2d1808e373",
+        "occurrences": 1
+      },
+      {
+        "sha256": "e7aae88f92c6c93080cdb21093169bc5a008da9757a19dc54aec6cbcde668fdd",
+        "occurrences": 1
+      },
+      {
+        "sha256": "f02737d4abc7ea7c8f7e4b869613e9937cbe8373cc44ff0dbde047079b22fc08",
+        "occurrences": 1
+      }
+    ]
+  },
+  "crates/zil-driver/tests/impl183_owned_resource_results.rs": {
+    "program_literal_multiset_unchanged": true,
+    "program_literal_occurrences": 35,
+    "literal_sha256_multiset": [
+      {
+        "sha256": "00533081d3c06bbb12719172170019a0ad691511c9d5709903fa6a0882f8c0e1",
+        "occurrences": 1
+      },
+      {
+        "sha256": "06d9ec7ad5e331f60155210b910952592dd5f368175b4ddbc2712f31c5a2c15a",
+        "occurrences": 1
+      },
+      {
+        "sha256": "07f1b965f740af228347ea052c0e09fa18cacddc72aea95db8b56d9eeb479d68",
+        "occurrences": 1
+      },
+      {
+        "sha256": "09d46fb6bd2b96fec861a5663ba9437f3611a39a637c9abb86a75139a6f6864d",
+        "occurrences": 1
+      },
+      {
+        "sha256": "14097787d937f7e719603d3d197f135b4d0b8093245ae725c8a1cb6919835483",
+        "occurrences": 1
+      },
+      {
+        "sha256": "1815b9028786e75872a43f7f623b7d83d9a6bd22aa63fcb773df5715c6ff12e8",
+        "occurrences": 1
+      },
+      {
+        "sha256": "28b74ec153eef587fca6a6eee3c514dea751b9203000ee1f3df41e4fa1d4d2a6",
+        "occurrences": 1
+      },
+      {
+        "sha256": "2e8aa7143c4fb7887f7df55e46b820d2c0f6c0be3781145a8a32bfd05dd0cf7c",
+        "occurrences": 1
+      },
+      {
+        "sha256": "336e4e2af968154de672c7a314ada5126484a62220be80a738bb4a44114f7cf8",
+        "occurrences": 1
+      },
+      {
+        "sha256": "3bdf6149371af5ce2a58d4e8d503f5078fd1d4cde9327a68b15392b6c106b7cd",
+        "occurrences": 1
+      },
+      {
+        "sha256": "40e9df90f091d9dee36029377500a6cf44f93b38350118b074d341a737b23f6c",
+        "occurrences": 1
+      },
+      {
+        "sha256": "43f4bde5b91b51020b549d9cc5150ed14b0ca6ace9bd73aa321960c4d9064259",
+        "occurrences": 1
+      },
+      {
+        "sha256": "492d53b0cd5dd2927f2f887e53ae6c37a6f482565ff07f5bfa9b5ae79cd9a1a1",
+        "occurrences": 1
+      },
+      {
+        "sha256": "51fac4515a7d80c0afe60c086b91ee799ec394e5395bde72cf6a7706dd085852",
+        "occurrences": 1
+      },
+      {
+        "sha256": "611d1328a959ed28f7592215eab6464059f09a5bbd40df36ab8d3f78228287b4",
+        "occurrences": 1
+      },
+      {
+        "sha256": "64199ef45eb5e7be68ddede412d6683a8555d692b0c1da57dc1caa3d8a6b370c",
+        "occurrences": 1
+      },
+      {
+        "sha256": "688e57fbddf9f818aaf98003642562a6aee4d64e948d8dd9db93081eab9493db",
+        "occurrences": 1
+      },
+      {
+        "sha256": "7367db789365fb9c67ba34f5ef049acd62121cdf76a1d45718e13f0ef291d099",
+        "occurrences": 1
+      },
+      {
+        "sha256": "7b65c8b5f997e8135a5fd77cdd95a173a25b211303e15d3b002c2373fdb06ce8",
+        "occurrences": 1
+      },
+      {
+        "sha256": "80134d8a65f519822e2802fb02eb9bbbc3aca4cdd5315fd0f9ddbd1d55111d2b",
+        "occurrences": 1
+      },
+      {
+        "sha256": "851ddfbdaed55d82b9867e7568ed0a49e1e1757eb975770b394db72b74de3050",
+        "occurrences": 1
+      },
+      {
+        "sha256": "a5c9932b546203399c4e28a08935544fa6201ad37443c58d8e9f368b678a288f",
+        "occurrences": 1
+      },
+      {
+        "sha256": "a71b62c990df5830a3731bd80e5451be4418dbbbf26bec4db9150f992ccdb2a3",
+        "occurrences": 1
+      },
+      {
+        "sha256": "ae73ea5052c82519d5a9912d10b0d80ad1153741aa323c18a6023f108ab421f9",
+        "occurrences": 1
+      },
+      {
+        "sha256": "aee5a0dd2c6bae553f1c3f54f18757fd5e67dcfa2ff06d35ecbdd06f7a594ad9",
+        "occurrences": 1
+      },
+      {
+        "sha256": "b4759c7d3dc671465eeff6eb143dd459adeb02dd1718798d4c0414b5cd57697f",
+        "occurrences": 1
+      },
+      {
+        "sha256": "c7c2826a25b380d12b4cf6cf2156fda2705abd76a7ea25bbfba80bccee394df3",
+        "occurrences": 1
+      },
+      {
+        "sha256": "ccfb1d9742b3b8f4b22f702854de04b62e18ca6fb2dac22913e2ea1293134f63",
+        "occurrences": 1
+      },
+      {
+        "sha256": "cdf8980d8bc77d23b8cb389dbc3401aa355e03d663a558a77e019a78f631b134",
+        "occurrences": 1
+      },
+      {
+        "sha256": "d3621105fb51aaf7bec5d9ceb1ebf0b7a511e60a0464f5552da87ecf2f133b5e",
+        "occurrences": 1
+      },
+      {
+        "sha256": "e30820a62a9d9f55d0cc848f2e99c0d5b35c12d5ae8ba8b2753d3f30c1203e2c",
+        "occurrences": 1
+      },
+      {
+        "sha256": "e64b91dd2f31d42e514d9a6644f03b080d51b2a2fea4b9ecf10fdee5bc9a228b",
+        "occurrences": 1
+      },
+      {
+        "sha256": "ec5994e59633e572bc3453cca10a232a3a5d7adfdaa4a150689fddbc14ef71b2",
+        "occurrences": 1
+      },
+      {
+        "sha256": "f4aa3b8052626390c944b8c83f1782befd019625f851464fc09ef9c1b11d75b3",
+        "occurrences": 1
+      },
+      {
+        "sha256": "f5904d397de71221d1b7aa6415caacd7551b89a78e830eda0f6851ffde9c412d",
+        "occurrences": 1
+      }
+    ]
+  },
+  "crates/zil-driver/tests/impl206_analyze.rs": {
+    "program_literal_multiset_unchanged": true,
+    "program_literal_occurrences": 17,
+    "literal_sha256_multiset": [
+      {
+        "sha256": "0d85748e61dde81902bcd7e2720645fa1552d9b63ec5fb6f88224569b56eb543",
+        "occurrences": 1
+      },
+      {
+        "sha256": "2fce00e458550e708b3a74c842f0b64a22231ff79790724bfe8e4afc98ed3b87",
+        "occurrences": 1
+      },
+      {
+        "sha256": "44a1aab9625c0775d5dd070d6078f21db5a138f2d5f374bbc901fc9c19a78977",
+        "occurrences": 1
+      },
+      {
+        "sha256": "59a272ef930cf46bfc5c015ec8ee37be53cb70f2bd9e2deaef67613a459b3940",
+        "occurrences": 1
+      },
+      {
+        "sha256": "5bac556aecb426ee055f8840cb1f3701f53d91c873298e725aa4123c50c1cba2",
+        "occurrences": 1
+      },
+      {
+        "sha256": "6e5034c8391760ee7fe3ddd97d366b1f62a89dd10c9967198e57459973a72ffd",
+        "occurrences": 1
+      },
+      {
+        "sha256": "88ed4427aa33f094de1cd1083eb74bb8f6228188c8a2d0fc5c4eefa47621b308",
+        "occurrences": 1
+      },
+      {
+        "sha256": "8bfbcfc2d9f2b51b65bc3ead502ba48910e895196501ca431e891be8946be5da",
+        "occurrences": 1
+      },
+      {
+        "sha256": "8fece2331e6ef17b45c1390d580a8410958bb21ee77a1191899737208063f2bc",
+        "occurrences": 1
+      },
+      {
+        "sha256": "a1a2f2b05b8d4e25d7937948a4c69e1babbe170f3dbdc9bec2d96ad593750cae",
+        "occurrences": 1
+      },
+      {
+        "sha256": "a6a1e7597e233c6c5a9b3e2fbef985e6d921a6a739156397369713f81ab9ddde",
+        "occurrences": 1
+      },
+      {
+        "sha256": "ba18b675e6aa89326fed79354268bc1bbe5d253b04f142b13c7d929cb7c3b4bb",
+        "occurrences": 1
+      },
+      {
+        "sha256": "ce97a4b71f1b60ddb62579a3313a810936f8e94b2300f1d01f57905e58f0e8e8",
+        "occurrences": 1
+      },
+      {
+        "sha256": "d859c473e10b5e1f72786f44a5aba8aa62b657635e4a476f914a7d9284b678dd",
+        "occurrences": 1
+      },
+      {
+        "sha256": "dfa949f0c3cf2a0826712ea9ffb3d67fb946d50e447bcec9c51c63d2acac2cf4",
+        "occurrences": 1
+      },
+      {
+        "sha256": "e815586300b48934dd5d10e7d90ac48483f2aa0b804be0f1842bb2f92a160af2",
+        "occurrences": 1
+      },
+      {
+        "sha256": "f94d0dbd57c6f6f509437407e36e8b85656da0ccbdcd6dc91ec745110423713d",
+        "occurrences": 1
+      }
+    ]
+  },
+  "crates/zil-driver/tests/impl206_independent.rs": {
+    "program_literal_multiset_unchanged": true,
+    "program_literal_occurrences": 2,
+    "literal_sha256_multiset": [
+      {
+        "sha256": "4c82075e589db5b62fc15fde4994592ba99fe8e488d0d4d4e88db558af2aed23",
+        "occurrences": 1
+      },
+      {
+        "sha256": "72cc8e6d7953a4758d23dd21b059488c0a0e6e906f012bed10c20f35d7d5744f",
+        "occurrences": 1
+      }
+    ]
+  },
+  "crates/zil-driver/tests/impl223_product_store.rs": {
+    "program_literal_multiset_unchanged": true,
+    "program_literal_occurrences": 24,
+    "literal_sha256_multiset": [
+      {
+        "sha256": "02be5454f24595634ad62f17dad2db67d1aeb7368415275a2303767569381af4",
+        "occurrences": 1
+      },
+      {
+        "sha256": "0c1898aa18e3645caae01c2acf995a404abdf90f60cb5f654a054a0cf35881a0",
+        "occurrences": 1
+      },
+      {
+        "sha256": "1056aa91130622bd28ba263362c0ef41a748de134f8f42d7862207bee0e7a784",
+        "occurrences": 1
+      },
+      {
+        "sha256": "134ad290120fc5495baaf5efe45333748440f49ff9c1c4fe879f2cfcef57aa71",
+        "occurrences": 1
+      },
+      {
+        "sha256": "24c715901acf142da7053ddfa32bd500487dcaf47bd25f6a96c2b3d421c03332",
+        "occurrences": 3
+      },
+      {
+        "sha256": "2f8d2f23fa73e596094b90163e915288a1cb7bb6c44d569aabc72769b1e4f1a0",
+        "occurrences": 1
+      },
+      {
+        "sha256": "365929d7f4853ab5325ef1055cb28c9b682e06fe4c4309ff9f2c932340e06163",
+        "occurrences": 1
+      },
+      {
+        "sha256": "421d65b9ebed3ba1215f01241710df6fb39275529ecdce6348fc4ed6bfe3148a",
+        "occurrences": 1
+      },
+      {
+        "sha256": "43650666a67be5977ac7d8109c2811ac6cf68b718233d430db46260667459be6",
+        "occurrences": 1
+      },
+      {
+        "sha256": "56503844c3df391cf53c04c9b62c12c6f6684b9845d04e620c36f3bd93cc113f",
+        "occurrences": 1
+      },
+      {
+        "sha256": "5f6adc3ff13f55842b4a3694b0d4a0734184b24b0ae282eeaab28e0da5ba253f",
+        "occurrences": 1
+      },
+      {
+        "sha256": "696e6daee71112bcf10210e90ff2fd2277018004ebf7641527ce7e15d4246be5",
+        "occurrences": 1
+      },
+      {
+        "sha256": "7661db8fd7a32ed3edebc64f78abc6af4c3b7123344ba2b7309b3b063d262169",
+        "occurrences": 1
+      },
+      {
+        "sha256": "7d0538032577cf35fb6b1dc64f8aa2a10fb9eab0f9a536f6ad1a3df2ba987bd6",
+        "occurrences": 1
+      },
+      {
+        "sha256": "85eb2ea671fe8ee6154800c96bfab76f95b26d4efdfaf3f836b4da4d074ed044",
+        "occurrences": 1
+      },
+      {
+        "sha256": "8f7a046311be53811c1ed7a603357ad1849407a2bc103253e49619ca6c7abce6",
+        "occurrences": 1
+      },
+      {
+        "sha256": "c47b2bb1570a7dee2b0c5ec36c2077856bccace761e435fd26e9d42b8e38ada9",
+        "occurrences": 1
+      },
+      {
+        "sha256": "df5837eed42e4fbf01561e820b6e26837a7b70718a4394246edfeb3998f5d714",
+        "occurrences": 1
+      },
+      {
+        "sha256": "e05cb06bffc8a684b84c7d7ccc8d128ca4436f472351ed8016d03a06b755b6cb",
+        "occurrences": 1
+      },
+      {
+        "sha256": "e3c299529d382ab8f40c181f041beb6ec8057bdfb18685b2a2b8ea1d1566ae64",
+        "occurrences": 1
+      },
+      {
+        "sha256": "f41b08c061a3b6564b72b9623bcf3c94129c2af6a1c0537ed540f153a3920d4e",
+        "occurrences": 1
+      },
+      {
+        "sha256": "f46feef4a5aa751c10d95b3fa2552698e12ce711285cd94872c3a11f84946793",
+        "occurrences": 1
+      }
+    ]
+  },
+  "crates/zil-driver/tests/impl235_product_store.rs": {
+    "program_literal_multiset_unchanged": true,
+    "program_literal_occurrences": 17,
+    "literal_sha256_multiset": [
+      {
+        "sha256": "227dc610bd3875a403db80eb5441d32d1fdd126e1d57381176280dd50140ed69",
+        "occurrences": 1
+      },
+      {
+        "sha256": "40dcc2b3199469fff9fd9d45c6350741dcaf9c1d19bfdded0b317c5caef70235",
+        "occurrences": 1
+      },
+      {
+        "sha256": "64d962fe99db500147675616813760b9c282ed07402331a470ab271b534559aa",
+        "occurrences": 1
+      },
+      {
+        "sha256": "778261f9ed6658f9078ad91525a9d7245de8c698394c8126632d8700d90d5a36",
+        "occurrences": 1
+      },
+      {
+        "sha256": "7b01acd97eda9259b62f7431c039dd5711b7a2fbe9939fd86c612ea4041e5293",
+        "occurrences": 1
+      },
+      {
+        "sha256": "8457a4ef6d80594d37dac865b08f701be10dd0afdc50c89765b98eb295a580c1",
+        "occurrences": 1
+      },
+      {
+        "sha256": "968a550b899a1dbd464ebdbd0e9bcb7fb9cfc2a74b26b1ee49c9353503ab857b",
+        "occurrences": 1
+      },
+      {
+        "sha256": "99f6a50a62bfc0708f9dafe81c59f070d909466078818bf860605ada3677b750",
+        "occurrences": 2
+      },
+      {
+        "sha256": "a5db5a8cedd833b6f909d16958ca23ccbff01a2689b25c7b5a9b83aecafeafe6",
+        "occurrences": 1
+      },
+      {
+        "sha256": "a78a7418c71a4f8637d71e4f6a8dc89d6697e263b5d856f9c6f3e53800341b13",
+        "occurrences": 1
+      },
+      {
+        "sha256": "c22c7ccc8d07a1de523aaea771d0a233b6da30006e77ace51c22f46190f139bd",
+        "occurrences": 1
+      },
+      {
+        "sha256": "c4a1757bac6cdae56826c4f2f8d1f0a05df8722a0b204806b568ec587a80417e",
+        "occurrences": 1
+      },
+      {
+        "sha256": "cd70ecfd6cdc19cacc25f5e31ab63b9f33c30fd0fdc6150cf95216776d31737d",
+        "occurrences": 1
+      },
+      {
+        "sha256": "da44370050519d62258436134251838ac49cb8b3d5558f93b05210595de11df7",
+        "occurrences": 2
+      },
+      {
+        "sha256": "ee3424c38a4654de8d6e12cdbb65301b6e2b9a5503e1e8e318787a5f31a42d0f",
+        "occurrences": 1
+      }
+    ]
+  },
+  "crates/zil-driver/tests/review223_boundaries.rs": {
+    "program_literal_multiset_unchanged": true,
+    "program_literal_occurrences": 0,
+    "literal_sha256_multiset": []
+  },
+  "crates/zil-driver/tests/review235_contracts.rs": {
+    "program_literal_multiset_unchanged": true,
+    "program_literal_occurrences": 16,
+    "literal_sha256_multiset": [
+      {
+        "sha256": "51c334ca30ca1443e3d3021fb374c128f97efc518df19aed822b07185b6b656f",
+        "occurrences": 1
+      },
+      {
+        "sha256": "64fe333845e73ac0bbaf8b1669bacef46d9f50ef8f79f07782e089cfbc41eff6",
+        "occurrences": 1
+      },
+      {
+        "sha256": "66872f09a56a7cb292ad54dca38214109d77b1bdac3f0b8c260261a3bafa3f1a",
+        "occurrences": 1
+      },
+      {
+        "sha256": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d",
+        "occurrences": 1
+      },
+      {
+        "sha256": "8858d6fcc6eec100e2f2e84d2ffa6589dadf2b6b43b7ba8c0eddec6d206457fc",
+        "occurrences": 1
+      },
+      {
+        "sha256": "8890b2e78d6dbe6be6430221f954c36ea0c03a80b8d16a47ebe48431d98d810b",
+        "occurrences": 1
+      },
+      {
+        "sha256": "a06e6911cbda931e906fd04f14d241e1fb7cf8b5e1f76b2b2eaeacd7c68d6967",
+        "occurrences": 1
+      },
+      {
+        "sha256": "a9498b15ba09d82a5b61e22f40906b4e700d46c1c34e4aab9988e02f0beb1938",
+        "occurrences": 1
+      },
+      {
+        "sha256": "abb0d16fd7585e6bf1bdde003d081e555c7c2a129fdc0c3b341dbf1db398ed61",
+        "occurrences": 1
+      },
+      {
+        "sha256": "c3302edf0f41cd2b2451436ff6526be8ad16866a700ca87688b94f05daf86da4",
+        "occurrences": 1
+      },
+      {
+        "sha256": "c88f93856a28eeb59028a965fe38a7b0c2a757ae6cab6343d8c3a7ef2c78123b",
+        "occurrences": 1
+      },
+      {
+        "sha256": "c8f88ddfcef9998a225ab1bf04751becc02e86b5dc29e56276ed28226cfa088f",
+        "occurrences": 1
+      },
+      {
+        "sha256": "e54545c149bb89ea6d6223c7fda9037b9dc1baef957eea1f1924f15273c550f3",
+        "occurrences": 1
+      },
+      {
+        "sha256": "e83e4e200b7efd41fdc2388b6eadd5c2ddaf2b0be67050bd15a9ff3f557d1cf3",
+        "occurrences": 1
+      },
+      {
+        "sha256": "ea11282ead7966e2413bcaa20e39ffdb2ef7f5369bbe907199c8a7bf77fab5bb",
+        "occurrences": 1
+      },
+      {
+        "sha256": "fd902b987242c356f187907c1d21117fbed1a743810b7f1f03668e4ab843af7e",
+        "occurrences": 1
+      }
+    ]
+  },
+  "impl206_independent-raw-construction": {
+    "unchanged": true,
+    "sha256": "7c3db4c737b0198834ea0cc4bff34c376f42fa2fd3bb47322c9d1d2e71843f09"
+  },
+  "review223_boundaries-raw-construction": {
+    "unchanged": true,
+    "sha256": "b48e076536e533f2bf08d4b7a8cf05eaf98b83178a7e043470e833e3fa223281"
+  }
+}
