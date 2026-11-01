@@ -61,7 +61,7 @@ fn new_window_instructions_match_manual_bytes_and_all_truncations_fail() {
                     .is_err()
             );
         }
-        for tag in [90, 91, 254] {
+        for tag in [94, 95, 254] {
             let mut bad = expected.clone();
             bad[5] = tag;
             assert_eq!(
