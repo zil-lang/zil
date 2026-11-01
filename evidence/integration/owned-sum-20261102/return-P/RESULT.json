@@ -1,0 +1,31 @@
+{
+  "status": "Fail",
+  "implementation_commit": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "root_decision": "Return 240/241/242 for narrowly scoped ordinary owning Sum helper parameter fixes; preserve original source and oracle",
+  "findings": [
+    {
+      "id": "ordinary-sum-helper-data",
+      "reporter": "/root/review_language_contracts",
+      "phase": "Analyze",
+      "observed": "Unsupported at old helper extra-parameter whitelist after successful Types",
+      "expected": "Existing ordinary Value Sum argument accepted through full source pipeline; callback signature stays Copy",
+      "receipt": "helper-enum-analyze.json"
+    },
+    {
+      "id": "actual-managed-pattern-local-forwarding",
+      "reporter": "/root/kernel_defer227",
+      "phase": "Expand",
+      "observed": "E.V(r) => let saved=give r; give saved loses actual owner metadata; same in unused helper",
+      "expected": "Exact owned give result remains owned; aliases/Desc and duplicate give rejected",
+      "original_receipts": "/tmp/review240-boundaries/results-P/callback_owned_forward and callback_forward_unused"
+    },
+    {
+      "id": "verify-ordinary-sum-helper-data",
+      "reporter": "/root/kernel_defer227",
+      "phase": "Verify",
+      "observed": "Author located analogous old extra-parameter gate; direct raw/Wire confirmation and repair pending",
+      "status": "PendingDirectReproduction"
+    }
+  ],
+  "formal_workspace": "Running on original P, not overwritten; no final acceptance"
+}

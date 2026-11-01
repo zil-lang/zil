@@ -1,0 +1,31 @@
+   Compiling zil-ir v0.1.0 (/workspace/zil-core/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/zil-core/crates/zil-verify)
+   Compiling zil-syntax v0.1.0 (/workspace/zil-core/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-core/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/zil-core/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/zil-core/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/zil-core/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/zil-core/crates/zil-ct)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-core/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 30.82s
+     Running tests/review240_helper_sum.rs (/workspace/.zil-env/target-244/debug/deps/review240_helper_sum-5f0c77fd1b70d392)
+
+running 2 tests
+
+thread 'finite_fn_helper_accepts_complete_enum_product_and_error_arguments' (276172) panicked at crates/zil-driver/tests/review240_helper_sum.rs:57:13:
+assertion `left == right` failed: {"status":"Unsupported","phase":"analyze","diagnostics":[{"phase":"analyze","category":"Unsupported","code":"E-UNSUPPORTED","message":"helper extra parameters require finite Copy, one Copy/slice address, Managed, Package or ByteBuffer description values; slice arguments require a Copy helper result","span":null,"notes":[]}],"artifacts":{"core":"/tmp/final239-243-P-helper/review240-helper-enum-O0-276171/phases/core.txt","ct-core":"/tmp/final239-243-P-helper/review240-helper-enum-O0-276171/phases/ct-core.txt","source-map":"/tmp/final239-243-P-helper/review240-helper-enum-O0-276171/phases/source-map.txt","syntax":"/tmp/final239-243-P-helper/review240-helper-enum-O0-276171/phases/syntax.txt","typed":"/tmp/final239-243-P-helper/review240-helper-enum-O0-276171/phases/typed.txt"},"input_fingerprint":"b0cc9d860b789141ae2dd77402a2fe62a9573a7757d2963611e27f338998b874","seconds":0.029085618,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"},{"phase":"analyze","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"helper240.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test finite_fn_helper_accepts_complete_enum_product_and_error_arguments ... FAILED
+test ordinary_sum_argument_does_not_expand_callable_or_state_permissions ... ok
+
+failures:
+
+failures:
+    finite_fn_helper_accepts_complete_enum_product_and_error_arguments
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p zil-driver --test review240_helper_sum`
