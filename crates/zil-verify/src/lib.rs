@@ -226,6 +226,9 @@ struct Budget {
     remaining: usize,
     sums: bool,
     limits: Limits,
+    sum_functions: Vec<bool>,
+    function_count: usize,
+    current_function: Option<usize>,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -233,6 +236,9 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             sums: false,
             limits: limits.clone(),
+            sum_functions: Vec::new(),
+            function_count: 0,
+            current_function: None,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -241,6 +247,23 @@ impl Budget {
             .checked_sub(amount)
             .ok_or_else(|| limit("independent verification work budget exhausted"))?;
         Ok(())
+    }
+    fn mark_sum(&mut self, function: Option<usize>) -> Check<()> {
+        self.sums = true;
+        if let Some(index) = function {
+            if self.sum_functions.is_empty() {
+                self.spend(self.function_count)?;
+                self.sum_functions = vec![false; self.function_count];
+            }
+            self.sum_functions[index] = true;
+        }
+        Ok(())
+    }
+    fn sum_function(&self, function: FunctionId) -> bool {
+        self.sum_functions
+            .get(function.0 as usize)
+            .copied()
+            .unwrap_or(false)
     }
 }
 
@@ -398,6 +421,7 @@ fn check_module(
     }
 
     let mut budget = Budget::new(limits);
+    budget.function_count = module.functions.len();
     resources::check_definitions(module, limits, &mut budget)?;
     for text in [
         &module.target.id,
@@ -409,21 +433,22 @@ fn check_module(
     }
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
-    for ty in module
-        .functions
-        .iter()
-        .flat_map(|f| {
-            std::iter::once(&f.return_type)
-                .chain(f.locals.iter().map(|l| &l.ty))
-                .chain(f.values.iter())
-        })
-        .chain(module.closures.iter().flat_map(|c| {
-            c.captures
-                .iter()
-                .chain(c.parameters.iter())
-                .chain(std::iter::once(&c.result))
-        }))
-    {
+    for (index, function) in module.functions.iter().enumerate() {
+        budget.current_function = Some(index);
+        for ty in std::iter::once(&function.return_type)
+            .chain(function.locals.iter().map(|l| &l.ty))
+            .chain(&function.values)
+        {
+            check_type_shape(ty, &module.target, limits, &mut budget)?;
+        }
+    }
+    budget.current_function = None;
+    for ty in module.closures.iter().flat_map(|c| {
+        c.captures
+            .iter()
+            .chain(c.parameters.iter())
+            .chain(std::iter::once(&c.result))
+    }) {
         check_type_shape(ty, &module.target, limits, &mut budget)?;
     }
     closures::check_definitions(module, limits, &mut budget)?;
@@ -615,7 +640,7 @@ fn check_type_shape(
                 && context & 16 != 0
                 && matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })))
         {
-            budget.sums = true;
+            budget.mark_sum(budget.current_function)?;
         }
         if depth > limits.max_call_depth {
             return Err(limit("aggregate type nesting exceeds verification limit"));
@@ -683,7 +708,7 @@ fn check_type_shape(
                     && **result != Type::Unit
                     && (packages::has_children(error) || packages::has_children(result))
                 {
-                    budget.sums = true;
+                    budget.mark_sum(budget.current_function)?;
                 }
                 let context = context | 2 | if context & (4 | 2) != 0 { 8 } else { 0 };
                 pending.push((error, depth + 1, context));
