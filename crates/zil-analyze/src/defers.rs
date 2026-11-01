@@ -111,11 +111,11 @@ pub(super) fn check(
     for block in &f.blocks {
         for instruction in &block.instructions {
             budget.spend(1, "defer capture writeback source inventory")?;
-            if let InstructionKind::ReadCapture { index } = instruction.kind {
-                if let Some(value) = instruction.result {
-                    budget.lookup(capture_reads.len(), "defer capture read insertion")?;
-                    capture_reads.insert(value, index);
-                }
+            if let InstructionKind::ReadCapture { index } = instruction.kind
+                && let Some(value) = instruction.result
+            {
+                budget.lookup(capture_reads.len(), "defer capture read insertion")?;
+                capture_reads.insert(value, index);
             }
         }
     }
