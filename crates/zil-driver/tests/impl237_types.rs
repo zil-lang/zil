@@ -230,3 +230,92 @@ fn product_input_infers_complete_element_type_through_ordinary_value_relay() {
     assert_eq!(relay.len(), 2);
     assert_ne!(relay[0].return_type, relay[1].return_type);
 }
+
+const NESTED_SCOPE: &str = r#"
+resource Ticket{code:i32}
+package Phantom<T:StoreElement>{manages bytes:ByteBuffer}
+package Carrier<T:StoreElement>{manages items:Store<T>}
+package Item<F>{manages ticket:Ticket;callback:F}
+package Packet<F>{manages marker:Ticket;callback:F}
+fn nested<T:StoreElement>(root:Carrier<Phantom<T>>)->Carrier<Phantom<T>>{return root}
+fn make()->impl Fn()->i32{return move()=>8}
+fn pack<F:Fn()->i32>(callback:F)->Packet<F>{return Packet::<F>{marker:Ticket{code:7},callback:callback}}
+fn run<F:Fn()->i32>(packet:Packet<F>)->i32{let items:Store<Phantom<Item<F>>>=store_new();let carrier=Carrier::<Phantom<Item<F>>>{items:give items};let moved=nested(carrier);return i32(store_len(moved.items))}
+fn main()->i32{return run(pack(make()))}
+"#;
+#[test]
+fn a_free_binder_hidden_in_phantom_arguments_requires_the_actual_outer_owner() {
+    let input = core(NESTED_SCOPE);
+    accepted(NESTED_SCOPE);
+    let family = input
+        .aggregate_templates
+        .iter()
+        .find(|t| t.name == "Carrier")
+        .unwrap()
+        .id;
+    let run = input.functions.iter().find(|f| f.name == "run").unwrap().id;
+    let app = input
+        .aggregate_applications
+        .iter()
+        .position(|a| a.template == family && a.owner.is_some_and(|o| o.function == run))
+        .unwrap();
+    let mut altered = input.clone();
+    altered.aggregate_applications[app].owner = None;
+    reject(&altered);
+}
+
+#[test]
+fn prepared_and_function_session_recheck_unused_metadata_after_a_scalar_success() {
+    let c = core("fn main()->i32{return 7}");
+    let good = CoreProgram {
+        root: c.module_id,
+        source_fingerprint: c.source_fingerprint,
+        modules: vec![ProgramModule {
+            core: c,
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let prepared = zil_types::infer_program_for_ct(&good, &limits)
+        .unwrap()
+        .into_prepared();
+    let mut session = zil_types::FunctionSession::default();
+    session
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert!(!session.is_empty());
+    let mut bad = good.clone();
+    let span = bad.modules[0].core.functions[0].span;
+    bad.modules[0]
+        .core
+        .aggregate_templates
+        .push(CoreAggregateTemplate {
+            id: zil_base::NodeId(999),
+            name: "Unused".into(),
+            parameter: CoreTypeParameter {
+                index: 0,
+                name: "T".into(),
+                bound: CoreTypeBound::StoreElement,
+            },
+            fields: vec![CoreAggregateFieldRecipe {
+                name: "unbound".into(),
+                public: false,
+                manages: false,
+                ty: CoreAggregateTypeRecipe::Concrete(Type::Named("not_a_type".into())),
+                span,
+            }],
+            span,
+        });
+    let prepared = zil_types::infer_program_for_ct(&good, &limits)
+        .unwrap()
+        .after_evaluation(bad);
+    assert!(zil_types::check_prepared_program(&prepared, &target, &limits).is_err());
+    assert!(
+        session
+            .check_prepared_program(&prepared, &target, &limits)
+            .is_err()
+    );
+    assert_eq!(session.last_stats().reused_functions, 0);
+}
