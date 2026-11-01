@@ -1,0 +1,60 @@
+{
+  "status": "SupplementalReviewNoBlockingFindingsAtPinnedInputs",
+  "blocking_findings": [],
+  "reviewed_commit": "ca1520d1b4ac827d81ea8c43e85bff6ab07486ab",
+  "reviewed_tree": "/workspace/zil-239",
+  "scope": "239 IR/Wire/CT only; no review of own241, no final common-candidate approval",
+  "production_changed": false,
+  "reviewed_source_sha256": {
+    "crates/zil-ir/src/lib.rs": "4cc9c76ce88ff334a1648fedba7113523c70ef4e2a4bdcfcafc2807b01f751b7",
+    "crates/zil-ir/src/wire.rs": "f7f71da70ee56492bd7096337d3f26a5a5adc53c736ad19166a43784452b460f",
+    "crates/zil-ir/src/wire/owned_sum_tests.rs": "96b5e4da5721fe4cd476d27698a18a6b920039ccb6bb3800c2254e2c8aceadb0",
+    "crates/zil-ct/src/program.rs": "563508687a2114f95007743700ac6670d5b1773721710a8906d091a3c1989bd1",
+    "crates/zil-ct/tests/impl239_runtime_enum_ops.rs": "f0a0f7b51a25690bdbf627fb4945312d3bc3a9007a6bfa5124b36e2c7bb80d50",
+    "crates/zil-verify/src/lib.rs": "16b0ccd04fb5e77255af57aaa8bec7a7b544e2e0d1fb665c84c6846bca38e1c8",
+    "crates/zil-verify/src/ct_program.rs": "0fe123f19a0c1d458a44957d731e87f0284d068cda6547b2761b2bc2f2d7d1eb",
+    "crates/zil-driver/src/ct_selection/materialize.rs": "8a51b93ccfcf9328937d280375dc5ce4b88795c395928d7d4b52eaa6efcede06",
+    "crates/zil-driver/src/ct_selection/hygiene_types.rs": "be819839616c27bf776f8a0607556ea941ed38a3fc21e91680f1384129feb8e0",
+    "evidence/impl/239/AUTHOR-REPORT.json": "ad8e930d17931d6f16a68f1a319e35e17e0c7cec8a67033060727eabba46d8f3"
+  },
+  "author_final_source_hashes_match": true,
+  "probe": {
+    "path": "/tmp/review239-protocol/src/main.rs",
+    "sha256": "b3c2916994ea9eedda4548380d53e49e27dbf7f58590507ead4454cb0eed6c2d",
+    "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-review239-protocol CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 cargo run --manifest-path /tmp/review239-protocol/Cargo.toml",
+    "output": "run01.log",
+    "result": "Pass",
+    "cumulative_codec_N": 17,
+    "unknown_opcodes_rejected": 161,
+    "versions_rejected": [
+      27,
+      28,
+      29
+    ],
+    "independent_operand_mutations": 9,
+    "transport_semantic_Verify": "NotRun; intentionally raw unverified transport fixture"
+  },
+  "ct_execution_this_review": "NotRun; audited frozen existing positive-control tests and receipts",
+  "full_workspace": "NotRun",
+  "native": "NotRun",
+  "final_common_sha": "PendingRootFreeze",
+  "created_at": "2026-11-01T22:15:12.473999+00:00",
+  "reviewer": "/root/impl_defer227",
+  "implementation_author_239": "/root/ir_defer227",
+  "independence_scope": "Reviewer did not author239; reviewer authored241 and this supplement does not review241. This is not an all239 final approval or244 overall review.",
+  "joint_candidate_commit": "7bdb0cfbf7f3435d72e5a1c038b7618e533eb06b",
+  "joint_binding": {
+    "239_owned_source_and_protocol_files_byte_identical": 25,
+    "readonly_cap_sections_byte_identical": 4,
+    "manifest": "common-7bdb-consistency.json",
+    "method": "git object bytes at both commits; no source mutation or test rerun inferred"
+  },
+  "final_common_freeze_binding": "PendingRootFinalFreeze; only a later read-only consistency supplement may bind final freeze",
+  "archive": {
+    "path": "raw-protocol-probe.tar.gz",
+    "sha256": "748392a705cf53c5029f4d9bdce4bec1a67e951ecc498602563d80c112b82880",
+    "bytes": 9103
+  },
+  "archive_note": "Compact original source/probe/wire/stdout plus frozen legacy byte checks; author CT evidence read, no duplicate full suite or new CT/native execution.",
+  "recorded_at": "2026-11-01T22:23:04.250388+00:00"
+}
