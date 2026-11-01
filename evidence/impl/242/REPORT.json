@@ -1,0 +1,374 @@
+{
+  "task": "242",
+  "status": "AuthorLimitedChecksPassed_PendingIndependentReviewAndRootIntegration",
+  "source_commit": "ecd5a44bdb83c866bb6b1f5c12f8a8e9a2aa3ff1",
+  "delivery_with_normative_only_merge": null,
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "latest_normative_commit": "e3b8f374e2a96b9ca6b3b6e0de36ee6397235d5e",
+  "binding": "Final implementation is ecd5a44bd, including the root normative e3b merge. Final library/clippy/source checks ran against these exact source blobs immediately before this code commit. Earlier logs and the rejected 534 freshness behavior retain their original identities. Evidence is committed separately without changing implementation blobs.",
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "environment": ". /workspace/.zil-env/env.sh",
+    "target": "/workspace/.zil-env/target-242",
+    "jobs": 1,
+    "incremental": false
+  },
+  "checks": [
+    {
+      "command": "cargo test -p zil-verify --lib -- --nocapture",
+      "log": "/tmp/242-verify-lib-fifth.log",
+      "passed": 291,
+      "failed": 0,
+      "filtered": 0,
+      "scope": "single crate; includes 14 Sum tests, not 291 plus 14"
+    },
+    {
+      "command": "cargo clippy -p zil-verify --all-targets -- -D warnings",
+      "log": "/tmp/242-clippy-fifth.log",
+      "passed": true
+    },
+    {
+      "command": "cargo test --manifest-path /tmp/242-source-harness/Cargo.toml --offline -- --nocapture",
+      "log": "/tmp/242-source-seventh.log",
+      "passed": 5,
+      "failed": 0,
+      "scope": "4 committed source tests plus one separate project244 default-budget probe; no Analyze; later budget test not present in this run"
+    },
+    {
+      "command": "cargo test --manifest-path /tmp/242-source-harness/Cargo.toml --offline project244_budget_boundary -- --nocapture",
+      "log": "/tmp/242-project244-budget.log",
+      "passed": 1,
+      "failed": 0,
+      "filtered": 5,
+      "scope": "separate original 5-module default-input raw Verify N/N-1/fresh test; do not relabel the preceding 5-test run as 6"
+    }
+  ],
+  "source_cases": {
+    "committed_driver_tests": 4,
+    "positive_single_module_sources": 6,
+    "rejected_ordinary_call_create_sources": 2,
+    "original_q03_q05_unchanged": true,
+    "project244_separate": {
+      "modules": 5,
+      "functions": 21,
+      "default_verify_success_ms_observation": 126,
+      "not_a_benchmark": true,
+      "entry": "verify_module raw; Wire is only an input transport for the separate budget boundary"
+    },
+    "input_sha256": {
+      "/workspace/zil-242/crates/zil-driver/tests/impl240_fixtures/original03.zil": "711e96d70a4225254168ec1134d678baeb5f934a5fb75dbe0fe7d98adeaa434c",
+      "/workspace/zil-242/crates/zil-driver/tests/impl240_fixtures/original05.zil": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+      "/workspace/zil-242/crates/zil-driver/tests/impl240_fixtures/nested.zil": "b5a5b3b9ad119caaab87dd0ce68884d20c8604232508de939fbe35cba64e3d7f",
+      "/workspace/zil-242/crates/zil-driver/tests/impl240_fixtures/product.zil": "a6e80ca133e81f604b9cf18fe2096b5644f930dd89d5f7100b701ee52ca514a6",
+      "/workspace/zil-242/crates/zil-driver/tests/impl240_fixtures/copy_scratch.zil": "022cf908432bd584278730de9c0850d1a853620115d91d2a2cee90553bc55563",
+      "/workspace/zil-244/tests/impl244/project/main.zil": "7dfd2262f9a69936ffb95ae1f2058bd5f077659c4231238658c2fb9db3f0f018",
+      "/workspace/zil-244/tests/impl244/project/portable.zil": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+      "/workspace/zil-244/tests/impl244/project/model.zil": "314afdcd4066b37a24c10043eda04449f031a2668f1cd12a6395cdf5ef23bd4b",
+      "/workspace/zil-244/tests/impl244/project/storage.zil": "6dfcadb8bc885fbefb87179db748ddb4645036abfda677e27dd3a8b4a72c37e3",
+      "/workspace/zil-244/tests/impl244/project/state.zil": "895d1fa3126aee1bd56daa993efb192707a4415b5df3be99fa8b8ce458b4feec"
+    },
+    "single_module_sources_raw_and_wire_each": true
+  },
+  "budget": {
+    "new_right_nested_verify_N": 13709,
+    "N_minus_one": "ResourceLimit",
+    "fresh_N": "Pass",
+    "old_defer_verify_N": 3324,
+    "old_owning221_N": 2919,
+    "default_unchanged": true,
+    "actual_reduction": "immutable compiler Content Arc sharing, COW only when mutated, pointer-equal joins skipped, bottom uninitialized/SSA alternatives, callee-first dependent summary work queue, paid per-function extension marker; no unit prices lowered",
+    "project244_verify_N": 4848450,
+    "project244_N_minus_one": "ResourceLimit",
+    "project244_fresh_N": "Pass",
+    "unpaid_legacy_work_avoided": "All new deep owned-Enum classifiers are short-circuited by paid presence=false; the presence walk uses visit context bits, not a free pre-scan of unbounded raw Package fields."
+  },
+  "independence": "No Analyze/Types proof helper or annotations are used by Verify. Raw/Wire candidates are directly verified. Source tests use public Parse/Expand/Types then a test-only initialization/coarse-Hold candidate; they do not call Analyze.",
+  "sealed_context": "VerifiedModule privately retains current-request Limits and computed extension presence. Owned/shared-module/shared-program/bytes/Clone probes passed; replaying the same bytes under changed current limits yields the new snapshot. Driver RawSnapshot retains no VerifiedModule and cache route calls current verify_shared_program_module/options.limits (read-only code inspection).",
+  "preserved_findings": [
+    {
+      "kind": "contract false acceptance",
+      "at": "534bac8c8",
+      "detail": "ordinary Value relay retained leaf Created and passed result(create), contrary to existing 8.1.1; found by root contract audit",
+      "original_logs": [
+        "/tmp/242-raw-first.log",
+        "/tmp/242-raw-second.log",
+        "/tmp/242-raw-sixth.log"
+      ],
+      "original_test": "original-accepted-call-freshness-test.rs.gz",
+      "resolution": "ReturnedFresh/ReturnedInput retain roots/routes but never fresh authority; identity and nonidentity factory raw/Wire/source reject; direct no-call create remains positive"
+    },
+    {
+      "kind": "budget rejection",
+      "log": "/tmp/242-project244-second.log",
+      "detail": "original 5-module consumer directly hit default 10m Verify budget, 595ms observation",
+      "resolution_log": "/tmp/242-project244-third.log",
+      "resolution": "same source/default quota succeeds after less actual repeated copying/traversal; timing observations are not performance benchmark"
+    },
+    {
+      "kind": "source frontend cleanup order",
+      "logs": [
+        "/tmp/242-source-first.log",
+        "/tmp/242-source-second.log"
+      ],
+      "detail": "nested raw source rejected DropPackage(temp3) live empty shell after final a/c/d bindings; preserved actual TypedIR. Fixed only by Types owner b77e8fb, not kernel order exemption.",
+      "resolution_log": "/tmp/242-source-fourth.log"
+    },
+    {
+      "kind": "test candidate omission",
+      "log": "/tmp/242-source-first.log",
+      "detail": "original03 empty Hold claims mismatched tracked byte/store descriptors; test-only coarse claims supplied, no authority from Analyze",
+      "resolution_log": "/tmp/242-source-third.log"
+    },
+    {
+      "kind": "old boundary expectation migration",
+      "log": "/tmp/242-verify-lib-first.log",
+      "passed": 286,
+      "failed": 2,
+      "detail": "old Enum<Package>/Product<owned ErrorUnion> raw relabel attacks now reach unchanged precise stored-value type mismatch, rather than obsolete shape rejection; retain attacks and update expectation",
+      "resolution_log": "/tmp/242-verify-lib-second.log",
+      "resolution_passed": 288
+    },
+    {
+      "kind": "development compile/lint errors",
+      "detail": "test Budget literal migrations, ResultCategory spelling, fixture mutable receiver borrow, Sum helper Clippy warnings retained in sequential logs; not claimed successful runs"
+    },
+    {
+      "kind": "self-audited unpaid classification work",
+      "at": "b55af00e0",
+      "detail": "new is_copy_value classifiers could scan old Copy enums despite unchanged fee; presence gating added in 878. Then removed preflight has_children scan before raw Package fields were bounded, using the existing paid node context in ecd.",
+      "resolution_logs": [
+        "/tmp/242-verify-lib-fifth.log",
+        "/tmp/242-clippy-fifth.log",
+        "/tmp/242-source-seventh.log"
+      ]
+    }
+  ],
+  "logs": [
+    {
+      "original": "/tmp/242-check-connected.log",
+      "artifact": "evidence/impl/242/logs/242-check-connected.log.gz",
+      "sha256": "a9b1e73c8fa40808283823644ca0cd89d0ce830da41ca3c427e50987f3ee50a1",
+      "bytes": 465
+    },
+    {
+      "original": "/tmp/242-check-first.log",
+      "artifact": "evidence/impl/242/logs/242-check-first.log.gz",
+      "sha256": "5f533189692ef4477922d976189639e1a8a1cb8d6bb1dabfe876f6f6ace3dd84",
+      "bytes": 5057
+    },
+    {
+      "original": "/tmp/242-clippy-fifth.log",
+      "artifact": "evidence/impl/242/logs/242-clippy-fifth.log.gz",
+      "sha256": "2dfbe4973ad92b11d72cc048376bb95b34b692ce3619c62440f9b3c156944f21",
+      "bytes": 130
+    },
+    {
+      "original": "/tmp/242-clippy-first.log",
+      "artifact": "evidence/impl/242/logs/242-clippy-first.log.gz",
+      "sha256": "5e2dfc6c9d3752c7970d4bfef1eb82e503227722472131692c344bcc9d554fb2",
+      "bytes": 1368
+    },
+    {
+      "original": "/tmp/242-clippy-fourth.log",
+      "artifact": "evidence/impl/242/logs/242-clippy-fourth.log.gz",
+      "sha256": "0313c5098432d8fc5218d87c23106553064356913a016fa5d0bcb0920f050bdf",
+      "bytes": 130
+    },
+    {
+      "original": "/tmp/242-clippy-second.log",
+      "artifact": "evidence/impl/242/logs/242-clippy-second.log.gz",
+      "sha256": "71f201ba851ff9c3baa8faedc1cb4eb7271a6498f245a4edc93c551c265ce201",
+      "bytes": 1720
+    },
+    {
+      "original": "/tmp/242-clippy-third.log",
+      "artifact": "evidence/impl/242/logs/242-clippy-third.log.gz",
+      "sha256": "2ef9a3133c273f8362a645aa2a66911a5cd55959fb583a7dc3c521d70c124122",
+      "bytes": 130
+    },
+    {
+      "original": "/tmp/242-opt-check-first.log",
+      "artifact": "evidence/impl/242/logs/242-opt-check-first.log.gz",
+      "sha256": "ac482e32625593a0760f7e4f5db4d0a61704e2558436f3a951348d5c255b131f",
+      "bytes": 822
+    },
+    {
+      "original": "/tmp/242-project244-budget.log",
+      "artifact": "evidence/impl/242/logs/242-project244-budget.log.gz",
+      "sha256": "b8234b3dcab4ee23730e66d0e82bbeb029e04f5700deb25313d947ea361670b5",
+      "bytes": 475
+    },
+    {
+      "original": "/tmp/242-project244-first.log",
+      "artifact": "evidence/impl/242/logs/242-project244-first.log.gz",
+      "sha256": "baf87624e7c74b1860441c4dde917b673dce6cebd89981bb1c674bde1fb505d4",
+      "bytes": 535
+    },
+    {
+      "original": "/tmp/242-project244-second.log",
+      "artifact": "evidence/impl/242/logs/242-project244-second.log.gz",
+      "sha256": "c23639ee683a244ea65796caee170e4273b40979a5411aa47c8af042b5357ec9",
+      "bytes": 1094
+    },
+    {
+      "original": "/tmp/242-project244-third.log",
+      "artifact": "evidence/impl/242/logs/242-project244-third.log.gz",
+      "sha256": "4ee22121af764f9100e758fe5718c59c59e482846a0c782d82a3607afc83d202",
+      "bytes": 513
+    },
+    {
+      "original": "/tmp/242-raw-eighth.log",
+      "artifact": "evidence/impl/242/logs/242-raw-eighth.log.gz",
+      "sha256": "f0761a7fbfea6e214cdf12a622ce6be908cb40ee87b01311c26fe976659b1523",
+      "bytes": 1765
+    },
+    {
+      "original": "/tmp/242-raw-fifth.log",
+      "artifact": "evidence/impl/242/logs/242-raw-fifth.log.gz",
+      "sha256": "9ff382b2427016d93730bec41243b4fbed6dc2ea296cbe91adc76cfd80b802cc",
+      "bytes": 1475
+    },
+    {
+      "original": "/tmp/242-raw-first.log",
+      "artifact": "evidence/impl/242/logs/242-raw-first.log.gz",
+      "sha256": "39da95c9295ba86e78e11cf8449efcebe36ba80484e3a1c79526a366262df31c",
+      "bytes": 1867
+    },
+    {
+      "original": "/tmp/242-raw-fourth.log",
+      "artifact": "evidence/impl/242/logs/242-raw-fourth.log.gz",
+      "sha256": "b899de59d3cdf84c3850b2f8b38725e5c628a015de42d97a4b048b8751e55670",
+      "bytes": 763
+    },
+    {
+      "original": "/tmp/242-raw-ninth.log",
+      "artifact": "evidence/impl/242/logs/242-raw-ninth.log.gz",
+      "sha256": "70d26b95ae4d623eb5df37a60ee8950ffe5c9236e428154384c5cf8a114435f4",
+      "bytes": 1791
+    },
+    {
+      "original": "/tmp/242-raw-second.log",
+      "artifact": "evidence/impl/242/logs/242-raw-second.log.gz",
+      "sha256": "40b627f57a98140b34fcb6eb8e780170578c8409fdb1a2766112765258eab02e",
+      "bytes": 1136
+    },
+    {
+      "original": "/tmp/242-raw-seventh.log",
+      "artifact": "evidence/impl/242/logs/242-raw-seventh.log.gz",
+      "sha256": "9e46d70e15e68f1b785edd3946ed2b9a4986c1f957f194976ac02d3faf14e413",
+      "bytes": 4213
+    },
+    {
+      "original": "/tmp/242-raw-sixth.log",
+      "artifact": "evidence/impl/242/logs/242-raw-sixth.log.gz",
+      "sha256": "6617842822e2ec7250378a94aa040d6c9faa55da1f4cde81b296beb2d886977c",
+      "bytes": 1537
+    },
+    {
+      "original": "/tmp/242-raw-third.log",
+      "artifact": "evidence/impl/242/logs/242-raw-third.log.gz",
+      "sha256": "5610a78dce0611ed71c2b608bbe4b08ef96a219d0663efb66aa0a09747224c29",
+      "bytes": 757
+    },
+    {
+      "original": "/tmp/242-source-fifth.log",
+      "artifact": "evidence/impl/242/logs/242-source-fifth.log.gz",
+      "sha256": "60a12c735c298dc28ba652c06133f6bcef2dc6b3ed4bf6e57bcb450f1d011e84",
+      "bytes": 2559
+    },
+    {
+      "original": "/tmp/242-source-first.log",
+      "artifact": "evidence/impl/242/logs/242-source-first.log.gz",
+      "sha256": "98fc4d2d6aabdc512ee921c12f5b68f75cbdcecd57c07d8eee2e63693b211ef2",
+      "bytes": 2969
+    },
+    {
+      "original": "/tmp/242-source-fourth.log",
+      "artifact": "evidence/impl/242/logs/242-source-fourth.log.gz",
+      "sha256": "dde9fd96e17960497ffadf687ca33bc16730b81edab9f3c0410d0991856322c3",
+      "bytes": 2120
+    },
+    {
+      "original": "/tmp/242-source-second.log",
+      "artifact": "evidence/impl/242/logs/242-source-second.log.gz",
+      "sha256": "29a8fa35ec508cf82cfe383876a751e5902d8c01aede0785fad39720af0b3566",
+      "bytes": 1265
+    },
+    {
+      "original": "/tmp/242-source-seventh.log",
+      "artifact": "evidence/impl/242/logs/242-source-seventh.log.gz",
+      "sha256": "1e2d8a4b01cc255d474bb5f07cd7ffe186e0280baa675e968bd93b5df178cde9",
+      "bytes": 2559
+    },
+    {
+      "original": "/tmp/242-source-sixth.log",
+      "artifact": "evidence/impl/242/logs/242-source-sixth.log.gz",
+      "sha256": "5baee7c23e8d327ec2359a0bf29afa2db57751a27e83e09f3f4b4080fb29598c",
+      "bytes": 2559
+    },
+    {
+      "original": "/tmp/242-source-third.log",
+      "artifact": "evidence/impl/242/logs/242-source-third.log.gz",
+      "sha256": "7c281adcf4a1f5c8630b901c9a399a14c96510b7c8249e449f1b5832730e3c0c",
+      "bytes": 619
+    },
+    {
+      "original": "/tmp/242-tests-build-first.log",
+      "artifact": "evidence/impl/242/logs/242-tests-build-first.log.gz",
+      "sha256": "6e721964e665fd7db6c4bcb0f861bde93709d02de151e00eab0f28435a4fc445",
+      "bytes": 1647
+    },
+    {
+      "original": "/tmp/242-verify-lib-fifth.log",
+      "artifact": "evidence/impl/242/logs/242-verify-lib-fifth.log.gz",
+      "sha256": "f0f6f05ee348486c7c16d71a34d727be83e4dca3b3a834e1c04827a3439e6a16",
+      "bytes": 27474
+    },
+    {
+      "original": "/tmp/242-verify-lib-first.log",
+      "artifact": "evidence/impl/242/logs/242-verify-lib-first.log.gz",
+      "sha256": "860feb6ee773fe2b5eeabab96645174fa5e64fc46c037013330c97a1087608fa",
+      "bytes": 27812
+    },
+    {
+      "original": "/tmp/242-verify-lib-fourth.log",
+      "artifact": "evidence/impl/242/logs/242-verify-lib-fourth.log.gz",
+      "sha256": "996c10a96213a7fe611bf6b44194bce9d8035748b4a8cb50c948392df863a153",
+      "bytes": 27474
+    },
+    {
+      "original": "/tmp/242-verify-lib-second.log",
+      "artifact": "evidence/impl/242/logs/242-verify-lib-second.log.gz",
+      "sha256": "d1c638364fcc999e9f85b0658a8231e642fcffb058b46b3e53592067184a4f5b",
+      "bytes": 26598
+    },
+    {
+      "original": "/tmp/242-verify-lib-third.log",
+      "artifact": "evidence/impl/242/logs/242-verify-lib-third.log.gz",
+      "sha256": "d5655e79b3869e0e604d60a4546cef513a2df8189c2b5ed87b24cfa34a381142",
+      "bytes": 27474
+    }
+  ],
+  "not_run_or_claimed": [
+    "formal workspace/full product gate",
+    "native codegen/runtime/allocation tests by 242",
+    "non-author safety review",
+    "Rust runtime/RSS/compiler-speed comparison",
+    "broader borrowed/capture/StoreElement/array/generic-owning-enum admission"
+  ],
+  "rust_goals": {
+    "safety": "finite ordinary Sum source/tag/debt boundaries have independent raw/Wire and source evidence; no whole-language safety claim",
+    "runtime_memory": "compiler metadata sharing only; no language runtime RC/Box/locks added by this crate; runtime cost parity not measured",
+    "expression_maintenance": "ordinary multiple-owned variants, nested pattern, Product and error wrapper paths represented by actual public IR; full framework maintenance advantage not measured",
+    "compile_cost": "exact new budget boundary and original default 244 input rejection/resolution preserved; old controls unchanged; no Rust benchmark",
+    "net_breakthrough": "finite compiler language capability added; product-level four-goal conjunction remains unestablished"
+  },
+  "previous_implementation_checkpoints": [
+    "cab390de2",
+    "534bac8c8",
+    "b55af00e0",
+    "878b6aeab"
+  ]
+}
