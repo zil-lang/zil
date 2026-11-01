@@ -197,3 +197,7 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 
 四片有限能力经三位非作者绑定P2 `75d08022213a5da96e1968d7fe7d1d1e341b5907` 审查，PR14合入实际M `9e7072b1ebdc6900c7370863c27c7432953bd830`。PR/main runs 41184530698/41186163758 各25步骤通过，默认2976/0/0、reference2933/0/0，零过滤；原首轮Fail与恢复边界完整保留。source/schema/Wire27、默认预算及产品门不改。见docs/LANGUAGE-CONSTRUCTION10.md和新final-summary。下一优先默认只读Product捕获及227注册/必须执行合同；完整1.4/ZUI、B0/181、四目标产品和原生Windows状态保持，未合编译研究支线保留。
 
+
+## 2026-11-02 语言主线组合缺口
+
+用户优先完整语言及ZUI前置，编译优化研究不占主线必要时段。227同步defer、235普通嵌套Store Product已有可恢复候选，236真实消费者暴露whole-Product再赋值缺口，独审暴露泛型Product完整身份缺口，由238与237分别承接；保留原失败，不改oracle规避。主线以实际组合运行、错误退出、替换和清理闭环验收，形式工单及完整1.4/ZUI/产品门不随候选推送晋升。
