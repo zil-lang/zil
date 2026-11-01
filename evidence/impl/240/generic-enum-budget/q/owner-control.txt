@@ -1,0 +1,363 @@
+Ok(
+    CoreModule {
+        schema_version: 29,
+        module_id: ModuleId(
+            0,
+        ),
+        source_fingerprint: Fingerprint(
+            [
+                89,
+                136,
+                28,
+                29,
+                178,
+                141,
+                253,
+                207,
+                16,
+                211,
+                150,
+                231,
+                99,
+                99,
+                3,
+                92,
+                19,
+                18,
+                89,
+                220,
+                12,
+                212,
+                244,
+                35,
+                103,
+                142,
+                158,
+                82,
+                185,
+                192,
+                81,
+                190,
+            ],
+        ),
+        functions: [
+            CoreFunction {
+                type_parameters: [],
+                state_parameters: [],
+                callable_return: None,
+                id: NodeId(
+                    2,
+                ),
+                name: "main",
+                callable_parameters: [],
+                foreign: None,
+                parameters: [],
+                return_type: Unit,
+                result_mode: Infer,
+                body: CoreBlock {
+                    statements: [
+                        CoreStatement {
+                            id: NodeId(
+                                13,
+                            ),
+                            kind: Binding {
+                                name: "e",
+                                mutable: false,
+                                ty: None,
+                                initializer: Some(
+                                    CoreExpr {
+                                        id: NodeId(
+                                            12,
+                                        ),
+                                        kind: Call {
+                                            callee: CoreExpr {
+                                                id: NodeId(
+                                                    4,
+                                                ),
+                                                kind: Member {
+                                                    object: CoreExpr {
+                                                        id: NodeId(
+                                                            3,
+                                                        ),
+                                                        kind: Name(
+                                                            "$generic_E_0",
+                                                        ),
+                                                        span: Span {
+                                                            file: FileId(
+                                                                0,
+                                                            ),
+                                                            start: 70,
+                                                            end: 86,
+                                                        },
+                                                    },
+                                                    member: "V",
+                                                },
+                                                span: Span {
+                                                    file: FileId(
+                                                        0,
+                                                    ),
+                                                    start: 70,
+                                                    end: 73,
+                                                },
+                                            },
+                                            arguments: [
+                                                CoreExpr {
+                                                    id: NodeId(
+                                                        11,
+                                                    ),
+                                                    kind: Sequence {
+                                                        bindings: [
+                                                            (
+                                                                "$record_field_1",
+                                                                CoreExpr {
+                                                                    id: NodeId(
+                                                                        8,
+                                                                    ),
+                                                                    kind: Sequence {
+                                                                        bindings: [
+                                                                            (
+                                                                                "$record_field_0",
+                                                                                CoreExpr {
+                                                                                    id: NodeId(
+                                                                                        5,
+                                                                                    ),
+                                                                                    kind: Integer(
+                                                                                        "1",
+                                                                                    ),
+                                                                                    span: Span {
+                                                                                        file: FileId(
+                                                                                            0,
+                                                                                        ),
+                                                                                        start: 82,
+                                                                                        end: 83,
+                                                                                    },
+                                                                                },
+                                                                            ),
+                                                                        ],
+                                                                        value: CoreExpr {
+                                                                            id: NodeId(
+                                                                                7,
+                                                                            ),
+                                                                            kind: Record {
+                                                                                ty: Named(
+                                                                                    "R",
+                                                                                ),
+                                                                                fields: [
+                                                                                    (
+                                                                                        "n",
+                                                                                        CoreExpr {
+                                                                                            id: NodeId(
+                                                                                                6,
+                                                                                            ),
+                                                                                            kind: Name(
+                                                                                                "$record_field_0",
+                                                                                            ),
+                                                                                            span: Span {
+                                                                                                file: FileId(
+                                                                                                    0,
+                                                                                                ),
+                                                                                                start: 80,
+                                                                                                end: 83,
+                                                                                            },
+                                                                                        },
+                                                                                    ),
+                                                                                ],
+                                                                            },
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 78,
+                                                                                end: 84,
+                                                                            },
+                                                                        },
+                                                                    },
+                                                                    span: Span {
+                                                                        file: FileId(
+                                                                            0,
+                                                                        ),
+                                                                        start: 78,
+                                                                        end: 84,
+                                                                    },
+                                                                },
+                                                            ),
+                                                        ],
+                                                        value: CoreExpr {
+                                                            id: NodeId(
+                                                                10,
+                                                            ),
+                                                            kind: Record {
+                                                                ty: Named(
+                                                                    "P",
+                                                                ),
+                                                                fields: [
+                                                                    (
+                                                                        "r",
+                                                                        CoreExpr {
+                                                                            id: NodeId(
+                                                                                9,
+                                                                            ),
+                                                                            kind: Name(
+                                                                                "$record_field_1",
+                                                                            ),
+                                                                            span: Span {
+                                                                                file: FileId(
+                                                                                    0,
+                                                                                ),
+                                                                                start: 76,
+                                                                                end: 84,
+                                                                            },
+                                                                        },
+                                                                    ),
+                                                                ],
+                                                            },
+                                                            span: Span {
+                                                                file: FileId(
+                                                                    0,
+                                                                ),
+                                                                start: 74,
+                                                                end: 85,
+                                                            },
+                                                        },
+                                                    },
+                                                    span: Span {
+                                                        file: FileId(
+                                                            0,
+                                                        ),
+                                                        start: 74,
+                                                        end: 85,
+                                                    },
+                                                },
+                                            ],
+                                        },
+                                        span: Span {
+                                            file: FileId(
+                                                0,
+                                            ),
+                                            start: 70,
+                                            end: 86,
+                                        },
+                                    },
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 64,
+                                end: 86,
+                            },
+                        },
+                    ],
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 63,
+                        end: 87,
+                    },
+                },
+                receiver: None,
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 54,
+                    end: 87,
+                },
+            },
+        ],
+        aggregates: [
+            CoreAggregate {
+                id: NodeId(
+                    0,
+                ),
+                name: "R",
+                kind: Resource,
+                teardown: None,
+                fields: [
+                    CoreField {
+                        name: "n",
+                        ty: I32,
+                        public: false,
+                        manages: false,
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 11,
+                            end: 16,
+                        },
+                    },
+                ],
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 0,
+                    end: 17,
+                },
+            },
+            CoreAggregate {
+                id: NodeId(
+                    1,
+                ),
+                name: "P",
+                kind: Package,
+                teardown: None,
+                fields: [
+                    CoreField {
+                        name: "r",
+                        ty: Named(
+                            "R",
+                        ),
+                        public: false,
+                        manages: true,
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 27,
+                            end: 38,
+                        },
+                    },
+                ],
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 17,
+                    end: 39,
+                },
+            },
+        ],
+        aggregate_templates: [],
+        aggregate_applications: [],
+        enums: [
+            CoreEnum {
+                id: NodeId(
+                    14,
+                ),
+                name: "$generic_E_0",
+                variants: [
+                    (
+                        "V",
+                        [
+                            Named(
+                                "P",
+                            ),
+                        ],
+                    ),
+                ],
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 39,
+                    end: 54,
+                },
+            },
+        ],
+        unsupported: [],
+    },
+)

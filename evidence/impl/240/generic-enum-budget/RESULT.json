@@ -1,0 +1,35 @@
+{
+  "status": "actual attributed budget migration, not free work",
+  "sample_sha256": "59de857cc514acb610c7ec129edae70706518c262eccba03e6a873855d0fb717",
+  "q_observed_commit": "541f21bbe8cff775cb7341aae3652759a0a65c8d",
+  "q_reference_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "q_equivalence": "git diff --exit-code for Cargo.toml/Cargo.lock and complete zil-base/ir/syntax/expand directories is empty; observed readonly tree status empty. Whole tree is not claimed equal to Q.",
+  "current_parent_commit": "b77e8fb5d35e230344b9d7a49905be1abb065942",
+  "current_pending_production_change": "parser enum tuple list restores original scoped(true) depth accounting; no Expand implementation change since b77e",
+  "q": {
+    "expand_work_n": 331,
+    "expand_nodes_n": 124
+  },
+  "current": {
+    "expand_work_n": 336,
+    "expand_nodes_n": 126
+  },
+  "delta": {
+    "work": 5,
+    "nodes": 2
+  },
+  "attribution": "Engine::instantiate checks each actual substituted generic enum field with copy::concrete_storage. For i32, ty() charges 1 node +3 bytes and copy classification charges 1 node: +2 nodes/+5 work. This keeps an existing Copy generic enum from gaining ordinary owning payload after generic erasure.",
+  "boundary_controls": "Each dimension measured in three cycles; N-1 ResourceLimit then fresh N Core equality; subsequent calls reuse same parsed AST at N and equal Core. Comparison is within each schema, not schema29==schema30.",
+  "owner_control": "Current Expand rejects actual Package field; Q Expand accepted it and historically Types global enum Copy gate owned the rejection. No claim Q whole pipeline accepted owners.",
+  "limits": "Default limits and product thresholds unchanged; scoped explicit budget exception, not all old Ns identical.",
+  "exact_followup": {
+    "producer_commit": "34a52e554c72d6b8bfe42a08fe57e0a046d1ff73",
+    "production_dirty": false,
+    "expand_work_n": 336,
+    "expand_nodes_n": 126,
+    "log": "current-exact/run.log",
+    "fixed_regression_tests": "fixed-test.log 2/0"
+  },
+  "final_spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "final_normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66"
+}
