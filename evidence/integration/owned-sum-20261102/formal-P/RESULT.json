@@ -1,0 +1,29 @@
+{
+  "status": "Fail",
+  "implementation_commit": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "runner": "root formal complete workspace --locked --no-fail-fast",
+  "passed": 3548,
+  "failed": 12,
+  "ignored": 0,
+  "measured": 0,
+  "filtered": 0,
+  "groups": 394,
+  "failed_test_names": [
+    "test whole_local_reassignment_is_explicitly_outside_first_owned_union_profile ... FAILED",
+    "test source_ownership_modes_and_existing_rejection_boundaries_stay_explicit ... FAILED",
+    "test raw_shape_claims_cannot_extend_resource_error_nesting_or_capture_profiles ... FAILED",
+    "test ordinary_product_admission_does_not_widen_other_raw_parent_contexts ... FAILED",
+    "test raw_unused_nested_metadata_does_not_gain_ordinary_or_legacy_authority ... FAILED",
+    "test source_25_sum_parent ... FAILED",
+    "test source_28_inner_owning_sum ... FAILED",
+    "test only_the_exact_unit_protocol_shells_gain_product_payloads ... FAILED",
+    "test new_owned_products_do_not_gain_other_shape_permissions ... FAILED",
+    "test exact_unit_protocols_cannot_admit_other_or_nested_owning_sums ... FAILED",
+    "test ordinary_composition_does_not_open_capture_or_containers ... FAILED",
+    "test finite_fn_helper_accepts_complete_enum_product_and_error_arguments ... FAILED"
+  ],
+  "fmt": "Pass",
+  "reference": "NotRunOnRejectedCandidate",
+  "classification": "Approved new Sum acceptance requires explicit old-boundary migration; ordinary helper full-chain and new raw shape permissions returned for production fixes. Exact per-case dispositions are not inferred from counts.",
+  "original_native_archive": "/workspace/.zil-env/formal-owned-sum-P.tar.zst (receipt pending complete verification)"
+}

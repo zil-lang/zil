@@ -1,0 +1,26 @@
+{
+  "phase": "fmt",
+  "commit": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "command": [
+    "cargo",
+    "fmt",
+    "--all",
+    "--",
+    "--check"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-sum-core",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "ZIL_CLANG": "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "ZIL_TEST_REPORT_DIR": "/workspace/.zil-env/formal-owned-sum/native/fmt"
+  },
+  "started_utc": "2026-11-01T22:27:37.177580+00:00",
+  "exit": 0,
+  "seconds": 4.825596132999635,
+  "ended_utc": "2026-11-01T22:27:42.003547+00:00"
+}
