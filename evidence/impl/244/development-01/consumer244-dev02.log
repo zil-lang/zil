@@ -1,0 +1,40 @@
+   Compiling zil-verify v0.1.0 (/workspace/zil-244/crates/zil-verify)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-244/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/zil-244/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/zil-244/crates/zil-ct)
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+error[E0432]: unresolved import `serde_json`
+ --> crates/zil-driver/tests/impl244_consumer.rs:2:5
+  |
+2 | use serde_json::Value;
+  |     ^^^^^^^^^^ use of unresolved module or unlinked crate `serde_json`
+  |
+  = help: if you wanted to use a crate named `serde_json`, use `cargo add serde_json` to add it to your `Cargo.toml`
+
+error[E0433]: cannot find module or crate `serde_json` in this scope
+  --> crates/zil-driver/tests/impl244_consumer.rs:40:5
+   |
+40 |     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
+   |     ^^^^^^^^^^ use of unresolved module or unlinked crate `serde_json`
+   |
+   = help: if you wanted to use a crate named `serde_json`, use `cargo add serde_json` to add it to your `Cargo.toml`
+
+error[E0433]: cannot find module or crate `serde_json` in this scope
+   --> crates/zil-driver/tests/impl244_consumer.rs:123:9
+    |
+123 |         serde_json::to_vec_pretty(expected).unwrap(),
+    |         ^^^^^^^^^^ use of unresolved module or unlinked crate `serde_json`
+    |
+    = help: if you wanted to use a crate named `serde_json`, use `cargo add serde_json` to add it to your `Cargo.toml`
+
+error[E0433]: cannot find module or crate `serde_json` in this scope
+   --> crates/zil-driver/tests/impl244_consumer.rs:139:29
+    |
+139 |         let actual: Value = serde_json::from_slice(&result.stderr).unwrap();
+    |                             ^^^^^^^^^^ use of unresolved module or unlinked crate `serde_json`
+    |
+    = help: if you wanted to use a crate named `serde_json`, use `cargo add serde_json` to add it to your `Cargo.toml`
+
+Some errors have detailed explanations: E0432, E0433.
+For more information about an error, try `rustc --explain E0432`.
+error: could not compile `zil-driver` (test "impl244_consumer") due to 4 previous errors

@@ -1,0 +1,12 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/review241_freshness.rs (/workspace/.zil-env/target-244/debug/deps/review241_freshness-3dd680795a02d4be)
+
+running 4 tests
+test value_identity_does_not_reexport_a_created_leaf ... ok
+test same_typed_inline_fields_keep_their_actual_freshness_separate ... ok
+test direct_pack_unpack_and_explicit_managed_create_remain_fresh ... ok
+test value_factories_and_nonidentity_repacking_do_not_export_freshness ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
