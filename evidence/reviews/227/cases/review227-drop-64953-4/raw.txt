@@ -1,0 +1,20 @@
+Err(
+    [
+        Diagnostic {
+            phase: Verify,
+            category: SafeReject,
+            code: "E-VERIFY-DEFER",
+            message: "dropping an environment does not invoke its registered cleanup body",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 9,
+                    end: 18,
+                },
+            ),
+            notes: [],
+        },
+    ],
+)
