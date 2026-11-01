@@ -6,6 +6,7 @@ use zil_base::{FileId, ModuleId};
 
 mod captures;
 mod fields;
+mod sums;
 
 fn span() -> Span {
     Span::new(FileId(0), 0, 1)
@@ -1297,7 +1298,10 @@ fn package_field_metadata_and_nominal_lookup_pay_for_repeated_admission() {
         });
     }
     for (m, exhausts) in [(&small, false), (&large, true)] {
-        let mut budget = Budget { remaining: 512 };
+        let mut budget = Budget {
+            remaining: 512,
+            ..Budget::new(&Limits::default())
+        };
         let result = packages::check_type_for(m, &package(), None, &mut budget);
         if exhausts {
             assert_eq!(
