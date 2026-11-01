@@ -281,3 +281,19 @@ fn replacement_types_budget_is_paid_before_field_growth() {
     )
     .unwrap();
 }
+
+#[test]
+fn self_call_reuses_ordinary_inferred_and_explicit_template_instantiation() {
+    let head = format!(
+        "{HEAD}package Owner{{manages marker:Mark;tag:i32}}fn relay<T:StoreElement>(owned:T)->T{{return owned}}"
+    );
+    for (label, call) in [
+        ("generic-inferred", "relay(current)"),
+        ("generic-explicit", "relay::<Owner>(current)"),
+    ] {
+        let source = format!(
+            "{head}fn main()->i32{{var current=Owner{{marker:Mark{{code:65}},tag:1}};defer{{emit(81)}}let late=Mark{{code:76}};current={call};if current.tag!=1{{return 8}}return 0}}"
+        );
+        native(label, &source, "LQA", 0);
+    }
+}
