@@ -390,6 +390,10 @@ pub(super) fn preflight(
         // Reuse the already paid structural visit to classify new ordinary
         // positions. No extra recursive eligibility scan runs on legacy types.
         let root = ty as *const Type as usize;
+        // The old Store protocol already admitted Unit!ordinary Product with
+        // no Store/Sum child; retain that exact profile and fee path.
+        let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
+            if **error == Type::Unit || **result == Type::Unit);
         let mut new_sum = false;
         let mut first = Some((
             ty,
@@ -432,9 +436,9 @@ pub(super) fn preflight(
                 Type::Managed(_) => {
                     let extension = context.in_enum
                         || context.product_sum
-                        || context.error_products >= 2
-                        || (context.error_products > 0
-                            && super::dynamic_store::is_owned_carrier(ty));
+                        || (context.error_products >= 2
+                            && (!legacy_product_union
+                                || super::dynamic_store::is_owned_carrier(ty)));
                     if extension
                         && (context.blocked
                             || store_element.is_some()
@@ -995,6 +999,13 @@ pub(super) fn preflight(
                 Terminator::Return(None) | Terminator::Unreachable | Terminator::Trap => 0,
             };
             budget.input(operands, "terminator operand preflight")?;
+        }
+        if sum_function && function.foreign.is_some() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "ordinary owned Sum does not grant foreign ABI qualification",
+                Some(function.span),
+            )]);
         }
         if sum_function {
             if budget.sum_functions.is_empty() {

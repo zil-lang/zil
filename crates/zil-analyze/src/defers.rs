@@ -95,7 +95,9 @@ fn owned(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<
                     )
                 })
         }
-        Type::Enum { .. } | Type::ErrorUnion { .. } => resources::sums::owned(ty),
+        Type::Enum { .. } | Type::ErrorUnion { .. } => {
+            !budget.sum_functions.is_empty() && resources::sums::owned(ty)
+        }
         _ => false,
     })
 }
