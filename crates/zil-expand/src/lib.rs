@@ -469,6 +469,8 @@ fn expand_inner_project(
     }
     e.source_map.validate(sources, limits)?;
     let core = CoreModule {
+        aggregate_templates: Vec::new(),
+        aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: module.id,
         source_fingerprint: source.fingerprint(),

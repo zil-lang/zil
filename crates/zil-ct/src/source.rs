@@ -767,6 +767,8 @@ fn evaluate_with_context(
     };
     Ok((
         CoreModule {
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
             functions,
             schema_version: core.schema_version,
             module_id: core.module_id,
@@ -2367,6 +2369,8 @@ mod tests {
     fn module(value: CoreExpr, ty: Type) -> CoreModule {
         let span = value.span;
         CoreModule {
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
