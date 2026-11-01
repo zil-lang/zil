@@ -77,7 +77,7 @@ pub(super) fn project_definitions(
                 }
                 *remaining = remaining.checked_sub(1).ok_or_else(limit)?;
                 match ty {
-                    Type::Record { name, fields } => {
+                    Type::Record { name, fields } | Type::Package { name, fields } => {
                         *remaining = remaining
                             .checked_sub(name.len().saturating_add(fields.len()))
                             .ok_or_else(limit)?;
@@ -93,6 +93,16 @@ pub(super) fn project_definitions(
                                 .flat_map(|(_, fields)| fields)
                                 .map(|t| (t, depth + 1)),
                         );
+                    }
+                    Type::Managed(inner)
+                    | Type::Desc(inner)
+                    | Type::OwnedStore { element: inner } => {
+                        pending.push((inner, depth + 1));
+                    }
+                    ty @ Type::ErrorUnion { error, result } if errors::owned(ty) => {
+                        *remaining = remaining.checked_sub(2).ok_or_else(limit)?;
+                        pending.push((error, depth + 1));
+                        pending.push((result, depth + 1));
                     }
                     Type::Tuple(fields) => pending.extend(fields.iter().map(|t| (t, depth + 1))),
                     Type::Array { element, .. }
