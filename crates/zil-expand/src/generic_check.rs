@@ -886,14 +886,15 @@ impl Check<'_, '_, '_> {
         while let ExprKind::Group(inner) = &direct.kind {
             direct = inner;
         }
-        if (self.two_input_state_constructor()
-            || self
-                .callable
-                .as_ref()
-                .is_some_and(|bounds| bounds.owned_factory))
-            && let ExprKind::Name(name) = &direct.kind
+        if let ExprKind::Name(name) = &direct.kind
             && let Some(local) = state.locals.get(name)
             && self.concrete_helper_resource(&local.ty)
+            && (local.owned_resource
+                || self.two_input_state_constructor()
+                || self
+                    .callable
+                    .as_ref()
+                    .is_some_and(|bounds| bounds.owned_factory))
         {
             if !local.owned_resource {
                 return Err(error(
