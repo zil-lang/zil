@@ -114,12 +114,12 @@ pub(super) fn capture_views(
     Ok(views)
 }
 
-pub(super) fn owned_field(ty: &Type) -> bool {
+pub(super) fn owned_field(ty: &Type, sum_extension: bool) -> bool {
     matches!(
         ty,
         Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
     ) || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
-        || sums::owned(ty)
+        || (sum_extension && sums::owned(ty))
 }
 
 /// A shape classification only. Admission remains independently checked at
@@ -528,7 +528,7 @@ pub(super) fn check_instruction(
                 }
                 InstructionKind::TakePackageField { .. }
                 | InstructionKind::DropPackageField { .. } => {
-                    if !owned_field(ty) {
+                    if !owned_field(ty, budget.sums) {
                         return Err(bad(
                             "package field transfer or cleanup requires an owning field",
                         ));
@@ -554,7 +554,7 @@ pub(super) fn check_instruction(
                     Ok(None)
                 }
                 InstructionKind::ReadPackageField { .. } => {
-                    if owned_field(ty) {
+                    if owned_field(ty, budget.sums) {
                         return Err(bad("package Copy projection cannot copy an owning field"));
                     }
                     check_type(ty, span)?;

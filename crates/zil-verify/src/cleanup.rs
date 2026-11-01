@@ -46,7 +46,7 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
                 pending.extend(fields.iter().map(|(_, ty)| ty));
             }
             Type::Enum { variants, .. } => {
-                if sums::owned_enum(ty) {
+                if budget.sums && sums::owned_enum(ty) {
                     return Ok(true);
                 }
                 budget.spend(variants.len())?;
