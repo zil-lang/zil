@@ -65,6 +65,7 @@ pub(super) fn validate_parametric<'l>(
         bounds: traits.bounds(function, budget)?,
         traits,
         next_local: function.params.len(),
+        enum_resource_flow: false,
         package_slots: BTreeMap::new(),
         loops: Vec::new(),
         aliases: state_aliases::Tracker::default(),
@@ -418,6 +419,7 @@ struct Check<'s, 'b, 'l> {
     bounds: trait_bounds::Bounds,
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
+    enum_resource_flow: bool,
     package_slots: BTreeMap<(usize, String), usize>,
     loops: Vec<loop_control::LoopFrame>,
     aliases: state_aliases::Tracker,
@@ -648,6 +650,24 @@ impl Check<'_, '_, '_> {
             }
             _ => false,
         })
+    }
+    // Only a real give result carries this ownership through a new binding.
+    // A bare resource Name remains a description, irrespective of its type.
+    fn transferred_resource_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
+        self.tick(expression.span)?;
+        match &expression.kind {
+            ExprKind::Group(inner) => self.transferred_resource_expression(inner, state),
+            ExprKind::Unary {
+                op: UnaryOp::Give, ..
+            } => self.owned_resource_expression(expression, state),
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => Ok(self.transferred_resource_expression(then_value, state)?
+                && self.transferred_resource_expression(else_value, state)?),
+            _ => Ok(false),
+        }
     }
     fn tick(&mut self, span: Span) -> R<()> {
         // The borrowed preflight checked full AST depth before any cloning.
@@ -2889,12 +2909,18 @@ impl Check<'_, '_, '_> {
                     }
                     let owns_store = self.owning_store_expression(value, state);
                     let fresh_store = owns_store && self.fresh_store_expression(value, state)?;
-                    let owns_resource = (self.two_input_state_constructor()
+                    let owns_resource = if self.two_input_state_constructor()
                         || self
                             .callable
                             .as_ref()
-                            .is_some_and(|bounds| bounds.owned_factory))
-                        && self.owned_resource_expression(value, state)?;
+                            .is_some_and(|bounds| bounds.owned_factory)
+                    {
+                        self.owned_resource_expression(value, state)?
+                    } else if self.enum_resource_flow {
+                        self.transferred_resource_expression(value, state)?
+                    } else {
+                        false
+                    };
                     let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
                     self.traits.store_types(
