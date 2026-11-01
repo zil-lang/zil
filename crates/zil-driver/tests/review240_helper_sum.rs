@@ -32,8 +32,29 @@ fn finite_fn_helper_accepts_complete_enum_product_and_error_arguments() {
             "fn use_value<F:Fn()->i32>(callback:F,value:void!Wrap)->i32{return callback()}",
             "fallible()",
         ),
+        (
+            "enum-give-relay",
+            "fn use_value<F:Fn()->i32>(callback:F,value:E)->i32{let n=callback();match value{E.Empty()=>{return n}\nE.Pair(a,b)=>{let first=give a;let second=give b;sink(give first);sink(give second);return n}}}",
+            "make()",
+        ),
+        (
+            "enum-resource-named-F",
+            "fn use_value<F:Fn()->i32>(callback:F,value:E)->i32{let n=callback();match value{E.Empty()=>{return n}\nE.Pair(a,b)=>{sink(give a);sink(give b);return n}}}",
+            "make()",
+        ),
     ] {
         let text = format!("{MODEL}{helper}fn main()->i32{{return use_value(()=>7,{argument})-7}}");
+        let text = if label == "enum-resource-named-F" {
+            // The Enum field's concrete global resource F and helper binder F
+            // are distinct lexical identities despite their equal spelling.
+            text.replace("resource R", "resource F")
+                .replace("for R", "for F")
+                .replace("manages R", "manages F")
+                .replace("owner:R", "owner:F")
+                .replace("R{", "F{")
+        } else {
+            text
+        };
         for optimization in [Optimization::O0, Optimization::O2] {
             let out = directory(&format!("{label}-{optimization:?}"));
             fs::write(out.join("source.zil"), &text).unwrap();
