@@ -26,6 +26,7 @@ mod names;
 mod owning_factory;
 mod packages;
 mod preparation;
+mod product_replacement;
 mod program;
 pub use preparation::{
     InferredProgram, PreparedProgram, check_prepared_program, infer_program_for_ct,
@@ -1019,6 +1020,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                         target.span,
                         format!("{name} is not mutable"),
                     ));
+                }
+                if self.replace_product(l, &d.ty, value, s.span)? {
+                    return Ok(());
                 }
                 if errors::owned(&d.ty) {
                     return Err(unsupported(
