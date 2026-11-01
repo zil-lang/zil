@@ -13,9 +13,9 @@
     "examples/mainline/zui_core236/session.zil": "edb299e3e0407d6e961ca4f2dde316cf30026a8b5b91a4f1ab392b6796dcc198",
     "tools/language/173/allocator_probe.c": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60",
     "tools/language/236/ORACLE.json": "5d3928abeb65d677518a93c9649ac3641ba2d403c448be0a59b4dcbbb5e12c25",
-    "tools/language/236/controls.py": "8c09ca2c9c395eb70923349e77b8ab13d8787a30d16f6267e3685547ce16dffd",
+    "tools/language/236/controls.py": "17b428e0e471c1f059ed2b6d9a3dac345aa33d3a849cadad159ef5646d540262",
     "tools/language/236/oracle.py": "05fdf1a525fce504b797ed37acb3504c0c8b806ff7846dafa4606d34e24a4175",
-    "tools/language/236/run.py": "c265602f151a2a7c6c140f8b286a34f8541ef109f3d8ec6c90b17465900f94a0",
+    "tools/language/236/run.py": "b142083573102df2704ca0580bbef055d40a83cd6bae02683f563d0f4ad2f5b1",
     "tools/research/142/allocator_probe.c": "12bb4c97b5a456e1c6e3e47761b1c26be86c3ccfd15c3431ed113e56604965f5"
   }
 }

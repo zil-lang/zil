@@ -1,0 +1,23 @@
+   Compiling typenum v1.20.1
+   Compiling hybrid-array v0.4.15
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling digest v0.11.3
+   Compiling cpufeatures v0.3.1
+   Compiling cfg-if v1.0.5
+   Compiling sha2 v0.11.1
+   Compiling zil-base v0.1.0 (/workspace/zil-236/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/zil-236/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/zil-236/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/zil-236/crates/zil-llvm-api)
+   Compiling zil-syntax v0.1.0 (/workspace/zil-236/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-236/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/zil-236/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/zil-236/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/zil-236/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/zil-236/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-236/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/zil-236/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/zil-236/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 28.99s
+  Executable tests/impl236_zui_core.rs (/workspace/.zil-env/target-236/debug/deps/impl236_zui_core-1bb77d0930b99f49)

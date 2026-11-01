@@ -64,7 +64,10 @@ def main():
             if result.returncode or built["status"] != "Success" or built["verification_runs"] != 1 or not captured.is_file():
                 raise RuntimeError(f"leaf build failed: {built}")
             native = built["native_codegen"]
-            if native["backend"] != "llvm-api" or native["fallback"] is not None or native["actual_units"] != 1:
+            if (native["backend"] != "llvm-api" or native["fallback"] is not None or native["actual_units"] != 1
+                    or not native["object_reports"]
+                    or any(row.get("input_kind") != "builder" or not row.get("verify_before_after")
+                           for row in native["object_reports"])):
                 raise RuntimeError("leaf backend identity differs")
             ordinary = command([binary], directory / "ordinary")
             if ordinary.returncode or ordinary.stdout != b"A" or ordinary.stderr:
