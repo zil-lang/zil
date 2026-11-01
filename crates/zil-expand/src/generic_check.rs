@@ -360,8 +360,12 @@ pub(super) fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
         _ => false,
     }
 }
-fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>, nominals: &BTreeMap<String, &Item>) -> bool {
-    match &group(ty).kind {
+fn known_copy(
+    ty: &TypeRef,
+    vars: &BTreeSet<String>,
+    nominals: &BTreeMap<String, &Item>,
+) -> Option<bool> {
+    Some(match &group(ty).kind {
         // Source Store values are descriptions. The real carrier can only
         // leave an owning position through an explicitly checked give.
         TypeKind::Named { path, .. } if path.as_slice() == ["Store"] => true,
@@ -370,20 +374,38 @@ fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>, nominals: &BTreeMap<String,
         | TypeKind::ForeignFunction { .. } => true,
         TypeKind::Reference { mutable: true, .. } => false,
         // Opaque callable bounds expose an invocation interface, not Copy.
-        // In particular an unused template must not duplicate a FnOnce owner.
         TypeKind::Impl(_) => false,
-        TypeKind::Tuple(ts) => ts.iter().all(|t| known_copy(t, vars, nominals)),
-        TypeKind::Array { element, .. } => known_copy(element, vars, nominals),
+        TypeKind::Tuple(ts) => {
+            for t in ts {
+                if !known_copy(t, vars, nominals)? {
+                    return Some(false);
+                }
+            }
+            true
+        }
+        TypeKind::Array { element, .. } => known_copy(element, vars, nominals)?,
         TypeKind::Error { result, .. } if stores::element(result).is_some() => false,
         TypeKind::Error { error, result } => {
-            known_copy(error, vars, nominals) && known_copy(result, vars, nominals)
+            known_copy(error, vars, nominals)? && known_copy(result, vars, nominals)?
         }
-        TypeKind::Named { path, .. } if matches!(nominals.get(&path.join(".")), Some(Item { kind: ItemKind::Aggregate(a), .. }) if a.kind == AggregateKind::Package) => {
-            false
-        }
+        TypeKind::Named { path, .. } => match nominals.get(&path.join(".")) {
+            Some(Item {
+                kind: ItemKind::Aggregate(a),
+                ..
+            }) if a.kind == AggregateKind::Package => false,
+            // A concrete Enum can now own a complete Product or another Sum.
+            // Its spelling cannot establish Copy. Request the paid finite
+            // structural proof, including nested and non-manages payloads.
+            Some(Item {
+                kind: ItemKind::Enum(_),
+                ..
+            }) => return None,
+            _ => !dependent(ty, vars),
+        },
         _ => !dependent(ty, vars),
-    }
+    })
 }
+
 #[derive(Clone)]
 struct Local {
     id: usize,
@@ -564,11 +586,10 @@ impl Check<'_, '_, '_> {
         expected
     }
     fn known_copy(&mut self, ty: &TypeRef) -> R<bool> {
-        if known_copy(ty, &self.variables, self.nominals) {
-            return Ok(true);
-        }
-        if !dependent(ty, &self.variables) {
-            return Ok(false);
+        match known_copy(ty, &self.variables, self.nominals) {
+            Some(true) => return Ok(true),
+            Some(false) if !dependent(ty, &self.variables) => return Ok(false),
+            Some(false) | None => {}
         }
         match copy::require(
             ty,
