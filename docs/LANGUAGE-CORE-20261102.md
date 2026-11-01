@@ -39,3 +39,5 @@
 详见[后续优先级](LANGUAGE-NEXT-PRIORITIES.md)。当前结论是本批同步核心组合完成情况，完整ZIL 1.4、全部ZUI和产品条件仍分别记录，不能提前称完成。
 
 Rust四目标也保持分开：本批增加有限安全与表达能力实证；原生执行及分配平衡不等于运行/RSS同级，既有逻辑预算不等于编译提速，尚未建立产品级四目标合取和可重复净突破。B0继续Doing，产品与原生Windows条件保持原状态。
+
+主线收尾补录：实际main fde80814上的source CI41348687045与research LLVM CI41348687154均成功。各自默认3446/0、reference3347/0、text-reference64/0，全部零忽略/过滤；State控制通过。常规artifact API仍为零，完整日志恢复归档已逐blob核验并取回，每run4025个实际源码SHA与完整Git树核为Q同树。此为独立main重放，不叠加已有数字；见evidence/integration/language-core-20261102/main-ci/RESULT.json。交接本批五卡零错误，历史1144项无新增；已核存档的旧Cargo缓存回收，原生原件/归档、源和失败证据保留。
