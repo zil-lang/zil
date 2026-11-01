@@ -52,6 +52,19 @@ impl<'a> SourceProgramContext<'a> {
         let mut imports = BTreeMap::new();
         let mut ids = BTreeSet::new();
         for module in &program.modules {
+            if !module.core.aggregate_templates.is_empty()
+                || !module.core.aggregate_applications.is_empty()
+            {
+                let metadata_limits = Limits {
+                    max_nodes: limits.max_nodes.saturating_sub(nodes),
+                    max_analysis_steps: work,
+                    ..limits.clone()
+                };
+                let (metadata_nodes, metadata_work) =
+                    crate::preflight_aggregate_metadata(&module.core, &metadata_limits)?;
+                nodes += metadata_nodes;
+                work -= metadata_work;
+            }
             let id = module.core.module_id;
             if !ids.insert(id) {
                 return Err(vec![Diagnostic::error(
@@ -590,7 +603,12 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
         stack.push((node, depth));
         Some(())
     }
-    if !core.aggregates.is_empty() || !core.enums.is_empty() || !core.unsupported.is_empty() {
+    if !core.aggregate_templates.is_empty()
+        || !core.aggregate_applications.is_empty()
+        || !core.aggregates.is_empty()
+        || !core.enums.is_empty()
+        || !core.unsupported.is_empty()
+    {
         return None;
     }
     let mut fuel = limits.max_nodes.min(1_000_000);
@@ -767,8 +785,8 @@ fn evaluate_with_context(
     };
     Ok((
         CoreModule {
-            aggregate_templates: Vec::new(),
-            aggregate_applications: Vec::new(),
+            aggregate_templates: core.aggregate_templates.clone(),
+            aggregate_applications: core.aggregate_applications.clone(),
             functions,
             schema_version: core.schema_version,
             module_id: core.module_id,
@@ -971,6 +989,16 @@ impl<'a> Walker<'a> {
     }
     fn declarations(&mut self) -> CompileResult<()> {
         let core = self.core;
+        if !core.aggregate_templates.is_empty() || !core.aggregate_applications.is_empty() {
+            let metadata_limits = Limits {
+                max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
+                max_analysis_steps: self.work_left,
+                ..self.limits.clone()
+            };
+            let (nodes, work) = crate::preflight_aggregate_metadata(core, &metadata_limits)?;
+            self.nodes += nodes;
+            self.work_left -= work;
+        }
         if core.functions.len() > self.limits.max_functions {
             return Err(vec![Diagnostic::limit(
                 Phase::Ct,

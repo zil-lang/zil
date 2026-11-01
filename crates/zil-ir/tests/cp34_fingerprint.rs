@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/cp34_instruction_cases.rs"]
 mod cases;
-#[path = "support/cp34_legacy_v28.rs"]
+#[path = "support/cp34_legacy_v29.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -351,12 +351,19 @@ fn equal(module: &TypedModule) {
 
 #[test]
 fn frozen_oracle_is_the_original_encoder_not_the_new_sink() {
-    let source = include_str!("support/cp34_legacy_v28.rs");
+    let source = include_str!("support/cp34_legacy_v29.rs");
     let (_, original) = source
         .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
         .unwrap();
     assert_eq!(
         Fingerprint::of(original.as_bytes()).to_hex(),
+        "03a8e0ee37770932c86d79274ae98d5d720fb06d2d4790f835b4dbdb7289e4a8"
+    );
+    let (_, previous) = include_str!("support/cp34_legacy_v28.rs")
+        .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
+        .unwrap();
+    assert_eq!(
+        Fingerprint::of(previous.as_bytes()).to_hex(),
         "18d902acfce7342c5f5d8ec797b282ebbeb120d3e649761b6c520795ed522b56"
     );
     let (_, archived) = include_str!("support/cp34_legacy_v27.rs")
@@ -444,8 +451,17 @@ fn defer227_domain_rejects_v27_identity_even_with_the_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 27;
     let mut old_domain = legacy::bytes(&input);
-    let domain = b"ZIL-TYPED-MODULE-V28\0";
+    let domain = b"ZIL-TYPED-MODULE-V29\0";
     assert!(old_domain.starts_with(domain));
     old_domain[..domain.len()].copy_from_slice(b"ZIL-TYPED-MODULE-V27\0");
     assert_ne!(input.fingerprint(), Fingerprint::of(&old_domain));
+}
+
+#[test]
+fn product237_domain_rejects_previous_v28_even_with_same_schema_claim() {
+    let mut input = module(false);
+    input.schema_version = 28;
+    let mut previous = legacy::bytes(&input);
+    previous[..b"ZIL-TYPED-MODULE-V29\0".len()].copy_from_slice(b"ZIL-TYPED-MODULE-V28\0");
+    assert_ne!(input.fingerprint(), Fingerprint::of(&previous));
 }

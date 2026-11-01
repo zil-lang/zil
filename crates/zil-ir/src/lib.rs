@@ -323,8 +323,12 @@ pub struct CoreAggregateFieldRecipe {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CoreAggregateTypeRecipe {
     Concrete(Type),
-    Parameter { index: u32 },
-    Store { element: Box<CoreAggregateTypeRecipe> },
+    Parameter {
+        index: u32,
+    },
+    Store {
+        element: Box<CoreAggregateTypeRecipe>,
+    },
     Apply {
         module: ModuleId,
         template: NodeId,

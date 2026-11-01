@@ -197,6 +197,13 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
     for aggregate in &core.aggregates {
         observe(aggregate.id, aggregate.span)?;
     }
+    for template in &core.aggregate_templates {
+        if count >= limits.max_nodes {
+            return Err(quota(template.span));
+        }
+        count += 1;
+        observe(template.id, template.span)?;
+    }
     for enumeration in &core.enums {
         observe(enumeration.id, enumeration.span)?;
     }

@@ -33,7 +33,9 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         // Bound borrowed declaration trees before copying them into the CT query.
         for module in &self.program.modules {
             collector.charge(0)?;
+            collector.query = false;
             collector.declarations(&module.core)?;
+            collector.query = true;
             for import in &module.imports {
                 collector.charge(0)?;
                 collector.text(&import.alias)?;
@@ -63,6 +65,15 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         }
         let mut modules = Vec::new();
         for module in &self.program.modules {
+            if !module.core.aggregate_applications.is_empty() {
+                collector.text_len(
+                    module
+                        .core
+                        .aggregates
+                        .len()
+                        .saturating_mul(module.core.aggregate_applications.len()),
+                )?;
+            }
             let functions: Vec<_> = module
                 .core
                 .functions
@@ -93,6 +104,13 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                         .core
                         .aggregates
                         .iter()
+                        .filter(|aggregate| {
+                            !module
+                                .core
+                                .aggregate_applications
+                                .iter()
+                                .any(|a| a.aggregate == aggregate.id)
+                        })
                         .map(|aggregate| {
                             let mut shape = aggregate.clone();
                             shape.teardown = None;
@@ -611,6 +629,38 @@ impl Collector<'_> {
         Ok(())
     }
     fn header(&mut self, function: &CoreFunction) -> CompileResult<()> {
+        if self.query {
+            for module in &self.program.modules {
+                for app in &module.core.aggregate_applications {
+                    self.charge(0)?;
+                    let exact_owner = if let Some(owner) = app.owner {
+                        let mut matched = false;
+                        for candidate in &self.program.modules {
+                            for declared in &candidate.core.functions {
+                                self.charge(0)?;
+                                if candidate.core.module_id == owner.module
+                                    && declared.id == owner.function
+                                    && std::ptr::eq(declared, function)
+                                {
+                                    matched = true;
+                                }
+                            }
+                        }
+                        matched
+                    } else {
+                        false
+                    };
+                    if exact_owner {
+                        return Err(vec![Diagnostic::error(
+                            Phase::Ct,
+                            "E-CT-FORBIDDEN",
+                            Some(function.span),
+                            "Product templates cannot execute in compile-time queries",
+                        )]);
+                    }
+                }
+            }
+        }
         let header_work = self.work_left;
         self.charge(0)?;
         self.text(&function.name)?;
@@ -693,6 +743,16 @@ impl Collector<'_> {
         Ok(())
     }
     fn declarations(&mut self, core: &CoreModule) -> CompileResult<()> {
+        if !core.aggregate_templates.is_empty() || !core.aggregate_applications.is_empty() {
+            let metadata_limits = Limits {
+                max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
+                max_analysis_steps: self.work_left,
+                ..self.limits.clone()
+            };
+            let (nodes, work) = zil_ct::preflight_aggregate_metadata(core, &metadata_limits)?;
+            self.nodes += nodes;
+            self.work_left -= work;
+        }
         for aggregate in &core.aggregates {
             self.charge(0)?;
             self.text(&aggregate.name)?;
@@ -768,7 +828,27 @@ impl Collector<'_> {
                 }
                 self.ty(result, depth + 1)?;
             }
-            Type::Named(name) | Type::Unsupported(name) => self.text(name)?,
+            Type::Named(name) | Type::Unsupported(name) => {
+                self.text(name)?;
+                if self.query {
+                    for module in &self.program.modules {
+                        for app in &module.core.aggregate_applications {
+                            self.charge(0)?;
+                            for aggregate in &module.core.aggregates {
+                                self.charge(0)?;
+                                if aggregate.id == app.aggregate && aggregate.name == *name {
+                                    return Err(vec![Diagnostic::error(
+                                        Phase::Ct,
+                                        "E-CT-FORBIDDEN",
+                                        None,
+                                        "Product applications cannot execute in compile-time queries",
+                                    )]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -1639,5 +1719,44 @@ mod tests {
         let errors = single(&core, &TargetProfile::default(), &Limits::default()).unwrap_err();
         assert_eq!(errors[0].category, ResultCategory::Unsupported);
         assert_eq!(errors[0].phase, Phase::Ct);
+    }
+
+    #[test]
+    fn product237_pure_queries_ignore_unused_runtime_recipes_but_cannot_execute_applications() {
+        let model = "resource R{n:i32} package Item{manages r:R} package Bag<T:StoreElement>{manages items:Store<T>} package Root<T:StoreElement>{child:Bag<T>}";
+        for (body, forbidden) in [
+            (
+                "fn pure()->i32{return 42} fn main()->i32{return #(pure())}",
+                false,
+            ),
+            (
+                "fn build()->Root<Item>{let items:Store<Item>=store_new();return Root::<Item>{child:Bag::<Item>{items:give items}}} fn main(){let bad=#(build())}",
+                true,
+            ),
+        ] {
+            let source = SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "product237-ct.zil",
+                format!("{model}{body}"),
+            );
+            let syntax = zil_syntax::parse(&source).into_result().unwrap();
+            let core = zil_expand::expand(&source, &syntax).unwrap();
+            assert_eq!(core.aggregate_templates.len(), 2);
+            let result = single(&core, &TargetProfile::default(), &Limits::default());
+            if forbidden {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .iter()
+                        .any(|d| d.code == "E-CT-FORBIDDEN")
+                );
+            } else {
+                assert_eq!(
+                    result.unwrap().aggregate_templates,
+                    core.aggregate_templates
+                );
+            }
+        }
     }
 }

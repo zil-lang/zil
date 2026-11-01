@@ -151,8 +151,15 @@ pub fn expand_with_map_limits(
     module: &s::Module,
     limits: &Limits,
 ) -> CompileResult<ExpandedModule> {
-    let specialized = generics::specialize(module, limits)?;
-    expand_inner(source, &specialized, false)
+    let mut products = generics::products::Products::default();
+    let specialized = generics::specialize_products(module, limits, &mut products)?;
+    let mut expanded = expand_inner(source, &specialized, false)?;
+    products.publish(
+        &mut [(&mut expanded.core, &mut expanded.source_map)],
+        std::slice::from_ref(source),
+        limits,
+    )?;
+    Ok(expanded)
 }
 
 pub fn expand_program_module(
@@ -169,9 +176,15 @@ pub fn expand_program_module_with_limits(
     imports: Vec<CoreImport>,
     limits: &Limits,
 ) -> CompileResult<(ProgramModule, SourceMap)> {
-    let specialized = generics::specialize(module, limits)?;
+    let mut products = generics::products::Products::default();
+    let specialized = generics::specialize_products(module, limits, &mut products)?;
     let module = &specialized;
-    let expanded = expand_inner(source, module, true)?;
+    let mut expanded = expand_inner(source, module, true)?;
+    products.publish(
+        &mut [(&mut expanded.core, &mut expanded.source_map)],
+        std::slice::from_ref(source),
+        limits,
+    )?;
     let exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
     Ok((
         ProgramModule {
@@ -284,7 +297,8 @@ pub fn expand_program_with_limits(
     imports: &[Vec<CoreImport>],
     limits: &Limits,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
-    let specialized = modules::specialize(sources, syntax, imports, limits)?;
+    let mut products = generics::products::Products::default();
+    let specialized = modules::specialize(sources, syntax, imports, limits, &mut products)?;
     let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
     let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
@@ -389,6 +403,11 @@ pub fn expand_program_with_limits(
             expanded.source_map,
         ));
     }
+    let mut product_cores = result
+        .iter_mut()
+        .map(|(module, map)| (&mut module.core, map))
+        .collect::<Vec<_>>();
+    products.publish(&mut product_cores, sources, limits)?;
     Ok(result)
 }
 
