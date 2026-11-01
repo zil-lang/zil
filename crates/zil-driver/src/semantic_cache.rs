@@ -494,6 +494,68 @@ fn metadata_budget(program: &TypedProgram, limits: &Limits) -> Option<()> {
     Some(())
 }
 
+/// One bounded previous Types epoch, separately keyed from exact whole-project
+/// candidates. Body work products bind current complete declaration contexts.
+pub(super) struct FunctionStore(Store);
+impl FunctionStore {
+    pub(super) fn new(
+        options: &CompileOptions,
+        identity: &QueryKey,
+        root: &SourceUnit,
+    ) -> Option<Self> {
+        let mut stable = identity.clone();
+        let mut input = b"ZIL-FUNCTION-EPOCH-1\0".to_vec();
+        input.extend_from_slice(&root.module_id.0.to_le_bytes());
+        input.extend_from_slice(&root.file_id.0.to_le_bytes());
+        input.extend_from_slice(root.path.as_bytes());
+        stable.input = Fingerprint::of(&input);
+        let mut store = Store::new(options, &stable)?;
+        store.root = store.root.parent()?.join("function-types-v1");
+        Some(Self(store))
+    }
+    pub(super) fn path(&self) -> PathBuf {
+        self.0.path()
+    }
+    pub(super) fn bind_path(&mut self, path: &Path) {
+        self.0.bind_path(path);
+    }
+    pub(super) fn restore(
+        &self,
+        session: &mut zil_types::FunctionSession,
+        options: &CompileOptions,
+    ) {
+        if !session.is_empty() || !private_directory(&self.0.root, false) {
+            return;
+        }
+        if let Ok(CacheRead::Candidate(bytes)) =
+            ArtifactCache::with_limit(&self.0.root, self.0.maximum).inspect_candidate(self.0.key)
+        {
+            session.restore_work_products(&bytes, &options.target, &options.limits);
+        }
+    }
+    pub(super) fn save(
+        &self,
+        session: &zil_types::FunctionSession,
+        options: &CompileOptions,
+        plan: &artifacts::ArtifactPlan,
+    ) {
+        if options.cancellation.is_cancelled() || plan.validate().is_err() {
+            return;
+        }
+        let Some(bytes) = session.encode_work_products(&options.target, &options.limits) else {
+            return;
+        };
+        if options.cancellation.is_cancelled()
+            || plan.validate().is_err()
+            || !private_directory(&self.0.root, true)
+        {
+            return;
+        }
+        let _ = ArtifactCache::with_limit(&self.0.root, self.0.maximum)
+            .write_candidate_cancellable(self.0.key, &bytes, &options.cancellation);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

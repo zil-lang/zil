@@ -13,6 +13,9 @@ use zil_db::{QueryKey, QuerySnapshot};
 use zil_ir::{CandidatePlan, CoreImport, CoreProgram, ProgramModule, TypedProgram};
 use zil_syntax::{ParseResult, ast};
 
+#[path = "project_discovery_cache.rs"]
+mod discovery_cache;
+
 /// All bytes are supplied by the caller; compiling this value never loads an
 /// import from disk. Paths are root-relative logical import segments. Multiple
 /// paths may refer to one module (for example, canonicalized filesystem aliases).
@@ -103,6 +106,7 @@ impl CompilationSession {
             Some(LoadedProject::Semantic(pair)) => (None, Some(*pair)),
             None => (None, None),
         };
+        let function_checkpoint = self.function_types.clone();
         if let Err(errors) = self.project_pipeline(
             project,
             options,
@@ -111,7 +115,43 @@ impl CompilationSession {
             loaded_syntax.as_deref(),
             preloaded_semantic,
         ) {
-            report.fail(errors);
+            // Raw function work products receive the same rejected-candidate
+            // fallback as whole-project semantic candidates. Reuse the immutable
+            // current source graph; never reread files or retry cancellation/IO.
+            let retry = !options.cancellation.is_cancelled()
+                && self.function_types.last_stats().reused_functions > 0
+                && matches!(report.phase, Phase::Types | Phase::Analyze)
+                && errors.iter().all(|e| {
+                    matches!(
+                        e.category,
+                        ResultCategory::SafeReject | ResultCategory::Unsupported
+                    )
+                });
+            if retry {
+                let events = std::mem::take(&mut report.query_events);
+                let verification_runs = report.verification_runs;
+                self.clear();
+                report = CompileReport::new(root);
+                report.query_events = events;
+                report.verification_runs = verification_runs;
+                report.disk_cache = DiskCacheStatus::Rebuilt;
+                let mut fresh_options = options.clone();
+                fresh_options.semantic_cache = None;
+                if let Err(errors) = self.project_pipeline(
+                    project,
+                    &fresh_options,
+                    &mut report,
+                    observer,
+                    loaded_syntax.as_deref(),
+                    None,
+                ) {
+                    self.function_types = function_checkpoint;
+                    report.fail(errors);
+                }
+            } else {
+                self.function_types = function_checkpoint;
+                report.fail(errors);
+            }
         }
         self.trim_history();
         report.seconds = start.elapsed().as_secs_f64();
@@ -147,6 +187,12 @@ impl CompilationSession {
         } else {
             load_sources(&mut project, path, options, self)
         };
+        let discovery_pending = match &loaded {
+            Ok(LoadedProject::Parsed(syntax)) if options.stop_after != Stage::Parse => {
+                discovery_cache::Pending::new(&project, syntax, options)
+            }
+            _ => None,
+        };
         let mut report = match loaded {
             Ok(_) if options.stop_after == Stage::Parse => {
                 self.compile_source(&project.modules[0], options)
@@ -165,6 +211,12 @@ impl CompilationSession {
                 report
             }
         };
+        if report.status == ResultCategory::Success
+            && report.verification_runs != 0
+            && let Some(pending) = discovery_pending
+        {
+            pending.publish(&project, options);
+        }
         report.seconds = start.elapsed().as_secs_f64();
         report
     }
@@ -557,17 +609,34 @@ impl CompilationSession {
                 .expect("validated root")
                 .core,
         )?;
-        let (raw, typed_snapshot) = self.query(
+        let mut function_store =
+            super::semantic_cache::FunctionStore::new(options, &key(Phase::Types, true), root);
+        if let Some(store) = &mut function_store {
+            store.bind_path(&artifacts.semantic_cache(&store.path())?);
+        }
+        let mut function_types = std::mem::take(&mut self.function_types);
+        if let Some(store) = &function_store {
+            store.restore(&mut function_types, options);
+        }
+        let checkpoint = function_types.clone();
+        let typed_result = self.query(
             key(Phase::Types, true),
             std::slice::from_ref(&ct_snapshot),
             options,
             report,
             observer,
             || {
-                zil_types::check_prepared_program(&prepared, &options.target, &options.limits)
+                function_types
+                    .check_prepared_program(&prepared, &options.target, &options.limits)
                     .map(|typed| RawSnapshot::ProjectTyped(Arc::new(typed)))
             },
-        )?;
+        );
+        self.function_types = if typed_result.is_ok() {
+            function_types
+        } else {
+            checkpoint
+        };
+        let (raw, typed_snapshot) = typed_result?;
         let RawSnapshot::ProjectTyped(typed) = raw else {
             return Err(infra(
                 "E-QUERY-KIND",
@@ -597,6 +666,11 @@ impl CompilationSession {
             && let Some(candidate) = self.analysis_candidate(&typed_snapshot)
         {
             store.save(&typed, &candidate, options, &artifacts);
+        }
+        if result.is_ok()
+            && let Some(store) = &function_store
+        {
+            store.save(&self.function_types, options, &artifacts);
         }
         result
     }
@@ -948,6 +1022,13 @@ fn single_file_semantic(
     {
         return None;
     }
+    exact_discovered_semantic(project, options)
+}
+
+fn exact_discovered_semantic(
+    project: &ProjectSources,
+    options: &CompileOptions,
+) -> Option<(TypedProgram, CandidatePlan)> {
     // A failed optional probe cannot move a source/import error behind an
     // artifact error. The original discovery and pipeline report that error.
     let source = validate_sources(project, &options.limits).ok()?;
@@ -1004,6 +1085,26 @@ fn load_sources(
         .map_err(|e| vec![e])?;
     if let Some(pair) = single_file_semantic(project, options, session) {
         return Ok(LoadedProject::Semantic(Box::new(pair)));
+    }
+    let mut prefetched = BTreeMap::new();
+    if let Some(attempt) = discovery_cache::load(project, &root_path, options, session)? {
+        if attempt.complete
+            && let Some(pair) = exact_discovered_semantic(&attempt.project, options)
+        {
+            *project = attempt.project;
+            return Ok(LoadedProject::Semantic(Box::new(pair)));
+        }
+        // A receipt mismatch or semantic miss restores the original ordered
+        // parser. Reuse immutable reads when it discovers the same canonical
+        // file, including changed files read during the failed receipt probe.
+        prefetched.extend(
+            attempt
+                .project
+                .modules
+                .into_iter()
+                .skip(1)
+                .map(|source| (PathBuf::from(&source.path), source)),
+        );
     }
     let retained_syntax = session.retained_project_syntax(&project.modules[0]);
     let mut known = BTreeMap::from([(root_path.clone(), project.root)]);
@@ -1076,7 +1177,20 @@ fn load_sources(
                     .map_err(|_| limit(Phase::Parse, "project module identity budget exceeded"))?;
                 let mut read_options = options.clone();
                 read_options.limits.max_source_bytes = remaining.max_source_bytes;
-                let mut source = read_source(&canonical, &read_options).map_err(|errors| {
+                let mut source = (if let Some(source) = prefetched.remove(&canonical) {
+                    options
+                        .cancellation
+                        .check(Phase::Driver)
+                        .map_err(|error| vec![error])?;
+                    if source.text.len() > read_options.limits.max_source_bytes {
+                        Err(limit(Phase::Parse, "source byte budget exceeded"))
+                    } else {
+                        Ok(source)
+                    }
+                } else {
+                    read_source(&canonical, &read_options)
+                })
+                .map_err(|errors| {
                     errors
                         .into_iter()
                         .map(|e| {

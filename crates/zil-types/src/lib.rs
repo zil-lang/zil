@@ -17,6 +17,8 @@ mod foreign;
 mod functions;
 mod helpers;
 mod inference;
+mod incremental;
+pub use incremental::{FunctionSession, FunctionStats};
 mod lending;
 mod managed_slots;
 mod names;

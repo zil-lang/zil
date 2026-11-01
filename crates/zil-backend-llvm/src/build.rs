@@ -143,6 +143,17 @@ pub struct BuildArtifact {
     pub pending_cache: PendingObjectCache,
 }
 impl BuildArtifact {
+    /// Optional private layout destination, pinned before publication guards.
+    pub fn pending_partition_cache_path(&self) -> Option<&Path> {
+        self.pending_cache
+            .layout
+            .as_ref()
+            .map(|pending| pending.path())
+    }
+    /// A cache destination conflict must not reject an otherwise valid request.
+    pub fn discard_partition_cache(&mut self) {
+        self.pending_cache.layout = None;
+    }
     /// Call only after all request validation, cancellation and publication steps.
     pub fn commit_object_cache(&mut self) {
         std::mem::take(&mut self.pending_cache).commit(&mut self.codegen.object_cache);
@@ -288,6 +299,7 @@ pub fn build_view_with_cancellation_and_stable_names(
     // complete original-model preflight. Existing per-unit API preflight still runs
     // immediately before its LLVMBuilder calls and cannot be bypassed.
     let llvm = machine.to_text();
+    let mut pending_layout = None;
     let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
         let trace =
             std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
@@ -303,18 +315,19 @@ pub fn build_view_with_cancellation_and_stable_names(
             None,
         )
     } else {
-        (
-            crate::machine_cgu::partition_view(
-                machine,
-                lir,
-                options.emit.entry,
-                options.codegen.units,
-                options.optimization == Optimization::O0 || options.incremental_o2,
-                options.optimization == Optimization::O2 && options.incremental_o2,
-            ),
-            None,
-            None,
-        )
+        let (plan, pending) = crate::machine_cgu::partition_view_cached(
+            machine,
+            lir,
+            options.emit.entry,
+            options.codegen.units,
+            options.optimization == Optimization::O0 || options.incremental_o2,
+            options.optimization == Optimization::O2 && options.incremental_o2,
+            (options.backend == NativeBackend::LlvmApi)
+                .then_some(options.object_cache.as_deref())
+                .flatten(),
+        );
+        pending_layout = pending;
+        (plan, None, None)
     };
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
@@ -377,6 +390,10 @@ pub fn build_view_with_cancellation_and_stable_names(
     }
     let mut pending_cache = PendingObjectCache {
         directory: cache.as_ref().map(|c| c.directory.clone()),
+        layout: cache
+            .as_ref()
+            .and(pending_layout)
+            .and_then(|pending| pending.pin()),
         ..PendingObjectCache::default()
     };
     let actual_units = plan.units.len().max(1);

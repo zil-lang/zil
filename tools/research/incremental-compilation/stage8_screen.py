@@ -16,6 +16,7 @@ p.add_argument('--llvm-library',type=Path,required=True)
 p.add_argument('--clang',type=Path,required=True)
 p.add_argument('--case',action='append')
 p.add_argument('--contract',action='append',choices=['default','closed'])
+p.add_argument('--edit-warm',action='store_true',help='also measure unchanged requests after the edited cache history')
 a=p.parse_args();a.out=a.out.resolve();a.out.mkdir(parents=True,exist_ok=False)
 library=a.llvm_library.resolve();lib=library.parent
 env=dict(os.environ);env['LD_LIBRARY_PATH']=str(lib);env['ZIL_CLANG']=str(a.clang.resolve())
@@ -26,6 +27,7 @@ arms=dict(v.split('=',1) for v in a.zil)
 if a.rust:arms['rust']=a.rustc
 manifest={'source':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'arms':{},'library':{'path':str(library),'sha256':hashlib.sha256(library.read_bytes()).hexdigest()},'reps':a.reps,'contracts':a.contract or ['default','closed'],'cpus':sorted(os.sched_getaffinity(0)),'resources':'Linux wait4 compiler CPU seconds and process max RSS; stdout/stderr files','cases':[c['name'] for c in cases],'runner_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
 manifest['working_diff_sha256']=hashlib.sha256(subprocess.check_output(['git','diff','HEAD','--','crates'],cwd=ROOT)).hexdigest()
+manifest['requests']=['cold','warm','edit']+(['edit-warm'] if a.edit_warm else [])
 manifest['rustc_verbose']=subprocess.check_output([a.rustc,'-vV'],text=True) if a.rust else None
 for k,v in arms.items():manifest['arms'][k]={'path':v,'sha256':hashlib.sha256(Path(v).read_bytes()).hexdigest()}
 (a.out/'manifest.json').write_text(json.dumps(manifest,indent=2))
@@ -106,7 +108,7 @@ for case in cases:
     if arm=='rust' and contract=='closed' and 'default' in manifest['contracts']:continue
     folder=a.out/name/f'{rep}-{contract}-{arm}';folder.mkdir()
     src=folder/'src';src.mkdir()
-    for request,edit in [('cold',0),('warm',0),('edit',1)]:
+    for request,edit in [('cold',0),('warm',0),('edit',1)]+([('edit-warm',1)] if a.edit_warm else []):
      for file in variants[edit].iterdir():shutil.copyfile(file,src/file.name)
      exe=folder/'program'
      if arm=='rust':

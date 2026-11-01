@@ -3,17 +3,49 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use zil_base::{CompileResult, Diagnostic, Phase, ResultCategory};
 
 pub(super) const MIN_PARALLEL_FUNCTIONS: usize = 128;
-const BATCH_SIZE: usize = 64;
+pub(super) const BATCH_SIZE: usize = 64;
+
+// Construction estimates choose execution strategy only; they are not budgets.
+const MIN_WORK_PER_WORKER: usize = 4096;
+
+#[derive(Default)]
+pub(super) struct RemainingWork {
+    total: usize,
+    largest: usize,
+    batches: usize,
+}
+
+impl RemainingWork {
+    pub(super) fn add(&mut self, work: usize) {
+        if work == 0 {
+            return;
+        }
+        self.total = self.total.saturating_add(work);
+        self.largest = self.largest.max(work);
+        self.batches = self.batches.saturating_add(1);
+    }
+
+    pub(super) fn jobs(&self, requested: usize) -> usize {
+        if self.total.saturating_sub(self.largest) < MIN_WORK_PER_WORKER {
+            return 1;
+        }
+        requested
+            .clamp(1, 64)
+            .min(self.batches)
+            .min(self.total / MIN_WORK_PER_WORKER)
+            .max(1)
+    }
+}
 
 pub(super) fn ordered_batches<T, U, F>(input: &[T], jobs: usize, emit: F) -> CompileResult<Vec<U>>
 where
     T: Sync,
     U: Send,
-    F: Fn(&[T]) -> CompileResult<U> + Sync,
+    F: Fn(usize, &[T]) -> CompileResult<U> + Sync,
 {
     let jobs = jobs.clamp(1, 64);
     if jobs == 1 || input.len() < MIN_PARALLEL_FUNCTIONS {
-        return emit(input).map(|batch| vec![batch]);
+        return emit(0, input).map(|batch| vec![batch]);
     }
     let count = input.len().div_ceil(BATCH_SIZE);
     let next = AtomicUsize::new(0);
@@ -32,7 +64,7 @@ where
                     }
                     let start = id * BATCH_SIZE;
                     let end = (start + BATCH_SIZE).min(input.len());
-                    batches.push((id, emit(&input[start..end])));
+                    batches.push((id, emit(start, &input[start..end])));
                 }
                 batches
             }) {
@@ -74,11 +106,42 @@ mod tests {
     use std::sync::{Mutex, mpsc};
 
     #[test]
+    fn workers_require_substantial_independent_ordinary_batch_work() {
+        // Exact constant and compact-leaf plans never add ordinary body work.
+        let cheap_only = RemainingWork::default();
+        assert_eq!(cheap_only.jobs(64), 1);
+
+        let mut tiny_batches = RemainingWork::default();
+        for _ in 0..128 {
+            tiny_batches.add(8);
+        }
+        assert_eq!(tiny_batches.jobs(4), 1);
+
+        let mut distributed = RemainingWork::default();
+        for _ in 0..4 {
+            distributed.add(4096);
+        }
+        assert_eq!(distributed.jobs(1), 1);
+        assert_eq!(distributed.jobs(2), 2);
+        assert_eq!(distributed.jobs(64), 4);
+
+        let mut one_batch = RemainingWork::default();
+        one_batch.add(8192);
+        assert_eq!(one_batch.jobs(64), 1);
+
+        let mut dominant = RemainingWork::default();
+        dominant.add(100_000);
+        dominant.add(64);
+        assert_eq!(dominant.jobs(64), 1);
+    }
+
+    #[test]
     fn source_order_survives_reversed_batch_completion() {
         let input = (0..128).collect::<Vec<usize>>();
         let (sent, received) = mpsc::channel();
         let received = Mutex::new(received);
-        let output = ordered_batches(&input, 2, |batch| {
+        let output = ordered_batches(&input, 2, |start, batch| {
+            assert_eq!(start, batch[0]);
             if batch[0] == 0 {
                 received
                     .lock()
@@ -95,7 +158,8 @@ mod tests {
 
         let (sent, received) = mpsc::channel();
         let received = Mutex::new(received);
-        let error = ordered_batches(&input, 2, |batch| {
+        let error = ordered_batches(&input, 2, |start, batch| {
+            assert_eq!(start, batch[0]);
             if batch[0] == 0 {
                 received
                     .lock()
@@ -120,7 +184,8 @@ mod tests {
     fn panic_joins_other_workers_and_never_returns_partial_success() {
         let input = (0..128).collect::<Vec<usize>>();
         let finished = AtomicUsize::new(0);
-        let error = ordered_batches(&input, 2, |batch| {
+        let error = ordered_batches(&input, 2, |start, batch| {
+            assert_eq!(start, batch[0]);
             assert_ne!(batch[0], 0, "intentional worker panic");
             finished.fetch_add(batch.len(), Ordering::SeqCst);
             Ok(batch.len())
@@ -137,7 +202,8 @@ mod tests {
         for (count, jobs) in [(0, 64), (127, 2), (128, 1), (256, 0)] {
             let input = vec![(); count];
             assert_eq!(
-                ordered_batches(&input, jobs, |batch| {
+                ordered_batches(&input, jobs, |start, batch| {
+                    assert_eq!(start, 0);
                     assert_eq!(std::thread::current().id(), current);
                     Ok(batch.len())
                 })

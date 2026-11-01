@@ -51,6 +51,9 @@ pub struct PreparedProgram {
     unchanged_limits: Option<Limits>,
 }
 impl PreparedProgram {
+    pub(super) fn identity_inference(&self, limits: &Limits) -> bool {
+        self.unchanged_limits.as_ref() == Some(limits)
+    }
     pub fn program(&self) -> &CoreProgram {
         &self.core
     }

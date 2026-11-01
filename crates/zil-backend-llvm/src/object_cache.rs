@@ -71,6 +71,7 @@ impl ObjectCacheSummary {
 pub struct PendingObjectCache {
     pub(crate) directory: Option<PathBuf>,
     pub(crate) objects: Vec<PendingObject>,
+    pub(crate) layout: Option<crate::machine_cgu::layout::Pending>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PendingObject {
@@ -97,6 +98,9 @@ impl PendingObjectCache {
                     Err(_) => summary.write_failures += 1,
                 }
             }
+        }
+        if let Some(layout) = self.layout {
+            layout.commit();
         }
     }
 }
@@ -788,6 +792,7 @@ mod tests {
                 bytes: b"complete-object".to_vec(),
                 base: Some((Fingerprint::of(b"base-index"), b"base-record".to_vec())),
             }],
+            layout: None,
         };
         drop(make());
         assert_eq!(fs::read_dir(&d.0).unwrap().count(), 0);
@@ -808,6 +813,7 @@ mod tests {
                 bytes: b"derived-object".to_vec(),
                 base: None,
             }],
+            layout: None,
         }
         .commit(&mut summary);
         assert_eq!(load(&d.0, Fingerprint::ZERO).unwrap(), b"derived-object");
@@ -829,6 +835,7 @@ mod tests {
                 bytes: b"object".to_vec(),
                 base: None,
             }],
+            layout: None,
         }
         .commit(&mut summary);
         assert_eq!(summary.write_failures, 1);

@@ -130,7 +130,47 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     } else {
         jobs
     };
-    let batches = parallel_lowering::ordered_batches(lir.functions, jobs, |batch| {
+    let (jobs, prepared_leaves) = if jobs > 1 {
+        let mut work = parallel_lowering::RemainingWork::default();
+        let mut leaves = incremental_scalar_policy.then(|| Vec::with_capacity(lir.functions.len()));
+        let mut batch_work = 0usize;
+        for (index, function) in lir.functions.iter().enumerate() {
+            let ordinary = function.foreign.is_none()
+                && collected
+                    .as_ref()
+                    .is_none_or(|needed| needed.contains(&function.id))
+                && summaries
+                    .as_ref()
+                    .is_none_or(|facts| !facts.contains_key(&function.id));
+            let prepared = (ordinary && incremental_scalar_policy)
+                .then(|| scalar_leaf::prepare(function))
+                .flatten();
+            if ordinary && prepared.is_none() {
+                let initial = function
+                    .parameters
+                    .len()
+                    .saturating_add(function.locals.len())
+                    .saturating_add(function.values.len());
+                let cost = function.blocks.iter().fold(initial, |sum, block| {
+                    sum.saturating_add(block.instructions.len())
+                        .saturating_add(1)
+                });
+                batch_work = batch_work.saturating_add(cost);
+            }
+            if index % parallel_lowering::BATCH_SIZE + 1 == parallel_lowering::BATCH_SIZE {
+                work.add(batch_work);
+                batch_work = 0;
+            }
+            if let Some(leaves) = &mut leaves {
+                leaves.push(prepared);
+            }
+        }
+        work.add(batch_work);
+        (work.jobs(jobs), leaves)
+    } else {
+        (jobs, None)
+    };
+    let batches = parallel_lowering::ordered_batches(lir.functions, jobs, |start, batch| {
         lower_function_batch(
             batch,
             lir,
@@ -140,6 +180,9 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             &closures,
             summaries.as_ref(),
             collected.as_ref(),
+            prepared_leaves
+                .as_ref()
+                .map(|leaves| &leaves[start..start + batch.len()]),
         )
     })?;
     let mut batches = batches.into_iter();
@@ -375,12 +418,13 @@ fn lower_function_batch(
     closures: &BTreeMap<ClosureId, &ClosureDefinition>,
     summaries: Option<&BTreeMap<FunctionId, Constant>>,
     collected: Option<&BTreeSet<FunctionId>>,
+    prepared_leaves: Option<&[Option<scalar_leaf::Prepared>]>,
 ) -> CompileResult<FunctionBatch> {
     let mut intrinsics = BTreeSet::new();
     // Finish each function before retaining it: no whole-project Event buffer.
     let mut body =
         Vec::with_capacity(collected.map_or(batch.len(), |needed| needed.len().min(batch.len())));
-    for function in batch {
+    for (offset, function) in batch.iter().enumerate() {
         if function.foreign.is_some() {
             if matches!(options.entry, EntryPoint::ReturnValue(_))
                 && function
@@ -408,11 +452,16 @@ fn lower_function_batch(
             body.push(m::Item::Function(scalar_summaries::emit(function, value)));
             continue;
         }
-        if incremental_scalar_policy
-            && let Some(machine) = scalar_leaf::emit(function, &mut intrinsics)
-        {
-            body.push(m::Item::Function(machine));
-            continue;
+        if incremental_scalar_policy {
+            let leaf = if let Some(prepared) = prepared_leaves {
+                prepared[offset].map(|leaf| leaf.emit(&mut intrinsics))
+            } else {
+                scalar_leaf::emit(function, &mut intrinsics)
+            };
+            if let Some(machine) = leaf {
+                body.push(m::Item::Function(machine));
+                continue;
+            }
         }
         let emitted = FunctionEmitter {
             function,

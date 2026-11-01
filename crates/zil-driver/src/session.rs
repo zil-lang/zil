@@ -126,6 +126,7 @@ pub struct CompilationSession {
     recency: BTreeMap<QueryKey, u64>,
     clock: u64,
     analysis: zil_analyze::AnalysisSession,
+    pub(super) function_types: zil_types::FunctionSession,
 }
 impl Default for CompilationSession {
     fn default() -> Self {
@@ -141,6 +142,7 @@ impl CompilationSession {
             recency: BTreeMap::new(),
             clock: 0,
             analysis: zil_analyze::AnalysisSession::default(),
+            function_types: zil_types::FunctionSession::default(),
         }
     }
     pub fn clear(&mut self) {
@@ -149,6 +151,12 @@ impl CompilationSession {
         self.recency.clear();
         self.clock = 0;
         self.analysis.clear();
+        self.function_types.clear();
+    }
+    /// Statistics of the last executed project Types computation. Whole-project
+    /// query hits do not execute the function cache and leave these unchanged.
+    pub fn function_type_stats(&self) -> zil_types::FunctionStats {
+        self.function_types.last_stats()
     }
     pub fn cached_query_count(&self) -> usize {
         self.raw.len()
@@ -855,13 +863,24 @@ impl CompilationSession {
         // interrupt a linker already running. Outputs stay in a private directory
         // until the last cancellation check and all fallible dumps have finished.
         let stable_names = stable_source.and_then(|source| source.bind(verified.module()));
-        let artifact = zil_backend_llvm::build_view_with_cancellation_and_stable_names(
+        let mut artifact = zil_backend_llvm::build_view_with_cancellation_and_stable_names(
             &verified,
             &lir,
             &build,
             &|| options.cancellation.check(Phase::Link).is_err(),
             stable_names.as_deref(),
         )?;
+        // Layout work products are optional. Protect their actual destination
+        // against every current source and output before publishing any bytes.
+        let partition_cache_plan = artifact.pending_partition_cache_path().and_then(|path| {
+            let mut plan = artifacts.clone();
+            plan.cache_destination("partition-cache", path)
+                .ok()
+                .map(|_| plan)
+        });
+        if partition_cache_plan.is_none() {
+            artifact.discard_partition_cache();
+        }
         event(Phase::Link, QueryDisposition::Executed, report, observer);
         if let Err(error) = options.cancellation.check(Phase::Link) {
             return Err(vec![error]);
@@ -874,6 +893,14 @@ impl CompilationSession {
         let mut artifact = publication.commit(artifact, &options.cancellation)?;
         // Only complete successful requests populate the machine cache. The
         // permission/capability for this request is never serialized or reused.
+        // Observer callbacks and artifact publication can change path aliases.
+        // A failed optional-cache guard only discards the pending layout.
+        if partition_cache_plan
+            .as_ref()
+            .is_some_and(|plan| plan.validate().is_err())
+        {
+            artifact.discard_partition_cache();
+        }
         artifact.commit_object_cache();
         report.artifacts.insert("llvm".into(), artifact.llvm_ir);
         report
@@ -1489,3 +1516,7 @@ mod bounded_history_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "function_incremental_tests.rs"]
+mod function_incremental_tests;
