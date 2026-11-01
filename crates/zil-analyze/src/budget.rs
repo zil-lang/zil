@@ -1000,6 +1000,13 @@ pub(super) fn preflight(
             };
             budget.input(operands, "terminator operand preflight")?;
         }
+        if sum_function && function.foreign.is_some() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "ordinary owned Sum does not grant foreign ABI qualification",
+                Some(function.span),
+            )]);
+        }
         if sum_function {
             if budget.sum_functions.is_empty() {
                 budget.spend(module.functions.len(), "ordinary Sum function inventory")?;
