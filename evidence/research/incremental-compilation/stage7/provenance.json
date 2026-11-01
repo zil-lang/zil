@@ -1,0 +1,43 @@
+{
+  "baseline_commit": "66f15461f50730be646a3c3d49cd7160c8f2b27d",
+  "candidate_commit": "0691a186e5066b62a53eca4bd706da87ba65a3a3",
+  "arms": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/stage7/target-baseline/release/zil",
+      "sha256": "7c4778ec219e8e02a31fc5d2ae0cebec16f372f9372ec3da494c5d117c09df35"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "sha256": "c9a26c0b6b8b129abdd4411addc2d085a916c9734cd556bc480dcccd1c3aeda6"
+    },
+    "rust": {
+      "path": "/workspace/.zil-env/cargo/bin/rustc",
+      "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4"
+    }
+  },
+  "llvm": {
+    "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+    "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+  },
+  "rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+  "compiler_source_changed_after_measurement": false,
+  "measurement_source_field": "manifest.source identifies runner workspace; per-arm origins are above",
+  "environment_restore": "Published snapshot at 1cb1b62a restored; specialty commit fetched from GitHub. Old uncommitted Stage 6 records and session98995 completion unavailable. No completion inferred.",
+  "validation": {
+    "functional_tests": 4,
+    "functional_native_builds": 22,
+    "confirmation_builds_and_native_results": 135,
+    "opaque_builds_and_native_results": 6,
+    "baseline_diagnostic_requests": 36,
+    "initial_screen_requests": 12,
+    "fmt": "Pass",
+    "backend_all_targets_clippy": "Pass",
+    "full_workspace_local": "NotRun",
+    "remote_ci": "Triggered by final branch push; not part of local timing"
+  },
+  "opaque_edited_native": {
+    "byte_equal": true,
+    "sha256": "b054af688adbaf0e3da5bb4232a7b1147af903345b21e9bbc17bceb90694de1d",
+    "llvm_text_difference": "Only verified-fingerprint comment differs; native program bytes identical."
+  }
+}

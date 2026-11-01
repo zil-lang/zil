@@ -2,7 +2,8 @@
 
 当前专项分支：`research/incremental-compilation`，PR [#13](https://github.com/zil-lang/zil/pull/13)。
 
-- [第六阶段进展与结果（确认矩阵进行中）](STAGE6-RESULTS.md)
+- [第七阶段：恢复环境、Verify 后标量摘要与集中 Rust 对照](STAGE7-RESULTS.md)
+- [第六阶段进展与结果（历史确认矩阵状态）](STAGE6-RESULTS.md)
 - [第六阶段：图方法与修复后的 zit 实验](STAGE6-ALGORITHMS.md)
 - [第六阶段：同源 LLVM、Rust 与增量确认协议](STAGE6-PROTOCOL.md)
 - [第五阶段：大模块分布、Rust对照与实现结果](DISTRIBUTION-RESULTS.md)

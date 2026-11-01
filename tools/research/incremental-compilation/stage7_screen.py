@@ -24,7 +24,7 @@ cases.append({'name':'opaque-2048-branch','opaque':True})
 if a.case:cases=[c for c in cases if c['name'] in a.case]
 arms=dict(v.split('=',1) for v in a.zil)
 if a.rust:arms['rust']=a.rustc
-manifest={'source':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'arms':{},'library':{'path':str(library),'sha256':hashlib.sha256(library.read_bytes()).hexdigest()},'reps':a.reps,'contracts':a.contract or ['default','closed'],'cpus':sorted(os.sched_getaffinity(0)),'runner_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+manifest={'source':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'arms':{},'library':{'path':str(library),'sha256':hashlib.sha256(library.read_bytes()).hexdigest()},'reps':a.reps,'contracts':a.contract or ['default','closed'],'cpus':sorted(os.sched_getaffinity(0)),'cases':[c['name'] for c in cases],'runner_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
 manifest['working_diff_sha256']=hashlib.sha256(subprocess.check_output(['git','diff','HEAD','--','crates'],cwd=ROOT)).hexdigest()
 manifest['rustc_verbose']=subprocess.check_output([a.rustc,'-vV'],text=True) if a.rust else None
 for k,v in arms.items():manifest['arms'][k]={'path':v,'sha256':hashlib.sha256(Path(v).read_bytes()).hexdigest()}

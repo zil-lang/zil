@@ -1,0 +1,31 @@
+{
+  "source": "0691a186e5066b62a53eca4bd706da87ba65a3a3",
+  "arms": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/stage7/target-baseline/release/zil",
+      "sha256": "7c4778ec219e8e02a31fc5d2ae0cebec16f372f9372ec3da494c5d117c09df35"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "sha256": "c9a26c0b6b8b129abdd4411addc2d085a916c9734cd556bc480dcccd1c3aeda6"
+    }
+  },
+  "library": {
+    "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+    "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+  },
+  "reps": 1,
+  "contracts": [
+    "default"
+  ],
+  "cpus": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "runner_sha256": "afd042e39f915f51e0c8365edbc17abb3827695b74c0d7d308fa6d84ccf8c542",
+  "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rustc_verbose": null
+}
