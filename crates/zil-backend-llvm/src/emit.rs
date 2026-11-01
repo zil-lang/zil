@@ -1,10 +1,12 @@
 mod arrays;
 mod byte_buffer;
 mod constant_divisors;
+mod drop_plan;
 mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
+mod owned_sums;
 mod packages;
 mod parallel_lowering;
 mod resource_closures;
@@ -102,6 +104,8 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         .iter()
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
+    let sum_helpers =
+        drop_plan::functions(lir, verified.limits(), verified.uses_owned_sum_extension())?;
     let wrapper = entry_wrapper(&functions, options.entry, lir.resources)?;
     let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
     let collected = (closed_scalar_collection
@@ -201,6 +205,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         intrinsics.extend(batch.intrinsics);
     }
     let mut text = m::Code::new();
+    text.append(sum_helpers);
     for closure in lir.closures {
         let mut fields = closure
             .captures
@@ -1674,6 +1679,18 @@ impl FunctionEmitter<'_> {
                     },
                 )));
             }
+            InstructionKind::VariantTagLocal { local, path } => {
+                self.variant_tag_local(instruction, *local, path)?
+            }
+            InstructionKind::ReadVariantLocal { local, path } => {
+                self.read_variant_local(instruction, *local, path)?
+            }
+            InstructionKind::UnpackVariant {
+                local,
+                variant,
+                fields,
+            } => self.unpack_variant(instruction, *local, *variant, fields)?,
+            InstructionKind::DropEnum { local } => self.drop_enum(instruction, *local)?,
             InstructionKind::MakeVariant { variant, fields } => {
                 self.make_variant(instruction, *variant, fields)?
             }
