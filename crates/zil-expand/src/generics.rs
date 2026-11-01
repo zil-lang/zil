@@ -758,6 +758,14 @@ impl<'a> Engine<'a> {
                 {
                     self.budget.node(f.span, 0)?;
                     self.budget.text(&f.name, f.span)?;
+                    for name in self
+                        .store_parameter
+                        .iter()
+                        .chain(self.callable_name.iter())
+                        .chain(self.callable_pair.iter().flatten())
+                    {
+                        self.budget.text(name, f.span)?;
+                    }
                     self.product_owner = Some(products::Scope {
                         owner: f.name.clone(),
                         span: f.span,
@@ -825,6 +833,16 @@ impl<'a> Engine<'a> {
                     self.callable_pair.clone(),
                 );
                 if let Some(scope) = self.product_aggregate_scope(&a.name, item.span)? {
+                    // Restoring the engine's lexical view creates a second
+                    // copy beside the retained application owner context.
+                    for name in scope
+                        .ordinary
+                        .iter()
+                        .chain(scope.callable.iter())
+                        .chain(scope.pair.iter().flatten())
+                    {
+                        self.budget.text(name, item.span)?;
+                    }
                     self.store_parameter = scope.ordinary.clone();
                     self.callable_name = scope.callable.clone();
                     self.callable_pair = scope.pair.clone();
