@@ -26,7 +26,7 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
         match ty {
             Type::Enum { .. } if owned_enum(ty) => return Ok(true),
             Type::ErrorUnion { error, result } => {
-                if in_product && owned(ty) {
+                if (in_product || in_error) && owned(ty) {
                     return Ok(true);
                 }
                 if **error != Type::Unit
@@ -61,7 +61,7 @@ pub(super) fn check_type_for(
     resources::charge_payload(ty, budget)?;
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
-        budget.spend(1)?;
+        resources::charge_payload(ty, budget)?;
         if ty.is_copy_value() {
             check_type(ty, span)?;
             continue;
@@ -244,7 +244,7 @@ enum Content {
     Copy,
     Leaf(BTreeSet<Source>),
     Product(Vec<Content>),
-    Sum(BTreeMap<u32, Vec<Content>>),
+    Sum(BTreeMap<u32, Vec<Content>>, Option<(u32, Vec<u32>)>),
 }
 
 impl Content {
@@ -265,7 +265,10 @@ impl Content {
                     field.cost(budget)?;
                 }
             }
-            Self::Sum(variants) => {
+            Self::Sum(variants, route) => {
+                if let Some((_, path)) = route {
+                    budget.spend(path.len().saturating_add(1))?;
+                }
                 budget.spend(variants.len())?;
                 for fields in variants.values() {
                     budget.spend(fields.len())?;
@@ -296,7 +299,13 @@ impl Content {
                     changed |= a.merge(b, budget)?;
                 }
             }
-            (Self::Sum(a), Self::Sum(b)) => {
+            (Self::Sum(a, route), Self::Sum(b, other_route)) => {
+                if a.is_empty() && !b.is_empty() {
+                    *route = other_route.clone();
+                    changed = true;
+                } else if !b.is_empty() && route != other_route && route.take().is_some() {
+                    changed = true;
+                }
                 for (&tag, fields) in b {
                     if let Some(target) = a.get_mut(&tag) {
                         for (a, b) in target.iter_mut().zip(fields) {
@@ -368,7 +377,7 @@ fn content(
                     alternatives.insert(variant as u32, children);
                 }
             }
-            Content::Sum(alternatives)
+            Content::Sum(alternatives, parameter.map(|p| (p, path.clone())))
         }
         Type::ErrorUnion { error, result } => {
             budget.spend(2)?;
@@ -381,7 +390,7 @@ fn content(
                     alternatives.insert(variant, vec![child]);
                 }
             }
-            Content::Sum(alternatives)
+            Content::Sum(alternatives, parameter.map(|p| (p, path.clone())))
         }
         _ => Content::Copy,
     })
@@ -457,21 +466,23 @@ pub(super) struct Bridge {
     pub(super) unpack: Vec<(LocalId, u8, Vec<(usize, u8)>)>,
 }
 
-fn direct_fields(value: &Content) -> Vec<(usize, u8)> {
-    match value {
-        Content::Product(fields) => fields
-            .iter()
-            .enumerate()
-            .filter_map(|(i, c)| matches!(c, Content::Leaf(_)).then_some((i, c.fresh())))
-            .collect(),
-        _ => Vec::new(),
+fn direct_fields(value: &Content, budget: &mut Budget) -> Check<Vec<(usize, u8)>> {
+    let mut result = Vec::new();
+    if let Content::Product(fields) = value {
+        budget.spend(fields.len())?;
+        for (index, field) in fields.iter().enumerate() {
+            if let Content::Leaf(sources) = field {
+                budget.spend(sources.len())?;
+                result.push((index, field.fresh()));
+            }
+        }
     }
+    Ok(result)
 }
 
 struct Flow<'a> {
     f: &'a TypedFunction,
     module: &'a TypedModule,
-    graph: &'a FunctionGraph,
     definitions: Vec<Option<(usize, usize)>>,
     observers: Vec<Option<(LocalId, Prefix)>>,
     summaries: &'a [Content],
@@ -518,7 +529,7 @@ impl Flow<'_> {
                 span,
                 budget,
             )?;
-            let Content::Sum(variants) = current else {
+            let Content::Sum(variants, _) = current else {
                 return Err(bad(Some(span), "Sum path is not an Enum"));
             };
             let Some(fields) = variants.get(&step.variant) else {
@@ -548,7 +559,7 @@ impl Flow<'_> {
                 .saturating_add(state.facts.len())
                 .saturating_add(1),
         )?;
-        let known = matches!(value,Content::Sum(variants) if variants.len()==1 && variants.contains_key(&tag));
+        let known = matches!(value,Content::Sum(variants, _) if variants.len()==1 && variants.contains_key(&tag));
         if validate && !known && !state.facts.contains(&(local, path.clone(), tag)) {
             return Err(bad(
                 Some(span),
@@ -629,7 +640,7 @@ impl Flow<'_> {
                                         source = &fields[path[cursor + 1] as usize];
                                         cursor += 2;
                                     }
-                                    (1, Content::Sum(variants)) => {
+                                    (1, Content::Sum(variants, _)) => {
                                         let Some(fields) = variants.get(&path[cursor + 1]) else {
                                             break;
                                         };
@@ -663,7 +674,39 @@ impl Flow<'_> {
                     .map(|c| self.instantiate(c, args, state, budget))
                     .collect::<Check<_>>()?,
             ),
-            Content::Sum(variants) => Content::Sum(
+            Content::Sum(_, Some((parameter, path))) => {
+                budget.spend(path.len().saturating_add(1))?;
+                let mut actual = &state.values[args[*parameter as usize].0 as usize];
+                let mut cursor = 0;
+                while cursor < path.len() {
+                    match (path[cursor], actual) {
+                        (0, Content::Product(fields)) => {
+                            actual = &fields[path[cursor + 1] as usize];
+                            cursor += 2;
+                        }
+                        (1, Content::Sum(variants, _)) => {
+                            let Some(fields) = variants.get(&path[cursor + 1]) else {
+                                break;
+                            };
+                            actual = &fields[path[cursor + 2] as usize];
+                            cursor += 3;
+                        }
+                        _ => break,
+                    }
+                }
+                if cursor == path.len() {
+                    actual.duplicate(budget)?
+                } else {
+                    // The actual caller cannot take this inactive path. Keep
+                    // the summary's conservative shape and leaf sources.
+                    let Content::Sum(variants, _) = value else {
+                        unreachable!()
+                    };
+                    let without_route = Content::Sum(variants.clone(), None);
+                    self.instantiate(&without_route, args, state, budget)?
+                }
+            }
+            Content::Sum(variants, None) => Content::Sum(
                 variants
                     .iter()
                     .map(|(&v, fields)| {
@@ -676,6 +719,7 @@ impl Flow<'_> {
                         ))
                     })
                     .collect::<Check<_>>()?,
+                None,
             ),
             Content::Copy => Content::Copy,
         })
@@ -710,22 +754,28 @@ impl Flow<'_> {
                 }
                 InstructionKind::MakeVariant { variant, fields } => {
                     budget.spend(fields.len())?;
-                    result = Some(Content::Sum(BTreeMap::from([(
-                        *variant,
-                        fields
-                            .iter()
-                            .map(|v| state.values[v.0 as usize].duplicate(budget))
-                            .collect::<Check<_>>()?,
-                    )])));
+                    result = Some(Content::Sum(
+                        BTreeMap::from([(
+                            *variant,
+                            fields
+                                .iter()
+                                .map(|v| state.values[v.0 as usize].duplicate(budget))
+                                .collect::<Check<_>>()?,
+                        )]),
+                        None,
+                    ));
                 }
                 InstructionKind::MakeErrorUnion { is_error, value } => {
-                    result = Some(Content::Sum(BTreeMap::from([(
-                        if *is_error { 0 } else { 1 },
-                        vec![state.values[value.0 as usize].duplicate(budget)?],
-                    )])))
+                    result = Some(Content::Sum(
+                        BTreeMap::from([(
+                            if *is_error { 0 } else { 1 },
+                            vec![state.values[value.0 as usize].duplicate(budget)?],
+                        )]),
+                        None,
+                    ))
                 }
                 InstructionKind::TakeErrorUnion { value, is_error } => {
-                    if let Content::Sum(variants) = &state.values[value.0 as usize] {
+                    if let Content::Sum(variants, _) = &state.values[value.0 as usize] {
                         if let Some(fields) = variants.get(&(if *is_error { 0 } else { 1 })) {
                             result = Some(fields[0].duplicate(budget)?);
                         }
@@ -802,7 +852,7 @@ impl Flow<'_> {
                         ));
                     }
                     let payload = match &state.locals[local.0 as usize] {
-                        Content::Sum(variants) => variants.get(variant),
+                        Content::Sum(variants, _) => variants.get(variant),
                         _ => None,
                     };
                     let mut prepared = Vec::with_capacity(fields.len());
@@ -825,7 +875,7 @@ impl Flow<'_> {
                         self.kill(state, target, budget)?;
                         bridge
                             .unpack
-                            .push((target, value.fresh(), direct_fields(&value)));
+                            .push((target, value.fresh(), direct_fields(&value, budget)?));
                         state.locals[target.0 as usize] = value;
                         state.initialized[target.0 as usize] = 2;
                     }
@@ -877,7 +927,7 @@ impl Flow<'_> {
                     )?
                 };
                 bridge.result = matches!(value, Content::Leaf(_)).then(|| value.fresh());
-                bridge.package = direct_fields(&value);
+                bridge.package = direct_fields(&value, budget)?;
                 state.values[output.0 as usize] = value;
             }
             bridges.push(bridge);
@@ -943,7 +993,6 @@ fn run(
     let flow = Flow {
         f,
         module,
-        graph,
         definitions,
         observers,
         summaries,
