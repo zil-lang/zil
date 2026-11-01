@@ -106,6 +106,7 @@ pub(crate) fn lower_view_with_incremental_scalar_policy(
             function,
             target: lir.target,
             functions: &functions,
+            scalar_summaries: summaries.as_ref(),
             closures: &closures,
             resources: lir.resources,
             intrinsics: &mut intrinsics,
@@ -794,6 +795,7 @@ struct FunctionEmitter<'a> {
     function: &'a TypedFunction,
     target: &'a TargetProfile,
     functions: &'a BTreeMap<FunctionId, &'a TypedFunction>,
+    scalar_summaries: Option<&'a BTreeMap<FunctionId, Constant>>,
     closures: &'a BTreeMap<ClosureId, &'a ClosureDefinition>,
     resources: &'a [ResourceDefinition],
     intrinsics: &'a mut BTreeSet<(&'static str, u32)>,
@@ -1463,6 +1465,23 @@ impl FunctionEmitter<'_> {
                         "an ordinary call cannot enter a closure environment function",
                         Some(instruction.span),
                     );
+                }
+                // Reuse a fact about this exact bound source before constructing
+                // a machine call that a later pass would have to rediscover.
+                // The bounded evaluator proves a returning, effect-free scalar
+                // computation. Other instructions and their order are untouched.
+                if arguments.is_empty()
+                    && callee.parameters.is_empty()
+                    && callee.foreign.is_none()
+                    && callee.return_type != Type::Unit
+                    && let Some(value) = self.scalar_summaries.and_then(|plan| plan.get(function))
+                    && value.ty() == callee.return_type
+                {
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result(instruction)?.0)),
+                        m::Op::Freeze(scalar_summaries::argument(value)),
+                    )));
+                    return Ok(());
                 }
                 let mut emitted_arguments = Vec::new();
                 for argument in arguments {
