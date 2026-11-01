@@ -132,3 +132,34 @@ fn managed_store_pattern_relay_preserves_an_incoming_carrier() {
         "resource R{n:i32}package P{manages r:R}package Bag{manages values:Store<P>}enum E{V(manages Store<P>)}fn consume<F:Fn()->i32>(value:E,cb:F)->i32{match value{E.V(items)=>{let saved=give items;let bag=Bag{values:give saved};return cb()+i32(store_len(bag.values))}}}fn main()->i32{let items:Store<P>=store_new();return consume(E.V(give items),()=>3)-3}",
     );
 }
+
+#[test]
+fn concrete_enum_field_uses_its_declaration_scope_when_helper_binder_has_same_name() {
+    let source = include_str!("impl240_fixtures/resource_named_f.zil");
+    checked(source);
+    for body in [
+        "let saved=give a;sink(give saved);",
+        "let observed=a.n;sink(give a);",
+    ] {
+        let actual = source.replace("sink(give a);", body);
+        checked(&actual);
+        checked(actual.split("fn main").next().unwrap());
+    }
+    for body in [
+        "let saved=a;sink(give saved);",
+        "let saved:F=give a;sink(give saved);",
+        "sink(give a);sink(give a);",
+        "let observed=callback.n;sink(give a);",
+        "sink(give callback);sink(give a);",
+    ] {
+        assert!(
+            expand(&source.replace("sink(give a);", body)).is_err(),
+            "{body}"
+        );
+    }
+    for field in ["F", "Ref<F>", "manages Ref<F>"] {
+        let invalid = source.replace("manages F", field);
+        let actual = invalid.split("fn main").next().unwrap();
+        assert!(expand(actual).is_err(), "{field}");
+    }
+}
