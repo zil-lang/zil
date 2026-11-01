@@ -1930,9 +1930,18 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         self.scopes.pop();
                     }
                 }
-                CoreStatementKind::Block(body)
-                | CoreStatementKind::Unsafe(body)
-                | CoreStatementKind::Defer(body) => self.block(body, depth + 1)?,
+                CoreStatementKind::Defer(body) => {
+                    // A deferred mutation reaches this closure's activation
+                    // local through a nested borrowed environment. Like a
+                    // non-move nested closure, it needs final Copy capture
+                    // writeback even when no outer Store executes.
+                    self.nested_depth += 1;
+                    self.block(body, depth + 1)?;
+                    self.nested_depth -= 1;
+                }
+                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                    self.block(body, depth + 1)?
+                }
                 CoreStatementKind::Break | CoreStatementKind::Continue => {}
                 CoreStatementKind::Unsupported(feature) => {
                     return Err(unsupported(statement.span, feature));

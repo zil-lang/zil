@@ -245,3 +245,46 @@ fn types_new_cleanup_work_is_bounded_before_growth() {
     fs::write(path.join("source.zil"), text).unwrap();
     fs::write(path.join("boundary.json"),format!("{{\"types_minimum\":{hi},\"n\":true,\"n_minus_one_resource_limit\":true,\"fresh_n\":true}}\n")).unwrap();
 }
+
+#[test]
+fn deferred_mutation_persists_in_an_outer_move_callback() {
+    let source = "fn main()->i32{var count=0;var callback=move()=>{if true{defer{count+=1}}return count};if callback()!=1{return 1}if callback()!=2{return 2}if callback()!=3{return 3}return 0}";
+    let module = typed(source);
+    let outer = module
+        .closures
+        .iter()
+        .find(|definition| {
+            definition.kind == CallableKind::FnMut && definition.captures == vec![zil_ir::Type::I32]
+        })
+        .unwrap();
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| function.id == outer.function)
+        .unwrap();
+    assert!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .any(|instruction| matches!(instruction.kind, I::WriteCapture { index: 0, .. })),
+        "deferred address writes need persistent outer Copy capture writeback"
+    );
+    native("capture-writeback", source, "", 0);
+}
+
+#[test]
+fn deferred_mutation_crosses_borrowed_layers_but_keeps_move_snapshots_distinct() {
+    let borrowed = "fn main()->i32{var count=0;var callback=move()=>{var inner=()=>{if true{defer{count+=1}}return count};return inner()};if callback()!=1{return 1}if callback()!=2{return 2}if callback()!=3{return 3}return 0}";
+    native("capture-writeback-layers", borrowed, "", 0);
+    let snapshot = "fn main()->i32{var count=0;var callback=move()=>{var inner=move()=>{if true{defer{count+=1}}return count};let first=inner();let second=inner();return first*10+second};if callback()!=12{return 1}if callback()!=12{return 2}return 0}";
+    native("capture-writeback-snapshot", snapshot, "", 0);
+}
+
+#[test]
+fn deferred_mutation_writes_back_on_early_return_and_try_error() {
+    let early = "fn main()->i32{var count=0;var callback=move(flag:bool)=>{if true{defer{count+=1};if flag{return 7}}return count};if callback(true)!=7{return 1}if callback(false)!=2{return 2}if callback(false)!=3{return 3}return 0}";
+    native("capture-writeback-return", early, "", 0);
+    let error = "fn fail()->void!i32{return ()}fn okay(value:i32)->void!i32{return value}fn main()->void!i32{var count=0;var callback=move(flag:bool)->void!i32=>{if true{defer{count+=1};if flag{let skipped=fail()?;}}return okay(count)};let first=callback(true);if callback(false)?!=2{return 2}if callback(false)?!=3{return 3}return 0}";
+    native("capture-writeback-error", error, "", 0);
+}
