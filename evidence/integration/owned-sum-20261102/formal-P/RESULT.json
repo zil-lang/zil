@@ -25,5 +25,27 @@
   "fmt": "Pass",
   "reference": "NotRunOnRejectedCandidate",
   "classification": "Approved new Sum acceptance requires explicit old-boundary migration; ordinary helper full-chain and new raw shape permissions returned for production fixes. Exact per-case dispositions are not inferred from counts.",
-  "original_native_archive": "/workspace/.zil-env/formal-owned-sum-P.tar.zst (receipt pending complete verification)"
+  "original_native_archive": {
+    "origin": "local formal execution, not a CI run",
+    "checkout": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+    "roots": [
+      "fmt.command.json",
+      "fmt.log",
+      "fmt.result.json",
+      "native",
+      "source",
+      "source-snapshot.log",
+      "workspace.command.json",
+      "workspace.log",
+      "workspace.result.json"
+    ],
+    "files": 75830,
+    "bytes": 73962035,
+    "sha256": "3f329765bac1d8c3484397a6f6d1fe9e5cdb648a7f7fef5deb877748db5118b4",
+    "archive": "/workspace/.zil-env/formal-owned-sum-P.tar.zst",
+    "every_archive_blob_rehashed": true,
+    "original_inventory_rechecked": true,
+    "release_native_requested": true,
+    "native_released_after_verified_archive": true
+  }
 }
