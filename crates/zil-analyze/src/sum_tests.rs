@@ -809,3 +809,550 @@ fn bypassing_predecessor_cannot_confer_a_guard_at_join() {
         assert!(r.is_err());
     }
 }
+
+#[test]
+fn unpack_initialization_targets_are_part_of_incremental_semantic_key() {
+    let m = module(false, false);
+    let mut session = AnalysisSession::default();
+    session.analyze(&m, &Limits::default()).unwrap();
+    session.analyze(&m, &Limits::default()).unwrap();
+    assert_eq!(session.last_stats().reused_functions, 1);
+    let mut changed = m.clone();
+    for i in &mut changed.functions[0].blocks[0].instructions {
+        if let InstructionKind::UnpackVariant { fields, .. } = &mut i.kind {
+            fields.swap(0, 1);
+        }
+    }
+    // The target mapping is legal, but unchanged cleanup is now in the wrong
+    // actual initialization order. Initialization itself must be recomputed.
+    assert!(session.analyze(&changed, &Limits::default()).is_err());
+    assert_eq!(session.last_stats().executed_functions, 1);
+    assert!(analyze(&changed, &Limits::default()).is_err());
+    session.analyze(&m, &Limits::default()).unwrap();
+    assert_eq!(session.last_stats().reused_functions, 1);
+}
+
+#[test]
+fn unpack_targets_interleave_with_mandatory_defer_by_actual_new_age() {
+    let mut m = module(false, false);
+    let f = &mut m.functions[0];
+    f.locals.push(LocalDecl {
+        id: LocalId(3),
+        name: "cleanup".into(),
+        ty: Type::Closure(ClosureId(0)),
+        mutable: false,
+        span: Span::default(),
+    });
+    f.blocks[0]
+        .instructions
+        .insert(1, op(None, InstructionKind::StorageLive(LocalId(3))));
+    let action = ValueId(f.values.len() as u32);
+    f.values.push(Type::Closure(ClosureId(0)));
+    let taken = ValueId(f.values.len() as u32);
+    f.values.push(Type::Closure(ClosureId(0)));
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::UnpackVariant { .. }))
+        .unwrap();
+    f.blocks[0].instructions.splice(
+        at..at,
+        [
+            op(
+                Some(action),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![],
+                },
+            ),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(3),
+                    value: action,
+                },
+            ),
+            op(
+                None,
+                InstructionKind::RegisterDefer {
+                    scope: ScopeId(0),
+                    local: LocalId(3),
+                },
+            ),
+        ],
+    );
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::StorageDead(_)))
+        .unwrap();
+    f.blocks[0].instructions.splice(
+        at..at,
+        [
+            op(
+                Some(taken),
+                InstructionKind::TakeLocal { local: LocalId(3) },
+            ),
+            op(
+                None,
+                InstructionKind::CallClosureOnce {
+                    callee: taken,
+                    arguments: vec![],
+                },
+            ),
+            op(None, InstructionKind::StorageDead(LocalId(3))),
+        ],
+    );
+    m.closures.push(ClosureDefinition {
+        id: ClosureId(0),
+        function: FunctionId(1),
+        captures: vec![],
+        parameters: vec![],
+        result: Type::Unit,
+        kind: CallableKind::FnOnce,
+        lending_captures: vec![],
+    });
+    m.functions.push(TypedFunction {
+        callable_return_contract: None,
+        callable_contract: None,
+        id: FunctionId(1),
+        name: "cleanup_body".into(),
+        foreign: None,
+        environment: Some(ClosureId(0)),
+        parameters: vec![],
+        return_type: Type::Unit,
+        result_mode: PassingMode::Infer,
+        locals: vec![],
+        values: vec![],
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            instructions: vec![],
+            terminator: Terminator::Return(None),
+        }],
+        entry: BlockId(0),
+        span: Span::default(),
+    });
+    for r in both(&m) {
+        r.unwrap();
+    }
+    let f = &mut m.functions[0];
+    let call = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::TakeLocal { local: LocalId(3) }))
+        .unwrap();
+    let pair: Vec<_> = f.blocks[0].instructions.drain(call..call + 2).collect();
+    let first_drop = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
+        .unwrap();
+    f.blocks[0]
+        .instructions
+        .splice(first_drop..first_drop, pair);
+    assert!(analyze(&m, &Limits::default()).is_err());
+}
+
+#[test]
+fn ordinary_sum_admission_does_not_qualify_storage_or_borrowed_profiles() {
+    let mut m = module(true, false);
+    let element = Type::Package {
+        name: "ForbiddenElement".into(),
+        fields: vec![("sum".into(), sum())],
+    };
+    let store = Type::Managed(Box::new(Type::OwnedStore {
+        element: Box::new(element.clone()),
+    }));
+    // The new shape is unused; no executable operation may hide its profile.
+    m.functions[0].locals.push(LocalDecl {
+        id: LocalId(3),
+        name: "unused_store".into(),
+        ty: store,
+        mutable: false,
+        span: Span::default(),
+    });
+    m.resources.push(ResourceDefinition {
+        name: "@builtin:OwnedStore<ForbiddenElement>".into(),
+        payload: Type::OwnedStore {
+            element: Box::new(element),
+        },
+        teardown: None,
+    });
+    for result in both(&m) {
+        assert!(
+            result
+                .unwrap_err()
+                .iter()
+                .any(|d| d.message.contains("qualification"))
+        );
+    }
+    for ty in [
+        Type::Array {
+            element: Box::new(sum()),
+            length: 1,
+        },
+        Type::Address {
+            inner: Box::new(sum()),
+            mutable: false,
+        },
+    ] {
+        let mut m = module(true, false);
+        m.functions[0].locals.push(LocalDecl {
+            id: LocalId(3),
+            name: "unused_profile".into(),
+            ty,
+            mutable: false,
+            span: Span::default(),
+        });
+        for result in both(&m) {
+            assert!(result.is_err());
+        }
+    }
+}
+
+#[test]
+fn loop_reexecuting_the_same_store_requires_a_new_current_tag_observation() {
+    for fresh in [false, true] {
+        let mut m = module(true, false);
+        let identity = TypedFunction {
+            callable_return_contract: None,
+            callable_contract: None,
+            id: FunctionId(1),
+            name: "relay".into(),
+            foreign: None,
+            environment: None,
+            parameters: vec![LocalId(0)],
+            return_type: sum(),
+            result_mode: PassingMode::Infer,
+            locals: vec![LocalDecl {
+                id: LocalId(0),
+                name: "input".into(),
+                ty: sum(),
+                mutable: false,
+                span: Span::default(),
+            }],
+            values: vec![sum()],
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                instructions: vec![
+                    op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+                    op(
+                        Some(ValueId(0)),
+                        InstructionKind::TakeLocal { local: LocalId(0) },
+                    ),
+                    op(None, InstructionKind::StorageDead(LocalId(0))),
+                    op(
+                        None,
+                        InstructionKind::ScopeExit {
+                            scope: ScopeId(0),
+                            kind: CleanupExitKind::Return,
+                        },
+                    ),
+                ],
+                terminator: Terminator::Return(Some(ValueId(0))),
+            }],
+            entry: BlockId(0),
+            span: Span::default(),
+        };
+        let f = &mut m.functions[0];
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::VariantTagLocal { .. }))
+            .unwrap();
+        let mut observation = f.blocks[0].instructions.split_off(at);
+        let tag = observation.remove(0);
+        let moved = ValueId(f.values.len() as u32);
+        f.values.push(sum());
+        let returned = ValueId(f.values.len() as u32);
+        f.values.push(sum());
+        let mut instructions = vec![
+            op(
+                Some(moved),
+                InstructionKind::TakeLocal { local: LocalId(0) },
+            ),
+            op(
+                Some(returned),
+                InstructionKind::Call {
+                    function: FunctionId(1),
+                    arguments: vec![moved],
+                },
+            ),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(0),
+                    value: returned,
+                },
+            ),
+        ];
+        instructions.insert(if fresh { 3 } else { 0 }, tag);
+        instructions.extend(observation);
+        f.blocks[0].terminator = Terminator::Jump(BlockId(3));
+        f.blocks.push(BasicBlock {
+            id: BlockId(3),
+            instructions,
+            terminator: Terminator::Branch {
+                condition: ValueId(2),
+                then_block: BlockId(1),
+                else_block: BlockId(3),
+            },
+        });
+        m.functions.push(identity);
+        for r in both(&m) {
+            if fresh {
+                r.unwrap();
+            } else {
+                assert!(
+                    r.unwrap_err()
+                        .iter()
+                        .any(|d| d.message.contains("selected"))
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn malformed_or_unexecuted_ssa_cannot_supply_tag_authority() {
+    for mode in 0..3 {
+        let mut m = module(true, false);
+        let f = &mut m.functions[0];
+        match mode {
+            0 => {
+                let at = f.blocks[0]
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind, InstructionKind::Binary { .. }))
+                    .unwrap();
+                f.blocks[0].instructions.insert(
+                    at,
+                    op(
+                        Some(ValueId(0)),
+                        InstructionKind::Constant(Constant::I32(0)),
+                    ),
+                );
+            }
+            1 => {
+                f.values[1] = Type::Bool;
+            }
+            _ => {
+                let at = f.blocks[0]
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind, InstructionKind::Constant(_)))
+                    .unwrap();
+                let constant = f.blocks[0].instructions.remove(at);
+                f.blocks.push(BasicBlock {
+                    id: BlockId(3),
+                    instructions: vec![constant],
+                    terminator: Terminator::Trap,
+                });
+            }
+        }
+        for r in both(&m) {
+            assert!(r.is_err());
+        }
+    }
+    let mut m = module(true, false);
+    m.functions[0].locals[0].id = LocalId(99);
+    assert!(analyze(&m, &Limits::default()).is_err());
+}
+
+#[test]
+fn ordinary_value_calls_do_not_export_private_created_leaf_freshness() {
+    for identity in [true, false] {
+        let mut m = module(false, false);
+        let mut callee = m.functions[0].clone();
+        callee.id = FunctionId(1);
+        callee.name = if identity { "relay" } else { "fresh_factory" }.into();
+        callee.return_type = sum();
+        callee.result_mode = PassingMode::Infer;
+        if identity {
+            callee.locals.truncate(1);
+            callee.parameters = vec![LocalId(0)];
+            callee.values = vec![sum()];
+            callee.blocks = vec![BasicBlock {
+                id: BlockId(0),
+                instructions: vec![
+                    op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+                    op(
+                        Some(ValueId(0)),
+                        InstructionKind::TakeLocal { local: LocalId(0) },
+                    ),
+                    op(None, InstructionKind::StorageDead(LocalId(0))),
+                    op(
+                        None,
+                        InstructionKind::ScopeExit {
+                            scope: ScopeId(0),
+                            kind: CleanupExitKind::Return,
+                        },
+                    ),
+                ],
+                terminator: Terminator::Return(Some(ValueId(0))),
+            }];
+        } else {
+            let at = callee.blocks[0]
+                .instructions
+                .iter()
+                .position(|i| {
+                    matches!(
+                        i.kind,
+                        InstructionKind::Store {
+                            local: LocalId(0),
+                            ..
+                        }
+                    )
+                })
+                .unwrap();
+            callee.blocks[0].instructions.truncate(at);
+            for l in [2, 1, 0] {
+                callee.blocks[0]
+                    .instructions
+                    .push(op(None, InstructionKind::StorageDead(LocalId(l))));
+            }
+            callee.blocks[0].instructions.push(op(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ));
+            callee.blocks[0].terminator = Terminator::Return(Some(ValueId(3)));
+        }
+        let f = &mut m.functions[0];
+        if identity {
+            let at = f.blocks[0]
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::UnpackVariant { .. }))
+                .unwrap();
+            let argument = ValueId(f.values.len() as u32);
+            f.values.push(sum());
+            let returned = ValueId(f.values.len() as u32);
+            f.values.push(sum());
+            f.blocks[0].instructions.splice(
+                at..at,
+                [
+                    op(
+                        Some(argument),
+                        InstructionKind::TakeLocal { local: LocalId(0) },
+                    ),
+                    op(
+                        Some(returned),
+                        InstructionKind::Call {
+                            function: FunctionId(1),
+                            arguments: vec![argument],
+                        },
+                    ),
+                    op(
+                        None,
+                        InstructionKind::Store {
+                            local: LocalId(0),
+                            value: returned,
+                        },
+                    ),
+                ],
+            );
+        } else {
+            f.blocks[0].instructions.retain(|i| {
+                !matches!(
+                    i.kind,
+                    InstructionKind::Constant(_)
+                        | InstructionKind::MakeManaged { .. }
+                        | InstructionKind::MakeVariant { .. }
+                )
+            });
+            let at = f.blocks[0]
+                .instructions
+                .iter()
+                .position(|i| {
+                    matches!(
+                        i.kind,
+                        InstructionKind::Store {
+                            local: LocalId(0),
+                            ..
+                        }
+                    )
+                })
+                .unwrap();
+            f.blocks[0].instructions.insert(
+                at,
+                op(
+                    Some(ValueId(3)),
+                    InstructionKind::Call {
+                        function: FunctionId(1),
+                        arguments: vec![],
+                    },
+                ),
+            );
+        }
+        // A real success edge observes the returned carrier's actual tag. The
+        // known construction from before relay is deliberately not authority.
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::UnpackVariant { .. }))
+            .unwrap();
+        let tail = f.blocks[0].instructions.split_off(at);
+        let tag = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let c = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let condition = ValueId(f.values.len() as u32);
+        f.values.push(Type::Bool);
+        f.blocks[0].instructions.extend([
+            op(
+                Some(tag),
+                InstructionKind::VariantTagLocal {
+                    local: LocalId(0),
+                    path: vec![],
+                },
+            ),
+            op(Some(c), InstructionKind::Constant(Constant::I32(0))),
+            op(
+                Some(condition),
+                InstructionKind::Binary {
+                    op: BinaryOp::Equal,
+                    left: tag,
+                    right: c,
+                },
+            ),
+        ]);
+        f.blocks[0].terminator = Terminator::Branch {
+            condition,
+            then_block: BlockId(1),
+            else_block: BlockId(2),
+        };
+        f.blocks.push(BasicBlock {
+            id: BlockId(1),
+            instructions: tail,
+            terminator: Terminator::Return(None),
+        });
+        f.blocks.push(BasicBlock {
+            id: BlockId(2),
+            instructions: vec![],
+            terminator: Terminator::Trap,
+        });
+        let at = f.blocks[1]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::DropManaged { local: LocalId(1) }))
+            .unwrap();
+        let out = ValueId(f.values.len() as u32);
+        f.values.push(leaf());
+        f.blocks[1].instructions[at] =
+            op(Some(out), InstructionKind::TakeLocal { local: LocalId(1) });
+        f.return_type = leaf();
+        f.result_mode = PassingMode::Create;
+        f.blocks[1].terminator = Terminator::Return(Some(out));
+        m.functions.push(callee);
+        for r in both(&m) {
+            assert!(
+                r.unwrap_err()
+                    .iter()
+                    .any(|d| d.message.contains("create result"))
+            );
+        }
+    }
+}

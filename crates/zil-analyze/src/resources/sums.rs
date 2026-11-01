@@ -1,6 +1,7 @@
 //! Ordinary Sum facts reconstructed from executable instructions. Branch maps
 //! describe possible alternatives, never simultaneous resource debts.
 use super::*;
+use std::sync::Arc;
 
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
@@ -100,11 +101,11 @@ struct Tree {
 enum Node {
     Copy,
     Leaf(BTreeSet<Birth>),
-    Product(Vec<Tree>),
-    Sum(BTreeMap<u32, Vec<Tree>>),
+    Product(Vec<Arc<Tree>>),
+    Sum(BTreeMap<u32, Vec<Arc<Tree>>>),
 }
 impl Tree {
-    fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Self> {
+    fn unknown(ty: &Type, budget: &mut Budget) -> CompileResult<Arc<Self>> {
         budget.spend(2, "Sum tree allocation")?;
         let node = match ty {
             Type::Managed(_) => Node::Leaf(BTreeSet::from([Birth::Incoming])),
@@ -137,35 +138,46 @@ impl Tree {
             ])),
             _ => Node::Copy,
         };
-        Ok(Self {
+        Ok(Arc::new(Self {
             missing: false,
             node,
-        })
+        }))
     }
     fn cost(&self, budget: &mut Budget) -> CompileResult<()> {
-        budget.spend(2, "Sum fact traversal")?;
+        // Arc::make_mut copies only this node and its immediate child refs.
+        budget.spend(2, "Sum COW node copy")?;
         match &self.node {
-            Node::Leaf(s) => budget.spend(s.len(), "Sum leaf origins")?,
-            Node::Product(fs) => {
-                for f in fs {
-                    f.cost(budget)?;
-                }
-            }
+            Node::Leaf(s) => budget.spend(s.len(), "Sum COW leaf origins")?,
+            Node::Product(fs) => budget.spend(fs.len(), "Sum COW Product refs")?,
             Node::Sum(vs) => {
-                budget.spend(vs.len(), "Sum possible tags")?;
+                budget.spend(vs.len(), "Sum COW tag map")?;
                 for fs in vs.values() {
-                    for f in fs {
-                        f.cost(budget)?;
-                    }
+                    budget.spend(fs.len(), "Sum COW field refs")?;
                 }
             }
             Node::Copy => {}
         }
         Ok(())
     }
-    fn copied(&self, budget: &mut Budget) -> CompileResult<Self> {
-        self.cost(budget)?;
-        Ok(self.clone())
+    fn copied(self: &Arc<Self>, budget: &mut Budget) -> CompileResult<Arc<Self>> {
+        budget.spend(1, "Sum immutable fact share")?;
+        Ok(Arc::clone(self))
+    }
+    fn merge(self: &mut Arc<Self>, other: &Arc<Self>, budget: &mut Budget) -> CompileResult<bool> {
+        budget.spend(1, "Sum shared join identity")?;
+        if Arc::ptr_eq(self, other) {
+            return Ok(false);
+        }
+        edit(self, budget)?.merge_body(other, budget)
+    }
+    fn narrow(
+        self: &mut Arc<Self>,
+        path: &[VariantProjection],
+        tag: u32,
+        equal: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<bool> {
+        edit(self, budget)?.narrow_body(path, tag, equal, budget)
     }
     fn complete(&self, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum completeness")?;
@@ -196,7 +208,7 @@ impl Tree {
         }
         Ok(true)
     }
-    fn merge(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
+    fn merge_body(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum fact join")?;
         let mut changed = !self.missing && other.missing;
         self.missing |= other.missing;
@@ -226,9 +238,6 @@ impl Tree {
                             changed |= o.merge(n, budget)?;
                         }
                     } else {
-                        for f in fs {
-                            f.cost(budget)?;
-                        }
                         budget.spend(fs.len() + 1, "Sum alternative join allocation")?;
                         a.insert(*tag, fs.clone());
                         changed = true;
@@ -268,7 +277,7 @@ impl Tree {
         }
         Ok(at)
     }
-    fn narrow(
+    fn narrow_body(
         &mut self,
         path: &[VariantProjection],
         tag: u32,
@@ -306,8 +315,8 @@ impl Tree {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct Facts {
-    locals: BTreeMap<LocalId, Tree>,
-    values: BTreeMap<ValueId, Tree>,
+    locals: BTreeMap<LocalId, Arc<Tree>>,
+    values: BTreeMap<ValueId, Arc<Tree>>,
     // Only observations of this current activation survive. A write kills all
     // its tokens, including old SSA snapshots reused at the same loop site.
     valid: BTreeSet<ValueId>,
@@ -321,9 +330,7 @@ impl Facts {
             self.locals.len() + self.values.len() + self.valid.len(),
             "Sum state tables",
         )?;
-        for t in self.locals.values().chain(self.values.values()) {
-            t.cost(budget)?;
-        }
+        // Map cloning shares immutable nodes; it never walks their descendants.
         Ok(())
     }
     pub(super) fn join(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
@@ -356,14 +363,14 @@ impl Facts {
         change |= n != self.valid.len();
         Ok(change)
     }
-    fn value(&self, v: ValueId, budget: &mut Budget) -> CompileResult<Tree> {
+    fn value(&self, v: ValueId, budget: &mut Budget) -> CompileResult<Arc<Tree>> {
         budget.lookup(self.values.len(), "Sum value source")?;
         self.values
             .get(&v)
             .ok_or_else(|| error("Sum value absent"))?
             .copied(budget)
     }
-    fn local(&self, l: LocalId, budget: &mut Budget) -> CompileResult<Tree> {
+    fn local(&self, l: LocalId, budget: &mut Budget) -> CompileResult<Arc<Tree>> {
         budget.lookup(self.locals.len(), "Sum local source")?;
         self.locals
             .get(&l)
@@ -387,7 +394,7 @@ impl Facts {
         budget: &mut Budget,
     ) -> CompileResult<BTreeSet<Birth>> {
         let t = self.local(l, budget)?;
-        let Node::Sum(vs) = t.node else {
+        let Node::Sum(vs) = &t.node else {
             return Err(error("Unpack source is not a Sum"));
         };
         let child = vs
@@ -403,7 +410,7 @@ impl Facts {
 
 pub(super) struct Plan {
     observations: BTreeMap<ValueId, (LocalId, Vec<VariantProjection>)>,
-    tests: BTreeMap<ValueId, (ValueId, u32, bool)>,
+    tests: BTreeMap<ValueId, (ValueId, ValueId, u32, bool)>,
 }
 impl Plan {
     pub(super) fn new(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Option<Self>> {
@@ -420,10 +427,19 @@ impl Plan {
         let mut constants = BTreeMap::new();
         let mut observations = BTreeMap::new();
         let mut tests = BTreeMap::new();
+        let mut definitions = BTreeSet::new();
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
             budget.spend(1, "Sum instruction inventory")?;
+            if let Some(v) = i.result {
+                budget.lookup(definitions.len(), "Sum unique result identity")?;
+                if v.0 as usize >= f.values.len() || !definitions.insert(v) {
+                    return Err(error("Sum observer requires unique actual SSA definitions"));
+                }
+            }
             match (&i.kind, i.result) {
-                (InstructionKind::Constant(Constant::I32(n)), Some(v)) => {
+                (InstructionKind::Constant(Constant::I32(n)), Some(v))
+                    if f.values[v.0 as usize] == Type::I32 =>
+                {
                     budget.lookup(constants.len(), "Sum constant insertion")?;
                     budget.spend(1, "Sum constant entry")?;
                     constants.insert(v, *n);
@@ -440,6 +456,9 @@ impl Plan {
             budget.spend(1, "Sum condition inventory")?;
             if let (InstructionKind::Binary { op, left, right }, Some(out)) = (&i.kind, i.result)
                 && matches!(op, BinaryOp::Equal | BinaryOp::NotEqual)
+                && f.values.get(left.0 as usize) == Some(&Type::I32)
+                && f.values.get(right.0 as usize) == Some(&Type::I32)
+                && f.values.get(out.0 as usize) == Some(&Type::Bool)
             {
                 for (tag, c) in [(*left, *right), (*right, *left)] {
                     budget.lookup(
@@ -450,7 +469,7 @@ impl Plan {
                         && let Some(n) = constants.get(&c)
                     {
                         budget.lookup(tests.len(), "Sum condition insertion")?;
-                        tests.insert(out, (tag, *n as u32, *op == BinaryOp::Equal));
+                        tests.insert(out, (tag, c, *n as u32, *op == BinaryOp::Equal));
                     }
                 }
             }
@@ -471,13 +490,13 @@ impl Plan {
         for l in &f.locals {
             budget.lookup(facts.locals.len(), "Sum local fact allocation")?;
             let mut t = Tree::unknown(&l.ty, budget)?;
-            t.missing = !f.parameters.contains(&l.id);
+            edit(&mut t, budget)?.missing = !f.parameters.contains(&l.id);
             facts.locals.insert(l.id, t);
         }
         for (v, ty) in f.values.iter().enumerate() {
             budget.lookup(facts.values.len(), "Sum value fact allocation")?;
             let mut t = Tree::unknown(ty, budget)?;
-            t.missing = true;
+            edit(&mut t, budget)?.missing = true;
             facts.values.insert(ValueId(v as u32), t);
         }
         Ok(facts)
@@ -496,10 +515,13 @@ impl Plan {
             else_block,
         } = f.blocks[b].terminator
             && then_block != else_block
-            && let Some((tag, n, equal)) = self.tests.get(&condition)
+            && let Some((tag, constant, n, equal)) = self.tests.get(&condition)
         {
             budget.lookup(facts.valid.len(), "Sum edge observation lifetime")?;
-            if facts.valid.contains(tag) {
+            if facts.valid.contains(tag)
+                && facts.value(*constant, budget)?.complete(budget)?
+                && facts.value(condition, budget)?.complete(budget)?
+            {
                 let (l, path) = &self.observations[tag];
                 let want = if then_block.0 as usize == successor {
                     *equal
@@ -596,10 +618,10 @@ impl Plan {
             InstructionKind::MakeManaged { .. }
             | InstructionKind::ByteBufferNew
             | InstructionKind::OwnedStoreNew { .. } => {
-                output = Some(Tree {
+                output = Some(Arc::new(Tree {
                     missing: false,
                     node: Node::Leaf(BTreeSet::from([Birth::Created])),
-                });
+                }));
             }
             InstructionKind::MakeVariant { variant, fields } => {
                 let Some(Type::Enum { variants, .. }) =
@@ -619,7 +641,7 @@ impl Plan {
                         return Err(error("MakeVariant field type mismatch"));
                     }
                 }
-                output = Some(Tree {
+                output = Some(Arc::new(Tree {
                     missing: false,
                     node: Node::Sum(BTreeMap::from([(
                         *variant,
@@ -628,19 +650,19 @@ impl Plan {
                             .map(|v| facts.value(*v, budget))
                             .collect::<CompileResult<_>>()?,
                     )])),
-                });
+                }));
             }
             InstructionKind::MakeErrorUnion { value, is_error } => {
-                output = Some(Tree {
+                output = Some(Arc::new(Tree {
                     missing: false,
                     node: Node::Sum(BTreeMap::from([(
                         *is_error as u32,
                         vec![facts.value(*value, budget)?],
                     )])),
-                })
+                }))
             }
             InstructionKind::MakePackage { fields } => {
-                output = Some(Tree {
+                output = Some(Arc::new(Tree {
                     missing: false,
                     node: Node::Product(
                         fields
@@ -648,12 +670,12 @@ impl Plan {
                             .map(|v| facts.value(*v, budget))
                             .collect::<CompileResult<_>>()?,
                     ),
-                })
+                }))
             }
             InstructionKind::TakeLocal { local } | InstructionKind::Load(local) => {
                 output = Some(facts.local(*local, budget)?);
                 if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
-                    facts.locals.get_mut(local).unwrap().missing = true;
+                    edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
                     facts.invalidate(*local, self, budget)?;
                 }
             }
@@ -665,7 +687,7 @@ impl Plan {
             InstructionKind::TakePackageField { local, index }
             | InstructionKind::ReadPackageField { local, index } => {
                 let t = facts.local(*local, budget)?;
-                let Node::Product(fs) = t.node else {
+                let Node::Product(fs) = &t.node else {
                     return Err(error("Sum field source is not Product"));
                 };
                 output = Some(
@@ -674,8 +696,10 @@ impl Plan {
                         .copied(budget)?,
                 );
                 if matches!(i.kind, InstructionKind::TakePackageField { .. }) {
-                    if let Node::Product(fs) = &mut facts.locals.get_mut(local).unwrap().node {
-                        fs[*index as usize].missing = true;
+                    if let Node::Product(fs) =
+                        &mut edit(facts.locals.get_mut(local).unwrap(), budget)?.node
+                    {
+                        edit(&mut fs[*index as usize], budget)?.missing = true;
                     }
                     facts.invalidate(*local, self, budget)?;
                 }
@@ -686,24 +710,31 @@ impl Plan {
                 value,
             } => {
                 let t = facts.value(*value, budget)?;
-                if let Node::Product(fs) = &mut facts.locals.get_mut(local).unwrap().node {
+                if let Node::Product(fs) =
+                    &mut edit(facts.locals.get_mut(local).unwrap(), budget)?.node
+                {
                     *fs.get_mut(*index as usize)
                         .ok_or_else(|| error("Sum Product store field absent"))? = t;
                 }
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::DropPackageField { local, index } => {
-                if let Node::Product(fs) = &mut facts.locals.get_mut(local).unwrap().node {
-                    fs.get_mut(*index as usize)
-                        .ok_or_else(|| error("Sum Product drop field absent"))?
-                        .missing = true;
+                if let Node::Product(fs) =
+                    &mut edit(facts.locals.get_mut(local).unwrap(), budget)?.node
+                {
+                    edit(
+                        fs.get_mut(*index as usize)
+                            .ok_or_else(|| error("Sum Product drop field absent"))?,
+                        budget,
+                    )?
+                    .missing = true;
                 }
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::TakeErrorUnion { value, is_error }
             | InstructionKind::ReadErrorUnion { value, is_error } => {
                 let t = facts.value(*value, budget)?;
-                let Node::Sum(vs) = t.node else {
+                let Node::Sum(vs) = &t.node else {
                     return Err(error("Sum union source absent"));
                 };
                 output = Some(
@@ -750,7 +781,7 @@ impl Plan {
             } => {
                 self.validate_unpack(f, i, facts, check, budget)?;
                 let tree = facts.local(*local, budget)?;
-                let Node::Sum(vs) = tree.node else {
+                let Node::Sum(vs) = &tree.node else {
                     unreachable!()
                 };
                 if let Some(fs) = vs.get(variant) {
@@ -760,7 +791,7 @@ impl Plan {
                         facts.locals.insert(*l, t.copied(budget)?);
                     }
                 }
-                facts.locals.get_mut(local).unwrap().missing = true;
+                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::DropEnum { local } => {
@@ -770,7 +801,7 @@ impl Plan {
                 {
                     return Err(error("DropEnum requires owning Enum and no result"));
                 }
-                facts.locals.get_mut(local).unwrap().missing = true;
+                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
             InstructionKind::StorageLive(local)
@@ -780,13 +811,13 @@ impl Plan {
             | InstructionKind::DropErrorUnion { local }
             | InstructionKind::DropClosure { local }
             | InstructionKind::DropOwnedArray { local } => {
-                facts.locals.get_mut(local).unwrap().missing = true;
+                edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
-            InstructionKind::VariantTag { value } | InstructionKind::ReadVariant { value, .. } => {
-                if !f.values[value.0 as usize].is_copy_value() {
-                    return Err(error("legacy Enum SSA observation requires Copy"));
-                }
+            InstructionKind::VariantTag { value } | InstructionKind::ReadVariant { value, .. }
+                if !f.values[value.0 as usize].is_copy_value() =>
+            {
+                return Err(error("legacy Enum SSA observation requires Copy"));
             }
             _ => {}
         }
@@ -802,14 +833,12 @@ impl Plan {
                     .get(function.0 as usize)
                     .is_some_and(|f| f.result_mode == PassingMode::Create)
             {
-                match &mut tree.node {
+                match &mut edit(&mut tree, budget)?.node {
                     Node::Leaf(s) => *s = BTreeSet::from([Birth::Created]),
                     Node::Sum(vs) if managed_success(&f.values[v.0 as usize]) => {
                         if let Some(fs) = vs.get_mut(&0)
-                            && let Some(Tree {
-                                node: Node::Leaf(s),
-                                ..
-                            }) = fs.first_mut()
+                            && let Some(t) = fs.first_mut()
+                            && let Node::Leaf(s) = &mut edit(t, budget)?.node
                         {
                             *s = BTreeSet::from([Birth::Created]);
                         }
@@ -828,7 +857,7 @@ impl Plan {
                 birth = Some(
                     vs.get(&0)
                         .and_then(|fs| fs.first())
-                        .and_then(Tree::birth)
+                        .and_then(|t| t.birth())
                         .cloned()
                         .unwrap_or_default(),
                 );
@@ -854,4 +883,11 @@ fn projection<'a>(
             .ok_or_else(|| error("Sum projection type index absent"))?;
     }
     Ok(ty)
+}
+
+fn edit<'a>(tree: &'a mut Arc<Tree>, budget: &mut Budget) -> CompileResult<&'a mut Tree> {
+    if Arc::strong_count(tree) > 1 {
+        tree.cost(budget)?;
+    }
+    Ok(Arc::make_mut(tree))
 }
