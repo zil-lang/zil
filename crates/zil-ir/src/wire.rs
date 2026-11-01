@@ -2785,3 +2785,6 @@ mod state_field_tests;
 
 #[cfg(test)]
 mod flow_tests;
+
+#[cfg(test)]
+mod owned_sum_tests;
