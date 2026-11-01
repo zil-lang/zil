@@ -1,0 +1,32 @@
+{
+  "status": "PredeclaredNotRun",
+  "reviewer": "/root/review_language_contracts",
+  "test": "crates/zil-driver/tests/review240_helper_sum.rs",
+  "sha256": "d00f4234f8b12f1985cea16126332cbe9f3fb9ea3fbaf37de7568bfaa65f587f",
+  "positive_sources": 3,
+  "positive_expected_stdout": "AB",
+  "positive_expected_exit": 0,
+  "native_optimizations": [
+    "O0",
+    "O2"
+  ],
+  "positive_obligations": [
+    "finite Fn()->i32 helper accepts a concrete ordinary Enum value and can give actual manages Name payloads",
+    "ordinary complete Product<Sum> parameter has the same legality",
+    "ordinary complete ErrorUnion<Wrap<Sum>> input is cleaned without changing callback signature or helper Copy result"
+  ],
+  "negative_sources": 7,
+  "negative_obligations": [
+    "repeat managed give rejects",
+    "a plain copied description is not an owner",
+    "Sum parameter in callable F signature stays closed",
+    "Sum return from callable F stays closed",
+    "returning F from this helper stays closed",
+    "ordinary Sum argument does not expand owning State constructor signature",
+    "FnOnce still cannot be called twice"
+  ],
+  "production_edited": false,
+  "cargo_runs": 0,
+  "native_runs": 0,
+  "purpose": "Final 240 supplementary repair; preserve expectations before production candidate freeze."
+}
