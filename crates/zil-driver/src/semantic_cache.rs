@@ -1,5 +1,5 @@
 //! Opt-in, explicitly trusted local frontend candidates. Integrity hashes do
-//! not authenticate writers. Restored values still go through Analyze/Verify.
+//! not authenticate writers. Restored Analyze claims still pass current Verify.
 use super::*;
 use std::sync::OnceLock;
 use zil_db::{ArtifactCache, CacheRead, QueryKey};
@@ -8,7 +8,7 @@ use zil_ir::{
     TypedProgram,
 };
 
-const MAGIC: &[u8; 8] = b"ZILSEM01";
+const MAGIC: &[u8; 8] = b"ZILSEM02";
 static COMPILER: OnceLock<Option<Fingerprint>> = OnceLock::new();
 
 pub(super) struct Store {
@@ -31,11 +31,11 @@ impl Store {
         {
             return None;
         }
-        let root = options.semantic_cache.as_ref()?.join("semantic-v1");
+        let root = options.semantic_cache.as_ref()?.join("semantic-v2");
         let compiler = COMPILER
             .get_or_init(|| zil_backend_llvm::installed_compiler_identity().ok())
             .as_ref()?;
-        let mut bytes = b"ZIL-TRUSTED-SEMANTIC-v1\0".to_vec();
+        let mut bytes = b"ZIL-TRUSTED-SEMANTIC-v2\0".to_vec();
         bytes.extend_from_slice(&identity.fingerprint().0);
         bytes.extend_from_slice(&compiler.0);
         Some(Self {
@@ -56,7 +56,7 @@ impl Store {
             .to_path_buf();
     }
 
-    pub(super) fn load(&self, options: &CompileOptions) -> Option<TypedProgram> {
+    pub(super) fn load(&self, options: &CompileOptions) -> Option<(TypedProgram, CandidatePlan)> {
         if !private_directory(&self.root, false) {
             return None;
         }
@@ -74,13 +74,14 @@ impl Store {
     pub(super) fn save(
         &self,
         typed: &TypedProgram,
+        candidate: &CandidatePlan,
         options: &CompileOptions,
         plan: &artifacts::ArtifactPlan,
     ) {
         if options.cancellation.is_cancelled() || plan.validate().is_err() {
             return;
         }
-        let Some(bytes) = encode(typed, &options.limits) else {
+        let Some(bytes) = encode(typed, candidate, &options.limits) else {
             return;
         };
         if options.cancellation.is_cancelled()
@@ -178,14 +179,9 @@ impl Writer {
     }
 }
 
-fn encode(program: &TypedProgram, limits: &Limits) -> Option<Vec<u8>> {
+fn encode(program: &TypedProgram, candidate: &CandidatePlan, limits: &Limits) -> Option<Vec<u8>> {
     metadata_budget(program, limits)?;
-    let wire = zil_ir::wire::encode_module_candidate(
-        &program.module,
-        &CandidatePlan::empty_for(&program.module),
-        limits,
-    )
-    .ok()?;
+    let wire = zil_ir::wire::encode_module_candidate(&program.module, candidate, limits).ok()?;
     let mut out = Writer {
         bytes: Vec::new(),
         maximum: limits.max_source_bytes,
@@ -308,7 +304,7 @@ impl<'a> Reader<'a> {
     }
 }
 
-fn decode(bytes: &[u8], limits: &Limits) -> Option<TypedProgram> {
+fn decode(bytes: &[u8], limits: &Limits) -> Option<(TypedProgram, CandidatePlan)> {
     if bytes.len() > limits.max_source_bytes {
         return None;
     }
@@ -322,7 +318,8 @@ fn decode(bytes: &[u8], limits: &Limits) -> Option<TypedProgram> {
         return None;
     }
     let size = input.number()?;
-    let (module, _) = zil_ir::wire::decode_module_candidate(input.take(size)?, limits).ok()?;
+    let (module, candidate) =
+        zil_ir::wire::decode_module_candidate(input.take(size)?, limits).ok()?;
     let n = input.count(limits.max_nodes, 72)?;
     let mut interfaces = Vec::with_capacity(n);
     for _ in 0..n {
@@ -353,11 +350,14 @@ fn decode(bytes: &[u8], limits: &Limits) -> Option<TypedProgram> {
     if !input.bytes.is_empty() {
         return None;
     }
-    Some(TypedProgram {
-        module,
-        interfaces,
-        root_functions,
-    })
+    Some((
+        TypedProgram {
+            module,
+            interfaces,
+            root_functions,
+        },
+        candidate,
+    ))
 }
 
 fn mode(mode: PassingMode) -> u8 {
@@ -501,12 +501,12 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static NEXT: AtomicUsize = AtomicUsize::new(0);
 
-    fn raw(path: &Path) -> TypedProgram {
+    fn raw(path: &Path) -> (TypedProgram, CandidatePlan) {
         let mut session = CompilationSession::default();
         let report = session.compile_path(
             path,
             &CompileOptions {
-                stop_after: Stage::Types,
+                stop_after: Stage::Analyze,
                 ..Default::default()
             },
         );
@@ -516,14 +516,19 @@ mod tests {
             "{}",
             report.to_json()
         );
-        session
+        let (key, program) = session
             .raw
-            .values()
-            .find_map(|value| match value {
-                RawSnapshot::ProjectTyped(program) => Some((**program).clone()),
+            .iter()
+            .find_map(|(key, value)| match value {
+                RawSnapshot::ProjectTyped(program) => Some((key.clone(), (**program).clone())),
                 _ => None,
             })
-            .expect("current typed program")
+            .expect("current typed program");
+        let snapshot = session.database.read(&key).unwrap().unwrap();
+        let candidate = session
+            .analysis_candidate(&snapshot)
+            .expect("current adopted candidate");
+        (program, (*candidate).clone())
     }
 
     #[test]
@@ -545,11 +550,11 @@ mod tests {
             "update_ui",
             "helper_ui",
         ] {
-            let program = raw(&root.join(name).join("main.zil"));
-            let bytes = encode(&program, &Limits::default()).expect(name);
+            let (program, candidate) = raw(&root.join(name).join("main.zil"));
+            let bytes = encode(&program, &candidate, &Limits::default()).expect(name);
             assert_eq!(
                 decode(&bytes, &Limits::default()),
-                Some(program.clone()),
+                Some((program.clone(), candidate.clone())),
                 "{name}"
             );
             for len in [0, 7, 8, bytes.len() / 2, bytes.len() - 1] {
@@ -563,7 +568,7 @@ mod tests {
             assert!(decode(&trailing, &Limits::default()).is_none());
             let mut published = program;
             published.interfaces[0].result_origins = Some(Vec::new());
-            assert!(encode(&published, &Limits::default()).is_none());
+            assert!(encode(&published, &candidate, &Limits::default()).is_none());
         }
     }
 
@@ -577,7 +582,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("main.zil");
         fs::write(&path, "pub fn main()->i32=>0").unwrap();
-        let mut program = raw(&path);
+        let (mut program, candidate) = raw(&path);
         let ty = zil_ir::Type::Record {
             name: "x".repeat(800),
             fields: Vec::new(),
@@ -585,7 +590,7 @@ mod tests {
         program.module.functions[0].return_type = ty.clone();
         program.root_functions[0].result = ty.clone();
         program.interfaces[0].exports[0].result = ty;
-        let bytes = encode(&program, &Limits::default()).unwrap();
+        let bytes = encode(&program, &candidate, &Limits::default()).unwrap();
         let small = Limits {
             max_source_bytes: bytes.len() + 16,
             ..Limits::default()
@@ -595,7 +600,7 @@ mod tests {
             "compact references cannot duplicate large names without charge"
         );
         assert!(
-            encode(&program, &small).is_none(),
+            encode(&program, &candidate, &small).is_none(),
             "writer must match reader eligibility"
         );
         fs::remove_dir_all(dir).unwrap();
@@ -627,11 +632,14 @@ mod tests {
             })
             .unwrap();
         let store = Store::new(&options, &key).unwrap();
+        let (_, original_candidate) = store.load(&options).unwrap();
         let mut forged = typed.clone();
         // Analyze's initialization projection does not validate a scalar
         // constant's result type; independent Verify must reject it.
         forged.module.functions[0].values[0] = zil_ir::Type::Bool;
-        let payload = encode(&forged, &options.limits).unwrap();
+        let mut candidate = original_candidate.clone();
+        candidate.module_fingerprint = forged.module.fingerprint();
+        let payload = encode(&forged, &candidate, &options.limits).unwrap();
         ArtifactCache::with_limit(&store.root, store.maximum)
             .write_candidate(store.key, &payload)
             .unwrap();
@@ -655,7 +663,91 @@ mod tests {
                 .count(),
             2
         );
-        assert_eq!(store.load(&options), Some(typed));
+        assert_eq!(store.load(&options), Some((typed, original_candidate)));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn rejected_analysis_claim_rebuilds_source_and_repairs_the_persisted_pair() {
+        let dir = std::env::temp_dir().join(format!(
+            "semantic-claim-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("main.zil");
+        fs::write(&path, "pub fn main()->i32=>0").unwrap();
+        let options = CompileOptions {
+            semantic_cache: Some(dir.join("cache")),
+            ..Default::default()
+        };
+        let project = ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                path.to_string_lossy(),
+                fs::read_to_string(&path).unwrap(),
+            )],
+            paths: BTreeMap::new(),
+        };
+        let mut producer = CompilationSession::default();
+        let cold = producer.compile_project(&project, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        let key = producer
+            .raw
+            .iter()
+            .find_map(|(key, raw)| matches!(raw, RawSnapshot::ProjectTyped(_)).then(|| key.clone()))
+            .unwrap();
+        let store = Store::new(&options, &key).unwrap();
+        let (program, candidate) = store.load(&options).unwrap();
+        let mut forged = candidate.clone();
+        // Keep the current module and both candidate identities intact. Only
+        // the claimed initialization set is false: this function has no locals.
+        assert!(program.module.functions[0].locals.is_empty());
+        forged.functions[0].blocks[0]
+            .initialized_out
+            .push(zil_ir::LocalId(0));
+        let payload = encode(&program, &forged, &options.limits).unwrap();
+        assert_eq!(
+            decode(&payload, &options.limits),
+            Some((program.clone(), forged))
+        );
+        ArtifactCache::with_limit(&store.root, store.maximum)
+            .write_candidate(store.key, &payload)
+            .unwrap();
+        let mut consumer = CompilationSession::default();
+        let mut events = Vec::new();
+        let restored = consumer.compile_project_with_observer(&project, &options, &mut |event| {
+            events.push(event.clone())
+        });
+        assert_eq!(
+            restored.status,
+            ResultCategory::Success,
+            "{}",
+            restored.to_json()
+        );
+        assert_eq!(restored.disk_cache, DiskCacheStatus::Rebuilt);
+        assert_eq!(restored.verification_runs, 2);
+        assert_eq!(restored.query_events, events);
+        assert_eq!(consumer.active_query_count(), 0);
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.phase == Phase::Analyze)
+                .map(|event| event.disposition)
+                .collect::<Vec<_>>(),
+            [QueryDisposition::Reused, QueryDisposition::Executed]
+        );
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.phase == Phase::Verify)
+                .map(|event| event.disposition)
+                .collect::<Vec<_>>(),
+            [QueryDisposition::Executed, QueryDisposition::Executed]
+        );
+        assert_eq!(store.load(&options), Some((program, candidate)));
         fs::remove_dir_all(dir).unwrap();
     }
 }

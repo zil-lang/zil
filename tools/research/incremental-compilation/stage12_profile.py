@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Instrument a private 38a7d5a08 source snapshot for Stage12 diagnosis.
+"""Instrument a private Stage11/12 source snapshot for Stage12 diagnosis.
 
 Usage: stage12_profile.py SNAPSHOT_ROOT. Patches assert their exact source shapes;
 never run this on the production checkout. Timed stderr diagnostics are not
@@ -11,10 +11,11 @@ import sys
 root=Path(sys.argv[1])
 def edit(file,pairs):
  p=root/file;s=p.read_text()
+ s, separator, tests = s.partition("#[cfg(test)]")
  for old,new in pairs:
   assert s.count(old)==1,(file,old[:100],s.count(old))
   s=s.replace(old,new)
- p.write_text(s)
+ p.write_text(s + separator + tests)
 helper='''
 struct ResearchLap(std::time::Instant);
 impl ResearchLap {
@@ -62,7 +63,13 @@ edit('crates/zil-backend-llvm/src/machine_object_patch.rs',[
  ('        let mut work = Work {','        let research_begin = std::time::Instant::now();\n        let mut research_hash = 0u128;\n        let mut research_refs = 0u128;\n        let mut work = Work {'),
  ('        let mut functions = Vec::with_capacity(definitions.len());','        eprintln!("RESEARCH_TIME patch_snapshot_skeleton {}", research_begin.elapsed().as_nanos());\n        let mut functions = Vec::with_capacity(definitions.len());'),
  ('            let references = references(function, &definitions, &symbols, &mut work)?;','            let research_part = std::time::Instant::now();\n            let references = references(function, &definitions, &symbols, &mut work)?;\n            research_refs += research_part.elapsed().as_nanos();'),
- ('            let mut hash = FingerprintBuilder::new();','            let research_part = std::time::Instant::now();\n            let mut hash = FingerprintBuilder::new();'),
+ ('            function.hash(&mut hash);','            let research_part = std::time::Instant::now();\n            function.hash(&mut hash);'),
  ('            let cost = function.cost();','            research_hash += research_part.elapsed().as_nanos();\n            let cost = function.cost();'),
  ('        Some(Self {\n            index_key: skeleton.digest(),','        eprintln!("RESEARCH_TIME patch_snapshot_hash {}", research_hash);\n        eprintln!("RESEARCH_TIME patch_snapshot_refs {}", research_refs);\n        eprintln!("RESEARCH_TIME patch_snapshot_total {}", research_begin.elapsed().as_nanos());\n        Some(Self {\n            index_key: skeleton.digest(),'),
 ])
+
+# Optional current scalar shape probe: diagnostics only, outside timed claims.
+if (root/'crates/zil-types/src/scalar_shapes.rs').exists():
+ edit('crates/zil-types/src/scalar_shapes.rs', [
+  ('        Ok(()) => Some(Ok(())),', '        Ok(()) => { eprintln!("RESEARCH_SCALAR_SHAPE_BORROW true"); Some(Ok(())) },'),
+ ])

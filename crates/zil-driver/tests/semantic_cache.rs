@@ -1,5 +1,5 @@
-//! Trusted-local frontend candidates remain raw; every successful request
-//! independently analyzes and verifies the current input before native work.
+//! Trusted-local Typed modules and Analyze claims remain raw; every successful
+//! request independently verifies the current input before native work.
 #![cfg(all(feature = "llvm-api", target_os = "linux"))]
 use std::{
     collections::BTreeMap,
@@ -69,7 +69,7 @@ impl Dir {
         CompilationSession::default().compile_project(&self.project(), options)
     }
     fn entries(&self) -> Vec<PathBuf> {
-        let mut files = fs::read_dir(self.0.join("cache/semantic-v1"))
+        let mut files = fs::read_dir(self.0.join("cache/semantic-v2"))
             .into_iter()
             .flatten()
             .map(|p| p.unwrap().path())
@@ -126,11 +126,23 @@ fn frontend_hit(report: &CompileReport) {
             report.to_json()
         );
     }
-    assert!(
+    assert_eq!(
         report
             .query_events
             .iter()
-            .any(|e| e.phase == Phase::Analyze && e.disposition == QueryDisposition::Executed)
+            .filter(|e| e.phase == Phase::Analyze)
+            .map(|e| e.disposition)
+            .collect::<Vec<_>>(),
+        [QueryDisposition::Reused]
+    );
+    assert_eq!(
+        report
+            .query_events
+            .iter()
+            .filter(|e| e.phase == Phase::Verify)
+            .map(|e| e.disposition)
+            .collect::<Vec<_>>(),
+        [QueryDisposition::Executed]
     );
 }
 fn equivalent(a: &CompileReport, b: &CompileReport) {
@@ -211,6 +223,15 @@ fn each_limit_build_inputs_target_and_source_have_separate_frontend_identity() {
     let edited = d.compile(&options);
     success(&edited);
     assert_eq!(edited.disk_cache, DiskCacheStatus::Missing);
+    assert_eq!(
+        edited
+            .query_events
+            .iter()
+            .filter(|e| e.phase == Phase::Analyze)
+            .map(|e| e.disposition)
+            .collect::<Vec<_>>(),
+        [QueryDisposition::Executed]
+    );
     frontend_hit(&d.compile(&options));
     assert_eq!(d.entries().len(), 15);
 }
@@ -273,18 +294,25 @@ fn errors_and_cancellation_do_not_publish_and_observers_match_actual_attempts() 
     let prior = fs::read(&path).unwrap();
     let cancelled = d.options();
     let mut events = Vec::new();
-    let report = CompilationSession::default().compile_project_with_observer(
-        &d.project(),
-        &cancelled,
-        &mut |e| {
-            events.push(e.clone());
-            if e.phase == Phase::Analyze {
-                cancelled.cancellation.cancel();
-            }
-        },
-    );
+    let mut session = CompilationSession::default();
+    let report = session.compile_project_with_observer(&d.project(), &cancelled, &mut |e| {
+        events.push(e.clone());
+        if e.phase == Phase::Analyze {
+            cancelled.cancellation.cancel();
+        }
+    });
     assert_eq!(report.status, ResultCategory::Cancelled);
     assert_eq!(events, report.query_events);
+    assert_eq!(session.active_query_count(), 0);
+    assert_eq!(
+        report
+            .query_events
+            .iter()
+            .filter(|e| e.phase == Phase::Analyze)
+            .map(|e| e.disposition)
+            .collect::<Vec<_>>(),
+        [QueryDisposition::Reused]
+    );
     assert_eq!(report.verification_runs, 0);
     assert_eq!(fs::read(path).unwrap(), prior);
 }
@@ -399,7 +427,7 @@ fn unsupported_cache_modes_and_writable_store_keep_current_source_path() {
     let options = d.options();
     success(&d.compile(&options));
     fs::set_permissions(
-        d.0.join("cache/semantic-v1"),
+        d.0.join("cache/semantic-v2"),
         fs::Permissions::from_mode(0o777),
     )
     .unwrap();
