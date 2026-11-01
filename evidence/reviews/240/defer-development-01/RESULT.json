@@ -1,0 +1,21 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "reviewer": "/root/review_language_contracts",
+  "production_checkpoint": "1f43ced2abe4290b7cf5ef342986eb23b4a3e174",
+  "schema": 30,
+  "feature": "llvm-api",
+  "selected": 2,
+  "passed": 2,
+  "failed": 0,
+  "native_builds": 2,
+  "native_runs": 2,
+  "source_negative_analyze": 1,
+  "positive_stdout": "LacdACDN",
+  "positive_exit": 0,
+  "typed_assertion": "One forced FnOnce closure with exactly three Desc captures of the actually published pattern leaves.",
+  "ownership_assertion": "Pending required defer call prevents consuming borrowed leaf a after recursive Unpack/publication.",
+  "production_edited": false,
+  "test": "crates/zil-driver/tests/review240_match_exits.rs",
+  "test_sha256": "8ecd5dfd9b1281ad30e60b296e0418b872a9da5b2e7e094bdfb6b67e834e521a",
+  "prior_native_replay": "dev01 is the same native positive before adding typed capture assertions; dev02 is the counted 2+1 execution, do not add replay."
+}
