@@ -1,0 +1,8 @@
+{
+ "status":"construction; correction of real producer cleanup ordering",
+ "base_checkpoint":"315fc760b7903a370211498aa427e5e1a09e8e0d",
+ "failure":"Original nested source reached Analyze but DropPackage(empty Sum wrapper local3) preceded live final payload local9. Both independent producer/Verify investigators located the same real age edge; their rules and source were unchanged.",
+ "fix":"Finish scrutinee full-expression preparation before registering hidden match owner. After full pattern succeeds and recursive Unpack, reverse-DFS Take all final leaves to SSA, close only emptied temporary shells, then Store final Name/_ locals in the same reverse-DFS order. No source calls, recoverable failure, early exit or true payload teardown occurs in publication corridor.",
+ "tests":"Public source front tests 10/0, including original03/05, unchanged original nested, Product<Sum>/ErrorUnion, actual cross-module import, Copy-scratch with external later/defer, unused duplicate identities and exact N/N-1/fresh Types. New nested N5594; old Product N418 unchanged.",
+ "scope":"Adds prepaid shape identity validation and project enum clone traversal for new non-Copy payloads. Other stages/native not yet claimed."
+}

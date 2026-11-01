@@ -331,7 +331,7 @@ fn package_manages_fields_require_matching_nominal_resources() {
 }
 
 #[test]
-fn package_fields_reject_noncopy_and_nested_owners() {
+fn package_fields_reject_closed_profiles_and_mismatched_complete_owners() {
     for extra in [
         package(),
         desc(),
@@ -349,10 +349,10 @@ fn package_fields_reject_noncopy_and_nested_owners() {
         let Type::Package { fields, .. } = &mut m.functions[0].locals[0].ty else {
             unreachable!()
         };
-        let nested = matches!(&extra, Type::Package { .. });
+        let nested = matches!(&extra, Type::Package { .. } | Type::ErrorUnion { .. });
         fields[2].1 = extra;
         if nested {
-            // 206 admits this complete nested type, but the unchanged raw
+            // 206/242 admit these complete nested types, but the unchanged raw
             // input still stores its former flat SSA value into the relabeled
             // local. Both APIs must reject that precise type forgery.
             let (raw, wire) = check_both(m);
@@ -394,8 +394,16 @@ fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
         },
     ] {
         let mut m = plain();
+        let complete_enum = matches!(ty, Type::Enum { .. });
         m.functions[0].locals[0].ty = ty;
-        rejected(m, "non-Copy type");
+        rejected(
+            m,
+            if complete_enum {
+                "stored value does not match local type"
+            } else {
+                "non-Copy type"
+            },
+        );
     }
 }
 
