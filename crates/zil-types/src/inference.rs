@@ -18,6 +18,7 @@ struct Budget<'a> {
     store_shapes: bool,
     direct_type_callee: bool,
     products: aggregate_templates::Products,
+    current_module: zil_base::ModuleId,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -31,6 +32,7 @@ impl<'a> Budget<'a> {
             store_shapes: false,
             direct_type_callee: false,
             products: None,
+            current_module: zil_base::ModuleId(0),
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -191,6 +193,7 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
     let mut budget = Budget::new(limits);
+    budget.current_module = core.module_id;
     budget.ordinary_functions = core.functions.len();
     aggregate_templates::Index::new(&[core], limits, &mut budget.work).map_err(|e| vec![e])?;
     let table = headers(core, None, 0, &mut budget).map_err(|e| vec![e])?;
@@ -419,6 +422,7 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         validate_module_metadata(&module.core, &mut budget).map_err(|e| vec![e])?;
         let enum_types = enums::project_definitions(program, &module.core, &mut enum_work, limits)?;
         let mut functions = Vec::new();
+        budget.current_module = module.core.module_id;
         for (function, flag) in module.core.functions.iter().zip(flags) {
             functions.push(
                 prepare(
@@ -615,6 +619,16 @@ fn prepare<'a>(
     has_closure: bool,
     budget: &mut Budget<'_>,
 ) -> R<Cow<'a, CoreFunction>> {
+    if let Some(products) = &budget.products {
+        budget.work = budget.work.checked_sub(1).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "generic Product caller binding work exceeded",
+                Some(function.span),
+            )
+        })?;
+        aggregate_templates::source_owner(products, (budget.current_module, function.id));
+    }
     // Scalar-only functions retain their existing inference/default behavior.
     if !has_closure && function.type_parameters.is_empty() && function.state_parameters.is_empty() {
         let dependencies = retained::dependencies(
@@ -1703,6 +1717,20 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )),
         }
     }
+    fn product_term_type(&mut self, term: &Term, span: Span) -> R<Type> {
+        match term {
+            Term::Scalar(variable) => self.graph.injection_type(*variable, span),
+            Term::ClosurePackage { shape, .. } | Term::StatePackage { shape, .. } => {
+                validate_type(shape, 0, span, self.budget)?;
+                Ok(shape.as_ref().clone())
+            }
+            _ => Err(error(
+                "E-TYPE-APPLICATION",
+                span,
+                "generic Product inference requires a complete actual value type",
+            )),
+        }
+    }
     fn infer_value_term(
         &mut self,
         pattern: &Type,
@@ -1729,6 +1757,22 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let (failure, success) = self.value_union_parts(value, span)?;
             self.infer_value_term(error, &failure, name, actual, span)?;
             return self.infer_value_term(result, &success, name, actual, span);
+        }
+        if matches!(pattern, Type::Package { .. }) && self.budget.products.is_some() {
+            let ty = self.product_term_type(value, span)?;
+            let products = self.budget.products.clone();
+            let limits = self.budget.limits;
+            if let Some(pairs) =
+                aggregate_templates::input_pairs(pattern, &ty, &products, limits, span, &mut |n| {
+                    self.budget.work(n, span)
+                })?
+            {
+                for (wanted, got) in pairs {
+                    let term = self.known_term(&got, span)?;
+                    self.infer_value_term(&wanted, &term, name, actual, span)?;
+                }
+                return Ok(());
+            }
         }
         self.bind_term(value, pattern, span)
     }
@@ -1761,6 +1805,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 result: Rc::new(success),
             });
         }
+        if matches!(pattern, Type::Package { .. }) && self.budget.products.is_some() {
+            let actual = self.product_term_type(actual, span)?;
+            let products = self.budget.products.clone();
+            let limits = self.budget.limits;
+            let ty = store_templates::substitute_type(
+                pattern,
+                name,
+                &actual,
+                limits,
+                &products,
+                span,
+                &mut |n| self.budget.work(n, span),
+            )?;
+            return self.known_term(&ty, span);
+        }
         self.known_term(pattern, span)
     }
     fn value_type_call(
@@ -1785,7 +1844,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         self.budget.work(arguments.len().saturating_mul(2), span)?;
         let mut actual = None;
         for (argument, pattern) in arguments.iter().zip(&signature.parameters) {
-            let hint = (!store_templates::has_parameter(pattern, name)).then_some(pattern);
+            let products = self.budget.products.clone();
+            let limits = self.budget.limits;
+            let parameterized = aggregate_templates::parameter_in(
+                pattern,
+                name,
+                &products,
+                limits,
+                argument.span,
+                &mut |n| self.budget.work(n, argument.span),
+            )?;
+            let hint = (!parameterized).then_some(pattern);
             let value = self.expr_expected(argument, hint, depth + 1, false)?;
             self.infer_value_term(pattern, &value, name, &mut actual, argument.span)?;
         }

@@ -65,10 +65,11 @@ pub(super) fn infer_argument(
     actual: &Type,
     name: &str,
     inferred: &mut Option<Type>,
-    limits: &Limits,
+    context: (&Limits, &aggregate_templates::Products),
     span: Span,
     charge: &mut impl FnMut(usize) -> R<()>,
 ) -> R<()> {
+    let (limits, products) = context;
     let pattern_work = inference::type_snapshot_work(pattern, span, limits)?;
     let actual_work = inference::type_snapshot_work(actual, span, limits)?;
     charge(pattern_work.saturating_add(actual_work).saturating_mul(2))?;
@@ -87,12 +88,20 @@ pub(super) fn infer_argument(
         }
         return Ok(());
     }
+    if let Some(pairs) =
+        aggregate_templates::input_pairs(pattern, actual, products, limits, span, charge)?
+    {
+        for (wanted, got) in pairs {
+            infer_argument(&wanted, &got, name, inferred, context, span, charge)?;
+        }
+        return Ok(());
+    }
     match (pattern, actual) {
         (Type::Managed(wanted) | Type::Desc(wanted), Type::Managed(got) | Type::Desc(got)) => {
             if let (Type::OwnedStore { element: wanted }, Type::OwnedStore { element: got }) =
                 (wanted.as_ref(), got.as_ref())
             {
-                return infer_argument(wanted, got, name, inferred, limits, span, charge);
+                return infer_argument(wanted, got, name, inferred, context, span, charge);
             }
         }
         (
@@ -105,8 +114,8 @@ pub(super) fn infer_argument(
                 result: d,
             },
         ) => {
-            infer_argument(a, c, name, inferred, limits, span, charge)?;
-            return infer_argument(b, d, name, inferred, limits, span, charge);
+            infer_argument(a, c, name, inferred, context, span, charge)?;
+            return infer_argument(b, d, name, inferred, context, span, charge);
         }
         _ => {}
     }
@@ -340,8 +349,16 @@ impl Builder<'_, '_> {
         let mut inferred = None;
         let mut staged = Vec::new();
         let mut actuals = Vec::new();
+        let products = self.closures.products.clone();
         for (argument, parameter) in arguments.iter().zip(&signature.parameters) {
-            let (value, actual) = if has_parameter(parameter, &name) {
+            let (value, actual) = if aggregate_templates::parameter_in(
+                parameter,
+                &name,
+                &products,
+                self.limits,
+                argument.span,
+                &mut |n| self.closures.snapshot(n, argument.span),
+            )? {
                 let (value, actual) = self.expr(argument, None)?;
                 if matches!(parameter, Type::Desc(_)) {
                     self.resource_descriptor(value, actual, argument.span)?
@@ -356,7 +373,7 @@ impl Builder<'_, '_> {
                 &actual,
                 &name,
                 &mut inferred,
-                self.limits,
+                (self.limits, &products),
                 argument.span,
                 &mut |work| self.closures.snapshot(work, argument.span),
             )?;

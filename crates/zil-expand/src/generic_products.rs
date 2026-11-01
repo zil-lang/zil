@@ -50,7 +50,62 @@ impl Engine<'_> {
             self.budget.item(item)?;
             self.products.templates.push((a.clone(), item.span));
         }
+        if !self.products.is_empty() {
+            let mut families = BTreeSet::new();
+            for (a, span) in &self.products.templates {
+                self.budget.node(*span, 0)?;
+                self.budget.text(&a.name, *span)?;
+                families.insert(a.name.clone());
+            }
+            for index in 0..self.products.templates.len() {
+                let span = self.products.templates[index].1;
+                let name = &self.products.templates[index].0.generics[0].name;
+                self.budget.text(name, span)?;
+                let formal = name.clone();
+                let mut fields = std::mem::take(&mut self.products.templates[index].0.fields);
+                for field in &mut fields {
+                    self.prepare_product_recipe(&mut field.ty, &formal, &families, 0)?;
+                }
+                self.products.templates[index].0.fields = fields;
+            }
+        }
         Ok(())
+    }
+    fn prepare_product_recipe(
+        &mut self,
+        ty: &mut TypeRef,
+        formal: &str,
+        families: &BTreeSet<String>,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.node(ty.span, depth)?;
+        if callable::parameter_mode(ty, formal) == Some(None) {
+            return Ok(());
+        }
+        if let TypeKind::Group(inner) = &mut ty.kind {
+            return self.prepare_product_recipe(inner, formal, families, depth + 1);
+        }
+        if let TypeKind::Named { path, args } = &mut ty.kind
+            && path.len() == 1
+            && (path[0] == "Store" || families.contains(&path[0]))
+        {
+            for arg in args {
+                let GenericArg::Type(t) = arg else {
+                    return Err(unsupported(ty.span, "constant Product recipe argument"));
+                };
+                self.prepare_product_recipe(t, formal, families, depth + 1)?;
+            }
+            return Ok(());
+        }
+        if callable::refers(ty, formal) {
+            return Err(unsupported(
+                ty.span,
+                "Product parameter requires a direct field, Store or finite child application",
+            ));
+        }
+        // A concrete subtree still uses the original AST specialization engine;
+        // its complete nominal instance must exist before publishing Core Type.
+        self.ty(ty, depth)
     }
     pub(super) fn product_scope(&mut self, arguments: &[TypeRef], span: Span) -> R<Option<Scope>> {
         if self.products.templates.is_empty() {
@@ -65,6 +120,7 @@ impl Engine<'_> {
                 .chain(self.callable_name.iter())
                 .chain(self.callable_pair.iter().flatten())
             {
+                self.budget.ty(argument)?;
                 dependent |= callable::refers(argument, name);
             }
         }
@@ -140,14 +196,29 @@ impl Products {
     pub(crate) fn restore_owners(
         &mut self,
         functions: &BTreeMap<String, (ModuleId, String, bool)>,
-    ) {
+    ) -> R<()> {
+        if self.is_empty() {
+            return Ok(());
+        }
+        let limits = self
+            .allowance
+            .clone()
+            .expect("Product engine stores remaining allowance");
+        let mut budget = Budget::new(&limits);
         for a in &mut self.applications {
-            if let Some(scope) = &mut a.scope
-                && let Some((_, original, _)) = functions.get(&scope.owner)
-            {
-                scope.owner.clone_from(original);
+            if let Some(scope) = &mut a.scope {
+                for _ in 0..(functions.len().saturating_add(1).ilog2() + 1) {
+                    budget.node(scope.span, 0)?;
+                    budget.text(&scope.owner, scope.span)?;
+                }
+                if let Some((_, original, _)) = functions.get(&scope.owner) {
+                    budget.text(original, scope.span)?;
+                    scope.owner.clone_from(original);
+                }
             }
         }
+        self.allowance = Some(budget.remaining_limits());
+        Ok(())
     }
     pub(crate) fn publish(
         &self,
@@ -169,9 +240,8 @@ impl Products {
         sources: &[zil_base::SourceUnit],
         budget: &mut Budget<'_>,
     ) -> R<()> {
-        for source in sources {
+        for _source in sources {
             budget.node(Span::default(), 0)?;
-            budget.text(&source.path, Span::default())?;
         }
         for (core, map) in cores.iter() {
             for _ in &map.entries {

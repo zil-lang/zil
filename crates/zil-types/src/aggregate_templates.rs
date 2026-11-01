@@ -46,6 +46,7 @@ pub(super) struct Index {
     pub owners: BTreeMap<Owner, Bindings>,
     pub resolved: BTreeMap<(ModuleId, NodeId), Vec<Type>>,
     pub symbolic_names: BTreeMap<String, Owner>,
+    pub canonical_arguments: BTreeMap<String, (Family, Vec<Type>, Option<Owner>)>,
 }
 impl Index {
     pub fn new(modules: &[&CoreModule], limits: &Limits, remaining: &mut usize) -> R<Self> {
@@ -55,6 +56,7 @@ impl Index {
             owners: BTreeMap::new(),
             resolved: BTreeMap::new(),
             symbolic_names: BTreeMap::new(),
+            canonical_arguments: BTreeMap::new(),
         };
         if modules
             .iter()
@@ -64,7 +66,39 @@ impl Index {
         }
         let span = Span::default();
         spend(remaining, modules.len(), span)?;
+        let functions = modules
+            .iter()
+            .try_fold(0usize, |n, m| n.checked_add(m.functions.len()))
+            .filter(|n| *n <= limits.max_functions);
+        let records = modules
+            .iter()
+            .try_fold(0usize, |n, m| {
+                n.checked_add(m.aggregate_templates.len())?
+                    .checked_add(m.aggregate_applications.len())
+            })
+            .filter(|n| *n <= limits.max_nodes);
+        if functions.is_none() || records.is_none() {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "generic Product project table count exceeded",
+                None,
+            ));
+        }
+        if modules.len() > limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "generic Product module count exceeded",
+                None,
+            ));
+        }
         for m in modules {
+            if m.functions.len() > limits.max_functions {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "generic Product owner count exceeded",
+                    None,
+                ));
+            }
             spend(remaining, m.functions.len(), span)?;
             for f in &m.functions {
                 let cost = f
@@ -413,6 +447,8 @@ struct Origin {
 #[derive(Default)]
 pub(super) struct Origins {
     entries: BTreeMap<String, Origin>,
+    owners: BTreeMap<Owner, Bindings>,
+    source_owner: Option<Owner>,
 }
 pub(super) type Products = Option<std::rc::Rc<std::cell::RefCell<Origins>>>;
 
@@ -457,6 +493,14 @@ pub(super) fn origins(modules: &[&CoreModule], limits: &Limits, left: &mut usize
             name.len().saturating_add(arguments.len()),
             header.span,
         )?;
+        if let Some(prior) = origins.entries.get(&name)
+            && (prior.family != family || prior.arguments != arguments || prior.owner != owner)
+        {
+            return Err(bad(
+                header.span,
+                "generic Product canonical identity collision",
+            ));
+        }
         origins.entries.insert(
             name,
             Origin {
@@ -467,6 +511,7 @@ pub(super) fn origins(modules: &[&CoreModule], limits: &Limits, left: &mut usize
             },
         );
     }
+    origins.owners = index.owners;
     Ok(Some(std::rc::Rc::new(std::cell::RefCell::new(origins))))
 }
 
@@ -507,11 +552,14 @@ pub(super) fn rebind_type(
             charge(name.len().saturating_add(products.borrow().entries.len()))?;
             let view = products.borrow();
             if let Some(origin) = view.entries.get(name) {
-                let mut work = 1;
+                let mut work = 1usize;
                 for a in &origin.arguments {
-                    work += inference::type_snapshot_work(a, span, limits)?;
+                    work = work.saturating_add(inference::type_snapshot_work(a, span, limits)?);
                 }
-                charge(work.saturating_mul(2))?;
+                charge(
+                    work.saturating_mul(2)
+                        .saturating_add(origin.bindings.names().map(str::len).sum::<usize>()),
+                )?;
                 Some(origin.clone())
             } else {
                 None
@@ -588,6 +636,30 @@ pub(super) fn rebind_type(
                     callable_fields::specialize_type_all(arg, &callbacks);
                 }
                 visit(arg, r, products, limits, span, charge, depth + 1)?;
+            }
+            // A symbolic actual is resolved in the caller, independently of
+            // the same-spelled formal in the callee's definition.
+            let caller = {
+                let registry = products.borrow();
+                charge(registry.owners.len().saturating_add(1))?;
+                if let Some(owner) = registry.source_owner
+                    && let Some(bindings) = registry.owners.get(&owner)
+                {
+                    charge(
+                        bindings
+                            .names()
+                            .fold(1usize, |n, name| n.saturating_add(name.len())),
+                    )?;
+                    Some((owner, bindings.clone()))
+                } else {
+                    None
+                }
+            };
+            if let Some((owner, bindings)) = caller
+                && origin.arguments.iter().any(|a| free(a, &bindings))
+            {
+                origin.owner = Some(owner);
+                origin.bindings = bindings;
             }
             if !origin.arguments.iter().any(|a| free(a, &origin.bindings)) {
                 origin.owner = None;
@@ -732,4 +804,85 @@ pub(super) fn rebind_callable_function(
     rebind_function(f, &replacements, &products, limits, span, &mut |n| {
         state.snapshot(n, span)
     })
+}
+
+pub(super) fn source_owner(products: &std::rc::Rc<std::cell::RefCell<Origins>>, owner: Owner) {
+    products.borrow_mut().source_owner = Some(owner);
+}
+
+fn product_origin(
+    ty: &Type,
+    products: &Products,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<Option<Origin>> {
+    let (Type::Package { name, .. }, Some(products)) = (ty, products) else {
+        return Ok(None);
+    };
+    let registry = products.borrow();
+    charge(name.len().saturating_add(registry.entries.len()))?;
+    let Some(origin) = registry.entries.get(name) else {
+        return Ok(None);
+    };
+    let mut work = origin
+        .bindings
+        .names()
+        .fold(1usize, |n, name| n.saturating_add(name.len()));
+    for a in &origin.arguments {
+        work = work.saturating_add(inference::type_snapshot_work(a, span, limits)?);
+    }
+    charge(work.saturating_mul(2))?;
+    Ok(Some(origin.clone()))
+}
+pub(super) fn parameter_in(
+    ty: &Type,
+    name: &str,
+    products: &Products,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<bool> {
+    if store_templates::has_parameter(ty, name) {
+        return Ok(true);
+    }
+    let Some(origin) = product_origin(ty, products, limits, span, charge)? else {
+        return Ok(false);
+    };
+    Ok(origin
+        .arguments
+        .iter()
+        .any(|a| store_templates::has_parameter(a, name)))
+}
+pub(super) fn input_pairs(
+    pattern: &Type,
+    actual: &Type,
+    products: &Products,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<Option<Vec<(Type, Type)>>> {
+    let Some(pattern) = product_origin(pattern, products, limits, span, charge)? else {
+        return Ok(None);
+    };
+    let actual = product_origin(actual, products, limits, span, charge)?.ok_or_else(|| {
+        bad(
+            span,
+            "generic Product argument has no actual family identity",
+        )
+    })?;
+    if pattern.family != actual.family || pattern.arguments.len() != actual.arguments.len() {
+        return Err(bad(
+            span,
+            "generic Product argument belongs to a different nominal family",
+        ));
+    }
+    charge(pattern.arguments.len())?;
+    Ok(Some(
+        pattern
+            .arguments
+            .into_iter()
+            .zip(actual.arguments)
+            .collect(),
+    ))
 }

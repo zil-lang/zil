@@ -101,3 +101,132 @@ fn unused_owner_and_recipe_mutations_are_rejected() {
         reject(&c);
     }
 }
+
+const PHANTOM: &str = r#"
+resource R{n:i32}
+package A{manages r:R}
+package B{manages r:R}
+package Phantom<T:StoreElement>{manages bytes:ByteBuffer}
+fn phantom<T:StoreElement>(give items:Store<T>)->Phantom<T>{return Phantom::<T>{bytes:bytes_new()}}
+fn main(){let a:Store<A>=store_new();let p=phantom(give a);let b:Store<B>=store_new();let q=phantom(give b)}
+"#;
+#[test]
+fn phantom_arguments_are_complete_nominal_identity_even_without_fields() {
+    let m = accepted(PHANTOM);
+    let results = m
+        .functions
+        .iter()
+        .filter_map(|f| {
+            if let Type::Package { name, fields } = &f.return_type {
+                Some((name, fields))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0].1, results[1].1);
+    assert_ne!(results[0].0, results[1].0);
+}
+#[test]
+fn phantom_actual_bound_is_checked_from_raw_metadata() {
+    let mut input = core(PHANTOM);
+    for a in &mut input.aggregate_applications {
+        a.owner = None;
+        a.arguments = vec![CoreAggregateArgument::Concrete(Type::I32)];
+    }
+    reject(&input);
+}
+#[test]
+fn unused_recipe_cannot_hide_unknown_types_or_recursion() {
+    let control = core(PHANTOM);
+    let mut unused = control.aggregate_templates[0].clone();
+    unused.id = zil_base::NodeId(1000000);
+    unused.name = "unused-family".into();
+    for recursive in [false, true] {
+        let mut c = control.clone();
+        let mut t = unused.clone();
+        t.fields[0].ty = if recursive {
+            CoreAggregateTypeRecipe::Apply {
+                module: c.module_id,
+                template: t.id,
+                arguments: vec![CoreAggregateTypeRecipe::Parameter { index: 0 }],
+            }
+        } else {
+            CoreAggregateTypeRecipe::Concrete(Type::Named("not_a_type".into()))
+        };
+        c.aggregate_templates.push(t);
+        reject(&c);
+    }
+}
+#[test]
+fn preserved_source_executes_at_both_optimization_levels() {
+    use std::{fs, process::Command};
+    use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
+    let backend = if cfg!(feature = "llvm-api") {
+        NativeBackend::LlvmApi
+    } else {
+        NativeBackend::Clang
+    };
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let d = std::env::var_os("ZIL_TEST_REPORT_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir)
+            .join(format!(
+                "author237-original-{optimization:?}-{}",
+                std::process::id()
+            ));
+        fs::create_dir_all(&d).unwrap();
+        let executable = d.join("program");
+        let r = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "original235.zil", ORIGINAL),
+            &CompileOptions {
+                backend,
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(executable.clone()),
+                emit_dir: Some(d.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        fs::write(d.join("compile.json"), r.to_json()).unwrap();
+        assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+        let summary = r.native_codegen.unwrap();
+        assert_eq!(summary.backend, backend);
+        assert!(summary.fallback.is_none());
+        let o = Command::new(executable).output().unwrap();
+        fs::write(d.join("stdout"), &o.stdout).unwrap();
+        fs::write(d.join("stderr"), &o.stderr).unwrap();
+        assert_eq!(o.status.code(), Some(0));
+        assert_eq!(o.stdout, b"AZ");
+        assert!(o.stderr.is_empty());
+    }
+}
+
+#[test]
+fn product_input_infers_complete_element_type_through_ordinary_value_relay() {
+    let source = ORIGINAL.replace(
+        "let root=wrap(give items)",
+        "let root=relay(wrap(give items))",
+    ) + "\nfn relay<T:StoreElement>(root:Root<T>)->Root<T>{return root}\n";
+    accepted(&source);
+    let phantom = PHANTOM
+        .replace("let p=phantom(give a)", "let p=relay(phantom(give a))")
+        .replace("let q=phantom(give b)", "let q=relay(phantom(give b))")
+        + "\nfn relay<T:StoreElement>(root:Phantom<T>)->Phantom<T>{return root}\n";
+    let m = accepted(&phantom);
+    let relay = m
+        .functions
+        .iter()
+        .filter(|f| {
+            matches!(&f.return_type, Type::Package { .. })
+                && f.parameters.len() == 1
+                && matches!(
+                    f.locals[f.parameters[0].0 as usize].ty,
+                    Type::Package { .. }
+                )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(relay.len(), 2);
+    assert_ne!(relay[0].return_type, relay[1].return_type);
+}
