@@ -204,8 +204,50 @@ impl PreparedCache {
         )
     }
 }
+// Derived Hash emits many small fields. Coalesce only their writes, preserving
+// the exact byte stream and SHA-256 keys of the unbuffered implementation.
+struct BufferedHasher {
+    state: FingerprintBuilder,
+    buffer: [u8; 4096],
+    used: usize,
+}
+impl BufferedHasher {
+    fn new() -> Self {
+        Self {
+            state: FingerprintBuilder::new(),
+            buffer: [0; 4096],
+            used: 0,
+        }
+    }
+    fn flush(&mut self) {
+        self.state.update(&self.buffer[..self.used]);
+        self.used = 0;
+    }
+    fn digest(mut self) -> Fingerprint {
+        self.flush();
+        self.state.digest()
+    }
+}
+impl Hasher for BufferedHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        if bytes.len() > self.buffer.len() - self.used {
+            self.flush();
+        }
+        if bytes.len() >= self.buffer.len() {
+            self.state.update(bytes);
+        } else {
+            self.buffer[self.used..self.used + bytes.len()].copy_from_slice(bytes);
+            self.used += bytes.len();
+        }
+    }
+    fn finish(&self) -> u64 {
+        let mut state = self.state.clone();
+        state.update(&self.buffer[..self.used]);
+        state.finish()
+    }
+}
 fn machine_key(namespace: Fingerprint, module: &Module) -> Fingerprint {
-    let mut state = FingerprintBuilder::new();
+    let mut state = BufferedHasher::new();
     namespace.hash(&mut state);
     // Exhaustive destructuring forces future Module fields to be considered.
     // fingerprint is used only by the diagnostic renderer, never by Builder.
@@ -442,7 +484,7 @@ fn elf_build_id(file: &mut File, size: u64) -> io::Result<Option<Vec<u8>>> {
 mod tests {
     use super::*;
     use zil_llvm_api::model::{
-        Arg, Attr, Block, Function, Inst, Item, Linkage, Op, Param, Signature, Ty, Val,
+        Arg, Attr, Block, Function, Global, Inst, Item, Linkage, Op, Param, Signature, Ty, Val,
     };
     struct Dir(PathBuf);
     impl Dir {
@@ -480,15 +522,93 @@ mod tests {
             })],
         }
     }
+    fn key_matching_unbuffered(namespace: Fingerprint, module: &Module) -> Fingerprint {
+        // The previous calculation remains an independent compatibility oracle.
+        let mut old = FingerprintBuilder::new();
+        namespace.hash(&mut old);
+        module.triple.hash(&mut old);
+        module.items.hash(&mut old);
+        let actual = machine_key(namespace, module);
+        assert_eq!(actual, old.digest());
+        actual
+    }
+    #[test]
+    fn buffered_writes_match_sha256_across_block_and_buffer_boundaries() {
+        for size in [0, 1, 55, 56, 63, 64, 65, 4095, 4096, 4097, 8192, 8193] {
+            let input = (0..size).map(|i| (i * 37) as u8).collect::<Vec<_>>();
+            let expected = Fingerprint::of(&input);
+            for chunk in [1, 7, 63, 64, 65, 4095, 4096, 4097, 8193] {
+                let mut buffered = BufferedHasher::new();
+                buffered.write(&[]);
+                for bytes in input.chunks(chunk) {
+                    buffered.write(bytes);
+                }
+                // finish is observational: subsequent writes must still append.
+                assert_eq!(
+                    buffered.finish(),
+                    u64::from_le_bytes(expected.0[..8].try_into().unwrap())
+                );
+                buffered.write(&[]);
+                assert_eq!(buffered.digest(), expected, "size={size}, chunk={chunk}");
+            }
+        }
+        let mut buffered = BufferedHasher::new();
+        buffered.write(b"prefix");
+        let _ = buffered.finish();
+        let large = vec![42; 8193];
+        buffered.write(&large);
+        buffered.write(b"suffix");
+        assert_eq!(
+            buffered.digest(),
+            Fingerprint::of(&[b"prefix".as_slice(), &large, b"suffix"].concat())
+        );
+    }
+    #[test]
+    fn buffered_machine_keys_match_large_initializers_and_global_fields() {
+        let ns = Fingerprint::of(b"compiler-and-target");
+        for size in [4095, 4096, 4097, 8193] {
+            let mut module = sample();
+            module.items.push(Item::Global(Global {
+                name: "bytes".into(),
+                linkage: Linkage::Private,
+                ty: Ty::array(size, Ty::Int(8)),
+                initializer: Some(Val::Bytes(vec![42; size as usize])),
+                constant: true,
+                unnamed_addr: true,
+                alignment: 1,
+            }));
+            let key = key_matching_unbuffered(ns, &module);
+            let changes: [fn(&mut Global); 7] = [
+                |g| g.name.push('x'),
+                |g| g.linkage = Linkage::External,
+                |g| g.ty = Ty::Int(8),
+                |g| g.initializer = None,
+                |g| g.constant = false,
+                |g| g.unnamed_addr = false,
+                |g| g.alignment = 8,
+            ];
+            for change in changes {
+                let mut changed = module.clone();
+                let Item::Global(global) = &mut changed.items[1] else {
+                    unreachable!()
+                };
+                change(global);
+                assert_ne!(key, key_matching_unbuffered(ns, &changed));
+            }
+        }
+    }
     #[test]
     fn key_binds_all_machine_changes_but_not_authorization_comment() {
         let a = sample();
         let ns = Fingerprint::of(b"compiler-and-target");
-        let key = machine_key(ns, &a);
+        let key = key_matching_unbuffered(ns, &a);
         let mut b = a.clone();
         b.fingerprint = "other-current-verify".into();
-        assert_eq!(key, machine_key(ns, &b));
-        assert_ne!(key, machine_key(Fingerprint::of(b"other-toolchain"), &a));
+        assert_eq!(key, key_matching_unbuffered(ns, &b));
+        assert_ne!(
+            key,
+            key_matching_unbuffered(Fingerprint::of(b"other-toolchain"), &a)
+        );
         let changes: [fn(&mut Module); 8] = [
             |m| m.triple = "x86_64-pc-windows-msvc".into(),
             |m| {
@@ -529,13 +649,13 @@ mod tests {
         for change in changes {
             let mut b = a.clone();
             change(&mut b);
-            assert_ne!(key, machine_key(ns, &b));
+            assert_ne!(key, key_matching_unbuffered(ns, &b));
         }
         let mut b = a.clone();
         b.items.push(Item::NamedType("x".into(), vec![]));
-        let first = machine_key(ns, &b);
+        let first = key_matching_unbuffered(ns, &b);
         b.items.reverse();
-        assert_ne!(first, machine_key(ns, &b));
+        assert_ne!(first, key_matching_unbuffered(ns, &b));
     }
     #[test]
     fn entry_roundtrip_corruption_key_and_length_are_checked() {

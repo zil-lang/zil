@@ -203,3 +203,45 @@ fn effect_before_overflow_is_still_observed() {
     assert_eq!(output.status.signal(), Some(4), "{output:?}");
     assert_eq!(output.stdout, b"X");
 }
+
+#[test]
+fn constant_calls_inside_effectful_runtime_callers_keep_order_and_dynamic_calls() {
+    let source = "fn result()->i32{var x:i32=0;unsafe{x=getchar();putchar(65);}let n=known();unsafe{putchar(66);}return dynamic(x)+n;}fn known()->i32{return -9;}fn dynamic(x:i32)->i32{return x;}extern \"C\" fn getchar()->i32;extern \"C\" fn putchar(x:i32)->i32;";
+    for enabled in [false, true] {
+        let dir = Dir::new();
+        let llvm = dir.compile(source, NativeBackend::LlvmApi, enabled);
+        let output = dir.run(7);
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(output.stdout, b"AB-2\n");
+        assert!(output.stderr.is_empty());
+        let body = first_function(&llvm);
+        assert!(body.contains("@getchar("));
+        assert!(body.contains("@putchar("));
+        assert!(
+            body.contains("@zil.fn.2("),
+            "runtime argument must remain: {body}"
+        );
+        assert_eq!(body.contains("@zil.fn.1("), !enabled);
+    }
+}
+
+#[test]
+fn constant_fact_does_not_hide_a_later_effectful_or_trapping_zero_arg_call() {
+    let source = "fn result()->i64{let n=known();unsafe{putchar(n);fflush(c_null());}return fail();}fn known()->i32{return 88;}fn fail()->i64{return 9223372036854775807+1;}extern \"C\" fn putchar(x:i32)->i32;extern \"C\" fn fflush(stream:c_handle)->i32;";
+    let dir = Dir::new();
+    let llvm = dir.compile(source, NativeBackend::LlvmApi, true);
+    assert!(first_function(&llvm).contains("@zil.fn.2("));
+    let output = dir.run(0);
+    assert_eq!(output.status.signal(), Some(4), "{output:?}");
+    assert_eq!(output.stdout, b"X");
+
+    let source = "fn result()->i32{let f:fn()->i32=known;return f();}fn known()->i32{return 12;}";
+    let llvm = dir.compile(source, NativeBackend::LlvmApi, true);
+    assert!(
+        first_function(&llvm).contains("call i32 %"),
+        "indirect call retains its path"
+    );
+    let output = dir.run(0);
+    assert!(output.status.success(), "{output:?}");
+    assert_eq!(output.stdout, b"12\n");
+}

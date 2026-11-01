@@ -254,7 +254,7 @@ pub(super) fn plan(
     evaluator.summaries
 }
 
-pub(super) fn emit(f: &TypedFunction, c: &Constant) -> m::Function {
+pub(super) fn argument(c: &Constant) -> m::Arg {
     let (ty, value) = match c {
         Constant::Bool(b) => (m::Ty::Int(1), m::Val::Bool(*b)),
         Constant::I32(n) => (m::Ty::Int(32), m::Val::Int(i128::from(*n))),
@@ -263,17 +263,19 @@ pub(super) fn emit(f: &TypedFunction, c: &Constant) -> m::Function {
         Constant::U16(n) => (m::Ty::Int(16), m::Val::Int(i128::from(*n))),
         _ => unreachable!("only scalar-return summaries are published"),
     };
+    m::Arg::new(ty, value)
+}
+
+pub(super) fn emit(f: &TypedFunction, c: &Constant) -> m::Function {
+    let argument = argument(c);
     m::Function {
         name: symbol(f.id).to_string(),
         linkage: m::Linkage::External,
-        signature: m::Signature::new(ty.clone(), vec![]),
+        signature: m::Signature::new(argument.ty.clone(), vec![]),
         attrs: vec![],
         blocks: Some(vec![m::Block {
             name: "entry".into(),
-            instructions: vec![m::Inst::new(
-                None,
-                m::Op::Return(Some(m::Arg::new(ty, value))),
-            )],
+            instructions: vec![m::Inst::new(None, m::Op::Return(Some(argument)))],
         }]),
     }
 }

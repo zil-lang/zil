@@ -183,6 +183,104 @@ fn checked_simple(function: TypedFunction) -> VerifiedModule {
         .collect();
     checked(vec![function], vec![boundaries])
 }
+
+#[test]
+fn current_scalar_facts_reach_calls_before_machine_passes_and_reject_stale_lir() {
+    // Raw-IR control complements the real-source/native driver controls. A
+    // runtime parameter prevents the caller from becoming a function summary.
+    for value in [
+        Constant::Bool(true),
+        Constant::U8(255),
+        Constant::U16(65535),
+        Constant::I32(-17),
+        Constant::I64(i64::MIN),
+    ] {
+        let ty = value.ty();
+        let mut caller = function(
+            0,
+            "caller",
+            ty.clone(),
+            vec![ty.clone(), ty.clone(), ty.clone()],
+            vec![block(
+                0,
+                vec![
+                    instruction(
+                        Some(0),
+                        InstructionKind::Call {
+                            function: FunctionId(1),
+                            arguments: vec![],
+                        },
+                    ),
+                    load(1, 0),
+                    binary(
+                        2,
+                        if ty == Type::Bool {
+                            BinaryOp::Or
+                        } else {
+                            BinaryOp::Add
+                        },
+                        0,
+                        1,
+                    ),
+                ],
+                Terminator::Return(Some(ValueId(2))),
+            )],
+        );
+        caller.parameters.push(LocalId(0));
+        caller.locals.push(local(0, ty.clone(), false));
+        let callee = function(
+            1,
+            "known",
+            ty.clone(),
+            vec![ty],
+            vec![block(
+                0,
+                vec![constant(0, value)],
+                Terminator::Return(Some(ValueId(0))),
+            )],
+        );
+        let verified = checked(
+            vec![caller, callee],
+            vec![vec![(vec![0], vec![0])], vec![(vec![], vec![])]],
+        );
+        let mut raw = lir(&verified);
+        for enabled in [false, true] {
+            let machine = crate::emit::lower_view_with_incremental_scalar_policy(
+                &verified,
+                &raw.as_view(),
+                &EmitOptions {
+                    entry: EntryPoint::None,
+                },
+                enabled,
+            )
+            .unwrap();
+            zil_llvm_api::validate_module(&machine).unwrap();
+            let caller = machine
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    zil_llvm_api::model::Item::Function(f) if f.name == "zil.fn.0" => Some(f),
+                    _ => None,
+                })
+                .unwrap();
+            let direct = caller.blocks.iter().flatten().flat_map(|b| &b.instructions).any(|i|
+                matches!(&i.op, zil_llvm_api::model::Op::Call { callee: zil_llvm_api::model::Val::Global(name), .. } if name == "zil.fn.1"));
+            assert_eq!(direct, !enabled);
+        }
+        raw.functions[1].name.push_str("stale");
+        assert!(
+            crate::emit::lower_view_with_incremental_scalar_policy(
+                &verified,
+                &raw.as_view(),
+                &EmitOptions {
+                    entry: EntryPoint::None
+                },
+                true,
+            )
+            .is_err()
+        );
+    }
+}
 fn lir(verified: &VerifiedModule) -> LirModule {
     LirModule {
         resources: Vec::new(),
