@@ -373,6 +373,8 @@ fn keys(
     for module in &program.modules {
         let core = &module.core;
         if core.schema_version != SCHEMA_VERSION
+            || !core.aggregate_templates.is_empty()
+            || !core.aggregate_applications.is_empty()
             || !core.aggregates.is_empty()
             || !core.enums.is_empty()
             || !core.unsupported.is_empty()
