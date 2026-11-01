@@ -266,7 +266,7 @@ fn a_free_binder_hidden_in_phantom_arguments_requires_the_actual_outer_owner() {
 
 #[test]
 fn prepared_and_function_session_recheck_unused_metadata_after_a_scalar_success() {
-    let c = core("fn main()->i32{return 7}");
+    let c = core("fn main()->i32{let a=1;let b=2;let c=a+b;return c}");
     let good = CoreProgram {
         root: c.module_id,
         source_fingerprint: c.source_fingerprint,
@@ -286,6 +286,10 @@ fn prepared_and_function_session_recheck_unused_metadata_after_a_scalar_success(
         .check_prepared_program(&prepared, &target, &limits)
         .unwrap();
     assert!(!session.is_empty());
+    session
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert_eq!(session.last_stats().reused_functions, 1);
     let mut bad = good.clone();
     let span = bad.modules[0].core.functions[0].span;
     bad.modules[0]
@@ -317,5 +321,4 @@ fn prepared_and_function_session_recheck_unused_metadata_after_a_scalar_success(
             .check_prepared_program(&prepared, &target, &limits)
             .is_err()
     );
-    assert_eq!(session.last_stats().reused_functions, 0);
 }

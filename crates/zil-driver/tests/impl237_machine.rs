@@ -34,7 +34,7 @@ fn original_generic_wrapper_allocation_failure_keeps_actual_responsibility() {
         let wrapper = dir.join("capture-object.sh");
         fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nfor arg in \"$@\"; do\ncase \"$arg\" in *.o|*.obj) cp -- \"$arg\" {} ;; esac\ndone\nexec {} \"$@\"\n",quote(&dir.join("api.o")),quote(&clang))).unwrap();
         fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-        fs::write(dir.join("source.zil"), &source).unwrap();
+        fs::write(dir.join("source.zil"), source).unwrap();
         let report = compile_source(
             &SourceUnit::new(FileId(0), ModuleId(0), "fault237.zil", source),
             &CompileOptions {
