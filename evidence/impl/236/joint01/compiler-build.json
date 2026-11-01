@@ -1,0 +1,20 @@
+{
+  "status": "Pass",
+  "exit_code": 0,
+  "git_status": "",
+  "source_commit": "bf7b1de72ac1483bfa9364f7da946eed76ccf5f0",
+  "cli_sha256": "c4b32949d2a2f27dad6965bad4f381b89aa6711bf28b6fa202796cb8eac9da83",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli",
+    "--features",
+    "llvm-api"
+  ],
+  "CARGO_TARGET_DIR": "/workspace/.zil-env/target-core",
+  "CARGO_BUILD_JOBS": 1,
+  "CARGO_INCREMENTAL": 0,
+  "cargo_seconds": 0.39
+}

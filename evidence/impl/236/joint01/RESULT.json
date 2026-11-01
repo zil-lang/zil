@@ -1,0 +1,57 @@
+{
+  "status": "Fail",
+  "candidate_commit": "bf7b1de72ac1483bfa9364f7da946eed76ccf5f0",
+  "cli_sha256": "c4b32949d2a2f27dad6965bad4f381b89aa6711bf28b6fa202796cb8eac9da83",
+  "combined_source_and_oracle_unchanged": true,
+  "source_manifest_sha256": "cea13a8cbdee7755e9de95d1e980549495bbfcecb391cfd96ec6fcfd2fbe6d9e",
+  "oracle_sha256": "5d3928abeb65d677518a93c9649ac3641ba2d403c448be0a59b4dcbbb5e12c25",
+  "limited_rust_test_command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "impl236_zui_core",
+    "--",
+    "--test-threads=1"
+  ],
+  "test_exit": 101,
+  "tests_passed": 0,
+  "tests_failed": 3,
+  "combined_diagnostic": {
+    "phase": "analyze",
+    "code": "E-ANALYZE-IR",
+    "message": "defer: cleanup is not reverse successful construction/registration order",
+    "verification_runs": 0
+  },
+  "native_build_attempts": 1,
+  "native_build_successes": 0,
+  "ordinary_native_executions": 0,
+  "allocator_executions": 0,
+  "planned_ordinary_and_allocator_matrix": "NotRun; blocked before code generation",
+  "initial_nearest_test": "Failed; defer error masks intended invalidation. Missing-refill generic Analyze code alone did not prove the intended reason.",
+  "isolated235": {
+    "positive": "Success Verify1",
+    "missing_refill": "SafeReject Analyze E-ANALYZE-IR: resource closure: whole aggregate move requires every owned element or field live",
+    "live_window": "SafeReject Analyze E-ANALYZE-IR: captured Store transition invalidates a live element window",
+    "note": "Exact source checks only; no native execution. The originally predicted Verify phase for the live-window source was incorrect; producer rejects this actual invalidation earlier."
+  },
+  "minimal": {
+    "owning_local_relay": "SafeReject Analyze defer order",
+    "without_relay": "Success Verify1",
+    "without_defer": "SafeReject Analyze resource initialization order",
+    "note": "No 235 shape required. Whole-local relay/reinitialization after later owning local conflicts with pre-existing success-initialization cleanup rule."
+  },
+  "infrastructure_observation": {
+    "directory": "/workspace/.zil-env/236-joint01/minimal/owning-local-relay",
+    "status": "InfrastructureFailure",
+    "reason": "First minimal probe launched before env.sh activation and could not load libLLVM.so.23.1; no compiler pipeline ran. Repeated with activated environment in minimal02."
+  },
+  "raw_directory": "/workspace/.zil-env/236-joint01",
+  "full_language": "NotSatisfied",
+  "full_zui": "NotClaimed",
+  "product": "NotRun"
+}

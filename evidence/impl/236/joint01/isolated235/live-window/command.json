@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/workspace/.zil-env/target-core/debug/zil",
+    "check",
+    "/workspace/.zil-env/236-joint01/isolated235/live-window/main.zil",
+    "--emit-dir",
+    "/workspace/.zil-env/236-joint01/isolated235/live-window/phases",
+    "--json"
+  ],
+  "exit": 1
+}
