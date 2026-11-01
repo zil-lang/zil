@@ -114,6 +114,29 @@ pub(super) fn check_type_for(
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
+                // Keep the existing resource-success profile. Ordinary Sum
+                // composition does not turn an owning error into a Copy error.
+                if matches!(result.as_ref(), Type::Managed(_)) {
+                    resources::charge_payload(error, budget)?;
+                    if !error.is_copy_value() {
+                        return Err(unsupported(
+                            "direct Managed error-union success requires a finite Copy error",
+                            span,
+                        ));
+                    }
+                } else {
+                    for payload in [error.as_ref(), result.as_ref()] {
+                        if !matches!(payload, Type::Package { .. } | Type::Enum { .. }) {
+                            resources::charge_payload(payload, budget)?;
+                            if !payload.is_copy_value() {
+                                return Err(unsupported(
+                                    "ordinary error-union payload slots require finite Copy, Product or Enum values",
+                                    span,
+                                ));
+                            }
+                        }
+                    }
+                }
                 pending.push(error);
                 pending.push(result);
             }

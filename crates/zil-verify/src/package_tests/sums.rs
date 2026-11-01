@@ -327,6 +327,82 @@ fn owned_sum_vacant_drop_is_conditional_but_dead_storage_is_not() {
 }
 
 #[test]
+fn owned_sum_nested_error_slot_profiles_reject_fully_consistent_parameters() {
+    let copy_error = Type::Enum {
+        name: "CopyError".into(),
+        variants: vec![("Bad".into(), vec![])],
+    };
+    let managed = Type::ErrorUnion {
+        error: Box::new(copy_error),
+        result: Box::new(owned()),
+    };
+    let mut b = Body::new(Type::Unit);
+    let local = b.parameter(managed.clone());
+    b.op(InstructionKind::DropErrorUnion { local });
+    accepted(module(b.finish(None, CleanupExitKind::Return)));
+    for ty in [
+        Type::ErrorUnion {
+            error: Box::new(managed),
+            result: Box::new(owned()),
+        },
+        Type::ErrorUnion {
+            error: Box::new(Type::ErrorUnion {
+                error: Box::new(package()),
+                result: Box::new(Type::Unit),
+            }),
+            result: Box::new(Type::Unit),
+        },
+    ] {
+        let mut b = Body::new(Type::Unit);
+        let local = b.parameter(ty);
+        b.op(InstructionKind::DropErrorUnion { local });
+        reject_semantic(
+            module(b.finish(None, CleanupExitKind::Return)),
+            "error-union",
+        );
+    }
+}
+
+#[test]
+fn owned_sum_capture_is_closed_even_when_the_environment_never_reads_it() {
+    let mut b = Body::new(Type::Unit);
+    let a = b.token(65);
+    let c = b.token(66);
+    let n = b.value(Type::I32, InstructionKind::Constant(Constant::I32(7)));
+    let captured = b.value(
+        sum(),
+        InstructionKind::MakeVariant {
+            variant: 0,
+            fields: vec![a, c, n],
+        },
+    );
+    b.value(
+        Type::Closure(ClosureId(0)),
+        InstructionKind::MakeClosure {
+            closure: ClosureId(0),
+            captures: vec![captured],
+        },
+    );
+    let mut m = module(b.finish(None, CleanupExitKind::Return));
+    let mut entry = Body::new(Type::Unit);
+    entry.0.id = FunctionId(1);
+    entry.0.name = "entry".into();
+    entry.0.environment = Some(ClosureId(0));
+    m.functions
+        .push(entry.finish(None, CleanupExitKind::Return));
+    m.closures.push(ClosureDefinition {
+        id: ClosureId(0),
+        function: FunctionId(1),
+        captures: vec![sum()],
+        parameters: vec![],
+        result: Type::Unit,
+        kind: CallableKind::Fn,
+        lending_captures: vec![],
+    });
+    reject_semantic(m, "Enum capture");
+}
+
+#[test]
 fn owned_sum_fresh_leaf_survives_product_and_error_union_packaging() {
     let mut b = Body::new(owned());
     b.0.result_mode = PassingMode::Create;
