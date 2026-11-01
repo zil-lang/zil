@@ -1,0 +1,23 @@
+{
+  "status": "Pass",
+  "exit_code": 0,
+  "git_status": "",
+  "source_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "cli_sha256": "8c6fea5ffc32ca1a25b1804249e3a9f016f78d86db8057311335910ff80ca914",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "-p",
+    "zil-cli",
+    "--features",
+    "llvm-api"
+  ],
+  "cargo_seconds": 0.01,
+  "CARGO_TARGET_DIR": "/workspace/.zil-env/target-236",
+  "CARGO_BUILD_JOBS": 1,
+  "CARGO_INCREMENTAL": 0,
+  "clang": "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+  "LD_LIBRARY_PATH": "/workspace/.zil-env/llvm-23.1.4/lib",
+  "note": "Actual successful cargo build rerun on clean P after the initial 42 build encountered an unrelated reviewer-test edit. Original build log and identity interruption retained separately."
+}

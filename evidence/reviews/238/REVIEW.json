@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "task": "238",
+  "reviewer": "/root/kernel_defer227",
+  "implementation_author": "/root/impl_defer227",
+  "independent_of_238_implementation": true,
+  "status": "Pass",
+  "scope": "Frozen ordinary Product whole-assignment transaction, including ordinary static template/TypeApply self input in the jointly assembled dependency context.",
+  "reviewed_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "production_238_commit": "3fdd02070",
+  "binding": "FINAL-BINDING.json",
+  "source_manifest": "FINAL-SOURCE-SHA256.json",
+  "environment": {
+    "setup": "source /workspace/.zil-env/env.sh",
+    "target": "/workspace/.zil-env/target-238",
+    "jobs": 1,
+    "feature": "llvm-api",
+    "native_backend": "LlvmApi",
+    "fallback": false,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)"
+  },
+  "commands": [
+    {
+      "id": "joint-final",
+      "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/review238-joint-final cargo test -p zil-driver --features llvm-api --test review238_contracts --test impl238_machine --test impl236_zui_core -- --nocapture",
+      "cwd": "/workspace/zil-core",
+      "exit_code": 101,
+      "results": {
+        "impl236_zui_core": {
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        },
+        "impl238_machine": {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        },
+        "review238_contracts": {
+          "passed": 13,
+          "failed": 1,
+          "ignored": 0,
+          "filtered": 0
+        }
+      },
+      "failure_class": "Reviewer harness rejected a correct early Expand/E-GENERIC-ARGUMENT rejection for the explicit wrong phantom argument. All30 independent native executions, original23640 native executions and16 actual allocator probes completed correctly. This command is not relabeled as18/0."
+    },
+    {
+      "id": "joint-final02",
+      "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-238 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/review238-joint-final02 cargo test -p zil-driver --features llvm-api --test review238_contracts -- --nocapture",
+      "cwd": "/workspace/zil-core",
+      "exit_code": 0,
+      "results": {
+        "review238_contracts": {
+          "passed": 14,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        }
+      },
+      "change": "Only the named phantom wrong-argument negative now accepts the exact correct Expand/E-GENERIC-ARGUMENT diagnostic. Parse and unrelated early failures remain rejected by the harness. No production or source-input/oracle change."
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "joint-final",
+      "log": "logs/review238-joint-final.log.gz",
+      "original_log_sha256": "76516aa0825a9cc9a0a6f9f80322f969839fee726476cc44d7d1a890c51b04b5",
+      "compressed_log_sha256": "6ec8f426396df709481d94775b243b03bbec2e94b07086c98adaf848ee4d2116",
+      "archive": "review238-joint-final.tar.gz",
+      "archive_sha256": "5f986491cf5ea3ee0e89bdfadde5ae3fa3acb81f3a255af38b1596b68c0b1578",
+      "inventory": "review238-joint-final.files.json",
+      "files": 911,
+      "review_native_executions": 30,
+      "review_native_sources": 15,
+      "review_raw_modules": 9,
+      "consumer_native_executions": 40,
+      "machine_probe_executions": 16,
+      "machine_real_allocation_failures": 8
+    },
+    {
+      "id": "joint-final02",
+      "log": "logs/review238-joint-final02.log.gz",
+      "original_log_sha256": "895c697df24335edf248e93bdecc7dde13c8fd8cc77318f0c5cce8621e94f35c",
+      "compressed_log_sha256": "09d34ff359ac2cb6e06f9998fa81b8b42e52663468fed2b978f3f3a3e6cd4d2b",
+      "archive": "review238-joint-final02.tar.gz",
+      "archive_sha256": "77bca01120c471c2819e9166bcf43ad587412cfac231d515870bbececec70755",
+      "inventory": "review238-joint-final02.files.json",
+      "files": 619,
+      "review_native_executions": 30,
+      "review_native_sources": 15,
+      "review_raw_modules": 9,
+      "consumer_native_executions": 0,
+      "machine_probe_executions": 0,
+      "machine_real_allocation_failures": 0
+    }
+  ],
+  "current_run_counts": {
+    "independent_review_groups": 14,
+    "independent_review_native_sources": 15,
+    "independent_review_native_executions": 30,
+    "hostile_raw_modules": 9,
+    "hostile_direct_verify_routes": 18,
+    "hostile_optional_analyze_routes": 9,
+    "original_236_groups": 3,
+    "original_236_native_executions": 40,
+    "replayed_allocator_groups": 1,
+    "allocator_probe_executions": 16,
+    "allocator_real_failures": 8,
+    "allocator_controls": 8,
+    "allocator_final_live": 0,
+    "counting": "Each number belongs to its named test lane. Historical runs and root/consumer364-execution matrices are not added as new independent coverage. Source/raw/native mechanisms overlap and are not independent product proofs."
+  },
+  "checks": [
+    "One initialized lexical shell persists across independent RHS and direct self-call replacement. Only one whole-local Store constructs it; normal whole-name transfers still use TakeLocal.",
+    "Full RHS is prepared before old owned fields are cleared in declaration order. Every old owner Drop precedes every new Copy/owner field Store; publication has no call or new defer registration.",
+    "Independent RHS failure preserves old responsibility. Failure after explicitly staging self clears only actual staged/remainder debt; before-self and after-self error oracles differ correctly.",
+    "Partial live shells may receive independent complete RHS. Whole-moved and live/moved-join shells cannot be revived through field publication; ordinary move followed by Copy reading remains rejected.",
+    "Direct and captured/descriptor second-argument access cannot read target through the self transaction. Whole Product, owned-field Desc and Copy-field loans remain active until actual last use; ended windows and Copy snapshots remain accepted.",
+    "Lexical shadow, lambda parameter shadow, generated hygienic bindings, branches and loop break/continue preserve binding identity, completeness, scope activation and defer/resource order.",
+    "Ordinary static T:Copy templates and TypeApply calls work. Phantom Root<T> input using Twin cannot be inferred from the concrete P field layout: implicit and explicit Twin calls succeed; explicit wrongP is rejected by exact generic constraints.",
+    "Rebuilding a Package from incoming fields does not invent create authority: the unused origin function is rejected with create result forwards an incoming responsibility.",
+    "Raw/Wire reject duplicate owning-field Take, same-type wrong target publication, overwriting old live debt, missing publication, borrowing a half-extracted shell, publication after whole-shell death, Copy reading after ordinary whole move, incomplete phi and loop-backedge state.",
+    "Each mutated raw module reaches verify_module and verify_module_bytes before optional Analyze. The harness excludes plan identity and Hold-claim mismatches. Post-run RAW-REJECTIONS.json additionally proves that none of the actual routes failed merely on initialization-claim mismatch.",
+    "Original236 three-test source/oracle lane and actual LLVM API allocator failures pass without rewriting the consumer inputs or expected shutdown sequence."
+  ],
+  "returned_findings": [
+    {
+      "id": "R238-BUDGET-QUALIFICATION",
+      "found_in": "0af913ff3",
+      "status": "Closed",
+      "fixed_in": "3fdd02070",
+      "evidence": "New bounded type work is reserved before the recursive eligibility check. Reviewer read the payment order and final native/safety replay; author separately records the new N617/N-1/freshN and unchanged six named old-budget values. This review does not present that author budget measurement as a new reviewer measurement."
+    },
+    {
+      "id": "R238-STATIC-TEMPLATE-SCOPE",
+      "found_in": "0af913ff3",
+      "status": "Closed",
+      "fixed_in": "3fdd02070 plus composed237 family/argument inference",
+      "evidence": "The static TypeApply callee uses the existing ordinary template dispatcher after rebuilding its one self argument. Independent ordinary T:Copy and phantom Root<Twin> native controls pass; wrong exact phantom argument is rejected."
+    }
+  ],
+  "review_fixture_failures": [
+    {
+      "log": "logs/review238-final01.log.gz",
+      "cause": "Reviewer #for syntax omitted required parentheses; corrected only the test syntax, original input/log retained."
+    },
+    {
+      "log": "logs/review238-joint-final.log.gz",
+      "cause": "Reviewer phase restriction was too narrow for a valid early exact generic constraint rejection; corrected only the named diagnostic allowance, original input/log retained."
+    }
+  ],
+  "not_claimed": [
+    "Formal full-workspace language/product acceptance",
+    "A generic mutable Product view/deep Place, new capture/shared eligibility or kernel/order relaxation",
+    "Native Windows execution",
+    "Rust-equivalent runtime/RSS, compile performance or maintenance advantage"
+  ],
+  "rust_goals": {
+    "safety": "Scoped independent source/raw/Wire and actual error-cleanup checks pass without238 kernel changes.",
+    "runtime_memory": "Correct ownership close order and real allocation failures with live0 are observed, not comparative runtime/RSS.",
+    "expression_maintenance": "Original Product consumer assignment now composes with defer; no maintenance-cost comparison measured.",
+    "compile_cost": "The returned prepayment gap is closed and default limits unchanged; timing/Rust compilation comparison not measured.",
+    "breakthrough": "Finite language composition increment only; no product-level repeatable breakthrough established."
+  }
+}

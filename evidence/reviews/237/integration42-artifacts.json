@@ -1,0 +1,67 @@
+[
+  {
+    "path": "227/integration42.json",
+    "bytes": 4694,
+    "sha256": "1bdd3c316035e067b1a74361d1073f06c8aea41fac44df160b015a34ab417555"
+  },
+  {
+    "path": "235/integration42.json",
+    "bytes": 4425,
+    "sha256": "ff1baf0d63165fcb0ea04583309e7a4068b117ab4156c88ac011b8e30f571716"
+  },
+  {
+    "path": "237/integration42-artifacts.tar.gz",
+    "bytes": 3395683,
+    "sha256": "a0cba80611a86ba9c398458af16e32bf4f7a3630039727d2c67e362840283224"
+  },
+  {
+    "path": "237/integration42-budget235.log",
+    "bytes": 552,
+    "sha256": "c1a54217b90ca753d0d63d7199aafd1c204167f15850562ea0191c9afe27ffcd"
+  },
+  {
+    "path": "237/integration42-ct.log",
+    "bytes": 468,
+    "sha256": "bc6de902fb67dfdfb34620163e088c36f9ccb2eef82ced3fd73f64c0f1818bed"
+  },
+  {
+    "path": "237/integration42-driver.log",
+    "bytes": 6745,
+    "sha256": "3f90ef150cff61b20287ba1b5425b7d6db025f904014a02abca14f7b4de216d5"
+  },
+  {
+    "path": "237/integration42-execution.json",
+    "bytes": 4557,
+    "sha256": "b32d77709b429b7f25fbaf07ad060cc770c29d2662a7779910581f34adb8a354"
+  },
+  {
+    "path": "237/integration42-kernel.log",
+    "bytes": 2648,
+    "sha256": "62fa8fbcc9383d035dedc26fee3fedb02340c8bf2adbc034743d4e680983b336"
+  },
+  {
+    "path": "237/integration42-legacy202.log",
+    "bytes": 609,
+    "sha256": "31c4312521d62107cac6d7b88ae81237729f310581264b8dbd3e42bd5dc33df9"
+  },
+  {
+    "path": "237/integration42-raw-manifest.json",
+    "bytes": 224932,
+    "sha256": "5ca15dc6152619a58362f41c0bc248d552b293e24bae7bcdf6820530e0862b4e"
+  },
+  {
+    "path": "237/integration42-runtime.json",
+    "bytes": 26516,
+    "sha256": "e10e3f2c1740754d84cff4b248a2ac98f44b9386d7f5903863173cc86d42cc23"
+  },
+  {
+    "path": "237/integration42-toolchain.txt",
+    "bytes": 436,
+    "sha256": "6e6489a32cdab2ef58a31b313157486a1b0eb16fc2f5daa8c0da1c1629f48ba2"
+  },
+  {
+    "path": "237/integration42.json",
+    "bytes": 6546,
+    "sha256": "639365502a6edbbf686862cc9b03b8aa7b5a651b4b64280d88ce14f7f06764e2"
+  }
+]

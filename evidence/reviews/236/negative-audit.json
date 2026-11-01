@@ -1,0 +1,56 @@
+[
+  {
+    "kind": "control",
+    "path": "/tmp/review238-joint-final/consumer236-counterexample-control-95727",
+    "source_commit": "42c247be845212b624413a1791eb4f7ab3b8dc75",
+    "sources_identical_to_prechecked_joint02": true,
+    "status": "Success",
+    "phase": "verify",
+    "verification_runs": 1,
+    "executable": null,
+    "diagnostics": [],
+    "report_sha256": "c24323d8640d60f1761b593b5cd743712f5236e07716a8847376cf7e7f06440d"
+  },
+  {
+    "kind": "missing-refill",
+    "path": "/tmp/review238-joint-final/consumer236-missing-refill-95727",
+    "source_commit": "42c247be845212b624413a1791eb4f7ab3b8dc75",
+    "sources_identical_to_prechecked_joint02": true,
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "executable": null,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "resource closure: whole aggregate move requires every owned element or field live",
+        "span": null,
+        "notes": []
+      }
+    ],
+    "report_sha256": "4b12a53596bdfddee6e6032594c86a84de8fbb1307efa65ba7ef757c2a09138e"
+  },
+  {
+    "kind": "live-window",
+    "path": "/tmp/review238-joint-final/consumer236-live-window-95727",
+    "source_commit": "42c247be845212b624413a1791eb4f7ab3b8dc75",
+    "sources_identical_to_prechecked_joint02": true,
+    "status": "SafeReject",
+    "phase": "analyze",
+    "verification_runs": 0,
+    "executable": null,
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "SafeReject",
+        "code": "E-ANALYZE-IR",
+        "message": "captured Store transition invalidates a live element window",
+        "span": null,
+        "notes": []
+      }
+    ],
+    "report_sha256": "0290258890729c42b4578ab8fec0e8ff5f90020b2b3a1334dcd1b929bd5e76ec"
+  }
+]

@@ -1,0 +1,971 @@
+{
+  "source_program_runs": [
+    {
+      "directory": "review227-capture-writeback-97310-17",
+      "source_sha256": {
+        "source.zil": "9c361e6dafcc04b76e7f55e85b2e579cd31ca7245cbc710c6cde6c3639c61c01"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review227-capture-writeback-97310-22",
+      "source_sha256": {
+        "source.zil": "9c361e6dafcc04b76e7f55e85b2e579cd31ca7245cbc710c6cde6c3639c61c01"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review227-nested-loops-97310-18",
+      "source_sha256": {
+        "source.zil": "5f2bf2b4d49ee6577b46ed8ad07c8aef3144d4d21efca2ef5ff8710120cbd153"
+      },
+      "stdout_hex": "304130435a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review227-nested-loops-97310-19",
+      "source_sha256": {
+        "source.zil": "5f2bf2b4d49ee6577b46ed8ad07c8aef3144d4d21efca2ef5ff8710120cbd153"
+      },
+      "stdout_hex": "304130435a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review227-returned-carriers-97310-20",
+      "source_sha256": {
+        "source.zil": "ffc5f09ef2d5531ef704fb7b25ed51639c6db007460d0a437722f924a8918a2e"
+      },
+      "stdout_hex": "44454241",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review227-returned-carriers-97310-21",
+      "source_sha256": {
+        "source.zil": "ffc5f09ef2d5531ef704fb7b25ed51639c6db007460d0a437722f924a8918a2e"
+      },
+      "stdout_hex": "44454241",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review235-created-right-97343-16",
+      "source_sha256": {
+        "source.zil": "a68c1f62e570cde440dad2c218e3905ff26fdcec2bef47237a3879474f696e68"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review235-created-right-97343-25",
+      "source_sha256": {
+        "source.zil": "a68c1f62e570cde440dad2c218e3905ff26fdcec2bef47237a3879474f696e68"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review235-generic-callback-element-97343-13",
+      "source_sha256": {
+        "source.zil": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review235-generic-callback-element-97343-23",
+      "source_sha256": {
+        "source.zil": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review235-pop-full-push-97343-10",
+      "source_sha256": {
+        "source.zil": "431f608f1933a662ad18d8f4c7c4c10da5cd3fc4acb62a2552ad4048dcf2ac05"
+      },
+      "stdout_hex": "44414342",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review235-pop-full-push-97343-24",
+      "source_sha256": {
+        "source.zil": "431f608f1933a662ad18d8f4c7c4c10da5cd3fc4acb62a2552ad4048dcf2ac05"
+      },
+      "stdout_hex": "44414342",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-cross-module-97375-22",
+      "source_sha256": {
+        "module0.zil": "97a29f9cd806f2b650d3a7c81094a1cbe60c5c0337ffc589453f75c2812f8459",
+        "module1.zil": "9e6462adc6d7e98655f5a49711517deadcca13b33271d5d1824dea3db9b3ca9c"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-cross-module-97375-31",
+      "source_sha256": {
+        "module0.zil": "97a29f9cd806f2b650d3a7c81094a1cbe60c5c0337ffc589453f75c2812f8459",
+        "module1.zil": "9e6462adc6d7e98655f5a49711517deadcca13b33271d5d1824dea3db9b3ca9c"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-generic-defer-original-explicit-97488-20",
+      "source_sha256": {
+        "source.zil": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295"
+      },
+      "stdout_hex": "414c515a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-generic-defer-original-explicit-97488-21",
+      "source_sha256": {
+        "source.zil": "f6e93bbccdb526e821b57ae754472d82da63bbc2b8e2c54bf23496828fbd4295"
+      },
+      "stdout_hex": "414c515a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-generic-defer-original-implicit-97488-0",
+      "source_sha256": {
+        "source.zil": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9"
+      },
+      "stdout_hex": "414c515a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-generic-defer-original-implicit-97488-19",
+      "source_sha256": {
+        "source.zil": "da836720cf1cf928174a6246d63909c65ef4f1eb9c4040c55f166915eec16ed9"
+      },
+      "stdout_hex": "414c515a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-generic-defer-own-loop-97488-18",
+      "source_sha256": {
+        "source.zil": "db1c878bdd2975ad752a8b4582cbdc93ddb0edb700e0ab8fb1e42ec6b068d069"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-generic-defer-own-loop-97488-2",
+      "source_sha256": {
+        "source.zil": "db1c878bdd2975ad752a8b4582cbdc93ddb0edb700e0ab8fb1e42ec6b068d069"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-nested-phantom-explicit-control-97375-19",
+      "source_sha256": {
+        "source.zil": "caa0c981fdae35452f07a2c53fd4f09df1d1fe3222e57198633a288484f11fe8"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-nested-phantom-explicit-control-97375-30",
+      "source_sha256": {
+        "source.zil": "caa0c981fdae35452f07a2c53fd4f09df1d1fe3222e57198633a288484f11fe8"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-nested-phantom-natural-97375-33",
+      "source_sha256": {
+        "source.zil": "34526c06b85b8083165284de3d4c9b9eb21d51602c8c9441aa8fdb919b788eab"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-nested-phantom-natural-97375-35",
+      "source_sha256": {
+        "source.zil": "34526c06b85b8083165284de3d4c9b9eb21d51602c8c9441aa8fdb919b788eab"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-nested-phantom-two-T-owners-97375-38",
+      "source_sha256": {
+        "source.zil": "6530378f277b8c8274ec1d5132d7dbdcdeff20334e5e54d424a5665218d9dce8"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-nested-phantom-two-T-owners-97375-42",
+      "source_sha256": {
+        "source.zil": "6530378f277b8c8274ec1d5132d7dbdcdeff20334e5e54d424a5665218d9dce8"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-original235-97375-41",
+      "source_sha256": {
+        "source.zil": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-original235-97375-45",
+      "source_sha256": {
+        "source.zil": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-phantom-direct-retained-97375-44",
+      "source_sha256": {
+        "source.zil": "eb117a701021918e837b3bbfeb6ea97dd3031be1af091cd61287e67101d1341e"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-phantom-direct-retained-97375-49",
+      "source_sha256": {
+        "source.zil": "eb117a701021918e837b3bbfeb6ea97dd3031be1af091cd61287e67101d1341e"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-phantom-input-explicit-control-97375-28",
+      "source_sha256": {
+        "source.zil": "76469433f2776b444760c3cefc4e4162dfcd048570a535af1b424345ba871f43"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-phantom-input-explicit-control-97375-32",
+      "source_sha256": {
+        "source.zil": "76469433f2776b444760c3cefc4e4162dfcd048570a535af1b424345ba871f43"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-phantom-input-natural-97375-36",
+      "source_sha256": {
+        "source.zil": "98e33f4ca2fadca6c38e0b7e09089348c9184b5580b9852ccba5e09f10f0dbff"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-phantom-input-natural-97375-39",
+      "source_sha256": {
+        "source.zil": "98e33f4ca2fadca6c38e0b7e09089348c9184b5580b9852ccba5e09f10f0dbff"
+      },
+      "stdout_hex": "",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-product-input-explicit-control-97375-34",
+      "source_sha256": {
+        "source.zil": "0354783aa8f75477b4a10543b6c30791c630986a3bb7553a9a766bc729394c05"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-product-input-explicit-control-97375-37",
+      "source_sha256": {
+        "source.zil": "0354783aa8f75477b4a10543b6c30791c630986a3bb7553a9a766bc729394c05"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-product-input-natural-97375-43",
+      "source_sha256": {
+        "source.zil": "486fe18321c2aaa734affcc73cd371028da461b4df6c402f4a14cec29a0569a7"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-product-input-natural-97375-47",
+      "source_sha256": {
+        "source.zil": "486fe18321c2aaa734affcc73cd371028da461b4df6c402f4a14cec29a0569a7"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    },
+    {
+      "directory": "review237-two-owners-97375-10",
+      "source_sha256": {
+        "source.zil": "c1e0dc354e386f6521887d4de522caeb77b2ddc04519f2e20560fc74a2aa4980"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O0>"
+      ]
+    },
+    {
+      "directory": "review237-two-owners-97375-29",
+      "source_sha256": {
+        "source.zil": "c1e0dc354e386f6521887d4de522caeb77b2ddc04519f2e20560fc74a2aa4980"
+      },
+      "stdout_hex": "415a",
+      "exit_status": "0 asserted by successful harness; exit.txt where present",
+      "backend": "llvm-api",
+      "pipelines": [
+        "default<O2>"
+      ]
+    }
+  ],
+  "allocator_probe_runs": [
+    {
+      "path": "machine227-O0-97225/fail-0.stderr",
+      "statistics": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 31
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "4241"
+    },
+    {
+      "path": "machine227-O0-97225/fail-1.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "exit": "Some(1)",
+      "stdout_hex": ""
+    },
+    {
+      "path": "machine227-O0-97225/fail-2.stderr",
+      "statistics": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 7
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "41"
+    },
+    {
+      "path": "machine227-O0-97225/fail-3.stderr",
+      "statistics": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 18
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "4241"
+    },
+    {
+      "path": "machine227-O0-97225/fail-4.stderr",
+      "statistics": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 31
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "4241"
+    },
+    {
+      "path": "machine227-O2-97225/fail-0.stderr",
+      "statistics": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 31
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "4241"
+    },
+    {
+      "path": "machine227-O2-97225/fail-1.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "exit": "Some(1)",
+      "stdout_hex": ""
+    },
+    {
+      "path": "machine227-O2-97225/fail-2.stderr",
+      "statistics": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 7
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "41"
+    },
+    {
+      "path": "machine227-O2-97225/fail-3.stderr",
+      "statistics": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 18
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "4241"
+    },
+    {
+      "path": "machine227-O2-97225/fail-4.stderr",
+      "statistics": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 31
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "4241"
+    },
+    {
+      "path": "machine235-O0-97251/fail-0.stderr",
+      "statistics": {
+        "alloc_calls": 7,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 6,
+        "peak_bytes": 127
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "414243"
+    },
+    {
+      "path": "machine235-O0-97251/fail-1.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "exit": "Some(1)",
+      "stdout_hex": ""
+    },
+    {
+      "path": "machine235-O0-97251/fail-2.stderr",
+      "statistics": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "41"
+    },
+    {
+      "path": "machine235-O0-97251/fail-3.stderr",
+      "statistics": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 39
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "41"
+    },
+    {
+      "path": "machine235-O0-97251/fail-4.stderr",
+      "statistics": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 71
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "4241"
+    },
+    {
+      "path": "machine235-O0-97251/fail-5.stderr",
+      "statistics": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 82
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "4142"
+    },
+    {
+      "path": "machine235-O0-97251/fail-6.stderr",
+      "statistics": {
+        "alloc_calls": 6,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 114
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "434142"
+    },
+    {
+      "path": "machine235-O0-97251/fail-7.stderr",
+      "statistics": {
+        "alloc_calls": 7,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 6,
+        "peak_bytes": 127
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "414243"
+    },
+    {
+      "path": "machine235-O0-97251/fail-8.stderr",
+      "statistics": {
+        "alloc_calls": 7,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 6,
+        "peak_bytes": 127
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "414243"
+    },
+    {
+      "path": "machine235-O2-97251/fail-0.stderr",
+      "statistics": {
+        "alloc_calls": 7,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 6,
+        "peak_bytes": 127
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "414243"
+    },
+    {
+      "path": "machine235-O2-97251/fail-1.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "exit": "Some(1)",
+      "stdout_hex": ""
+    },
+    {
+      "path": "machine235-O2-97251/fail-2.stderr",
+      "statistics": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 32
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "41"
+    },
+    {
+      "path": "machine235-O2-97251/fail-3.stderr",
+      "statistics": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 39
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "41"
+    },
+    {
+      "path": "machine235-O2-97251/fail-4.stderr",
+      "statistics": {
+        "alloc_calls": 4,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 71
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "4241"
+    },
+    {
+      "path": "machine235-O2-97251/fail-5.stderr",
+      "statistics": {
+        "alloc_calls": 5,
+        "allocated": 4,
+        "frees": 4,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 4,
+        "peak_bytes": 82
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "4142"
+    },
+    {
+      "path": "machine235-O2-97251/fail-6.stderr",
+      "statistics": {
+        "alloc_calls": 6,
+        "allocated": 5,
+        "frees": 5,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 5,
+        "peak_bytes": 114
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "434142"
+    },
+    {
+      "path": "machine235-O2-97251/fail-7.stderr",
+      "statistics": {
+        "alloc_calls": 7,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 6,
+        "peak_bytes": 127
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "414243"
+    },
+    {
+      "path": "machine235-O2-97251/fail-8.stderr",
+      "statistics": {
+        "alloc_calls": 7,
+        "allocated": 6,
+        "frees": 6,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 6,
+        "peak_bytes": 127
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "414243"
+    },
+    {
+      "path": "machine237-O0-97288/fail-0.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 12
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "415a"
+    },
+    {
+      "path": "machine237-O0-97288/fail-1.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "5a"
+    },
+    {
+      "path": "machine237-O0-97288/fail-2.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 12
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "415a"
+    },
+    {
+      "path": "machine237-O2-97288/fail-0.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 12
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "415a"
+    },
+    {
+      "path": "machine237-O2-97288/fail-1.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "exit": "Some(1)",
+      "stdout_hex": "5a"
+    },
+    {
+      "path": "machine237-O2-97288/fail-2.stderr",
+      "statistics": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 12
+      },
+      "exit": "Some(0)",
+      "stdout_hex": "415a"
+    }
+  ],
+  "counts": {
+    "ordinary_source_native": 40,
+    "allocator_probes": 34,
+    "real_injected_failures": 22,
+    "total_native_processes": 74
+  },
+  "overlap_warning": "Execution counts are from this one review run only. They overlap source obligations and are not additional coverage when repeated in multiple receipts."
+}

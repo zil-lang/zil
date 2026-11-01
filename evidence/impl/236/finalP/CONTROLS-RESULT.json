@@ -1,0 +1,244 @@
+{
+  "status": "Pass",
+  "scope": "current-candidate existing-shape and no-allocation defer controls",
+  "candidate_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "cli_sha256": "8c6fea5ffc32ca1a25b1804249e3a9f016f78d86db8057311335910ff80ca914",
+  "script_sha256": "33e66f6033803670c2fe0b6928bb75910b5cb4dd68cc1673767bb65b36b84175",
+  "builds": [
+    {
+      "opt": "O0",
+      "name": "leaf_control",
+      "verification_runs": 1,
+      "module_count": 3,
+      "api_object_sha256": "eab1564d52112712e12bd36e9932eae13f90f8dbe1fc91af754ab04dc9e5f0fb",
+      "program_sha256": "f3fd1b4fe33c373dd664bdc9bc9edf7b86093a3cf8ca48cb32383f3e8588eb9b"
+    },
+    {
+      "opt": "O0",
+      "name": "defer_control",
+      "verification_runs": 1,
+      "module_count": 2,
+      "api_object_sha256": "e30813887635d8436545ba54328a00e494f8f647d5bbdf28bcfde9e7bc575ade",
+      "program_sha256": "eb420435d4be33e619a79aa7b90c9f7c13e769694f602bffd5c39182fec10373"
+    },
+    {
+      "opt": "O2",
+      "name": "leaf_control",
+      "verification_runs": 1,
+      "module_count": 3,
+      "api_object_sha256": "837cb23079c64c8f7131ba9d3ffa9e5ccd4066c648945dc30b24fcff82d09000",
+      "program_sha256": "25ce1b54338b43ae625801b4e7732ecfc89301d9191c61bd8aa6019ecbf0ab6c"
+    },
+    {
+      "opt": "O2",
+      "name": "defer_control",
+      "verification_runs": 1,
+      "module_count": 2,
+      "api_object_sha256": "451ed22eda27bbea408c2a1dab3c164fd4b24c24c1f0407a49eca2c6ab724f5b",
+      "program_sha256": "0739581b6d463ab1ab651051432141834221a664c76c9b84c5f0c2f31cada18a"
+    }
+  ],
+  "observations": [
+    {
+      "opt": "O0",
+      "name": "leaf_control",
+      "instrumented": false,
+      "exit": 0,
+      "stdout": "A"
+    },
+    {
+      "opt": "O0",
+      "name": "leaf_control",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "opt": "O0",
+      "name": "leaf_control",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "opt": "O0",
+      "name": "leaf_control",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "opt": "O0",
+      "name": "defer_control",
+      "instrumented": false,
+      "exit": 0,
+      "stdout": "Q"
+    },
+    {
+      "opt": "O0",
+      "name": "defer_control",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "Q",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "opt": "O0",
+      "name": "defer_control",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 0,
+      "stdout": "Q",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "opt": "O2",
+      "name": "leaf_control",
+      "instrumented": false,
+      "exit": 0,
+      "stdout": "A"
+    },
+    {
+      "opt": "O2",
+      "name": "leaf_control",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "opt": "O2",
+      "name": "leaf_control",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 1,
+      "stdout": "FA",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "opt": "O2",
+      "name": "leaf_control",
+      "instrumented": true,
+      "fail_at": 2,
+      "exit": 0,
+      "stdout": "A",
+      "allocation": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      }
+    },
+    {
+      "opt": "O2",
+      "name": "defer_control",
+      "instrumented": false,
+      "exit": 0,
+      "stdout": "Q"
+    },
+    {
+      "opt": "O2",
+      "name": "defer_control",
+      "instrumented": true,
+      "fail_at": 0,
+      "exit": 0,
+      "stdout": "Q",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    },
+    {
+      "opt": "O2",
+      "name": "defer_control",
+      "instrumented": true,
+      "fail_at": 1,
+      "exit": 0,
+      "stdout": "Q",
+      "allocation": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      }
+    }
+  ],
+  "ordinary_executions": 4,
+  "allocator_executions": 10,
+  "actual_allocation_failures": 2
+}

@@ -1,0 +1,61 @@
+{
+  "status": "Pass",
+  "candidate_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "-p",
+        "zil-cli",
+        "--features",
+        "llvm-api"
+      ],
+      "cwd": "/workspace/zil-core",
+      "exit": 0,
+      "log": "cli-build-clean-P.log"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "tools/language/236/run.py",
+        "--repo",
+        "/workspace/zil-core",
+        "--cli",
+        "/workspace/.zil-env/target-236/debug/zil",
+        "--compiler-build-receipt",
+        "/workspace/.zil-env/236-final42/compiler-build.json",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "--out",
+        "/workspace/.zil-env/236-final42/matrix"
+      ],
+      "cwd": "/workspace/zil-core",
+      "exit": 0,
+      "log": "matrix.log"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "/workspace/.zil-env/236-final42/candidate-controls.py",
+        "--repo",
+        "/workspace/zil-core",
+        "--cli",
+        "/workspace/.zil-env/target-236/debug/zil",
+        "--compiler-build-receipt",
+        "/workspace/.zil-env/236-final42/compiler-build.json",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "--out",
+        "/workspace/.zil-env/236-final42/controls"
+      ],
+      "cwd": "/workspace/zil-core",
+      "exit": 0,
+      "log": "controls.log"
+    }
+  ],
+  "kernel_test_not_replayed": "See exact original command, tested42 identity and P byte-equivalence in kernel236-reference/REFERENCE.json"
+}

@@ -1,0 +1,111 @@
+   Compiling zil-base v0.1.0 (/workspace/zil-core/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/zil-core/crates/zil-ir)
+   Compiling zil-verify v0.1.0 (/workspace/zil-core/crates/zil-verify)
+   Compiling zil-syntax v0.1.0 (/workspace/zil-core/crates/zil-syntax)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-core/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/zil-core/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/zil-core/crates/zil-expand)
+   Compiling zil-ct v0.1.0 (/workspace/zil-core/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/zil-core/crates/zil-lower)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-core/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/zil-core/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 35.22s
+     Running tests/impl227_machine.rs (/workspace/.zil-env/target-237/debug/deps/impl227_machine-cd80a80f7c8924eb)
+
+running 1 test
+test registration_and_cleanup_preserve_actual_allocation_debt ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/impl235_machine.rs (/workspace/.zil-env/target-237/debug/deps/impl235_machine-c204c2b1e6f593e4)
+
+running 1 test
+test replacement_preparation_and_moved_child_failures_settle_actual_store_prefixes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/impl237_budget.rs (/workspace/.zil-env/target-237/debug/deps/impl237_budget-4558b22460fb73ba)
+
+running 2 tests
+legacy: types=418,analyze=8673,verify=10398
+test empty_table_flat_186_boundaries_are_unchanged ... ok
+nested: types=237893,analyze=48812,verify=100192
+test generic_product_types_analyze_verify_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/impl237_machine.rs (/workspace/.zil-env/target-237/debug/deps/impl237_machine-63a14e5193631e1c)
+
+running 1 test
+test original_generic_wrapper_allocation_failure_keeps_actual_responsibility ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running tests/review227_contracts.rs (/workspace/.zil-env/target-237/debug/deps/review227_contracts-93ec38064baa81cf)
+
+running 8 tests
+test an_early_actual_call_cannot_resume_the_ordinary_body ... ok
+test empty_actions_still_require_the_actual_adjacent_call_at_scope_exit ... ok
+test ordinary_once_transfer_cannot_launder_registered_action_resource_sources ... ok
+test borrowing_a_callback_does_not_erase_the_deferred_future_resource_use ... ok
+test ordinary_once_transfer_preserves_shared_address_holds_until_actual_invocation ... ok
+test pending_outer_action_crosses_internal_loops_and_inner_actions_close_first ... ok
+test owned_resource_and_callback_returns_are_prepared_before_cleanup ... ok
+test deferred_capture_mutation_survives_outer_callback_writeback ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running tests/review235_contracts.rs (/workspace/.zil-env/target-237/debug/deps/review235_contracts-f6e5573014e21f4c)
+
+running 7 tests
+test direct_callback_store_and_noncallback_generic_wrapper_controls ... ok
+test ordinary_composition_does_not_open_capture_or_containers ... ok
+test remembered_header_description_blocks_parent_transfer_until_its_actual_last_use ... ok
+test unused_product_parameters_still_require_exact_canonical_store_metadata ... ok
+test generic_store_element_binder_survives_a_non_element_product_wrapper ... ok
+test pop_and_failed_full_push_then_parent_drop_settle_only_actual_prefix ... ok
+test same_typed_store_leaves_preserve_incoming_and_created_through_child_transfer ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/review237_contracts.rs (/workspace/.zil-env/target-237/debug/deps/review237_contracts-ca5b32177a052f8f)
+
+running 24 tests
+test an_uninstantiated_family_still_has_complete_recipe_and_ownership_checks ... ok
+test an_unused_concrete_recipe_cannot_capture_f_hidden_in_another_familys_arguments ... ok
+test concrete_arguments_with_free_f_cannot_borrow_another_functions_same_f_binder ... ok
+test hidden_phantom_arguments_cannot_borrow_another_functions_same_f_owner ... ok
+test a_same_spelled_parameter_in_another_function_cannot_supply_application_authority ... ok
+test canonical_product_names_do_not_erase_cross_module_field_privacy ... ok
+test hidden_phantom_arguments_cannot_erase_their_outer_application_owner ... ok
+test natural_input_inference_requires_the_same_family_and_one_complete_actual_t ... ok
+test direct_and_retained_applications_share_family_identity_across_function_owners ... ok
+test imported_family_preserves_the_callers_lexical_callable_owner_through_ct ... ok
+test natural_input_finds_t_in_nested_family_arguments_even_when_inner_t_is_phantom ... ok
+test nested_nominal_inference_work_has_an_exact_fresh_limit_boundary ... ok
+test natural_phantom_input_infers_actual_arguments_that_do_not_appear_in_fields ... ok
+test nested_phantom_identity_survives_rebinding_between_two_ordinary_t_owners ... ok
+test raw_static_call_can_infer_t_through_nested_phantom_origin_arguments ... ok
+test recursive_query_accepts_two_finite_instances_of_the_same_phantom_family ... ok
+test runtime_ct_folding_preserves_both_tables_and_exact_owner_ids ... ok
+test original235_success_obligation_is_preserved_byte_for_byte_and_executes ... ok
+test unused_metadata_text_is_prepaid_in_types_and_ct_before_any_clone ... ok
+test unused_recursive_recipe_is_rejected_without_relying_on_a_value_use ... ok
+test types_new_recipe_work_has_an_exact_fresh_limit_boundary ... ok
+test phantom_actuals_participate_in_identity_but_resolved_function_owners_do_not ... ok
+test natural_product_input_infers_t_across_two_retained_function_owners ... ok
+test unused_template_and_application_tables_cannot_override_the_generated_header ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+
+     Running tests/review237_generic_defer.rs (/workspace/.zil-env/target-237/debug/deps/review237_generic_defer-daab9a9b6daba4b2)
+
+running 4 tests
+test generic_defer_keeps_the_existing_direct_callable_helper_boundary ... ok
+test unused_generic_defer_definitions_preserve_declared_capabilities_and_cleanup_control ... ok
+test a_generic_cleanup_has_its_own_legal_loop_control_boundary ... ok
+test original_self_feeding_generic_defer_sources_execute_alqz_without_editing_the_cleanup ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+

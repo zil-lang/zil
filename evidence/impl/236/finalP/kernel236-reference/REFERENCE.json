@@ -1,0 +1,119 @@
+{
+  "scope": "Existing same-production-byte kernel execution referenced without replay",
+  "execution_owner": "/root/kernel_defer227",
+  "actual_tested_commit": "42c247be845212b624413a1791eb4f7ab3b8dc75",
+  "final_consumer_candidate_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "only_changed_path_between_commits": [
+    "crates/zil-driver/tests/review238_contracts.rs"
+  ],
+  "production_consumer_and_tool_bytes_equal": true,
+  "not_claimed_as_new_P_test_execution": true,
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "zil-driver",
+    "--features",
+    "llvm-api",
+    "--test",
+    "review238_contracts",
+    "--test",
+    "impl238_machine",
+    "--test",
+    "impl236_zui_core",
+    "--",
+    "--nocapture"
+  ],
+  "working_directory": "/workspace/zil-core",
+  "CARGO_TARGET_DIR": "/workspace/.zil-env/target-238",
+  "ZIL_TEST_REPORT_DIR": "/tmp/review238-joint-final",
+  "impl236_subbinary": {
+    "status": "Pass",
+    "tests_passed": 3,
+    "tests_failed": 0,
+    "tests_ignored": 0,
+    "tests_filtered_out": 0,
+    "test_names": [
+      "complete_session_reaches_independent_verify",
+      "nearest_missing_refill_and_live_window_counterexamples",
+      "runtime_counts_exit_modes_and_declared_shutdown_order"
+    ],
+    "known_native_executions": 40,
+    "included_in_consumer_delegate_364": false
+  },
+  "umbrella_command_note": "The later review238 binary reported one over-strict reviewer assertion (13/1). This is not reported as a passing umbrella command. Kernel fixed that review-only assertion and ran its separate 14/0; root committed only that test change as P. The preceding impl236 binary itself passed 3/0, as its original full log and reports show.",
+  "source_reports": [
+    {
+      "original_path": "/tmp/review238-joint-final/consumer236-counterexample-control-95727/report.json",
+      "copied_name": "consumer236-counterexample-control-95727.json",
+      "sha256": "c24323d8640d60f1761b593b5cd743712f5236e07716a8847376cf7e7f06440d",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "original_path": "/tmp/review238-joint-final/consumer236-live-window-95727/report.json",
+      "copied_name": "consumer236-live-window-95727.json",
+      "sha256": "0290258890729c42b4578ab8fec0e8ff5f90020b2b3a1334dcd1b929bd5e76ec",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "captured Store transition invalidates a live element window",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "original_path": "/tmp/review238-joint-final/consumer236-missing-refill-95727/report.json",
+      "copied_name": "consumer236-missing-refill-95727.json",
+      "sha256": "4b12a53596bdfddee6e6032594c86a84de8fbb1307efa65ba7ef757c2a09138e",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: whole aggregate move requires every owned element or field live",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "original_path": "/tmp/review238-joint-final/consumer236-native-O0-95727/report.json",
+      "copied_name": "consumer236-native-O0-95727.json",
+      "sha256": "b8c3037c4379c045d796d930af9edb6149a673c1fb4b7fce426bdfbed24d1210",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "original_path": "/tmp/review238-joint-final/consumer236-native-O2-95727/report.json",
+      "copied_name": "consumer236-native-O2-95727.json",
+      "sha256": "bbad936b9b288de080f051e7310e378c13dec129efad873cf02546d796f1dfd8",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "original_path": "/tmp/review238-joint-final/consumer236-verify-95727/report.json",
+      "copied_name": "consumer236-verify-95727.json",
+      "sha256": "5216e489a01bd015d1c10ceef7ced8e5f7b0d0a7c3bfbdb0b6d836f73e781c8b",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    }
+  ]
+}

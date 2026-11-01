@@ -1,0 +1,39 @@
+   Compiling zil-analyze v0.1.0 (/workspace/zil-core/crates/zil-analyze)
+   Compiling zil-verify v0.1.0 (/workspace/zil-core/crates/zil-verify)
+    Finished `test` profile [unoptimized] target(s) in 8.65s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-237/debug/deps/zil_analyze-aa0422b5c4d89887)
+
+running 11 tests
+test defer_tests::invocation_is_adjacent_and_can_only_start_cleanup ... ok
+test defer_tests::dropping_or_escaping_environment_does_not_fulfill_the_action ... ok
+test defer_tests::mixed_cleanup_and_same_type_action_order_is_reconstructed ... ok
+test defer_tests::each_normal_recoverable_and_loop_exit_requires_the_actual_call ... ok
+test defer_tests::pending_actions_cannot_be_loaded_borrowed_rewritten_or_discharged_twice ... ok
+test defer_tests::outer_action_may_cross_internal_loop_but_not_reexecute_its_registration ... ok
+test defer_tests::mandatory_empty_copy_and_same_type_actions_and_mixed_resources_are_accepted ... ok
+test defer_tests::registration_uses_current_scope_unique_initial_store_and_actual_age ... ok
+test defer_tests::trap_has_no_unwind_obligation_and_scope_storage_exits_do ... ok
+test defer_tests::registration_shape_initialization_and_call_source_are_not_frontend_claims ... ok
+Analyze defer raw budget N=3320
+test defer_tests::defer_budget_boundary_is_exact_and_fresh ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (/workspace/.zil-env/target-237/debug/deps/zil_verify-59420611778c2949)
+
+running 11 tests
+test defer_tests::dropping_or_escaping_environment_does_not_fulfill_the_action ... ok
+test defer_tests::invocation_is_adjacent_and_can_only_start_cleanup ... ok
+test defer_tests::mixed_cleanup_and_same_type_action_order_is_reconstructed ... ok
+test defer_tests::each_normal_recoverable_and_loop_exit_requires_the_actual_call ... ok
+test defer_tests::mandatory_empty_copy_and_same_type_actions_and_mixed_resources_are_accepted ... ok
+test defer_tests::outer_action_may_cross_internal_loop_but_not_reexecute_its_registration ... ok
+test defer_tests::registration_uses_current_scope_unique_initial_store_and_actual_age ... ok
+test defer_tests::pending_actions_cannot_be_loaded_borrowed_rewritten_or_discharged_twice ... ok
+test defer_tests::registration_shape_initialization_and_call_source_are_not_frontend_claims ... ok
+test defer_tests::trap_has_no_unwind_obligation_and_scope_storage_exits_do ... ok
+Verify defer raw budget N=3324
+test defer_tests::defer_budget_boundary_is_exact_and_fresh ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 266 filtered out; finished in 0.03s
+

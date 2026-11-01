@@ -1,0 +1,305 @@
+{
+  "source_manifest": {
+    "count": 15,
+    "mismatches": []
+  },
+  "root_artifacts": {
+    "count": 1278,
+    "mismatches": []
+  },
+  "matrix_artifacts": {
+    "count": 1096,
+    "mismatches": []
+  },
+  "controls_artifacts": {
+    "count": 131,
+    "mismatches": []
+  },
+  "independent_source_formula": {
+    "rows": 24,
+    "comparisons": 175,
+    "mismatches": [],
+    "probes_per_optimization": 151,
+    "true_failures_per_optimization": 103
+  },
+  "frozen_json_matches_generator": true,
+  "matrix_counts": {
+    "observations": 350,
+    "ordinary": 48,
+    "allocator": 302,
+    "failures": 206,
+    "all_live_zero": true,
+    "all_frees_equal": true,
+    "opts": {
+      "O0": 175,
+      "O2": 175
+    },
+    "max_peak_live": 12,
+    "max_peak_bytes": 417
+  },
+  "control_counts": {
+    "observations": 14,
+    "ordinary": 4,
+    "allocator": 10,
+    "failures": 2,
+    "all_live_zero": true,
+    "all_frees_equal": true,
+    "opts": {
+      "O0": 7,
+      "O2": 7
+    },
+    "max_peak_live": 1,
+    "max_peak_bytes": 1
+  },
+  "duplicate_execution_keys": false,
+  "raw_observation_mismatches": [],
+  "current_cli_sha256": "fd66f22106e9b9787950d4d412a568c787782e672bfeb19b737ae8f4c4a1bec7",
+  "object_identity": [
+    {
+      "path": "/workspace/.zil-env/236-joint02/attempt02/matrix/O0",
+      "source_modules": 5,
+      "verify_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "builder_inputs": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_object_bytes": [
+        32736
+      ],
+      "actual_object_bytes": 32736,
+      "captured_link_input_count": 1,
+      "link_uses_captured_object": true,
+      "probe_wrapper_flags": [
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free"
+      ],
+      "undefined_symbols": [
+        "U free",
+        "                 U getchar",
+        "                 U putchar",
+        "                 U realloc"
+      ]
+    },
+    {
+      "path": "/workspace/.zil-env/236-joint02/attempt02/matrix/O2",
+      "source_modules": 5,
+      "verify_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "builder_inputs": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_object_bytes": [
+        9480
+      ],
+      "actual_object_bytes": 9480,
+      "captured_link_input_count": 1,
+      "link_uses_captured_object": true,
+      "probe_wrapper_flags": [
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free"
+      ],
+      "undefined_symbols": [
+        "U free",
+        "                 U getchar",
+        "                 U putchar",
+        "                 U realloc"
+      ]
+    },
+    {
+      "path": "/workspace/.zil-env/236-joint02/attempt02/controls/O0/leaf_control",
+      "source_modules": 3,
+      "verify_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "builder_inputs": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_object_bytes": [
+        4904
+      ],
+      "actual_object_bytes": 4904,
+      "captured_link_input_count": 1,
+      "link_uses_captured_object": true,
+      "probe_wrapper_flags": [
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free"
+      ],
+      "undefined_symbols": [
+        "U free",
+        "                 U getchar",
+        "                 U putchar",
+        "                 U realloc"
+      ]
+    },
+    {
+      "path": "/workspace/.zil-env/236-joint02/attempt02/controls/O0/defer_control",
+      "source_modules": 2,
+      "verify_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "builder_inputs": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_object_bytes": [
+        1696
+      ],
+      "actual_object_bytes": 1696,
+      "captured_link_input_count": 1,
+      "link_uses_captured_object": true,
+      "probe_wrapper_flags": [
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free"
+      ],
+      "undefined_symbols": [
+        "U getchar",
+        "                 U putchar"
+      ]
+    },
+    {
+      "path": "/workspace/.zil-env/236-joint02/attempt02/controls/O2/leaf_control",
+      "source_modules": 3,
+      "verify_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "builder_inputs": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_object_bytes": [
+        1904
+      ],
+      "actual_object_bytes": 1904,
+      "captured_link_input_count": 1,
+      "link_uses_captured_object": true,
+      "probe_wrapper_flags": [
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free"
+      ],
+      "undefined_symbols": [
+        "U free",
+        "                 U getchar",
+        "                 U putchar",
+        "                 U realloc"
+      ]
+    },
+    {
+      "path": "/workspace/.zil-env/236-joint02/attempt02/controls/O2/defer_control",
+      "source_modules": 2,
+      "verify_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "units": 1,
+      "builder_inputs": [
+        "builder"
+      ],
+      "parse_ns": [
+        0
+      ],
+      "verify_before_after": [
+        true
+      ],
+      "reported_object_bytes": [
+        1048
+      ],
+      "actual_object_bytes": 1048,
+      "captured_link_input_count": 1,
+      "link_uses_captured_object": true,
+      "probe_wrapper_flags": [
+        "-Wl,--wrap=realloc",
+        "-Wl,--wrap=free"
+      ],
+      "undefined_symbols": [
+        "U getchar",
+        "                 U putchar"
+      ]
+    }
+  ],
+  "matrix_command_mismatches": [],
+  "control_raw_mismatches": [],
+  "negative_sources": [
+    {
+      "kind": "control",
+      "exact_expected_session_source": true,
+      "exact_no_defer_main_control": true,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "executable": null,
+      "diagnostics": []
+    },
+    {
+      "kind": "live-window",
+      "exact_expected_session_source": true,
+      "exact_no_defer_main_control": true,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "executable": null,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "captured Store transition invalidates a live element window",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "kind": "missing-refill",
+      "exact_expected_session_source": true,
+      "exact_no_defer_main_control": true,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "executable": null,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: whole aggregate move requires every owned element or field live",
+          "span": null,
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

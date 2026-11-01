@@ -1,0 +1,108 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "implementation_commit": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+  "source_execution_commit": "42c247be845212b624413a1791eb4f7ab3b8dc75",
+  "verdict": "Pass",
+  "schema_version": 29,
+  "spec_hash": "260d1658ca1c5ec8a937b43c1a718044d6bf77f9a36066db936feaf5eea4208e",
+  "normative_hash": "372702e0e0916f8510cfe0e1ddbba98bdb79762d57be7991995bc80f1cf03854",
+  "evidence_reuse": "42→P: only unrelated review238 assertion changed; see ../237/integration42-execution.json and WORKFLOW §6. No duplicate execution counted.",
+  "shared_execution_report": "../237/integration42-execution.json",
+  "shared_raw_archive": "../237/integration42-artifacts.tar.gz",
+  "aggregate_selected_executed": {
+    "selected": 74,
+    "passed": 74,
+    "failed": 0,
+    "ignored": 0,
+    "note": "Single joint scoped run. Per-card suites overlap; do not sum receipt counts."
+  },
+  "limitations": [
+    "Finite Linux synchronous language profiles only; no full ZIL 1.4, ZUI/product gate, async/unwind, native Windows or Rust parity conclusion.",
+    "Reviewer did not run the full workspace. Root integration remains a separate execution."
+  ],
+  "rust_goals_reflection": {
+    "safety": "Finite source/raw/Wire contracts checked; private template facts do not replace independent actual-resource verification.",
+    "runtime_memory": "LLVM builder O0/O2 and actual allocator failures with live0; no hidden Box/RC/lock introduced. This is not a Rust runtime/RSS comparison.",
+    "expression_maintenance": "Original Product wrapper and ALQZ sources execute without source workarounds; full framework maintenance advantage remains unmeasured.",
+    "compile_cost": "Growth prepaid and exact N/N−1/fresh boundaries checked, legacy controls retained, default limits unchanged; no compile-performance win claimed.",
+    "product_breakthrough": "Not established; finite executable composition is an engineering increment only."
+  },
+  "implementation_author": "/root",
+  "contributors": [
+    "/root/ir_defer227",
+    "/root/impl_product_store235"
+  ],
+  "record_kind": "formal bounded independent 237 acceptance at common candidate",
+  "scope": "§8.1.4 one-StoreElement-parameter finite Product family composition, complete nominal/phantom identity and Product input inference, plus preservation through CT normalization. No wider generics or new capture/shared/StoreElement authority.",
+  "current_suites": {
+    "review237_contracts": 24,
+    "shared_review237_generic_defer": 4,
+    "impl237_machine": 1,
+    "impl237_budget": 2,
+    "legacy202_control": 1,
+    "CT_Product_execution_boundary": 1
+  },
+  "static_review": [
+    "Borrowed schema/budget preflight bounds both finite Core tables before owned snapshots. Types independently checks unused entries, exact declaration/owner keys, slot/arity, header/recipe consistency, bounds and complete actual types before acceptance; prepared Core remains untrusted.",
+    "Canonical identity uses original module+family and all actual Type arguments, including phantom and actual ClosureId. Completed instances drop lexical owner; symbolic instances preserve exact owner.",
+    "Symbolic taint propagates across nested phantom origins; late caller rebind and source/value inference use the same full origin mapping. Same family with distinct finite arguments is not a recursion cycle.",
+    "Natural Product input inference matches same-family complete ordered actuals; conflicting/absent constraints and give Product reject. No field-layout guessing.",
+    "Metadata/source names, cloned bindings, origin fixed point, snapshots, comparisons, active query stack and queues prepay work and depth; empty-table legacy controls preserved.",
+    "Runtime CT normalization preserves both tables and original lexical IDs; CT execution of runtime Product applications remains forbidden. Final TypedIR has concrete actual types and existing canonical Store definitions, independently checked by Analyze/Verify."
+  ],
+  "coverage": [
+    "Preserved original235 byte-identical source now native AZ at O0/O2; direct and retained annotations and cross-owner forwarding unify.",
+    "Same-spelled T/F across functions and modules cannot substitute binders; wrong owner/module/slot and absent owner reject at public Types entries.",
+    "Phantom/full actual identity, nested phantom, two retained T owners, finite repeated same family and source/raw bare Product input inference all pass.",
+    "Duplicate/missing family/application/header, altered field name/public/manages/type, unused bad recipe, recursive recipe and large metadata budget attacks reject.",
+    "Private fields remain private after canonical naming; CT plain/context preserve table and exact IDs.",
+    "Source-derived raw bare call passes Types single/program, Analyze and independent Verify raw/Wire. Invalid inputs are not executed natively."
+  ],
+  "fixed_findings": [
+    {
+      "id": "237-hidden-phantom-owner",
+      "original_commit": "e7e98934f0dbb7b462e7692ba30217aa105105c2",
+      "original": "Deleting outer Carrier.owner or replacing it with pack same-spelled F was incorrectly accepted at all three public checking entries; F existed only in inner phantom actual arguments.",
+      "status": "Fixed; both exact independent mutation tests now semantically reject.",
+      "preserved_evidence": "development/hidden-origin-e7e",
+      "honesty_note": "The nested explicit/bare source controls already passed before this raw fix, because Expand normalized both to TypeApply. No failed-before source claim is made."
+    },
+    {
+      "id": "235-retained-wrapper",
+      "original_source_sha256": "693c447e9798ad21d7e627619f0dfaaa6cd5870f7ab8ce977afcf59d4550d99d",
+      "status": "Original Success source now actually passes; historical 235 failure receipt remains unchanged."
+    }
+  ],
+  "native": {
+    "own237_source_runs": 22,
+    "shared_ALQZ_and_copy_generic_defer_runs": 6,
+    "allocator_probes": 6,
+    "real_failures": 2,
+    "all_probes_live": 0,
+    "backend": "LLVM API builder",
+    "optimizations": [
+      "O0",
+      "O2"
+    ]
+  },
+  "budget": {
+    "SIMPLE_Types": 30862,
+    "nested_raw_natural_Types": 617380,
+    "original_generic_Types_Analyze_Verify": [
+      237893,
+      48812,
+      100192
+    ],
+    "empty_table_flat_legacy": [
+      418,
+      8673,
+      10398
+    ],
+    "old_callback_generic_Types": [
+      6326,
+      29030,
+      29566
+    ],
+    "checks": "Exact N succeeds; N−1 ResourceLimit; fresh N exact same result. No default budget increase."
+  }
+}
