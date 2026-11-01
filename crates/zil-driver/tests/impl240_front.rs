@@ -191,3 +191,8 @@ fn old_product_type_budget_and_new_sum_boundary_retry_are_exact() {
     assert_eq!(check(&c, hi).unwrap(), expected);
     println!("Types nested owning Sum exact N={hi}; old Product N=418");
 }
+
+#[test]
+fn right_nested_runtime_tags_leave_payloads_in_recursive_declaration_order() {
+    checked(include_str!("impl240_fixtures/nested_order.zil"));
+}
