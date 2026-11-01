@@ -11,3 +11,5 @@ Q实际探针已证明Copy enum、无Store嵌套Product错误载荷及两侧平�
 原设计讨论仅作历史，当前正文和接口优先。特别是旧草案的guard、新父年龄、裸SSA Unpack及只两条opcode均未采纳。最近反例包括旧tag在重填后比较、绕过成功边、多次Unpack、活目标覆盖、owning Read、来源洗白、活Store窗口跨切换、构造后项失败提前清旧值及递归右payload误序。
 
 施工对接实查230生成器：既有Clone保留字段元数据，类型卫生/替换就地处理TypeRef，旧finiteCopy限制仅来自Types全局枚举门。为保持手写/生成同核并避免来源名字特判，root明确将§16.6载荷扩至相同普通有限owned Enum；不新增声明种类/genericenum/Type/Syntax权限，原bare ByteBuffer非法反例保留。239补marker保真和生成/手写机器对照，244独审名义与清理。
+
+Copy泛型enum预算具名调整：其实际替换字段必须在原模板身份尚在时核Copy，否则普通Enum放宽会反向允许拥有泛型实例。保留已预付的真实检查，避免为少量检查引入新的Core来源字段。240原样标量载荷样例Q等同依赖观察树541f21bb为work331/nodes124，新实现336/126，额外5work/2nodes对应一个i32字段的ty+分类检查；冷/fresh/暖、N−1失败后fresh同Core均已实测。完整源/两版Core/依赖同一性/命令见evidence/impl/240/generic-enum-budget/。默认限额与产品门不变，其他旧profile精确预算继续保持；不得宣称所有旧N不变。
