@@ -1,0 +1,152 @@
+[
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/phases/candidate.txt",
+    "bytes": 17064,
+    "sha256": "712a17917a4209074c05f5c1ca41c0a8498af1c473d25eba2982f8be10a1c65b"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/phases/core.txt",
+    "bytes": 51064,
+    "sha256": "31b0db6e124027b61d539cfad9705ca4415fd8b0160513ca9d50a75ef93e0075"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/phases/ct-core.txt",
+    "bytes": 51859,
+    "sha256": "564963568175b0013246e54904282b6aea31effe3efda5aa58fc51bd78ce969c"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/phases/lir.txt",
+    "bytes": 89042,
+    "sha256": "9e6132c2a5651ca6f717efae3e76e4d08937bfb77cc55a31aace783f29a9e79c"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/phases/llvm.ll",
+    "bytes": 4194,
+    "sha256": "aa60cb94a06bba38017f665dc1e2bf43ba6297d9c2c8c7deeec7d6965f2fb91a"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/phases/source-map.txt",
+    "bytes": 29817,
+    "sha256": "3f0a9d7a96ff40b8ca8a18e3ca115a7abe0b1f7ef0f3158ed3398ef20550dc69"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/phases/syntax.txt",
+    "bytes": 99603,
+    "sha256": "c7cd0e340ed674e02c3c175bcd02eb4ca3c61902865007878d6a2a7ddd976556"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/phases/typed.txt",
+    "bytes": 88204,
+    "sha256": "9ff24637233a04bd34cb21445edc1c04603231e8180ccfd4940771e78e51fe6f"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/phases/verified.txt",
+    "bytes": 88281,
+    "sha256": "5fc7cd42b83c3ad8eafefe262a24192aca7a5a3c0cccb0f9e277a4a4ab489d5f"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/program",
+    "bytes": 16040,
+    "sha256": "65a656688da1a1aaa36d1a495308d971aa889b357553352df68c79b301389d62"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/program.ll",
+    "bytes": 4194,
+    "sha256": "aa60cb94a06bba38017f665dc1e2bf43ba6297d9c2c8c7deeec7d6965f2fb91a"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/report.json",
+    "bytes": 2610,
+    "sha256": "9030d4fd288eee11a05adf11fcad78fdb4f6331dfaebcdf44b4cb2a6833b99f1"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/source.zil",
+    "bytes": 332,
+    "sha256": "9c361e6dafcc04b76e7f55e85b2e579cd31ca7245cbc710c6cde6c3639c61c01"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "review227-dev01/review227-capture-writeback-59151-11/stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/phases/candidate.txt",
+    "bytes": 17064,
+    "sha256": "712a17917a4209074c05f5c1ca41c0a8498af1c473d25eba2982f8be10a1c65b"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/phases/core.txt",
+    "bytes": 51064,
+    "sha256": "31b0db6e124027b61d539cfad9705ca4415fd8b0160513ca9d50a75ef93e0075"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/phases/ct-core.txt",
+    "bytes": 51859,
+    "sha256": "564963568175b0013246e54904282b6aea31effe3efda5aa58fc51bd78ce969c"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/phases/lir.txt",
+    "bytes": 89042,
+    "sha256": "9e6132c2a5651ca6f717efae3e76e4d08937bfb77cc55a31aace783f29a9e79c"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/phases/llvm.ll",
+    "bytes": 4194,
+    "sha256": "aa60cb94a06bba38017f665dc1e2bf43ba6297d9c2c8c7deeec7d6965f2fb91a"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/phases/source-map.txt",
+    "bytes": 29817,
+    "sha256": "3f0a9d7a96ff40b8ca8a18e3ca115a7abe0b1f7ef0f3158ed3398ef20550dc69"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/phases/syntax.txt",
+    "bytes": 99603,
+    "sha256": "c7cd0e340ed674e02c3c175bcd02eb4ca3c61902865007878d6a2a7ddd976556"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/phases/typed.txt",
+    "bytes": 88204,
+    "sha256": "9ff24637233a04bd34cb21445edc1c04603231e8180ccfd4940771e78e51fe6f"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/phases/verified.txt",
+    "bytes": 88281,
+    "sha256": "5fc7cd42b83c3ad8eafefe262a24192aca7a5a3c0cccb0f9e277a4a4ab489d5f"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/program",
+    "bytes": 16040,
+    "sha256": "65a656688da1a1aaa36d1a495308d971aa889b357553352df68c79b301389d62"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/program.ll",
+    "bytes": 4194,
+    "sha256": "aa60cb94a06bba38017f665dc1e2bf43ba6297d9c2c8c7deeec7d6965f2fb91a"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/report.json",
+    "bytes": 2611,
+    "sha256": "5c248fa95c2dfa762122f84c97137f65cbfb1edf2fdc775124337f1247126bb8"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/source.zil",
+    "bytes": 332,
+    "sha256": "9c361e6dafcc04b76e7f55e85b2e579cd31ca7245cbc710c6cde6c3639c61c01"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "review227-dev02/review227-capture-writeback-59304-12/stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

@@ -1,0 +1,172 @@
+[
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/phases/candidate.txt",
+    "bytes": 17230,
+    "sha256": "f8f2cb82ea48bf10c42686e5a0304ea9754e67291abdb0f987f69493bbe4a17d"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/phases/core.txt",
+    "bytes": 51064,
+    "sha256": "31b0db6e124027b61d539cfad9705ca4415fd8b0160513ca9d50a75ef93e0075"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/phases/ct-core.txt",
+    "bytes": 51859,
+    "sha256": "564963568175b0013246e54904282b6aea31effe3efda5aa58fc51bd78ce969c"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/phases/lir.txt",
+    "bytes": 90411,
+    "sha256": "636c7f6577b63850a3793830dd701636089d3b59b0c159d8158c0e42d93e69d1"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/phases/llvm.ll",
+    "bytes": 4333,
+    "sha256": "8dce574a5428c5e28dc5cee2ee1e9104677f2b308a38d7a526e25fdfcde573ed"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/phases/source-map.txt",
+    "bytes": 29817,
+    "sha256": "3f0a9d7a96ff40b8ca8a18e3ca115a7abe0b1f7ef0f3158ed3398ef20550dc69"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/phases/syntax.txt",
+    "bytes": 99603,
+    "sha256": "c7cd0e340ed674e02c3c175bcd02eb4ca3c61902865007878d6a2a7ddd976556"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/phases/typed.txt",
+    "bytes": 89571,
+    "sha256": "8c468314a0c73a2ba85ffd15333078a9d6829f620313a0e8dcc3ead67fdc31e8"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/phases/verified.txt",
+    "bytes": 89648,
+    "sha256": "7eba624fa3f05990a48e94e9935be3f0e41aa4cc63bae244c3c9345bfb363c38"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/program",
+    "bytes": 16040,
+    "sha256": "ed80b917550e91063f3ecfa4b4ea950d0c5976fcba49e2470b87fa5509107acb"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/program.ll",
+    "bytes": 4333,
+    "sha256": "8dce574a5428c5e28dc5cee2ee1e9104677f2b308a38d7a526e25fdfcde573ed"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/report.json",
+    "bytes": 2789,
+    "sha256": "0a47f372799c50aecdaf16a6352a9b8a21aaa8f952226e59d179a076ac3d9201"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/source.zil",
+    "bytes": 332,
+    "sha256": "9c361e6dafcc04b76e7f55e85b2e579cd31ca7245cbc710c6cde6c3639c61c01"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-1/stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/phases/candidate.txt",
+    "bytes": 17230,
+    "sha256": "f8f2cb82ea48bf10c42686e5a0304ea9754e67291abdb0f987f69493bbe4a17d"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/phases/core.txt",
+    "bytes": 51064,
+    "sha256": "31b0db6e124027b61d539cfad9705ca4415fd8b0160513ca9d50a75ef93e0075"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/phases/ct-core.txt",
+    "bytes": 51859,
+    "sha256": "564963568175b0013246e54904282b6aea31effe3efda5aa58fc51bd78ce969c"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/phases/lir.txt",
+    "bytes": 90411,
+    "sha256": "636c7f6577b63850a3793830dd701636089d3b59b0c159d8158c0e42d93e69d1"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/phases/llvm.ll",
+    "bytes": 4333,
+    "sha256": "8dce574a5428c5e28dc5cee2ee1e9104677f2b308a38d7a526e25fdfcde573ed"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/phases/source-map.txt",
+    "bytes": 29817,
+    "sha256": "3f0a9d7a96ff40b8ca8a18e3ca115a7abe0b1f7ef0f3158ed3398ef20550dc69"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/phases/syntax.txt",
+    "bytes": 99603,
+    "sha256": "c7cd0e340ed674e02c3c175bcd02eb4ca3c61902865007878d6a2a7ddd976556"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/phases/typed.txt",
+    "bytes": 89571,
+    "sha256": "8c468314a0c73a2ba85ffd15333078a9d6829f620313a0e8dcc3ead67fdc31e8"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/phases/verified.txt",
+    "bytes": 89648,
+    "sha256": "7eba624fa3f05990a48e94e9935be3f0e41aa4cc63bae244c3c9345bfb363c38"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/program",
+    "bytes": 15960,
+    "sha256": "54112de417fe62e600b54c3d6b3b57e65c21769de8b701c6bd705fc4bcea8279"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/program.ll",
+    "bytes": 4333,
+    "sha256": "8dce574a5428c5e28dc5cee2ee1e9104677f2b308a38d7a526e25fdfcde573ed"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/report.json",
+    "bytes": 2791,
+    "sha256": "7b09e637dd7dc40cb1e22ee91a7524b97704368790280746d838197d470e0b49"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/source.zil",
+    "bytes": 332,
+    "sha256": "9c361e6dafcc04b76e7f55e85b2e579cd31ca7245cbc710c6cde6c3639c61c01"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/stderr",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-capture-writeback-60110-2/stdout",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-control-60110-0/input.wire",
+    "bytes": 5174,
+    "sha256": "a4e78a4d243dca88bdcd9923139a841b75bf2f05099850364e1226389c832b0d"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-control-60110-0/module.txt",
+    "bytes": 89571,
+    "sha256": "8c468314a0c73a2ba85ffd15333078a9d6829f620313a0e8dcc3ead67fdc31e8"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-control-60110-0/raw.txt",
+    "bytes": 133209,
+    "sha256": "ceffe3ab2a797b636f95971e781359de462aeb6517d02a4f471098af81ac3679"
+  },
+  {
+    "path": "227-writeback-original-evidence/review227-control-60110-0/wire.txt",
+    "bytes": 133209,
+    "sha256": "ceffe3ab2a797b636f95971e781359de462aeb6517d02a4f471098af81ac3679"
+  }
+]

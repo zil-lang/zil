@@ -1,0 +1,481 @@
+{
+  "implementation_commit": "fa184f94f8d9b4ca695cd467f6d507767af8db10",
+  "scope": "All tracked files in zil-base, zil-ir, zil-analyze and zil-verify plus workspace Cargo inputs; every current byte equals this committed checkpoint.",
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "99b70f5eae3be5aec5d26185cf3ac4a875e3e508751767f11c2204dc2a806fde",
+      "bytes": 3621
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "8f253587aba20a1534d3408d70b623538ffe351f71265dc0c914ceb8b7ac39f8",
+      "bytes": 1277
+    },
+    {
+      "path": "crates/zil-analyze/Cargo.toml",
+      "sha256": "e4a2cac7cfafc7b5e4fcd093a1355e2c4090a66e12a37f9624ffba0781b757c6",
+      "bytes": 228
+    },
+    {
+      "path": "crates/zil-analyze/src/budget.rs",
+      "sha256": "ab94b8b5a569c9f7a6e4b14f6a1092aac6e7295ab323329c0d8c47a17fed713a",
+      "bytes": 36584
+    },
+    {
+      "path": "crates/zil-analyze/src/callable_fields.rs",
+      "sha256": "17a3e8f8e2580d8548b424ba47eee5f1fdcf8f22e145c6029b0594efcb65a4f4",
+      "bytes": 2973
+    },
+    {
+      "path": "crates/zil-analyze/src/defer_tests.rs",
+      "sha256": "3a6bc200eae9251d523458f2e87c956982763ea7ab7be5093be77620e3b3ee31",
+      "bytes": 23885
+    },
+    {
+      "path": "crates/zil-analyze/src/defers.rs",
+      "sha256": "1b5e98935e7929849f2695e73c19d2938dc929e08161045004b9da2dbea587a2",
+      "bytes": 22215
+    },
+    {
+      "path": "crates/zil-analyze/src/dynamic_store.rs",
+      "sha256": "6ecdf345017bf6b47e2d6c7e1d6335171db08d9227429c27246022e01eb99b20",
+      "bytes": 27092
+    },
+    {
+      "path": "crates/zil-analyze/src/helper_flow.rs",
+      "sha256": "55602c259c6a3441abec24f132d758b9391d666e2ec76ee61a6966176f8c4fda",
+      "bytes": 18123
+    },
+    {
+      "path": "crates/zil-analyze/src/helpers.rs",
+      "sha256": "99a8ddb324242308e1f35957f8ed13ee648a1d7fdd45cdab0dca1ed9db056c22",
+      "bytes": 25446
+    },
+    {
+      "path": "crates/zil-analyze/src/holds.rs",
+      "sha256": "f1ed23c2678e57ab55ac742e14a448a2a5b1e13ae64d9dbf477435abf7c1bf50",
+      "bytes": 38106
+    },
+    {
+      "path": "crates/zil-analyze/src/incremental.rs",
+      "sha256": "0944bba3ed901c6d39da2f2e288d67ee64e4eb0c0fb1e97a9c16c4f5a49a4490",
+      "bytes": 6871
+    },
+    {
+      "path": "crates/zil-analyze/src/lib.rs",
+      "sha256": "77f477fa83914db42d1487f4bbb30c044580836f064c88f2884b40d6b7789ccc",
+      "bytes": 18875
+    },
+    {
+      "path": "crates/zil-analyze/src/owning_factory.rs",
+      "sha256": "cd86aef5a35a43059237346d90a243f3793a274f9de1efc732ef35e8d3c79082",
+      "bytes": 6349
+    },
+    {
+      "path": "crates/zil-analyze/src/resource_tests.rs",
+      "sha256": "e6b66b22fe33920ba3d2fc6151bb9bb2ad4d58f943da5000e61f4777f5197ee6",
+      "bytes": 12728
+    },
+    {
+      "path": "crates/zil-analyze/src/resources.rs",
+      "sha256": "a5f8001ea1c3f79c24e251439c151a1f99db98c0b8b7fd7c27e31afb10365587",
+      "bytes": 127833
+    },
+    {
+      "path": "crates/zil-analyze/src/resources/frontier_tests.rs",
+      "sha256": "ddec14c63dde99eba4bdcfaa4d73e89251539ac180fe8f58aeab9f56df9eb7d7",
+      "bytes": 16284
+    },
+    {
+      "path": "crates/zil-analyze/src/resources/product.rs",
+      "sha256": "f34c1c5fb95595694e8ed49779d0ba335bba39a6084e7c798296e5be59fcd4b7",
+      "bytes": 9083
+    },
+    {
+      "path": "crates/zil-analyze/src/resources/summary_graph.rs",
+      "sha256": "97cb60c86c69f627a5b4e397ad39310d2568d4b970ba5b302b7f715640bec98a",
+      "bytes": 4291
+    },
+    {
+      "path": "crates/zil-analyze/src/retained.rs",
+      "sha256": "ebd0a1ee6b6e4d80a4ac66d0eb129fc4719ba058c849b77902d5116076848d4b",
+      "bytes": 6537
+    },
+    {
+      "path": "crates/zil-analyze/src/scopes.rs",
+      "sha256": "6e1277f69212e03f3c0c4ced61ab80df2a9977907eafd0699afb1a898afbaf02",
+      "bytes": 14569
+    },
+    {
+      "path": "crates/zil-analyze/tests/budgets.rs",
+      "sha256": "5db446912d5043e2ad3141319ebcaa34b5232d9343b2857e72ec076520e130c5",
+      "bytes": 15984
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl196_roles.rs",
+      "sha256": "c1bf86378a5d7804fa5863fff889a66aed3190d465d71de8143ced817c11418f",
+      "bytes": 17777
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl200_constructor.rs",
+      "sha256": "391689ed2dba96e3061fcb8e87a336618ccad2db1ae8b5d6faa4be281cb30a40",
+      "bytes": 14231
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl201_store.rs",
+      "sha256": "d4cf0082f81fba86f87620018947bcb2520629c744be19b48c257d0f0b734a86",
+      "bytes": 19318
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl204_capture.rs",
+      "sha256": "2420e46a313bd6fe2ce83c0a1c4a9bac0951f8b2e3062eb8e2ea320a67c19745",
+      "bytes": 13557
+    },
+    {
+      "path": "crates/zil-analyze/tests/impl220_factory.rs",
+      "sha256": "11edf5b7670cb745e2f866b58dc194374d4f78f3a201fbad542825f7494db62c",
+      "bytes": 12905
+    },
+    {
+      "path": "crates/zil-analyze/tests/package_budgets.rs",
+      "sha256": "ec6c3ce3927c43531e07da9c5eb65f247a5e99c41673ffa307f036d3affbc9c9",
+      "bytes": 8734
+    },
+    {
+      "path": "crates/zil-base/Cargo.toml",
+      "sha256": "24ac2f3a68ad01299be83ac096b40af1acecbbc501191ca36f5575dcb0e79069",
+      "bytes": 232
+    },
+    {
+      "path": "crates/zil-base/src/lib.rs",
+      "sha256": "7faa4d0a5db49bee9e5683cba1c8b7bb5e3fa62acd6b3d8cd8cd2323d67ced8b",
+      "bytes": 14634
+    },
+    {
+      "path": "crates/zil-base/src/sha256.rs",
+      "sha256": "9b8034f60c93b5cf76ebed3a68b96362ee1209f0bfc0cda59117f1cc6fc08138",
+      "bytes": 2941
+    },
+    {
+      "path": "crates/zil-base/src/sha256_scalar_reference.rs",
+      "sha256": "722ba20d7403374f52d914a4380155d9bf5d7402536125b02c33627feeea7464",
+      "bytes": 4312
+    },
+    {
+      "path": "crates/zil-base/src/source_map.rs",
+      "sha256": "7447480de4b4d829a50ea5cbc50d55471275fc3b4d0d5fc34a07d6c2e1a20b6f",
+      "bytes": 10010
+    },
+    {
+      "path": "crates/zil-base/tests/streaming_fingerprint.rs",
+      "sha256": "9b4d07dfb05726d612c9bcb6bc3b2fb893d016abf69192e92d6c74257bf42904",
+      "bytes": 2724
+    },
+    {
+      "path": "crates/zil-ir/Cargo.toml",
+      "sha256": "7a7692cb5cec45b0e8dddfffd4851d883ccaf05fcef20c8464cc276eaf1c96fe",
+      "bytes": 199
+    },
+    {
+      "path": "crates/zil-ir/src/lib.rs",
+      "sha256": "727ad1136650ce80e16e78a87aa9e349a2019b743042906881954991b20cb6a7",
+      "bytes": 78608
+    },
+    {
+      "path": "crates/zil-ir/src/program.rs",
+      "sha256": "faf6d430a202892500079a03048269c46370a63b54ec81309a50a2f732f9c0d2",
+      "bytes": 2196
+    },
+    {
+      "path": "crates/zil-ir/src/wire.rs",
+      "sha256": "cddbbfcc15d7c02e6a673f9e99344ea6ab0f236ee6472c6c3d3ab53e7af32949",
+      "bytes": 102134
+    },
+    {
+      "path": "crates/zil-ir/src/wire/flow_tests.rs",
+      "sha256": "93432ed562948159ea84dc34374ab7f6a0f785eb432b4f92649c4cdd61f2cc34",
+      "bytes": 8633
+    },
+    {
+      "path": "crates/zil-ir/src/wire/owned_carrier_tests.rs",
+      "sha256": "cc3384c0138cefce52f4d5d626e79a83203a41feb70f2c265e29c30c813d51e1",
+      "bytes": 9056
+    },
+    {
+      "path": "crates/zil-ir/src/wire/state_field_tests.rs",
+      "sha256": "8be65fa976840ad74e4448ee207ee454ed5398c3b1f35c2cdf43f85565c5485c",
+      "bytes": 6347
+    },
+    {
+      "path": "crates/zil-ir/src/wire/store_tests.rs",
+      "sha256": "a9c6b619526db1ddf68f4ff2971f46f2e3c333b4e6791bac912abad7a0573fad",
+      "bytes": 7138
+    },
+    {
+      "path": "crates/zil-ir/src/wire/tests.rs",
+      "sha256": "134abc7b61a22c08e6bed4bef919bdc0df4a4229c62ee9952926d18a11324126",
+      "bytes": 33589
+    },
+    {
+      "path": "crates/zil-ir/src/wire/type_stack_tests.rs",
+      "sha256": "3cd4df6ac4e3e0df707663f6cbddd3586c19a4c0ee91c80c4c92efd14fd00af6",
+      "bytes": 2981
+    },
+    {
+      "path": "crates/zil-ir/tests/cp34_fingerprint.rs",
+      "sha256": "1db5a5cc095ac5ed51db71f252c3fa1c7319abe1715de8e2f53e68862ea90071",
+      "bytes": 13888
+    },
+    {
+      "path": "crates/zil-ir/tests/impl092_slice_wire.rs",
+      "sha256": "b8e40724c00b8f1faca93ae271c8642a6379fe8ea08571c2b4cf3fb48e34d9bb",
+      "bytes": 4660
+    },
+    {
+      "path": "crates/zil-ir/tests/impl096_byte_buffer_wire.rs",
+      "sha256": "05aab90c03b02a8834f932eac21eeb6cdd68e4d0bfbc96788419c032d7154493",
+      "bytes": 7061
+    },
+    {
+      "path": "crates/zil-ir/tests/review092_slice_transport.rs",
+      "sha256": "57d5e4755fc641304ec1dc13af399bbd877c1c9f6fe0ff1adff42c105b5aa4ed",
+      "bytes": 5789
+    },
+    {
+      "path": "crates/zil-ir/tests/support/cp34_instruction_cases.rs",
+      "sha256": "4f1fba65d1aa2dc4fe30d817539b2ea69093de923a3a2d4b23f49f9a0c519322",
+      "bytes": 10085
+    },
+    {
+      "path": "crates/zil-ir/tests/support/cp34_legacy_v27.rs",
+      "sha256": "71e0b62e6770042c91e0d6ef7e207bced51df2b46022a5a304d7ad306a7d370e",
+      "bytes": 30114
+    },
+    {
+      "path": "crates/zil-ir/tests/support/cp34_legacy_v28.rs",
+      "sha256": "b2d0d54a6a36a6bbf1d6840e58b7772c1e6fa83e334153c8b60358ce47628fbe",
+      "bytes": 30225
+    },
+    {
+      "path": "crates/zil-verify/Cargo.toml",
+      "sha256": "923a34cf372b236e1955935ababb8fff631bb8fbcbba256f50b949a84cbf20e9",
+      "bytes": 227
+    },
+    {
+      "path": "crates/zil-verify/src/borrows.rs",
+      "sha256": "04df77961979dc02528ef1ca0023bbc30d6f3a527f8f46a5e469c05943e0423d",
+      "bytes": 53968
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/buffer_effects.rs",
+      "sha256": "7d3a86cbaaa7cf6a0e8636f6f34207e8cccbfddd5b4151d1d01baec9daba6c32",
+      "bytes": 5839
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/captures.rs",
+      "sha256": "bee7159b39cb4faadb2c461890683be0ffb5123f8509abf31975d9439979ead1",
+      "bytes": 23157
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/loans.rs",
+      "sha256": "6a25d9bd94e940dc89e8135b28506b2bebf237e26e9674e1f645034b2a69ae5f",
+      "bytes": 45882
+    },
+    {
+      "path": "crates/zil-verify/src/borrows/roots.rs",
+      "sha256": "972d1662dba801ca972161ff3e8e8322c64946bbc8fa20ca8a01d2eb2bf0a692",
+      "bytes": 4410
+    },
+    {
+      "path": "crates/zil-verify/src/byte_buffers.rs",
+      "sha256": "5130588bdb30a0c64472c3303ab1f88b3850a04d946f34b9068d98a7c2ac32d6",
+      "bytes": 4388
+    },
+    {
+      "path": "crates/zil-verify/src/c_layout.rs",
+      "sha256": "e1c8c2284e306317a4327df9a214189101f74d02aadd299746f17ced6e2e2b79",
+      "bytes": 6647
+    },
+    {
+      "path": "crates/zil-verify/src/cleanup.rs",
+      "sha256": "5af199ecf845acdd0128dd7acd7c140d0770d1eeeed2cf1f37577828143e9cd3",
+      "bytes": 16418
+    },
+    {
+      "path": "crates/zil-verify/src/closure_tests.rs",
+      "sha256": "535e383950b26e099638af4f19a4f94ed6bfb633e834d557a16ef3cd275c56a8",
+      "bytes": 14993
+    },
+    {
+      "path": "crates/zil-verify/src/closures.rs",
+      "sha256": "0d7ca3ee77535d38467003902d29213700387ba807104ad4c90f2f756731f3ee",
+      "bytes": 30483
+    },
+    {
+      "path": "crates/zil-verify/src/ct_program.rs",
+      "sha256": "0fe123f19a0c1d458a44957d731e87f0284d068cda6547b2761b2bc2f2d7d1eb",
+      "bytes": 5958
+    },
+    {
+      "path": "crates/zil-verify/src/defer_tests.rs",
+      "sha256": "401349254a2665f87c1a1168a3fa449c9df58e733f9aaf93f159a8217df712c0",
+      "bytes": 24476
+    },
+    {
+      "path": "crates/zil-verify/src/defers.rs",
+      "sha256": "0b43586e15515f50c55d20d46bc7609d548fa164548ade6bddb5f5cdcd3e7290",
+      "bytes": 19215
+    },
+    {
+      "path": "crates/zil-verify/src/dynamic_store.rs",
+      "sha256": "23e1a08ae36c57fb30bf6912862ced5238053de4c5fc6da9d1bef0c0f49cef19",
+      "bytes": 29238
+    },
+    {
+      "path": "crates/zil-verify/src/dynamic_store/tests.rs",
+      "sha256": "6c3bbd461e039e067da45ae46699710bcbc2770b6b512b4545acfd97d25ea9ce",
+      "bytes": 19911
+    },
+    {
+      "path": "crates/zil-verify/src/error_scope_tests.rs",
+      "sha256": "66f72d835f4a2d7974594ca1a2321dda2465a95f303fa0475c275760ddaf4ffb",
+      "bytes": 27004
+    },
+    {
+      "path": "crates/zil-verify/src/errors.rs",
+      "sha256": "ab5c7eda584fc7f3784a8594515cf13a1ab02804f049f1f8d9cd3569be1aca49",
+      "bytes": 5785
+    },
+    {
+      "path": "crates/zil-verify/src/foreign.rs",
+      "sha256": "1b30a4668283a1f1dfecf4a25c856f0bb982a064c490f316acaef9fc2ff40aa3",
+      "bytes": 13966
+    },
+    {
+      "path": "crates/zil-verify/src/helper_flow.rs",
+      "sha256": "65d28ec8450f82e095e58eac35937535f1d04b7df392610b9488585f6eac513c",
+      "bytes": 18310
+    },
+    {
+      "path": "crates/zil-verify/src/helper_tests.rs",
+      "sha256": "0d88711f7b617cac5a7d639d2a17d156740f41bb797d4b631070b57978061353",
+      "bytes": 44600
+    },
+    {
+      "path": "crates/zil-verify/src/helpers.rs",
+      "sha256": "2430579b46636a1e631b8d123f61ebdba6da590bf3009f7433e97c4dc1b238d8",
+      "bytes": 28531
+    },
+    {
+      "path": "crates/zil-verify/src/lib.rs",
+      "sha256": "3322927a43cebd52e36c69b5b1d70205b0f4c1aff6361210c33d53450d83e97d",
+      "bytes": 105608
+    },
+    {
+      "path": "crates/zil-verify/src/native_values.rs",
+      "sha256": "4ccf0d9bdc6303207f36d7e9350d7a8daeb80ca6a8bcb4f47825366a6a887772",
+      "bytes": 3815
+    },
+    {
+      "path": "crates/zil-verify/src/package_tests.rs",
+      "sha256": "0d99765aaa1a36e03dc288f1158887792074feba2c3149cc65185f97954e4009",
+      "bytes": 42125
+    },
+    {
+      "path": "crates/zil-verify/src/package_tests/captures.rs",
+      "sha256": "dce3c429e7512a1e4556142995b69e9e7ecb08766f9e47eddf2fe8de6116f607",
+      "bytes": 34213
+    },
+    {
+      "path": "crates/zil-verify/src/package_tests/fields.rs",
+      "sha256": "ebce163f27e4d6d73dbf709d758306251cbb4bda3b201e0f1430c4384ab7edd5",
+      "bytes": 30171
+    },
+    {
+      "path": "crates/zil-verify/src/packages.rs",
+      "sha256": "347f3dc2fc28cfe6e8c49fb0602f508c14d459b7143a060f1f3c3234745ed327",
+      "bytes": 22550
+    },
+    {
+      "path": "crates/zil-verify/src/resource_closure_tests.rs",
+      "sha256": "4f2bcadfad614f93d7fb8c070b3ff93826f2d58540a4f232d5222a35c8e10fb4",
+      "bytes": 16825
+    },
+    {
+      "path": "crates/zil-verify/src/resource_tests.rs",
+      "sha256": "093622bfd5096e4c02c37e71ef36ee0968911ffb388d1db6ab347a7410711200",
+      "bytes": 24975
+    },
+    {
+      "path": "crates/zil-verify/src/resources.rs",
+      "sha256": "ec6f4b6e15be92b103f7a326b761edfaee9ce324585f7c64a46dd9259e65f7e2",
+      "bytes": 88745
+    },
+    {
+      "path": "crates/zil-verify/src/resources/arrays.rs",
+      "sha256": "09528b2ca0402a0fbb1f225eab9a5859d2cef5de86951e1c7f2e3a4fda0a97b7",
+      "bytes": 6645
+    },
+    {
+      "path": "crates/zil-verify/src/resources/frontier_tests.rs",
+      "sha256": "7c873d88039ebac4dc029ebd3c3179b7c5b899fbbe49c559b28604cc4ada4cb8",
+      "bytes": 13877
+    },
+    {
+      "path": "crates/zil-verify/src/resources/product.rs",
+      "sha256": "0ddc8b7502572766a701526b2baa0f3273f2926fabff9693d98ce860ed72959a",
+      "bytes": 8861
+    },
+    {
+      "path": "crates/zil-verify/src/retained.rs",
+      "sha256": "157ca1dfa3da9721154cac6a4e54217776dba2e93624131cb24d7bea39569831",
+      "bytes": 11345
+    },
+    {
+      "path": "crates/zil-verify/src/retained_tests.rs",
+      "sha256": "d945736222ece430b0097b93a2ade49746157098b65e47226f9f2e84cae00902",
+      "bytes": 28690
+    },
+    {
+      "path": "crates/zil-verify/src/slices.rs",
+      "sha256": "e80b26fb4470a2417b7069243a2b319b99c29d0694f73dcf0f84943ee35ca875",
+      "bytes": 1167
+    },
+    {
+      "path": "crates/zil-verify/src/tests.rs",
+      "sha256": "013171ce9af37a7fd49919362adc5f8d5fa988cdd0cba18c6c1e1ecc2c34dd06",
+      "bytes": 22667
+    },
+    {
+      "path": "crates/zil-verify/tests/impl082_bytes_ffi.rs",
+      "sha256": "462f0a17e87e656082ce602197397c40b1d7c4a496f49b7792647643efea1460",
+      "bytes": 27312
+    },
+    {
+      "path": "crates/zil-verify/tests/impl086_static_foreign.rs",
+      "sha256": "97af25e1cc6f1dd88f369ccf779e77879338842ea6a3dcec97249ecadae14dda",
+      "bytes": 39203
+    },
+    {
+      "path": "crates/zil-verify/tests/impl091_slices.rs",
+      "sha256": "61a3bca2ed11d9cbc77248afa5b9e57ed947ef62c3873bd635d3bde6d26a901f",
+      "bytes": 37530
+    },
+    {
+      "path": "crates/zil-verify/tests/impl095_byte_buffers.rs",
+      "sha256": "489bfa783340c14e423be3cd6decf4105661945162ba177f32cf1b5e70587ec6",
+      "bytes": 35967
+    },
+    {
+      "path": "crates/zil-verify/tests/impl099_owned_bytes.rs",
+      "sha256": "1a49f833013cab6e9b525e3daa79ec5eaaf175149e8d3524e1878d29a1e31510",
+      "bytes": 20815
+    },
+    {
+      "path": "crates/zil-verify/tests/impl124_signed_shifts.rs",
+      "sha256": "cfa4ea7a8ebb2153d03bd2859107abcba773a3ff2e2d2aac5bd6cf4ac44231ce",
+      "bytes": 7717
+    }
+  ]
+}
