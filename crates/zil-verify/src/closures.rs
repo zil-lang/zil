@@ -158,7 +158,7 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            if errors::owned(ty) {
+            if errors::owned(ty, budget.sums) {
                 return Err(unsupported(
                     "owning error-union captures are outside the finite closure profile",
                     None,

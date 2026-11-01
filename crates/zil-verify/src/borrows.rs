@@ -457,7 +457,7 @@ fn check(
                 InstructionKind::TakeLocal { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
-                        || errors::owned(&f.locals[local.0 as usize].ty)
+                        || errors::owned(&f.locals[local.0 as usize].ty, budget.sums)
                         || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
                         || matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
