@@ -13,6 +13,13 @@ impl Builder<'_, '_> {
         if !matches!(ty, Type::Package { .. }) {
             return Ok(false);
         }
+        // A Package capture view aliases its environment's retained position.
+        // The established whole Store restores that position after TakeLocal;
+        // closure-mode checking still proves FnMut is complete on every exit.
+        // It is not an ordinary local with the new live-shell precondition.
+        if self.package_captures.contains_key(&local) {
+            return Ok(false);
+        }
         // The bounded type walk reserves its own visits before descent. Pay
         // both that inventory and the new qualification pass before inspecting
         // Product eligibility; scalar/field assignments never enter this path.
