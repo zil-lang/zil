@@ -1,0 +1,71 @@
+{
+  "requests": 27,
+  "valid": 27,
+  "cells": [
+    {
+      "case": "large-even-8x1024",
+      "contract": "closed",
+      "request": "cold",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 604.755758,
+        "candidate": 410.00875599999995,
+        "rust": 1330.906945
+      },
+      "candidate_baseline_geomean": 0.6904216100481727,
+      "paired_range": [
+        0.6492897252280557,
+        0.7278338952169183
+      ],
+      "candidate_rust_geomean": 0.3143681197240733
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "closed",
+      "request": "warm",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 430.812735,
+        "candidate": 215.84466999999998,
+        "rust": 449.900333
+      },
+      "candidate_baseline_geomean": 0.49605233556300055,
+      "paired_range": [
+        0.47847826968253393,
+        0.5186854081644074
+      ],
+      "candidate_rust_geomean": 0.48565151930617306
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "closed",
+      "request": "edit",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 617.685069,
+        "candidate": 402.70595199999997,
+        "rust": 508.99128400000006
+      },
+      "candidate_baseline_geomean": 0.6501621936270289,
+      "paired_range": [
+        0.5980442535511861,
+        0.6783228720071264
+      ],
+      "candidate_rust_geomean": 0.807364988570081
+    }
+  ],
+  "scope": "small screen; 3 independent cache histories, not a population confidence interval or product gate",
+  "by_contract": {
+    "closed": {
+      "cold": {
+        "candidate_baseline_geomean": 0.6904216100481727
+      },
+      "warm": {
+        "candidate_baseline_geomean": 0.49605233556300055
+      },
+      "edit": {
+        "candidate_baseline_geomean": 0.6501621936270289
+      }
+    }
+  }
+}

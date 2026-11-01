@@ -2,6 +2,7 @@
 
 当前专项分支：`research/incremental-compilation`，PR [#13](https://github.com/zil-lang/zil/pull/13)。
 
+- [第九阶段：已有全景汇总、提前收集代码与 Rust O2 差距](STAGE9-RESULTS.md)
 - [第八阶段：借鉴 Rust 共享所有者，前端复用收益与暖构建回退](STAGE8-RESULTS.md)
 - [第七阶段：恢复环境、Verify 后标量摘要与集中 Rust 对照](STAGE7-RESULTS.md)
 - [第六阶段进展与结果（历史确认矩阵状态）](STAGE6-RESULTS.md)

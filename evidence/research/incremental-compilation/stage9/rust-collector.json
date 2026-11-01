@@ -1,0 +1,19 @@
+{
+  "repository": "rust-lang/rust",
+  "revision": "58cf8f9c35b355199727627d07ae34a4e2846d67",
+  "path": "compiler/rustc_monomorphize/src/collector.rs",
+  "url": "https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/compiler/rustc_monomorphize/src/collector.rs",
+  "sha256": "6d3f00c995c488743415179bcd60f19aae3784b6fb1e13b389c40f12cb6f66f5",
+  "bytes": 84315,
+  "reviewed_lines": [
+    [
+      33,
+      125
+    ],
+    [
+      141,
+      195
+    ]
+  ],
+  "source_saved": false
+}

@@ -1,0 +1,160 @@
+[
+  [
+    "value",
+    {
+      "ScopeEnter": 2,
+      "Constant": 1,
+      "StorageLive": 1,
+      "Store": 9,
+      "Load": 9,
+      "Call": 8,
+      "Binary": 8,
+      "StorageDead": 1,
+      "ScopeExit": 2,
+      "Return": 2
+    }
+  ],
+  [
+    "putchar",
+    {}
+  ],
+  [
+    "main",
+    {
+      "ScopeEnter": 3,
+      "Call": 1,
+      "StorageLive": 1,
+      "Store": 1,
+      "UnsafeEnter": 1,
+      "Load": 4,
+      "Constant": 9,
+      "Binary": 8,
+      "ForeignCall": 4,
+      "ScopeExit": 3,
+      "Fallthrough": 1,
+      "UnsafeExit": 1,
+      "StorageDead": 1,
+      "Return": 2
+    }
+  ],
+  [
+    "@module1:function1027",
+    {
+      "ScopeEnter": 2,
+      "Constant": 1025,
+      "StorageLive": 1,
+      "Store": 1025,
+      "Load": 1025,
+      "Call": 1024,
+      "Binary": 1024,
+      "StorageDead": 1,
+      "ScopeExit": 2,
+      "Return": 2
+    }
+  ],
+  [
+    "@module2:function2052",
+    {
+      "ScopeEnter": 2,
+      "Constant": 1025,
+      "StorageLive": 1,
+      "Store": 1025,
+      "Load": 1025,
+      "Call": 1024,
+      "Binary": 1024,
+      "StorageDead": 1,
+      "ScopeExit": 2,
+      "Return": 2
+    }
+  ],
+  [
+    "@module3:function3077",
+    {
+      "ScopeEnter": 2,
+      "Constant": 1025,
+      "StorageLive": 1,
+      "Store": 1025,
+      "Load": 1025,
+      "Call": 1024,
+      "Binary": 1024,
+      "StorageDead": 1,
+      "ScopeExit": 2,
+      "Return": 2
+    }
+  ],
+  [
+    "@module4:function4102",
+    {
+      "ScopeEnter": 2,
+      "Constant": 1025,
+      "StorageLive": 1,
+      "Store": 1025,
+      "Load": 1025,
+      "Call": 1024,
+      "Binary": 1024,
+      "StorageDead": 1,
+      "ScopeExit": 2,
+      "Return": 2
+    }
+  ],
+  [
+    "@module5:function5127",
+    {
+      "ScopeEnter": 2,
+      "Constant": 1025,
+      "StorageLive": 1,
+      "Store": 1025,
+      "Load": 1025,
+      "Call": 1024,
+      "Binary": 1024,
+      "StorageDead": 1,
+      "ScopeExit": 2,
+      "Return": 2
+    }
+  ],
+  [
+    "@module6:function6152",
+    {
+      "ScopeEnter": 2,
+      "Constant": 1025,
+      "StorageLive": 1,
+      "Store": 1025,
+      "Load": 1025,
+      "Call": 1024,
+      "Binary": 1024,
+      "StorageDead": 1,
+      "ScopeExit": 2,
+      "Return": 2
+    }
+  ],
+  [
+    "@module7:function7177",
+    {
+      "ScopeEnter": 2,
+      "Constant": 1025,
+      "StorageLive": 1,
+      "Store": 1025,
+      "Load": 1025,
+      "Call": 1024,
+      "Binary": 1024,
+      "StorageDead": 1,
+      "ScopeExit": 2,
+      "Return": 2
+    }
+  ],
+  [
+    "@module8:function8202",
+    {
+      "ScopeEnter": 2,
+      "Constant": 1025,
+      "StorageLive": 1,
+      "Store": 1025,
+      "Load": 1025,
+      "Call": 1024,
+      "Binary": 1024,
+      "StorageDead": 1,
+      "ScopeExit": 2,
+      "Return": 2
+    }
+  ]
+]
