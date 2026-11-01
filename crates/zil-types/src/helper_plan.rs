@@ -521,11 +521,13 @@ impl Walk<'_, '_> {
                     self.state
                         .snapshot(tree_work(self.found.len()).saturating_add(1), callee.span)?;
                     self.found.insert(Node::Store(index));
+                    let products = self.state.products.clone();
                     let result = store_templates::substitute_type(
                         &signature.result,
                         &bound.name,
                         &actual,
                         self.limits,
+                        &products,
                         callee.span,
                         &mut |n| self.state.snapshot(n, callee.span),
                     )?;
@@ -603,11 +605,13 @@ impl Walk<'_, '_> {
                             expression.span,
                         )?;
                         self.found.insert(Node::Store(index));
+                        let products = self.state.products.clone();
                         let result = store_templates::substitute_type(
                             &signature.result,
                             &bound.name,
                             &actual,
                             self.limits,
+                            &products,
                             expression.span,
                             &mut |work| self.state.snapshot(work, expression.span),
                         )?;

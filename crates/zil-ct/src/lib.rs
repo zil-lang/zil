@@ -4,7 +4,9 @@ use zil_base::{CompileResult, Diagnostic, Phase};
 use zil_ir::{BinaryOp, Constant, CtInstructionKind, Type, UnaryOp};
 use zil_verify::VerifiedCTIR;
 
+mod aggregate_metadata;
 mod materialize;
+pub use aggregate_metadata::preflight_aggregate_metadata;
 mod program;
 mod source;
 pub use program::{CompileTimeValue, ProgramEvaluation, evaluate_program};

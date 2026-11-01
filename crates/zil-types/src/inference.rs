@@ -17,6 +17,7 @@ struct Budget<'a> {
     inside_store: bool,
     store_shapes: bool,
     direct_type_callee: bool,
+    products: aggregate_templates::Products,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -29,6 +30,7 @@ impl<'a> Budget<'a> {
             inside_store: false,
             store_shapes: false,
             direct_type_callee: false,
+            products: None,
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -190,6 +192,7 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
     let mut budget = Budget::new(limits);
     budget.ordinary_functions = core.functions.len();
+    aggregate_templates::Index::new(&[core], limits, &mut budget.work).map_err(|e| vec![e])?;
     let table = headers(core, None, 0, &mut budget).map_err(|e| vec![e])?;
     let flags = core
         .functions
@@ -201,12 +204,17 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
         .collect::<R<Vec<_>>>()
         .map_err(|e| vec![e])?;
     names::check(core, limits).map_err(|e| vec![e])?;
-    let normalized = if flags.iter().any(|f| *f) {
+    let normalized = if flags.iter().any(|f| *f)
+        || !core.aggregate_templates.is_empty()
+        || !core.aggregate_applications.is_empty()
+    {
         Some(aggregates::resolve(core.clone(), limits)?)
     } else {
         None
     };
     let core = normalized.as_ref().unwrap_or(core);
+    budget.products =
+        aggregate_templates::origins(&[core], limits, &mut budget.work).map_err(|e| vec![e])?;
     let table = if normalized.is_some() {
         headers(core, None, 0, &mut budget).map_err(|e| vec![e])?
     } else {
@@ -241,6 +249,15 @@ pub(super) fn infer_program_closures_borrowed<'a>(
     let original = program;
     let mut budget = Budget::new(limits);
     let mut tables = BTreeMap::new();
+    if program.modules.iter().any(|m| {
+        !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
+    }) {
+        budget
+            .work(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        aggregate_templates::Index::new(&modules, limits, &mut budget.work).map_err(|e| vec![e])?;
+    }
     let mut count = 0usize;
     if program.modules.len() > limits.max_nodes {
         return Err(vec![Diagnostic::limit(
@@ -336,7 +353,10 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         );
     }
     names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
-    let normalized = if flags.iter().flatten().any(|f| *f) {
+    let normalized = if flags.iter().flatten().any(|f| *f)
+        || program.modules.iter().any(|m| {
+            !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
+        }) {
         let normalized = aggregates::resolve_program(program, limits)?;
         let mut offset = 0;
         for module in &normalized.modules {
@@ -352,6 +372,18 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         None
     };
     let program = normalized.as_ref().unwrap_or(program);
+    if program
+        .modules
+        .iter()
+        .any(|m| !m.core.aggregate_applications.is_empty())
+    {
+        budget
+            .work(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        budget.products = aggregate_templates::origins(&modules, limits, &mut budget.work)
+            .map_err(|e| vec![e])?;
+    }
     let mut modules = Vec::new();
     let mut enum_work = limits.max_analysis_steps;
     for (module, flags) in program.modules.iter().zip(flags) {
@@ -603,6 +635,8 @@ fn prepare<'a>(
 
 fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> CoreModule {
     CoreModule {
+        aggregate_templates: core.aggregate_templates.clone(),
+        aggregate_applications: core.aggregate_applications.clone(),
         schema_version: core.schema_version,
         module_id: core.module_id,
         source_fingerprint: core.source_fingerprint,
@@ -613,6 +647,7 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
     }
 }
 fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()> {
+    aggregate_templates::metadata_snapshot(core, budget.limits, &mut budget.work)?;
     for aggregate in &core.aggregates {
         budget.node(0, aggregate.span)?;
         budget.work(aggregate.name.len(), aggregate.span)?;
@@ -3097,12 +3132,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         )
                     })?;
                     let limits = self.budget.limits;
+                    let products = self.budget.products.clone();
                     for parameter in &mut signature.parameters {
                         *parameter = store_templates::substitute_type(
                             parameter,
                             &bound.name,
                             actual,
                             limits,
+                            &products,
                             span,
                             &mut |work| self.budget.work(work, span),
                         )?;
@@ -3112,6 +3149,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         &bound.name,
                         actual,
                         limits,
+                        &products,
                         span,
                         &mut |work| self.budget.work(work, span),
                     )?;

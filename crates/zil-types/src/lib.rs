@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
 mod addresses;
+mod aggregate_templates;
 mod aggregates;
 mod byte_buffer;
 mod callable_fields;
@@ -306,6 +307,12 @@ pub fn check(
         })
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
+    let mut product_work = limits.max_analysis_steps;
+    closure_state.products =
+        aggregate_templates::origins(&[core], limits, &mut product_work).map_err(|e| vec![e])?;
+    closure_state
+        .snapshot(limits.max_analysis_steps - product_work, Span::default())
+        .map_err(|e| vec![e])?;
     closure_state.resource_writes =
         resource_effects::single(core, &signatures, limits).map_err(|e| vec![e])?;
     helpers::install_single(core, &signatures, &enum_types, &mut closure_state, limits)
@@ -2800,6 +2807,8 @@ mod tests {
     }
     fn module(value: CoreExpr) -> CoreModule {
         CoreModule {
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
