@@ -513,6 +513,7 @@ fn statement_variant(kind: &CoreStatementKind) -> &'static str {
         Match { .. } => "Match",
         Block(_) => "Block",
         Unsafe(_) => "Unsafe",
+        Defer(_) => "Defer",
         Break => "Break",
         Continue => "Continue",
         Unsupported(_) => "Unsupported",
@@ -681,6 +682,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
         },
         CoreStatementKind::Block(alias_body()),
         CoreStatementKind::Unsafe(alias_body()),
+        CoreStatementKind::Defer(alias_body()),
         CoreStatementKind::Break,
         CoreStatementKind::Continue,
         CoreStatementKind::Unsupported("test-only Core statement".into()),
@@ -691,7 +693,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
             .map(statement_variant)
             .collect::<BTreeSet<_>>()
             .len(),
-        15
+        16
     );
     for kind in statements {
         let label = statement_variant(&kind);
@@ -707,7 +709,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
         ]);
         compared += compare_transfers(&core, label);
     }
-    assert_eq!(compared, (26 + 16) * 16 * 2);
+    assert_eq!(compared, (26 + 17) * 16 * 2);
 }
 
 #[test]
