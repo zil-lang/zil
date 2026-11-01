@@ -1,0 +1,129 @@
+{
+  "candidate": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "target_count": 16,
+  "results": [
+    {
+      "status": "ok",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 45,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 8,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "status": "ok",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    }
+  ],
+  "executed": 138,
+  "passed": 138,
+  "failed": 0,
+  "consumer": {
+    "native_runs": 476,
+    "allocator_runs": 380,
+    "real_allocation_failures": 252
+  },
+  "additional_independent_native_runs": 24,
+  "legacy_native_counts": "Separate raw artifacts; no aggregate claimed by this summary.",
+  "log_sha256": "23a7df3ac1a5e601dd7295c0109c9b561fd93ace75d858efafd1698d86aa3031"
+}

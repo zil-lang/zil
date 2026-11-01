@@ -1,0 +1,47 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "verdict": "Pass",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+  "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+  "schema": 30,
+  "scope": "PublicIR/Wire and CT/runtime separation",
+  "bounded": true,
+  "scope_points": [
+    "schema30 four new ops90–93 and precise typed paths",
+    "generated versus handwritten manages order, private iteration identities, bare payload/owning generic Enum gates",
+    "pure Copy CT positive and runtime observer raw/Wire denial"
+  ],
+  "validation": "review239_generation3/0; generated4 native; protocol supplement is reused only after exact production-file hash comparison",
+  "candidate_overall_verdict": "PassBounded",
+  "common_evidence": "evidence/reviews/239/integrationR/COMMON-RESULT.json",
+  "raw_archive": {
+    "path": "evidence/reviews/239/integrationR/raw.tar.gz",
+    "sha256": "e8c611fe803f114be558f43e2c49b3d064aca1d8cad00df0e97ec21579298d83",
+    "bytes": 28245139,
+    "members": 6722,
+    "artifact_manifest_sha256": "2c3ff0c1dea48f63e7392a3872d69218050cc2dcff3338abb11787cb64a09817",
+    "source_directory": "/tmp/final-owned-sum-R-review"
+  },
+  "production_source_authored_by_reviewer": false,
+  "consumer244_independent_root_review": true,
+  "full_language_or_product_completion": false,
+  "blocking_issue": null,
+  "evidence_reuse": "Exact candidate16targets rerun. Historical protocol/author evidence is separately attributed; no old logs represented as fresh execution.",
+  "protocol_supplement_reuse": {
+    "reviewer": "/root/impl_defer227",
+    "source_report": "evidence/reviews/239/protocol-supplement/REPORT.json",
+    "exact_source_sha256_at_candidate": {
+      "crates/zil-ir/src/lib.rs": "4cc9c76ce88ff334a1648fedba7113523c70ef4e2a4bdcfcafc2807b01f751b7",
+      "crates/zil-ir/src/wire.rs": "f7f71da70ee56492bd7096337d3f26a5a5adc53c736ad19166a43784452b460f",
+      "crates/zil-ir/src/wire/owned_sum_tests.rs": "96b5e4da5721fe4cd476d27698a18a6b920039ccb6bb3800c2254e2c8aceadb0",
+      "crates/zil-ct/src/program.rs": "563508687a2114f95007743700ac6670d5b1773721710a8906d091a3c1989bd1",
+      "crates/zil-ct/tests/impl239_runtime_enum_ops.rs": "f0a0f7b51a25690bdbf627fb4945312d3bc3a9007a6bfa5124b36e2c7bb80d50",
+      "crates/zil-verify/src/ct_program.rs": "0fe123f19a0c1d458a44957d731e87f0284d068cda6547b2761b2bc2f2d7d1eb",
+      "crates/zil-driver/src/ct_selection/materialize.rs": "8a51b93ccfcf9328937d280375dc5ce4b88795c395928d7d4b52eaa6efcede06",
+      "crates/zil-driver/src/ct_selection/hygiene_types.rs": "be819839616c27bf776f8a0607556ea941ed38a3fc21e91680f1384129feb8e0"
+    },
+    "actual_protocol_tests_this_batch": "NotRun",
+    "original_scope": "Public transport/CT supplement; no source authority fabricated"
+  }
+}

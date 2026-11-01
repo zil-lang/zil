@@ -1,0 +1,31 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "verdict": "Pass",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+  "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+  "schema": 30,
+  "scope": "Lower/LLVM ABI, complete recursive cleanup and actual-request budgets",
+  "bounded": true,
+  "scope_points": [
+    "native inline active variant payloads and declared drop order",
+    "Product/Sum recursive cleanup helpers preserve exactType layout and shared current budget",
+    "frozen source normal/invalid/actual allocation failure matrix at O0/O2"
+  ],
+  "validation": "38 actual LLVM API builds/500 counted native, plus R4 builder/native; verify1/fallbacknone/builder/parse0; legacy native separately retained",
+  "candidate_overall_verdict": "PassBounded",
+  "common_evidence": "evidence/reviews/239/integrationR/COMMON-RESULT.json",
+  "raw_archive": {
+    "path": "evidence/reviews/239/integrationR/raw.tar.gz",
+    "sha256": "e8c611fe803f114be558f43e2c49b3d064aca1d8cad00df0e97ec21579298d83",
+    "bytes": 28245139,
+    "members": 6722,
+    "artifact_manifest_sha256": "2c3ff0c1dea48f63e7392a3872d69218050cc2dcff3338abb11787cb64a09817",
+    "source_directory": "/tmp/final-owned-sum-R-review"
+  },
+  "production_source_authored_by_reviewer": false,
+  "consumer244_independent_root_review": true,
+  "full_language_or_product_completion": false,
+  "blocking_issue": null,
+  "evidence_reuse": "Exact candidate16targets rerun. Historical protocol/author evidence is separately attributed; no old logs represented as fresh execution."
+}

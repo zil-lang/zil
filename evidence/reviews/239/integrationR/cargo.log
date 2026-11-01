@@ -1,0 +1,237 @@
+   Compiling zil-expand v0.1.0 (/workspace/zil-core/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/zil-core/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 14.49s
+     Running tests/impl166_owned_results.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/impl166_owned_results-89949c9ca51bc7dc)
+
+running 13 tests
+test continue_and_break_discharge_each_actual_loop_union ... ok
+test failed_binding_cleans_partial_preparation_then_existing_union_in_order ... ok
+test native_entry_keeps_void_or_i32_success_boundary ... ok
+test both_owned_arms_propagate_and_native_boundary_cleans_only_returned_error ... ok
+test raw_and_wire_do_not_extend_ordinary_union_admission_to_closure_capture ... ok
+test raw_and_wire_reconstruct_union_debt_and_exact_active_tag ... ok
+test named_success_payload_crosses_two_ordinary_functions_then_cleans_once ... ok
+test failing_later_argument_cleans_staged_union_before_earlier_local ... ok
+test public_owned_result_crosses_module_boundaries ... ok
+test source_cannot_reuse_partial_or_aliased_payloads_or_infer_resource_mode ... ok
+test whole_local_reassignment_preserves_outer_slot_and_cleanup_order ... ok
+test stored_and_discarded_unions_drop_active_payloads_in_lexical_order ... ok
+test success_and_returned_error_buffers_are_really_freed_before_later_fields ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.09s
+
+     Running tests/impl183_owned_resource_results.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/impl183_owned_resource_results-bc8e47d753f8a57d)
+
+running 13 tests
+test discarded_and_stored_unions_drop_only_the_active_resource ... ok
+test bytebuffer_and_store_success_payloads_reach_real_native_operations ... ok
+test failure_only_create_result_does_not_relabel_or_leak_an_incoming_owner ... ok
+test native_entry_does_not_implicitly_discard_a_managed_success_return ... ok
+test original159_direct_bytebuffer_success_probe_is_accepted_without_rewriting ... ok
+test create_and_give_success_transfer_once_and_copy_error_has_no_resource ... ok
+test failed_later_argument_disposes_staged_union_before_older_local ... ok
+test public_owned_success_crosses_four_modules_and_explicit_union_parameters ... ok
+test source_ownership_modes_and_existing_rejection_boundaries_stay_explicit ... ok
+test loop_and_prepare_failure_clean_actual_owned_success_once ... ok
+test question_propagation_preserves_created_payload_and_each_cleanup_exit ... ok
+test padded_resource_and_copy_error_layouts_and_zero_sized_resource_are_real ... ok
+test unwrapped_payload_has_actual_description_and_nonlexical_lifetime ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+     Running tests/impl206_analyze.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/impl206_analyze-2e3e8049ceb49f7e)
+
+running 7 tests
+test ordinary_product_admission_does_not_widen_other_raw_parent_contexts ... ok
+test child_refill_preserves_actual_leaf_origins_and_partial_shapes_stay_local ... ok
+test cfg_joins_preserve_incoming_on_each_reachable_product_path ... ok
+test unused_resource_payload_does_not_admit_an_ordinary_product ... ok
+test typed_operand_and_leaf_index_mutations_cannot_forge_created_origins ... ok
+test same_typed_children_keep_their_own_actual_leaf_origins ... ok
+test frozen_created_and_incoming_leaves_remain_distinct_through_each_wrapper ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/impl206_independent.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/impl206_independent-ff750aabfb0f8606)
+
+running 45 tests
+test raw_late_desc_read_cannot_revive_after_child_refill_and_embedding ... ok
+test raw_complete_child_operands_are_affine_and_wrong_sibling_drop_is_not_refill ... ok
+test raw_actual_sibling_and_leaf_positions_keep_distinct_freshness ... ok
+test raw_ordinary_call_and_pure_input_cannot_forge_create ... ok
+test source_00_original120 ... ok
+test raw_unused_resource_head_cannot_hide_an_ordinary_product ... ok
+test source_02_incoming_forged_create ... ok
+test source_01_incoming_child_only ... ok
+test raw_unused_nested_metadata_does_not_gain_ordinary_or_legacy_authority ... ok
+test source_04_twins_right_created ... ok
+test source_03_twins_left_created ... ok
+test source_05_twins_left_incoming ... ok
+test source_08_refill_other_stays_incoming ... ok
+test source_07_refill_actual_created ... ok
+test source_06_twins_right_incoming ... ok
+test source_09_join_created ... ok
+test source_12_unknown_call_give ... ok
+test source_11_unknown_call_not_create ... ok
+test source_10_join_mixed ... ok
+test source_13_managed_create_contract ... ok
+test source_14_zero_iteration_incoming ... ok
+test source_15_partial_child_embed ... ok
+test source_16_partial_parent_return ... ok
+test source_17_child_take_twice ... ok
+test source_18_child_value_reused_after_refill ... ok
+test source_20_desc_does_not_revive ... ok
+test source_19_desc_last_use ... ok
+test source_22_inner_store ... ok
+test source_24_array_parent ... ok
+test source_23_store_parent ... ok
+test source_25_sum_parent ... ok
+test source_26_borrowed_companion ... ok
+test source_27_inner_owning_array ... ok
+test source_28_inner_owning_sum ... ok
+test source_21_copy_companions ... ok
+test source_30_inner_concrete_closure ... ok
+test source_29_product_capture_admitted_after_214_216 ... ok
+test source_31_wrong_nominal_child ... ok
+test nested_actual_leaf_paths_have_exact_fresh_phase_work_boundaries ... ok
+test source_33_partial_refill ... ok
+test source_32_recursive_drop ... ok
+test source_34_replace_complete_child ... ok
+test source_35_failed_rhs_keeps_old ... ok
+test source_36_failed_rhs_no_rollback ... ok
+test source_37_layout_actual_values ... ok
+
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+
+     Running tests/impl223_product_store.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/impl223_product_store-b593acc85b57dac3)
+
+running 13 tests
+test ordinary_store_element_bound_instantiates_complete_product ... ok
+test negative_and_overflow_reserve_leave_nested_prefix_intact ... ok
+test original_217_and_unused_206_sources_are_promoted_without_rewriting ... ok
+test raw_and_wire_canonical_store_definition_cannot_hide_a_different_product ... ok
+test raw_and_wire_duplicate_push_cannot_manufacture_a_second_element ... ok
+test ordinary_sum_payloads_extend_unit_protocols_without_other_shape_permissions ... ok
+test raw_and_wire_rebuild_unused_product_storage_and_leaf_qualification ... ok
+test store_qualification_cannot_open_an_incoming_mutable_product_address ... ok
+test unused_user_resource_head_cannot_hide_the_new_product_store ... ok
+test source_cannot_push_partial_or_previously_transferred_products ... ok
+test nested_elements_pop_and_destroy_each_real_leaf_in_declared_order ... ok
+test zero_sized_owned_child_still_drops_when_whole_product_has_storage ... ok
+test failed_push_and_empty_pop_preserve_exact_active_responsibility ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+
+     Running tests/impl235_product_store.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/impl235_product_store-70c2e80add4d2727)
+
+running 9 tests
+test original206_inner_store_is_promoted_without_rewriting ... ok
+test raw_and_wire_rebuild_exact_store_definitions_for_new_products ... ok
+test raw_and_wire_recover_the_actual_store_root_of_an_element_window ... ok
+test raw_and_wire_reject_duplicate_child_ssa ... ok
+test new_owned_products_do_not_gain_other_shape_permissions ... ok
+test partial_and_live_windows_reject_but_last_use_and_other_store_are_allowed ... ok
+test same_typed_store_leaves_keep_created_and_incoming_origins ... ok
+test a_complete_taken_store_field_can_be_refilled_and_replaced ... ok
+test two_same_typed_stores_move_refill_and_drop_their_actual_prefixes ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+     Running tests/impl244_consumer.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/impl244_consumer-bea08b0592ccb5f9)
+
+running 8 tests
+test original_q01_flat_control ... ok
+test original_q02_nested_control ... ok
+test original_q03_store_session_success ... ok
+test original_q04_both_owned_control ... ok
+test original_q06_duplicate_consumption_rejects ... ok
+test original_q05_owned_option_success ... ok
+test five_module_predeclared_native_matrix ... ok
+test five_module_actual_allocator_failures_follow_the_frozen_source_oracle ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.82s
+
+     Running tests/review223_boundaries.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/review223_boundaries-50fb4a4a8ba46d50)
+
+running 2 tests
+test unused_mutable_nested_product_parameter_cannot_gain_a_write_capability ... ok
+test ordinary_product_sums_are_admitted_but_direct_nested_union_stays_closed ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/review235_contracts.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/review235_contracts-f6e5573014e21f4c)
+
+running 7 tests
+test ordinary_composition_does_not_open_capture_or_containers ... ok
+test direct_callback_store_and_noncallback_generic_wrapper_controls ... ok
+test remembered_header_description_blocks_parent_transfer_until_its_actual_last_use ... ok
+test unused_product_parameters_still_require_exact_canonical_store_metadata ... ok
+test pop_and_failed_full_push_then_parent_drop_settle_only_actual_prefix ... ok
+test generic_store_element_binder_survives_a_non_element_product_wrapper ... ok
+test same_typed_store_leaves_preserve_incoming_and_created_through_child_transfer ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/review239_generation.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/review239_generation-1729ef8f1b3c325d)
+
+running 3 tests
+test new_local_observers_cannot_enter_ct_even_when_the_enum_is_copy ... ok
+test generation_preserves_private_iteration_identity_and_closed_payload_profiles ... ok
+test generated_manages_and_handwritten_fields_execute_the_same_declared_order ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/review240_helper_sum.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/review240_helper_sum-5f0c77fd1b70d392)
+
+running 2 tests
+test ordinary_sum_argument_does_not_expand_callable_or_state_permissions ... ok
+test finite_fn_helper_accepts_complete_enum_product_and_error_arguments ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+
+     Running tests/review240_match_exits.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/review240_match_exits-39efe94349c5f1de)
+
+running 4 tests
+test pending_defer_borrow_blocks_consuming_a_published_pattern_leaf ... ok
+test continue_and_break_each_discharge_only_the_current_pattern_owners ... ok
+test early_arm_return_runs_defer_then_recursive_pattern_leaves ... ok
+test defer_borrows_actual_published_leaf_locals_before_their_drop ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/review241_freshness.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/review241_freshness-3dd680795a02d4be)
+
+running 4 tests
+test value_identity_does_not_reexport_a_created_leaf ... ok
+test value_factories_and_nonidentity_repacking_do_not_export_freshness ... ok
+test direct_pack_unpack_and_explicit_managed_create_remain_fresh ... ok
+test same_typed_inline_fields_keep_their_actual_freshness_separate ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/review241_store_windows.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/review241_store_windows-d5ea9e8c2ed6fb34)
+
+running 2 tests
+test forged_reserve_cannot_switch_to_the_borrowed_twin_after_sum_unpack ... ok
+test recursive_sum_roundtrip_retains_distinct_store_windows_and_last_use ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/review242_capture_profiles.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/review242_capture_profiles-1bc1c0aae6b240c7)
+
+running 2 tests
+test unused_error_union_slots_preserve_the_old_managed_success_profile ... ok
+test new_ordinary_sums_do_not_qualify_direct_or_nested_owned_captures ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/review242_tag_edges.rs (/workspace/.zil-env/target-review-sum-Q/debug/deps/review242_tag_edges-edf470a3725cec4e)
+
+running 4 tests
+test a_bypass_predecessor_cannot_inherit_only_the_guarded_tag ... ok
+test each_sealed_request_keeps_its_limits_through_shared_wire_clone_and_emission ... ok
+test loop_at_one_write_site_needs_a_new_observation_after_each_swap ... ok
+test recursive_path_requires_both_actual_edges_and_actual_local ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

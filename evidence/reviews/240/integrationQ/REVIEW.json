@@ -1,0 +1,37 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "verdict": "Fail",
+  "implementation_commit": "b51dc2043ae51ec42c1bec964bec0623df152431",
+  "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+  "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+  "schema": 30,
+  "scope": "Ordinary finite owning Sum frontend and generic helper",
+  "bounded": true,
+  "scope_points": [
+    "recursive pattern tests then unpack and reverseDFS publication, source match exits/defer actual captures",
+    "seven finite helper positive variants/17 unused-definition negatives",
+    "actual resourceF versus callable binderF lexical scope, bare Desc not owner, stale roots"
+  ],
+  "validation": "review240_helper_sum2/0 and match_exits4/0;20 native, plus R14 semantic checks/4 native; Q branch-join blocker prevents240 Pass",
+  "candidate_overall_verdict": "Fail",
+  "common_evidence": "evidence/reviews/239/integrationQ/COMMON-RESULT.json",
+  "raw_archive": {
+    "path": "evidence/reviews/239/integrationQ/raw.tar.gz",
+    "sha256": "c2661fffeccf21fd7a0fae4ea64e46011ea9c0b909ae280708fcc26c03bba498",
+    "bytes": 16644891,
+    "members": 6206,
+    "artifact_manifest_sha256": "0cac61e22faf486b1955b2baa34f154f4e6df8665183770c385364c7b1cd1eea",
+    "source_directory": "/tmp/final-owned-sum-Q-review"
+  },
+  "production_source_authored_by_reviewer": false,
+  "consumer244_independent_root_review": true,
+  "full_language_or_product_completion": false,
+  "blocking_issue": {
+    "slice": 240,
+    "discovery": "/root/kernel_defer227 supplementary source review",
+    "reason": "A live actual owner replaced on only one branch was incorrectly treated as an expired old description by definition-time generic checking. Ordinary nongeneric source succeeds, adding unused F/cb falsely rejects.",
+    "original_inputs": "kernel-owner-join-blocker/ in raw archive",
+    "repair_candidate": "15498f14af8f11d3a3bf4b198fe69208be5913ce"
+  },
+  "evidence_reuse": "Exact candidate16targets rerun. Historical protocol/author evidence is separately attributed; no old logs represented as fresh execution."
+}
