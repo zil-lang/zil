@@ -230,6 +230,17 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                         .expect("verified local initialized")
                         .clone(),
                 ),
+                InstructionKind::VariantTagLocal { .. }
+                | InstructionKind::ReadVariantLocal { .. }
+                | InstructionKind::UnpackVariant { .. }
+                | InstructionKind::DropEnum { .. } => {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(instruction.span),
+                        "runtime Enum ownership operations are forbidden during compile-time execution",
+                    )]);
+                }
                 InstructionKind::RegisterDefer { .. } => {
                     return Err(vec![Diagnostic::error(
                         Phase::Ct,
