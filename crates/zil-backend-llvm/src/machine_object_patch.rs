@@ -1,6 +1,7 @@
 //! Optional derivation from a fully compiled, trusted scalar object. A snapshot
 //! is raw dependency metadata; the caller must validate the complete current
 //! model and independently compile the patch before using derived bytes.
+use crate::object_cache::BufferedHasher;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::ffi::OsString;
 use std::fs::{self, File};
@@ -198,9 +199,9 @@ fn references(
     Some(references.into_iter().collect())
 }
 
-struct FunctionState {
+struct FunctionState<'a> {
     item: usize,
-    name: String,
+    name: &'a str,
     body: Fingerprint,
     references: Vec<usize>,
     cost: usize,
@@ -208,8 +209,9 @@ struct FunctionState {
 pub(crate) struct Snapshot<'a> {
     pub(crate) index_key: Fingerprint,
     module: &'a Module,
-    functions: Vec<FunctionState>,
+    functions: Vec<FunctionState<'a>>,
     total_cost: usize,
+    record_size: usize,
 }
 impl<'a> Snapshot<'a> {
     pub(crate) fn new(module: &'a Module) -> Option<Self> {
@@ -223,7 +225,7 @@ impl<'a> Snapshot<'a> {
         let mut definitions = BTreeMap::new();
         let mut symbols = BTreeSet::new();
         let mut declarations = 0usize;
-        let mut skeleton = FingerprintBuilder::new();
+        let mut skeleton = BufferedHasher::new();
         "ZIL-OBJECT-PATCH-SKELETON-1".hash(&mut skeleton);
         module.triple.hash(&mut skeleton);
         module.items.len().hash(&mut skeleton);
@@ -271,6 +273,7 @@ impl<'a> Snapshot<'a> {
         let mut functions = Vec::with_capacity(definitions.len());
         let mut total_cost = 0usize;
         let mut record_size = 8usize + 32 + 32 + 32 + 4 + 32;
+        let mut hash = BufferedHasher::new();
         for (item, value) in module.items.iter().enumerate() {
             let Item::Function(function) = value else {
                 return None;
@@ -283,14 +286,13 @@ impl<'a> Snapshot<'a> {
             if record_size > MAX_RECORD {
                 return None;
             }
-            let mut hash = FingerprintBuilder::new();
             function.hash(&mut hash);
             let cost = function.cost();
             total_cost = total_cost.checked_add(cost)?;
             functions.push(FunctionState {
                 item,
-                name: function.name.clone(),
-                body: hash.digest(),
+                name: &function.name,
+                body: hash.digest_reset(),
                 references,
                 cost,
             });
@@ -300,6 +302,7 @@ impl<'a> Snapshot<'a> {
             module,
             functions,
             total_cost,
+            record_size,
         })
     }
 
@@ -310,7 +313,8 @@ impl<'a> Snapshot<'a> {
         full_object_key: Fingerprint,
         full_object_digest: Fingerprint,
     ) -> Vec<u8> {
-        let mut bytes = MAGIC.to_vec();
+        let mut bytes = Vec::with_capacity(self.record_size);
+        bytes.extend_from_slice(MAGIC);
         bytes.extend_from_slice(&self.index_key.0);
         bytes.extend_from_slice(&full_object_key.0);
         bytes.extend_from_slice(&full_object_digest.0);
@@ -428,13 +432,13 @@ impl<'a> Snapshot<'a> {
             module: patch,
             replacements: changed
                 .iter()
-                .map(|&id| self.functions[id].name.clone())
+                .map(|&id| self.functions[id].name.to_owned())
                 .collect(),
             reused_functions: count - changed.len(),
             canonical: self
                 .functions
                 .iter()
-                .map(|function| function.name.clone())
+                .map(|function| function.name.to_owned())
                 .collect(),
             declarations: module
                 .items
@@ -825,7 +829,7 @@ impl Plan {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use zil_llvm_api::model::{Block, Inst, Signature};
+    use zil_llvm_api::model::{Attr, Block, Inst, Param, Signature};
     fn function(name: &str, call: Option<&str>, value: i128) -> Item {
         let instructions = if let Some(callee) = call {
             vec![
@@ -872,6 +876,87 @@ mod tests {
             fingerprint: "current".into(),
             items,
         }
+    }
+    #[test]
+    fn buffered_snapshot_and_record_match_original_unbuffered_encoding() {
+        let mut module = sample();
+        let Item::Function(large) = &mut module.items[2] else {
+            unreachable!()
+        };
+        large.name.push_str(&"x".repeat(4097));
+        large
+            .signature
+            .params
+            .push(Param::new(Ty::Int(32), "p".repeat(63)));
+        large.signature.params[0].attrs.push(Attr::ZeroExt);
+        large.signature.result_attrs.push(Attr::ZeroExt);
+        large.attrs.push(Attr::NonLazyBind);
+        large.blocks.as_mut().unwrap()[0].name = "b".repeat(4095);
+        let mut declaration = function("foreign", None, 0);
+        let Item::Function(foreign) = &mut declaration else {
+            unreachable!()
+        };
+        foreign.blocks = None;
+        foreign.attrs.push(Attr::NonLazyBind);
+        module.items.push(declaration);
+        zil_llvm_api::validate_module(&module).unwrap();
+
+        // Retain the old unbuffered calculation as an independent byte-level
+        // compatibility oracle. No production buffered helper builds it.
+        let mut skeleton = FingerprintBuilder::new();
+        "ZIL-OBJECT-PATCH-SKELETON-1".hash(&mut skeleton);
+        module.triple.hash(&mut skeleton);
+        module.items.len().hash(&mut skeleton);
+        let mut bodies = Vec::new();
+        for item in &module.items {
+            let Item::Function(function) = item else {
+                unreachable!()
+            };
+            function.name.hash(&mut skeleton);
+            function.linkage.hash(&mut skeleton);
+            function.signature.hash(&mut skeleton);
+            function.attrs.hash(&mut skeleton);
+            function.blocks.is_some().hash(&mut skeleton);
+            if function.blocks.is_some() {
+                let mut body = FingerprintBuilder::new();
+                function.hash(&mut body);
+                bodies.push(body.digest());
+            }
+        }
+        let expected_index = skeleton.digest();
+        let key = Fingerprint::of(b"full object key");
+        let digest = Fingerprint::of(b"full object bytes");
+        let mut expected = b"ZILPAT01".to_vec();
+        expected.extend_from_slice(&expected_index.0);
+        expected.extend_from_slice(&key.0);
+        expected.extend_from_slice(&digest.0);
+        expected.extend_from_slice(&(bodies.len() as u32).to_le_bytes());
+        for (id, body) in bodies.iter().enumerate() {
+            expected.extend_from_slice(&body.0);
+            // The model's two source edges are f1 -> f0 and main -> f1.
+            let reference = match id {
+                1 => Some(0u32),
+                128 => Some(1),
+                _ => None,
+            };
+            expected.extend_from_slice(&u32::from(reference.is_some()).to_le_bytes());
+            if let Some(reference) = reference {
+                expected.extend_from_slice(&reference.to_le_bytes());
+            }
+        }
+        expected.extend_from_slice(&Fingerprint::of(&expected).0);
+        let snapshot = Snapshot::new(&module).unwrap();
+        assert_eq!(snapshot.index_key, expected_index);
+        assert_eq!(
+            snapshot
+                .functions
+                .iter()
+                .map(|state| state.body)
+                .collect::<Vec<_>>(),
+            bodies
+        );
+        assert_eq!(snapshot.record_size, expected.len());
+        assert_eq!(snapshot.encode_base(key, digest), expected);
     }
     #[test]
     fn plan_rebuilds_reverse_closure_and_rejects_outgoing_body_dependencies() {

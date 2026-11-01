@@ -31,6 +31,7 @@ pub use preparation::{
 mod resource_effects;
 mod resources;
 mod retained;
+mod scalar_shapes;
 mod state_origins;
 mod store_templates;
 pub use inference::{infer_program_closures, infer_source_closures};

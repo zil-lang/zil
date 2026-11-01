@@ -87,6 +87,6 @@ pub fn check_prepared_program(
     // The identical deterministic inference call already completed successfully.
     // Its result is the same raw input. Every subsequent Types operation remains
     // current, including shape resolution; Analyze/Verify are separate consumers.
-    let resolved = aggregates::resolve_program(&prepared.core, limits)?;
+    let resolved = aggregates::resolve_prepared_program(&prepared.core, limits)?;
     program::check_resolved_program(&resolved, target, limits)
 }
