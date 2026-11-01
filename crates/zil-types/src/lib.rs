@@ -10,6 +10,7 @@ mod byte_buffer;
 mod callable_fields;
 mod closures;
 mod conditions;
+mod deferred;
 mod dynamic_store;
 mod enums;
 mod errors;
@@ -425,6 +426,8 @@ struct Builder<'a, 'c> {
     match_work_left: usize,
     closures: &'c mut closures::State,
     first_closure: usize,
+    defer_body: bool,
+    defer_locals: std::collections::BTreeSet<LocalId>,
     borrowed_captures: BTreeMap<LocalId, Type>,
     written_captures: BTreeMap<LocalId, u32>,
     stored_copy_captures: BTreeMap<LocalId, u32>,
@@ -500,6 +503,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             match_work_left: limits.max_analysis_steps,
             closures,
             first_closure,
+            defer_body: false,
+            defer_locals: std::collections::BTreeSet::new(),
             borrowed_captures: BTreeMap::new(),
             written_captures: BTreeMap::new(),
             stored_copy_captures: BTreeMap::new(),
@@ -857,7 +862,17 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )?;
                     continue;
                 }
-                if !self.temporary_locals.contains(&local) || self.resource_temps.contains(&local) {
+                let deferred = if self.defer_locals.is_empty() {
+                    false
+                } else {
+                    self.closures.snapshot(self.defer_locals.len(), span)?;
+                    self.defer_locals.contains(&local)
+                };
+                if deferred {
+                    self.invoke_defer(local, span)?;
+                } else if !self.temporary_locals.contains(&local)
+                    || self.resource_temps.contains(&local)
+                {
                     self.drop_owned_local(local, span)?;
                 }
                 if let Some(capture) = self.address_written_captures.get(&local).copied() {
@@ -912,7 +927,15 @@ impl<'a, 'c> Builder<'a, 'c> {
         Ok(())
     }
     fn stmt_inner(&mut self, s: &CoreStatement) -> R<()> {
+        if self.defer_body && matches!(s.kind, CoreStatementKind::Return(_)) {
+            return Err(error(
+                "E-DEFER-CONTROL",
+                s.span,
+                "return cannot leave a defer cleanup body",
+            ));
+        }
         match &s.kind {
+            CoreStatementKind::Defer(body) => self.register_defer(body, s.span)?,
             CoreStatementKind::Binding {
                 name,
                 mutable,
@@ -1372,7 +1395,16 @@ impl<'a, 'c> Builder<'a, 'c> {
                 )?;
                 (result, target.clone())
             }
-            CoreExprKind::Try(operand) => self.try_expr(operand, e.span)?,
+            CoreExprKind::Try(operand) => {
+                if self.defer_body {
+                    return Err(error(
+                        "E-DEFER-CONTROL",
+                        e.span,
+                        "a defer body cannot propagate an error outside its cleanup boundary",
+                    ));
+                }
+                self.try_expr(operand, e.span)?
+            }
             CoreExprKind::Integer(text) => {
                 self.constant(integer(text, expected, false, e.span)?, e.span)?
             }
@@ -1743,6 +1775,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 body,
             } => {
                 let input = closures::Input {
+                    defer_action: false,
                     move_capture: *move_capture,
                     parameters,
                     result: return_type.as_ref(),
@@ -2308,6 +2341,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         builder.imports = self.imports;
         builder.enums = self.enums;
         builder.function.environment = Some(id);
+        builder.defer_body = builder.closures.pending[id.0 as usize].defer_action;
         let lends = lending::supported_result(&function.return_type);
         for (index, capture) in captures.iter().enumerate() {
             let stored = capture.stored_type();

@@ -129,7 +129,9 @@ impl Walker {
                     self.expr(condition, depth + 1)?;
                     self.block(body, depth + 1)?;
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => {
                     self.block(body, depth + 1)?;
                 }
                 CoreStatementKind::Return(None)

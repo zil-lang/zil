@@ -67,6 +67,7 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
 fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
     match instruction {
         InstructionKind::Load(local)
+        | InstructionKind::RegisterDefer { local, .. }
         | InstructionKind::Store { local, .. }
         | InstructionKind::DescribeLocal { local }
         | InstructionKind::ReadPackageField { local, .. }
@@ -95,12 +96,14 @@ fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
 }
 
 pub(super) fn check_function(
+    module: &TypedModule,
     function: &TypedFunction,
     graph: &FunctionGraph,
     budget: &mut Budget,
 ) -> Check<()> {
     let bad = |span, message| reject("E-VERIFY-CLEANUP", Some(span), message);
     let mut required = false;
+    let mut deferred = false;
     for ty in std::iter::once(&function.return_type)
         .chain(function.locals.iter().map(|local| &local.ty))
         .chain(&function.values)
@@ -112,6 +115,7 @@ pub(super) fn check_function(
     for (index, block) in function.blocks.iter().enumerate() {
         for instruction in &block.instructions {
             budget.spend(1)?;
+            deferred |= matches!(instruction.kind, InstructionKind::RegisterDefer { .. });
             match instruction.kind {
                 InstructionKind::ScopeEnter { scope } => {
                     required = true;
@@ -124,6 +128,7 @@ pub(super) fn check_function(
                     }
                 }
                 InstructionKind::ScopeExit { .. }
+                | InstructionKind::RegisterDefer { .. }
                 | InstructionKind::BindPackageCapture { .. }
                 | InstructionKind::EndPackageCapture { .. }
                 | InstructionKind::MakePackage { .. }
@@ -154,6 +159,7 @@ pub(super) fn check_function(
                 && matches!(
                     instruction.kind,
                     InstructionKind::ScopeEnter { .. }
+                        | InstructionKind::RegisterDefer { .. }
                         | InstructionKind::ScopeExit { .. }
                         | InstructionKind::BindPackageCapture { .. }
                         | InstructionKind::EndPackageCapture { .. }
@@ -347,6 +353,9 @@ pub(super) fn check_function(
                 pending.push(successor);
             }
         }
+    }
+    if deferred {
+        defers::check(module, function, graph, budget)?;
     }
     Ok(())
 }

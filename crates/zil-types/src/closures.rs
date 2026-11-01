@@ -65,12 +65,13 @@ pub(super) struct Pending {
     // Private source classification. It only restricts this resolved result;
     // Analyze and Verify independently inspect actual captures and values.
     pub owns_leaf_store: bool,
+    pub defer_action: bool,
     pub inference: Inference,
     pub typed: Option<TypedFunction>,
 }
 impl Pending {
     pub fn callable_kind(&self) -> CallableKind {
-        if self.captures.iter().any(|capture| capture.consumed) {
+        if self.defer_action || self.captures.iter().any(|capture| capture.consumed) {
             CallableKind::FnOnce
         } else if self.captures.iter().any(Capture::mutable_call) {
             CallableKind::FnMut
@@ -89,6 +90,7 @@ impl Pending {
 }
 
 pub(super) struct Input<'a> {
+    pub defer_action: bool,
     pub move_capture: bool,
     pub parameters: &'a [CoreClosureParameter],
     pub result: Option<&'a Type>,
@@ -366,6 +368,7 @@ impl State {
             span: input.span,
             captures: checker.captures,
             owns_leaf_store,
+            defer_action: input.defer_action,
             inference,
             typed: None,
         });
@@ -1927,9 +1930,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         self.scopes.pop();
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                    self.block(body, depth + 1)?
-                }
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => self.block(body, depth + 1)?,
                 CoreStatementKind::Break | CoreStatementKind::Continue => {}
                 CoreStatementKind::Unsupported(feature) => {
                     return Err(unsupported(statement.span, feature));

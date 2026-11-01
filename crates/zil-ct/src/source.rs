@@ -651,7 +651,9 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
                                 push(&mut stack, &mut fuel, Node::Expr(condition), next)?;
                                 push(&mut stack, &mut fuel, Node::Block(body), next)?;
                             }
-                            CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => {
+                            CoreStatementKind::Block(b)
+                            | CoreStatementKind::Defer(b)
+                            | CoreStatementKind::Unsafe(b) => {
                                 push(&mut stack, &mut fuel, Node::Block(b), next)?
                             }
                             CoreStatementKind::Return(None)
@@ -862,6 +864,9 @@ impl<'a> Walker<'a> {
                 CoreStatementKind::While { condition, body } => {
                     self.unchanged_expr(condition, Some(&Type::Bool), depth + 1)?;
                     self.unchanged_block(body, result, depth + 1)?;
+                }
+                CoreStatementKind::Defer(b) => {
+                    self.unchanged_block(b, Some(&Type::Unit), depth + 1)?
                 }
                 CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => {
                     self.unchanged_block(b, result, depth + 1)?
@@ -1274,6 +1279,9 @@ impl<'a> Walker<'a> {
                 }
                 CoreStatementKind::Block(b) => {
                     CoreStatementKind::Block(self.block(b, result, depth + 1)?)
+                }
+                CoreStatementKind::Defer(b) => {
+                    CoreStatementKind::Defer(self.block(b, Some(&Type::Unit), depth + 1)?)
                 }
                 CoreStatementKind::Unsafe(b) => {
                     CoreStatementKind::Unsafe(self.block(b, result, depth + 1)?)
@@ -2843,6 +2851,113 @@ mod tests {
             .unwrap_err();
             assert_eq!(errors[0].phase, Phase::Ct);
             assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
+        }
+    }
+
+    #[test]
+    fn defer227_normalization_preserves_body_and_checks_runtime_names() {
+        let target = TargetProfile::default();
+        let limits = Limits::default();
+        let mut core = module(number("42"), Type::Unit);
+        let span = core.functions[0].span;
+        core.functions[0].body.statements[0].kind = CoreStatementKind::Defer(CoreBlock {
+            span,
+            statements: vec![CoreStatement {
+                id: NodeId(3),
+                span,
+                kind: CoreStatementKind::Binding {
+                    name: "cleanup_value".into(),
+                    mutable: false,
+                    ty: None,
+                    initializer: Some(expr(CoreExprKind::CompileTime(Box::new(number("42"))))),
+                },
+            }],
+        });
+        let normalized = evaluate_source_constants(&core, &target, &limits).unwrap();
+        let CoreStatementKind::Defer(body) = &normalized.functions[0].body.statements[0].kind
+        else {
+            panic!("defer body preserved")
+        };
+        let CoreStatementKind::Binding {
+            initializer: Some(value),
+            ..
+        } = &body.statements[0].kind
+        else {
+            panic!("body binding preserved")
+        };
+        assert_eq!(value.kind, CoreExprKind::Integer("42i32".into()));
+        let CoreStatementKind::Defer(body) = &mut core.functions[0].body.statements[0].kind else {
+            unreachable!()
+        };
+        body.statements.push(CoreStatement {
+            id: NodeId(4),
+            span,
+            kind: CoreStatementKind::Expression(expr(CoreExprKind::CompileTime(Box::new(expr(
+                CoreExprKind::Name("cleanup_value".into()),
+            ))))),
+        });
+        struct Compiler;
+        impl SourceCompiler for Compiler {
+            fn compile(
+                &self,
+                _: &CoreExpr,
+                _: Option<&Type>,
+                _: &Limits,
+            ) -> CompileResult<CtProgram> {
+                unreachable!("runtime names must be rejected before compiler invocation")
+            }
+        }
+        assert_eq!(
+            evaluate_source_constants_with_compiler(&core, &target, &limits, None, &Compiler)
+                .unwrap_err()[0]
+                .code,
+            "E-CT-RUNTIME"
+        );
+    }
+
+    #[test]
+    fn defer227_unchanged_body_has_the_same_bounded_visit_as_rebuilding() {
+        let target = TargetProfile::default();
+        let mut core = module(number("42"), Type::Unit);
+        let span = core.functions[0].span;
+        core.functions[0].body.statements[0].kind = CoreStatementKind::Defer(CoreBlock {
+            span,
+            statements: vec![CoreStatement {
+                id: NodeId(3),
+                span,
+                kind: CoreStatementKind::Expression(expr(CoreExprKind::Name(
+                    "ordinary_name".into(),
+                ))),
+            }],
+        });
+        let limits = Limits::default();
+        let (rebuilt, usage) =
+            evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();
+        assert_eq!(rebuilt, core);
+        assert_eq!(
+            validate_unchanged_source(&core, &target, &limits, None)
+                .unwrap()
+                .unwrap(),
+            usage
+        );
+        for limits in [
+            Limits {
+                max_nodes: usage.nodes - 1,
+                ..limits.clone()
+            },
+            Limits {
+                max_call_depth: 1,
+                ..limits.clone()
+            },
+            Limits {
+                max_analysis_steps: 4,
+                ..limits.clone()
+            },
+        ] {
+            assert_eq!(
+                evaluate_source_constants(&core, &target, &limits).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
         }
     }
 }

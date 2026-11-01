@@ -8,7 +8,9 @@ use zil_ir::{CallableKind, LirModule, LirView, ScalarLayout, Type};
 use zil_verify::VerifiedModule;
 
 /// Retain the independently checked CFG and concrete closure definitions, and
-/// attach the supported target layout. No source AST, candidate plan, or raw
+/// attach the supported target layout. RegisterDefer stays in the retained CFG
+/// as a checked fact; its adjacent TakeLocal/CallClosureOnce carries the action.
+/// No source AST, candidate plan, or raw
 /// typed module is an entry point.
 ///
 /// ```compile_fail

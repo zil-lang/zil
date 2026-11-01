@@ -471,6 +471,7 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         | InstructionKind::VariantTag { value }
         | InstructionKind::ReadVariant { value, .. } => (Some(*value), None, &[]),
         InstructionKind::ByteBufferNew
+        | InstructionKind::RegisterDefer { .. }
         | InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::Constant(_)
         | InstructionKind::Load(_)
