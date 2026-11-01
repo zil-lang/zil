@@ -1,0 +1,6 @@
+. /workspace/.zil-env/env.sh
+export CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0
+CARGO_TARGET_DIR=/workspace/.zil-env/target-240-q-budget cargo run --manifest-path /tmp/impl240-expand-budget/q/Cargo.toml --offline -- /tmp/impl240-expand-budget/receipts/q
+CARGO_TARGET_DIR=/workspace/.zil-env/target-240 cargo run --manifest-path /tmp/impl240-expand-budget/current/Cargo.toml --offline -- /tmp/impl240-expand-budget/receipts/current
+git -C /workspace/zil-238-regression diff --exit-code e92508be996a190fa188d08319d37cc8b522bae6 541f21bbe8cff775cb7341aae3652759a0a65c8d -- Cargo.toml Cargo.lock crates/zil-base crates/zil-ir crates/zil-syntax crates/zil-expand
+git -C /workspace/zil-238-regression status --porcelain
