@@ -1,0 +1,112 @@
+fn sink locals [(LocalId(0), "owner")]
+BlockId(0):
+None = ScopeEnter { scope: ScopeId(0) }
+None = ScopeEnter { scope: ScopeId(1) }
+None = ScopeExit { scope: ScopeId(1), kind: Fallthrough }
+None = DropManaged { local: LocalId(0) }
+None = StorageDead(LocalId(0))
+None = ScopeExit { scope: ScopeId(0), kind: Return }
+Return(None)
+
+fn make locals [(LocalId(0), "$record_field_0"), (LocalId(1), "$temporary1"), (LocalId(2), "$record_field_1"), (LocalId(3), "$temporary3")]
+BlockId(0):
+None = ScopeEnter { scope: ScopeId(0) }
+None = ScopeEnter { scope: ScopeId(1) }
+None = StorageLive(LocalId(3))
+None = StorageLive(LocalId(1))
+None = ScopeEnter { scope: ScopeId(2) }
+Some(ValueId(0)) = Constant(I32(65))
+None = StorageLive(LocalId(0))
+None = Store { local: LocalId(0), value: ValueId(0) }
+Some(ValueId(1)) = Load(LocalId(0))
+Some(ValueId(2)) = MakeManaged { fields: [ValueId(1)] }
+None = StorageDead(LocalId(0))
+None = ScopeExit { scope: ScopeId(2), kind: Fallthrough }
+None = Store { local: LocalId(1), value: ValueId(2) }
+None = ScopeEnter { scope: ScopeId(3) }
+Some(ValueId(3)) = Constant(I32(66))
+None = StorageLive(LocalId(2))
+None = Store { local: LocalId(2), value: ValueId(3) }
+Some(ValueId(4)) = Load(LocalId(2))
+Some(ValueId(5)) = MakeManaged { fields: [ValueId(4)] }
+None = StorageDead(LocalId(2))
+None = ScopeExit { scope: ScopeId(3), kind: Fallthrough }
+None = Store { local: LocalId(3), value: ValueId(5) }
+Some(ValueId(6)) = TakeLocal { local: LocalId(1) }
+Some(ValueId(7)) = TakeLocal { local: LocalId(3) }
+Some(ValueId(8)) = MakeVariant { variant: 1, fields: [ValueId(6), ValueId(7)] }
+None = DropManaged { local: LocalId(3) }
+None = StorageDead(LocalId(3))
+None = DropManaged { local: LocalId(1) }
+None = StorageDead(LocalId(1))
+None = ScopeExit { scope: ScopeId(1), kind: Return }
+None = ScopeExit { scope: ScopeId(0), kind: Return }
+Return(Some(ValueId(8)))
+
+fn fallible locals [(LocalId(0), "$record_field_2"), (LocalId(1), "$record_field_3"), (LocalId(2), "$temporary2")]
+BlockId(0):
+None = ScopeEnter { scope: ScopeId(0) }
+None = ScopeEnter { scope: ScopeId(1) }
+None = ScopeEnter { scope: ScopeId(2) }
+None = StorageLive(LocalId(2))
+Some(ValueId(0)) = Call { function: FunctionId(1), arguments: [] }
+None = StorageLive(LocalId(0))
+None = Store { local: LocalId(0), value: ValueId(0) }
+Some(ValueId(1)) = Constant(Bool(true))
+None = StorageLive(LocalId(1))
+None = Store { local: LocalId(1), value: ValueId(1) }
+Some(ValueId(2)) = TakeLocal { local: LocalId(0) }
+None = Store { local: LocalId(2), value: ValueId(2) }
+Some(ValueId(3)) = Load(LocalId(1))
+Some(ValueId(4)) = TakeLocal { local: LocalId(2) }
+Some(ValueId(5)) = MakePackage { fields: [ValueId(4), ValueId(3)] }
+Some(ValueId(6)) = MakeErrorUnion { is_error: false, value: ValueId(5) }
+None = DropEnum { local: LocalId(2) }
+None = StorageDead(LocalId(2))
+None = StorageDead(LocalId(1))
+None = DropEnum { local: LocalId(0) }
+None = StorageDead(LocalId(0))
+None = ScopeExit { scope: ScopeId(2), kind: Fallthrough }
+None = ScopeExit { scope: ScopeId(1), kind: Return }
+None = ScopeExit { scope: ScopeId(0), kind: Return }
+Return(Some(ValueId(6)))
+
+fn main locals [(LocalId(0), "$temporary0")]
+BlockId(0):
+None = ScopeEnter { scope: ScopeId(0) }
+None = ScopeEnter { scope: ScopeId(1) }
+None = StorageLive(LocalId(0))
+Some(ValueId(0)) = MakeClosure { closure: ClosureId(0), captures: [] }
+Some(ValueId(1)) = Call { function: FunctionId(2), arguments: [] }
+None = Store { local: LocalId(0), value: ValueId(1) }
+Some(ValueId(2)) = TakeLocal { local: LocalId(0) }
+Some(ValueId(3)) = Call { function: FunctionId(5), arguments: [ValueId(0), ValueId(2)] }
+Some(ValueId(4)) = Constant(I32(7))
+Some(ValueId(5)) = Binary { op: Subtract, left: ValueId(3), right: ValueId(4) }
+None = DropErrorUnion { local: LocalId(0) }
+None = StorageDead(LocalId(0))
+None = ScopeExit { scope: ScopeId(1), kind: Return }
+None = ScopeExit { scope: ScopeId(0), kind: Return }
+Return(Some(ValueId(5)))
+
+fn $closure0 locals []
+BlockId(0):
+None = ScopeEnter { scope: ScopeId(0) }
+None = ScopeEnter { scope: ScopeId(1) }
+Some(ValueId(0)) = Constant(I32(7))
+None = ScopeExit { scope: ScopeId(1), kind: Return }
+None = ScopeExit { scope: ScopeId(0), kind: Return }
+Return(Some(ValueId(0)))
+
+fn @module0:helper26:env0 locals [(LocalId(0), "callback"), (LocalId(1), "value")]
+BlockId(0):
+None = ScopeEnter { scope: ScopeId(0) }
+None = ScopeEnter { scope: ScopeId(1) }
+Some(ValueId(0)) = Load(LocalId(0))
+Some(ValueId(1)) = CallClosure { callee: ValueId(0), arguments: [] }
+None = ScopeExit { scope: ScopeId(1), kind: Return }
+None = DropErrorUnion { local: LocalId(1) }
+None = StorageDead(LocalId(1))
+None = StorageDead(LocalId(0))
+None = ScopeExit { scope: ScopeId(0), kind: Return }
+Return(Some(ValueId(1)))

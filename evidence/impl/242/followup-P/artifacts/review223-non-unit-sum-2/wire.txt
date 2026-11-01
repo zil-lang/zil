@@ -1,0 +1,20 @@
+Err(
+    [
+        Diagnostic {
+            phase: Verify,
+            category: Unsupported,
+            code: "E-UNSUPPORTED",
+            message: "ordinary error-union payload slot types require finite Copy, Product or Enum values",
+            span: Some(
+                Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 89,
+                    end: 131,
+                },
+            ),
+            notes: [],
+        },
+    ],
+)

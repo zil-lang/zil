@@ -1,0 +1,88 @@
+{
+  "task": "242",
+  "scope": "Author repair of Verify; not independent review",
+  "status": "AuthorLimitedChecksPassed_PendingRootQAndNonAuthorReview",
+  "original_common_P": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "red_base": "ae958298a781ac758b09fa95565c9d07fd1a14a1",
+  "red_binding": "Verify production blobs in ae958 are identical to P; four new correct-expectation tests overlay was applied before red.",
+  "repair_commit": "41349ed2306e159695ded1b409100039d2d16048",
+  "diagnostic_and_source_followup": "18e5fdd861fa12db39c7b7dbf9c5283c89344fcd",
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "environment": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-242; CARGO_BUILD_JOBS=1; CARGO_INCREMENTAL=0",
+  "repairs": [
+    "Independently qualified ordinary Enum/ErrorUnion data can occupy existing non-State finite helper data positions; callback contracts remain unchanged.",
+    "Owning State early-continue excludes Sum data companions, including Product<Sum> and legacy owning union data.",
+    "Every ErrorUnion node requires Copy error for direct Managed success; otherwise immediate non-Copy slots must be Product or Enum. Deep unused slots are checked.",
+    "Direct owning Enum capture stays outside the finite closure profile even when unread."
+  ],
+  "runs": [
+    {
+      "log": "242-followup-P-before.log",
+      "command": "cargo test -p zil-verify --lib sum -- --nocapture",
+      "pass": 32,
+      "fail": 4,
+      "filtered": 259,
+      "note": "Original wrong accepts and ordinary helper false rejection retained."
+    },
+    {
+      "log": "242-followup-after01.log",
+      "command": "cargo test -p zil-verify --lib sum -- --nocapture",
+      "pass": 36,
+      "fail": 0,
+      "filtered": 259
+    },
+    {
+      "log": "242-followup-lib01.log",
+      "command": "cargo test -p zil-verify --lib",
+      "pass": 295,
+      "fail": 0,
+      "filtered": 0,
+      "note": "Includes four new tests; do not add filtered totals."
+    },
+    {
+      "log": "242-followup-clippy01.log",
+      "command": "cargo clippy -p zil-verify --all-targets -- -D warnings",
+      "pass": true
+    },
+    {
+      "log": "242-followup-183-223-before.log",
+      "command": "cargo test -p zil-driver --test impl183_raw_owned_success --test review223_boundaries -- --nocapture",
+      "pass": 4,
+      "fail": 1,
+      "note": "Only 183 ran. Correct Unsupported rejection failed legacy message assertion requiring type; cargo stopped before 223."
+    },
+    {
+      "log": "242-followup-183-223-source-after01.log",
+      "command": "cargo test -p zil-driver --test impl183_raw_owned_success --test review223_boundaries --test impl242_source_verify -- --nocapture",
+      "results": {
+        "impl183_raw_owned_success": "5/0",
+        "impl242_source_verify": "4/1 new source test parse error",
+        "review223_boundaries": "not run"
+      },
+      "note": "Own new source test omitted a logical newline between match arms; not a compiler finding."
+    },
+    {
+      "log": "242-followup-223-source-after02.log",
+      "command": "cargo test -p zil-driver --test review223_boundaries --test impl242_source_verify -- --nocapture",
+      "results": {
+        "impl242_source_verify": "5/0",
+        "review223_boundaries": "2/0"
+      },
+      "note": "New helper test contains three real sources each raw and Wire verified without Analyze; Enum forwards manages owner through let saved=give a. 223 has three legal union controls and directly nested owning union rejection."
+    },
+    {
+      "log": "242-followup-lib02.log",
+      "command": "cargo test -p zil-verify --lib",
+      "pass": 295,
+      "fail": 0,
+      "filtered": 0
+    },
+    {
+      "log": "242-followup-clippy02.log",
+      "command": "cargo clippy -p zil-verify --all-targets -- -D warnings",
+      "pass": true
+    }
+  ],
+  "limitations": "No formal workspace run, new native execution, independent Verify audit or final common-Q pass claimed. Old ecd/da386 receipts and original P failures stay unchanged."
+}
