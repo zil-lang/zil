@@ -1,0 +1,108 @@
+{
+  "reviewer": "/root",
+  "scope": "Independent source/oracle audit only; implementation/native acceptance remains pending",
+  "verdict": "PassWithinScope",
+  "implementation_commit": "ec3580d863ccad0805209f2fffdfcc9d820a436d",
+  "source_files": {
+    "tests/impl244/project/main.zil": "fc7b6e8faa8c52798c06986bfff7973589e3a591b22daa9491986f8cd9f9b12f",
+    "tests/impl244/project/model.zil": "314afdcd4066b37a24c10043eda04449f031a2668f1cd12a6395cdf5ef23bd4b",
+    "tests/impl244/project/portable.zil": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+    "tests/impl244/project/state.zil": "895d1fa3126aee1bd56daa993efb192707a4415b5df3be99fa8b8ce458b4feec",
+    "tests/impl244/project/storage.zil": "6dfcadb8bc885fbefb87179db748ddb4645036abfda677e27dd3a8b4a72c37e3",
+    "tools/research/244/oracle.py": "48e59232595324f9a2b4fc550122d312cdf7bc41adfec5ad0aea76222f0dd5fe",
+    "tests/impl244/ORACLE.json": "e357f2d4f553f87d6b5ba0d3570fcc133d2582895c8708aecd6752fdbcc0b254"
+  },
+  "normal_cases_independently_checked": 32,
+  "normal_derivation": "Closed-form per-mode output and request count from five source modules, without importing oracle.py or reading compiler output. k=(count+1) for nonzero count, otherwise0; requests per mode [0,2k,k,3k,2k,0,2k,4k].",
+  "allocation_failure_cases_independently_checked": 13,
+  "failure_examples": [
+    {
+      "input": "27",
+      "fail_at": 1,
+      "stdout": "SE",
+      "allocated_freed_peak": 0
+    },
+    {
+      "input": "27",
+      "fail_at": 2,
+      "stdout": "SaE",
+      "allocated_freed_peak": 1
+    },
+    {
+      "input": "27",
+      "fail_at": 3,
+      "stdout": "SbaE",
+      "allocated_freed_peak": 2
+    },
+    {
+      "input": "27",
+      "fail_at": 4,
+      "stdout": "SabE",
+      "allocated_freed_peak": 3
+    },
+    {
+      "input": "27",
+      "fail_at": 5,
+      "stdout": "SAabE",
+      "allocated_freed_peak": 4
+    },
+    {
+      "input": "27",
+      "fail_at": 7,
+      "stdout": "SLQabABE",
+      "allocated_freed_peak": 6
+    },
+    {
+      "input": "27",
+      "fail_at": 8,
+      "stdout": "SmLQabABE",
+      "allocated_freed_peak": 7
+    },
+    {
+      "input": "27",
+      "fail_at": 10,
+      "stdout": "SmnLQabABE",
+      "allocated_freed_peak": 9
+    },
+    {
+      "input": "27",
+      "fail_at": 11,
+      "stdout": "SMmnLQabABE",
+      "allocated_freed_peak": 10
+    },
+    {
+      "input": "27",
+      "fail_at": 12,
+      "stdout": "SNmnLQabABME",
+      "allocated_freed_peak": 11
+    },
+    {
+      "input": "22",
+      "fail_at": 1,
+      "stdout": "SLQE",
+      "allocated_freed_peak": 0
+    },
+    {
+      "input": "22",
+      "fail_at": 2,
+      "stdout": "SaLQE",
+      "allocated_freed_peak": 1
+    },
+    {
+      "input": "22",
+      "fail_at": 3,
+      "stdout": "SbLQaE",
+      "allocated_freed_peak": 2
+    }
+  ],
+  "invalid_cases_checked": 5,
+  "compiler_builds": 0,
+  "native_executions": 0,
+  "limitations": "This checks frozen source expectations; it is not proof that the compiler implements them. Other allocation-failure points remain covered by the original model and must match actual machine probes.",
+  "syntax_followup": {
+    "status": "Fail in both Q and new integration",
+    "diagnostic": "E-PARSE-PATTERN: qualified patterns require a constructor argument list",
+    "same_diagnostics_count": 9,
+    "action": "Author corrects only new244 fixture syntax with unchanged oracle; original frozen source and both failures retained. No original Q probe is changed."
+  }
+}
