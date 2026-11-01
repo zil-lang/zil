@@ -1,0 +1,249 @@
+[
+  {
+    "name": "base",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-base"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "base-soft",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-base"
+    ],
+    "environment_overrides": {
+      "RUSTFLAGS": "--cfg sha2_backend=\"soft\"",
+      "CARGO_TARGET_DIR": "/workspace/.zil-env/research/stage13/target-soft"
+    },
+    "exit": 0
+  },
+  {
+    "name": "preflight",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-llvm-api",
+      "--features",
+      "native",
+      "--lib",
+      "preflight::"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "chain",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-backend-llvm",
+      "--features",
+      "llvm-api",
+      "--lib",
+      "machine_checked_add_chain::tests"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "object-cache",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-backend-llvm",
+      "--features",
+      "llvm-api",
+      "--lib",
+      "object_cache::tests"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "object-patch",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-backend-llvm",
+      "--features",
+      "llvm-api",
+      "--lib",
+      "machine_object_patch::tests"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "native-branches",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--test",
+      "scalar_local_promotion",
+      "branches_loops_addresses_and_captures_retain_required_storage",
+      "--",
+      "--exact"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "native-effects",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--test",
+      "verified_scalar_summaries",
+      "effects_opaque_input_recursion_and_exhausted_work_keep_runtime_paths",
+      "--",
+      "--exact"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "native-corrupt-cache",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--test",
+      "object_cache212",
+      "corrupt_and_truncated_entries_rebuild_without_changed_native_bytes",
+      "--",
+      "--exact"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "semantic-native",
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--test",
+      "semantic_cache",
+      "fresh_sessions_reuse_raw_frontend_and_keep_actual_observer_events_and_native_value",
+      "--",
+      "--exact"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "clippy",
+    "command": [
+      "cargo",
+      "clippy",
+      "--offline",
+      "--locked",
+      "-p",
+      "zil-base",
+      "-p",
+      "zil-llvm-api",
+      "-p",
+      "zil-backend-llvm",
+      "-p",
+      "zil-driver",
+      "--features",
+      "zil-driver/llvm-api",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "fmt",
+    "command": [
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "diff",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "metadata",
+    "command": [
+      "cargo",
+      "metadata",
+      "--offline",
+      "--locked",
+      "--format-version=1"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  },
+  {
+    "name": "architecture",
+    "command": [
+      "node",
+      "tools/check-architecture.mjs",
+      "--metadata",
+      "/workspace/.zil-env/research/stage13/metadata.stdout"
+    ],
+    "environment_overrides": {},
+    "exit": 0
+  }
+]

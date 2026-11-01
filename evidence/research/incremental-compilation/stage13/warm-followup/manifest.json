@@ -1,0 +1,54 @@
+{
+  "scope": "Repeated warm CLI requests after a validated edited cache history.\n\nNo new cold/O2 Rust compilation. Reuses the current edited sources/caches in the\nspecified seed window, rotates arm order, verifies current ZIL Verify/Analyze\nreuse, and runs the existing native oracle after each request. The five pairs\nshare one seeded history per arm and are not independent cold histories.\nOriginal edited ELF/LLVM artifacts are restored after sampling, so prior quality\ninputs remain exact. Each newly emitted binary hash is recorded before restore.\n",
+  "cpus": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "clang": {
+    "path": "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+    "sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67"
+  },
+  "seed": "/workspace/.zil-env/research/stage13/final-guards",
+  "seed_manifest_sha256": "3bcf2f298306664e3dd5a83253708b6e86cfe4502c4f15619451a99e6eb9afd3",
+  "production_source": "4bbbce204bb468d83eaebb78573c98104c3de348",
+  "runner_sha256": "ff8402e7d8095b7004ce0161f2bc6fb02b8f3b79a45ffacf56f110c3cbcb9210",
+  "case": "opaque-2048-branch",
+  "reps": 5,
+  "arms": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/stage13/baseline/zil",
+      "sha256": "725aaa5558107d421c81518c4b97fe4734b7057d7be4f94157ac9e2f04118baf"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "sha256": "1203a4a526031a666a14b68489f8954dbe24ae257cbab65a29587aa3c2a41d70"
+    },
+    "rust": {
+      "path": "/workspace/.zil-env/cargo/bin/rustc",
+      "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4"
+    }
+  },
+  "source_hashes": {
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-rust/src/main.rs": "f33ec21457cb9e72cca4d82cb658f3fbf6171389241bc90782905da0ef1a5a25",
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-rust/src/main.zil": "9bdcf5640081da6d9661e293c2ff9d0112a0b14dff2558cb61eb4666f683afaf",
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-candidate/src/main.rs": "f33ec21457cb9e72cca4d82cb658f3fbf6171389241bc90782905da0ef1a5a25",
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-candidate/src/main.zil": "9bdcf5640081da6d9661e293c2ff9d0112a0b14dff2558cb61eb4666f683afaf",
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-baseline/src/main.rs": "f33ec21457cb9e72cca4d82cb658f3fbf6171389241bc90782905da0ef1a5a25",
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-baseline/src/main.zil": "9bdcf5640081da6d9661e293c2ff9d0112a0b14dff2558cb61eb4666f683afaf"
+  },
+  "seed_artifacts": {
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-baseline/program": "b054af688adbaf0e3da5bb4232a7b1147af903345b21e9bbc17bceb90694de1d",
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-baseline/program.ll": "a9a6de36d0d7d35c53e2d85e8ed565cb827b88b7b38497351d9ac56af5cb910f",
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-candidate/program": "b054af688adbaf0e3da5bb4232a7b1147af903345b21e9bbc17bceb90694de1d",
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-candidate/program.ll": "9d810b213e703538a3abd343d97a83c28902198f66570af988b830f6cd5ef8a1",
+    "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-rust/program": "3313dfc8c4a518d7d99f3003d727b8d9e6170a318ae404ab2bd54cbd48685dad"
+  },
+  "library": {
+    "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+    "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+  },
+  "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+}

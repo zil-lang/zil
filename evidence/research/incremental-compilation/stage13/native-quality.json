@@ -1,0 +1,2523 @@
+{
+  "bounds": {
+    "function_bytes": 1048576,
+    "function_instructions": 100000,
+    "thunk_depth": 64
+  },
+  "completed_pairs": 7,
+  "expected_pairs": 7,
+  "found_pairs": [
+    "final-target-large-even-8x1024-0-default",
+    "final-target-large-even-8x1024-1-default",
+    "final-target-large-even-8x1024-2-default",
+    "final-guards-large-8192-0-default",
+    "final-guards-large-skew-8-0-default",
+    "final-guards-opaque-2048-branch-0-default",
+    "final-closed-guard-large-even-8x1024-0-closed"
+  ],
+  "operational_errors": [],
+  "pairs": [
+    {
+      "added_functions": [],
+      "added_global_canonical_symbols": [],
+      "baseline": {
+        "canonical_functions": 8203,
+        "canonical_symbol_bytes": 41330,
+        "distinct_effective_body_bytes": 650,
+        "elf_bytes": 376568,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-0-default-baseline.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-target/large-even-8x1024/0-default-baseline/program",
+        "private_old_count": 5,
+        "private_old_distinct_bytes": 56,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 56,
+        "private_old_symbols": [
+          {
+            "address": 12960,
+            "kind": "t",
+            "name": "__zil_patch_old_550666708b8a4779292656f63b2480f79cd83ab047476f41a5b0199710304521_ab14e987dfab682a24fa2f83a595b81bd83c54bf884a48e9ed2accc4f0c09fd0_0",
+            "size": 5
+          },
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_0",
+            "size": 6
+          },
+          {
+            "address": 12768,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_1",
+            "size": 5
+          },
+          {
+            "address": 4408,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_2",
+            "size": 6
+          },
+          {
+            "address": 4592,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_3",
+            "size": 34
+          }
+        ],
+        "sha256": "7f6f95166f05648243ef8283de3fd98727b3f7c55cc68e30d0333f3d5430764b",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-0-default-baseline.symbols.json",
+        "text_bytes": 66485,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66485
+          }
+        ],
+        "global_canonical_count": 8203,
+        "global_canonical_sha256": "a9649ab203e3fc3207be325ae4f86da2de13511a78242bf5b6b313a6a0370ab8"
+      },
+      "byte_identical": false,
+      "candidate": {
+        "canonical_functions": 8203,
+        "canonical_symbol_bytes": 41330,
+        "distinct_effective_body_bytes": 650,
+        "elf_bytes": 376568,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-0-default-candidate.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-target/large-even-8x1024/0-default-candidate/program",
+        "private_old_count": 5,
+        "private_old_distinct_bytes": 56,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 56,
+        "private_old_symbols": [
+          {
+            "address": 12960,
+            "kind": "t",
+            "name": "__zil_patch_old_a15175282ddd353215c488ee380d4290357ceff5fe96a637277a0de72b4f8afd_6a7d8d8953a931daea5cdecf1f7e0b9cc144e168c97b6350d289f44314a1613b_0",
+            "size": 5
+          },
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_0",
+            "size": 6
+          },
+          {
+            "address": 12768,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_1",
+            "size": 5
+          },
+          {
+            "address": 4408,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_2",
+            "size": 6
+          },
+          {
+            "address": 4592,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_3",
+            "size": 34
+          }
+        ],
+        "sha256": "fce39d87a5de353222e911ce34b11122a315470d258ff60fec00a4d2231799f0",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-0-default-candidate.symbols.json",
+        "text_bytes": 66485,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66485
+          }
+        ],
+        "global_canonical_count": 8203,
+        "global_canonical_sha256": "a9649ab203e3fc3207be325ae4f86da2de13511a78242bf5b6b313a6a0370ab8"
+      },
+      "canonical_kind_differences": [],
+      "common_functions": 8203,
+      "effective_instruction_differences": [],
+      "effective_instruction_equal_count": 8201,
+      "effective_size_differences": [],
+      "effective_uncompared": [
+        {
+          "baseline": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12800,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "candidate": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12800,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "name": "main"
+        },
+        {
+          "baseline": {
+            "chain": [
+              "zil.fn.2",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12840,
+              "kind": "T",
+              "name": "zil.fn.2",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "candidate": {
+            "chain": [
+              "zil.fn.2",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12840,
+              "kind": "T",
+              "name": "zil.fn.2",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "name": "zil.fn.2"
+        }
+      ],
+      "label": "final-target-large-even-8x1024-0-default",
+      "missing_functions": [],
+      "missing_global_canonical_symbols": [],
+      "raw_instruction_differences": [],
+      "raw_size_differences": [],
+      "size_deltas": {
+        "canonical_symbol_bytes": 0,
+        "distinct_effective_body_bytes": 0,
+        "elf_bytes": 0,
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_symbol_bytes": 0,
+        "text_bytes": 0
+      }
+    },
+    {
+      "added_functions": [],
+      "added_global_canonical_symbols": [],
+      "baseline": {
+        "canonical_functions": 8203,
+        "canonical_symbol_bytes": 41330,
+        "distinct_effective_body_bytes": 650,
+        "elf_bytes": 376568,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-1-default-baseline.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-target/large-even-8x1024/1-default-baseline/program",
+        "private_old_count": 5,
+        "private_old_distinct_bytes": 56,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 56,
+        "private_old_symbols": [
+          {
+            "address": 12960,
+            "kind": "t",
+            "name": "__zil_patch_old_550666708b8a4779292656f63b2480f79cd83ab047476f41a5b0199710304521_ab14e987dfab682a24fa2f83a595b81bd83c54bf884a48e9ed2accc4f0c09fd0_0",
+            "size": 5
+          },
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_0",
+            "size": 6
+          },
+          {
+            "address": 12768,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_1",
+            "size": 5
+          },
+          {
+            "address": 4408,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_2",
+            "size": 6
+          },
+          {
+            "address": 4592,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_3",
+            "size": 34
+          }
+        ],
+        "sha256": "7f6f95166f05648243ef8283de3fd98727b3f7c55cc68e30d0333f3d5430764b",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-1-default-baseline.symbols.json",
+        "text_bytes": 66485,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66485
+          }
+        ],
+        "global_canonical_count": 8203,
+        "global_canonical_sha256": "a9649ab203e3fc3207be325ae4f86da2de13511a78242bf5b6b313a6a0370ab8"
+      },
+      "byte_identical": false,
+      "candidate": {
+        "canonical_functions": 8203,
+        "canonical_symbol_bytes": 41330,
+        "distinct_effective_body_bytes": 650,
+        "elf_bytes": 376568,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-1-default-candidate.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-target/large-even-8x1024/1-default-candidate/program",
+        "private_old_count": 5,
+        "private_old_distinct_bytes": 56,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 56,
+        "private_old_symbols": [
+          {
+            "address": 12960,
+            "kind": "t",
+            "name": "__zil_patch_old_a15175282ddd353215c488ee380d4290357ceff5fe96a637277a0de72b4f8afd_6a7d8d8953a931daea5cdecf1f7e0b9cc144e168c97b6350d289f44314a1613b_0",
+            "size": 5
+          },
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_0",
+            "size": 6
+          },
+          {
+            "address": 12768,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_1",
+            "size": 5
+          },
+          {
+            "address": 4408,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_2",
+            "size": 6
+          },
+          {
+            "address": 4592,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_3",
+            "size": 34
+          }
+        ],
+        "sha256": "fce39d87a5de353222e911ce34b11122a315470d258ff60fec00a4d2231799f0",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-1-default-candidate.symbols.json",
+        "text_bytes": 66485,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66485
+          }
+        ],
+        "global_canonical_count": 8203,
+        "global_canonical_sha256": "a9649ab203e3fc3207be325ae4f86da2de13511a78242bf5b6b313a6a0370ab8"
+      },
+      "canonical_kind_differences": [],
+      "common_functions": 8203,
+      "effective_instruction_differences": [],
+      "effective_instruction_equal_count": 8201,
+      "effective_size_differences": [],
+      "effective_uncompared": [
+        {
+          "baseline": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12800,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "candidate": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12800,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "name": "main"
+        },
+        {
+          "baseline": {
+            "chain": [
+              "zil.fn.2",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12840,
+              "kind": "T",
+              "name": "zil.fn.2",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "candidate": {
+            "chain": [
+              "zil.fn.2",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12840,
+              "kind": "T",
+              "name": "zil.fn.2",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "name": "zil.fn.2"
+        }
+      ],
+      "label": "final-target-large-even-8x1024-1-default",
+      "missing_functions": [],
+      "missing_global_canonical_symbols": [],
+      "raw_instruction_differences": [],
+      "raw_size_differences": [],
+      "size_deltas": {
+        "canonical_symbol_bytes": 0,
+        "distinct_effective_body_bytes": 0,
+        "elf_bytes": 0,
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_symbol_bytes": 0,
+        "text_bytes": 0
+      }
+    },
+    {
+      "added_functions": [],
+      "added_global_canonical_symbols": [],
+      "baseline": {
+        "canonical_functions": 8203,
+        "canonical_symbol_bytes": 41330,
+        "distinct_effective_body_bytes": 650,
+        "elf_bytes": 376568,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-2-default-baseline.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-target/large-even-8x1024/2-default-baseline/program",
+        "private_old_count": 5,
+        "private_old_distinct_bytes": 56,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 56,
+        "private_old_symbols": [
+          {
+            "address": 12960,
+            "kind": "t",
+            "name": "__zil_patch_old_550666708b8a4779292656f63b2480f79cd83ab047476f41a5b0199710304521_ab14e987dfab682a24fa2f83a595b81bd83c54bf884a48e9ed2accc4f0c09fd0_0",
+            "size": 5
+          },
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_0",
+            "size": 6
+          },
+          {
+            "address": 12768,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_1",
+            "size": 5
+          },
+          {
+            "address": 4408,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_2",
+            "size": 6
+          },
+          {
+            "address": 4592,
+            "kind": "t",
+            "name": "__zil_patch_old_920db697bd45733700b7edbdba97bac295ae9e4d5cf13ec1210c05f070caf3bd_237123c5e4d38ecfaaa10b509755454271593e8f9ab7ad7fb96f0fd31c48736b_3",
+            "size": 34
+          }
+        ],
+        "sha256": "7f6f95166f05648243ef8283de3fd98727b3f7c55cc68e30d0333f3d5430764b",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-2-default-baseline.symbols.json",
+        "text_bytes": 66485,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66485
+          }
+        ],
+        "global_canonical_count": 8203,
+        "global_canonical_sha256": "a9649ab203e3fc3207be325ae4f86da2de13511a78242bf5b6b313a6a0370ab8"
+      },
+      "byte_identical": false,
+      "candidate": {
+        "canonical_functions": 8203,
+        "canonical_symbol_bytes": 41330,
+        "distinct_effective_body_bytes": 650,
+        "elf_bytes": 376568,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-2-default-candidate.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-target/large-even-8x1024/2-default-candidate/program",
+        "private_old_count": 5,
+        "private_old_distinct_bytes": 56,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 56,
+        "private_old_symbols": [
+          {
+            "address": 12960,
+            "kind": "t",
+            "name": "__zil_patch_old_a15175282ddd353215c488ee380d4290357ceff5fe96a637277a0de72b4f8afd_6a7d8d8953a931daea5cdecf1f7e0b9cc144e168c97b6350d289f44314a1613b_0",
+            "size": 5
+          },
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_0",
+            "size": 6
+          },
+          {
+            "address": 12768,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_1",
+            "size": 5
+          },
+          {
+            "address": 4408,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_2",
+            "size": 6
+          },
+          {
+            "address": 4592,
+            "kind": "t",
+            "name": "__zil_patch_old_cdba0a06390fcf94e9a9702290532c39c9733a7eca2faa0bfd11fb4bb1f4518a_b3c048a80fa971c37f60cd80e65b0553e5f5c4ddc8c3c6cfd9da2f67dcce332e_3",
+            "size": 34
+          }
+        ],
+        "sha256": "fce39d87a5de353222e911ce34b11122a315470d258ff60fec00a4d2231799f0",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-target-large-even-8x1024-2-default-candidate.symbols.json",
+        "text_bytes": 66485,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66485
+          }
+        ],
+        "global_canonical_count": 8203,
+        "global_canonical_sha256": "a9649ab203e3fc3207be325ae4f86da2de13511a78242bf5b6b313a6a0370ab8"
+      },
+      "canonical_kind_differences": [],
+      "common_functions": 8203,
+      "effective_instruction_differences": [],
+      "effective_instruction_equal_count": 8201,
+      "effective_size_differences": [],
+      "effective_uncompared": [
+        {
+          "baseline": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12800,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "candidate": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12800,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "name": "main"
+        },
+        {
+          "baseline": {
+            "chain": [
+              "zil.fn.2",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12840,
+              "kind": "T",
+              "name": "zil.fn.2",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "candidate": {
+            "chain": [
+              "zil.fn.2",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12840,
+              "kind": "T",
+              "name": "zil.fn.2",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 12800
+          },
+          "name": "zil.fn.2"
+        }
+      ],
+      "label": "final-target-large-even-8x1024-2-default",
+      "missing_functions": [],
+      "missing_global_canonical_symbols": [],
+      "raw_instruction_differences": [],
+      "raw_size_differences": [],
+      "size_deltas": {
+        "canonical_symbol_bytes": 0,
+        "distinct_effective_body_bytes": 0,
+        "elf_bytes": 0,
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_symbol_bytes": 0,
+        "text_bytes": 0
+      }
+    },
+    {
+      "added_functions": [],
+      "added_global_canonical_symbols": [],
+      "baseline": {
+        "canonical_functions": 8195,
+        "canonical_symbol_bytes": 41278,
+        "distinct_effective_body_bytes": 602,
+        "elf_bytes": 376080,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-guards-large-8192-0-default-baseline.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-guards/large-8192/0-default-baseline/program",
+        "private_old_count": 4,
+        "private_old_distinct_bytes": 54,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 54,
+        "private_old_symbols": [
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_a3bab6f4afedcd59cb445b1e20c32f3d8849ba943dec1c92f85afff5781bccff_eabdd00dd01aef1387ea07dd028718efb2d447a553874f7b4631f80b6fb4bd99_0",
+            "size": 9
+          },
+          {
+            "address": 4512,
+            "kind": "t",
+            "name": "__zil_patch_old_a3bab6f4afedcd59cb445b1e20c32f3d8849ba943dec1c92f85afff5781bccff_eabdd00dd01aef1387ea07dd028718efb2d447a553874f7b4631f80b6fb4bd99_1",
+            "size": 6
+          },
+          {
+            "address": 12704,
+            "kind": "t",
+            "name": "__zil_patch_old_a3bab6f4afedcd59cb445b1e20c32f3d8849ba943dec1c92f85afff5781bccff_eabdd00dd01aef1387ea07dd028718efb2d447a553874f7b4631f80b6fb4bd99_2",
+            "size": 5
+          },
+          {
+            "address": 4528,
+            "kind": "t",
+            "name": "__zil_patch_old_a3bab6f4afedcd59cb445b1e20c32f3d8849ba943dec1c92f85afff5781bccff_eabdd00dd01aef1387ea07dd028718efb2d447a553874f7b4631f80b6fb4bd99_3",
+            "size": 34
+          }
+        ],
+        "sha256": "364e630364a3e3e8e6ffce9dc44934c7c35f1f1c433db256a7d47660facc355e",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-guards-large-8192-0-default-baseline.symbols.json",
+        "text_bytes": 66421,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66421
+          }
+        ],
+        "global_canonical_count": 8195,
+        "global_canonical_sha256": "ff634f32478714b61cc52c22dd1404c4daccc9aa25bac7d599508b7fdf2894a8"
+      },
+      "byte_identical": false,
+      "candidate": {
+        "canonical_functions": 8195,
+        "canonical_symbol_bytes": 41278,
+        "distinct_effective_body_bytes": 602,
+        "elf_bytes": 376080,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-guards-large-8192-0-default-candidate.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-guards/large-8192/0-default-candidate/program",
+        "private_old_count": 4,
+        "private_old_distinct_bytes": 54,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 54,
+        "private_old_symbols": [
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_2ea834e8937f9d946e36064b6b904256214815ab06224081858778b130004d24_53090651c4f5719f41a8af9f6603ec357a3aa505c0f69c0bf67c9490b5f4ab0e_0",
+            "size": 9
+          },
+          {
+            "address": 4512,
+            "kind": "t",
+            "name": "__zil_patch_old_2ea834e8937f9d946e36064b6b904256214815ab06224081858778b130004d24_53090651c4f5719f41a8af9f6603ec357a3aa505c0f69c0bf67c9490b5f4ab0e_1",
+            "size": 6
+          },
+          {
+            "address": 12704,
+            "kind": "t",
+            "name": "__zil_patch_old_2ea834e8937f9d946e36064b6b904256214815ab06224081858778b130004d24_53090651c4f5719f41a8af9f6603ec357a3aa505c0f69c0bf67c9490b5f4ab0e_2",
+            "size": 5
+          },
+          {
+            "address": 4528,
+            "kind": "t",
+            "name": "__zil_patch_old_2ea834e8937f9d946e36064b6b904256214815ab06224081858778b130004d24_53090651c4f5719f41a8af9f6603ec357a3aa505c0f69c0bf67c9490b5f4ab0e_3",
+            "size": 34
+          }
+        ],
+        "sha256": "7df54d3adfd3eb42ff3c42d77f1073096186ea62761b38a4ff113d864e0c5897",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-guards-large-8192-0-default-candidate.symbols.json",
+        "text_bytes": 66421,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66421
+          }
+        ],
+        "global_canonical_count": 8195,
+        "global_canonical_sha256": "ff634f32478714b61cc52c22dd1404c4daccc9aa25bac7d599508b7fdf2894a8"
+      },
+      "canonical_kind_differences": [],
+      "common_functions": 8195,
+      "effective_instruction_differences": [],
+      "effective_instruction_equal_count": 8193,
+      "effective_size_differences": [],
+      "effective_uncompared": [
+        {
+          "baseline": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "1b42fb2ab7b5faeac3150e87c49229232886885a467ec54706472ecdbbf21ecc",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xf9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "1b42fb2ab7b5faeac3150e87c49229232886885a467ec54706472ecdbbf21ecc",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xf9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12752,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 12752
+          },
+          "candidate": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "1b42fb2ab7b5faeac3150e87c49229232886885a467ec54706472ecdbbf21ecc",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xf9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "1b42fb2ab7b5faeac3150e87c49229232886885a467ec54706472ecdbbf21ecc",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xf9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12752,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 12752
+          },
+          "name": "main"
+        },
+        {
+          "baseline": {
+            "chain": [
+              "zil.fn.8194",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "1b42fb2ab7b5faeac3150e87c49229232886885a467ec54706472ecdbbf21ecc",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xf9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12792,
+              "kind": "T",
+              "name": "zil.fn.8194",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 12752
+          },
+          "candidate": {
+            "chain": [
+              "zil.fn.8194",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "1b42fb2ab7b5faeac3150e87c49229232886885a467ec54706472ecdbbf21ecc",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xf9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 12792,
+              "kind": "T",
+              "name": "zil.fn.8194",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 12752
+          },
+          "name": "zil.fn.8194"
+        }
+      ],
+      "label": "final-guards-large-8192-0-default",
+      "missing_functions": [],
+      "missing_global_canonical_symbols": [],
+      "raw_instruction_differences": [
+        "zil.fn.105",
+        "zil.fn.112",
+        "zil.fn.119",
+        "zil.fn.126",
+        "zil.fn.133",
+        "zil.fn.14",
+        "zil.fn.140",
+        "zil.fn.147",
+        "zil.fn.154",
+        "zil.fn.161",
+        "zil.fn.168",
+        "zil.fn.175",
+        "zil.fn.182",
+        "zil.fn.189",
+        "zil.fn.196",
+        "zil.fn.203",
+        "zil.fn.2051",
+        "zil.fn.2058",
+        "zil.fn.2065",
+        "zil.fn.2072",
+        "zil.fn.2079",
+        "zil.fn.2086",
+        "zil.fn.2093",
+        "zil.fn.21",
+        "zil.fn.210",
+        "zil.fn.2100",
+        "zil.fn.2107",
+        "zil.fn.2114",
+        "zil.fn.2121",
+        "zil.fn.2128",
+        "zil.fn.2135",
+        "zil.fn.2142",
+        "zil.fn.2149",
+        "zil.fn.2156",
+        "zil.fn.2163",
+        "zil.fn.217",
+        "zil.fn.2170",
+        "zil.fn.2177",
+        "zil.fn.2184",
+        "zil.fn.2191",
+        "zil.fn.2198",
+        "zil.fn.2205",
+        "zil.fn.2212",
+        "zil.fn.2219",
+        "zil.fn.2226",
+        "zil.fn.2233",
+        "zil.fn.224",
+        "zil.fn.2240",
+        "zil.fn.2247",
+        "zil.fn.2254",
+        "zil.fn.2261",
+        "zil.fn.2268",
+        "zil.fn.2275",
+        "zil.fn.2282",
+        "zil.fn.2289",
+        "zil.fn.2296",
+        "zil.fn.2303",
+        "zil.fn.231",
+        "zil.fn.238",
+        "zil.fn.245",
+        "zil.fn.252",
+        "zil.fn.28",
+        "zil.fn.35",
+        "zil.fn.4102",
+        "zil.fn.4109",
+        "zil.fn.4116",
+        "zil.fn.4123",
+        "zil.fn.4130",
+        "zil.fn.4137",
+        "zil.fn.4144",
+        "zil.fn.4151",
+        "zil.fn.4158",
+        "zil.fn.4165",
+        "zil.fn.4172",
+        "zil.fn.4179",
+        "zil.fn.4186",
+        "zil.fn.4193",
+        "zil.fn.42",
+        "zil.fn.4200",
+        "zil.fn.4207",
+        "zil.fn.4214",
+        "zil.fn.4221",
+        "zil.fn.4228",
+        "zil.fn.4235",
+        "zil.fn.4242",
+        "zil.fn.4249",
+        "zil.fn.4256",
+        "zil.fn.4263",
+        "zil.fn.4270",
+        "zil.fn.4277",
+        "zil.fn.4284",
+        "zil.fn.4291",
+        "zil.fn.4298",
+        "zil.fn.4305",
+        "zil.fn.4312",
+        "zil.fn.4319",
+        "zil.fn.4326",
+        "zil.fn.4333",
+        "zil.fn.4340",
+        "zil.fn.4347",
+        "zil.fn.49",
+        "zil.fn.56",
+        "zil.fn.6146",
+        "zil.fn.6153",
+        "zil.fn.6160",
+        "zil.fn.6167",
+        "zil.fn.6174",
+        "zil.fn.6181",
+        "zil.fn.6188",
+        "zil.fn.6195",
+        "zil.fn.6202",
+        "zil.fn.6209",
+        "zil.fn.6216",
+        "zil.fn.6223",
+        "zil.fn.6230",
+        "zil.fn.6237",
+        "zil.fn.6244",
+        "zil.fn.6251",
+        "zil.fn.6258",
+        "zil.fn.6265",
+        "zil.fn.6272",
+        "zil.fn.6279",
+        "zil.fn.6286",
+        "zil.fn.6293",
+        "zil.fn.63",
+        "zil.fn.6300",
+        "zil.fn.6307",
+        "zil.fn.6314",
+        "zil.fn.6321",
+        "zil.fn.6328",
+        "zil.fn.6335",
+        "zil.fn.6342",
+        "zil.fn.6349",
+        "zil.fn.6356",
+        "zil.fn.6363",
+        "zil.fn.6370",
+        "zil.fn.6377",
+        "zil.fn.6384",
+        "zil.fn.6391",
+        "zil.fn.6398",
+        "zil.fn.7",
+        "zil.fn.70",
+        "zil.fn.77",
+        "zil.fn.84",
+        "zil.fn.91",
+        "zil.fn.98"
+      ],
+      "raw_size_differences": [],
+      "size_deltas": {
+        "canonical_symbol_bytes": 0,
+        "distinct_effective_body_bytes": 0,
+        "elf_bytes": 0,
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_symbol_bytes": 0,
+        "text_bytes": 0
+      }
+    },
+    {
+      "added_functions": [],
+      "added_global_canonical_symbols": [],
+      "baseline": {
+        "canonical_functions": 8203,
+        "canonical_symbol_bytes": 41330,
+        "distinct_effective_body_bytes": 650,
+        "elf_bytes": 376568,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-guards-large-skew-8-0-default-baseline.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-guards/large-skew-8/0-default-baseline/program",
+        "private_old_count": 5,
+        "private_old_distinct_bytes": 56,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 56,
+        "private_old_symbols": [
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_3f744888bc54684e69b43e9a4984f665669e2cfa96c2de2eed2962e87e4c503a_cad638bdb93f3aeeed3dfb6bf5484d2c60c1802126f8c6c1fcd20652ce3fad8f_0",
+            "size": 6
+          },
+          {
+            "address": 11232,
+            "kind": "t",
+            "name": "__zil_patch_old_3f744888bc54684e69b43e9a4984f665669e2cfa96c2de2eed2962e87e4c503a_cad638bdb93f3aeeed3dfb6bf5484d2c60c1802126f8c6c1fcd20652ce3fad8f_1",
+            "size": 5
+          },
+          {
+            "address": 4528,
+            "kind": "t",
+            "name": "__zil_patch_old_3f744888bc54684e69b43e9a4984f665669e2cfa96c2de2eed2962e87e4c503a_cad638bdb93f3aeeed3dfb6bf5484d2c60c1802126f8c6c1fcd20652ce3fad8f_2",
+            "size": 6
+          },
+          {
+            "address": 4592,
+            "kind": "t",
+            "name": "__zil_patch_old_3f744888bc54684e69b43e9a4984f665669e2cfa96c2de2eed2962e87e4c503a_cad638bdb93f3aeeed3dfb6bf5484d2c60c1802126f8c6c1fcd20652ce3fad8f_3",
+            "size": 34
+          },
+          {
+            "address": 11424,
+            "kind": "t",
+            "name": "__zil_patch_old_c92f96c9a46359fc35cae42266a233f42943e047c39da8e26835fd5a3eeeef01_b886ca84dbc2a94a8a08c9606ec51e6bfced2cbf5903d2020bb4ed31e3da64ef_0",
+            "size": 5
+          }
+        ],
+        "sha256": "3b1b978f310a56d08491421807c5f2abe41776cae56e7186b2790537ff32691e",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-guards-large-skew-8-0-default-baseline.symbols.json",
+        "text_bytes": 66485,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66485
+          }
+        ],
+        "global_canonical_count": 8203,
+        "global_canonical_sha256": "a9649ab203e3fc3207be325ae4f86da2de13511a78242bf5b6b313a6a0370ab8"
+      },
+      "byte_identical": false,
+      "candidate": {
+        "canonical_functions": 8203,
+        "canonical_symbol_bytes": 41330,
+        "distinct_effective_body_bytes": 650,
+        "elf_bytes": 376568,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-guards-large-skew-8-0-default-candidate.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-guards/large-skew-8/0-default-candidate/program",
+        "private_old_count": 5,
+        "private_old_distinct_bytes": 56,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 56,
+        "private_old_symbols": [
+          {
+            "address": 4400,
+            "kind": "t",
+            "name": "__zil_patch_old_341b9af4985fa5e89c778c637650834b055afb52a74558d374cf604245c3431c_2785e78990c43bc12db6416c5f2468ab4578c67d363e811b5215ce01ea8364db_0",
+            "size": 6
+          },
+          {
+            "address": 11232,
+            "kind": "t",
+            "name": "__zil_patch_old_341b9af4985fa5e89c778c637650834b055afb52a74558d374cf604245c3431c_2785e78990c43bc12db6416c5f2468ab4578c67d363e811b5215ce01ea8364db_1",
+            "size": 5
+          },
+          {
+            "address": 4528,
+            "kind": "t",
+            "name": "__zil_patch_old_341b9af4985fa5e89c778c637650834b055afb52a74558d374cf604245c3431c_2785e78990c43bc12db6416c5f2468ab4578c67d363e811b5215ce01ea8364db_2",
+            "size": 6
+          },
+          {
+            "address": 4592,
+            "kind": "t",
+            "name": "__zil_patch_old_341b9af4985fa5e89c778c637650834b055afb52a74558d374cf604245c3431c_2785e78990c43bc12db6416c5f2468ab4578c67d363e811b5215ce01ea8364db_3",
+            "size": 34
+          },
+          {
+            "address": 11424,
+            "kind": "t",
+            "name": "__zil_patch_old_fa7957ed18d7e71d3e928050c1fd599284f090e6d85a9c771f88c5d32be0070a_6747e549a18b1cec01bf014ae79dd388569f9aac5fdd5f7e85445d6a2aebf48c_0",
+            "size": 5
+          }
+        ],
+        "sha256": "54943c6f742d82d6209d1faa5d81a157af23f74cc48b53c60cd5ddf338851299",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-guards-large-skew-8-0-default-candidate.symbols.json",
+        "text_bytes": 66485,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 66485
+          }
+        ],
+        "global_canonical_count": 8203,
+        "global_canonical_sha256": "a9649ab203e3fc3207be325ae4f86da2de13511a78242bf5b6b313a6a0370ab8"
+      },
+      "canonical_kind_differences": [],
+      "common_functions": 8203,
+      "effective_instruction_differences": [],
+      "effective_instruction_equal_count": 8201,
+      "effective_size_differences": [],
+      "effective_uncompared": [
+        {
+          "baseline": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "e2cc72d63e1d575b73a168875f94e742541daf9dc9fed5dd83ab6a0949393417",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xcc,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "e2cc72d63e1d575b73a168875f94e742541daf9dc9fed5dd83ab6a0949393417",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xcc,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 11264,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 11264
+          },
+          "candidate": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "e2cc72d63e1d575b73a168875f94e742541daf9dc9fed5dd83ab6a0949393417",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xcc,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "e2cc72d63e1d575b73a168875f94e742541daf9dc9fed5dd83ab6a0949393417",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xcc,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 11264,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 11264
+          },
+          "name": "main"
+        },
+        {
+          "baseline": {
+            "chain": [
+              "zil.fn.2",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "e2cc72d63e1d575b73a168875f94e742541daf9dc9fed5dd83ab6a0949393417",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xcc,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 11304,
+              "kind": "T",
+              "name": "zil.fn.2",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 11264
+          },
+          "candidate": {
+            "chain": [
+              "zil.fn.2",
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "e2cc72d63e1d575b73a168875f94e742541daf9dc9fed5dd83ab6a0949393417",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xcc,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "a2de18e03d24bbd73a8d048afba2b49684c4db46ad69fff88a3caad65359e30f",
+            "raw_instructions": [
+              "jmp <main>"
+            ],
+            "raw_issues": [],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 11304,
+              "kind": "T",
+              "name": "zil.fn.2",
+              "size": 5
+            },
+            "terminal": "main",
+            "terminal_address": 11264
+          },
+          "name": "zil.fn.2"
+        }
+      ],
+      "label": "final-guards-large-skew-8-0-default",
+      "missing_functions": [],
+      "missing_global_canonical_symbols": [],
+      "raw_instruction_differences": [],
+      "raw_size_differences": [],
+      "size_deltas": {
+        "canonical_symbol_bytes": 0,
+        "distinct_effective_body_bytes": 0,
+        "elf_bytes": 0,
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_symbol_bytes": 0,
+        "text_bytes": 0
+      }
+    },
+    {
+      "added_functions": [],
+      "added_global_canonical_symbols": [],
+      "baseline": {
+        "canonical_functions": 2051,
+        "canonical_symbol_bytes": 156345,
+        "distinct_effective_body_bytes": 156345,
+        "elf_bytes": 260728,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-guards-opaque-2048-branch-0-default-baseline.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-baseline/program",
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 0,
+        "private_old_symbols": [],
+        "sha256": "b054af688adbaf0e3da5bb4232a7b1147af903345b21e9bbc17bceb90694de1d",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-guards-opaque-2048-branch-0-default-baseline.symbols.json",
+        "text_bytes": 173895,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 173895
+          }
+        ],
+        "global_canonical_count": 2051,
+        "global_canonical_sha256": "76c6c78cb8ab7bd1a83ec83f429cfdc48910ce17cd8a7103cabe1991a5e9bb37"
+      },
+      "byte_identical": true,
+      "candidate": {
+        "canonical_functions": 2051,
+        "canonical_symbol_bytes": 156345,
+        "distinct_effective_body_bytes": 156345,
+        "elf_bytes": 260728,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-guards-opaque-2048-branch-0-default-candidate.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-guards/opaque-2048-branch/0-default-candidate/program",
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 0,
+        "private_old_symbols": [],
+        "sha256": "b054af688adbaf0e3da5bb4232a7b1147af903345b21e9bbc17bceb90694de1d",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-guards-opaque-2048-branch-0-default-candidate.symbols.json",
+        "text_bytes": 173895,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 173895
+          }
+        ],
+        "global_canonical_count": 2051,
+        "global_canonical_sha256": "76c6c78cb8ab7bd1a83ec83f429cfdc48910ce17cd8a7103cabe1991a5e9bb37"
+      },
+      "canonical_kind_differences": [],
+      "common_functions": 2051,
+      "effective_instruction_differences": [],
+      "effective_instruction_equal_count": 2050,
+      "effective_size_differences": [],
+      "effective_uncompared": [
+        {
+          "baseline": {
+            "chain": [
+              "zil.fn.2051"
+            ],
+            "effective_size": 171,
+            "instruction_sha256": "8de57449f87e819595d71576522df74be96f00f95578d8735ecc8c00fdf96c2d",
+            "instructions": [
+              "push %rbp",
+              "push %r14",
+              "push %rbx",
+              "xor %r14d,%r14d",
+              "mov $0x4e20,%ebp",
+              "call *RELOCATION(%rip) # <getchar@GLIBC_2.2.5>",
+              "mov %eax,%ebx",
+              "data16 data16 cs nopw 0x0(%rax,%rax,1)",
+              "mov %ebx,%edi",
+              "call <zil.fn.2048>",
+              "add $0x11,%ebx",
+              "jo <SELF+0xa9>",
+              "add %r14d,%eax",
+              "movslq %eax,%r14",
+              "imul $0xffffffff8637a2a3,%r14,%rax",
+              "shr $0x20,%rax",
+              "add %r14d,%eax",
+              "mov %eax,%ecx",
+              "shr $0x1f,%ecx",
+              "sar $0x13,%eax",
+              "add %ecx,%eax",
+              "imul $0xf4243,%eax,%eax",
+              "sub %eax,%r14d",
+              "movslq %ebx,%rbx",
+              "imul $0xffffffff81e722c3,%rbx,%rax",
+              "shr $0x20,%rax",
+              "add %ebx,%eax",
+              "mov %eax,%ecx",
+              "shr $0x1f,%ecx",
+              "sar $0x9,%eax",
+              "add %ecx,%eax",
+              "imul $0x3f1,%eax,%eax",
+              "sub %eax,%ebx",
+              "dec %ebp",
+              "jne <SELF+0x20>",
+              "mov %r14,%rbx",
+              "movzbl %bl,%edi",
+              "mov RELOCATION(%rip),%r14 # <putchar@GLIBC_2.2.5>",
+              "call *%r14",
+              "movzbl %bh,%edi",
+              "call *%r14",
+              "mov %ebx,%eax",
+              "shr $0x10,%eax",
+              "movzbl %al,%edi",
+              "call *%r14",
+              "shr $0x18,%ebx",
+              "mov %ebx,%edi",
+              "call *%r14",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "pop %r14",
+              "pop %rbp",
+              "ret",
+              "ud2"
+            ],
+            "issues": [
+              "indirect_control_at_c",
+              "indirect_control_at_86",
+              "indirect_control_at_8c",
+              "indirect_control_at_97",
+              "indirect_control_at_9f"
+            ],
+            "raw_instruction_sha256": "8de57449f87e819595d71576522df74be96f00f95578d8735ecc8c00fdf96c2d",
+            "raw_instructions": [
+              "push %rbp",
+              "push %r14",
+              "push %rbx",
+              "xor %r14d,%r14d",
+              "mov $0x4e20,%ebp",
+              "call *RELOCATION(%rip) # <getchar@GLIBC_2.2.5>",
+              "mov %eax,%ebx",
+              "data16 data16 cs nopw 0x0(%rax,%rax,1)",
+              "mov %ebx,%edi",
+              "call <zil.fn.2048>",
+              "add $0x11,%ebx",
+              "jo <SELF+0xa9>",
+              "add %r14d,%eax",
+              "movslq %eax,%r14",
+              "imul $0xffffffff8637a2a3,%r14,%rax",
+              "shr $0x20,%rax",
+              "add %r14d,%eax",
+              "mov %eax,%ecx",
+              "shr $0x1f,%ecx",
+              "sar $0x13,%eax",
+              "add %ecx,%eax",
+              "imul $0xf4243,%eax,%eax",
+              "sub %eax,%r14d",
+              "movslq %ebx,%rbx",
+              "imul $0xffffffff81e722c3,%rbx,%rax",
+              "shr $0x20,%rax",
+              "add %ebx,%eax",
+              "mov %eax,%ecx",
+              "shr $0x1f,%ecx",
+              "sar $0x9,%eax",
+              "add %ecx,%eax",
+              "imul $0x3f1,%eax,%eax",
+              "sub %eax,%ebx",
+              "dec %ebp",
+              "jne <SELF+0x20>",
+              "mov %r14,%rbx",
+              "movzbl %bl,%edi",
+              "mov RELOCATION(%rip),%r14 # <putchar@GLIBC_2.2.5>",
+              "call *%r14",
+              "movzbl %bh,%edi",
+              "call *%r14",
+              "mov %ebx,%eax",
+              "shr $0x10,%eax",
+              "movzbl %al,%edi",
+              "call *%r14",
+              "shr $0x18,%ebx",
+              "mov %ebx,%edi",
+              "call *%r14",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "pop %r14",
+              "pop %rbp",
+              "ret",
+              "ud2"
+            ],
+            "raw_issues": [
+              "indirect_control_at_c",
+              "indirect_control_at_86",
+              "indirect_control_at_8c",
+              "indirect_control_at_97",
+              "indirect_control_at_9f"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 34528,
+              "kind": "T",
+              "name": "zil.fn.2051",
+              "size": 171
+            },
+            "terminal": "zil.fn.2051",
+            "terminal_address": 34528
+          },
+          "candidate": {
+            "chain": [
+              "zil.fn.2051"
+            ],
+            "effective_size": 171,
+            "instruction_sha256": "8de57449f87e819595d71576522df74be96f00f95578d8735ecc8c00fdf96c2d",
+            "instructions": [
+              "push %rbp",
+              "push %r14",
+              "push %rbx",
+              "xor %r14d,%r14d",
+              "mov $0x4e20,%ebp",
+              "call *RELOCATION(%rip) # <getchar@GLIBC_2.2.5>",
+              "mov %eax,%ebx",
+              "data16 data16 cs nopw 0x0(%rax,%rax,1)",
+              "mov %ebx,%edi",
+              "call <zil.fn.2048>",
+              "add $0x11,%ebx",
+              "jo <SELF+0xa9>",
+              "add %r14d,%eax",
+              "movslq %eax,%r14",
+              "imul $0xffffffff8637a2a3,%r14,%rax",
+              "shr $0x20,%rax",
+              "add %r14d,%eax",
+              "mov %eax,%ecx",
+              "shr $0x1f,%ecx",
+              "sar $0x13,%eax",
+              "add %ecx,%eax",
+              "imul $0xf4243,%eax,%eax",
+              "sub %eax,%r14d",
+              "movslq %ebx,%rbx",
+              "imul $0xffffffff81e722c3,%rbx,%rax",
+              "shr $0x20,%rax",
+              "add %ebx,%eax",
+              "mov %eax,%ecx",
+              "shr $0x1f,%ecx",
+              "sar $0x9,%eax",
+              "add %ecx,%eax",
+              "imul $0x3f1,%eax,%eax",
+              "sub %eax,%ebx",
+              "dec %ebp",
+              "jne <SELF+0x20>",
+              "mov %r14,%rbx",
+              "movzbl %bl,%edi",
+              "mov RELOCATION(%rip),%r14 # <putchar@GLIBC_2.2.5>",
+              "call *%r14",
+              "movzbl %bh,%edi",
+              "call *%r14",
+              "mov %ebx,%eax",
+              "shr $0x10,%eax",
+              "movzbl %al,%edi",
+              "call *%r14",
+              "shr $0x18,%ebx",
+              "mov %ebx,%edi",
+              "call *%r14",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "pop %r14",
+              "pop %rbp",
+              "ret",
+              "ud2"
+            ],
+            "issues": [
+              "indirect_control_at_c",
+              "indirect_control_at_86",
+              "indirect_control_at_8c",
+              "indirect_control_at_97",
+              "indirect_control_at_9f"
+            ],
+            "raw_instruction_sha256": "8de57449f87e819595d71576522df74be96f00f95578d8735ecc8c00fdf96c2d",
+            "raw_instructions": [
+              "push %rbp",
+              "push %r14",
+              "push %rbx",
+              "xor %r14d,%r14d",
+              "mov $0x4e20,%ebp",
+              "call *RELOCATION(%rip) # <getchar@GLIBC_2.2.5>",
+              "mov %eax,%ebx",
+              "data16 data16 cs nopw 0x0(%rax,%rax,1)",
+              "mov %ebx,%edi",
+              "call <zil.fn.2048>",
+              "add $0x11,%ebx",
+              "jo <SELF+0xa9>",
+              "add %r14d,%eax",
+              "movslq %eax,%r14",
+              "imul $0xffffffff8637a2a3,%r14,%rax",
+              "shr $0x20,%rax",
+              "add %r14d,%eax",
+              "mov %eax,%ecx",
+              "shr $0x1f,%ecx",
+              "sar $0x13,%eax",
+              "add %ecx,%eax",
+              "imul $0xf4243,%eax,%eax",
+              "sub %eax,%r14d",
+              "movslq %ebx,%rbx",
+              "imul $0xffffffff81e722c3,%rbx,%rax",
+              "shr $0x20,%rax",
+              "add %ebx,%eax",
+              "mov %eax,%ecx",
+              "shr $0x1f,%ecx",
+              "sar $0x9,%eax",
+              "add %ecx,%eax",
+              "imul $0x3f1,%eax,%eax",
+              "sub %eax,%ebx",
+              "dec %ebp",
+              "jne <SELF+0x20>",
+              "mov %r14,%rbx",
+              "movzbl %bl,%edi",
+              "mov RELOCATION(%rip),%r14 # <putchar@GLIBC_2.2.5>",
+              "call *%r14",
+              "movzbl %bh,%edi",
+              "call *%r14",
+              "mov %ebx,%eax",
+              "shr $0x10,%eax",
+              "movzbl %al,%edi",
+              "call *%r14",
+              "shr $0x18,%ebx",
+              "mov %ebx,%edi",
+              "call *%r14",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "pop %r14",
+              "pop %rbp",
+              "ret",
+              "ud2"
+            ],
+            "raw_issues": [
+              "indirect_control_at_c",
+              "indirect_control_at_86",
+              "indirect_control_at_8c",
+              "indirect_control_at_97",
+              "indirect_control_at_9f"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 34528,
+              "kind": "T",
+              "name": "zil.fn.2051",
+              "size": 171
+            },
+            "terminal": "zil.fn.2051",
+            "terminal_address": 34528
+          },
+          "name": "zil.fn.2051"
+        }
+      ],
+      "label": "final-guards-opaque-2048-branch-0-default",
+      "missing_functions": [],
+      "missing_global_canonical_symbols": [],
+      "raw_instruction_differences": [],
+      "raw_size_differences": [],
+      "size_deltas": {
+        "canonical_symbol_bytes": 0,
+        "distinct_effective_body_bytes": 0,
+        "elf_bytes": 0,
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_symbol_bytes": 0,
+        "text_bytes": 0
+      }
+    },
+    {
+      "added_functions": [],
+      "added_global_canonical_symbols": [],
+      "baseline": {
+        "canonical_functions": 1,
+        "canonical_symbol_bytes": 34,
+        "distinct_effective_body_bytes": 34,
+        "elf_bytes": 15792,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-closed-guard-large-even-8x1024-0-closed-baseline.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-closed-guard/large-even-8x1024/0-closed-baseline/program",
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 0,
+        "private_old_symbols": [],
+        "sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-closed-guard-large-even-8x1024-0-closed-baseline.symbols.json",
+        "text_bytes": 274,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 274
+          }
+        ],
+        "global_canonical_count": 1,
+        "global_canonical_sha256": "747354f83eb6b671d2a813f986f7e78cdc1d01e63cc1bd52b6e20284c52a43cc"
+      },
+      "byte_identical": true,
+      "candidate": {
+        "canonical_functions": 1,
+        "canonical_symbol_bytes": 34,
+        "distinct_effective_body_bytes": 34,
+        "elf_bytes": 15792,
+        "functions_file": "/workspace/.zil-env/research/stage13/quality/final-closed-guard-large-even-8x1024-0-closed-candidate.functions.json",
+        "parse_errors": [],
+        "path": "/workspace/.zil-env/research/stage13/final-closed-guard/large-even-8x1024/0-closed-candidate/program",
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_nonlocal_symbols": [],
+        "private_old_symbol_bytes": 0,
+        "private_old_symbols": [],
+        "sha256": "5316fdd722c65fa7ef8325884508c5f5c3f19b193261ed6dbbd0c9d97970cafe",
+        "symbols_file": "/workspace/.zil-env/research/stage13/quality/final-closed-guard-large-even-8x1024-0-closed-candidate.symbols.json",
+        "text_bytes": 274,
+        "text_sections": [
+          {
+            "address": 4160,
+            "flags": "CONTENTS, ALLOC, LOAD, READONLY, CODE",
+            "name": ".text",
+            "size": 274
+          }
+        ],
+        "global_canonical_count": 1,
+        "global_canonical_sha256": "747354f83eb6b671d2a813f986f7e78cdc1d01e63cc1bd52b6e20284c52a43cc"
+      },
+      "canonical_kind_differences": [],
+      "common_functions": 1,
+      "effective_instruction_differences": [],
+      "effective_instruction_equal_count": 0,
+      "effective_size_differences": [],
+      "effective_uncompared": [
+        {
+          "baseline": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 4400,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 4400
+          },
+          "candidate": {
+            "chain": [
+              "main"
+            ],
+            "effective_size": 34,
+            "instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "raw_instruction_sha256": "6d6d3de29d68a9c97ad0dd0f6829c34fcb00f5e147aebc2439b5b29c64f6fef1",
+            "raw_instructions": [
+              "push %rbx",
+              "mov RELOCATION(%rip),%rbx # <putchar@GLIBC_2.2.5>",
+              "mov $0xc9,%edi",
+              "call *%rbx",
+              "mov $0xbf,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %edi,%edi",
+              "call *%rbx",
+              "xor %eax,%eax",
+              "pop %rbx",
+              "ret"
+            ],
+            "raw_issues": [
+              "indirect_control_at_d",
+              "indirect_control_at_14",
+              "indirect_control_at_18",
+              "indirect_control_at_1c"
+            ],
+            "reason": "normalization_incomplete",
+            "status": "uncompared",
+            "symbol": {
+              "address": 4400,
+              "kind": "T",
+              "name": "main",
+              "size": 34
+            },
+            "terminal": "main",
+            "terminal_address": 4400
+          },
+          "name": "main"
+        }
+      ],
+      "label": "final-closed-guard-large-even-8x1024-0-closed",
+      "missing_functions": [],
+      "missing_global_canonical_symbols": [],
+      "raw_instruction_differences": [],
+      "raw_size_differences": [],
+      "size_deltas": {
+        "canonical_symbol_bytes": 0,
+        "distinct_effective_body_bytes": 0,
+        "elf_bytes": 0,
+        "private_old_count": 0,
+        "private_old_distinct_bytes": 0,
+        "private_old_symbol_bytes": 0,
+        "text_bytes": 0
+      }
+    }
+  ],
+  "root": "/workspace/.zil-env/research/stage13",
+  "scope": "Inspect existing Stage11 edited executables; never build or run a workload.\n\nUsage: stage11_quality.py STAGE11_ROOT [--output DIRECTORY]\n\nCompare every defined text symbol named main or beginning zil. Resolve only\nsingle-instruction, direct-jmp thunks to sized function entry points, with cycle\nand depth bounds. Compare the resulting instruction bodies after normalizing\nrelocated branch addresses, self-relative labels and annotated RIP displacements.\nKeep immediates, registers, external symbol names and all other instructions.\n\nRaw symbol/body/size differences remain in the report even when effective bodies\nmatch. This static comparison does not prove general runtime, locality, function\naddress, cache, or ABI equivalence. Exit zero means the reports were written,\nnot that code quality passed a gate. Missing artifacts/tool failures exit two.\n",
+  "windows": [
+    "final-target",
+    "final-guards",
+    "final-closed-guard"
+  ],
+  "full_record": {
+    "archive": "raw.tar.gz",
+    "path": "quality/results.json",
+    "sha256": "81725f945ea4c6f1872536c74a1952e5ec7a9483f59a752fcbc863bb0e5bc0ad",
+    "commands": 42
+  }
+}

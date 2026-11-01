@@ -2,6 +2,7 @@
 
 当前专项分支：`research/incremental-compilation`，PR [#13](https://github.com/zil-lang/zil/pull/13)。
 
+- [第十三阶段：硬件兼容SHA、借用机器类型，编辑领先及剩余暖路径差距](STAGE13-RESULTS.md)
 - [第十二阶段：持久化原始分析候选，暖编译提速与剩余差距](STAGE12-RESULTS.md)
 - [第十一阶段：复用完整对象内的未改函数，最弱编辑接近Rust](STAGE11-RESULTS.md)
 - [第十阶段：缩小传播失效范围，保留符号编辑继续提速](STAGE10-RESULTS.md)
