@@ -27,12 +27,12 @@ fn main()->model.Fault!i32{
     if mode==6{portable.emit(78);return 0}
     let phase=app.phase
     match phase{
-        state.Phase.Empty=>{portable.emit(69)}
+        state.Phase.Empty()=>{portable.emit(69)}
         state.Phase.Ready(session)=>{portable.emit(82)}
         state.Phase.Loaded(result)=>{let session=result?;portable.emit(82)}
         state.Phase.Nested(a,state.Right.Pair(c,d),1)=>{portable.emit(66)}
         state.Phase.Nested(a,state.Right.Pair(c,d),_)=>{portable.emit(67)}
-        state.Phase.Nested(a,state.Right.Empty,_)=>{portable.emit(69)}
+        state.Phase.Nested(a,state.Right.Empty(),_)=>{portable.emit(69)}
     }
     portable.emit(78)
     return 0
