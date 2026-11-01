@@ -68,3 +68,94 @@ pub(super) fn error_union(ty: &Type) -> bool {
 pub(super) fn field(ty: &Type) -> bool {
     matches!(ty, Type::Managed(_) | Type::Package { .. }) || sum(ty)
 }
+
+pub(super) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, span: Span) -> R<()> {
+    let work = inference::type_snapshot_work(
+        ty,
+        span,
+        &Limits {
+            max_analysis_steps: *remaining,
+            max_call_depth: depth_limit,
+            ..Limits::default()
+        },
+    )?;
+    *remaining = remaining
+        .checked_sub(work.saturating_mul(3))
+        .ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "ordinary Sum admission work exceeded",
+                Some(span),
+            )
+        })?;
+    if !value(ty) {
+        return Err(unsupported(
+            span,
+            "ordinary owning composition requires complete Copy, Managed, Product or Sum values",
+        ));
+    }
+    fn row<'a>(
+        names: impl Iterator<Item = &'a str>,
+        count: usize,
+        remaining: &mut usize,
+        span: Span,
+    ) -> R<()> {
+        let mut seen = std::collections::BTreeSet::new();
+        for name in names {
+            let cost = name
+                .len()
+                .saturating_add(1)
+                .saturating_mul(count.saturating_add(1).ilog2() as usize + 2);
+            *remaining = remaining.checked_sub(cost).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "ordinary Sum identity work exceeded",
+                    Some(span),
+                )
+            })?;
+            if name.is_empty() || !seen.insert(name) {
+                return Err(error(
+                    "E-OWNED-SHAPE",
+                    span,
+                    "owning fields and variants require unique nonempty names",
+                ));
+            }
+        }
+        Ok(())
+    }
+    fn names(ty: &Type, remaining: &mut usize, span: Span) -> R<()> {
+        match ty {
+            Type::Package { fields, .. } => {
+                row(
+                    fields.iter().map(|(n, _)| n.as_str()),
+                    fields.len(),
+                    remaining,
+                    span,
+                )?;
+                for (_, ty) in fields {
+                    names(ty, remaining, span)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                row(
+                    variants.iter().map(|(n, _)| n.as_str()),
+                    variants.len(),
+                    remaining,
+                    span,
+                )?;
+                for (_, fields) in variants {
+                    for ty in fields {
+                        names(ty, remaining, span)?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                names(error, remaining, span)?;
+                names(result, remaining, span)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    names(ty, remaining, span)
+}
