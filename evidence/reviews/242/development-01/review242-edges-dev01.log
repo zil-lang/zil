@@ -1,0 +1,9 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+error[E0425]: cannot find value `SCHEMA_VERSION` in this scope
+   --> crates/zil-driver/tests/review242_tag_edges.rs:174:25
+    |
+174 |         schema_version: SCHEMA_VERSION,
+    |                         ^^^^^^^^^^^^^^ not found in this scope
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `zil-driver` (test "review242_tag_edges") due to 1 previous error

@@ -1,0 +1,40 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "reviewer": "/root/review_language_contracts",
+  "production_checkpoint": "1f43ced2abe4290b7cf5ef342986eb23b4a3e174",
+  "schema": 30,
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "feature": "llvm-api",
+  "limits": "default unchanged",
+  "production_edited": false,
+  "selected": 3,
+  "passed": 3,
+  "failed": 0,
+  "raw_candidates": 7,
+  "analyze_runs": 7,
+  "verify_raw_runs": 7,
+  "verify_wire_runs": 7,
+  "native_runs": 0,
+  "independence": "Verify runs before Analyze; handmade public candidate plan computes initialization sets and empty Hold rows only. No Types/Analyze tag facts or permission are used.",
+  "checks": [
+    "root+child projection prefixes require both actual edges",
+    "opposite nested edge rejected",
+    "same true/false child target rejected",
+    "same-type different root local cannot authorize payload",
+    "bypass predecessor cannot inherit only guarded tag",
+    "two unknown parameter values swap at same loop write site; stale observer rejected and fresh after-write observer accepted"
+  ],
+  "development_corrections": [
+    {
+      "run": "dev01",
+      "actual": "test missing SCHEMA_VERSION import; no production execution"
+    },
+    {
+      "run": "dev02",
+      "actual": "positive control attempted root-tag authority on newly initialized child local; Verify conservatively rejected, Analyze accepted. Revised control drops the complete child; no claim of compiler failure. Original candidate/log retained."
+    }
+  ],
+  "test": "crates/zil-driver/tests/review242_tag_edges.rs",
+  "test_sha256": "ce435fda6ac3685472a6f46ba743d1f1164d5ff8ab5c84660ac5765f57ff9221"
+}

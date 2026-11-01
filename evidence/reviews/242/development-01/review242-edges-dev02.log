@@ -1,0 +1,25 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.31s
+     Running tests/review242_tag_edges.rs (/workspace/.zil-env/target-244/debug/deps/review242_tag_edges-edf470a3725cec4e)
+
+running 3 tests
+test a_bypass_predecessor_cannot_inherit_only_the_guarded_tag ... ok
+
+thread 'recursive_path_requires_both_actual_edges_and_actual_local' (256221) panicked at crates/zil-driver/tests/review242_tag_edges.rs:291:39:
+nested-control/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-SUM", message: "payload requires the exact selected tag of this current local and complete prefix on every incoming path", span: Some(Span { file: FileId(0), start: 0, end: 0 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test recursive_path_requires_both_actual_edges_and_actual_local ... FAILED
+
+thread 'loop_at_one_write_site_needs_a_new_observation_after_each_swap' (256220) panicked at crates/zil-driver/tests/review242_tag_edges.rs:291:39:
+loop-fresh-control/raw: [Diagnostic { phase: Verify, category: SafeReject, code: "E-VERIFY-SUM", message: "payload requires the exact selected tag of this current local and complete prefix on every incoming path", span: Some(Span { file: FileId(0), start: 0, end: 0 }), notes: [] }]
+test loop_at_one_write_site_needs_a_new_observation_after_each_swap ... FAILED
+
+failures:
+
+failures:
+    loop_at_one_write_site_needs_a_new_observation_after_each_swap
+    recursive_path_requires_both_actual_edges_and_actual_local
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test review242_tag_edges`
