@@ -1,0 +1,337 @@
+{
+  "requests": 135,
+  "valid": 135,
+  "cells": [
+    {
+      "case": "large-8192",
+      "contract": "default",
+      "request": "cold",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 1538.505697,
+        "candidate": 1488.940493,
+        "rust": 2141.7256079999997
+      },
+      "candidate_baseline_geomean": 0.9854797992310925,
+      "paired_range": [
+        0.9532705147203866,
+        1.0205463421962968
+      ],
+      "candidate_rust_geomean": 0.6945659928217892
+    },
+    {
+      "case": "large-8192",
+      "contract": "default",
+      "request": "warm",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 424.24294000000003,
+        "candidate": 428.558999,
+        "rust": 396.056021
+      },
+      "candidate_baseline_geomean": 0.9944382457112082,
+      "paired_range": [
+        0.9493139096950742,
+        1.0371792052779707
+      ],
+      "candidate_rust_geomean": 1.0681432481649105
+    },
+    {
+      "case": "large-8192",
+      "contract": "default",
+      "request": "edit",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 865.5112419999999,
+        "candidate": 847.547596,
+        "rust": 1313.7816739999998
+      },
+      "candidate_baseline_geomean": 0.9885655443681941,
+      "paired_range": [
+        0.9764808074759588,
+        1.0122158008896205
+      ],
+      "candidate_rust_geomean": 0.6467754076992989
+    },
+    {
+      "case": "large-8192",
+      "contract": "closed",
+      "request": "cold",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 667.734431,
+        "candidate": 718.031967,
+        "rust": 2141.7256079999997
+      },
+      "candidate_baseline_geomean": 1.0155331947351263,
+      "paired_range": [
+        0.9550965241125517,
+        1.1069355535449392
+      ],
+      "candidate_rust_geomean": 0.32462891443050407
+    },
+    {
+      "case": "large-8192",
+      "contract": "closed",
+      "request": "warm",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 419.634566,
+        "candidate": 424.846157,
+        "rust": 396.056021
+      },
+      "candidate_baseline_geomean": 1.0246263125647839,
+      "paired_range": [
+        0.9725378440518905,
+        1.0782705731634128
+      ],
+      "candidate_rust_geomean": 1.0702413086626235
+    },
+    {
+      "case": "large-8192",
+      "contract": "closed",
+      "request": "edit",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 716.381763,
+        "candidate": 620.470204,
+        "rust": 1313.7816739999998
+      },
+      "candidate_baseline_geomean": 0.9114369794736147,
+      "paired_range": [
+        0.8564948221752886,
+        1.0242761328668455
+      ],
+      "candidate_rust_geomean": 0.48693463479144816
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "default",
+      "request": "cold",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 1434.534627,
+        "candidate": 1354.255541,
+        "rust": 1232.72418
+      },
+      "candidate_baseline_geomean": 0.9257258583252205,
+      "paired_range": [
+        0.8687478944813984,
+        0.9572089763619404
+      ],
+      "candidate_rust_geomean": 1.0886857739356137
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "default",
+      "request": "warm",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 422.959112,
+        "candidate": 419.81838500000003,
+        "rust": 417.275937
+      },
+      "candidate_baseline_geomean": 0.9692811960402758,
+      "paired_range": [
+        0.8996193932551284,
+        1.019829300907922
+      ],
+      "candidate_rust_geomean": 1.0073458603804981
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "default",
+      "request": "edit",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 1026.71826,
+        "candidate": 980.527705,
+        "rust": 461.981059
+      },
+      "candidate_baseline_geomean": 0.9595775089042503,
+      "paired_range": [
+        0.9219853586261056,
+        1.010289857685956
+      ],
+      "candidate_rust_geomean": 2.0898637829185365
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "closed",
+      "request": "cold",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 663.369523,
+        "candidate": 628.481393,
+        "rust": 1232.72418
+      },
+      "candidate_baseline_geomean": 0.9626773819525826,
+      "paired_range": [
+        0.910888653202619,
+        1.0338085105835275
+      ],
+      "candidate_rust_geomean": 0.5186785579300848
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "closed",
+      "request": "warm",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 433.090142,
+        "candidate": 400.639234,
+        "rust": 417.275937
+      },
+      "candidate_baseline_geomean": 1.00283186475867,
+      "paired_range": [
+        0.8921987169128408,
+        1.131218268424886
+      ],
+      "candidate_rust_geomean": 1.0223092927949295
+    },
+    {
+      "case": "large-even-8x1024",
+      "contract": "closed",
+      "request": "edit",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 646.2401199999999,
+        "candidate": 639.948567,
+        "rust": 461.981059
+      },
+      "candidate_baseline_geomean": 0.9972834065530671,
+      "paired_range": [
+        0.9622050729686632,
+        1.0343854107974604
+      ],
+      "candidate_rust_geomean": 1.380570694702068
+    },
+    {
+      "case": "large-skew-8",
+      "contract": "default",
+      "request": "cold",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 1440.330054,
+        "candidate": 1455.5483490000001,
+        "rust": 1515.049737
+      },
+      "candidate_baseline_geomean": 0.9831285786405713,
+      "paired_range": [
+        0.903763789653485,
+        1.0392903567022702
+      ],
+      "candidate_rust_geomean": 0.9379530855363925
+    },
+    {
+      "case": "large-skew-8",
+      "contract": "default",
+      "request": "warm",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 423.7649,
+        "candidate": 408.256793,
+        "rust": 417.144738
+      },
+      "candidate_baseline_geomean": 0.9779117571462476,
+      "paired_range": [
+        0.9143793942975014,
+        1.061607881376508
+      ],
+      "candidate_rust_geomean": 0.9921473374306675
+    },
+    {
+      "case": "large-skew-8",
+      "contract": "default",
+      "request": "edit",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 842.589781,
+        "candidate": 800.280712,
+        "rust": 779.336297
+      },
+      "candidate_baseline_geomean": 0.9527346341370995,
+      "paired_range": [
+        0.9062364125894484,
+        1.0047272679920802
+      ],
+      "candidate_rust_geomean": 1.0024660030690151
+    },
+    {
+      "case": "large-skew-8",
+      "contract": "closed",
+      "request": "cold",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 659.425201,
+        "candidate": 692.4278780000001,
+        "rust": 1515.049737
+      },
+      "candidate_baseline_geomean": 1.0354428735787373,
+      "paired_range": [
+        0.9825672917116802,
+        1.0692457914271436
+      ],
+      "candidate_rust_geomean": 0.4499985061912356
+    },
+    {
+      "case": "large-skew-8",
+      "contract": "closed",
+      "request": "warm",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 409.5553,
+        "candidate": 441.26573,
+        "rust": 417.144738
+      },
+      "candidate_baseline_geomean": 1.0836163393096105,
+      "paired_range": [
+        1.0407317741950843,
+        1.1404792860892559
+      ],
+      "candidate_rust_geomean": 1.0440686142219748
+    },
+    {
+      "case": "large-skew-8",
+      "contract": "closed",
+      "request": "edit",
+      "repetitions": 3,
+      "median_ms": {
+        "baseline": 674.333002,
+        "candidate": 647.495085,
+        "rust": 779.336297
+      },
+      "candidate_baseline_geomean": 0.9596095095777067,
+      "paired_range": [
+        0.9423015448838937,
+        0.9896908077040394
+      ],
+      "candidate_rust_geomean": 0.8170779189990743
+    }
+  ],
+  "scope": "small screen; 3 independent cache histories, not a population confidence interval or product gate",
+  "by_contract": {
+    "default": {
+      "cold": {
+        "candidate_baseline_geomean": 0.9643769333820241
+      },
+      "warm": {
+        "candidate_baseline_geomean": 0.9804883201978231
+      },
+      "edit": {
+        "candidate_baseline_geomean": 0.9668352905326684
+      }
+    },
+    "closed": {
+      "cold": {
+        "candidate_baseline_geomean": 1.004076983405016
+      },
+      "warm": {
+        "candidate_baseline_geomean": 1.0364691772823347
+      },
+      "edit": {
+        "candidate_baseline_geomean": 0.9554616505293325
+      }
+    }
+  }
+}

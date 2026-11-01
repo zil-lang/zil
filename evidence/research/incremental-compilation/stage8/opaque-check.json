@@ -1,0 +1,130 @@
+[
+  {
+    "arm": "baseline",
+    "variant": 0,
+    "command": [
+      "/workspace/.zil-env/research/stage8/baseline/zil",
+      "check",
+      "/workspace/.zil-env/research/stage7/opaque-screen/opaque-2048-branch/source-0/main.zil",
+      "--json"
+    ],
+    "exit": 0,
+    "source_sha256": "0256ec6b595bb9bf8a799edb94db6664948bfc83484270a8f04dd4b457a1db15",
+    "status": "Success",
+    "verification_runs": 1,
+    "input_fingerprint": "0dac360a94065ea26335b6785f97bb0f9b8f267661e2a2168c5403eca5277935",
+    "report_keys": [
+      "status",
+      "phase",
+      "diagnostics",
+      "artifacts",
+      "input_fingerprint",
+      "seconds",
+      "cache_hit",
+      "commands",
+      "native_codegen",
+      "disk_cache",
+      "query_events",
+      "verification_runs",
+      "source_files",
+      "scalar_interfaces"
+    ],
+    "valid": true
+  },
+  {
+    "arm": "baseline",
+    "variant": 1,
+    "command": [
+      "/workspace/.zil-env/research/stage8/baseline/zil",
+      "check",
+      "/workspace/.zil-env/research/stage7/opaque-screen/opaque-2048-branch/source-1/main.zil",
+      "--json"
+    ],
+    "exit": 0,
+    "source_sha256": "9bdcf5640081da6d9661e293c2ff9d0112a0b14dff2558cb61eb4666f683afaf",
+    "status": "Success",
+    "verification_runs": 1,
+    "input_fingerprint": "518961c7237fe2588ef2e1a5d73191626afaf33fde9bb3e0750cba142a0dd782",
+    "report_keys": [
+      "status",
+      "phase",
+      "diagnostics",
+      "artifacts",
+      "input_fingerprint",
+      "seconds",
+      "cache_hit",
+      "commands",
+      "native_codegen",
+      "disk_cache",
+      "query_events",
+      "verification_runs",
+      "source_files",
+      "scalar_interfaces"
+    ],
+    "valid": true
+  },
+  {
+    "arm": "candidate",
+    "variant": 0,
+    "command": [
+      "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "check",
+      "/workspace/.zil-env/research/stage7/opaque-screen/opaque-2048-branch/source-0/main.zil",
+      "--json"
+    ],
+    "exit": 0,
+    "source_sha256": "0256ec6b595bb9bf8a799edb94db6664948bfc83484270a8f04dd4b457a1db15",
+    "status": "Success",
+    "verification_runs": 1,
+    "input_fingerprint": "0dac360a94065ea26335b6785f97bb0f9b8f267661e2a2168c5403eca5277935",
+    "report_keys": [
+      "status",
+      "phase",
+      "diagnostics",
+      "artifacts",
+      "input_fingerprint",
+      "seconds",
+      "cache_hit",
+      "commands",
+      "native_codegen",
+      "disk_cache",
+      "query_events",
+      "verification_runs",
+      "source_files",
+      "scalar_interfaces"
+    ],
+    "valid": true
+  },
+  {
+    "arm": "candidate",
+    "variant": 1,
+    "command": [
+      "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "check",
+      "/workspace/.zil-env/research/stage7/opaque-screen/opaque-2048-branch/source-1/main.zil",
+      "--json"
+    ],
+    "exit": 0,
+    "source_sha256": "9bdcf5640081da6d9661e293c2ff9d0112a0b14dff2558cb61eb4666f683afaf",
+    "status": "Success",
+    "verification_runs": 1,
+    "input_fingerprint": "518961c7237fe2588ef2e1a5d73191626afaf33fde9bb3e0750cba142a0dd782",
+    "report_keys": [
+      "status",
+      "phase",
+      "diagnostics",
+      "artifacts",
+      "input_fingerprint",
+      "seconds",
+      "cache_hit",
+      "commands",
+      "native_codegen",
+      "disk_cache",
+      "query_events",
+      "verification_runs",
+      "source_files",
+      "scalar_interfaces"
+    ],
+    "valid": true
+  }
+]

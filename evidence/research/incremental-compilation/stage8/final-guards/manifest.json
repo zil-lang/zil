@@ -1,0 +1,41 @@
+{
+  "source": "8c5dcc072318f9c496bdc19e14cbbbaadccccc2e",
+  "arms": {
+    "baseline": {
+      "path": "/workspace/.zil-env/research/stage8/baseline/zil",
+      "sha256": "c9a26c0b6b8b129abdd4411addc2d085a916c9734cd556bc480dcccd1c3aeda6"
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/research/stage7/target-candidate/release/zil",
+      "sha256": "aded4d4fa753fac6ae40a4ab586b95b0a07def8bf24bbafa64b21eb94bb7d513"
+    },
+    "rust": {
+      "path": "/workspace/.zil-env/cargo/bin/rustc",
+      "sha256": "5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4"
+    }
+  },
+  "library": {
+    "path": "/workspace/.zil-env/research/stage7/toolchain/candidate/lib/libLLVM.so.23.1",
+    "sha256": "7b5c5ef8b204e019c58da7bbb01853dc56fa68fcec08364c5d07b10494fa9a98"
+  },
+  "reps": 1,
+  "contracts": [
+    "default",
+    "closed"
+  ],
+  "cpus": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "resources": "Linux wait4 compiler CPU seconds and process max RSS; stdout/stderr files",
+  "cases": [
+    "large-8192",
+    "large-skew-8"
+  ],
+  "runner_sha256": "7216f6a1c7f14d6d37af0e4fe6deffd96fb35c16e9150785660a7a2609481ef5",
+  "working_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+}
