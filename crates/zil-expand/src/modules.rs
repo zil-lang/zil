@@ -425,7 +425,7 @@ fn normalize(
             visitor.item(item, &Names::new(), true, 0)?;
         }
     }
-    products.restore_owners(&functions);
+    products.restore_owners(&functions)?;
     Ok(output)
 }
 
