@@ -100,3 +100,35 @@ fn old_explicit_give_resource_parameter_control_remains_legal() {
         "resource R{n:i32}fn consume<F:Fn()->i32>(give r:R,callback:F)->i32{return callback()+r.n}fn main()->i32{let r=R{n:2};return consume(give r,()=>3)-5}",
     );
 }
+
+#[test]
+fn actual_give_resource_results_retain_ownership_through_local_bindings() {
+    let source = include_str!("impl240_fixtures/callback_param.zil");
+    for transfer in [
+        "let saved=give r;let p=P{r:give saved}",
+        "let saved=(give (r));let p=P{r:give saved}",
+    ] {
+        checked(&source.replace("let p=P{r:give r}", transfer));
+    }
+    let unused = source.replace(
+        "let p=P{r:give r}",
+        "let saved=give r;let p=P{r:give saved}",
+    );
+    checked(unused.split("fn main").next().unwrap());
+    for transfer in [
+        "let saved=r;let p=P{r:give saved}",
+        "let saved=give r;let p=P{r:give r}",
+        "let saved=give r;let p=P{r:give saved};let again=P{r:give saved}",
+    ] {
+        assert!(
+            expand(&source.replace("let p=P{r:give r}", transfer)).is_err(),
+            "{transfer}"
+        );
+    }
+}
+#[test]
+fn managed_store_pattern_relay_preserves_an_incoming_carrier() {
+    checked(
+        "resource R{n:i32}package P{manages r:R}package Bag{manages values:Store<P>}enum E{V(manages Store<P>)}fn consume<F:Fn()->i32>(value:E,cb:F)->i32{match value{E.V(items)=>{let saved=give items;let bag=Bag{values:give saved};return cb()+i32(store_len(bag.values))}}}fn main()->i32{let items:Store<P>=store_new();return consume(E.V(give items),()=>3)-3}",
+    );
+}
