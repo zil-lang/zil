@@ -256,6 +256,8 @@ mod tests {
                     module_id: ModuleId(0),
                     source_fingerprint: Fingerprint::ZERO,
                     aggregates: vec![],
+                    aggregate_templates: vec![],
+                    aggregate_applications: vec![],
                     enums: vec![],
                     unsupported: vec![],
                     functions: vec![CoreFunction {

@@ -642,6 +642,8 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
         source_fingerprint: core.source_fingerprint,
         functions,
         aggregates: core.aggregates.clone(),
+        aggregate_templates: core.aggregate_templates.clone(),
+        aggregate_applications: core.aggregate_applications.clone(),
         enums: core.enums.clone(),
         unsupported: core.unsupported.clone(),
     }
