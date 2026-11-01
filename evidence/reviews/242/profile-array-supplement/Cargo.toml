@@ -1,0 +1,16 @@
+[package]
+name="review242-profile"
+version="0.0.0"
+edition="2024"
+[workspace]
+[dependencies]
+zil-base={path="/tmp/review243-checkout/crates/zil-base"}
+zil-ir={path="/tmp/review243-checkout/crates/zil-ir"}
+zil-syntax={path="/tmp/review243-checkout/crates/zil-syntax"}
+zil-expand={path="/tmp/review243-checkout/crates/zil-expand"}
+zil-types={path="/tmp/review243-checkout/crates/zil-types"}
+zil-analyze={path="/tmp/review243-checkout/crates/zil-analyze"}
+zil-verify={path="/tmp/review243-checkout/crates/zil-verify"}
+zil-lower={path="/tmp/review243-checkout/crates/zil-lower"}
+zil-backend-llvm={path="/tmp/review243-checkout/crates/zil-backend-llvm",features=["llvm-api"]}
+zil-driver={path="/tmp/review243-checkout/crates/zil-driver",features=["llvm-api"]}
