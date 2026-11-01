@@ -1,0 +1,122 @@
+{
+  "PLAN.json": {
+    "bytes": 769,
+    "sha256": "9dcc231df2b9893de2a64c465d93f30d67dad8bdfa7e6a206be09d1254c1a211"
+  },
+  "REPORT.md": {
+    "bytes": 6930,
+    "sha256": "8f56b1297fbb1efbc9e1c1f38e0353f2ccb50d71185df10ebe19411261c897c2"
+  },
+  "RESULT.json": {
+    "bytes": 2831,
+    "sha256": "f0717fdc895e2342fb24f90910c08a5f754305d9c729bc749cc6271ad8edb599"
+  },
+  "checks/01-owned-event-reply/command.json": {
+    "bytes": 806,
+    "sha256": "e44b57e07b15f964f79640eea2fdcf65bd1e7a65a7bda62ee791d20ef5de2070"
+  },
+  "checks/01-owned-event-reply/main.zil": {
+    "bytes": 424,
+    "sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f"
+  },
+  "checks/01-owned-event-reply/phases/core.txt": {
+    "bytes": 68375,
+    "sha256": "3b30192169bb606f437484e45c7e1c84ff372ba7d85ac19fff34b88373ad8617"
+  },
+  "checks/01-owned-event-reply/phases/source-map.txt": {
+    "bytes": 34718,
+    "sha256": "671d35c67f87d98d85a9d519d402da5e3f629f5263e5691919e41e5b0084304f"
+  },
+  "checks/01-owned-event-reply/phases/syntax.txt": {
+    "bytes": 124568,
+    "sha256": "22435c345b127cf905622e3658045e2a5c4fd23c97fa01a224f1580a19f1e9c1"
+  },
+  "checks/01-owned-event-reply/stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "checks/01-owned-event-reply/stdout.json": {
+    "bytes": 1043,
+    "sha256": "b8303155b433e50ea86c18d5aa30b9578b0f4517aba669ec938d688b88b20a8f"
+  },
+  "checks/02-preserve-f-identity/command.json": {
+    "bytes": 735,
+    "sha256": "c545c19b9ccc47fe11f7fdea7cd41c36875f98f2cbc09b9ff89dec1ee105780e"
+  },
+  "checks/02-preserve-f-identity/main.zil": {
+    "bytes": 139,
+    "sha256": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266"
+  },
+  "checks/02-preserve-f-identity/phases/syntax.txt": {
+    "bytes": 54735,
+    "sha256": "c05945cc9823ce3a3aac5df491b653d5a4b63fa95c8272c88b02bc567d546e56"
+  },
+  "checks/02-preserve-f-identity/stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "checks/02-preserve-f-identity/stdout.json": {
+    "bytes": 756,
+    "sha256": "87b0e98d77fa1b6d66227e5a2da65a57d5acd5ccc3ec2a0a2a80338b161a7fcc"
+  },
+  "checks/03-state-store-positive-control/command.json": {
+    "bytes": 490,
+    "sha256": "64bb8c051c2cc27a57c4195c9212d8571716efcb8ea347198cb85a9ba0fbc5a1"
+  },
+  "checks/03-state-store-positive-control/main.zil": {
+    "bytes": 537,
+    "sha256": "28a5b3ac64e700506ca2132b4cbd4f977e18f655653f0b953a6413a9e67a6c63"
+  },
+  "checks/03-state-store-positive-control/phases/candidate.txt": {
+    "bytes": 11832,
+    "sha256": "e4677ec53bb3e9b82745475b4b7915a1f371048ed864d33d016d635054651ce9"
+  },
+  "checks/03-state-store-positive-control/phases/core.txt": {
+    "bytes": 73786,
+    "sha256": "036209e5337b4bf34755c8db56eb84b5b528ada3e39695d28e829c704825f84d"
+  },
+  "checks/03-state-store-positive-control/phases/ct-core.txt": {
+    "bytes": 79731,
+    "sha256": "aa6dcda1f569e2daa1d381ff352994ae756fb5bf1e248a8d641ab2c16b7e7eea"
+  },
+  "checks/03-state-store-positive-control/phases/interfaces.txt": {
+    "bytes": 1722,
+    "sha256": "a3c43be755fe4d7eb092667338a76e0b406b35c0d494229d3949ac193af3d138"
+  },
+  "checks/03-state-store-positive-control/phases/source-map.txt": {
+    "bytes": 40011,
+    "sha256": "df9ae6eeada0e5fba59775224486f67eb5e92210ddb305da7ec8325bae0302f3"
+  },
+  "checks/03-state-store-positive-control/phases/syntax.txt": {
+    "bytes": 177322,
+    "sha256": "7a7522721dffbb73a95054e8c6853f391340479b3fa792c3819c973f41f65aef"
+  },
+  "checks/03-state-store-positive-control/phases/typed.txt": {
+    "bytes": 109794,
+    "sha256": "c69ab95e6b869eb9741ad968610e33e3c7b6572939c64395c3d2e792db79aa04"
+  },
+  "checks/03-state-store-positive-control/phases/verified-interfaces.txt": {
+    "bytes": 2672,
+    "sha256": "c538b522425b4cbe3af64d336dd75fc2d887f6fe5d94ba28b0a2ae17160184b0"
+  },
+  "checks/03-state-store-positive-control/phases/verified.txt": {
+    "bytes": 109871,
+    "sha256": "644a43e6d0702c01bc290b7ee58fdd3c5e7809cee4c34c9a5bb9aa0f498c2bfc"
+  },
+  "checks/03-state-store-positive-control/stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "checks/03-state-store-positive-control/stdout.json": {
+    "bytes": 1956,
+    "sha256": "c766308ba67fae9e20fe96797d705c50fe7f860e52b17dd19d9f102a0dcb7511"
+  },
+  "run.log": {
+    "bytes": 2831,
+    "sha256": "f0717fdc895e2342fb24f90910c08a5f754305d9c729bc749cc6271ad8edb599"
+  },
+  "run.py": {
+    "bytes": 2332,
+    "sha256": "8cb9f08372f0042f021149bf1ea5be8af1c1b3bf4cb0920a9dd55ed5c08a4ee9"
+  }
+}
