@@ -69,3 +69,81 @@ fn continue_and_break_each_discharge_only_the_current_pattern_owners() {
     );
     run("loop", source, "LQACDLQACDN");
 }
+
+#[test]
+fn defer_borrows_actual_published_leaf_locals_before_their_drop() {
+    // The defer reads the three actual leaf headers before they are cleaned.
+    // Its ordinary borrowed captures remain valid until the required call.
+    let source = format!(
+        "{DECLS}fn run(){{{CONSTRUCT}match value{{Outer.Pair(a,Inner.Pair(c,d))=>{{defer{{emit(a.n+32);emit(c.n+32);emit(d.n+32)}}let late=R{{n:76}};return}}\nOuter.Pair(a,Inner.Empty())=>{{return}}\nOuter.Empty()=>{{return}}}}}}fn main()->i32{{run();emit(78);return 0}}"
+    );
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "defer-leaves240.zil",
+        source.as_str(),
+    );
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::host_llvm(),
+        &zil_base::Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(typed.closures.len(), 1);
+    assert_eq!(typed.closures[0].kind, zil_ir::CallableKind::FnOnce);
+    assert_eq!(typed.closures[0].captures.len(), 3);
+    assert!(
+        typed.closures[0]
+            .captures
+            .iter()
+            .all(|ty| matches!(ty, zil_ir::Type::Desc(_)))
+    );
+    run("borrowed-leaves", source, "LacdACDN");
+}
+
+#[test]
+fn pending_defer_borrow_blocks_consuming_a_published_pattern_leaf() {
+    let text = format!(
+        "{DECLS}fn main(){{{CONSTRUCT}match value{{Outer.Pair(a,Inner.Pair(c,d))=>{{defer{{emit(a.n)}}let moved=give a}}\nOuter.Pair(a,Inner.Empty())=>{{}}\nOuter.Empty()=>{{}}}}}}"
+    );
+    let out = std::env::var_os("ZIL_TEST_REPORT_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join(format!(
+            "review240-exits-borrow-consume-{}",
+            std::process::id()
+        ));
+    fs::create_dir_all(&out).unwrap();
+    fs::write(out.join("source.zil"), &text).unwrap();
+    let report = compile_source(
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "defer-leaf-consume240.zil",
+            text.as_str(),
+        ),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            emit_dir: Some(out.join("phases")),
+            ..CompileOptions::default()
+        },
+    );
+    fs::write(out.join("report.json"), report.to_json()).unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Analyze),
+        "{}",
+        report.to_json()
+    );
+    assert!(!report.artifacts.contains_key("executable"));
+}
