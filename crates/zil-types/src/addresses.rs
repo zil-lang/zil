@@ -33,6 +33,9 @@ impl Builder<'_, '_> {
         if matches!(expected, Some(Type::ErrorUnion { .. })) {
             return self.expr(e, expected);
         }
+        if let Some(value) = self.take_replacement_input(e, expected)? {
+            return Ok(value);
+        }
         if let CoreExprKind::Name(name) = &e.kind
             && let Some(local) = self.lookup(name)
             && !self.borrowed_captures.contains_key(&local)
