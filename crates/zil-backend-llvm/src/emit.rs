@@ -1,5 +1,6 @@
 mod arrays;
 mod byte_buffer;
+mod constant_divisors;
 mod dynamic_store;
 mod enums;
 mod errors;
@@ -49,6 +50,15 @@ pub(crate) fn lower_view_with_options(
     lir: &LirView<'_>,
     options: &EmitOptions,
 ) -> CompileResult<m::Module> {
+    lower_view_with_divisor_policy(verified, lir, options, false)
+}
+
+pub(crate) fn lower_view_with_divisor_policy(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    constant_divisor_guards: bool,
+) -> CompileResult<m::Module> {
     bind_lir(verified, lir)?;
     let functions = lir
         .functions
@@ -97,6 +107,7 @@ pub(crate) fn lower_view_with_options(
             temporary: 0,
             continuation: 0,
             partial_packages: BTreeSet::new(),
+            safe_divisors: constant_divisor_guards.then(BTreeSet::new),
         }
         .emit()?
         .into_items()
@@ -786,6 +797,7 @@ struct FunctionEmitter<'a> {
     // Only locals with field ownership/update operations need field flags.
     // Complete values retain the existing inline ABI and whole-local path.
     partial_packages: BTreeSet<LocalId>,
+    safe_divisors: Option<BTreeSet<ValueId>>,
 }
 
 impl FunctionEmitter<'_> {
@@ -838,6 +850,11 @@ impl FunctionEmitter<'_> {
             .flat_map(|block| &block.instructions)
         {
             match instruction.kind {
+                InstructionKind::Binary {
+                    op: BinaryOp::Divide | BinaryOp::Remainder,
+                    right,
+                    ..
+                } => constant_divisors::record(&mut self.safe_divisors, right),
                 InstructionKind::TakePackageField { local, .. }
                 | InstructionKind::DropPackageField { local, .. }
                 | InstructionKind::StorePackageField { local, .. } => {
@@ -854,6 +871,7 @@ impl FunctionEmitter<'_> {
                 _ => {}
             }
         }
+        constant_divisors::retain_safe(self.function, &mut self.safe_divisors);
         for local in &self.function.locals {
             if let Some(index) = package_views.get(&local.id) {
                 self.package_capture_storage(local.id, *index)?;
@@ -1828,65 +1846,71 @@ impl FunctionEmitter<'_> {
                 self.checked_binary("smul", &ty, &left_text, &right_text, result)?
             }
             BinaryOp::Divide | BinaryOp::Remainder => {
-                let is_zero = self.temp();
-                self.event(m::Event::Instruction(m::Inst::new(
-                    Some(m::name((is_zero).clone())),
-                    m::Op::Compare {
-                        predicate: "eq".into(),
-                        ty: (operand_type).clone(),
-                        left: m::val((right_text).clone()),
-                        right: m::Val::Int(0),
-                    },
-                )));
-                if matches!(ty, Type::U8 | Type::U16) {
-                    self.trap_if(&is_zero);
-                } else {
-                    let minimum = match ty {
-                        Type::I32 => i128::from(i32::MIN),
-                        Type::I64 => i128::from(i64::MIN),
-                        _ => return unsupported("non-integer division", Some(span)),
-                    };
-                    let is_minimum = self.temp();
-                    let is_minus_one = self.temp();
-                    let is_overflow = self.temp();
-                    let is_invalid = self.temp();
+                if !self
+                    .safe_divisors
+                    .as_ref()
+                    .is_some_and(|safe| safe.contains(&right))
+                {
+                    let is_zero = self.temp();
                     self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((is_minimum).clone())),
-                        m::Op::Compare {
-                            predicate: "eq".into(),
-                            ty: (operand_type).clone(),
-                            left: m::val((left_text).clone()),
-                            right: m::val(minimum),
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((is_minus_one).clone())),
+                        Some(m::name((is_zero).clone())),
                         m::Op::Compare {
                             predicate: "eq".into(),
                             ty: (operand_type).clone(),
                             left: m::val((right_text).clone()),
-                            right: m::Val::Int(-1),
+                            right: m::Val::Int(0),
                         },
                     )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((is_overflow).clone())),
-                        m::Op::Binary {
-                            opcode: "and".into(),
-                            ty: m::Ty::Int(1),
-                            left: m::val((is_minimum).clone()),
-                            right: m::val((is_minus_one).clone()),
-                        },
-                    )));
-                    self.event(m::Event::Instruction(m::Inst::new(
-                        Some(m::name((is_invalid).clone())),
-                        m::Op::Binary {
-                            opcode: "or".into(),
-                            ty: m::Ty::Int(1),
-                            left: m::val((is_zero).clone()),
-                            right: m::val((is_overflow).clone()),
-                        },
-                    )));
-                    self.trap_if(&is_invalid);
+                    if matches!(ty, Type::U8 | Type::U16) {
+                        self.trap_if(&is_zero);
+                    } else {
+                        let minimum = match ty {
+                            Type::I32 => i128::from(i32::MIN),
+                            Type::I64 => i128::from(i64::MIN),
+                            _ => return unsupported("non-integer division", Some(span)),
+                        };
+                        let is_minimum = self.temp();
+                        let is_minus_one = self.temp();
+                        let is_overflow = self.temp();
+                        let is_invalid = self.temp();
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((is_minimum).clone())),
+                            m::Op::Compare {
+                                predicate: "eq".into(),
+                                ty: (operand_type).clone(),
+                                left: m::val((left_text).clone()),
+                                right: m::val(minimum),
+                            },
+                        )));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((is_minus_one).clone())),
+                            m::Op::Compare {
+                                predicate: "eq".into(),
+                                ty: (operand_type).clone(),
+                                left: m::val((right_text).clone()),
+                                right: m::Val::Int(-1),
+                            },
+                        )));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((is_overflow).clone())),
+                            m::Op::Binary {
+                                opcode: "and".into(),
+                                ty: m::Ty::Int(1),
+                                left: m::val((is_minimum).clone()),
+                                right: m::val((is_minus_one).clone()),
+                            },
+                        )));
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(m::name((is_invalid).clone())),
+                            m::Op::Binary {
+                                opcode: "or".into(),
+                                ty: m::Ty::Int(1),
+                                left: m::val((is_zero).clone()),
+                                right: m::val((is_overflow).clone()),
+                            },
+                        )));
+                        self.trap_if(&is_invalid);
+                    }
                 }
                 let op = match (
                     matches!(ty, Type::U8 | Type::U16),

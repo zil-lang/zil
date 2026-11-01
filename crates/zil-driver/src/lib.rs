@@ -9,6 +9,7 @@ mod ct_selection;
 mod project;
 mod semantic_cache;
 mod session;
+mod stable_source_identity;
 pub use project::{ProjectSources, compile_project};
 pub use session::CompilationSession;
 pub use zil_db::CancellationToken;

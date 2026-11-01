@@ -143,7 +143,7 @@ pub fn compile_with_function_merging(
 /// Check the machine representation before any LLVMBuilder operation.
 /// This is not and cannot create a ZIL VerifiedModule capability.
 pub fn validate_module(module: &model::Module) -> Result<(), Error> {
-    preflight::validate(module)
+    preflight::validate_only(module)
         .map(|_| ())
         .map_err(|message| Error {
             kind: ErrorKind::Verify,
