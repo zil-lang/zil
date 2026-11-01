@@ -60,6 +60,17 @@ pub(crate) fn lower_view_with_incremental_scalar_policy(
     options: &EmitOptions,
     incremental_scalar_policy: bool,
 ) -> CompileResult<m::Module> {
+    lower_view_with_closed_scalar_policy(verified, lir, options, incremental_scalar_policy, false)
+        .map(|(module, _)| module)
+}
+
+pub(crate) fn lower_view_with_closed_scalar_policy(
+    verified: &VerifiedModule,
+    lir: &LirView<'_>,
+    options: &EmitOptions,
+    incremental_scalar_policy: bool,
+    closed_scalar_collection: bool,
+) -> CompileResult<(m::Module, bool)> {
     bind_lir(verified, lir)?;
     let functions = lir
         .functions
@@ -73,6 +84,12 @@ pub(crate) fn lower_view_with_incremental_scalar_policy(
         .collect::<BTreeMap<_, _>>();
     let wrapper = entry_wrapper(&functions, options.entry, lir.resources)?;
     let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
+    let omit_known_definitions = closed_scalar_collection
+        && options.entry == EntryPoint::Main
+        && lir.target.triple == "x86_64-unknown-linux-gnu"
+        && summaries
+            .as_ref()
+            .is_some_and(|facts| scalar_summaries::can_collect_closed(lir, facts));
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     let mut intrinsics = BTreeSet::new();
     // Finish each function before retaining it: no whole-project Event buffer.
@@ -99,6 +116,9 @@ pub(crate) fn lower_view_with_incremental_scalar_policy(
             continue;
         }
         if let Some(value) = summaries.as_ref().and_then(|plan| plan.get(&function.id)) {
+            if omit_known_definitions && function.name != "main" {
+                continue;
+            }
             body.push(m::Item::Function(scalar_summaries::emit(function, value)));
             continue;
         }
@@ -319,11 +339,14 @@ pub(crate) fn lower_view_with_incremental_scalar_policy(
         ]));
     }
     items.extend(text.into_items().map_err(machine_error)?);
-    Ok(m::Module {
-        triple: lir.target.triple.clone(),
-        fingerprint: verified.fingerprint().to_hex(),
-        items,
-    })
+    Ok((
+        m::Module {
+            triple: lir.target.triple.clone(),
+            fingerprint: verified.fingerprint().to_hex(),
+            items,
+        },
+        omit_known_definitions,
+    ))
 }
 
 fn machine_error(message: String) -> Vec<Diagnostic> {
