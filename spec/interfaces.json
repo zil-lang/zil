@@ -122,6 +122,45 @@
       "representation": "Existing same-shape Package shell and Read/Take/Drop/StorePackageField, MakePackage and ordinary temporary cleanup. No new runtime opcode or permission.",
       "scope": "Mutable ordinary Product without whole user teardown; independent RHS, or static ordinary call (including uniquely instantiated ordinary templates and explicit TypeApply) with exactly one direct target-local argument and no other free target reference. Other whole moves preserve TakeLocal semantics.",
       "responsibility": "Keep original shell construction age; fully prepare before ordered old-field cleanup and infallible publication. Actual source/loan/debt and failed preparation checked by existing independent kernels; no Copy read after whole move admitted."
+    },
+    "ordinary_owned_sum_239_244": {
+      "authority": "_zil_design.md §8.1.5",
+      "state": "ContractToImplement",
+      "schema_version": 30,
+      "raw_wire_version": 30,
+      "representation": {
+        "VariantProjection": {
+          "variant": "u32",
+          "index": "u32"
+        },
+        "VariantTagLocal": {
+          "opcode": 90,
+          "local": "LocalId",
+          "path": "Vec<VariantProjection>",
+          "result": "i32"
+        },
+        "ReadVariantLocal": {
+          "opcode": 91,
+          "local": "LocalId",
+          "path": "Vec<VariantProjection>",
+          "result": "finite Copy terminal; nonempty path"
+        },
+        "UnpackVariant": {
+          "opcode": 92,
+          "local": "LocalId",
+          "variant": "u32",
+          "fields": "Vec<LocalId>",
+          "result": null
+        },
+        "DropEnum": {
+          "opcode": 93,
+          "local": "LocalId",
+          "result": null
+        }
+      },
+      "responsibility": "Each actual Enum-only projection step proves current selected tag. Root activation and all prefix observations invalidate on mutation. Atomic Unpack consumes complete source and initializes exact vacant distinct fields in reverse field registration order, preserving actual provenance. No ownership view or inherited cleanup age. Producer final recursive pattern publication uses real Take/Store in reverse declaration order.",
+      "abi": "Existing Enum i32 tag plus aligned payload and ErrorUnion i1 plus fixed slots retained. Ordinary finite Product/Sum/Managed composition; other admission profiles remain independent.",
+      "migration": "No new Type/Core metadata. New instructions are CT-forbidden; existing Copy enum CT preserved. Wire30 fingerprint domain; old fixtures retained and unknown opcodes migrate to94+. Schema implementation and every consumer must land together before acceptance."
     }
   },
   "schemas": [
