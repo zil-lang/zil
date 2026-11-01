@@ -267,7 +267,7 @@ fn local_value(
         return super::resources::product::admit(inner, budget);
     }
     if super::resources::product::nested(ty) {
-        super::resources::product::admit(ty, budget)
+        super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
         super::dynamic_store::product_element(payload, budget)
     } else {

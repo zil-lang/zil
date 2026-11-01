@@ -281,7 +281,7 @@ fn check_element_admission(
         // Raw module/resource shapes are bounded before admission. Rebuild
         // complete nominal children, actual leaf definitions and the layout;
         // no producer classifier or claimed stride grants container ownership.
-        packages::check_ordinary_type(module, element, span, budget)?;
+        packages::check_product_type(module, element, span, budget, false)?;
         let (bytes, _) = layout(element, None, budget)?;
         if bytes == 0 {
             return Err(unsupported(
