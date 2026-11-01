@@ -748,7 +748,10 @@ fn resource_registry_growth_charges_each_type_and_constructor_use() {
     let large = many_definitions();
     for check in 0..3 {
         for (m, expected_limit) in [(&small, false), (&large, true)] {
-            let mut budget = Budget { remaining: 256 };
+            let mut budget = Budget {
+                remaining: 256,
+                ..Budget::new(&Limits::default())
+            };
             let result = match check {
                 0 => check_function_signature_type(m, &owned(), Some(span()), &mut budget),
                 1 => check_local_type(&owned(), Some(span()), m, &mut budget),
@@ -792,7 +795,10 @@ fn ordinary_call_and_function_pointer_pay_teardown_table_search() {
                     arguments: vec![],
                 }
             };
-            let mut budget = Budget { remaining: 64 };
+            let mut budget = Budget {
+                remaining: 64,
+                ..Budget::new(&Limits::default())
+            };
             let result = check_instruction(m, &function, &i(Some(0), kind), &mut budget);
             if expected_limit {
                 assert_eq!(
