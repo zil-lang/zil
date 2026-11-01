@@ -1,0 +1,78 @@
+    Checking zil-base v0.1.0 (/workspace/zil-243/crates/zil-base)
+    Checking zil-ir v0.1.0 (/workspace/zil-243/crates/zil-ir)
+    Checking zil-verify v0.1.0 (/workspace/zil-243/crates/zil-verify)
+   Compiling zil-llvm-api v0.1.0 (/workspace/zil-243/crates/zil-llvm-api)
+    Checking zil-backend-llvm v0.1.0 (/workspace/zil-243/crates/zil-backend-llvm)
+error: this `if` statement can be collapsed
+   --> crates/zil-backend-llvm/src/emit/drop_plan.rs:560:5
+    |
+560 | /     if let Some(entry) = lir.functions.iter().find(|f| match entry {
+561 | |         EntryPoint::None => false,
+562 | |         EntryPoint::Main => f.name == "main",
+563 | |         EntryPoint::ReturnValue(id) => f.id == id,
+...   |
+572 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+564 ~     })
+565 ~         && let Type::ErrorUnion { error, .. } = &entry.return_type {
+566 |             if !error.is_copy_value() {
+...
+570 |             }
+571 ~         }
+    |
+
+error: this `if` statement can be collapsed
+   --> crates/zil-backend-llvm/src/emit/drop_plan.rs:565:9
+    |
+565 | /         if let Type::ErrorUnion { error, .. } = &entry.return_type {
+566 | |             if !error.is_copy_value() {
+567 | |                 for _ in 0..8 {
+568 | |                     budget.tree(&entry.return_type, 0)?;
+...   |
+571 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_if
+help: collapse nested if block
+    |
+565 ~         if let Type::ErrorUnion { error, .. } = &entry.return_type
+566 ~             && !error.is_copy_value() {
+567 |                 for _ in 0..8 {
+568 |                     budget.tree(&entry.return_type, 0)?;
+569 |                 }
+570 ~             }
+    |
+
+error: this `if` can be collapsed into the outer `match`
+   --> crates/zil-backend-llvm/src/emit/drop_plan.rs:621:25
+    |
+621 | /                         if !f.values
+622 | |                             [instruction.result.expect("verified variant result").0 as usize]
+623 | |                             .is_copy_value()
+...   |
+629 | |                         }
+    | |_________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_match
+    = note: `-D clippy::collapsible-match` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_match)]`
+help: collapse nested if block
+    |
+620 ~                     InstructionKind::MakeVariant { fields, .. }
+621 |                         if !f.values
+622 |                             [instruction.result.expect("verified variant result").0 as usize]
+623 |                             .is_copy_value()
+624 ~                         => {
+625 |                             for field in fields {
+...
+628 |                             }
+629 ~                         }
+    |
+
+error: could not compile `zil-backend-llvm` (lib) due to 3 previous errors

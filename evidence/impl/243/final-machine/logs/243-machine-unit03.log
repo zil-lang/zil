@@ -1,0 +1,27 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-243/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/zil-243/crates/zil-lower)
+    Finished `test` profile [unoptimized] target(s) in 6.44s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-243/debug/deps/zil_backend_llvm-801641aa7db5eb21)
+
+running 5 tests
+test emit::drop_plan::impl243_plan_tests::impl243_drop_plan_honors_current_shared_limit_and_fresh_boundary ... ok
+test emit::drop_plan::impl243_plan_tests::impl243_drop_plan_keeps_variant_choice_above_owned_fields ... FAILED
+test emit::enums::impl243_layout_tests::impl243_enum_managed_headers_keep_aligned_max_payload_abi ... ok
+test emit::enums::impl243_layout_tests::impl243_product_sum_nested_layout_preserves_field_offsets_and_bool_storage ... ok
+test tests::impl243_false_presence_cannot_authorize_mutated_raw_lir_new_opcode ... ok
+
+failures:
+
+---- emit::drop_plan::impl243_plan_tests::impl243_drop_plan_keeps_variant_choice_above_owned_fields stdout ----
+
+thread 'emit::drop_plan::impl243_plan_tests::impl243_drop_plan_keeps_variant_choice_above_owned_fields' (256715) panicked at crates/zil-backend-llvm/src/emit/drop_plan.rs:583:9:
+assertion failed: matches!(variants[0], DropPlan::Empty)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    emit::drop_plan::impl243_plan_tests::impl243_drop_plan_keeps_variant_choice_above_owned_fields
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 126 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p zil-backend-llvm --lib`
