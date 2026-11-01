@@ -1,0 +1,94 @@
+{
+  "status": "SafeReject",
+  "phase": "verify",
+  "diagnostics": [
+    {
+      "phase": "verify",
+      "category": "SafeReject",
+      "code": "E-VERIFY-FOREIGN",
+      "message": "a foreign symbol must have exactly one declaration in the module",
+      "span": {
+        "file": 1,
+        "start": 11,
+        "end": 37
+      },
+      "notes": []
+    }
+  ],
+  "artifacts": {
+    "candidate": "/tmp/review243-layout/results/O0/opaque_app/phases/candidate.txt",
+    "core": "/tmp/review243-layout/results/O0/opaque_app/phases/core.txt",
+    "ct-core": "/tmp/review243-layout/results/O0/opaque_app/phases/ct-core.txt",
+    "interfaces": "/tmp/review243-layout/results/O0/opaque_app/phases/interfaces.txt",
+    "source-map": "/tmp/review243-layout/results/O0/opaque_app/phases/source-map.txt",
+    "syntax": "/tmp/review243-layout/results/O0/opaque_app/phases/syntax.txt",
+    "typed": "/tmp/review243-layout/results/O0/opaque_app/phases/typed.txt"
+  },
+  "input_fingerprint": "02cc7c42d79966f8290e2cbf5c25d9bb22c82475c659b2f593203229a8a7818f",
+  "seconds": 0.027654328,
+  "cache_hit": false,
+  "commands": [],
+  "native_codegen": null,
+  "disk_cache": "disabled",
+  "query_events": [
+    {
+      "phase": "parse",
+      "disposition": "executed"
+    },
+    {
+      "phase": "parse",
+      "disposition": "executed"
+    },
+    {
+      "phase": "expand",
+      "disposition": "executed"
+    },
+    {
+      "phase": "ct",
+      "disposition": "executed"
+    },
+    {
+      "phase": "types",
+      "disposition": "executed"
+    },
+    {
+      "phase": "analyze",
+      "disposition": "executed"
+    },
+    {
+      "phase": "verify",
+      "disposition": "executed"
+    }
+  ],
+  "verification_runs": 1,
+  "source_files": {
+    "0": "opaque_app/main.zil",
+    "1": "opaque_app/lib.zil"
+  },
+  "scalar_interfaces": [
+    {
+      "module": 0,
+      "signature_fingerprint": "d677a75f506a66a604fe4e304a547b446e9941a3aa58dc53c01a57e233d10a19",
+      "implementation_fingerprint": "f093016224f306c34f65512d134de916a4cb06f3fae78522b4513e08b6fe613e",
+      "contract_fingerprint": null,
+      "result_origins": null,
+      "callable_contracts": null,
+      "callable_returns": null,
+      "exports": []
+    },
+    {
+      "module": 1,
+      "signature_fingerprint": "4fb89d4c1b45e04aa04fe32ff5cc0b790eaf888f9d6cca02c4af4fe932ac5a5c",
+      "implementation_fingerprint": "61cb5ac4dc11fe04d246551d92b2b244125d7ca1020b552759037d80c042ba23",
+      "contract_fingerprint": null,
+      "result_origins": null,
+      "callable_contracts": null,
+      "callable_returns": null,
+      "exports": [
+        "finish",
+        "increment",
+        "make"
+      ]
+    }
+  ]
+}

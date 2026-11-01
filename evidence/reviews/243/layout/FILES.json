@@ -1,0 +1,30 @@
+{
+  "sha256": {
+    "AUDIT.json": "ad0a0324c849fbf1880834dc0c6b6c6861bd46bf210432bd045b1963921547fe",
+    "EFFECTIVE-INPUTS.json": "ee73fd97d2a6521ae2935037420c0dd2517887ef65e953e457d986bebabd3e97",
+    "ORACLE.json": "2e7820e025e6d3a1fd32e2ddd340ebb124aa278c4f365c063c70dc2610cb2153",
+    "REVIEW.json": "47837a4bb3b557e8f200b1bbfbb6963b5dac0dffeef498b8d8fa9ec535400070",
+    "duplicate-foreign-original-report.json": "7221ae0173132cbc9af3c80da221eba3e0c56558a41d68cd7f9ae7f4932e1ecb",
+    "effective-sources.json": "ddb7a0638172aaefd4592a2e83114db392629fa780da0571a65b22e42a80dcc5",
+    "effective-sources.tar.gz": "daf6149d60fa654efd171bddf728ab660a2410776e25df7a140641c7091f890c",
+    "invalid-number-original-report.json": "cdae67a92d2f89d8afedc4fefa8ef1fa8d2e2cabd8b073d6e0272fa74938fd82",
+    "machine-artifacts.json": "ba0eb015ca46142b0510a7f0f99ddf561692d78a4d8eadbe68ff85e8b08d6c3e",
+    "machine-artifacts.tar.gz": "b5f598017bf90f7b9f20c9b65c9dce897a0c42008c20815da420ec15681b14d0",
+    "original-fixture-history.json": "79396fed704100c9b0cb731d068c0401faae93a2b218cf285e89a6c161c7bebe",
+    "original-fixture-history.tar.gz": "30cb99390fde7d2025a1f2f93025f8dd3a08dcc66b28d64d289e1f4537a24807",
+    "prepare.py": "5ee54ccaaf41ddaa51da68b03933e13debbb8c143f26e46033f5b8de7006d3c0",
+    "raw06.log.gz": "4a0cd7f96ab798f4560134278c5fe02f7f305aefdefe1b5f16582a6bf8324125",
+    "run01.log.gz": "54a6fbcecbcd134f51c9633fcf364b0b98f46b2b08561ec8cb241ed1d38b6006",
+    "run02.log.gz": "3b80ca1be94296311ea2c9a90b17f25d932eaf9e9ea76036a86321d56334a011",
+    "run03.log.gz": "4fb86b2e51ad007a7748fbe6ce618cb2dc1ca65701b80f04ac258202f2697f55",
+    "run04.log.gz": "a131dabb907976c79e225a72c375328c348dd3461ea594836d47be6c2adf9f5e",
+    "runner/Cargo.lock": "4a779962c363e03eda05d19c4a794602f5b8b4fcc50ff0f681fb2bd983a27951",
+    "runner/Cargo.toml": "219c4a308a7460f59ddc3c746328094d8801d259fc17b344ec09d539bedae698",
+    "runner/src/cases.rs": "921be52aebf771aedbfb7461986a1d953936e6998192254448d88397331c7c0e",
+    "runner/src/lib.rs": "3e69dafe593f5a0a7624d9db49506afe3cd63b402bcec31554d78103aad221d1",
+    "runner-v1.rs": "33a7b60bcc58878b2c24a4a060f81d4395731c5d4818012b4b7829d5c35b33a3",
+    "runner-v2.rs": "d936cc45d3b7365ff9570472c2895cf8f9a8c9fb3f7f1bc87aafaf44e1176633",
+    "runner-v3.rs": "d978e506dbe60033cfc981c65d9af57dc8ba7fe822abc0ab38067dfbdaba8d5f",
+    "runner-v4.rs": "8a65aceb457d71c1d67e105018c5c5571accc441b670d6c7378024f049df5211"
+  }
+}

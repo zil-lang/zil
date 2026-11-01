@@ -1,0 +1,740 @@
+{
+  "reviewer": "/root/ir_defer227",
+  "verdict": "Pass",
+  "scope": "Non-author supplemental243 layout/drop-plan/native-entry/exact-LIR-binding audit only. Does not review own239 IR implementation or certify242 external admission profiles.",
+  "implementation_commit": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "actual_tested_compiler_commit": "7bdb0cfbf7f3435d72e5a1c038b7618e533eb06b",
+  "tested_worktree": "/tmp/review243-checkout",
+  "reviewed_at_utc": "2026-11-01T22:42:41.439407+00:00",
+  "P_binding": {
+    "tested_commit": "7bdb0cfbf7f3435d72e5a1c038b7618e533eb06b",
+    "final_candidate": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+    "tracked_production_files": 41,
+    "all_identical": true,
+    "files": [
+      {
+        "path": "crates/zil-backend-llvm/Cargo.toml",
+        "sha256": "c5faf4fdebde5a922fb275a032d0ed5cd31373a403430b37f5d6688506a26acc"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/build.rs",
+        "sha256": "204352c947c35949644c873cf7cf05ccd4038dfc4b663e295b623bb12fb23c7b"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/cgu.rs",
+        "sha256": "a19ffb3a58eed2c7fc28163177e2f3b0a2d6524255e5f537d325dbcbd170960c"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit.rs",
+        "sha256": "7a03e318d7bb48fbee96697c8886de2469b057abedfe60d3fea0839d8710f46c"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/arrays.rs",
+        "sha256": "a3d5f2dc7a826d190a20003f203adbf0a0b601a5e4d22f44a954d49eede8dcf6"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/byte_buffer.rs",
+        "sha256": "b5c81e87e0b6c04ed233a3b18b8689ef46d31dc02e3c6abae5a39512abb7fd0a"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/constant_divisors.rs",
+        "sha256": "74dff591f0e6628515094be42eb5dd868113868e6017ae8cc7f478146498303a"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/drop_plan.rs",
+        "sha256": "82ac0339557efa40a09750f9b89f62f190dc671e6cb8c5bca26a5592a609e4c7"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/dynamic_store.rs",
+        "sha256": "3522ea940af202c7cee8f218b7c91b23a652b41f4c617501a4571f0952ca1dee"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/enums.rs",
+        "sha256": "4a926f01e37bce55a6d52f9b67e1689de0de59a7b6d1e62c71d26344cbb3cd42"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/errors.rs",
+        "sha256": "ca22adce7cdc6a19fe32f57767df0ee1e08c915f2543a5af5fe6fb4c7a5ad09f"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/foreign.rs",
+        "sha256": "1f5c0a5d059497d7abb627e6bb48c96e56a055c07fb5072285cb3a94b3c07b95"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/owned_sums.rs",
+        "sha256": "1074dc57f1e1e455b3473a361c68cdd7b50b680b75dd847ac8b5f27009a73a37"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/packages.rs",
+        "sha256": "e07b6c63f0628751f0c08fc94a10c37b56f03e1906ec1724a8f21edd98ec0871"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/parallel_lowering.rs",
+        "sha256": "a232ad1ea8f0ff73b37315e1ec5f540f74fa3dff55a311f2f7a6c8d66a9e209d"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/resource_closures.rs",
+        "sha256": "afcce1bec4f0919066b595046ab86106746a9b791c58049a4a76b41f9aa56700"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/resources.rs",
+        "sha256": "2c31058542e2e3c92a9dba4d3563340e6a2516f19643a81a336d2b896c4ef4d5"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/scalar_leaf.rs",
+        "sha256": "cfaaddcb53b970b40474f4c631fc76019974d0427387ebdebf0823dbab5c9182"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/scalar_locals.rs",
+        "sha256": "2b0fa53f09c3522f5b7c5af67f85a26ebe5e0e5a3f8d04708aeb559b833e5265"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/scalar_summaries.rs",
+        "sha256": "df7b9dff8b609f4b34496148750f02c8c62865a79690c2c4ccb557441d1725be"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/slices.rs",
+        "sha256": "f92f67ade08fad24c8ced7ad8e0d3a2afe975e46903c609a0c65a5f8364fbf32"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/lib.rs",
+        "sha256": "b71e4d34eaaf8d1277bf8adc99341fd3ab68dd5cf5ebef0c624386ea39d923f6"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu.rs",
+        "sha256": "4c4dfeeeb445b96f271398a0928820ae58a68bb2246603c14fadfe6e81f06bcf"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu/layout.rs",
+        "sha256": "bb33314bfbe51783049ebe9b26ad2d978feeb6593e8782fbc497cbbc4f925440"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs",
+        "sha256": "af5f032b776d025a8cb0cffc9ff0e15b8639fde7933e2f84a14532bb92779e71"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu_clone_controls.rs",
+        "sha256": "2378d370d1f11fdcac62f3116d86019da8d3ff8fae327ddfa88ba8f0f5fa5ec6"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_checked_add_chain.rs",
+        "sha256": "62acbc7234d70d3a1369034ac2a6b86b74ed90c39c20faae171d7a5a8214038d"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_checked_add_chain_tests.rs",
+        "sha256": "6c2d6cfeb528ad311aef38ab1bbd4b183b39267c8fe66c8a41108efd2a1a9dbe"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_object_patch.rs",
+        "sha256": "40d1049003d619203b211c037bb7ca360e9459414f79b4bddb4978e2e5921a25"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_scalar.rs",
+        "sha256": "ac9fb2d89bb399ebaa604e7339fc5c81643c53c512f4de7162102ed96ae7e5d3"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_scalar_summary.rs",
+        "sha256": "c83db70710584f2539f3ce5f8971196fd08063d9aa4d8c299de421a121b81bed"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_scalar_summary_tests.rs",
+        "sha256": "93475736b6a062e2fda002a334a48e12309f88384ea6dd57f4b59a2ccab1363b"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_scalar_tests.rs",
+        "sha256": "1bed5414ce69622883cf9bc347c141b8c6c158073b0b77021e0a1c02cb6958b1"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_stable_identity.rs",
+        "sha256": "4187de3355c2a37e96132036cc546f4d0e759d052b36f1079a7b1dec1fd68013"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_stable_identity_tests.rs",
+        "sha256": "a228a5d1980ff3cedd8e65c05902dc92039cb1f31259a1aa6ed068df06b2056f"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/object_cache.rs",
+        "sha256": "c897ffbb49fbd0d6417f7720a5c94485fca1cf3d42a7a8456aca27f93915fe7c"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/tests.rs",
+        "sha256": "e00e56247e5c1d2b584b4fc3ea89e51b4893020236ee9c8e00bf5398e5c0001f"
+      },
+      {
+        "path": "crates/zil-backend-llvm/tests/closed_executable_research.rs",
+        "sha256": "88886a6e4e77e902294c99ce09dc5c4e27d0f754a8aeefc733bb8891e5179972"
+      },
+      {
+        "path": "crates/zil-lower/Cargo.toml",
+        "sha256": "629b59aeeefab243b4b7ad9111eb2143ef51ab9badc040eb0e790076373535d4"
+      },
+      {
+        "path": "crates/zil-lower/src/lib.rs",
+        "sha256": "381c8ff8ceb58581f91ce3df879402903e9e7460bb9e790e789e72f7807d7c07"
+      },
+      {
+        "path": "crates/zil-lower/src/owned_sums.rs",
+        "sha256": "32b32d7fff3f80677f5d1e7b3734961c309e8e2c5cef38a7513524e3773c93ef"
+      }
+    ]
+  },
+  "compiler_tree_mutated_by_reviewer": false,
+  "239_delivered_tree_mutated": false,
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "source_oracle": {
+    "original_sha256": "2e7820e025e6d3a1fd32e2ddd340ebb124aa278c4f365c063c70dc2610cb2153",
+    "original_expectations_unchanged": true,
+    "frozen_before_execution": true,
+    "effective_input_changes": {
+      "original_oracle_unchanged": true,
+      "original_oracle_sha256": "2e7820e025e6d3a1fd32e2ddd340ebb124aa278c4f365c063c70dc2610cb2153",
+      "fixture_only_changes": [
+        {
+          "file": "sources/nominal_different_layout/right.zil",
+          "original_sha256": "4c962b29380ab6338fdb12fbcc7fbb6d3b38340cb0f1a246bcd4112fb9287a7f",
+          "effective_sha256": "154e06e4823f6a8191c4401704967bee10ef258cd1801cae90af1294ad76ab29",
+          "only_change": "Unsupported i64 numeric suffix removed; declared I64 field/comparison context and numeric value unchanged",
+          "stdout_exit_layout_expectations_changed": false
+        },
+        {
+          "file": "sources/mixed_wide/main.zil",
+          "original_sha256": "997f530e18a91c95b7387d83dcecb45612ead42d0a166a6f478a9a319edae913",
+          "effective_sha256": "b775db16ed73b0382323c118fd5b212a121f04b3c8bd31a99a4513b6895d6aeb",
+          "only_change": "Unsupported i64 numeric suffix removed; declared I64 field/comparison context and numeric value unchanged",
+          "stdout_exit_layout_expectations_changed": false
+        },
+        {
+          "file": "sources/opaque_app/main.zil",
+          "original_sha256": "f093016224f306c34f65512d134de916a4cb06f3fae78522b4513e08b6fe613e",
+          "effective_sha256": "0bf457e78d070aeaa584f84587210a21bc61f80dc76d2d4311eeee955784686b",
+          "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+          "stdout_exit_layout_expectations_changed": false
+        },
+        {
+          "file": "sources/opaque_app/lib.zil",
+          "original_sha256": "61cb5ac4dc11fe04d246551d92b2b244125d7ca1020b552759037d80c042ba23",
+          "effective_sha256": "9d2df740e15cea248b95babf812bfa477ade1bb0993d4b7e42fa2032fb9f06a4",
+          "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+          "stdout_exit_layout_expectations_changed": false
+        },
+        {
+          "file": "sources/nominal_same_layout/main.zil",
+          "original_sha256": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+          "effective_sha256": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+          "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+          "stdout_exit_layout_expectations_changed": false
+        },
+        {
+          "file": "sources/nominal_same_layout/right.zil",
+          "original_sha256": "cde9101b2c19b0c15818e5e752e0621c3eb72699d2979d87e236098e724eceb0",
+          "effective_sha256": "677b2a728217a9223e76c548c6f1fc85028de1b281e3c475b362654db1f4fb25",
+          "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+          "stdout_exit_layout_expectations_changed": false
+        },
+        {
+          "file": "sources/nominal_same_layout/left.zil",
+          "original_sha256": "9cb8867f387b8e193d8c1034bf2b7710357c4622374b1f10d43c9acd433992c9",
+          "effective_sha256": "d6be79f78b811d94c3f54cc19411cba4c56e200d112c6f476fbe74bfda981470",
+          "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+          "stdout_exit_layout_expectations_changed": false
+        },
+        {
+          "file": "sources/nominal_different_layout/main.zil",
+          "original_sha256": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+          "effective_sha256": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+          "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+          "stdout_exit_layout_expectations_changed": false
+        },
+        {
+          "file": "sources/nominal_different_layout/right.zil",
+          "original_sha256": "154e06e4823f6a8191c4401704967bee10ef258cd1801cae90af1294ad76ab29",
+          "effective_sha256": "15bc07e449650f142d87b49469f6ea7b272cd8500f7a80805e420225772fc858",
+          "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+          "stdout_exit_layout_expectations_changed": false
+        },
+        {
+          "file": "sources/nominal_different_layout/left.zil",
+          "original_sha256": "9cb8867f387b8e193d8c1034bf2b7710357c4622374b1f10d43c9acd433992c9",
+          "effective_sha256": "d6be79f78b811d94c3f54cc19411cba4c56e200d112c6f476fbe74bfda981470",
+          "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+          "stdout_exit_layout_expectations_changed": false
+        }
+      ]
+    },
+    "fixes_are_fixture_only": "Illegal i64 suffix removed, value and declared I64 context unchanged; duplicate foreign declaration organized into ordinary shared io module. No production permission, accepted profile, golden output, exit or layout expectation changed.",
+    "original_failures_preserved": [
+      "run01: reviewer CFG-mutant helper indexed foreign function with no blocks; corrected selection,0native",
+      "run02: wide literal suffix lex rejected; original source/log/report kept,1native completed",
+      "run03: opaque project duplicate putchar declaration rejected byVerify; original source/log/report kept,6additional native completed",
+      "run04: all remaining17 native observations completed;7 prior successful rows validated/reused without reexecution"
+    ],
+    "failed_phase_artifact_note": "Original failure logs and reports/source copies are preserved. Earlier failed paths under results were reused for final legal fixture compilation and are not claimed as preserved old phase IR."
+  },
+  "execution": {
+    "command": [
+      "cargo",
+      "test",
+      "--offline",
+      "--manifest-path",
+      "/tmp/review243-layout/runner/Cargo.toml",
+      "--",
+      "--nocapture"
+    ],
+    "environment": {
+      "CARGO_TARGET_DIR": "/workspace/.zil-env/target-review243",
+      "CARGO_BUILD_JOBS": 1,
+      "CARGO_INCREMENTAL": 0
+    },
+    "result": "run04 one matrix test Pass; raw06 one selected test Pass with one matrix test filtered, no additional native",
+    "source_projects": 11,
+    "input_rows": 12,
+    "native_executions": 24,
+    "native_builds": 22,
+    "opts": [
+      "O0",
+      "O2"
+    ],
+    "backend": "llvm-api",
+    "all_input_kinds": "builder",
+    "all_parse_ns_zero": true,
+    "all_verify_before_after": true,
+    "all_source_verification_runs": 1,
+    "fallback": null,
+    "allocation_failure_matrix": "NotRun by this reviewer;244 owns separate matrix; no live0/allocation-balance claim made",
+    "overlap_with_author_or244": "NotAddedAsIndependentCoverage"
+  },
+  "observations": [
+    {
+      "case": "mixed_i32",
+      "opt": "O0",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "mixed_i32",
+      "opt": "O2",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "mixed_wide",
+      "opt": "O0",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "mixed_wide",
+      "opt": "O2",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "managed_header",
+      "opt": "O0",
+      "input": "",
+      "stdout": "AZC",
+      "exit": 0
+    },
+    {
+      "case": "managed_header",
+      "opt": "O2",
+      "input": "",
+      "stdout": "AZC",
+      "exit": 0
+    },
+    {
+      "case": "nested_sum",
+      "opt": "O0",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "nested_sum",
+      "opt": "O2",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "moved_flags",
+      "opt": "O0",
+      "input": "",
+      "stdout": "ZLA",
+      "exit": 0
+    },
+    {
+      "case": "moved_flags",
+      "opt": "O2",
+      "input": "",
+      "stdout": "ZLA",
+      "exit": 0
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O0",
+      "input": "0",
+      "stdout": "L",
+      "exit": 0
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O0",
+      "input": "1",
+      "stdout": "LE",
+      "exit": 1
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O2",
+      "input": "0",
+      "stdout": "L",
+      "exit": 0
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O2",
+      "input": "1",
+      "stdout": "LE",
+      "exit": 1
+    },
+    {
+      "case": "opaque_app",
+      "opt": "O0",
+      "input": "",
+      "stdout": "AZ",
+      "exit": 0
+    },
+    {
+      "case": "opaque_app",
+      "opt": "O2",
+      "input": "",
+      "stdout": "AZ",
+      "exit": 0
+    },
+    {
+      "case": "nominal_same_layout",
+      "opt": "O0",
+      "input": "",
+      "stdout": "bA",
+      "exit": 0
+    },
+    {
+      "case": "nominal_same_layout",
+      "opt": "O2",
+      "input": "",
+      "stdout": "bA",
+      "exit": 0
+    },
+    {
+      "case": "nominal_different_layout",
+      "opt": "O0",
+      "input": "",
+      "stdout": "bA",
+      "exit": 0
+    },
+    {
+      "case": "nominal_different_layout",
+      "opt": "O2",
+      "input": "",
+      "stdout": "bA",
+      "exit": 0
+    },
+    {
+      "case": "context_a",
+      "opt": "O0",
+      "input": "",
+      "stdout": "A",
+      "exit": 0
+    },
+    {
+      "case": "context_a",
+      "opt": "O2",
+      "input": "",
+      "stdout": "A",
+      "exit": 0
+    },
+    {
+      "case": "context_b",
+      "opt": "O0",
+      "input": "",
+      "stdout": "B",
+      "exit": 0
+    },
+    {
+      "case": "context_b",
+      "opt": "O2",
+      "input": "",
+      "stdout": "B",
+      "exit": 0
+    }
+  ],
+  "layout": {
+    "independent_numeric_expectations": [
+      {
+        "case": "mixed_i32",
+        "layout": {
+          "payload_offsets": [
+            0,
+            4,
+            8
+          ],
+          "payload_size": 12,
+          "payload_align": 4,
+          "enum_payload_offset": 4,
+          "enum_size": 16,
+          "enum_align": 4,
+          "llvm_enum": "{ i32, [3 x i32] }"
+        }
+      },
+      {
+        "case": "mixed_wide",
+        "layout": {
+          "R_offsets": [
+            0,
+            8,
+            12
+          ],
+          "R_size": 16,
+          "R_align": 8,
+          "payload_offsets": [
+            0,
+            8,
+            24
+          ],
+          "payload_size": 32,
+          "enum_payload_offset": 8,
+          "enum_size": 40,
+          "enum_align": 8,
+          "llvm_enum": "{ i32, [4 x i64] }"
+        }
+      },
+      {
+        "case": "managed_header",
+        "layout": {
+          "header_size": 24,
+          "header_align": 8,
+          "payload_offsets": [
+            0,
+            8,
+            32
+          ],
+          "payload_size": 40,
+          "enum_payload_offset": 8,
+          "enum_size": 48,
+          "enum_align": 8,
+          "llvm_enum": "{ i32, [5 x i64] }"
+        }
+      },
+      {
+        "case": "nested_sum",
+        "layout": {
+          "inner_size": 8,
+          "inner_align": 4,
+          "outer_payload_offsets": [
+            0,
+            4,
+            12
+          ],
+          "outer_payload_size": 16,
+          "outer_payload_offset": 4,
+          "outer_size": 20,
+          "outer_align": 4,
+          "llvm_outer": "{ i32, [4 x i32] }"
+        }
+      },
+      {
+        "case": "entry_error_enum",
+        "layout": {
+          "fault_enum_size": 8,
+          "fault_enum_align": 4,
+          "error_union_offsets": [
+            0,
+            4,
+            12
+          ],
+          "error_union_size": 16,
+          "error_union_align": 4,
+          "error_tag": "i1",
+          "enum_tag": "i32"
+        }
+      },
+      {
+        "case": "opaque_app",
+        "layout": {
+          "state_size": 8,
+          "state_align": 4,
+          "App_offsets": [
+            0,
+            8
+          ],
+          "App_size": 12,
+          "App_align": 4
+        }
+      },
+      {
+        "case": "nominal_same_layout",
+        "layout": {
+          "left_enum_size": 8,
+          "right_enum_size": 8,
+          "align": 4
+        }
+      },
+      {
+        "case": "nominal_different_layout",
+        "layout": {
+          "left_enum_size": 8,
+          "left_enum_align": 4,
+          "right_resource_offsets": [
+            0,
+            8
+          ],
+          "right_resource_size": 16,
+          "right_enum_size": 24,
+          "right_enum_align": 8
+        }
+      }
+    ],
+    "actual_llvm_type_checks": [
+      {
+        "case": "mixed_i32",
+        "opt": "O0",
+        "expected_machine_type": "{ i32, [3 x i32] }",
+        "found": true
+      },
+      {
+        "case": "mixed_i32",
+        "opt": "O2",
+        "expected_machine_type": "{ i32, [3 x i32] }",
+        "found": true
+      },
+      {
+        "case": "mixed_wide",
+        "opt": "O0",
+        "expected_machine_type": "{ i32, [4 x i64] }",
+        "found": true
+      },
+      {
+        "case": "mixed_wide",
+        "opt": "O2",
+        "expected_machine_type": "{ i32, [4 x i64] }",
+        "found": true
+      },
+      {
+        "case": "managed_header",
+        "opt": "O0",
+        "expected_machine_type": "{ i32, [5 x i64] }",
+        "found": true
+      },
+      {
+        "case": "managed_header",
+        "opt": "O2",
+        "expected_machine_type": "{ i32, [5 x i64] }",
+        "found": true
+      },
+      {
+        "case": "nested_sum",
+        "opt": "O0",
+        "expected_machine_type": "{ i32, [4 x i32] }",
+        "found": true
+      },
+      {
+        "case": "nested_sum",
+        "opt": "O2",
+        "expected_machine_type": "{ i32, [4 x i32] }",
+        "found": true
+      }
+    ],
+    "note": "Sizes/offsets follow ordinary alignment and existing i32-tag/max-payload ABI; matching emitted type and distinct field/destructor observations verify layout. Bool payload widening/zero aggregate store are checked statically; arbitrary inter-field struct padding is not exposed as a new source permission."
+  },
+  "memo_audit": {
+    "identity": "The private helper key hashes the complete Type, including nominal module names, variant and field sequence, complete payload types and array lengths; each seen hash candidate is compared by full Type equality. Digest collisions reject rather than identifying distinct types.",
+    "context": "Found/seen maps are local to each drop_plan::functions invocation. Resource definitions and target remain fixed by prior bind_lir exact comparison with the current sealed VerifiedModule; no global name/layout-only plan cache is used. The type-only helper symbol is internal to that one emitted module.",
+    "actual_resource_resolution": "Managed leaves resolve the actual complete resource payload definition and its teardown FunctionId, or the sealed ByteBuffer/Store helper, within that exact emission context.",
+    "same_full_type_different_resource_context_observed": "context-binding.txt proves identical Choice/R Type and different actual teardown FunctionId; consecutive same-process/session A/B builds print A then B at both opts.",
+    "static_budget_note": "Complete type traversal precedes type hash/equality, clone/layout construction and DAG helper emission; current verifiedLimits and sealed extension presence gate are used. This is a local audit, not a global performance proof."
+  },
+  "flags_trap_entry": {
+    "tag_helpers_with_trap": 1,
+    "flagged_sum_drop_blocks": 3,
+    "flag_cleared_before_helper_call": true,
+    "tag_range_guard": true,
+    "payload_zero_initializer": true,
+    "bool_spare_bits_widened_to_i8": true,
+    "entry_error_enum_storage_and_helper": true
+  },
+  "raw_unbound_LIR": {
+    "mutants": [
+      "raw-drop_local.txt",
+      "raw-cfg_with_copied_fingerprint.txt",
+      "raw-unpack_mapping.txt",
+      "raw-complete_enum_type.txt",
+      "raw-resource.txt",
+      "raw-target.txt"
+    ],
+    "all_exact_code": "E-CODEGEN-UNBOUND-LIR",
+    "all_keep_original_verified_fingerprint": true,
+    "negative_count": 6,
+    "valid_source_derived_LIR_positive_emit": true,
+    "source_target_mutation": "Win64 profile replaces Linux profile with same pointer width; exact bound target is required, not layout similarity.",
+    "new_invalid_tag_source_permission": false,
+    "invalid_tag_native_corruption_injection": "NotRun; actual emitted range guard and exhaustive cleanup default trap/unreachable audited"
+  },
+  "opaque_source_control": {
+    "phase": "types",
+    "verification_runs": 0,
+    "executable": null,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-FIELD-PRIVATE",
+        "message": "record field is private to its declaring module",
+        "span": {
+          "file": 0,
+          "start": 75,
+          "end": 89
+        },
+        "notes": []
+      }
+    ]
+  },
+  "findings": [],
+  "limits": {
+    "region": "243 only; root242 profile gates being repaired are separately audited",
+    "entry_qualification": "Root explicitly confirmed Fault(ownedEnum)!i32 is permitted in this batch; successL/errorLE evidence is not a new generic ErrorUnion permission",
+    "native_windows": "NotRun",
+    "full_workspace": "NotRun by reviewer; root owns formal runs",
+    "full_language": "NotSatisfied",
+    "product": "NotRun",
+    "Rust_comparisons": "NotMeasured"
+  },
+  "artifacts": {
+    "AUDIT.json": "ad0a0324c849fbf1880834dc0c6b6c6861bd46bf210432bd045b1963921547fe",
+    "EFFECTIVE-INPUTS.json": "ee73fd97d2a6521ae2935037420c0dd2517887ef65e953e457d986bebabd3e97",
+    "ORACLE.json": "2e7820e025e6d3a1fd32e2ddd340ebb124aa278c4f365c063c70dc2610cb2153",
+    "duplicate-foreign-original-report.json": "7221ae0173132cbc9af3c80da221eba3e0c56558a41d68cd7f9ae7f4932e1ecb",
+    "effective-sources.json": "ddb7a0638172aaefd4592a2e83114db392629fa780da0571a65b22e42a80dcc5",
+    "effective-sources.tar.gz": "daf6149d60fa654efd171bddf728ab660a2410776e25df7a140641c7091f890c",
+    "invalid-number-original-report.json": "cdae67a92d2f89d8afedc4fefa8ef1fa8d2e2cabd8b073d6e0272fa74938fd82",
+    "machine-artifacts.json": "ba0eb015ca46142b0510a7f0f99ddf561692d78a4d8eadbe68ff85e8b08d6c3e",
+    "machine-artifacts.tar.gz": "b5f598017bf90f7b9f20c9b65c9dce897a0c42008c20815da420ec15681b14d0",
+    "original-fixture-history.json": "79396fed704100c9b0cb731d068c0401faae93a2b218cf285e89a6c161c7bebe",
+    "original-fixture-history.tar.gz": "30cb99390fde7d2025a1f2f93025f8dd3a08dcc66b28d64d289e1f4537a24807",
+    "prepare.py": "5ee54ccaaf41ddaa51da68b03933e13debbb8c143f26e46033f5b8de7006d3c0",
+    "raw06.log.gz": "4a0cd7f96ab798f4560134278c5fe02f7f305aefdefe1b5f16582a6bf8324125",
+    "run01.log.gz": "54a6fbcecbcd134f51c9633fcf364b0b98f46b2b08561ec8cb241ed1d38b6006",
+    "run02.log.gz": "3b80ca1be94296311ea2c9a90b17f25d932eaf9e9ea76036a86321d56334a011",
+    "run03.log.gz": "4fb86b2e51ad007a7748fbe6ce618cb2dc1ca65701b80f04ac258202f2697f55",
+    "run04.log.gz": "a131dabb907976c79e225a72c375328c348dd3461ea594836d47be6c2adf9f5e",
+    "runner-v1.rs": "33a7b60bcc58878b2c24a4a060f81d4395731c5d4818012b4b7829d5c35b33a3",
+    "runner-v2.rs": "d936cc45d3b7365ff9570472c2895cf8f9a8c9fb3f7f1bc87aafaf44e1176633",
+    "runner-v3.rs": "d978e506dbe60033cfc981c65d9af57dc8ba7fe822abc0ab38067dfbdaba8d5f",
+    "runner-v4.rs": "8a65aceb457d71c1d67e105018c5c5571accc441b670d6c7378024f049df5211"
+  }
+}

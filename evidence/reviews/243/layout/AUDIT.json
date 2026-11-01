@@ -1,0 +1,676 @@
+{
+  "native_rows": [
+    {
+      "case": "mixed_i32",
+      "opt": "O0",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "mixed_i32",
+      "opt": "O2",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "mixed_wide",
+      "opt": "O0",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "mixed_wide",
+      "opt": "O2",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "managed_header",
+      "opt": "O0",
+      "input": "",
+      "stdout": "AZC",
+      "exit": 0
+    },
+    {
+      "case": "managed_header",
+      "opt": "O2",
+      "input": "",
+      "stdout": "AZC",
+      "exit": 0
+    },
+    {
+      "case": "nested_sum",
+      "opt": "O0",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "nested_sum",
+      "opt": "O2",
+      "input": "",
+      "stdout": "ACB",
+      "exit": 0
+    },
+    {
+      "case": "moved_flags",
+      "opt": "O0",
+      "input": "",
+      "stdout": "ZLA",
+      "exit": 0
+    },
+    {
+      "case": "moved_flags",
+      "opt": "O2",
+      "input": "",
+      "stdout": "ZLA",
+      "exit": 0
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O0",
+      "input": "0",
+      "stdout": "L",
+      "exit": 0
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O0",
+      "input": "1",
+      "stdout": "LE",
+      "exit": 1
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O2",
+      "input": "0",
+      "stdout": "L",
+      "exit": 0
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O2",
+      "input": "1",
+      "stdout": "LE",
+      "exit": 1
+    },
+    {
+      "case": "opaque_app",
+      "opt": "O0",
+      "input": "",
+      "stdout": "AZ",
+      "exit": 0
+    },
+    {
+      "case": "opaque_app",
+      "opt": "O2",
+      "input": "",
+      "stdout": "AZ",
+      "exit": 0
+    },
+    {
+      "case": "nominal_same_layout",
+      "opt": "O0",
+      "input": "",
+      "stdout": "bA",
+      "exit": 0
+    },
+    {
+      "case": "nominal_same_layout",
+      "opt": "O2",
+      "input": "",
+      "stdout": "bA",
+      "exit": 0
+    },
+    {
+      "case": "nominal_different_layout",
+      "opt": "O0",
+      "input": "",
+      "stdout": "bA",
+      "exit": 0
+    },
+    {
+      "case": "nominal_different_layout",
+      "opt": "O2",
+      "input": "",
+      "stdout": "bA",
+      "exit": 0
+    },
+    {
+      "case": "context_a",
+      "opt": "O0",
+      "input": "",
+      "stdout": "A",
+      "exit": 0
+    },
+    {
+      "case": "context_a",
+      "opt": "O2",
+      "input": "",
+      "stdout": "A",
+      "exit": 0
+    },
+    {
+      "case": "context_b",
+      "opt": "O0",
+      "input": "",
+      "stdout": "B",
+      "exit": 0
+    },
+    {
+      "case": "context_b",
+      "opt": "O2",
+      "input": "",
+      "stdout": "B",
+      "exit": 0
+    }
+  ],
+  "native_count": 24,
+  "build_count": 22,
+  "builds": [
+    {
+      "case": "mixed_i32",
+      "opt": "O0",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        2584
+      ],
+      "executable_sha256": "b42ab0b775d8f60454ddf14190da3c46155b86dd451f08f10f5d8e48acb7feb3",
+      "report_sha256": "fae3ec3c46f4fa23b38ab37cd9a1c47fcda8408dab80df6ed550551806754800"
+    },
+    {
+      "case": "mixed_i32",
+      "opt": "O2",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        912
+      ],
+      "executable_sha256": "dc537e7992c0c8fb4cfc095bc525fdd0a8eac7b9c88c77126de465453923e100",
+      "report_sha256": "49e8f08ef72e00a9c0ee41844ccc972b55d2dd597d989dd9a37610cf500fa79c"
+    },
+    {
+      "case": "mixed_wide",
+      "opt": "O0",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        3064
+      ],
+      "executable_sha256": "4127e678602c03a21e7aeb56fcc78715ccf07180c3ebc81d330868fa71b14791",
+      "report_sha256": "9710d7e070e5ea308df02ff6682f2085259df67593737b6269987b20a6c5b51b"
+    },
+    {
+      "case": "mixed_wide",
+      "opt": "O2",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        1024
+      ],
+      "executable_sha256": "98f5b1bf2e3046e64fab99d4cc7193ae4fb9079e47988411afd336970baa6fb3",
+      "report_sha256": "e840e2b5724b6486f00f95d7771fa4eb0ae59ca398b2288585577474f32af2e7"
+    },
+    {
+      "case": "managed_header",
+      "opt": "O0",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        4288
+      ],
+      "executable_sha256": "5f6f09bcd7e80c390ced1e3396077f3a2a7fbdf31007f75987dae80f47351051",
+      "report_sha256": "7b7968fc33ea935ebbac136a86aa81e9a21cfd7d1eac7920d0ab4bb01ce6101c"
+    },
+    {
+      "case": "managed_header",
+      "opt": "O2",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        1256
+      ],
+      "executable_sha256": "5925a49676d31b6ea3904cdf976e3818abe96f90ee5758abc1a8eb9d932891d8",
+      "report_sha256": "0777149a44659a13dbb3c21c9e831a3c236891c4179522fb79971c26d637f882"
+    },
+    {
+      "case": "nested_sum",
+      "opt": "O0",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        3952
+      ],
+      "executable_sha256": "2412298dfc85be4c66004d3727f8705d3e8d5a58462452e6608e1ebd952a2c0a",
+      "report_sha256": "52b5007b7ad2796567cd4cc3bfb71f2ab97d45667cace11f9652ed47c25819f1"
+    },
+    {
+      "case": "nested_sum",
+      "opt": "O2",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        912
+      ],
+      "executable_sha256": "dc537e7992c0c8fb4cfc095bc525fdd0a8eac7b9c88c77126de465453923e100",
+      "report_sha256": "34ceea92c5938148cfda6f18fc07f284e0b6a4d0e6204ab56c7eb0552555e5bc"
+    },
+    {
+      "case": "moved_flags",
+      "opt": "O0",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        2376
+      ],
+      "executable_sha256": "5009853138c937808b4cff0c8f208041e1dc5e7452b7028dacee26ca138dc571",
+      "report_sha256": "91cdd88a7359f4261299491239ccc1bef763e25eaffc426d63b2dbd31902c149"
+    },
+    {
+      "case": "moved_flags",
+      "opt": "O2",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        960
+      ],
+      "executable_sha256": "164881d3b41fc739a1b3fade73d1b38e1d3d2c73775e49395a91711d7f537921",
+      "report_sha256": "0b6f89c3a0bf94df13a6bf12d1e96fdc333cef433bfe0f2e6d8dff01e58e55a6"
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O0",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        2360
+      ],
+      "executable_sha256": "5661fb583e703c01d911ed474dcaa51779bbc064a03236de55e59e8bad3e3e21",
+      "report_sha256": "e199ae49e23d97b41b1b6b850885eb7227efa0def2d8451446564c56569a48b5"
+    },
+    {
+      "case": "entry_error_enum",
+      "opt": "O2",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        1128
+      ],
+      "executable_sha256": "20a3b314e22958bb4311c38bf395ae332936570adededa8078ddcb29c27b30de",
+      "report_sha256": "a05138b17f92ad933691c3b040988b8f65a9e58c6b7a339364eb83900239ad4e"
+    },
+    {
+      "case": "opaque_app",
+      "opt": "O0",
+      "modules": 3,
+      "builder_objects": 1,
+      "object_bytes": [
+        3560
+      ],
+      "executable_sha256": "254efb83114c6c65fdad7c4a480926cb17b3ee9b8c240bd7362e3b41e0bd7081",
+      "report_sha256": "c43d719d5631ac5595f029aa5047a8b693b0828960fc0d47e844ed3873def7c9"
+    },
+    {
+      "case": "opaque_app",
+      "opt": "O2",
+      "modules": 3,
+      "builder_objects": 1,
+      "object_bytes": [
+        1072
+      ],
+      "executable_sha256": "5aca750f31b5b5bb29b90fc6c6e02cec3141319187b639cd6a74270878ea2a35",
+      "report_sha256": "bc993819d5a064566b46ed14efd391ea8550a75e6a2a9eb74a65624054589bbb"
+    },
+    {
+      "case": "nominal_same_layout",
+      "opt": "O0",
+      "modules": 4,
+      "builder_objects": 1,
+      "object_bytes": [
+        2544
+      ],
+      "executable_sha256": "1443d1be4e85a86dffe8fbe220069319f62c25bc78991216431e407b62018e8e",
+      "report_sha256": "b506114564e63309560e1db712af88313e36d50c40ce85cb8e0872b33b3fb8e5"
+    },
+    {
+      "case": "nominal_same_layout",
+      "opt": "O2",
+      "modules": 4,
+      "builder_objects": 1,
+      "object_bytes": [
+        1056
+      ],
+      "executable_sha256": "f5d0461976bbfd2e3653e81081bea66c084f35ae0a41cb07ae37d43ebfd93b5c",
+      "report_sha256": "e9d4f70eefd040729effa4141b8983a06cd54b47eaa0aac321735e28eb594bfa"
+    },
+    {
+      "case": "nominal_different_layout",
+      "opt": "O0",
+      "modules": 4,
+      "builder_objects": 1,
+      "object_bytes": [
+        2664
+      ],
+      "executable_sha256": "962104b830a6a639ef36f1a382faf55738f786d77399358c3d629740cb194577",
+      "report_sha256": "23190c209460c255c00193f31d1bc49a4e6ec2a3aef64cebee290ee8b9710013"
+    },
+    {
+      "case": "nominal_different_layout",
+      "opt": "O2",
+      "modules": 4,
+      "builder_objects": 1,
+      "object_bytes": [
+        1128
+      ],
+      "executable_sha256": "afdbfc625e98c703afc4472421c0155edf2e3916d1a8cb7337c844fb420789cd",
+      "report_sha256": "5cb1267592aaf5c3fb77f313ff3f5937abc3d42efa9f9dc90e43f4a1ddd9961f"
+    },
+    {
+      "case": "context_a",
+      "opt": "O0",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        1688
+      ],
+      "executable_sha256": "3fb7613b47c7539aae3594cf5cbd191156b77f7bad97375942f6a5c486656e51",
+      "report_sha256": "a8b7e47711fd89e173fd683e4297b4e4008b910260c09c661c52c576a9a1526e"
+    },
+    {
+      "case": "context_a",
+      "opt": "O2",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        872
+      ],
+      "executable_sha256": "dc54cce6d633b5748c0a1d233ef4b266611d2a6365c5551f05184283873db2a2",
+      "report_sha256": "52a38fd9c8c331d9ebecdd03b8e008f30872f030e4b0e9665aeb346ddbd77806"
+    },
+    {
+      "case": "context_b",
+      "opt": "O0",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        1824
+      ],
+      "executable_sha256": "0678095e5fdbb638f58f256002af417639683203d9fce6c4e344da446e785659",
+      "report_sha256": "d08c9cc31b9f736e7574995ae6387e578b7757144ff2c0598f7f1497465f4aba"
+    },
+    {
+      "case": "context_b",
+      "opt": "O2",
+      "modules": 1,
+      "builder_objects": 1,
+      "object_bytes": [
+        944
+      ],
+      "executable_sha256": "40d7d60fd248701e7f4132f5a8b38fb52e0eac1249849a529fbaa7519eae50c8",
+      "report_sha256": "7ac83d224debf20dca9d5b2abf92f5dbc051361abed96e99a7adde6d679b90c8"
+    }
+  ],
+  "layout_checks": [
+    {
+      "case": "mixed_i32",
+      "opt": "O0",
+      "expected_machine_type": "{ i32, [3 x i32] }",
+      "found": true
+    },
+    {
+      "case": "mixed_i32",
+      "opt": "O2",
+      "expected_machine_type": "{ i32, [3 x i32] }",
+      "found": true
+    },
+    {
+      "case": "mixed_wide",
+      "opt": "O0",
+      "expected_machine_type": "{ i32, [4 x i64] }",
+      "found": true
+    },
+    {
+      "case": "mixed_wide",
+      "opt": "O2",
+      "expected_machine_type": "{ i32, [4 x i64] }",
+      "found": true
+    },
+    {
+      "case": "managed_header",
+      "opt": "O0",
+      "expected_machine_type": "{ i32, [5 x i64] }",
+      "found": true
+    },
+    {
+      "case": "managed_header",
+      "opt": "O2",
+      "expected_machine_type": "{ i32, [5 x i64] }",
+      "found": true
+    },
+    {
+      "case": "nested_sum",
+      "opt": "O0",
+      "expected_machine_type": "{ i32, [4 x i32] }",
+      "found": true
+    },
+    {
+      "case": "nested_sum",
+      "opt": "O2",
+      "expected_machine_type": "{ i32, [4 x i32] }",
+      "found": true
+    }
+  ],
+  "raw_unbound_mutants": [
+    "raw-drop_local.txt",
+    "raw-cfg_with_copied_fingerprint.txt",
+    "raw-unpack_mapping.txt",
+    "raw-complete_enum_type.txt",
+    "raw-resource.txt",
+    "raw-target.txt"
+  ],
+  "private_negative": {
+    "phase": "types",
+    "verification_runs": 0,
+    "executable": null,
+    "diagnostics": [
+      {
+        "phase": "types",
+        "category": "SafeReject",
+        "code": "E-FIELD-PRIVATE",
+        "message": "record field is private to its declaring module",
+        "span": {
+          "file": 0,
+          "start": 75,
+          "end": 89
+        },
+        "notes": []
+      }
+    ]
+  },
+  "static_machine_witness": {
+    "tag_helpers_with_trap": 1,
+    "flagged_sum_drop_blocks": 3,
+    "flag_cleared_before_helper_call": true,
+    "tag_range_guard": true,
+    "payload_zero_initializer": true,
+    "bool_spare_bits_widened_to_i8": true,
+    "entry_error_enum_storage_and_helper": true
+  },
+  "production_source_bind": {
+    "tested_commit": "7bdb0cfbf7f3435d72e5a1c038b7618e533eb06b",
+    "final_candidate": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+    "tracked_production_files": 41,
+    "all_identical": true,
+    "files": [
+      {
+        "path": "crates/zil-backend-llvm/Cargo.toml",
+        "sha256": "c5faf4fdebde5a922fb275a032d0ed5cd31373a403430b37f5d6688506a26acc"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/build.rs",
+        "sha256": "204352c947c35949644c873cf7cf05ccd4038dfc4b663e295b623bb12fb23c7b"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/cgu.rs",
+        "sha256": "a19ffb3a58eed2c7fc28163177e2f3b0a2d6524255e5f537d325dbcbd170960c"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit.rs",
+        "sha256": "7a03e318d7bb48fbee96697c8886de2469b057abedfe60d3fea0839d8710f46c"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/arrays.rs",
+        "sha256": "a3d5f2dc7a826d190a20003f203adbf0a0b601a5e4d22f44a954d49eede8dcf6"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/byte_buffer.rs",
+        "sha256": "b5c81e87e0b6c04ed233a3b18b8689ef46d31dc02e3c6abae5a39512abb7fd0a"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/constant_divisors.rs",
+        "sha256": "74dff591f0e6628515094be42eb5dd868113868e6017ae8cc7f478146498303a"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/drop_plan.rs",
+        "sha256": "82ac0339557efa40a09750f9b89f62f190dc671e6cb8c5bca26a5592a609e4c7"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/dynamic_store.rs",
+        "sha256": "3522ea940af202c7cee8f218b7c91b23a652b41f4c617501a4571f0952ca1dee"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/enums.rs",
+        "sha256": "4a926f01e37bce55a6d52f9b67e1689de0de59a7b6d1e62c71d26344cbb3cd42"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/errors.rs",
+        "sha256": "ca22adce7cdc6a19fe32f57767df0ee1e08c915f2543a5af5fe6fb4c7a5ad09f"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/foreign.rs",
+        "sha256": "1f5c0a5d059497d7abb627e6bb48c96e56a055c07fb5072285cb3a94b3c07b95"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/owned_sums.rs",
+        "sha256": "1074dc57f1e1e455b3473a361c68cdd7b50b680b75dd847ac8b5f27009a73a37"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/packages.rs",
+        "sha256": "e07b6c63f0628751f0c08fc94a10c37b56f03e1906ec1724a8f21edd98ec0871"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/parallel_lowering.rs",
+        "sha256": "a232ad1ea8f0ff73b37315e1ec5f540f74fa3dff55a311f2f7a6c8d66a9e209d"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/resource_closures.rs",
+        "sha256": "afcce1bec4f0919066b595046ab86106746a9b791c58049a4a76b41f9aa56700"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/resources.rs",
+        "sha256": "2c31058542e2e3c92a9dba4d3563340e6a2516f19643a81a336d2b896c4ef4d5"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/scalar_leaf.rs",
+        "sha256": "cfaaddcb53b970b40474f4c631fc76019974d0427387ebdebf0823dbab5c9182"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/scalar_locals.rs",
+        "sha256": "2b0fa53f09c3522f5b7c5af67f85a26ebe5e0e5a3f8d04708aeb559b833e5265"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/scalar_summaries.rs",
+        "sha256": "df7b9dff8b609f4b34496148750f02c8c62865a79690c2c4ccb557441d1725be"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/emit/slices.rs",
+        "sha256": "f92f67ade08fad24c8ced7ad8e0d3a2afe975e46903c609a0c65a5f8364fbf32"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/lib.rs",
+        "sha256": "b71e4d34eaaf8d1277bf8adc99341fd3ab68dd5cf5ebef0c624386ea39d923f6"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu.rs",
+        "sha256": "4c4dfeeeb445b96f271398a0928820ae58a68bb2246603c14fadfe6e81f06bcf"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu/layout.rs",
+        "sha256": "bb33314bfbe51783049ebe9b26ad2d978feeb6593e8782fbc497cbbc4f925440"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu/layout/tests.rs",
+        "sha256": "af5f032b776d025a8cb0cffc9ff0e15b8639fde7933e2f84a14532bb92779e71"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu_clone_controls.rs",
+        "sha256": "2378d370d1f11fdcac62f3116d86019da8d3ff8fae327ddfa88ba8f0f5fa5ec6"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_checked_add_chain.rs",
+        "sha256": "62acbc7234d70d3a1369034ac2a6b86b74ed90c39c20faae171d7a5a8214038d"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_checked_add_chain_tests.rs",
+        "sha256": "6c2d6cfeb528ad311aef38ab1bbd4b183b39267c8fe66c8a41108efd2a1a9dbe"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_object_patch.rs",
+        "sha256": "40d1049003d619203b211c037bb7ca360e9459414f79b4bddb4978e2e5921a25"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_scalar.rs",
+        "sha256": "ac9fb2d89bb399ebaa604e7339fc5c81643c53c512f4de7162102ed96ae7e5d3"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_scalar_summary.rs",
+        "sha256": "c83db70710584f2539f3ce5f8971196fd08063d9aa4d8c299de421a121b81bed"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_scalar_summary_tests.rs",
+        "sha256": "93475736b6a062e2fda002a334a48e12309f88384ea6dd57f4b59a2ccab1363b"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_scalar_tests.rs",
+        "sha256": "1bed5414ce69622883cf9bc347c141b8c6c158073b0b77021e0a1c02cb6958b1"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_stable_identity.rs",
+        "sha256": "4187de3355c2a37e96132036cc546f4d0e759d052b36f1079a7b1dec1fd68013"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_stable_identity_tests.rs",
+        "sha256": "a228a5d1980ff3cedd8e65c05902dc92039cb1f31259a1aa6ed068df06b2056f"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/object_cache.rs",
+        "sha256": "c897ffbb49fbd0d6417f7720a5c94485fca1cf3d42a7a8456aca27f93915fe7c"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/tests.rs",
+        "sha256": "e00e56247e5c1d2b584b4fc3ea89e51b4893020236ee9c8e00bf5398e5c0001f"
+      },
+      {
+        "path": "crates/zil-backend-llvm/tests/closed_executable_research.rs",
+        "sha256": "88886a6e4e77e902294c99ce09dc5c4e27d0f754a8aeefc733bb8891e5179972"
+      },
+      {
+        "path": "crates/zil-lower/Cargo.toml",
+        "sha256": "629b59aeeefab243b4b7ad9111eb2143ef51ab9badc040eb0e790076373535d4"
+      },
+      {
+        "path": "crates/zil-lower/src/lib.rs",
+        "sha256": "381c8ff8ceb58581f91ce3df879402903e9e7460bb9e790e789e72f7807d7c07"
+      },
+      {
+        "path": "crates/zil-lower/src/owned_sums.rs",
+        "sha256": "32b32d7fff3f80677f5d1e7b3734961c309e8e2c5cef38a7513524e3773c93ef"
+      }
+    ]
+  }
+}
