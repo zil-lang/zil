@@ -85,6 +85,16 @@ impl Parser<'_> {
     }
     fn type_primary_inner(&mut self) -> P<TypeRef> {
         let start = self.peek().span;
+        if self.at(Symbol::Dollar) && self.in_quote() {
+            self.quote_hole(QuoteHoleKind::Type)?;
+            return Ok(TypeRef {
+                kind: TypeKind::Named {
+                    path: Vec::new(),
+                    args: Vec::new(),
+                },
+                span: self.span_from(start),
+            });
+        }
         let kind = if self.eat(Symbol::Amp) {
             self.newlines();
             let lifetime = if self.peek().kind == TokenKind::Lifetime {
@@ -133,7 +143,7 @@ impl Parser<'_> {
                 Ok(TypeKind::Array { element, length })
             })?
         } else if self.eat_word("dyn") {
-            let path = self.qualified()?;
+            let path = self.qualified_kind(QuoteNameNamespace::Type)?;
             let args = self.nominal_type_args(&path)?;
             TypeKind::Dyn { path, args }
         } else if self.eat_word("for") {
@@ -147,7 +157,16 @@ impl Parser<'_> {
             let inner = Box::new(self.type_primary()?);
             TypeKind::ForLifetime { lifetime, inner }
         } else if self.eat(Symbol::Hash) {
-            if self.eat(Symbol::LParen) {
+            if self.splice_ahead() {
+                self.bump();
+                self.expect(Symbol::LParen)?;
+                let value = self.scoped(true, |p| {
+                    let value = p.expr(true)?;
+                    p.expect(Symbol::RParen)?;
+                    Ok(value)
+                })?;
+                TypeKind::MetaSplice(Box::new(value))
+            } else if self.eat(Symbol::LParen) {
                 let value = self.scoped(true, |p| {
                     let value = p.expr(true)?;
                     p.expect(Symbol::RParen)?;
@@ -163,7 +182,7 @@ impl Parser<'_> {
                 );
             }
         } else {
-            let path = self.qualified()?;
+            let path = self.qualified_kind(QuoteNameNamespace::Type)?;
             let args = self.nominal_type_args(&path)?;
             TypeKind::Named { path, args }
         };
