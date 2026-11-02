@@ -133,8 +133,8 @@ fn literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruption
                 ResultCategory::SafeReject,
                 "E-WIRE-BOOL",
             );
-            // Opcodes90–93 are local Enum operations since schema30;94 is unknown.
-            for unknown in [94, 254] {
+            // Opcodes90–93 are local Enum operations; schema32 assigns94 to With.
+            for unknown in [95, 254] {
                 let mut bad = bytes.clone();
                 bad[offset + opcode] = unknown;
                 error(

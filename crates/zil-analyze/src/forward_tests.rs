@@ -960,8 +960,8 @@ fn symbolic_copy_capability_is_not_obtained_by_hiding_f_in_an_old_state_value() 
 
 #[test]
 fn reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges() {
-    // Unmodified Wire31 counterexamples/controls constructed by the independent
-    // reviewer. The producer candidate in each file grants no authority.
+    // Wire32 migrations of independent Wire31 counterexamples and controls;
+    // the producer candidate in each file grants no authority.
     for (valid, bytes) in [
         (
             true,

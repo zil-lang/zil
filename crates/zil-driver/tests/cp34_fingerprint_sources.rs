@@ -5,19 +5,22 @@ use zil_base::{
 use zil_driver::{CompilationSession, CompileOptions, Stage};
 use zil_ir::{CoreProgram, TypedModule};
 
-// The v27/v28/v29/v30 oracles remain archived byte-for-byte; current source uses v31.
-#[path = "../../zil-ir/tests/support/cp34_legacy_v31.rs"]
+// Historical encoders remain archived byte-for-byte. The independent Vec
+// reference emits V32 and can also reproduce representable V31 identities.
+#[path = "../../zil-ir/tests/support/cp34_reference_v32.rs"]
 mod legacy;
 
 fn check_identity_and_verify(module: TypedModule) {
-    let old = Fingerprint::of(&legacy::bytes(&module));
-    assert_eq!(module.fingerprint(), old);
+    let current = Fingerprint::of(&legacy::bytes(&module));
+    let historical = Fingerprint::of(&legacy::bytes_v31(&module));
+    assert_ne!(current, historical, "V32 must remain distinct from V31");
+    assert_eq!(module.fingerprint(), current);
     let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
-    assert_eq!(plan.module_fingerprint, old);
+    assert_eq!(plan.module_fingerprint, current);
     let target = module.target.clone();
     let verified = zil_verify::verify_module(module, plan, &target, &limits).unwrap();
-    assert_eq!(verified.fingerprint(), old);
+    assert_eq!(verified.fingerprint(), current);
 }
 
 #[test]

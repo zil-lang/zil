@@ -439,6 +439,7 @@ fn transfer(
         let call = matches!(
             i.kind,
             InstructionKind::Call { .. }
+                | InstructionKind::WithForeignCallback { .. }
                 | InstructionKind::CallClosure { .. }
                 | InstructionKind::CallClosureOnce { .. }
                 | InstructionKind::CallClosureShared { .. }
@@ -668,6 +669,29 @@ fn transfer(
                         },
                     );
                 }
+            }
+            InstructionKind::WithForeignCallback { callback, body, .. } => {
+                let callback_slot = state.values[callback.0 as usize];
+                let body_slot = state.values[body.0 as usize];
+                live(callback_slot, check)?;
+                live(body_slot, check)?;
+                if check
+                    && (!matches!(&f.values[callback.0 as usize], Type::Address { mutable: true, inner } if matches!(inner.as_ref(), Type::Closure(_)))
+                        || !matches!(f.values[body.0 as usize], Type::Closure(_))
+                        || !compatible(
+                            mode(module, claim, &f.values[callback.0 as usize], callback_slot)?,
+                            CallableKind::FnMut,
+                        ))
+                    || !compatible(
+                        mode(module, claim, &f.values[body.0 as usize], body_slot)?,
+                        CallableKind::FnOnce,
+                    )
+                {
+                    return Err(bad(
+                        "scoped callback upgrades its actual callable mode or address",
+                    ));
+                }
+                consume(module, f, state, *body, check, budget)?;
             }
             InstructionKind::CallClosureShared { callee, arguments }
             | InstructionKind::CallClosureMut { callee, arguments } => {

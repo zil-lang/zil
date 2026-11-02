@@ -1424,6 +1424,7 @@ mod tests {
             symbol: "foreign".into(),
             noescape_parameters: vec![],
             static_callbacks: false,
+            scoped_callback: None,
         });
         let original = m(vec![
             f("zil.fn.0", Ty::Int(32), Val::Int(7)),

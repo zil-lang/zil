@@ -25,6 +25,931 @@ fn inst(result: Option<ValueId>, kind: InstructionKind) -> Instruction {
     }
 }
 struct Body(TypedFunction);
+
+// Raw runtime input: two nominally equal F values can be independent actual
+// storage positions. The body dependency is selected before or after borrowing.
+fn scoped_fixture(mode: u8) -> TypedModule {
+    let mut main = Body::new(0);
+    main.op(InstructionKind::ScopeEnter { scope: ScopeId(0) });
+    let f = main.local(Type::Closure(ClosureId(0)));
+    let made = main.value(
+        Type::Closure(ClosureId(0)),
+        InstructionKind::MakeClosure {
+            closure: ClosureId(0),
+            captures: vec![],
+        },
+    );
+    main.op(InstructionKind::Store {
+        local: f,
+        value: made,
+    });
+    let copied =
+        (mode == 2).then(|| main.value(Type::Closure(ClosureId(0)), InstructionKind::Load(f)));
+    let address_ty = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Closure(ClosureId(0))),
+    };
+    let callback = main.value(
+        address_ty.clone(),
+        InstructionKind::BorrowLocalMut { local: f },
+    );
+    if mode == 1 {
+        main.value(Type::Closure(ClosureId(0)), InstructionKind::Load(f));
+    }
+    let captures = match mode {
+        2 => vec![copied.unwrap()],
+        3 => vec![callback],
+        4 => {
+            let other = main.local(Type::I32);
+            let value = main.constant(7);
+            main.op(InstructionKind::Store {
+                local: other,
+                value,
+            });
+            vec![main.value(
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                },
+                InstructionKind::BorrowLocal { local: other },
+            )]
+        }
+        5 => {
+            let other = main.local(Type::Closure(ClosureId(0)));
+            let value = main.value(
+                Type::Closure(ClosureId(0)),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![],
+                },
+            );
+            main.op(InstructionKind::Store {
+                local: other,
+                value,
+            });
+            vec![main.value(
+                address_ty.clone(),
+                InstructionKind::BorrowLocalMut { local: other },
+            )]
+        }
+        _ => vec![],
+    };
+    let body_captures = match mode {
+        2 => vec![Type::Closure(ClosureId(0))],
+        3 => vec![address_ty],
+        4 => vec![Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        }],
+        5 => vec![address_ty],
+        _ => vec![],
+    };
+    let body = main.value(
+        Type::Closure(ClosureId(1)),
+        InstructionKind::MakeClosure {
+            closure: ClosureId(1),
+            captures,
+        },
+    );
+    main.op(InstructionKind::UnsafeEnter { region: 7 });
+    main.value(
+        Type::Tuple(vec![Type::Bool, Type::I32]),
+        InstructionKind::WithForeignCallback {
+            register: FunctionId(3),
+            close: FunctionId(4),
+            callback,
+            body,
+            region: 7,
+        },
+    );
+    main.op(InstructionKind::UnsafeExit { region: 7 });
+    if matches!(mode, 4 | 5) {
+        main.op(InstructionKind::StorageDead(LocalId(1)));
+    }
+    main.op(InstructionKind::StorageDead(f));
+    let zero = main.constant(0);
+    main.op(InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Return,
+    });
+    let mut callback_entry = Body::new(1);
+    callback_entry.0.environment = Some(ClosureId(0));
+    callback_entry.0.locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "event".into(),
+        ty: Type::I32,
+        mutable: false,
+        span: s(),
+    });
+    callback_entry.0.parameters.push(LocalId(0));
+    let event = callback_entry.value(Type::I32, InstructionKind::Load(LocalId(0)));
+    let mut body_entry = Body::new(2);
+    body_entry.0.environment = Some(ClosureId(1));
+    let result = if mode == 5 {
+        let address = body_entry.value(
+            Type::Address {
+                mutable: true,
+                inner: Box::new(Type::Closure(ClosureId(0))),
+            },
+            InstructionKind::ReadCapture { index: 0 },
+        );
+        let arg = body_entry.constant(7);
+        body_entry.value(
+            Type::I32,
+            InstructionKind::CallClosureBorrowed {
+                callee: address,
+                kind: CallableKind::FnMut,
+                arguments: vec![arg],
+            },
+        )
+    } else if mode == 4 {
+        let address = body_entry.value(
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+            InstructionKind::ReadCapture { index: 0 },
+        );
+        body_entry.value(Type::I32, InstructionKind::ReadAddress { address })
+    } else {
+        body_entry.constant(42)
+    };
+    let foreign = |id, role, parameters: Vec<Type>, result| {
+        let mut f = Body::new(id).0;
+        f.blocks.clear();
+        f.return_type = result;
+        f.locals = parameters
+            .into_iter()
+            .enumerate()
+            .map(|(i, ty)| LocalDecl {
+                id: LocalId(i as u32),
+                name: format!("p{i}"),
+                ty,
+                mutable: false,
+                span: s(),
+            })
+            .collect();
+        f.parameters = f.locals.iter().map(|l| l.id).collect();
+        f.foreign = Some(ForeignDeclaration {
+            abi: "C".into(),
+            symbol: format!("foreign{id}"),
+            noescape_parameters: vec![],
+            static_callbacks: true,
+            scoped_callback: Some(role),
+        });
+        f
+    };
+    TypedModule {
+        schema_version: SCHEMA_VERSION,
+        module_id: ModuleId(0),
+        source_fingerprint: Fingerprint::ZERO,
+        target: TargetProfile::host_llvm(),
+        resources: vec![],
+        unsupported: vec![],
+        closures: vec![
+            ClosureDefinition {
+                id: ClosureId(0),
+                function: FunctionId(1),
+                kind: CallableKind::FnMut,
+                captures: vec![],
+                parameters: vec![Type::I32],
+                result: Type::I32,
+                lending_captures: vec![],
+            },
+            ClosureDefinition {
+                id: ClosureId(1),
+                function: FunctionId(2),
+                kind: CallableKind::FnOnce,
+                captures: body_captures,
+                parameters: vec![],
+                result: Type::I32,
+                lending_captures: vec![],
+            },
+        ],
+        functions: vec![
+            main.finish(zero),
+            callback_entry.finish(event),
+            body_entry.finish(result),
+            foreign(
+                3,
+                ScopedCallbackRole::Register,
+                vec![
+                    Type::ForeignCallback {
+                        parameters: vec![Type::ForeignHandle, Type::I32],
+                        result: Box::new(Type::I64),
+                    },
+                    Type::ForeignHandle,
+                ],
+                Type::ForeignHandle,
+            ),
+            foreign(
+                4,
+                ScopedCallbackRole::Close,
+                vec![Type::ForeignHandle],
+                Type::Unit,
+            ),
+        ],
+    }
+}
+
+#[test]
+fn scoped_preparation_protects_actual_position_and_allows_prior_independent_copy() {
+    for mode in 0..6 {
+        let module = scoped_fixture(mode);
+        let limits = Limits::default();
+        let result = analyze(&module, &limits);
+        assert_eq!(
+            result.is_ok(),
+            matches!(mode, 0 | 2 | 4 | 5),
+            "mode={mode}: {result:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(decoded, module);
+        assert_eq!(analyze(&decoded, &limits), result);
+    }
+}
+
+#[test]
+fn scoped_raw_claims_cannot_forge_mutability_origin_or_storage_liveness() {
+    for mutation in 0..5 {
+        let mut module = scoped_fixture(0);
+        let f = &mut module.functions[0];
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::BorrowLocalMut { .. }))
+            .unwrap();
+        let InstructionKind::BorrowLocalMut { local } = f.blocks[0].instructions[at].kind else {
+            unreachable!()
+        };
+        match mutation {
+            0 => f.blocks[0].instructions[at].kind = InstructionKind::BorrowLocal { local },
+            1 => f.blocks[0].instructions[at].kind = InstructionKind::Constant(Constant::Unit),
+            2 => f.locals[local.0 as usize].mutable = false,
+            3 => {
+                f.values.push(Type::Closure(ClosureId(0)));
+                f.blocks[0].instructions.insert(
+                    at + 1,
+                    inst(
+                        Some(ValueId((f.values.len() - 1) as u32)),
+                        InstructionKind::TakeLocal { local },
+                    ),
+                );
+            }
+            4 => module.closures[0].function = FunctionId(2),
+            _ => unreachable!(),
+        }
+        let limits = Limits::default();
+        let errors = analyze(&module, &limits).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::SafeReject);
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(analyze(&decoded, &limits).unwrap_err(), errors);
+    }
+}
+
+#[test]
+fn scoped_exclusive_interval_rejects_a_live_shared_alias_but_not_an_ended_one() {
+    for live in [false, true] {
+        let mut module = scoped_fixture(0);
+        module.closures[0].kind = CallableKind::Fn;
+        let f = &mut module.functions[0];
+        let alias = ValueId(f.values.len() as u32);
+        f.values.push(Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Closure(ClosureId(0))),
+        });
+        let argument = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let result = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::BorrowLocalMut { .. }))
+            .unwrap();
+        f.blocks[0].instructions.insert(
+            at,
+            inst(
+                Some(alias),
+                InstructionKind::BorrowLocal { local: LocalId(0) },
+            ),
+        );
+        f.blocks[0].instructions.insert(
+            at + 1,
+            inst(Some(argument), InstructionKind::Constant(Constant::I32(1))),
+        );
+        let at = if live {
+            f.blocks[0]
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::StorageDead(_)))
+                .unwrap()
+        } else {
+            at + 2
+        };
+        f.blocks[0].instructions.insert(
+            at,
+            inst(
+                Some(result),
+                InstructionKind::CallClosureBorrowed {
+                    callee: alias,
+                    kind: CallableKind::Fn,
+                    arguments: vec![argument],
+                },
+            ),
+        );
+        let limits = Limits::default();
+        let outcome = analyze(&module, &limits);
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(analyze(&decoded, &limits), outcome);
+        if live {
+            let errors = outcome.unwrap_err();
+            assert_eq!(errors[0].code, "E-BORROW-CONFLICT");
+        } else {
+            outcome.unwrap();
+        }
+    }
+}
+
+#[test]
+fn scoped_exclusive_interval_preserves_only_actual_reborrow_ancestors() {
+    for stored in [false, true] {
+        let mut module = scoped_fixture(0);
+        let f = &mut module.functions[0];
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::WithForeignCallback { .. }))
+            .unwrap();
+        let InstructionKind::WithForeignCallback {
+            callback: parent, ..
+        } = f.blocks[0].instructions[at].kind
+        else {
+            unreachable!()
+        };
+        let address = f.values[parent.0 as usize].clone();
+        let mut preparation = vec![];
+        let parent_local = LocalId(f.locals.len() as u32);
+        let parent = if stored {
+            f.locals.push(LocalDecl {
+                id: parent_local,
+                name: "delegated".into(),
+                ty: address.clone(),
+                mutable: false,
+                span: s(),
+            });
+            preparation.extend([
+                inst(None, InstructionKind::StorageLive(parent_local)),
+                inst(
+                    None,
+                    InstructionKind::Store {
+                        local: parent_local,
+                        value: parent,
+                    },
+                ),
+            ]);
+            let loaded = ValueId(f.values.len() as u32);
+            f.values.push(address.clone());
+            preparation.push(inst(Some(loaded), InstructionKind::Load(parent_local)));
+            loaded
+        } else {
+            parent
+        };
+        let child = ValueId(f.values.len() as u32);
+        f.values.push(address.clone());
+        preparation.push(inst(
+            Some(child),
+            InstructionKind::ReborrowAddress {
+                address: parent,
+                mutable: true,
+            },
+        ));
+        if let InstructionKind::WithForeignCallback { callback, .. } =
+            &mut f.blocks[0].instructions[at].kind
+        {
+            *callback = child;
+        }
+        let offset = preparation.len();
+        f.blocks[0].instructions.splice(at..at, preparation);
+        let parent = if stored {
+            let loaded = ValueId(f.values.len() as u32);
+            f.values.push(address);
+            f.blocks[0].instructions.insert(
+                at + offset + 1,
+                inst(Some(loaded), InstructionKind::Load(parent_local)),
+            );
+            loaded
+        } else {
+            parent
+        };
+        let arg = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let result = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let at = at + offset + 1 + usize::from(stored);
+        f.blocks[0].instructions.splice(
+            at..at,
+            [
+                inst(Some(arg), InstructionKind::Constant(Constant::I32(7))),
+                inst(
+                    Some(result),
+                    InstructionKind::CallClosureBorrowed {
+                        callee: parent,
+                        kind: CallableKind::FnMut,
+                        arguments: vec![arg],
+                    },
+                ),
+            ],
+        );
+        if stored {
+            f.blocks[0].instructions.insert(
+                at + 2,
+                inst(None, InstructionKind::StorageDead(parent_local)),
+            );
+        }
+        let limits = Limits::default();
+        let expected = analyze(&module, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(analyze(&decoded, &limits).unwrap(), expected);
+    }
+}
+
+fn scoped_helper(body_kind: CallableKind) -> TypedModule {
+    let mut module = scoped_fixture(0);
+    module.closures[1].kind = body_kind;
+    let mut f = Body::new(0);
+    f.0.locals = vec![
+        LocalDecl {
+            id: LocalId(0),
+            name: "callback".into(),
+            ty: Type::Address {
+                mutable: true,
+                inner: Box::new(Type::Closure(ClosureId(0))),
+            },
+            mutable: false,
+            span: s(),
+        },
+        LocalDecl {
+            id: LocalId(1),
+            name: "body".into(),
+            ty: Type::Closure(ClosureId(1)),
+            mutable: false,
+            span: s(),
+        },
+    ];
+    f.0.parameters = vec![LocalId(0), LocalId(1)];
+    let callback = f.value(f.0.locals[0].ty.clone(), InstructionKind::Load(LocalId(0)));
+    let body = f.value(
+        f.0.locals[1].ty.clone(),
+        InstructionKind::TakeLocal { local: LocalId(1) },
+    );
+    f.op(InstructionKind::UnsafeEnter { region: 7 });
+    f.value(
+        Type::Tuple(vec![Type::Bool, Type::I32]),
+        InstructionKind::WithForeignCallback {
+            register: FunctionId(3),
+            close: FunctionId(4),
+            callback,
+            body,
+            region: 7,
+        },
+    );
+    f.op(InstructionKind::UnsafeExit { region: 7 });
+    let result = f.constant(42);
+    f.0.callable_contract = Some(CallableParameterContract {
+        roles: vec![
+            CallableRole {
+                parameter: 0,
+                closure: ClosureId(0),
+                kind: CallableKind::FnMut,
+                hold: vec![],
+                call: vec![],
+                writes: vec![],
+                cleanup: CallableCleanup::Borrowed,
+            },
+            CallableRole {
+                parameter: 1,
+                closure: ClosureId(1),
+                kind: CallableKind::FnOnce,
+                hold: vec![],
+                call: vec![],
+                writes: vec![],
+                cleanup: CallableCleanup::Owned,
+            },
+        ],
+        traces: CallableTraces::Flow(CallableFlow {
+            entry: 0,
+            nodes: vec![
+                CallableFlowNode {
+                    calls: vec![],
+                    next: CallableFlowNext::Edges(vec![1, 2, 3]),
+                },
+                CallableFlowNode {
+                    calls: vec![CallEvent {
+                        parameter: 0,
+                        kind: CallableKind::FnMut,
+                    }],
+                    next: CallableFlowNext::Edges(vec![1, 2, 3]),
+                },
+                CallableFlowNode {
+                    calls: vec![CallEvent {
+                        parameter: 1,
+                        kind: CallableKind::FnOnce,
+                    }],
+                    next: CallableFlowNext::Edges(vec![4, 3]),
+                },
+                CallableFlowNode {
+                    calls: vec![],
+                    next: CallableFlowNext::Exit(CallableExit::Return),
+                },
+                CallableFlowNode {
+                    calls: vec![CallEvent {
+                        parameter: 0,
+                        kind: CallableKind::FnMut,
+                    }],
+                    next: CallableFlowNext::Edges(vec![4, 3]),
+                },
+            ],
+        }),
+    });
+    module.functions[0] = f.finish(result);
+    module
+}
+
+#[test]
+fn scoped_helper_rebuilds_repeatable_f_and_single_consumed_body_flow() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        let module = scoped_helper(kind);
+        analyze(&module, &Limits::default()).unwrap();
+        if kind == CallableKind::Fn {
+            let mut ordinary_bound = module.clone();
+            ordinary_bound.functions[0]
+                .callable_contract
+                .as_mut()
+                .unwrap()
+                .roles[1]
+                .kind = CallableKind::Fn;
+            analyze(&ordinary_bound, &Limits::default()).unwrap();
+        }
+        let mut forged = module.clone();
+        let CallableTraces::Flow(flow) = &mut forged.functions[0]
+            .callable_contract
+            .as_mut()
+            .unwrap()
+            .traces
+        else {
+            unreachable!()
+        };
+        flow.nodes[2].calls.clear();
+        assert!(analyze(&forged, &Limits::default()).is_err());
+        let mut reused = module;
+        let instruction = reused.functions[0].blocks[0].instructions[3].clone();
+        let output = ValueId(reused.functions[0].values.len() as u32);
+        reused.functions[0]
+            .values
+            .push(Type::Tuple(vec![Type::Bool, Type::I32]));
+        reused.functions[0].blocks[0].instructions.insert(
+            4,
+            Instruction {
+                result: Some(output),
+                ..instruction
+            },
+        );
+        assert!(analyze(&reused, &Limits::default()).is_err());
+    }
+}
+
+fn scoped_helper_with_local_body(kind: CallableKind, borrowed_scalar: bool) -> TypedModule {
+    let mut module = scoped_helper(kind);
+    if borrowed_scalar {
+        let fixture = scoped_fixture(4);
+        module.closures[1].captures = fixture.closures[1].captures.clone();
+        module.functions[2] = fixture.functions[2].clone();
+    }
+    let f = &mut module.functions[0];
+    f.parameters.truncate(1);
+    let contract = f.callable_contract.as_mut().unwrap();
+    contract.roles.truncate(1);
+    let CallableTraces::Flow(flow) = &mut contract.traces else {
+        unreachable!()
+    };
+    flow.nodes[2].calls.clear();
+    let mut preparation = vec![inst(None, InstructionKind::StorageLive(LocalId(1)))];
+    let captures = if borrowed_scalar {
+        let local = LocalId(f.locals.len() as u32);
+        f.locals.push(LocalDecl {
+            id: local,
+            name: "unrelated".into(),
+            ty: Type::I32,
+            mutable: false,
+            span: s(),
+        });
+        let number = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let address = ValueId(f.values.len() as u32);
+        f.values.push(module.closures[1].captures[0].clone());
+        preparation.extend([
+            inst(None, InstructionKind::StorageLive(local)),
+            inst(Some(number), InstructionKind::Constant(Constant::I32(7))),
+            inst(
+                None,
+                InstructionKind::Store {
+                    local,
+                    value: number,
+                },
+            ),
+            inst(Some(address), InstructionKind::BorrowLocal { local }),
+        ]);
+        let at = f.blocks[0].instructions.len() - 1;
+        f.blocks[0]
+            .instructions
+            .insert(at, inst(None, InstructionKind::StorageDead(local)));
+        vec![address]
+    } else {
+        vec![]
+    };
+    let made = ValueId(f.values.len() as u32);
+    f.values.push(Type::Closure(ClosureId(1)));
+    preparation.extend([
+        inst(
+            Some(made),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(1),
+                captures,
+            },
+        ),
+        inst(
+            None,
+            InstructionKind::Store {
+                local: LocalId(1),
+                value: made,
+            },
+        ),
+    ]);
+    if kind != CallableKind::FnOnce && !borrowed_scalar {
+        f.blocks[0].instructions[1].kind = InstructionKind::Load(LocalId(1));
+    }
+    f.blocks[0].instructions.splice(1..1, preparation);
+    let at = f.blocks[0].instructions.len() - 1;
+    f.blocks[0]
+        .instructions
+        .insert(at, inst(None, InstructionKind::StorageDead(LocalId(1))));
+    module
+}
+
+#[test]
+fn scoped_f_only_helper_tracks_local_concrete_body_without_inventing_a_role() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        for borrowed_scalar in [false, true] {
+            let module = scoped_helper_with_local_body(kind, borrowed_scalar);
+            let limits = Limits::default();
+            let expected = analyze(&module, &limits).unwrap();
+            let bytes = zil_ir::wire::encode_module_candidate(
+                &module,
+                &CandidatePlan::empty_for(&module),
+                &limits,
+            )
+            .unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            assert_eq!(analyze(&decoded, &limits).unwrap(), expected);
+            let mut forged = module.clone();
+            let CallableTraces::Flow(flow) = &mut forged.functions[0]
+                .callable_contract
+                .as_mut()
+                .unwrap()
+                .traces
+            else {
+                unreachable!()
+            };
+            flow.nodes[2].calls.push(CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnOnce,
+            });
+            assert!(analyze(&forged, &limits).is_err());
+            let mut reused = module;
+            let f = &mut reused.functions[0];
+            let at = f.blocks[0]
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::WithForeignCallback { .. }))
+                .unwrap();
+            let mut second = f.blocks[0].instructions[at].clone();
+            second.result = Some(ValueId(f.values.len() as u32));
+            f.values.push(Type::Tuple(vec![Type::Bool, Type::I32]));
+            f.blocks[0].instructions.insert(at + 1, second);
+            let event = CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnMut,
+            };
+            f.callable_contract.as_mut().unwrap().traces = CallableTraces::Flow(CallableFlow {
+                entry: 0,
+                nodes: vec![
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Edges(vec![1, 2, 3]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![event],
+                        next: CallableFlowNext::Edges(vec![1, 2, 3]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Edges(vec![4, 3]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Edges(vec![5, 6, 7]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![event],
+                        next: CallableFlowNext::Edges(vec![4, 3]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![event],
+                        next: CallableFlowNext::Edges(vec![5, 6, 7]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Edges(vec![8, 7]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Exit(CallableExit::Return),
+                    },
+                    CallableFlowNode {
+                        calls: vec![event],
+                        next: CallableFlowNext::Edges(vec![8, 7]),
+                    },
+                ],
+            });
+            let actual = analyze(&reused, &limits);
+            // A concrete Copy body supplies independent copies to the two
+            // calls. The consumed generic B role has no such Copy authority.
+            if kind != CallableKind::FnOnce && !borrowed_scalar {
+                actual.as_ref().unwrap();
+            } else {
+                assert_eq!(
+                    actual.as_ref().unwrap_err()[0].message,
+                    "callable instance is moved, absent or cleaned on a reachable path"
+                );
+            }
+            let bytes = zil_ir::wire::encode_module_candidate(
+                &reused,
+                &CandidatePlan::empty_for(&reused),
+                &limits,
+            )
+            .unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            assert_eq!(analyze(&decoded, &limits), actual);
+        }
+    }
+}
+
+#[test]
+fn ordinary_once_calls_preserve_concrete_copy_value_semantics() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        let mut module = scoped_fixture(0);
+        module.closures[1].kind = kind;
+        let f = &mut module.functions[0];
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::WithForeignCallback { .. }))
+            .unwrap();
+        let instruction = &mut f.blocks[0].instructions[at];
+        let InstructionKind::WithForeignCallback { body, .. } = instruction.kind else {
+            unreachable!()
+        };
+        instruction.kind = InstructionKind::CallClosureOnce {
+            callee: body,
+            arguments: vec![],
+        };
+        f.values[instruction.result.unwrap().0 as usize] = Type::I32;
+        let mut second = instruction.clone();
+        second.result = Some(ValueId(f.values.len() as u32));
+        f.values.push(Type::I32);
+        f.blocks[0].instructions.insert(at + 1, second);
+        let limits = Limits::default();
+        let actual = analyze(&module, &limits);
+        if kind == CallableKind::FnOnce {
+            assert_eq!(
+                actual.as_ref().unwrap_err()[0].message,
+                "resource closure: call uses consumed environment"
+            );
+        } else {
+            actual.as_ref().unwrap();
+        }
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(analyze(&decoded, &limits), actual);
+    }
+}
+
+#[test]
+fn scoped_windows_and_flow_spend_the_current_request_and_recover_fresh() {
+    for module in [
+        scoped_fixture(4),
+        scoped_helper(CallableKind::Fn),
+        scoped_helper_with_local_body(CallableKind::FnOnce, true),
+    ] {
+        let expected = analyze(&module, &Limits::default()).unwrap();
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if analyze(
+                &module,
+                &Limits {
+                    max_analysis_steps: mid,
+                    ..Limits::default()
+                },
+            )
+            .is_ok()
+            {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        let exact = Limits {
+            max_analysis_steps: low,
+            ..Limits::default()
+        };
+        for _ in 0..2 {
+            assert_eq!(analyze(&module, &exact).unwrap(), expected);
+        }
+        assert_eq!(
+            analyze(
+                &module,
+                &Limits {
+                    max_analysis_steps: low - 1,
+                    ..exact
+                }
+            )
+            .unwrap_err()[0]
+                .category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+    }
+}
+
+#[test]
+fn scoped_wrapper_checks_actual_argument_aliases_and_keeps_disjoint_borrowing() {
+    for mode in [0, 3, 4, 5] {
+        let mut module = scoped_fixture(mode);
+        let mut helper = scoped_helper(CallableKind::FnOnce).functions.remove(0);
+        helper.id = FunctionId(5);
+        let body = &mut helper.callable_contract.as_mut().unwrap().roles[1];
+        if matches!(mode, 3..=5) {
+            body.hold = vec![0];
+            body.call = vec![0];
+            if mode != 4 {
+                body.writes = vec![0];
+            }
+        }
+        module.functions.push(helper);
+        let f = &mut module.functions[0];
+        for instruction in &mut f.blocks[0].instructions {
+            if let InstructionKind::WithForeignCallback { callback, body, .. } = instruction.kind {
+                f.values[instruction.result.unwrap().0 as usize] = Type::I32;
+                instruction.kind = InstructionKind::Call {
+                    function: FunctionId(5),
+                    arguments: vec![callback, body],
+                };
+            }
+        }
+        let result = analyze(&module, &Limits::default());
+        assert_eq!(result.is_ok(), mode != 3, "mode={mode}: {result:?}");
+    }
+}
 impl Body {
     fn new(id: u32) -> Self {
         Self(TypedFunction {

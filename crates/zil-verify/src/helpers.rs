@@ -38,17 +38,79 @@ struct EnvironmentOrigins {
     values_at: usize,
     marks: Vec<u8>,
     parameters: Vec<u32>,
+    local_bodies: Option<Vec<bool>>,
+}
+
+// This is a use restriction, not a closure safety certificate. Only concrete
+// constructions that flow to the actual With body through ordinary local
+// transfers bypass the legacy nested-helper gate. Resource/loan/capture checks
+// still independently prove their initialization, consumption and roots.
+fn scoped_local_bodies(f: &TypedFunction, budget: &mut Budget) -> Check<Option<Vec<bool>>> {
+    if !budget
+        .scoped_functions
+        .as_ref()
+        .is_some_and(|marks| marks[f.id.0 as usize])
+    {
+        return Ok(None);
+    }
+    let values_at = f.locals.len();
+    let count = values_at.saturating_add(f.values.len());
+    budget.spend(count.saturating_mul(2))?;
+    let mut sources = vec![Vec::new(); count];
+    let mut bodies = vec![false; count];
+    let mut pending = VecDeque::new();
+    for block in &f.blocks {
+        budget.spend(1)?;
+        for instruction in &block.instructions {
+            budget.spend(1)?;
+            match instruction.kind {
+                InstructionKind::WithForeignCallback { body, .. } => {
+                    let at = values_at + body.0 as usize;
+                    if !bodies[at] {
+                        budget.spend(1)?;
+                        bodies[at] = true;
+                        pending.push_back(at);
+                    }
+                }
+                InstructionKind::Store { local, value } => {
+                    budget.spend(1)?;
+                    sources[local.0 as usize].push(values_at + value.0 as usize);
+                }
+                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                    if let Some(result) = instruction.result {
+                        budget.spend(1)?;
+                        sources[values_at + result.0 as usize].push(local.0 as usize);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    while let Some(at) = pending.pop_front() {
+        budget.spend(1)?;
+        for &source in &sources[at] {
+            budget.spend(1)?;
+            if !bodies[source] {
+                budget.spend(1)?;
+                bodies[source] = true;
+                pending.push_back(source);
+            }
+        }
+    }
+    Ok(Some(bodies))
 }
 
 /// Independent provenance graph. Edges describe only actual local/SSA
 /// transfers; type equality never supplies an edge. The finite marks are
-/// roles (1 and 2), verified self-contained factory (4), and other producer (8).
+/// roles (1 and 2), verified self-contained factory (4), other producer (8),
+/// and an actual local With body construction (16).
 fn environment_origins(
     module: &TypedModule,
     f: &TypedFunction,
     roles: &[CallableRole],
     budget: &mut Budget,
 ) -> Check<EnvironmentOrigins> {
+    let local_bodies = scoped_local_bodies(f, budget)?;
     let values_at = f.locals.len();
     let count = values_at.saturating_add(f.values.len());
     budget.spend(count.saturating_mul(2))?;
@@ -147,7 +209,17 @@ fn environment_origins(
                 }
                 _ => false,
             };
-            marks[destination] = if factory { 4 } else { 8 };
+            marks[destination] = if factory {
+                4
+            } else if matches!(instruction.kind, InstructionKind::MakeClosure { .. })
+                && local_bodies
+                    .as_ref()
+                    .is_some_and(|bodies| bodies[destination])
+            {
+                16
+            } else {
+                8
+            };
             budget.spend(1)?;
             pending.push_back(destination);
         }
@@ -168,6 +240,7 @@ fn environment_origins(
         values_at,
         marks,
         parameters,
+        local_bodies,
     })
 }
 
@@ -761,6 +834,27 @@ pub(super) fn check_module(
                 "callback role table does not exactly cover actual parameters",
             ));
         }
+        let mut scoped = budget
+            .scoped_functions
+            .as_ref()
+            .is_some_and(|marks| marks[index]);
+        if budget.scoped_functions.is_some() && !scoped {
+            // Callees are already checked in dependency order. Propagate only
+            // from actual Call edges, never a producer contract classification.
+            for block in &f.blocks {
+                budget.spend(1)?;
+                for instruction in &block.instructions {
+                    budget.spend(1)?;
+                    if let InstructionKind::Call { function, .. } = instruction.kind {
+                        scoped |= budget.scoped_functions.as_ref().unwrap()[function.0 as usize];
+                    }
+                }
+            }
+            if scoped {
+                budget.spend(1)?;
+                budget.scoped_functions.as_mut().unwrap()[index] = true;
+            }
+        }
         let forwarding = f
             .callable_return_contract
             .as_ref()
@@ -827,7 +921,7 @@ pub(super) fn check_module(
                     "requested callback bound is not supported by the concrete entry",
                 ));
             }
-            if !borrowed && proposed.kind == CallableKind::FnMut && !forwarding {
+            if !borrowed && proposed.kind == CallableKind::FnMut && !forwarding && !scoped {
                 return Err(unsupported(
                     "this helper slice takes FnMut through an exclusive environment address",
                     Some(f.span),
@@ -835,7 +929,8 @@ pub(super) fn check_module(
             }
             if let Type::Address { mutable, .. } = ty
                 && !(proposed.kind == CallableKind::Fn && !mutable
-                    || proposed.kind == CallableKind::FnMut && *mutable)
+                    || proposed.kind == CallableKind::FnMut && *mutable
+                    || scoped && proposed.kind == CallableKind::Fn && *mutable)
             {
                 return Err(bad(
                     f,

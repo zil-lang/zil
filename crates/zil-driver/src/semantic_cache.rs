@@ -594,6 +594,84 @@ mod tests {
     }
 
     #[test]
+    fn private_format_preserves_untrusted_scoped_callback_fields_and_identity() {
+        use zil_ir::{
+            ForeignDeclaration, Instruction, InstructionKind, ScopedCallbackRole, ValueId,
+        };
+        let dir = std::env::temp_dir().join(format!(
+            "semantic-scoped-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("main.zil");
+        fs::write(&path, "pub fn main()->i32=>0").unwrap();
+        let (mut program, mut candidate) = raw(&path);
+        // Transport deliberately accepts raw claims. This fixture neither has
+        // executable authority nor asserts ordinary or CT verification.
+        let function = &mut program.module.functions[0];
+        function.foreign = Some(ForeignDeclaration {
+            abi: "C".into(),
+            symbol: "register".into(),
+            noescape_parameters: vec![],
+            static_callbacks: true,
+            scoped_callback: Some(ScopedCallbackRole::Register),
+        });
+        function.blocks[0].instructions.push(Instruction {
+            result: None,
+            span: function.span,
+            kind: InstructionKind::WithForeignCallback {
+                register: FunctionId(2),
+                close: FunctionId(3),
+                callback: ValueId(17),
+                body: ValueId(29),
+                region: 11,
+            },
+        });
+        let limits = Limits::default();
+        let fingerprint = program.module.fingerprint();
+        candidate.module_fingerprint = fingerprint;
+        let original = encode(&program, &candidate, &limits).unwrap();
+        assert_eq!(
+            decode(&original, &limits),
+            Some((program.clone(), candidate.clone()))
+        );
+        for field in 0..7 {
+            let mut changed = program.clone();
+            let function = &mut changed.module.functions[0];
+            if field < 5 {
+                let InstructionKind::WithForeignCallback {
+                    register,
+                    close,
+                    callback,
+                    body,
+                    region,
+                } = &mut function.blocks[0].instructions.last_mut().unwrap().kind
+                else {
+                    unreachable!()
+                };
+                match field {
+                    0 => register.0 += 1,
+                    1 => close.0 += 1,
+                    2 => callback.0 += 1,
+                    3 => body.0 += 1,
+                    4 => *region += 1,
+                    _ => unreachable!(),
+                }
+            } else {
+                function.foreign.as_mut().unwrap().scoped_callback =
+                    (field == 5).then_some(ScopedCallbackRole::Close);
+            }
+            candidate.module_fingerprint = changed.module.fingerprint();
+            assert_ne!(candidate.module_fingerprint, fingerprint);
+            let bytes = encode(&changed, &candidate, &limits).unwrap();
+            assert_ne!(bytes, original);
+            assert_eq!(decode(&bytes, &limits), Some((changed, candidate.clone())));
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn private_format_roundtrips_all_raw_program_fields_for_real_projects() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline");
         for name in [

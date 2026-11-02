@@ -1,4 +1,4 @@
-//! Rebuildable Wire31 loan-revival mutation, preserving the original Wire30 bytes.
+//! Rebuildable Wire32 loan-revival mutation, preserving the original Wire30 bytes.
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::InstructionKind;
 
@@ -45,7 +45,7 @@ fn control_and_minimal_transfer_mutation() {
     }
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../tests/impl254/loan_revival_v31.wire"
+        "/../../tests/impl254/loan_revival_v32.wire"
     );
     if std::env::var_os("ZIL_GENERATE_IMPL254_WIRE").is_some() {
         std::fs::write(path, &bytes).unwrap();

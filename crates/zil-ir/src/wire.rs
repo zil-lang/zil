@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 31;
+pub const WIRE_VERSION: u32 = 32;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -736,6 +736,7 @@ impl<'a> Writer<'a> {
                 self.u32(*parameter)?;
             }
             self.boolean(foreign.static_callbacks)?;
+            self.u8(scoped_callback_role_tag(foreign.scoped_callback))?;
         }
         self.boolean(function.environment.is_some())?;
         if let Some(environment) = function.environment {
@@ -1024,6 +1025,20 @@ impl<'a> Writer<'a> {
                 for argument in arguments {
                     self.u32(argument.0)?;
                 }
+            }
+            InstructionKind::WithForeignCallback {
+                register,
+                close,
+                callback,
+                body,
+                region,
+            } => {
+                self.u8(94)?;
+                self.u32(register.0)?;
+                self.u32(close.0)?;
+                self.u32(callback.0)?;
+                self.u32(body.0)?;
+                self.u32(*region)?;
             }
             InstructionKind::ForeignFunctionRef { function } => {
                 self.u8(60)?;
@@ -2147,6 +2162,12 @@ impl<'a> Reader<'a> {
                 symbol: self.text()?,
                 noescape_parameters: self.callable_indices()?,
                 static_callbacks: self.boolean()?,
+                scoped_callback: match self.u8()? {
+                    0 => None,
+                    1 => Some(ScopedCallbackRole::Register),
+                    2 => Some(ScopedCallbackRole::Close),
+                    _ => return Err(malformed("E-WIRE-TAG", "unknown scoped callback role")),
+                },
             })
         } else {
             None
@@ -2677,6 +2698,13 @@ impl<'a> Reader<'a> {
             58 => InstructionKind::EndPackageCapture {
                 local: LocalId(self.u32()?),
                 index: self.u32()?,
+            },
+            94 => InstructionKind::WithForeignCallback {
+                register: FunctionId(self.u32()?),
+                close: FunctionId(self.u32()?),
+                callback: ValueId(self.u32()?),
+                body: ValueId(self.u32()?),
+                region: self.u32()?,
             },
             255 => InstructionKind::Unsupported(self.text()?),
             _ => return Err(malformed("E-WIRE-OPCODE", "unknown CFG instruction opcode")),

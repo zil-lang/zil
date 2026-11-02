@@ -219,6 +219,7 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         state: &mut State,
         span: Span,
+        scoped_body: bool,
     ) -> R<TypeRef> {
         let context = expected.and_then(callable::opaque_signature);
         if context.is_some_and(|(_, parameters_, _)| parameters_.len() != parameters.len()) {
@@ -288,6 +289,7 @@ impl Check<'_, '_, '_> {
         let result = scope.result.unwrap_or_else(|| unit(span));
         self.factory_signature(&types, &result)?;
         let mut kind = CallableKind::Fn;
+        let mut scoped_copy = scoped_body;
         for (id, usage) in scope.captures {
             self.tick(span)?;
             for _ in 0..state.locals.len() {
@@ -300,13 +302,22 @@ impl Check<'_, '_, '_> {
                 .ok_or_else(|| error(span, "factory capture lost its lexical position"))?;
             self.budget.ty(&local.ty)?;
             let local = local.clone();
-            if !move_capture && !usage.consumed && usage.partial.is_empty() {
+            if scoped_body && (!move_capture || usage.consumed || !self.known_copy(&local.ty)?) {
+                scoped_copy = false;
+            }
+            if scoped_body && dependent(&local.ty, &self.variables) {
+                return Err(error(
+                    span,
+                    "a scoped local body cannot capture a callable parameter",
+                ));
+            }
+            if !scoped_body && !move_capture && !usage.consumed && usage.partial.is_empty() {
                 return Err(unsupported(
                     span,
                     "retained generic factory captures require explicit move or an actual owning use",
                 ));
             }
-            if matches!(group(&local.ty).kind, TypeKind::Reference { .. }) {
+            if !scoped_body && matches!(group(&local.ty).kind, TypeKind::Reference { .. }) {
                 return Err(unsupported(
                     span,
                     "owning factory cannot retain an external address",
@@ -352,6 +363,10 @@ impl Check<'_, '_, '_> {
                     state.invalidated_stores.extend(origins);
                 }
             }
+        }
+        if scoped_copy {
+            self.tick(span)?;
+            self.scoped_copy_closures.insert(span);
         }
         let name = match kind {
             CallableKind::Fn => "Fn",
@@ -421,10 +436,11 @@ impl Check<'_, '_, '_> {
         expression: &Expr,
         state: &State,
     ) -> R<()> {
-        if !self
-            .callable
-            .as_ref()
-            .is_some_and(|bounds| bounds.owned_factory)
+        if self.scoped_body_closures.is_none()
+            && !self
+                .callable
+                .as_ref()
+                .is_some_and(|bounds| bounds.owned_factory)
         {
             return Ok(());
         }

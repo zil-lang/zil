@@ -92,7 +92,7 @@ fn callback_return_does_not_revive_a_borrowed_input_window() {
         zil_ir::wire::decode_module_candidate(archived, &limits).unwrap_err()[0].code,
         "E-WIRE-VERSION"
     );
-    let bytes = include_bytes!("../../../tests/impl254/loan_revival_v31.wire");
+    let bytes = include_bytes!("../../../tests/impl254/loan_revival_v32.wire");
     let (typed, candidate) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
     for errors in [
         zil_verify::verify_module(typed, candidate, &target, &limits).unwrap_err(),

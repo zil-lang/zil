@@ -1,4 +1,4 @@
-//! Frozen raw/Wire31 operands from the independent Analyze 253 review.
+//! Migrated raw/Wire32 operands from the independent Analyze 253 review.
 use zil_base::{Limits, TargetProfile};
 
 #[test]

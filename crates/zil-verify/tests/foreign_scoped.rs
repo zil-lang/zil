@@ -1,0 +1,367 @@
+//! Independent current raw/Wire trust-boundary tests, not source/native evidence.
+#[path = "support/foreign_scoped.rs"]
+mod fixture;
+use zil_base::{Limits, ResultCategory};
+use zil_ir::*;
+fn check(module: TypedModule, plan: CandidatePlan, expected: Option<&str>) {
+    check_category(module, plan, expected, ResultCategory::SafeReject)
+}
+fn check_category(
+    module: TypedModule,
+    mut plan: CandidatePlan,
+    expected: Option<&str>,
+    category: ResultCategory,
+) {
+    plan.module_fingerprint = module.fingerprint();
+    let limits = Limits::default();
+    let target = module.target.clone();
+    let raw = zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits);
+    let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits);
+    for result in [raw, decoded] {
+        if let Some(code) = expected {
+            let errors = result.unwrap_err();
+            assert_eq!(errors[0].code, code, "{errors:?}");
+            assert_eq!(errors[0].category, category);
+        } else {
+            result.unwrap();
+        }
+    }
+}
+#[test]
+fn actual_mutable_environment_and_consumed_body_pass_raw_and_wire() {
+    let (m, p) = fixture::fixture();
+    check(m, p, None)
+}
+#[test]
+fn callback_role_and_signature_are_rebuilt_from_declarations() {
+    for change in 0..4 {
+        let (mut m, p) = fixture::fixture();
+        match change {
+            0 => {
+                m.functions[0].foreign.as_mut().unwrap().scoped_callback =
+                    Some(ScopedCallbackRole::Close)
+            }
+            1 => m.functions[1].foreign.as_mut().unwrap().scoped_callback = None,
+            2 => m.functions[0].return_type = Type::I32,
+            3 => m.functions[1].foreign.as_mut().unwrap().static_callbacks = false,
+            _ => unreachable!(),
+        }
+        check(m, p, Some("E-VERIFY-FOREIGN"));
+    }
+}
+#[test]
+fn missing_actual_unsafe_region_is_rejected() {
+    let (mut m, p) = fixture::fixture();
+    if let InstructionKind::WithForeignCallback { region, .. } =
+        &mut m.functions[4].blocks[0].instructions[6].kind
+    {
+        *region = 8
+    }
+    check(m, p, Some("E-VERIFY-UNSAFE"));
+}
+#[test]
+fn once_callback_and_shared_callback_address_are_rejected() {
+    let (mut m, p) = fixture::fixture();
+    m.closures[0].kind = CallableKind::FnOnce;
+    check(m, p, Some("E-VERIFY-SCOPED-CALLBACK"));
+    let (mut m, p) = fixture::fixture();
+    if let Type::Address { mutable, .. } = &mut m.functions[4].values[1] {
+        *mutable = false
+    };
+    m.functions[4].blocks[0].instructions[3].kind =
+        InstructionKind::BorrowLocal { local: LocalId(0) };
+    check(m, p, Some("E-VERIFY-SCOPED-CALLBACK"));
+}
+#[test]
+fn body_responsibility_cannot_be_consumed_twice() {
+    let (mut m, mut p) = fixture::fixture();
+    m.functions[4].blocks[0].instructions.insert(
+        7,
+        fixture::instruction(
+            None,
+            InstructionKind::WithForeignCallback {
+                register: FunctionId(0),
+                close: FunctionId(1),
+                callback: ValueId(1),
+                body: ValueId(2),
+                region: 7,
+            },
+        ),
+    );
+    m.functions[4]
+        .values
+        .push(Type::Tuple(vec![Type::Bool, Type::I32]));
+    m.functions[4].blocks[0].instructions[7].result = Some(ValueId(4));
+    p.functions[4].holds.push(ValueHold {
+        value: ValueId(4),
+        roots: vec![],
+    });
+    check(m, p, Some("E-VERIFY-RESOURCE"));
+}
+#[test]
+fn body_can_borrow_unrelated_scalar_and_distinct_same_typed_closure() {
+    let (m, p) = fixture::borrowed_scalar_body();
+    check(m, p, None);
+    let (m, p) = fixture::borrowed_closure_body(false);
+    check(m, p, None);
+}
+#[test]
+fn body_cannot_capture_a_reborrow_of_the_actual_callback_position() {
+    let (m, p) = fixture::borrowed_closure_body(true);
+    check(m, p, Some("E-BORROW-CONFLICT"));
+}
+#[test]
+fn independent_two_role_wrapper_reconstructs_optional_once_and_repeated_mut_calls() {
+    let (m, p) = fixture::wrapper();
+    check(m, p, None);
+}
+#[test]
+fn f_only_wrapper_constructs_actual_concrete_with_body() {
+    for through_local in [false, true] {
+        let (m, p) = fixture::local_body_wrapper(through_local);
+        check(m, p, None);
+    }
+    for kind in [CallableKind::Fn, CallableKind::FnMut] {
+        let (mut m, mut p) = fixture::local_body_wrapper(true);
+        m.closures[1].kind = kind;
+        m.functions[4].blocks[0].instructions[4].kind = InstructionKind::Load(LocalId(1));
+        p.functions[4].blocks[0].initialized_out.push(LocalId(1));
+        check(m, p, None);
+    }
+}
+#[test]
+fn local_body_actual_capture_roots_keep_callback_exclusion_and_disjoint_borrows() {
+    let (m, p) = fixture::local_body_capture_wrapper(false);
+    check(m, p, None);
+    let (m, p) = fixture::local_body_capture_wrapper(true);
+    check(m, p, Some("E-BORROW-CONFLICT"));
+    let (mut m, mut p) = fixture::local_body_wrapper(true);
+    m.functions[4]
+        .values
+        .push(Type::Tuple(vec![Type::Bool, Type::I32]));
+    let mut second = m.functions[4].blocks[0].instructions[6].clone();
+    second.result = Some(ValueId(4));
+    m.functions[4].blocks[0].instructions.insert(7, second);
+    p.functions[4].holds.push(ValueHold {
+        value: ValueId(4),
+        roots: vec![],
+    });
+    // Give the two actual scopes their correct parameter-only flow so that
+    // the independently checked once responsibility, not a forged claim,
+    // rejects the repeated use of the same concrete body value.
+    let flow = [
+        (false, vec![1, 2, 3]),
+        (true, vec![1, 2, 3]),
+        (false, vec![4, 3]),
+        (false, vec![5, 6, 7]),
+        (true, vec![4, 3]),
+        (true, vec![5, 6, 7]),
+        (false, vec![8, 7]),
+        (false, vec![]),
+        (true, vec![8, 7]),
+    ];
+    m.functions[4].callable_contract.as_mut().unwrap().traces =
+        CallableTraces::Flow(CallableFlow {
+            entry: 0,
+            nodes: flow
+                .into_iter()
+                .map(|(called, edges)| CallableFlowNode {
+                    calls: if called {
+                        vec![CallEvent {
+                            parameter: 0,
+                            kind: CallableKind::FnMut,
+                        }]
+                    } else {
+                        vec![]
+                    },
+                    next: if edges.is_empty() {
+                        CallableFlowNext::Exit(CallableExit::Return)
+                    } else {
+                        CallableFlowNext::Edges(edges)
+                    },
+                })
+                .collect(),
+        });
+    check(m, p, Some("E-VERIFY-RESOURCE"));
+}
+#[test]
+fn local_body_does_not_create_a_parameter_event_or_general_nested_helper_permission() {
+    let (mut m, p) = fixture::local_body_wrapper(true);
+    let CallableTraces::Flow(flow) = &mut m.functions[4].callable_contract.as_mut().unwrap().traces
+    else {
+        unreachable!()
+    };
+    flow.nodes[2].calls.push(CallEvent {
+        parameter: 0,
+        kind: CallableKind::FnOnce,
+    });
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+    let (mut m, mut p) = fixture::local_body_wrapper(false);
+    m.functions[4].values.push(Type::Closure(ClosureId(1)));
+    m.functions[4].blocks[0].instructions.insert(
+        1,
+        fixture::instruction(
+            Some(3),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(1),
+                captures: vec![],
+            },
+        ),
+    );
+    p.functions[4].holds.push(ValueHold {
+        value: ValueId(3),
+        roots: vec![],
+    });
+    check_category(m, p, Some("E-UNSUPPORTED"), ResultCategory::Unsupported);
+}
+#[test]
+fn wrapper_keeps_original_kind_and_rejects_forged_trace() {
+    let (mut m, p) = fixture::wrapper();
+    m.functions[4].callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::FnOnce;
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+    let (mut m, p) = fixture::wrapper();
+    let CallableTraces::Flow(flow) = &mut m.functions[4].callable_contract.as_mut().unwrap().traces
+    else {
+        unreachable!()
+    };
+    flow.nodes[2].calls.clear();
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+}
+#[test]
+fn declared_fn_and_fnmut_body_keep_actual_once_consumption() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut] {
+        let (mut m, p) = fixture::wrapper();
+        m.closures[1].kind = kind;
+        m.functions[4].callable_contract.as_mut().unwrap().roles[1].kind = kind;
+        check(m, p, None);
+    }
+    let (mut m, p) = fixture::wrapper();
+    m.closures[0].kind = CallableKind::Fn;
+    m.functions[4].callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::Fn;
+    check(m, p, None);
+}
+#[test]
+fn preparation_cannot_read_or_move_the_exclusively_held_callback() {
+    for moving in [false, true] {
+        let (mut m, mut p) = fixture::fixture();
+        m.functions[4].values.push(Type::Closure(ClosureId(0)));
+        m.functions[4].blocks[0].instructions.insert(
+            4,
+            fixture::instruction(
+                Some(4),
+                if moving {
+                    InstructionKind::TakeLocal { local: LocalId(0) }
+                } else {
+                    InstructionKind::Load(LocalId(0))
+                },
+            ),
+        );
+        p.functions[4].holds.push(ValueHold {
+            value: ValueId(4),
+            roots: vec![],
+        });
+        if moving {
+            p.functions[4].blocks[0].initialized_out.clear();
+        }
+        check(m, p, Some("E-BORROW-CONFLICT"));
+    }
+    let (mut m, mut p) = fixture::fixture();
+    m.functions[4].values.push(Type::Closure(ClosureId(0)));
+    m.functions[4].blocks[0].instructions.insert(
+        3,
+        fixture::instruction(Some(4), InstructionKind::Load(LocalId(0))),
+    );
+    p.functions[4].holds.push(ValueHold {
+        value: ValueId(4),
+        roots: vec![],
+    });
+    check(m, p, None);
+}
+#[test]
+fn scoped_raw_and_wire_work_have_exact_fresh_boundaries() {
+    for (name, (m, mut p)) in [
+        ("direct", fixture::fixture()),
+        ("borrowed", fixture::borrowed_scalar_body()),
+        ("wrapper", fixture::wrapper()),
+        ("local_body_wrapper", fixture::local_body_wrapper(true)),
+    ] {
+        p.module_fingerprint = m.fingerprint();
+        let bytes = wire::encode_module_candidate(&m, &p, &Limits::default()).unwrap();
+        for wire in [false, true] {
+            let run = |steps| {
+                let limits = Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                };
+                if wire {
+                    zil_verify::verify_module_bytes(&bytes, &m.target, &limits)
+                } else {
+                    zil_verify::verify_module(m.clone(), p.clone(), &m.target, &limits)
+                }
+            };
+            let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+            let expected = run(high).unwrap().fingerprint();
+            while low + 1 < high {
+                let mid = low + (high - low) / 2;
+                match run(mid) {
+                    Ok(v) => {
+                        assert_eq!(v.fingerprint(), expected);
+                        high = mid
+                    }
+                    Err(e) => {
+                        assert!(
+                            e.iter()
+                                .all(|d| d.category == ResultCategory::ResourceLimit),
+                            "{e:?}"
+                        );
+                        low = mid
+                    }
+                }
+            }
+            assert_eq!(run(high).unwrap().fingerprint(), expected);
+            assert!(
+                run(high - 1)
+                    .unwrap_err()
+                    .iter()
+                    .all(|d| d.category == ResultCategory::ResourceLimit)
+            );
+            assert_eq!(run(high).unwrap().fingerprint(), expected);
+            println!("scoped {name} wire={wire} N={high}; N-1=ResourceLimit; fresh N=Pass");
+        }
+    }
+}
+#[test]
+fn copy_actual_body_cannot_repeat_or_cycle_its_symbolic_consumption() {
+    for cycle in [false, true] {
+        let (mut m, mut p) = fixture::wrapper();
+        m.closures[1].kind = CallableKind::Fn;
+        m.functions[4].callable_contract.as_mut().unwrap().roles[1].kind = CallableKind::Fn;
+        if cycle {
+            let tail = m.functions[4].blocks[0].instructions.split_off(2);
+            m.functions[4].blocks[0].terminator = Terminator::Jump(BlockId(1));
+            m.functions[4].blocks.push(BasicBlock {
+                id: BlockId(1),
+                instructions: tail,
+                terminator: Terminator::Jump(BlockId(1)),
+            });
+            p.functions[4].blocks.push(BlockPlan {
+                block: BlockId(1),
+                initialized_in: vec![LocalId(0)],
+                initialized_out: vec![LocalId(0)],
+            });
+        } else {
+            m.functions[4]
+                .values
+                .push(Type::Tuple(vec![Type::Bool, Type::I32]));
+            let mut second = m.functions[4].blocks[0].instructions[3].clone();
+            second.result = Some(ValueId(3));
+            m.functions[4].blocks[0].instructions.insert(4, second);
+            p.functions[4].holds.push(ValueHold {
+                value: ValueId(3),
+                roots: vec![],
+            });
+        }
+        check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+    }
+}
