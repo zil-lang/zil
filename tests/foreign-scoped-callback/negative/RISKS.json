@@ -1,0 +1,106 @@
+[
+  {
+    "name": "fn_once_callback",
+    "source": "fn_once_callback.zil",
+    "rule": "12.4.1",
+    "risk": "callback must be Fn or FnMut; body consuming a callback capture makes f FnOnce",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "borrowed_callback_environment",
+    "source": "borrowed_callback_environment.zil",
+    "rule": "12.4.1",
+    "risk": "actual callback captures a caller address rather than a self-contained environment",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "body_captures_same_callback",
+    "source": "body_captures_same_callback.zil",
+    "rule": "12.4.1",
+    "risk": "body borrows the same actual f during the exclusive registration window",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "body_moves_same_callback",
+    "source": "body_moves_same_callback.zil",
+    "rule": "12.4.1",
+    "risk": "moving non-Copy f into body leaves no initialized f to register",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "body_captures_callback_alias",
+    "source": "body_captures_callback_alias.zil",
+    "rule": "12.4.1",
+    "risk": "body captures a shared address alias of the same f; a different SSA name is not a disjoint instance",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "missing_unsafe_region",
+    "source": "missing_unsafe_region.zil",
+    "rule": "12.4.1",
+    "risk": "external publication requires a real entered unsafe region",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "swapped_roles",
+    "source": "swapped_roles.zil",
+    "rule": "12.4.1",
+    "risk": "register and close declarations must have their actual distinct roles and signatures",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "missing_register_role",
+    "source": "missing_register_role.zil",
+    "rule": "12.4.1",
+    "risk": "same ABI without an explicit register role cannot provide the external lifecycle promise",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "wrong_register_signature",
+    "source": "wrong_register_signature.zil",
+    "rule": "12.4.1",
+    "risk": "register requires an i64 packed status/result callback, not an i32 callback",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "ordinary_role_call",
+    "source": "ordinary_role_call.zil",
+    "rule": "12.4.1",
+    "risk": "a role declaration cannot bypass structured publication via ordinary ForeignCall",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "wrong_body_result",
+    "source": "wrong_body_result.zil",
+    "rule": "12.4.1",
+    "risk": "body must be a concrete zero-argument i32 callable",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "wrong_callback_signature",
+    "source": "wrong_callback_signature.zil",
+    "rule": "12.4.1",
+    "risk": "actual callback argument must be i32, not i64",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  },
+  {
+    "name": "body_used_after_consumption",
+    "source": "body_used_after_consumption.zil",
+    "rule": "12.4.1",
+    "risk": "body is consumed by the structured call even if its implementation is Fn",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+  }
+]
