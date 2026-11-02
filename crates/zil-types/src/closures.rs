@@ -522,12 +522,17 @@ pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
 /// factory, State and address profiles. This grants no capture/container right.
 pub(super) fn owned_signature_value(ty: &Type) -> bool {
     ty.is_copy_value()
-        || (matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. })
-            && owned_shapes::value(ty))
+        || (matches!(
+            ty,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        ) && owned_shapes::value(ty))
 }
 
 pub(super) fn owned_signature_head(ty: &Type) -> bool {
-    matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. })
+    matches!(
+        ty,
+        Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+    )
 }
 
 pub(super) fn value_signature(parameters: &[Type], result: &Type) -> bool {
