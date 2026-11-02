@@ -638,3 +638,180 @@ pub fn local_body_capture_wrapper(alias: bool) -> (TypedModule, CandidatePlan) {
     p.functions[4].holds[3].roots = vec![root];
     (m, p)
 }
+
+/// Independently prepared concrete ownership, with no producer ownership proof.
+pub fn local_owned_body(package: bool) -> (TypedModule, CandidatePlan) {
+    let (mut m, mut p) = local_body_wrapper(true);
+    let payload = Type::Record {
+        name: "Token".into(),
+        fields: vec![("n".into(), Type::I32)],
+    };
+    let managed = Type::Managed(Box::new(payload.clone()));
+    let captured = if package {
+        Type::Package {
+            name: "Owned".into(),
+            fields: vec![("token".into(), managed.clone())],
+        }
+    } else {
+        managed.clone()
+    };
+    m.resources.push(ResourceDefinition {
+        name: "Token".into(),
+        payload,
+        teardown: None,
+    });
+    m.closures[1].captures = vec![captured.clone()];
+    m.functions[4].values.extend([Type::I32, managed]);
+    let mut preparation = vec![
+        instruction(Some(4), InstructionKind::Constant(Constant::I32(1))),
+        instruction(
+            Some(5),
+            InstructionKind::MakeManaged {
+                fields: vec![ValueId(4)],
+            },
+        ),
+    ];
+    let capture = if package {
+        m.functions[4].values.push(captured.clone());
+        preparation.push(instruction(
+            Some(6),
+            InstructionKind::MakePackage {
+                fields: vec![ValueId(5)],
+            },
+        ));
+        ValueId(6)
+    } else {
+        ValueId(5)
+    };
+    let InstructionKind::MakeClosure { captures, .. } =
+        &mut m.functions[4].blocks[0].instructions[1].kind
+    else {
+        unreachable!()
+    };
+    *captures = vec![capture];
+    m.functions[4].blocks[0]
+        .instructions
+        .splice(1..1, preparation);
+    for value in 4..m.functions[4].values.len() {
+        p.functions[4].holds.push(ValueHold {
+            value: ValueId(value as u32),
+            roots: vec![],
+        });
+    }
+    if package {
+        // Exact scope/storage and capture view plumbing, independent of the
+        // ownership mutations exercised by the tests.
+        let caller = &mut m.functions[4];
+        caller.blocks[0].instructions.insert(
+            0,
+            instruction(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        );
+        caller.blocks[0].instructions.extend([
+            instruction(None, InstructionKind::StorageDead(LocalId(1))),
+            instruction(None, InstructionKind::StorageDead(LocalId(0))),
+            instruction(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ),
+        ]);
+        p.functions[4].blocks[0].initialized_out.clear();
+        let entry = &mut m.functions[3];
+        entry.locals.push(LocalDecl {
+            id: LocalId(0),
+            name: "owned".into(),
+            ty: captured,
+            mutable: true,
+            span: span(),
+        });
+        entry.blocks[0].instructions.insert(
+            0,
+            instruction(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        );
+        entry.blocks[0].instructions.insert(
+            1,
+            instruction(
+                None,
+                InstructionKind::BindPackageCapture {
+                    local: LocalId(0),
+                    index: 0,
+                },
+            ),
+        );
+        entry.blocks[0].instructions.extend([
+            instruction(
+                None,
+                InstructionKind::EndPackageCapture {
+                    local: LocalId(0),
+                    index: 0,
+                },
+            ),
+            instruction(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ),
+        ]);
+    }
+    (m, p)
+}
+
+pub fn ordinary_local_owner() -> (TypedModule, CandidatePlan) {
+    let (mut m, mut p) = local_owned_body(false);
+    let f = &mut m.functions[4];
+    f.locals[1].ty = m.closures[1].captures[0].clone();
+    f.values = vec![
+        f.locals[0].ty.clone(),
+        Type::I32,
+        f.locals[1].ty.clone(),
+        Type::I32,
+    ];
+    f.return_type = Type::I32;
+    let event = CallEvent {
+        parameter: 0,
+        kind: CallableKind::FnMut,
+    };
+    f.callable_contract.as_mut().unwrap().traces = CallableTraces::Finite(vec![CallableTrace {
+        calls: vec![event],
+        exit: CallableExit::Return,
+    }]);
+    f.blocks[0].instructions = vec![
+        instruction(None, InstructionKind::StorageLive(LocalId(1))),
+        instruction(Some(1), InstructionKind::Constant(Constant::I32(19))),
+        instruction(
+            Some(2),
+            InstructionKind::MakeManaged {
+                fields: vec![ValueId(1)],
+            },
+        ),
+        instruction(
+            None,
+            InstructionKind::Store {
+                local: LocalId(1),
+                value: ValueId(2),
+            },
+        ),
+        instruction(Some(0), InstructionKind::Load(LocalId(0))),
+        instruction(
+            Some(3),
+            InstructionKind::CallClosureBorrowed {
+                callee: ValueId(0),
+                kind: CallableKind::FnMut,
+                arguments: vec![ValueId(1)],
+            },
+        ),
+        instruction(None, InstructionKind::DropManaged { local: LocalId(1) }),
+        instruction(None, InstructionKind::StorageDead(LocalId(1))),
+    ];
+    f.blocks[0].terminator = Terminator::Return(Some(ValueId(3)));
+    p.functions[4].holds.truncate(4);
+    for hold in &mut p.functions[4].holds {
+        hold.roots.clear();
+    }
+    p.functions[4].holds[0].roots = vec![HoldRoot::Parameter(0)];
+    (m, p)
+}
