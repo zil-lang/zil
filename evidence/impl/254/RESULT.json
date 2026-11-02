@@ -4,7 +4,7 @@
   "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
   "schema_version": 31,
   "commits": {
-    "verify_implementation": "4cedf9753ce40f59ea58b4b6e1fbc8e7a0847e29",
+    "verify_implementation": "aa60520f966be3abd35d92a3dd6da0df0c6183b5",
     "frontend_source": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
     "analyze_source": "b5e44e3cd6802065a6c8597ddafaf4ddd44eb857",
     "extended_source": "56cbd4822a4e543114b580929edaf5b7bb7385e9"
@@ -19,27 +19,28 @@
     {
       "command": "cargo check -p zil-verify --offline --locked -j 2",
       "passed": true,
-      "log": "final-2.log"
+      "log": "r1-check.log"
     },
     {
       "command": "cargo test -p zil-verify --lib --offline --locked -j 2 --quiet",
-      "passed": 317,
+      "passed": 320,
       "failed": 0,
-      "log": "final-0.log"
+      "log": "r1-unit.log"
     },
     {
-      "command": "cargo test -p zil-driver --test impl254_source --test impl254_wire --test impl254_capture_probe --offline --locked -j 2 --quiet",
+      "command": "cargo test -p zil-driver --test impl254_source --test impl254_wire --test impl254_capture_probe --test impl254_operands --offline --locked -j 2 --quiet",
       "source_passed": 9,
       "wire_generator_passed": 1,
       "capture_probe_passed": 1,
+      "operand_probe_passed": 1,
       "failed": 0,
-      "log": "final-1.log"
+      "log": "r1-driver.log"
     },
     {
       "command": "cargo test -p zil-verify --lib helper_tests::forward::forward_raw_wire_budget --offline --locked -j 2 -- --nocapture",
       "passed": 1,
       "failed": 0,
-      "log": "final-budget.log"
+      "log": "r1-budget.log"
     }
   ],
   "source_controls": {
@@ -60,6 +61,10 @@
       "child bound upgrade",
       "FnOnce called then returned",
       "direct and singleton-slot old borrowed address used after move",
+      "ordinary internal slot A into overwritten bridge then unrelated same-type B into actual Parameter call",
+      "symbolic F into MakePackage or StorePackageField followed by Return of the old SSA",
+      "symbolic F into a general two-element owning array",
+      "symbolic F as an i32 callback argument",
       "returned parent BorrowCapture old position used after TakeCapture, with and without a consumer edge"
     ],
     "raw_declaration_scope": "The public role kind is checked as the raw candidate's declaration; original source fidelity is checked by frontend source-to-Types tests."
@@ -101,6 +106,21 @@
     "positive": "raw/Wire accepted with or without consumer edge",
     "negative": "raw/Wire E-BORROW-CONFLICT with or without consumer edge",
     "runtime_analyze_dependency": false
+  },
+  "ordinary_slot_r1": {
+    "test": "crates/zil-verify/src/helper_tests/owned_values.rs::internal_slot_permission_cannot_follow_overwritten_local_raw_wire",
+    "control": "actual A from internal singleton slot reaches Parameter-return call and passes",
+    "negative": "A enters bridge, A is dropped, fresh same-type B overwrites bridge and alone reaches Parameter-return call; raw and Wire reject",
+    "fix": "per-CFG current local/SSA instance flow with overwrite and Drop kills; no static cross-store closure",
+    "prepayment": "bounded worklist: at most blocks*state_width+1 scans; all scans, merges and state copies charged before allocation"
+  },
+  "operand_probe": {
+    "test": "crates/zil-driver/tests/impl254_operands.rs",
+    "bad_f_as_i32": "raw/Wire E-VERIFY-CLOSURE-CALL",
+    "byvalue_fn_then_return": "raw/Wire E-VERIFY-CALLABLE-CONTRACT because symbolic F has no Copy grant",
+    "legal_i32_control": "shared Fn local call with actual i32 argument, then TakeLocal F and return; raw/Wire pass",
+    "shared_bad_f_as_i32": "same Shared call with argument changed to Load(F), raw/Wire E-VERIFY-CLOSURE-CALL",
+    "fixture_escape_sha256": "3393c2b68cc45fbe079b80e911fb4d31eac6e1e588f6b85610ba21e7c6008438"
   },
   "native_scope": "Separate backend and consumer evidence; no native run claimed by this Verify slice."
 }
