@@ -1,0 +1,53 @@
+{
+  "verdict": "Pass limited joint-C consumer and transport; final root candidate replay separate",
+  "compiler_commit": "431fc7ce418f7765e5f3786bf86b15268b093da7",
+  "consumer_code_commit": "738aaa880b7253c7b4224d1b8dfda1e982a9d8b5",
+  "tests": {
+    "selected": 14,
+    "executed": 14,
+    "passed": 14,
+    "failed": 0
+  },
+  "native_runs": 256,
+  "native_grouping": {
+    "standalone_original_and_signature_probes": 14,
+    "legacy_normal": 26,
+    "legacy_allocator": 82,
+    "extended_normal": 24,
+    "extended_allocator": 108,
+    "new_fnmut_pair": 2
+  },
+  "allocator_runs": 190,
+  "actual_allocation_failures": 90,
+  "allocator_live_zero": true,
+  "native_assertions": 1908,
+  "public_source_raw_wire_controls": "Pass",
+  "transport": {
+    "verdict": "Pass",
+    "files": 1700,
+    "archive_bytes": 469436,
+    "archive_sha256": "fc64f94bf0392655f10e56572f2c6c47a0add8fec738b05a81d79910bfffab9d",
+    "logical_bytes": 85872687,
+    "executable_files": 32,
+    "paths_bytes_modes_exact": true,
+    "portable_hex_paths": true
+  },
+  "current_coverage": "tests/impl256/COVERAGE.json",
+  "historical_out_of_profile_gap_count": 1,
+  "historical_gap_semantic_pass_count": 0,
+  "earlier_failed_runs_preserved": true,
+  "no_counts_added_from_historical_replays": true,
+  "rust_goals": {
+    "safety": "Observed exact source-parameter forwarding, declared mode restoration, real poststate, independent raw/Wire verification and all tested live-allocation balances. This is not complete language safety.",
+    "runtime_memory": "Real Linux O0/O2 and 190 wrapped allocator runs; no Rust runtime/RSS/latency comparison.",
+    "expression_maintenance": "One public direct-F API composes across modules, locals, branches and loops with Copy, owning values, Address signatures and independent Store-bearing data.",
+    "compile_cost": "Consumer does not claim compile speed or unchanged encoding cost; producer-owned new/old phase budgets remain separate.",
+    "concrete_progress": "Actual input-instance and mutated environment return through a reusable generic API, with portable lossless artifacts. Full product conjunction is not established."
+  },
+  "scope_limits": {
+    "formal_workspace": "root-owned",
+    "full_language": "NotSatisfied",
+    "product": "NotRun",
+    "native_windows": "NotRun"
+  }
+}

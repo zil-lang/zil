@@ -1,0 +1,437 @@
+{
+  "verdict": "Pass current acceptance; historical gap remains unfinished",
+  "compiler_commit": "431fc7ce418f7765e5f3786bf86b15268b093da7",
+  "contract_test_code_commit": "738aaa880b7253c7b4224d1b8dfda1e982a9d8b5",
+  "tests": {
+    "selected": 3,
+    "executed": 3,
+    "passed": 3,
+    "failed": 0
+  },
+  "current_semantic_boundary_cases": 11,
+  "new_pair_negative_cases": 1,
+  "historical_out_of_profile_observations": 1,
+  "historical_gap_semantic_pass_count": 0,
+  "source_negatives": [
+    {
+      "case": "address_active_window",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 305,
+            "end": 310
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "external_address_child_environment",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape",
+          "span": {
+            "file": 0,
+            "start": 130,
+            "end": 135
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "external_address_environment",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape",
+          "span": {
+            "file": 0,
+            "start": 129,
+            "end": 136
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "mut_declared_actual_fn_shared_call",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+          "span": {
+            "file": 0,
+            "start": 74,
+            "end": 77
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": false,
+      "gap": {
+        "classification": "historical B0 gap; not a current semantic rejection Pass",
+        "original_expected": "SafeReject",
+        "actual": "Unsupported",
+        "source_and_original_expectation_preserved": true,
+        "root_registrations": [
+          "5b6b609e5",
+          "b113"
+        ]
+      }
+    },
+    {
+      "case": "once_called_then_returned",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+          "span": {
+            "file": 0,
+            "start": 45,
+            "end": 46
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "once_declared_actual_fn_copy",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+          "span": {
+            "file": 0,
+            "start": 147,
+            "end": 154
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "once_declared_actual_fn_twice",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic callable used after its environment was consumed",
+          "span": {
+            "file": 0,
+            "start": 132,
+            "end": 142
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "once_mixed_return_path",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+          "span": {
+            "file": 0,
+            "start": 63,
+            "end": 64
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "once_mode_through_loop",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic callable used after its environment was consumed",
+          "span": {
+            "file": 0,
+            "start": 243,
+            "end": 253
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "same_closure_id_different_instance",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "callable forwarding must return the actual input instance, not a fresh factory environment",
+          "span": {
+            "file": 0,
+            "start": 183,
+            "end": 191
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "same_closure_id_wrong_branch",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "callable forwarding must return the actual input instance, not a fresh factory environment",
+          "span": {
+            "file": 0,
+            "start": 226,
+            "end": 234
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    },
+    {
+      "case": "use_after_transfer",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 2 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 168,
+            "end": 177
+          },
+          "notes": []
+        }
+      ],
+      "current_acceptance": true
+    }
+  ],
+  "pair_actual": [
+    {
+      "case": "fnmut_return_current_let-O0",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "FnMut forwarding call requires a mutable binding",
+          "span": {
+            "file": 0,
+            "start": 111,
+            "end": 121
+          },
+          "notes": []
+        }
+      ],
+      "native_codegen": null
+    },
+    {
+      "case": "fnmut_return_current_var-O0",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "stdout": "123M",
+      "stderr": "",
+      "exit": "Some(0)",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2784,
+            "input_kind": "builder",
+            "preflight_ns": 1326692,
+            "builder_ns": 633129,
+            "parse_ns": 0,
+            "optimize_ns": 202566,
+            "emit_ns": 10278206,
+            "total_ns": 13901001
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "case": "fnmut_return_current_var-O2",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "stdout": "123M",
+      "stderr": "",
+      "exit": "Some(0)",
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1152,
+            "input_kind": "builder",
+            "preflight_ns": 655712,
+            "builder_ns": 351545,
+            "parse_ns": 0,
+            "optimize_ns": 4124524,
+            "emit_ns": 4207386,
+            "total_ns": 9682865
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    }
+  ],
+  "pair_native_runs": 2,
+  "pair_native_assertions": 6,
+  "actual_source_contracts": {
+    "parameter_indices": [
+      0,
+      1,
+      2
+    ],
+    "helpers": 8,
+    "declared_kinds": [
+      "Fn",
+      "FnMut",
+      "FnOnce"
+    ],
+    "cleanup": "Returned",
+    "raw_verify": "Pass",
+    "wire_verify": "Pass",
+    "actual_stages": [
+      {
+        "path": "evidence/impl/256/joint-C/actual-contract-stages/candidate.wire.gz",
+        "sha256": "ee7cf4f2302a093da366ad9113b4df2b0372a9548824d2d368763cb0ae51b4bf",
+        "bytes": 81310
+      },
+      {
+        "path": "evidence/impl/256/joint-C/actual-contract-stages/typed.txt.gz",
+        "sha256": "cfee94a914437ffb1e2c98d7481ba1d921da3274f37a177d3ee66ac282e9fa9d",
+        "bytes": 1403670
+      }
+    ]
+  },
+  "old_source_and_expected_bytes_preserved": true
+}

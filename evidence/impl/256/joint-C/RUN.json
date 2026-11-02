@@ -1,0 +1,59 @@
+{
+  "verdict": "Pass limited local candidate; final root acceptance separate",
+  "compiler_commit": "431fc7ce418f7765e5f3786bf86b15268b093da7",
+  "consumer_code_commit": "738aaa880b7253c7b4224d1b8dfda1e982a9d8b5",
+  "consumer_tests": {
+    "selected": 11,
+    "executed": 11,
+    "passed": 11,
+    "failed": 0
+  },
+  "control_tests": {
+    "selected": 3,
+    "executed": 3,
+    "passed": 3,
+    "failed": 0
+  },
+  "native_runs": 256,
+  "consumer_native_runs": 254,
+  "pair_native_runs": 2,
+  "allocator_runs": 190,
+  "actual_allocation_failures": 90,
+  "all_allocator_live_zero": true,
+  "consumer_native_assertions": 1902,
+  "pair_native_assertions": 6,
+  "source_oracle_sha256": "78af8b1cf33b06744e9bc70c3e965392cf14da1015b99138370465973d26f4b8",
+  "current_coverage": {
+    "contract": "_zil_design.md \u00a79.4.2",
+    "frozen_legacy_modes": 13,
+    "extended_modes": 12,
+    "standalone_original_and_signature_probes": 7,
+    "native_fnmut_return_pair_positive": 1,
+    "native_runs_if_all_O0_O2_requirements_pass": 256,
+    "allocator_runs_if_all_requirements_pass": 190,
+    "planned_real_allocator_failures": 90,
+    "source_boundary_cases": 11,
+    "new_fnmut_return_pair_negative": 1,
+    "public_source_contract_raw_and_wire_control": true,
+    "negative_sources_never_native": true
+  },
+  "historical_out_of_profile_gaps": [
+    {
+      "source": "frozen-prep/negative/mut_declared_actual_fn_shared_call.zil",
+      "original_expected": "SafeReject",
+      "observed_before_scope_correction": "Unsupported",
+      "profile": "by-value FnMut outer returning i32; existing limited B0 profile, not new direct-F return",
+      "status": "Unfinished B0 capability and preserved historical Fail",
+      "counted_as_current_semantic_rejection_pass": false,
+      "replaced_current_obligation_by": "paired/fnmut_return_current_let.zil and paired/fnmut_return_current_var.zil",
+      "original_source_and_expectation_unchanged": true,
+      "root_change_registrations": [
+        "5b6b609e5",
+        "b113"
+      ]
+    }
+  ],
+  "current_source_boundary_semantic_checks": 11,
+  "pair_source_boundary_semantic_checks": 1,
+  "one_historical_gap_not_counted_as_rejection_pass": true
+}

@@ -1,0 +1,63 @@
+{
+  "verdict": "Pass",
+  "evidence_level": "lossless actual limited native/source/Wire products; no Cargo/LLVM caches",
+  "tested_commit": "670d319c89c1e49aaded160055639b73b8d9af64",
+  "commands": [
+    {
+      "command": [
+        "python3",
+        "/workspace/zil-256/tools/ci/evidence_transport.py",
+        "pack",
+        "/tmp/impl256-joint-C-transport/runner",
+        "/tmp/impl256-joint-C-transport/result/native-evidence.tar.zst"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "python3",
+        "/workspace/zil-256/tools/ci/evidence_transport.py",
+        "emit",
+        "/tmp/impl256-joint-C-transport/result/native-evidence.tar.zst"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "python3",
+        "/workspace/zil-256/tools/ci/evidence_transport.py",
+        "recover",
+        "/tmp/impl256-joint-C-transport/result/transport.stdout",
+        "/tmp/impl256-joint-C-transport/result/recovered.tar.zst"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "python3",
+        "/workspace/zil-256/tools/ci/evidence_transport.py",
+        "verify",
+        "/tmp/impl256-joint-C-transport/result/recovered.tar.zst",
+        "--restore",
+        "/tmp/impl256-joint-C-transport/result/restored"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "producer_sha256": "d42d485328fc094cb637ecf4e268cc6d16f4cf926c31dfb288970518bc814f74",
+  "archive_sha256": "fc64f94bf0392655f10e56572f2c6c47a0add8fec738b05a81d79910bfffab9d",
+  "archive_bytes": 469436,
+  "files": 1700,
+  "logical_bytes": 85872687,
+  "executable_files": 32,
+  "missing_optional_roots": [
+    "consumer209",
+    "llvm-23.1.4/install-receipt.json",
+    "llvm-23.1.4/installation-logs"
+  ],
+  "archive_and_recovered_exact": true,
+  "original_and_restored_paths_bytes_sha256_modes_exact": true,
+  "portable_paths": true,
+  "local_transport_only": true,
+  "transport_log_sha256": "97923590e80d8ddcdddb778ed0cbcb8baa7efaaa9a115b12a3c4b476cec16edc"
+}
