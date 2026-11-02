@@ -138,9 +138,20 @@ impl Materializer<'_, '_> {
         if !self.sources.iter().any(|source| source.module_id == target) {
             return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-MEMBER-OWNER", Some(span), "reflected owner module is outside the sealed project")]);
         }
-        let alias = format!("__zil_ct_owner{}_{}_{}", caller.0, target.0, span.start);
+        let stem = format!("__zil_ct_owner{}_{}_{}", caller.0, target.0, span.start);
+        let mut suffix = 0u32;
+        let alias = loop {
+            self.environment.budget.reserve_analysis_work(1)?;
+            let candidate = if suffix == 0 { stem.clone() } else { format!("{stem}_{suffix}") };
+            if !self.environment.index.alias_taken(caller, &candidate)
+                && !self.required_imports.iter().any(|(module, import)| *module == caller && import.alias == candidate) {
+                break candidate;
+            }
+            suffix = suffix.checked_add(1).ok_or_else(|| vec![Diagnostic::limit(Phase::Ct,
+                "reflected owner alias count exceeds identity range", Some(span))])?;
+        };
         self.environment.budget.reserve_generated_nodes(1)?;
-        self.environment.budget.reserve_temporary_bytes(alias.len() as u64)?;
+        self.environment.budget.reserve_temporary_bytes((alias.len() as u64).saturating_mul(2))?;
         self.required_imports.push((caller, CoreImport { alias: alias.clone(), module: target, span }));
         Ok(alias)
     }
@@ -148,7 +159,7 @@ impl Materializer<'_, '_> {
         if depth > self.max_depth { return Err(vec![Diagnostic::limit(Phase::Ct, "reflected owner Type nesting exceeds budget", Some(span))]); }
         self.environment.budget.reserve_analysis_work(1)?;
         self.environment.budget.reserve_generated_nodes(1)?;
-        let node = ty.nodes.get(id.0 as usize).ok_or_else(|| category("reflected owner Type DAG node is absent", span))?.clone();
+        let node = ty.nodes.get(id.0 as usize).ok_or_else(|| category("reflected owner Type DAG node is absent", span))?;
         let named = |name: &str, args: Vec<s::GenericArg>| s::TypeKind::Named { path: vec![name.into()], args };
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
@@ -163,10 +174,10 @@ impl Materializer<'_, '_> {
                 let mut args = Vec::new();
                 for argument in arguments {
                     match argument {
-                        CtTypeArgument::Type(id) => args.push(type_arg(self.owner_node(ty, id, caller, span, depth + 1)?)),
+                        CtTypeArgument::Type(id) => args.push(type_arg(self.owner_node(ty, *id, caller, span, depth + 1)?)),
                         CtTypeArgument::Scalar(value) => {
                             let literal = match value {
-                                zil_ir::Constant::Bool(value) => s::Literal::Bool(value),
+                                zil_ir::Constant::Bool(value) => s::Literal::Bool(*value),
                                 zil_ir::Constant::U8(value) => s::Literal::Integer(value.to_string()),
                                 zil_ir::Constant::U16(value) => s::Literal::Integer(value.to_string()),
                                 zil_ir::Constant::I32(value) => s::Literal::Integer(value.to_string()),
@@ -179,16 +190,16 @@ impl Materializer<'_, '_> {
                 }
                 s::TypeKind::Named { path, args }
             }
-            CtTypeNode::Tuple(parts) => s::TypeKind::Tuple(parts.into_iter().map(|id| self.owner_node(ty, id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?),
-            CtTypeNode::Array { element, length } => s::TypeKind::Array { element: Box::new(self.owner_node(ty, element, caller, span, depth + 1)?), length: Some(Box::new(s::Expr { span, kind: s::ExprKind::Literal(s::Literal::Integer(length.to_string())) })) },
-            CtTypeNode::Slice(element) => s::TypeKind::Array { element: Box::new(self.owner_node(ty, element, caller, span, depth + 1)?), length: None },
-            CtTypeNode::Address { mutable, inner } => s::TypeKind::Reference { lifetime: None, mutable, inner: Box::new(self.owner_node(ty, inner, caller, span, depth + 1)?) },
-            CtTypeNode::Managed(inner) => named("Managed", vec![type_arg(self.owner_node(ty, inner, caller, span, depth + 1)?)]),
-            CtTypeNode::Desc(inner) => named("Desc", vec![type_arg(self.owner_node(ty, inner, caller, span, depth + 1)?)]),
-            CtTypeNode::OwnedStore(inner) => named("Store", vec![type_arg(self.owner_node(ty, inner, caller, span, depth + 1)?)]),
-            CtTypeNode::FunctionPointer { parameters, result } => s::TypeKind::Function { params: parameters.into_iter().map(|id| self.owner_node(ty, id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?, result: Box::new(self.owner_node(ty, result, caller, span, depth + 1)?) },
-            CtTypeNode::ForeignCallback { parameters, result } => s::TypeKind::ForeignFunction { abi: "C".into(), params: parameters.into_iter().map(|id| self.owner_node(ty, id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?, result: Box::new(self.owner_node(ty, result, caller, span, depth + 1)?) },
-            CtTypeNode::ErrorUnion { error, result } => s::TypeKind::Error { error: Box::new(self.owner_node(ty, error, caller, span, depth + 1)?), result: Box::new(self.owner_node(ty, result, caller, span, depth + 1)?) },
+            CtTypeNode::Tuple(parts) => s::TypeKind::Tuple(parts.iter().map(|id| self.owner_node(ty, *id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?),
+            CtTypeNode::Array { element, length } => s::TypeKind::Array { element: Box::new(self.owner_node(ty, *element, caller, span, depth + 1)?), length: Some(Box::new(s::Expr { span, kind: s::ExprKind::Literal(s::Literal::Integer(length.to_string())) })) },
+            CtTypeNode::Slice(element) => s::TypeKind::Array { element: Box::new(self.owner_node(ty, *element, caller, span, depth + 1)?), length: None },
+            CtTypeNode::Address { mutable, inner } => s::TypeKind::Reference { lifetime: None, mutable: *mutable, inner: Box::new(self.owner_node(ty, *inner, caller, span, depth + 1)?) },
+            CtTypeNode::Managed(inner) => named("Managed", vec![type_arg(self.owner_node(ty, *inner, caller, span, depth + 1)?)]),
+            CtTypeNode::Desc(inner) => named("Desc", vec![type_arg(self.owner_node(ty, *inner, caller, span, depth + 1)?)]),
+            CtTypeNode::OwnedStore(inner) => named("Store", vec![type_arg(self.owner_node(ty, *inner, caller, span, depth + 1)?)]),
+            CtTypeNode::FunctionPointer { parameters, result } => s::TypeKind::Function { params: parameters.iter().map(|id| self.owner_node(ty, *id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?, result: Box::new(self.owner_node(ty, *result, caller, span, depth + 1)?) },
+            CtTypeNode::ForeignCallback { parameters, result } => s::TypeKind::ForeignFunction { abi: "C".into(), params: parameters.iter().map(|id| self.owner_node(ty, *id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?, result: Box::new(self.owner_node(ty, *result, caller, span, depth + 1)?) },
+            CtTypeNode::ErrorUnion { error, result } => s::TypeKind::Error { error: Box::new(self.owner_node(ty, *error, caller, span, depth + 1)?), result: Box::new(self.owner_node(ty, *result, caller, span, depth + 1)?) },
             CtTypeNode::Opaque { .. } => return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-MEMBER-OWNER", Some(span), "opaque reflected owner cannot authorize member access")]),
         };
         Ok(s::TypeRef { kind, span })
@@ -289,7 +300,6 @@ impl Materializer<'_, '_> {
                 self.required_imports.push((caller, CoreImport { alias, module: *target, span }));
             }
         }
-        drop(alias_sites);
         drop(sequences);
         self.environment.budget.release_temporary_bytes(sequence_bytes);
         for node in &tree.nodes {

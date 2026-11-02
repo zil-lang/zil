@@ -1,6 +1,6 @@
 //! Closed CT services over the pre-generation source snapshot. Host callbacks
 //! return pure data and never execute a provider or grant ordinary Verify.
-use super::{authority::stage_allows, ordinary_type, render, snapshot::ShapeSnapshot, source_index::SourceIndex, type_ref::from_checked_type};
+use super::{authority::stage_allows, ordinary_type, render, snapshot::{ImplSnapshot, ShapeSnapshot}, source_index::SourceIndex, type_ref::from_checked_type};
 use zil_base::{CompileResult, Diagnostic, FileId, Fingerprint, ModuleId, Phase, SourceUnit, Span};
 use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{Constant, ct_artifact::*};
@@ -16,6 +16,7 @@ pub(super) struct FrozenReadView<'a> {
     pub sources: &'a [SourceUnit],
     pub syntax: &'a [&'a s::Module],
     pub shape: Option<&'a ShapeSnapshot>,
+    pub impl_index: Option<&'a ImplSnapshot>,
     pub shape_failure: Option<&'a [Diagnostic]>,
     pub input: Option<&'a CtTokenTree>,
     pub limits: &'a zil_base::Limits,
@@ -311,6 +312,22 @@ impl FrozenReadView<'_> {
             _ => return Err(phase("definition has no CT name")),
         })
     }
+    fn source_nominal(&self, module: ModuleId, ty: &s::TypeRef, trait_name: bool) -> Option<CtSymbolId> {
+        let s::TypeKind::Named { path, .. } = &ty.kind else { return None; };
+        let (owner, name) = match path.as_slice() {
+            [name] => (module, name.as_str()),
+            [alias, name] => (self.index.imported_module(module, alias)?, name.as_str()),
+            _ => return None,
+        };
+        let item = self.syntax.iter().find(|candidate| candidate.id == owner)?.items.iter().find(|item| match &item.kind {
+            ItemKind::Trait(value) if trait_name => value.name == name,
+            ItemKind::Aggregate(value) if !trait_name => value.name == name,
+            ItemKind::Enum(value) if !trait_name => value.name == name,
+            ItemKind::TypeAlias(value) if !trait_name => value.name == name,
+            _ => false,
+        })?;
+        self.index.symbol_at(owner, item.span)
+    }
 }
 
 impl CtReadView for FrozenReadView<'_> {
@@ -453,7 +470,32 @@ impl CtReadView for FrozenReadView<'_> {
                     .ok_or_else(|| error("E-CT-FIELD-NOT-FOUND", "field is not in the completed shape"))?;
                 CtValue::FieldInfo(self.field_info(requester, nominal, ty, field, budget)?)
             }
-            CtQueryKind::ImplIndex => return Err(phase("ImplIndexReady has not completed for this generation batch")),
+            CtQueryKind::ImplIndex => {
+                let index = self.impl_index.ok_or_else(|| self.unready("ImplIndexReady has not completed for this generation batch"))?;
+                let mut results = Vec::new();
+                for argument in args {
+                    budget.reserve_analysis_work(1)?;
+                    let (ty, subject) = self.nominal_root(argument)?;
+                    self.nominal(requester, subject)?;
+                    let Some(CtTypeNode::Nominal { arguments, .. }) = ty.nodes.get(ty.root.0 as usize) else { unreachable!("nominal_root checked") };
+                    for (module, span, trait_type, target_type) in &index.entries {
+                        budget.reserve_analysis_work(1)?;
+                        if self.source_nominal(*module, target_type, false).as_ref() != Some(subject) { continue; }
+                        let s::TypeKind::Named { args: target_args, .. } = &target_type.kind else { continue; };
+                        let s::TypeKind::Named { args: trait_args, .. } = &trait_type.kind else { continue; };
+                        if !target_args.is_empty() || !arguments.is_empty() || !trait_args.is_empty() {
+                            return Err(self.unready("generic trait implementation specialization is not a completed immutable index entry"));
+                        }
+                        let Some(trait_symbol) = self.source_nominal(*module, trait_type, true) else { return Err(self.unready("trait declaration is not in the completed implementation index")); };
+                        if !self.index.visible(requester, &trait_symbol) { continue; }
+                        let implementation = self.index.symbol_at(*module, *span).ok_or_else(|| self.unready("implementation has no frozen declaration identity"))?;
+                        budget.reserve_generated_nodes(1u64.saturating_add(ty.nodes.len() as u64))?;
+                        budget.reserve_temporary_bytes((ty.nodes.len() as u64).saturating_mul(96).saturating_add(256))?;
+                        results.push(CtValue::ImplInfo(CtImplInfo { trait_symbol, implementation, for_type: ty.clone() }));
+                    }
+                }
+                CtValue::List(results)
+            }
             CtQueryKind::Layout => {
                 if self.snapshot.target_fingerprint != Some(self.target.fingerprint()) {
                     return Err(self.unready("LayoutReady target does not match this immutable CT snapshot"));
