@@ -387,11 +387,44 @@ fn impl247_owned_callback_definition_and_actual_call_are_checked_independently()
         inner: Box::new(Type::I32),
     });
     assert!(analyze(&malformed, &Limits::default()).is_err());
+    let mut immutable = owned_callback_fixture(CallableKind::FnMut, 1);
+    immutable.functions[0].locals[0].mutable = false;
+    assert!(analyze(&immutable, &Limits::default()).is_err());
 }
 
 #[test]
 fn impl247_owned_callback_result_cannot_export_created_freshness() {
     let mut m = owned_callback_fixture(CallableKind::FnOnce, 1);
+    // The callee really creates the returned leaf, rather than merely passing
+    // an incoming parameter through. Its private Created fact stays private.
+    let event = m.closures[0].result.clone();
+    let mut entry = Body::new(1);
+    entry.0.environment = Some(ClosureId(0));
+    entry.0.return_type = event.clone();
+    entry.0.locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "event".into(),
+        ty: event.clone(),
+        mutable: false,
+        span: s(),
+    });
+    entry.0.parameters.push(LocalId(0));
+    entry.op(InstructionKind::ScopeEnter { scope: ScopeId(0) });
+    entry.op(InstructionKind::DropPackage { local: LocalId(0) });
+    entry.op(InstructionKind::StorageDead(LocalId(0)));
+    let n = entry.constant(7);
+    let fresh = entry.value(managed(), InstructionKind::MakeManaged { fields: vec![n] });
+    let result = entry.value(
+        event,
+        InstructionKind::MakePackage {
+            fields: vec![fresh],
+        },
+    );
+    entry.op(InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Return,
+    });
+    m.functions[1] = entry.finish(result);
     let f = &mut m.functions[0];
     let value = ValueId(f.values.len() as u32);
     f.values.push(managed());
@@ -439,6 +472,137 @@ fn impl247_owned_callback_budget_is_module_scoped_and_recovers_fresh() {
             .any(|d| d.category == zil_base::ResultCategory::ResourceLimit)
     );
     assert_eq!(analyze(&m, &Limits::default()).unwrap(), expected);
+}
+
+#[test]
+fn impl247_callback_data_cannot_smuggle_a_callback_state_through_store() {
+    let mut m = owned_callback_fixture(CallableKind::FnOnce, 1);
+    let state = Type::Package {
+        name: "State".into(),
+        fields: vec![
+            ("token".into(), managed()),
+            ("callback".into(), Type::Closure(ClosureId(1))),
+        ],
+    };
+    let store = Type::OwnedStore {
+        element: Box::new(state),
+    };
+    let data = Type::Package {
+        name: "Event".into(),
+        fields: vec![("items".into(), Type::Managed(Box::new(store.clone())))],
+    };
+    for f in &mut m.functions {
+        for local in &mut f.locals {
+            if matches!(local.ty, Type::Package { .. }) {
+                local.ty = data.clone();
+            }
+        }
+        for ty in &mut f.values {
+            if matches!(ty, Type::Package { .. }) {
+                *ty = data.clone();
+            }
+        }
+        if matches!(f.return_type, Type::Package { .. }) {
+            f.return_type = data.clone();
+        }
+    }
+    m.closures[0].parameters = vec![data.clone()];
+    m.closures[0].result = data;
+    let mut child = Body::new(2);
+    child.0.environment = Some(ClosureId(1));
+    let n = child.constant(0);
+    m.functions.push(child.finish(n));
+    m.closures.push(ClosureDefinition {
+        id: ClosureId(1),
+        function: FunctionId(2),
+        captures: vec![],
+        parameters: vec![],
+        result: Type::I32,
+        kind: CallableKind::Fn,
+        lending_captures: vec![],
+    });
+    m.resources.push(ResourceDefinition {
+        name: "@builtin:OwnedStore<State>".into(),
+        payload: store,
+        teardown: None,
+    });
+    let limits = Limits::default();
+    let bytes =
+        zil_ir::wire::encode_module_candidate(&m, &CandidatePlan::empty_for(&m), &limits).unwrap();
+    let decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+        .unwrap()
+        .0;
+    for raw in [&m, &decoded] {
+        let errors = analyze(raw, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("cannot hide an environment")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles() {
+    let base = owned_callback_fixture(CallableKind::FnOnce, 1);
+    for ty in [
+        Type::Package {
+            name: "State".into(),
+            fields: vec![
+                ("token".into(), managed()),
+                ("callback".into(), Type::Closure(ClosureId(0))),
+            ],
+        },
+        Type::Array {
+            element: Box::new(Type::Closure(ClosureId(0))),
+            length: 1,
+        },
+    ] {
+        let mut m = base.clone();
+        let local = LocalId(m.functions[0].locals.len() as u32);
+        m.functions[0].locals.push(LocalDecl {
+            id: local,
+            name: "unused_container".into(),
+            ty,
+            mutable: false,
+            span: s(),
+        });
+        let errors = analyze(&m, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("does not grant a State")),
+            "{errors:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &m,
+            &CandidatePlan::empty_for(&m),
+            &Limits::default(),
+        )
+        .unwrap();
+        let raw = zil_ir::wire::decode_module_candidate(&bytes, &Limits::default())
+            .unwrap()
+            .0;
+        assert!(analyze(&raw, &Limits::default()).is_err());
+    }
+    let mut m = base;
+    m.functions[0].callable_return_contract = Some(CallableReturnContract {
+        closure: ClosureId(0),
+        kind: CallableKind::FnOnce,
+        hold: vec![],
+        call: vec![],
+        writes: vec![],
+        cleanup: vec![],
+        lending_captures: vec![],
+    });
+    let errors = analyze(&m, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("does not grant an opaque factory")),
+        "{errors:?}"
+    );
 }
 #[test]
 fn independent_resource_diagnostics_reject_copy_leaks_and_repeated_cleanup() {
