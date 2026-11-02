@@ -1462,18 +1462,23 @@ enum LocalType {
     Address(Variable, bool),
     Resource(Variable, bool),
     Closure(ClosureId, Option<bool>, Option<CallableKind>),
+    // A resolved nested source closure, not a public thin pointer or Copy
+    // value. The ordinary Builder still constructs its actual environment.
+    Nested(usize, Option<bool>),
     SliceLength,
 }
 impl LocalType {
     fn scalar(self, span: Span) -> R<Variable> {
         match self {
             Self::Scalar(variable) => Ok(variable),
-            Self::Address(..) | Self::Resource(..) | Self::Closure(..) | Self::SliceLength => {
-                Err(unsupported(
-                    span,
-                    "address/resource cannot be used in a Copy closure signature or operation",
-                ))
-            }
+            Self::Address(..)
+            | Self::Resource(..)
+            | Self::Closure(..)
+            | Self::Nested(..)
+            | Self::SliceLength => Err(unsupported(
+                span,
+                "address/resource cannot be used in a Copy closure signature or operation",
+            )),
         }
     }
     fn bind(self, graph: &mut Graph, ty: &Type, span: Span) -> R<()> {
@@ -1523,6 +1528,7 @@ impl LocalType {
     }
     fn unify(self, other: Self, graph: &mut Graph, span: Span) -> R<()> {
         match (self, other) {
+            (Self::Nested(a, am), Self::Nested(b, bm)) if a == b && am == bm => graph.spend(span),
             (Self::Closure(a, am, ak), Self::Closure(b, bm, bk))
                 if a == b && am == bm && ak == bk =>
             {
@@ -1551,6 +1557,7 @@ struct InferBuilder<'a, 'b> {
     closures: &'a [Pending],
     resource_writes: &'a resource_effects::Writes,
     graph: Graph,
+    nested_signatures: Vec<Type>,
     parameters: Vec<Variable>,
     result: Variable,
     scopes: Vec<BTreeMap<String, LocalType>>,
@@ -1599,6 +1606,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             closures: functions.closures,
             resource_writes: functions.resource_writes,
             graph,
+            nested_signatures: vec![],
             parameters: vec![],
             result,
             scopes: vec![BTreeMap::new()],
@@ -2214,6 +2222,11 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             Ok(LocalType::Scalar(variable))
         }
     }
+    fn nested_signature(&self, index: usize, span: Span) -> R<Type> {
+        let signature = &self.nested_signatures[index];
+        self.graph.reserve_type(signature, 0, span)?;
+        Ok(signature.clone())
+    }
     fn project(&mut self, value: LocalType, projection: Projection, span: Span) -> R<LocalType> {
         let base = match value {
             LocalType::Address(variable, _) | LocalType::Resource(variable, _) => variable,
@@ -2616,6 +2629,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                             declared,
                         ));
                     }
+                    if let LocalType::Nested(index, None) = value {
+                        if *op == UnaryOp::BorrowMut {
+                            self.name_if_capture_written(operand);
+                        }
+                        return Ok(LocalType::Nested(index, Some(*op == UnaryOp::BorrowMut)));
+                    }
                     if matches!(value, LocalType::Address(..)) {
                         return Err(unsupported(
                             span,
@@ -2906,6 +2925,25 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         }
                         return self.known(&result, span);
                     }
+                    if let LocalType::Nested(index, _) = callee_type {
+                        let Type::FunctionPointer { parameters, result } =
+                            self.nested_signature(index, span)?
+                        else {
+                            unreachable!("private nested signature")
+                        };
+                        if arguments.len() != parameters.len() {
+                            return Err(error(
+                                "E-CALL-ARITY",
+                                span,
+                                "nested callback argument count differs",
+                            ));
+                        }
+                        for (argument, parameter) in arguments.iter().zip(&parameters) {
+                            self.expr_expected(argument, Some(parameter), depth + 1)?
+                                .bind(&mut self.graph, parameter, argument.span)?;
+                        }
+                        return self.known(&result, span);
+                    }
                     let callee_type = callee_type.scalar(callee.span)?;
                     let mut parameters = Vec::new();
                     for argument in arguments {
@@ -3121,13 +3159,31 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 self.result = outer_result;
                 self.has_return = outer_has_return;
                 self.graph.reserve_type(result, 0, span)?;
-                self.known(
-                    &Type::FunctionPointer {
-                        parameters: types,
-                        result: Box::new(result.clone()),
-                    },
-                    span,
-                )
+                let signature = Type::FunctionPointer {
+                    parameters: types,
+                    result: Box::new(result.clone()),
+                };
+                match self.known(&signature, span) {
+                    // Preserve the old Copy inference path and its budget.
+                    Ok(value) => Ok(value),
+                    Err(rejected) if rejected.category == zil_base::ResultCategory::Unsupported => {
+                        // A private source closure signature can contain owned
+                        // data. It grants neither public pointer nor Copy rights.
+                        self.graph.reserve_type(&signature, 0, span)?;
+                        self.graph.reserve_type(&signature, 0, span)?;
+                        let Type::FunctionPointer { parameters, result } = &signature else {
+                            unreachable!("nested signature")
+                        };
+                        if !value_signature(parameters, result) {
+                            return Err(rejected);
+                        }
+                        self.graph.spend(span)?;
+                        let index = self.nested_signatures.len();
+                        self.nested_signatures.push(signature);
+                        Ok(LocalType::Nested(index, None))
+                    }
+                    Err(rejected) => Err(rejected),
+                }
             }
             CoreExprKind::Unsupported(feature) => Err(unsupported(span, feature)),
             _ => Err(unsupported(span, "non-scalar expression in closure body")),

@@ -1,0 +1,18 @@
+    Finished `test` profile [unoptimized] target(s) in 0.05s
+     Running tests/impl254_review_b.rs (/workspace/.zil-env/forward-review-254/target-6d68133c/debug/deps/impl254_review_b-1c5b88f74fdbd480)
+
+running 1 test
+
+thread 'closure_body_private_owning_slot_without_any_keep_reaches_both_verify_entries' (198859) panicked at crates/zil-driver/tests/impl254_review_b.rs:9:57:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "closure value requires a finite Copy type", span: Some(Span { file: FileId(0), start: 191, end: 257 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test closure_body_private_owning_slot_without_any_keep_reaches_both_verify_entries ... FAILED
+
+failures:
+
+failures:
+    closure_body_private_owning_slot_without_any_keep_reaches_both_verify_entries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test impl254_review_b`
