@@ -19,3 +19,5 @@ CT wire 使用固定schema1字段编码及独立域的有界指纹；失败消�
 兼容验收区分既有普通CT与新的Type/Syntax域：普通Copy聚合、泛型实例、标量期望类型及既有#if/#for仍由原有已核路径消费；只按真实源定义/静态依赖分流，不能在新路径失败后回退。混合项目继续累计同请求预算，生成声明不得由遍历身份获得新的冻结查询权。
 
 `syntax use`由未实现变为§16.7的锁定能力，因此projects::m017中Core阶段对它的旧Unsupported断言迁移为SafeReject/E-SYNTAX-LOCK-MISSING。Parse停点仍仅解析入口；Core及以后先核显式锁，再解析provider依赖，文件/内存请求一致。此项有明确功能迁移依据，其余旧测试判据保留。
+
+262的runtime-input-forbidden反例保持原源与ORACLE语义：普通CT路径必须以Ct阶段SafeReject拒绝读取runtime binding。严格harness该项由新路径早期的E-CT-SOURCE迁至既有E-CT-RUNTIME，并核runtime binding消息；不接受不相关Unsupported、工具失败或其它原因。单源compile_source的新域请求复用同一session的单模块项目流水线与已解析输入；旧普通源和Parse早停路径不迁移。
