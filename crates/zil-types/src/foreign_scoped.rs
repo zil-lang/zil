@@ -21,6 +21,11 @@ impl Builder<'_, '_> {
                 "c_with_callback requires an explicit lexical unsafe region",
             )
         })?;
+        // A symbolic callable bound grants invocation, never Copy. Preserve
+        // its declared source even when this actual concrete environment is Copy.
+        if !self.helper_bounds.is_empty() {
+            self.forward_modes(span)?;
+        }
         let register = self.resolve_callee(register)?.clone();
         let close = self.resolve_callee(close)?.clone();
         if register.scoped_callback != Some(ScopedCallbackRole::Register)
@@ -51,6 +56,22 @@ impl Builder<'_, '_> {
                 "scoped callback address must point to one actual concrete closure",
             ));
         };
+        let declared_expression = match &callback.kind {
+            CoreExprKind::Unary {
+                op: UnaryOp::BorrowMut,
+                operand,
+            } => operand.as_ref(),
+            _ => callback,
+        };
+        if self.declared_state_kind(declared_expression, None, callback_id)?
+            == Some(CallableKind::FnOnce)
+        {
+            return Err(error(
+                "E-FFI-SCOPED-CALLBACK",
+                callback.span,
+                "a declared FnOnce callback cannot gain FnMut from its concrete environment",
+            ));
+        }
         self.closures.snapshot(1, span)?;
         let pending = &mut self.closures.pending[callback_id.0 as usize];
         if pending.inference.arity() != 1 {
