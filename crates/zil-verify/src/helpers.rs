@@ -350,10 +350,13 @@ fn forwarded<'a>(
         let caller = roles
             .get(position)
             .ok_or_else(|| bad(f, "nested helper refers to an absent caller role"))?;
-        if child.kind != caller.kind
+        if !closures::supports(caller.kind, child.kind)
             || parameter_type(&f.values[value.0 as usize]).map(|(id, _)| id) != Some(child.closure)
         {
-            return Err(bad(f, "nested helper actual role type or bound differs"));
+            return Err(bad(
+                f,
+                "nested helper actual role type or bound exceeds the caller declaration",
+            ));
         }
         mapping.push((child.parameter, caller.parameter));
     }

@@ -1,5 +1,6 @@
 //! Schema 31 raw and wire probes: a ClosureId is not an instance source.
 use super::*;
+use zil_base::ResultCategory;
 use zil_ir::CallableReturnSource;
 
 fn keep(actual: CallableKind, declared: CallableKind) -> Raw {
@@ -88,6 +89,29 @@ fn forged_index_cleanup_and_permission_are_rejected() {
         .unwrap()
         .kind = CallableKind::Fn;
     upgrade.reject("mode");
+}
+
+#[test]
+fn raw_companion_cannot_hide_f_or_an_external_address() {
+    for ty in [
+        Type::Package {
+            name: "Hidden".into(),
+            fields: vec![("callback".into(), env())],
+        },
+        address(Type::I32, false),
+    ] {
+        let mut raw = keep(CallableKind::Fn, CallableKind::Fn);
+        let function = &mut raw.module.functions[0];
+        function.locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "data".into(),
+            ty,
+            mutable: false,
+            span: span(),
+        });
+        function.parameters.push(LocalId(1));
+        raw.reject("E-UNSUPPORTED");
+    }
 }
 
 #[test]
@@ -182,4 +206,169 @@ fn nested_keep_uses_actual_argument_and_does_not_upgrade_bound() {
         .unwrap()
         .kind = CallableKind::Fn;
     upgraded.reject("bound");
+}
+
+#[test]
+fn each_branch_returns_this_instances_parameter() {
+    let mut raw = keep(CallableKind::Fn, CallableKind::FnOnce);
+    let function = &mut raw.module.functions[0];
+    function.locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "flag".into(),
+        ty: Type::Bool,
+        mutable: false,
+        span: span(),
+    });
+    function.parameters.push(LocalId(1));
+    function.values = vec![Type::Bool, env(), env()];
+    function.blocks = vec![
+        BasicBlock {
+            id: BlockId(0),
+            instructions: vec![op(Some(ValueId(0)), InstructionKind::Load(LocalId(1)))],
+            terminator: Terminator::Branch {
+                condition: ValueId(0),
+                then_block: BlockId(1),
+                else_block: BlockId(2),
+            },
+        },
+        BasicBlock {
+            id: BlockId(1),
+            instructions: vec![op(
+                Some(ValueId(1)),
+                InstructionKind::TakeLocal { local: LocalId(0) },
+            )],
+            terminator: Terminator::Return(Some(ValueId(1))),
+        },
+        BasicBlock {
+            id: BlockId(2),
+            instructions: vec![op(
+                Some(ValueId(2)),
+                InstructionKind::TakeLocal { local: LocalId(0) },
+            )],
+            terminator: Terminator::Return(Some(ValueId(2))),
+        },
+    ];
+    raw.accept();
+
+    let mut mixed = raw.clone();
+    let function = &mut mixed.module.functions[0];
+    function.values = vec![Type::Bool, env(), Type::I32, env()];
+    function.blocks[2].instructions = vec![
+        op(
+            Some(ValueId(2)),
+            InstructionKind::Constant(Constant::I32(9)),
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(0),
+                captures: vec![ValueId(2)],
+            },
+        ),
+    ];
+    function.blocks[2].terminator = Terminator::Return(Some(ValueId(3)));
+    mixed.reject("instance");
+}
+
+#[test]
+fn owned_environment_returns_its_remaining_responsibility() {
+    let mut raw = fixture(
+        CallableKind::FnOnce,
+        CallableKind::FnOnce,
+        false,
+        0,
+        owned(),
+    );
+    let function = &mut raw.module.functions[0];
+    function.return_type = env();
+    function.values = vec![env()];
+    function.blocks[0].instructions = vec![op(
+        Some(ValueId(0)),
+        InstructionKind::TakeLocal { local: LocalId(0) },
+    )];
+    function.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
+    function.callable_contract.as_mut().unwrap().roles[0].cleanup = CallableCleanup::Returned;
+    function.callable_return_contract = Some(CallableReturnContract {
+        source: CallableReturnSource::Parameter(0),
+        lending_captures: vec![],
+        closure: ClosureId(0),
+        kind: CallableKind::FnOnce,
+        hold: vec![],
+        call: vec![],
+        writes: vec![],
+        cleanup: vec![0],
+    });
+    raw.accept();
+
+    let mut missing = raw.clone();
+    missing.module.functions[0]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .cleanup
+        .clear();
+    missing.reject("cleanup");
+}
+
+#[test]
+fn historical_loan_wire30_stays_rejected_without_reencoding() {
+    let original = include_bytes!("../../../../evidence/impl/248/loan_revival.wire");
+    let errors =
+        verify_module_bytes(original, &TargetProfile::host_llvm(), &Limits::default()).unwrap_err();
+    assert!(format!("{errors:?}").contains("version"), "{errors:?}");
+}
+
+#[test]
+fn forward_raw_wire_budget_has_exact_fresh_boundary() {
+    let raw = keep(CallableKind::Fn, CallableKind::FnOnce);
+    let plan = raw.plan();
+    let bytes =
+        zil_ir::wire::encode_module_candidate(&raw.module, &plan, &Limits::default()).unwrap();
+    for wire in [false, true] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            if wire {
+                verify_module_bytes(&bytes, &raw.module.target, &limits)
+            } else {
+                verify_module(
+                    raw.module.clone(),
+                    plan.clone(),
+                    &raw.module.target,
+                    &limits,
+                )
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        let expected = run(high).unwrap().fingerprint();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(verified) => {
+                    assert_eq!(verified.fingerprint(), expected);
+                    high = middle;
+                }
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|e| e.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        assert_eq!(run(high).unwrap().fingerprint(), expected);
+        assert!(
+            run(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit)
+        );
+        assert_eq!(run(high).unwrap().fingerprint(), expected);
+        println!("forward254 wire={wire} N={high}; N-1=ResourceLimit; fresh N=Pass");
+    }
 }
