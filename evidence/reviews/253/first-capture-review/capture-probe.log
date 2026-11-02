@@ -1,0 +1,11 @@
+   Compiling independent-forward-253-review v0.0.0 (/workspace/.zil-env/forward-review-253/probe)
+    Finished `dev` profile [unoptimized] target(s) in 0.28s
+     Running `/workspace/.zil-env/forward-review-253/target/debug/independent-forward-253-review`
+parent_valid_no_call_edge raw: ACCEPT
+parent_valid_no_call_edge wire: ACCEPT
+parent_stale_no_call_edge raw: ACCEPT
+parent_stale_no_call_edge wire: ACCEPT
+parent_valid_with_call_edge raw: ACCEPT
+parent_valid_with_call_edge wire: ACCEPT
+parent_stale_with_call_edge raw: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }]
+parent_stale_with_call_edge wire: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }]

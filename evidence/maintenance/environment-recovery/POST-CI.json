@@ -19,5 +19,9 @@
   "evidence": "evidence/integration/owned-callback-20261102/remote-pr/E2-REMOTE-ACCEPTANCE.json",
   "cache_cleanup": "11.4 GiB rebuildable reference Cargo cache removed after SHA validation of retained complete native archive",
   "toolchain": "Rust1.99.1 LLVM23.1.4; locked dependencies remain available offline",
-  "configuration_published": false
+  "configuration_published": false,
+  "main_replays_independently_recovered": [
+    41429632742,
+    41429632912
+  ]
 }

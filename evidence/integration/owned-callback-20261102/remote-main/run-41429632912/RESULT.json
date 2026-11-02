@@ -1,0 +1,104 @@
+{
+  "status": "Pass",
+  "run_id": "41429632912",
+  "auditor": "/root/assess_delivery_process",
+  "script_sha256": "05f3b26bcdd39b5a43f60bcade5bd004618457d319915dcc4de5a49f065da72f",
+  "started_at_utc": "2026-11-02T11:07:26.653702+00:00",
+  "run_attempt": 1,
+  "job_id": 125224676131,
+  "run_conclusion": "success",
+  "job_conclusion": "success",
+  "expected_head": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+  "log_zip": {
+    "bytes": 166625128,
+    "sha256": "42d68618485f57a62a9ce2604fc69ca91485fa78977e22b2d72035498d980fc7"
+  },
+  "transport_log": {
+    "zip_sha256": "42d68618485f57a62a9ce2604fc69ca91485fa78977e22b2d72035498d980fc7",
+    "zip_bytes": 166625128,
+    "zip_crc": "Pass",
+    "members": 30,
+    "selected": {
+      "name": "workspace/29_Recover complete evidence through verified log transport.txt",
+      "bytes": 111223422,
+      "crc32": 4195434876,
+      "sha256": "b0dbf3d23535934f6ec9de5a4b7b838570f10586701042cb157235409b14db3f",
+      "begin": 1,
+      "end": 1,
+      "records_sha256": "b76c1081e9e3226ccdd0c47b7c57e6774ad2b5af6e2b6a99f02c295b0edcc6fe",
+      "records": 20135
+    },
+    "identical_transport_views": 2
+  },
+  "recovery_header": {
+    "bytes": 82462307,
+    "checkout": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+    "chunks": 20133,
+    "files": 149209,
+    "run_id": "41429632912",
+    "sha256": "11e3ca3c1f78cceea68d8500a81289a20ebaee32daac2d2192b92eb3d5ebe05b"
+  },
+  "archive": {
+    "bytes": 82462307,
+    "sha256": "11e3ca3c1f78cceea68d8500a81289a20ebaee32daac2d2192b92eb3d5ebe05b",
+    "files": 149209,
+    "logical_bytes": 7267204283
+  },
+  "actual_checkout": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+  "tree": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+  "uploads": {
+    "disk_checkpoint": "failure",
+    "recovery_final": "failure",
+    "reference_native": "failure",
+    "reference_receipts": "failure",
+    "toolchain_checkpoint": "failure",
+    "workspace_native": "failure",
+    "workspace_receipts": "failure"
+  },
+  "source": {
+    "files": 4142,
+    "bytes": 26864846,
+    "archive_sha256": "269a5127f8fe821ff5033e432c98b6352ab651e9dc77f8818e9a915fd8eed86f",
+    "gzip_crc": "Pass",
+    "full_non_evidence_set": "Pass",
+    "git_blobs_modes_sha256": "Pass"
+  },
+  "coverage": {
+    "native": {
+      "workspace": {
+        "files": 77300,
+        "logical_bytes": 3683707917
+      },
+      "reference": {
+        "files": 71219,
+        "logical_bytes": 3524414926
+      }
+    },
+    "counts": {
+      "workspace.log": {
+        "passed": 3632,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 403
+      },
+      "reference.log": {
+        "passed": 3529,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 403
+      },
+      "text-reference.log": {
+        "passed": 64,
+        "failed": 0,
+        "ignored": 0,
+        "groups": 10
+      }
+    },
+    "consumer_builds": 16,
+    "consumer_observations": 128,
+    "consumer_command_originals": 145
+  },
+  "disk_bytes": 451012584,
+  "scope": "Exact-run delivery completeness and recorded successful gates; no new compiler execution or product-performance claim.",
+  "finished_at_utc": "2026-11-02T11:08:30.375896+00:00"
+}
