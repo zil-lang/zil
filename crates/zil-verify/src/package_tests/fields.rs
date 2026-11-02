@@ -782,6 +782,7 @@ fn responsibility_cost(m: &TypedModule, limit: usize) -> Check<usize> {
         .functions
         .iter()
         .map(|_| FunctionGraph {
+            role_data_uses: Vec::new(),
             successors: vec![vec![]],
             predecessors: vec![vec![]],
             reachable: vec![true],

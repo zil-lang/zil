@@ -34,6 +34,38 @@ fn forwarded_single_slot(f: &TypedFunction, roles: &[CallableRole], ty: &Type) -
             if element.as_ref() == &Type::Closure(role.closure)))
 }
 
+pub(super) fn role_data_operand(
+    f: &TypedFunction,
+    instruction: &Instruction,
+    value: ValueId,
+) -> bool {
+    let Some(claim) = &f.callable_contract else {
+        return false;
+    };
+    let ty = &f.values[value.0 as usize];
+    if parameter_type(ty).is_none() && !forwarded_single_slot(f, &claim.roles, ty) {
+        return false;
+    }
+    match &instruction.kind {
+        InstructionKind::MakeOwnedArray { .. } => !instruction.result.is_some_and(|result| {
+            forwarded_single_slot(f, &claim.roles, &f.values[result.0 as usize])
+        }),
+        InstructionKind::StoreOwnedArrayElement {
+            local, index: 0, ..
+        } => !forwarded_single_slot(f, &claim.roles, &f.locals[local.0 as usize].ty),
+        InstructionKind::MakePackage { .. }
+        | InstructionKind::MakeManaged { .. }
+        | InstructionKind::MakeAggregate { .. }
+        | InstructionKind::MakeVariant { .. }
+        | InstructionKind::MakeErrorUnion { .. }
+        | InstructionKind::StorePackageField { .. }
+        | InstructionKind::StoreOwnedArrayElement { .. }
+        | InstructionKind::UpdateField { .. }
+        | InstructionKind::UpdateIndex { .. } => true,
+        _ => false,
+    }
+}
+
 struct EnvironmentOrigins {
     values_at: usize,
     marks: Vec<u8>,
@@ -107,6 +139,7 @@ fn scoped_local_bodies(f: &TypedFunction, budget: &mut Budget) -> Check<Option<V
 fn environment_origins(
     module: &TypedModule,
     f: &TypedFunction,
+    graph: &FunctionGraph,
     roles: &[CallableRole],
     budget: &mut Budget,
 ) -> Check<EnvironmentOrigins> {
@@ -256,6 +289,15 @@ fn environment_origins(
                     "local concrete callable captures a supplied, unknown or mixed callable origin",
                 ));
             }
+        }
+    }
+    budget.spend(graph.role_data_uses.len())?;
+    for value in &graph.role_data_uses {
+        if !matches!(marks[values_at + value.0 as usize], 4 | 16 | 32) {
+            return Err(bad(
+                f,
+                "supplied, unknown or mixed callable origin cannot enter aggregate data",
+            ));
         }
     }
     Ok(EnvironmentOrigins {
@@ -1011,7 +1053,8 @@ pub(super) fn check_module(
                 },
             });
         }
-        let traces = flow::reconstruct(module, f, &roles, &checked, limits, budget)?;
+        let traces =
+            flow::reconstruct(module, f, &graphs[index], &roles, &checked, limits, budget)?;
         let expected = CallableParameterContract { roles, traces };
         budget.spend(claim.roles.len())?;
         for role in &claim.roles {

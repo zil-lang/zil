@@ -1213,9 +1213,22 @@ pub fn factory_child_handler() -> (TypedModule, CandidatePlan) {
 /// shape boundary by hiding a supplied role inside a Package or owned union.
 pub fn wrapped_role_capture(union: bool) -> (TypedModule, CandidatePlan) {
     let (mut m, mut p) = role_capturing_local_handler();
+    let payload = Type::Record {
+        name: "WrappedToken".into(),
+        fields: vec![("n".into(), Type::I32)],
+    };
+    let managed = Type::Managed(Box::new(payload.clone()));
+    m.resources.push(ResourceDefinition {
+        name: "WrappedToken".into(),
+        payload,
+        teardown: None,
+    });
     let package = Type::Package {
         name: "HiddenRole".into(),
-        fields: vec![("callback".into(), Type::Closure(ClosureId(0)))],
+        fields: vec![
+            ("callback".into(), Type::Closure(ClosureId(0))),
+            ("owner".into(), managed.clone()),
+        ],
     };
     let captured = if union {
         Type::ErrorUnion {
@@ -1247,6 +1260,26 @@ pub fn wrapped_role_capture(union: bool) -> (TypedModule, CandidatePlan) {
     } else {
         ValueId(4)
     };
+    let number = ValueId(f.values.len() as u32);
+    f.values.push(Type::I32);
+    let owner = ValueId(f.values.len() as u32);
+    f.values.push(managed);
+    let InstructionKind::MakePackage { fields } = &mut prepare[0].kind else {
+        unreachable!()
+    };
+    fields.push(owner);
+    prepare.splice(
+        0..0,
+        [
+            instruction(Some(number.0), InstructionKind::Constant(Constant::I32(1))),
+            instruction(
+                Some(owner.0),
+                InstructionKind::MakeManaged {
+                    fields: vec![number],
+                },
+            ),
+        ],
+    );
     f.blocks[0].instructions.insert(
         0,
         instruction(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
@@ -1411,5 +1444,174 @@ pub fn supplied_body_hidden_in_with(twice: bool) -> (TypedModule, CandidatePlan)
             })
             .collect(),
     });
+    (m, p)
+}
+
+pub fn role_hidden_through_factory(supplied: bool) -> (TypedModule, CandidatePlan) {
+    let (mut m, mut p) = supplied_body_hidden_in_with(true);
+    let payload = Type::Record {
+        name: "Token".into(),
+        fields: vec![("n".into(), Type::I32)],
+    };
+    let managed = Type::Managed(Box::new(payload.clone()));
+    m.resources.push(ResourceDefinition {
+        name: "Token".into(),
+        payload,
+        teardown: None,
+    });
+    let package = Type::Package {
+        name: "FactoryInput".into(),
+        fields: vec![
+            ("callback".into(), Type::Closure(ClosureId(1))),
+            ("owner".into(), managed.clone()),
+        ],
+    };
+    let mut factory = function(6, vec![package.clone()], Type::Closure(ClosureId(2)), None);
+    factory.locals[0].mutable = true;
+    factory.values = vec![Type::Closure(ClosureId(1)), Type::Closure(ClosureId(2))];
+    factory.blocks = vec![BasicBlock {
+        id: BlockId(0),
+        instructions: vec![
+            instruction(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+            instruction(
+                Some(0),
+                InstructionKind::TakePackageField {
+                    local: LocalId(0),
+                    index: 0,
+                },
+            ),
+            instruction(
+                Some(1),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(2),
+                    captures: vec![ValueId(0)],
+                },
+            ),
+            instruction(None, InstructionKind::DropPackage { local: LocalId(0) }),
+            instruction(None, InstructionKind::StorageDead(LocalId(0))),
+            instruction(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ),
+        ],
+        terminator: Terminator::Return(Some(ValueId(1))),
+    }];
+    factory.callable_return_contract = Some(CallableReturnContract {
+        source: CallableReturnSource::Fresh,
+        closure: ClosureId(2),
+        kind: CallableKind::FnOnce,
+        hold: vec![],
+        call: vec![],
+        writes: vec![],
+        cleanup: vec![0],
+        lending_captures: vec![],
+    });
+    m.functions.push(factory);
+    p.functions.push(FunctionPlan {
+        function: FunctionId(6),
+        blocks: vec![BlockPlan {
+            block: BlockId(0),
+            initialized_in: vec![LocalId(0)],
+            initialized_out: vec![],
+        }],
+        holds: (0..2)
+            .map(|value| ValueHold {
+                value: ValueId(value),
+                roots: vec![],
+            })
+            .collect(),
+    });
+    let mut fresh = function(7, vec![], Type::Closure(ClosureId(1)), None);
+    fresh.values = vec![Type::Closure(ClosureId(1))];
+    fresh.blocks = vec![BasicBlock {
+        id: BlockId(0),
+        instructions: vec![instruction(
+            Some(0),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(1),
+                captures: vec![],
+            },
+        )],
+        terminator: Terminator::Return(Some(ValueId(0))),
+    }];
+    fresh.callable_return_contract = Some(CallableReturnContract {
+        source: CallableReturnSource::Fresh,
+        closure: ClosureId(1),
+        kind: CallableKind::Fn,
+        hold: vec![],
+        call: vec![],
+        writes: vec![],
+        cleanup: vec![],
+        lending_captures: vec![],
+    });
+    m.functions.push(fresh);
+    p.functions.push(FunctionPlan {
+        function: FunctionId(7),
+        blocks: vec![BlockPlan {
+            block: BlockId(0),
+            initialized_in: vec![],
+            initialized_out: vec![],
+        }],
+        holds: vec![ValueHold {
+            value: ValueId(0),
+            roots: vec![],
+        }],
+    });
+    let f = &mut m.functions[4];
+    f.values
+        .extend([package, Type::I32, managed, Type::Closure(ClosureId(1))]);
+    let made = &mut f.blocks[0].instructions[2];
+    made.kind = InstructionKind::Call {
+        function: FunctionId(6),
+        arguments: vec![ValueId(4)],
+    };
+    f.blocks[0].instructions.splice(
+        2..2,
+        [
+            instruction(Some(5), InstructionKind::Constant(Constant::I32(1))),
+            instruction(
+                Some(6),
+                InstructionKind::MakeManaged {
+                    fields: vec![ValueId(5)],
+                },
+            ),
+            instruction(
+                Some(7),
+                InstructionKind::Call {
+                    function: FunctionId(7),
+                    arguments: vec![],
+                },
+            ),
+            instruction(
+                Some(4),
+                InstructionKind::MakePackage {
+                    fields: vec![ValueId(if supplied { 1 } else { 7 }), ValueId(6)],
+                },
+            ),
+        ],
+    );
+    f.blocks[0].instructions.insert(
+        0,
+        instruction(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+    );
+    f.blocks[0].instructions.extend([
+        instruction(None, InstructionKind::StorageDead(LocalId(1))),
+        instruction(None, InstructionKind::StorageDead(LocalId(0))),
+        instruction(
+            None,
+            InstructionKind::ScopeExit {
+                scope: ScopeId(0),
+                kind: CleanupExitKind::Return,
+            },
+        ),
+    ]);
+    p.functions[4].blocks[0].initialized_out.clear();
+    p.functions[4].holds.extend((4..8).map(|value| ValueHold {
+        value: ValueId(value),
+        roots: vec![],
+    }));
     (m, p)
 }

@@ -106,6 +106,7 @@ fn graphs(module: &TypedModule) -> Vec<FunctionGraph> {
         .functions
         .iter()
         .map(|f| FunctionGraph {
+            role_data_uses: Vec::new(),
             successors: vec![vec![]; f.blocks.len()],
             predecessors: vec![vec![]; f.blocks.len()],
             reachable: vec![true; f.blocks.len()],

@@ -500,6 +500,15 @@ fn with_local_body_cannot_hide_a_supplied_fn_once_role() {
     }
 }
 #[test]
+fn managed_package_and_fresh_factory_cannot_launder_a_supplied_role() {
+    // Only the callback field's actual value changes; nominal type, real
+    // Managed preparation, factory contract and double-call body all match.
+    let (m, p) = fixture::role_hidden_through_factory(false);
+    check(m, p, None);
+    let (m, p) = fixture::role_hidden_through_factory(true);
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+}
+#[test]
 fn wrapper_keeps_original_kind_and_rejects_forged_trace() {
     let (mut m, p) = fixture::wrapper();
     m.functions[4].callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::FnOnce;
@@ -602,6 +611,10 @@ fn local_handler_raw_wire_work_has_exact_fresh_boundaries() {
         ),
         ("local_child_handler", fixture::local_child_handler()),
         ("factory_child_handler", fixture::factory_child_handler()),
+        (
+            "wrapped_fresh_factory",
+            fixture::role_hidden_through_factory(false),
+        ),
     ] {
         exact_work_boundary(name, m, p);
     }

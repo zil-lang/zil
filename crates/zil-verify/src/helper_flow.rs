@@ -162,12 +162,13 @@ enum Destination {
 pub(super) fn reconstruct(
     module: &TypedModule,
     f: &TypedFunction,
+    graph: &FunctionGraph,
     roles: &[CallableRole],
     checked: &[bool],
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<CallableTraces> {
-    let origins = environment_origins(module, f, roles, budget)?;
+    let origins = environment_origins(module, f, graph, roles, budget)?;
     let mut allowance = Allowance::default();
     allowance.add(f.blocks.len(), 0, 0, limits, budget)?;
     let mut ids = BTreeMap::new();
