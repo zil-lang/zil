@@ -144,6 +144,7 @@ pub enum TypeKind {
     },
     Impl(Vec<TypeRef>),
     MetaEval(Box<Expr>),
+    MetaSplice(Box<Expr>),
     MetaBlock(Block),
 }
 
@@ -457,11 +458,80 @@ pub enum ExprKind {
         else_value: Box<Expr>,
     },
     MetaEval(Box<Expr>),
+    MetaSplice(Box<Expr>),
+    Quote {
+        category: SyntaxCategory,
+        template: QuoteTemplate,
+    },
     MetaBlock(Block),
     SyntaxIsland {
         path: Vec<String>,
         tree: TokenTree,
     },
+}
+
+/// CT syntax categories are not ordinary runtime types or verification tags.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SyntaxCategory {
+    Expr,
+    Type,
+    StmtList,
+    ItemList,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QuoteNameNamespace {
+    Value,
+    Type,
+    Member,
+    Module,
+    Label,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QuoteNameRole {
+    Binding,
+    Reference,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum QuoteHoleKind {
+    Expr,
+    Type,
+    StmtList,
+    ItemList,
+    Ident {
+        namespace: QuoteNameNamespace,
+        role: QuoteNameRole,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct QuoteHole {
+    pub kind: QuoteHoleKind,
+    pub value: Box<Expr>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct QuoteTemplate {
+    pub tree: QuoteTokenTree,
+    pub holes: Vec<QuoteHole>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct QuoteTokenTree {
+    pub delimiter: Delimiter,
+    pub children: Vec<QuoteTokenTreeEntry>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum QuoteTokenTreeEntry {
+    Token { text: String, span: Span },
+    Tree(QuoteTokenTree),
+    /// Index into this quote layer's QuoteTemplate::holes.
+    Hole { index: u32, span: Span },
 }
 
 /// Literal spelling is retained verbatim, including quotes and escape sequences.
