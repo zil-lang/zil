@@ -1,0 +1,32 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-250/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.18s
+     Running tests/impl246_front.rs (/workspace/.zil-env/target-250/debug/deps/impl246_front-5a9ab50bc8aa7a1a)
+
+running 12 tests
+test a_later_argument_failure_keeps_the_callee_and_first_argument_in_real_cleanup_slots ... ok
+test a_closure_in_an_ordinary_owned_error_result_function_preserves_both_branches ... ok
+test closed_owned_dispatch_crosses_real_model_and_helper_modules ... ok
+test fresh_owned_arguments_do_not_consume_the_fn_or_fnmut_environment ... ok
+test original_three_callback_sources_reach_types_without_changes ... ok
+test raw_unused_helper_signature_cannot_forge_a_data_or_passing_qualification ... ok
+test concrete_sum_error_union_and_store_product_signatures_are_real_data ... ok
+test owned_signature_does_not_open_addresses_managed_roots_or_capture_profiles ... ok
+test unused_owned_dispatch_definitions_are_checked_and_can_discard_the_callback ... ok
+registered Copy helper Expand 489/Types 420; N-1 and fresh N
+test wrapper_data_and_callback_signatures_are_checked_independently ... ok
+registered Copy helper Expand 665/Types 610; N-1 and fresh N
+test registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries ... ok
+owned dispatch Types N=1497, Expand N=1124; N-1 ResourceLimit and fresh N identity
+test dispatch_has_fresh_exact_types_and_expand_work_boundaries ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/review246_owned_signatures.rs (/workspace/.zil-env/target-250/debug/deps/review246_owned_signatures-1bf53f29ce571e2f)
+
+running 3 tests
+test unused_public_single_once_definitions_check_the_complete_owned_signature ... ok
+test consuming_new_data_does_not_consume_fn_or_fnmut_environment ... ok
+test owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

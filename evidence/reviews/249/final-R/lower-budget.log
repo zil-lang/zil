@@ -1,0 +1,8 @@
+   Compiling zil-lower v0.1.0 (/workspace/zil-250/crates/zil-lower)
+    Finished `test` profile [unoptimized] target(s) in 0.84s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-250/debug/deps/zil_lower-77c77ba71a1e202b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
