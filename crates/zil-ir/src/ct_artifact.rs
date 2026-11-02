@@ -521,6 +521,7 @@ pub enum CtInstructionKind {
         arguments: Vec<CtValueId>,
     },
     TypePrimitive(CtScalarTy),
+    TypeBuiltin(CtBuiltinType),
     TypeName(CtSymbolId),
     TypeApply {
         nominal: CtSymbolId,
