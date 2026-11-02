@@ -104,3 +104,65 @@ fn generated_parse_requires_all_real_tokens_including_identifiers() {
         );
     }
 }
+#[test]
+fn generated_context_has_exact_prepaid_node_receipt_and_rejects_forged_sites() {
+    let source = SourceUnit::new(FileId(1), ModuleId(2), "generated.zil", "f(x+1)");
+    let context = GeneratedParseContext {
+        tokens: lexer::lex(&source)
+            .tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .map(|t| GeneratedTokenContext {
+                span: t.span,
+                origin: 8,
+                name_context: (t.kind == TokenKind::Identifier).then_some(13),
+            })
+            .collect(),
+    };
+    let full = parse_generated(&source, SyntaxCategory::Expr, &context, &Limits::default());
+    assert!(full.diagnostics.is_empty());
+    let n = full.usage.nodes_required;
+    let exact = Limits {
+        max_nodes: n,
+        ..Limits::default()
+    };
+    for _ in 0..2 {
+        let fresh = parse_generated(&source, SyntaxCategory::Expr, &context, &exact);
+        assert!(fresh.diagnostics.is_empty(), "{:?}", fresh.diagnostics);
+        assert_eq!(fresh.syntax, full.syntax);
+        assert_eq!(fresh.usage, full.usage);
+    }
+    let below = parse_generated(
+        &source,
+        SyntaxCategory::Expr,
+        &context,
+        &Limits {
+            max_nodes: n - 1,
+            ..Limits::default()
+        },
+    );
+    assert!(
+        below
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-RESOURCE-LIMIT")
+    );
+    for mutated in 0..3 {
+        let mut forged = context.clone();
+        match mutated {
+            0 => forged.tokens.insert(1, forged.tokens[0].clone()),
+            1 => forged.tokens[0].span.file = FileId(9),
+            2 => forged.tokens[1].name_context = Some(13),
+            _ => unreachable!(),
+        }
+        let result = parse_generated(&source, SyntaxCategory::Expr, &forged, &Limits::default());
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-PARSE-GENERATED-CONTEXT")
+        );
+        assert!(result.syntax.is_none());
+    }
+    println!("generated parser N={n}, N-1=ResourceLimit, fresh=N");
+}
