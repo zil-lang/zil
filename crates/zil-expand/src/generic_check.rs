@@ -36,6 +36,12 @@ pub(super) fn validate_parametric<'l>(
     let variables = function.generics.iter().map(|p| p.name.clone()).collect();
     let callable = callable::template(function)?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
+    let owned_dispatch = function.generics.len() == 1 && callable.as_ref().is_some_and(|bounds| {
+        !bounds.owned_state && !bounds.owned_factory && bounds.state_bindings.is_empty()
+            && matches!(bounds.roles.as_slice(), [role]
+                if role.kind == zil_ir::CallableKind::FnOnce
+                    && callable::parameter_mode(&function.params[role.index].ty, &role.generic_name) == Some(None))
+    });
     for p in &function.params {
         if super::super::primitive_name(&p.name) {
             return Err(super::super::primitive_name_error(&p.name, p.span));
@@ -60,6 +66,7 @@ pub(super) fn validate_parametric<'l>(
     let mut check = Check {
         variables,
         callable,
+        owned_dispatch,
         definition: &function.name,
         dependencies,
         bounds: traits.bounds(function, budget)?,
@@ -90,6 +97,49 @@ pub(super) fn validate_parametric<'l>(
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
+    // Mixed Copy-T templates can disappear without a concrete instantiation.
+    // Check the new data boundary here rather than relying on a later Core
+    // instance. Ordinary single-F and existing State paths keep their fees.
+    if function.generics.len() > 1
+        && check
+            .callable
+            .as_ref()
+            .is_some_and(|b| !b.owned_state && !b.owned_factory)
+    {
+        for generic in &function.generics {
+            let GenericParamKind::Type(bounds) = &generic.kind else {
+                continue;
+            };
+            let [bound] = bounds.as_slice() else { continue };
+            let TypeKind::Named { path, args } = &bound.kind else {
+                continue;
+            };
+            if !matches!(path.as_slice(), [name] if matches!(name.as_str(), "Fn" | "FnMut" | "FnOnce"))
+            {
+                continue;
+            }
+            let [GenericArg::Type(parameters), GenericArg::Type(result)] = args.as_slice() else {
+                continue;
+            };
+            let TypeKind::Tuple(parameters) = &parameters.kind else {
+                continue;
+            };
+            for ty in parameters.iter().chain(std::iter::once(result)) {
+                if matches!(group(ty).kind, TypeKind::Reference { .. })
+                    || dependent(ty, &check.variables)
+                    || known_copy(ty, &check.variables, check.nominals) == Some(true)
+                {
+                    continue;
+                }
+                if !check.known_copy(ty)? {
+                    return Err(unsupported(
+                        ty.span,
+                        "owned callback signatures require one callable type and no ordinary type parameters",
+                    ));
+                }
+            }
+        }
+    }
     if check
         .callable
         .as_ref()
@@ -446,6 +496,7 @@ struct State {
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
     callable: Option<callable::CallableTemplates>,
+    owned_dispatch: bool,
     definition: &'s str,
     dependencies: &'b mut helper_graph::Dependencies,
     bounds: trait_bounds::Bounds,
@@ -1044,7 +1095,7 @@ impl Check<'_, '_, '_> {
         } else if !self
             .callable
             .as_ref()
-            .is_some_and(|bound| bound.owned_state || bound.owned_factory)
+            .is_some_and(|bound| bound.owned_state || bound.owned_factory || self.owned_dispatch)
         {
             return Err(unsupported(
                 operand.span,
