@@ -3779,10 +3779,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             } => {
                 if return_type
                     .as_ref()
-                    .is_some_and(|t| !(t.is_copy_value() || lending::supported_result(t)))
+                    .is_some_and(|t| !(t.is_copy_value() || lending::supported_result(t) || closures::owned_signature_head(t)))
                     || parameters.iter().any(|p| {
                         p.ty.as_ref()
-                            .is_some_and(|t| !closures::signature_parameter(t))
+                            .is_some_and(|t| !closures::signature_parameter(t) && !closures::owned_signature_head(t))
                     })
                 {
                     return Err(unsupported(
