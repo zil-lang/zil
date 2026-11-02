@@ -2,6 +2,82 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::Type;
 
 #[test]
+fn generic_enum_error_context_uses_one_complete_nominal_type() {
+    for text in [
+        include_str!("../../../tests/generic-error-enum/direct.zil"),
+        include_str!("../../../tests/generic-error-enum/concrete.zil"),
+        include_str!("../../../tests/generic-error-enum/helper.zil"),
+        include_str!("../../../tests/generic-error-enum/annotated.zil"),
+        "enum Box<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Box<i32>!Box<i64>{return Box::<i32>.None} fn main(){let f=()->i32=>0;run(f)}",
+        "enum Box<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Box<i32>!Box<i64>{return Box::<i64>.None} fn main(){let f=()->i32=>0;run(f)}",
+        "enum Box<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Box<i32>!Box<i64>{return Box.Some(7)} fn main(){let f=()->i32=>0;run(f)}",
+        "enum Fault{NoMemory} enum Note{Ready} fn run<F:Fn()->i32>(f:F)->Fault!Note{return Note.Ready} fn main(){let f=()->i32=>0;run(f)}",
+        "enum Fault{NoMemory} fn run<F:Fn()->i32>(f:F)->Fault!i32{return Fault.NoMemory} fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "enum-error.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+    }
+    for text in [
+        "enum Fault{NoMemory} enum Other{NoMemory} fn run<F:Fn()->i32>(f:F)->Fault!i32{return Other.NoMemory} fn main(){}",
+        "enum Fault{NoMemory} fn run<F:Fn()->i32>(f:F)->Fault!Fault{return Fault.NoMemory} fn main(){}",
+        "enum Box<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Box<i32>!Box<i64>{return Box.None} fn main(){}",
+        "enum Box<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Box<i32>!Box<i32>{return Box.Some(7)} fn main(){}",
+        "enum Box<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Box<u8>!Box<i64>{return Box.Some(7)} fn main(){}",
+        "enum Box<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Box<i32>!i32{return Box::<i64>.None} fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "enum-error-reject.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.phase == Phase::Expand && error.code == "E-GENERIC-ARGUMENT"),
+            "{text}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn generic_enum_error_context_prepays_new_work() {
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "enum-error-budget.zil",
+        include_str!("../../../tests/generic-error-enum/direct.zil"),
+    );
+    let parsed = zil_syntax::parse(&source).into_result().unwrap();
+    let expected = zil_expand::expand(&source, &parsed).unwrap();
+    // Independently measured minimal limits for the frozen direct source.
+    for (work, amount) in [(true, 522), (false, 214)] {
+        let mut limits = zil_base::Limits::default();
+        if work {
+            limits.max_analysis_steps = amount
+        } else {
+            limits.max_nodes = amount
+        }
+        let fresh = zil_syntax::parse(&source).into_result().unwrap();
+        assert_eq!(
+            zil_expand::expand_with_map_limits(&source, &fresh, &limits)
+                .unwrap()
+                .core,
+            expected
+        );
+        if work {
+            limits.max_analysis_steps -= 1
+        } else {
+            limits.max_nodes -= 1
+        }
+        assert!(
+            zil_expand::expand_with_map_limits(&source, &parsed, &limits)
+                .unwrap_err()
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit)
+        );
+    }
+}
+
+#[test]
 fn generic_records_use_structural_arguments_and_fresh_source_inexpressible_names() {
     let source = SourceUnit::new(
         FileId(0),
@@ -141,6 +217,10 @@ fn relay(give mark:Mark)->Mark contract{result(give)}{return give mark}
     const WITH: &str = "let body=move ()->i32=>consume(event);unsafe{let result=c_with_callback(reg,close,f,body);return result.1}";
     for body in [
         format!("{PREPARE}{EVENT}{WITH}"),
+        format!(
+            "{}{EVENT}{WITH}",
+            PREPARE.replace("return no_memory()", "return Fault.NoMemory")
+        ),
         format!("{PREPARE}{EVENT}return consume(event)+f(1)"),
         format!("{}{EVENT}{WITH}", PREPARE.replace("Mark{n:3}", "fresh()")),
         format!(
@@ -163,10 +243,6 @@ fn relay(give mark:Mark)->Mark contract{result(give)}{return give mark}
         ),
         format!("{PREPARE}{EVENT}let again=Event{{mark:give mark,bytes:bytes_new()}};{WITH}"),
         format!("{PREPARE}{EVENT}let stale=mark.n;{WITH}"),
-        format!(
-            "{}{EVENT}{WITH}",
-            PREPARE.replace("return no_memory()", "return Fault.NoMemory")
-        ),
         format!(
             "{PREPARE}{EVENT}let body=move ()->i32=>consume(event);consume(event);unsafe{{let result=c_with_callback(reg,close,f,body);return result.1}}"
         ),
