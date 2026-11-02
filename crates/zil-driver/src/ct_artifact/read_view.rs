@@ -293,7 +293,12 @@ impl FrozenReadView<'_> {
         ));
         let selected_generic = ready.selected.iter().find(|module| module.id == symbol.module)
             .is_some_and(|module| module.items.iter().any(|candidate| candidate.span == item.span
-                && matches!(&candidate.kind, ItemKind::Aggregate(value) if !value.generics.is_empty())));
+                && match &candidate.kind {
+                    ItemKind::Aggregate(value) => !value.generics.is_empty(),
+                    ItemKind::Enum(value) => !value.generics.is_empty(),
+                    ItemKind::TypeAlias(value) => value.value.is_some(),
+                    _ => false,
+                }));
         if !found && !selected_generic { return Err(phase("type shape depends on a generated or unfinished declaration")); }
         Ok(item)
     }
@@ -556,6 +561,60 @@ impl FrozenReadView<'_> {
         if symbol != &expected { return Err(phase("checked generic field instance differs from source lineage")); }
         Self::compact_type_ref(CtTypeRef { nodes, root }, budget)
     }
+    fn alias_value(&self, requester: &CtSymbolId, alias: &CtSymbolId,
+        handle: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
+        let ItemKind::TypeAlias(declaration) = &self.declaration(alias).ok_or_else(|| phase("type alias declaration is absent"))?.kind else {
+            return Err(phase("type alias identity differs from frozen source"));
+        };
+        let rhs = declaration.value.as_ref().ok_or_else(|| self.unready("type alias has no completed right hand side"))?;
+        let (formal, actual) = match declaration.generics.as_slice() {
+            [] => ("", CtTypeNodeId(0)),
+            [parameter] => {
+                let Some(CtTypeNode::Nominal { arguments, .. }) = handle.nodes.get(handle.root.0 as usize) else {
+                    return Err(error("E-CT-QUERY-TYPE", "generic alias requires a nominal Type application"));
+                };
+                let [CtTypeArgument::Type(id)] = arguments.as_slice() else {
+                    return Err(error("E-CT-TYPE-ARITY", "generic alias requires one Type argument"));
+                };
+                (parameter.name.as_str(), *id)
+            }
+            _ => return Err(self.unready("multi-parameter alias has no completed CT Type lineage")),
+        };
+        let (derived, bytes) = self.derived_shape(alias, handle, budget)?;
+        let probe_name = format!("__zil_ct_shape_probe_{}_{}", alias.module.0, alias.declaration.0);
+        let checked = derived.core.modules.iter().find(|module| module.core.module_id == alias.module)
+            .and_then(|module| module.core.functions.iter().find(|function| function.name == probe_name))
+            .and_then(|function| function.parameters.first())
+            .map(|parameter| &parameter.ty)
+            .ok_or_else(|| phase("ordinary type alias probe has no checked type"))?;
+        budget.reserve_generated_nodes(handle.nodes.len() as u64)?;
+        budget.reserve_temporary_bytes((handle.nodes.len() as u64).saturating_mul(96))?;
+        let mut nodes = handle.nodes.clone();
+        let root = self.append_source_type(requester, alias.module, rhs, formal, actual, &mut nodes, budget, 0)?;
+        let value = Self::compact_type_ref(CtTypeRef { nodes, root }, budget)?;
+        let matching = match (checked, value.nodes.get(value.root.0 as usize)) {
+            (Type::Unit, Some(CtTypeNode::Primitive(CtScalarTy::Unit)))
+            | (Type::Bool, Some(CtTypeNode::Primitive(CtScalarTy::Bool)))
+            | (Type::U8, Some(CtTypeNode::Primitive(CtScalarTy::U8)))
+            | (Type::U16, Some(CtTypeNode::Primitive(CtScalarTy::U16)))
+            | (Type::I32, Some(CtTypeNode::Primitive(CtScalarTy::I32)))
+            | (Type::I64, Some(CtTypeNode::Primitive(CtScalarTy::I64))) => true,
+            (Type::Record { name, .. } | Type::Package { name, .. } | Type::Enum { name, .. },
+                Some(CtTypeNode::Nominal { symbol, .. })) => derived.core.modules.iter().any(|module| {
+                    module.core.aggregates.iter().any(|candidate| {
+                        (name == &candidate.name || name == &format!("@module{}:{}", module.core.module_id.0, candidate.name))
+                            && self.index.symbol_at(module.core.module_id, candidate.span).as_ref() == Some(symbol)
+                    }) || module.core.enums.iter().any(|candidate| {
+                        (name == &candidate.name || name == &format!("@module{}:{}", module.core.module_id.0, candidate.name))
+                            && self.index.symbol_at(module.core.module_id, candidate.span).as_ref() == Some(symbol)
+                    })
+                }),
+            _ => false,
+        };
+        if !matching { return Err(self.unready("alias Type lineage differs from checked ordinary type")); }
+        budget.release_temporary_bytes(bytes);
+        Ok(value)
+    }
     fn compact_type_ref(ty: CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
         let count = ty.nodes.len();
         budget.reserve_analysis_work(count as u64)?;
@@ -720,10 +779,14 @@ impl CtReadView for FrozenReadView<'_> {
         }
     }
     fn type_name(&self, requester: &CtSymbolId, symbol: &CtSymbolId, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
-        self.nominal(requester, symbol)?;
+        let item = self.nominal(requester, symbol)?;
         budget.reserve_analysis_work(1)?;
         budget.reserve_generated_nodes(1)?;
-        Ok(CtTypeRef { nodes: vec![CtTypeNode::Nominal { symbol: symbol.clone(), arguments: Vec::new() }], root: CtTypeNodeId(0) })
+        let handle = CtTypeRef { nodes: vec![CtTypeNode::Nominal { symbol: symbol.clone(), arguments: Vec::new() }], root: CtTypeNodeId(0) };
+        if matches!(&item.kind, ItemKind::TypeAlias(alias) if alias.generics.is_empty()) {
+            return self.alias_value(requester, symbol, &handle, budget);
+        }
+        Ok(handle)
     }
     fn type_apply(&self, requester: &CtSymbolId, nominal: &CtSymbolId, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
         let item = self.nominal(requester, nominal)?;
@@ -774,7 +837,11 @@ impl CtReadView for FrozenReadView<'_> {
         let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "generic Type node identity overflow"))?);
         nodes.push(CtTypeNode::Nominal { symbol: nominal.clone(), arguments });
         let applied = CtTypeRef { nodes, root };
-        if matches!(&item.kind, ItemKind::Aggregate(value) if !value.generics.is_empty())
+        if matches!(&item.kind, ItemKind::TypeAlias(_)) {
+            return self.alias_value(requester, nominal, &applied, budget);
+        }
+        if (matches!(&item.kind, ItemKind::Aggregate(value) if !value.generics.is_empty())
+            || matches!(&item.kind, ItemKind::Enum(value) if !value.generics.is_empty()))
             && self.template(nominal).is_none() {
             let (_, bytes) = self.derived_shape(nominal, &applied, budget)?;
             budget.release_temporary_bytes(bytes);
@@ -888,6 +955,10 @@ impl CtReadView for FrozenReadView<'_> {
                         let Some(trait_symbol) = self.source_nominal(*module, trait_type, true) else { return Err(self.unready("trait declaration is not in the completed implementation index")); };
                         if !self.index.visible(requester, &trait_symbol) { continue; }
                         let implementation = self.index.symbol_at(*module, *span).ok_or_else(|| self.unready("implementation has no frozen declaration identity"))?;
+                        if results.iter().any(|candidate| matches!(candidate,
+                            CtValue::ImplInfo(info) if info.implementation == implementation && info.for_type == *ty)) {
+                            continue;
+                        }
                         budget.reserve_generated_nodes(1u64.saturating_add(ty.nodes.len() as u64))?;
                         budget.reserve_temporary_bytes((ty.nodes.len() as u64).saturating_mul(96).saturating_add(256))?;
                         results.push(CtValue::ImplInfo(CtImplInfo { trait_symbol, implementation, for_type: ty.clone() }));
@@ -918,6 +989,18 @@ impl CtReadView for FrozenReadView<'_> {
                         AggregateKind::Package => Type::Package { name, fields },
                         AggregateKind::Resource => return Err(self.unready("bare resource layout is not an ordinary value type")),
                     };
+                    budget.release_temporary_bytes(bytes);
+                    ordinary
+                } else if matches!(self.declaration(nominal).map(|item| &item.kind),
+                    Some(ItemKind::Enum(value)) if !value.generics.is_empty()) {
+                    let (derived, bytes) = self.derived_shape(nominal, ty, budget)?;
+                    let span = self.index.span(nominal).ok_or_else(|| phase("generic enum declaration is absent"))?;
+                    let enumeration = derived.core.modules.iter().find(|module| module.core.module_id == nominal.module)
+                        .and_then(|module| module.core.enums.iter().find(|enumeration| enumeration.span == span))
+                        .ok_or_else(|| self.unready("generic enum instance has not completed ordinary checking"))?;
+                    budget.reserve_analysis_work(enumeration.variants.len() as u64)?;
+                    budget.reserve_temporary_bytes((enumeration.variants.len() as u64).saturating_mul(128))?;
+                    let ordinary = Type::Enum { name: format!("@module{}:{}", nominal.module.0, enumeration.name), variants: enumeration.variants.clone() };
                     budget.release_temporary_bytes(bytes);
                     ordinary
                 } else {

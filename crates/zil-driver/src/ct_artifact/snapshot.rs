@@ -178,13 +178,12 @@ pub(super) fn freeze_impls(
     for (copy, original) in selected.iter_mut().zip(syntax) {
         for item in &original.items {
             match &item.kind {
-                // A generic or conditional implementation denotes a set of
-                // instances, which this finite index cannot enumerate. Do
-                // not publish a partial index as if it were complete.
+                // The ordinary static trait checker does not admit generic
+                // or conditional implementations. They contribute no checked
+                // entry, and cannot make an unrelated concrete query unready.
                 ItemKind::Impl(declaration) if declaration.trait_type.is_some()
                     && (!declaration.generics.is_empty() || !declaration.where_clause.is_empty()) => {
-                    return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-PHASE-DEPENDENCY", Some(item.span),
-                        "generic or conditional implementation index has not completed")]);
+                    continue;
                 }
                 ItemKind::Trait(declaration) if declaration.bounds.iter().all(plain_type)
                     && declaration.members.iter().all(|member| match &member.kind {

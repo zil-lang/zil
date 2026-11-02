@@ -265,6 +265,36 @@ mod tests {
     }
 
     #[test]
+    fn impl_index_ignores_unaccepted_generic_impl_and_deduplicates_subject() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "traits.zil",
+            "trait Marker{fn mark(self:&Self)->i32;}struct Point{x:i32}impl Marker for Point{fn mark()->i32=>.x}struct Box<T>{value:T}impl<T> Marker for Box<T>{fn mark()->i32=>0}fn main(){}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        assert!(environment.impl_index.is_some(), "unrelated unsupported impl blocked the static index");
+        let items = &parsed[0].module.items;
+        let subject = environment.index.symbol_at(ModuleId(0), items[1].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), items[5].span).unwrap();
+        let value = CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Nominal { symbol: subject, arguments: Vec::new() }],
+            root: CtTypeNodeId(0),
+        });
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        let (result, _) = reader.query(&requester, CtQueryKind::ImplIndex, &[value.clone(), value], &mut budget).unwrap();
+        assert!(matches!(result, CtValue::List(values) if values.len() == 1));
+    }
+
+    #[test]
     fn generic_type_application_reflects_instantiated_field_shape() {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "generic.zil",
             "struct Cell<T>{value:T}fn main(){}");
@@ -387,5 +417,67 @@ mod tests {
         assert!(changed_reader.token_inspect(&CtValue::TokenTree(changed.clone()),
             CtTokenProjection::RootAt, Some(0), &mut tiny).is_err());
         assert_eq!(tiny.usage().analysis_work, 2, "failed wire hashing must debit completed work");
+    }
+
+    #[test]
+    fn generic_enum_type_and_layout_use_checked_concrete_instance() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "enum.zil",
+            "enum Option<T>{None,Some(T)}fn main(){}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        let items = &parsed[0].module.items;
+        let nominal = environment.index.symbol_at(ModuleId(0), items[0].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), items[1].span).unwrap();
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        let arg = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
+        let ty = reader.type_apply(&requester, &nominal, &[arg], &mut budget).unwrap();
+        assert!(matches!(ty.nodes.get(ty.root.0 as usize), Some(CtTypeNode::Nominal { symbol, arguments })
+            if symbol == &nominal && arguments.len() == 1));
+        let (layout, _) = reader.query(&requester, CtQueryKind::Layout, &[CtValue::Type(ty)], &mut budget).unwrap();
+        assert!(matches!(layout, CtValue::LayoutInfo(info) if info.size >= 4 && info.alignment >= 4
+            && info.target_fingerprint == target.fingerprint()));
+    }
+
+    #[test]
+    fn type_alias_values_normalize_through_ordinary_checked_target() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "alias.zil",
+            "struct Cell<T>{value:T}type Entry<T>=Cell<T>;type Number=i32;fn main(){}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        let items = &parsed[0].module.items;
+        let cell = environment.index.symbol_at(ModuleId(0), items[0].span).unwrap();
+        let entry = environment.index.symbol_at(ModuleId(0), items[1].span).unwrap();
+        let number = environment.index.symbol_at(ModuleId(0), items[2].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), items[3].span).unwrap();
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        assert_eq!(reader.type_name(&requester, &number, &mut budget).unwrap(), CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
+        });
+        let arg = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
+        let aliased = reader.type_apply(&requester, &entry, &[arg.clone()], &mut budget).unwrap();
+        let direct = reader.type_apply(&requester, &cell, &[arg], &mut budget).unwrap();
+        assert_eq!(aliased, direct, "alias and target Type values must share canonical identity");
     }
 }
