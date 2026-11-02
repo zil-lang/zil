@@ -334,7 +334,11 @@ impl Builder<'_, '_> {
                 }
                 Ok(result)
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
                 if !self.indirect_place(e)
                     && let Some((local, index, field)) = self.package_place(e)?
                 {
@@ -344,6 +348,7 @@ impl Builder<'_, '_> {
                 let Type::Address { mutable, inner } = ty else {
                     unreachable!()
                 };
+                self.member_owner(&inner, owner.as_ref(), e.span)?;
                 // This new owning-child address path retains the full field
                 // type. Reserve its snapshots before field() clones it or the
                 // finite Product qualifier traverses its descendants.

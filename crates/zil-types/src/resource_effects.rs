@@ -503,7 +503,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
             CoreExprKind::Name(name) if self.lookup(name).is_none() => {
                 self.input.signatures.get(name)
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 let CoreExprKind::Name(name) = &object.kind else {
                     return None;
                 };
@@ -630,7 +630,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
     fn place(&mut self, expression: &CoreExpr, depth: usize) -> R<Origins> {
         self.visit(depth, expression.span)?;
         match &expression.kind {
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 self.spend(member.len(), expression.span)?;
                 self.place(object, depth + 1)
             }
@@ -667,7 +667,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
             | CoreExprKind::Unary { operand: value, .. } => return self.expr(value, depth + 1),
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 self.spend(member.len(), expr.span)?;
                 self.expr(object, depth + 1)?;
                 // A resource payload contains only Copy fields in this slice.
@@ -716,7 +716,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
                     return Ok(Origins::new());
                 }
                 if self.callee(callee).is_none()
-                    && let CoreExprKind::Member { object, member } = &callee.kind
+                    && let CoreExprKind::Member { object, member, .. } = &callee.kind
                 {
                     self.visit(depth + 1, callee.span)?;
                     self.spend(member.len(), callee.span)?;

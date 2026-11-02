@@ -1019,7 +1019,14 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
                 found |= expression_has_closure(value, depth + 1, budget)?;
             }
         }
-        CoreExprKind::Member { object, member } => {
+        CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } => {
+            if let Some(ty) = owner {
+                validate_type(ty, depth + 1, e.span, budget)?;
+            }
             budget.work(member.len(), e.span)?;
             found |= expression_has_closure(object, depth + 1, budget)?;
         }
@@ -1145,6 +1152,46 @@ struct Solver<'a, 'b, 'c> {
     callable_hint: Option<(Vec<Type>, Type)>,
 }
 impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
+    fn owner_type(&mut self, actual: &Type, owner: Option<&Type>, span: Span) -> R<()> {
+        if let Some(expected) = owner {
+            validate_type(actual, 0, span, self.budget)?;
+            validate_type(expected, 0, span, self.budget)?;
+            if member_owner::concrete(actual, &mut || self.budget.work(1, span))?
+                && member_owner::concrete(expected, &mut || self.budget.work(1, span))?
+            {
+                validate_type(expected, 0, span, self.budget)?;
+                self.budget.work(2, span)?;
+                member_owner::check_member_owner(actual, Some(expected), span)?;
+            }
+        }
+        Ok(())
+    }
+    fn owner_term(&mut self, actual: &Term, owner: Option<&Type>, span: Span) -> R<()> {
+        if owner.is_none() {
+            return Ok(());
+        }
+        match actual {
+            Term::Scalar(v) | Term::Address(v, _) | Term::Resource(v, _) => {
+                if let Some(ty) = self.graph.ty(*v)? {
+                    self.owner_type(&ty, owner, span)?;
+                }
+            }
+            Term::StatePackage { shape, .. } | Term::ClosurePackage { shape, .. } => {
+                self.owner_type(shape, owner, span)?
+            }
+            Term::ValueAddress(inner, _) => self.owner_term(inner, owner, span)?,
+            Term::Module(_) => {
+                return Err(error(
+                    "E-MEMBER-OWNER",
+                    span,
+                    "a constrained member requires an actual value receiver",
+                ));
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn new(
         function: &CoreFunction,
         signatures: &'a BTreeMap<String, Signature>,
@@ -2284,7 +2331,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         ))
     }
     fn constructor(&mut self, expression: &CoreExpr) -> R<Option<(Type, usize)>> {
-        let CoreExprKind::Member { object, member } = &expression.kind else {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &expression.kind
+        else {
             return Ok(None);
         };
         let CoreExprKind::Name(name) = &object.kind else {
@@ -2303,6 +2355,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         else {
             return Ok(None);
         };
+        if owner.is_some() {
+            return Err(error(
+                "E-MEMBER-OWNER",
+                expression.span,
+                "a constrained member cannot denote an enum constructor namespace",
+            ));
+        }
         validate_type(ty, 0, expression.span, self.budget)?;
         let index = variants
             .iter()
@@ -2834,7 +2893,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             CoreExprKind::Unary { op, operand } => {
                 let value = self.expr(operand, depth + 1, false)?;
                 if *op == UnaryOp::Give {
-                    if let CoreExprKind::Member { object, member } = &operand.kind
+                    if let CoreExprKind::Member { object, member, .. } = &operand.kind
                         && let CoreExprKind::Name(name) = &object.kind
                         && let Some(Binding {
                             term: Term::Scalar(variable),
@@ -3457,7 +3516,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     Ok(Term::Scalar(result))
                 }
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
                 if !write && let Some((ty, variant)) = self.constructor(expression)? {
                     self.budget.node(depth + 1, object.span)?;
                     self.expression_index += 1;
@@ -3472,6 +3535,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         .any(|scope| scope.contains_key(name))
                     && let Some(signature) = self.signatures.get(&format!("{name}.{member}"))
                 {
+                    if owner.is_some() {
+                        return Err(error(
+                            "E-MEMBER-OWNER",
+                            span,
+                            "a constrained member requires a value receiver, not a static namespace",
+                        ));
+                    }
                     // This object is a static namespace, but still occupies an
                     // expression position in the normalization traversal.
                     self.budget.node(depth + 1, object.span)?;
@@ -3489,6 +3559,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     && let CoreExprKind::Member {
                         object: shell,
                         member: field,
+                        owner: field_owner,
                     } = &object.kind
                     && let CoreExprKind::Name(name) = &shell.kind
                     && let Some(Binding {
@@ -3497,6 +3568,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     }) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
                     && let Some(ty @ Type::Package { .. }) = self.graph.ty(*variable)?
                 {
+                    self.owner_type(&ty, field_owner.as_ref(), object.span)?;
                     matches!(
                         aggregates::field(&ty, field, object.span)?.1,
                         Type::Managed(_)
@@ -3506,6 +3578,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 };
                 let object_type =
                     self.projected_base(object, depth + 1, write && !resource_field)?;
+                self.owner_term(&object_type, owner.as_ref(), span)?;
                 if let Term::ValueAddress(inner, mutable) = &object_type {
                     let (shape, field_sources, one) = match inner.as_ref() {
                         Term::StatePackage { shape, fields } => (shape, Some(fields), None),
