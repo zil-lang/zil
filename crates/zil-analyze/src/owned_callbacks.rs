@@ -12,7 +12,9 @@ pub(super) fn data(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Comp
             if ty.is_copy_value() {
                 Ok(())
             } else {
-                Err(bad("owned callback data requires ordinary Product/Enum/ErrorUnion or finite Copy"))
+                Err(bad(
+                    "owned callback data requires ordinary Product/Enum/ErrorUnion or finite Copy",
+                ))
             }
         }
     }
@@ -23,10 +25,19 @@ pub(super) fn signature(
     definition: &ClosureDefinition,
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    let entry = module.functions.get(definition.function.0 as usize)
+    let entry = module
+        .functions
+        .get(definition.function.0 as usize)
         .ok_or_else(|| bad("owned callback entry is absent"))?;
-    budget.spend(definition.parameters.len().saturating_add(1), "owned callback actual entry")?;
-    budget.type_work(&definition.result, false, "owned callback entry result comparison")?;
+    budget.spend(
+        definition.parameters.len().saturating_add(1),
+        "owned callback actual entry",
+    )?;
+    budget.type_work(
+        &definition.result,
+        false,
+        "owned callback entry result comparison",
+    )?;
     if module.closures.get(definition.id.0 as usize) != Some(definition)
         || definition.kind == CallableKind::FunctionPointer
         || !definition.lending_captures.is_empty()
@@ -38,7 +49,9 @@ pub(super) fn signature(
         || entry.return_type != definition.result
         || entry.result_mode != PassingMode::Infer
     {
-        return Err(bad("owned callback definition differs from its actual ordinary entry"));
+        return Err(bad(
+            "owned callback definition differs from its actual ordinary entry",
+        ));
     }
     for (local, ty) in entry.parameters.iter().zip(&definition.parameters) {
         budget.type_work(ty, false, "owned callback entry parameter comparison")?;
@@ -53,20 +66,56 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     if budget.owned_callbacks.is_empty() && budget.owned_callback_helpers.is_empty() {
         return Ok(());
     }
+    budget.spend(
+        module.functions.len(),
+        "owned callback window function inventory",
+    )?;
+    let mut windows = vec![false; module.functions.len()];
+    let mut edges = Vec::new();
+    budget.spend(
+        budget
+            .owned_callbacks
+            .len()
+            .saturating_add(budget.owned_callback_helpers.len()),
+        "owned callback window roots",
+    )?;
+    for id in &budget.owned_callbacks {
+        windows[module.closures[id.0 as usize].function.0 as usize] = true;
+    }
+    for id in &budget.owned_callback_helpers {
+        windows[id.0 as usize] = true;
+    }
     budget.spend(module.functions.len(), "owned callback call functions")?;
     for f in &module.functions {
         budget.spend(f.blocks.len(), "owned callback call blocks")?;
         for b in &f.blocks {
             budget.spend(b.instructions.len(), "owned callback call instructions")?;
             for i in &b.instructions {
-                if let InstructionKind::Call { function, arguments } = &i.kind {
-                    budget.lookup(budget.owned_callback_helpers.len(), "owned helper actual signature lookup")?;
+                if let InstructionKind::Call {
+                    function,
+                    arguments,
+                } = &i.kind
+                {
+                    if function.0 as usize >= windows.len() {
+                        return Err(bad("owned callback call graph target is absent"));
+                    }
+                    budget.spend(1, "owned callback ordinary call edge")?;
+                    edges.push((f.id.0 as usize, function.0 as usize));
+                    budget.lookup(
+                        budget.owned_callback_helpers.len(),
+                        "owned helper actual signature lookup",
+                    )?;
                     if budget.owned_callback_helpers.contains(function) {
                         let target = &module.functions[function.0 as usize];
                         budget.spend(arguments.len(), "owned helper actual arguments")?;
-                        budget.type_work(&target.return_type, false, "owned helper actual result")?;
+                        budget.type_work(
+                            &target.return_type,
+                            false,
+                            "owned helper actual result",
+                        )?;
                         if arguments.len() != target.parameters.len()
-                            || !(i.result.and_then(|v| f.values.get(v.0 as usize)) == Some(&target.return_type)
+                            || !(i.result.and_then(|v| f.values.get(v.0 as usize))
+                                == Some(&target.return_type)
                                 || (i.result.is_none() && target.return_type == Type::Unit))
                         {
                             return Err(bad("owned callback helper call signature differs"));
@@ -75,7 +124,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             let ty = &target.locals[local.0 as usize].ty;
                             budget.type_work(ty, false, "owned helper actual parameter")?;
                             if f.values.get(value.0 as usize) != Some(ty) {
-                                return Err(bad("owned callback helper actual argument type differs"));
+                                return Err(bad(
+                                    "owned callback helper actual argument type differs",
+                                ));
                             }
                         }
                     }
@@ -83,12 +134,14 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 }
                 let (ty, arguments) = match &i.kind {
                     InstructionKind::CallClosureShared { callee, arguments }
-                    | InstructionKind::CallClosureMut { callee, arguments } =>
-                        (f.locals.get(callee.0 as usize).map(|l| &l.ty), arguments),
+                    | InstructionKind::CallClosureMut { callee, arguments } => {
+                        (f.locals.get(callee.0 as usize).map(|l| &l.ty), arguments)
+                    }
                     InstructionKind::CallClosure { callee, arguments }
                     | InstructionKind::CallClosureOnce { callee, arguments }
-                    | InstructionKind::CallClosureBorrowed { callee, arguments, .. } =>
-                        (f.values.get(callee.0 as usize), arguments),
+                    | InstructionKind::CallClosureBorrowed {
+                        callee, arguments, ..
+                    } => (f.values.get(callee.0 as usize), arguments),
                     _ => continue,
                 };
                 let ty = match ty {
@@ -96,10 +149,22 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     Some(ty) => ty,
                     None => return Err(bad("callback callee is absent")),
                 };
-                let Type::Closure(id) = ty else { return Err(bad("callback callee has no environment")); };
-                budget.lookup(budget.owned_callbacks.len(), "owned callback signature lookup")?;
-                if !budget.owned_callbacks.contains(id) { continue; }
-                let c = &module.closures[id.0 as usize];
+                let Type::Closure(id) = ty else {
+                    return Err(bad("callback callee has no environment"));
+                };
+                let c = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| bad("callback environment is absent"))?;
+                budget.spend(1, "owned callback concrete call edge")?;
+                edges.push((f.id.0 as usize, c.function.0 as usize));
+                budget.lookup(
+                    budget.owned_callbacks.len(),
+                    "owned callback signature lookup",
+                )?;
+                if !budget.owned_callbacks.contains(id) {
+                    continue;
+                }
                 budget.spend(arguments.len(), "owned callback actual arguments")?;
                 budget.type_work(&c.result, false, "owned callback actual result")?;
                 if arguments.len() != c.parameters.len()
@@ -117,5 +182,20 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             }
         }
     }
+    loop {
+        budget.spend(edges.len(), "owned callback connected window functions")?;
+        let mut changed = false;
+        for &(caller, callee) in &edges {
+            if windows[caller] || windows[callee] {
+                changed |= !windows[caller] || !windows[callee];
+                windows[caller] = true;
+                windows[callee] = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    budget.owned_callback_window_functions = windows;
     Ok(())
 }
