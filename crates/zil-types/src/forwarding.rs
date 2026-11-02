@@ -3,22 +3,17 @@
 use super::*;
 
 pub(super) fn bound(function: &CoreFunction) -> Option<&CoreCallableParameter> {
-    let Type::Named(name) = &function.return_type else {
+    let [bound] = function.callable_parameters.as_slice() else {
         return None;
     };
-    function
-        .callable_parameters
-        .iter()
-        .find(|bound| &bound.generic_name == name)
+    matches!(&function.return_type,Type::Named(name) if name == &bound.generic_name)
+        .then_some(bound)
 }
 pub(super) fn signature(signature: &Signature) -> Option<&CoreCallableParameter> {
-    let Type::Named(name) = &signature.result else {
+    let [bound] = signature.callable.as_slice() else {
         return None;
     };
-    signature
-        .callable
-        .iter()
-        .find(|bound| &bound.generic_name == name)
+    matches!(&signature.result,Type::Named(name) if name == &bound.generic_name).then_some(bound)
 }
 pub(super) fn validate(
     function: &CoreFunction,
@@ -84,6 +79,7 @@ impl Builder<'_, '_> {
     /// Lazily reconstruct preceding declared-mode moves only on a new forward
     /// call. Unaffected legacy helpers retain their original costs.
     pub(super) fn forward_modes(&mut self, span: Span) -> R<()> {
+        self.forwarding_modes = true;
         if self.factory_modes.is_some() {
             return Ok(());
         }
