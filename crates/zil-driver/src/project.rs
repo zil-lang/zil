@@ -59,6 +59,8 @@ struct LoadedSyntax {
 
 /// An exact import-free source may restore its already decoded raw frontend.
 /// Ordinary discovery still owns syntax; neither variant carries Verify authority.
+// Move the request's existing report once without another per-request heap allocation.
+#[allow(clippy::large_enum_variant)]
 enum LoadedProject {
     Parsed(Vec<LoadedSyntax>),
     Prepared(Vec<LoadedSyntax>, CompileReport),
