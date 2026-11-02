@@ -9,6 +9,19 @@ fn checked(name: &str, text: &str) {
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &ast).unwrap();
     let typed = zil_types::check(&core, &target, &limits).unwrap();
+    if name.starts_with("slot_") {
+        let main = typed.functions.iter().find(|f| f.name == "main").unwrap();
+        assert!(
+            main.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(
+                    i.kind,
+                    zil_ir::InstructionKind::TakeOwnedArrayElement { .. }
+                )),
+            "{name} must exercise the internal single slot"
+        );
+    }
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed, plan, &target, &limits)
         .unwrap_or_else(|errors| panic!("{name}: {errors:?}"));
@@ -42,6 +55,22 @@ fn owning_event_callback_in_ordinary_caller_internal_slot_reaches_verify() {
         "owned_event_caller",
         include_str!("impl253_fixtures/owned_event_caller.zil"),
     );
+}
+
+#[test]
+fn owning_event_callback_can_leave_mutable_slot_for_new_local() {
+    let prelude = "resource R{n:i32}package Event{manages bytes:ByteBuffer;n:i32}package Reply{manages bytes:ByteBuffer;n:i32}fn keep<F:FnOnce(Event)->Reply>(f:F)->F{return f}";
+    for (name, binding) in [
+        ("into_let", "let g=keep(f)"),
+        ("into_var", "var g=keep(f)"),
+        ("slot_into_let", "f=keep(f);let g=keep(f)"),
+        ("slot_into_var", "f=keep(f);var g=keep(f)"),
+    ] {
+        let source = format!(
+            "{prelude}fn main()->i32{{let r=R{{n:7}};var f=move(e:Event)->Reply=>{{return Reply{{bytes:give e.bytes,n:e.n+r.n}}}};{binding};let p=g(Event{{bytes:bytes_new(),n:3}});return p.n-10}}"
+        );
+        checked(name, &source);
+    }
 }
 
 #[test]
