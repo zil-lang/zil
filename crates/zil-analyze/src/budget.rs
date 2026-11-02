@@ -26,6 +26,7 @@ pub(super) struct Budget {
     pub(super) sum_functions: Vec<bool>,
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
+    pub(super) owned_callback_window_functions: Vec<bool>,
     sum_roots: BTreeSet<usize>,
 }
 
@@ -42,6 +43,7 @@ impl Budget {
             sum_functions: Vec::new(),
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
+            owned_callback_window_functions: Vec::new(),
             sum_roots: BTreeSet::new(),
         }
     }
@@ -695,9 +697,15 @@ pub(super) fn preflight(
             }
         }
         let mut owned_signature = false;
-        for ty in closure.parameters.iter().chain(std::iter::once(&closure.result)) {
-            if matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. })
-                && !ty.is_copy_value()
+        for ty in closure
+            .parameters
+            .iter()
+            .chain(std::iter::once(&closure.result))
+        {
+            if matches!(
+                ty,
+                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && !ty.is_copy_value()
             {
                 super::resources::sums::admit(module, ty, budget)?;
                 owned_signature = true;
