@@ -265,6 +265,36 @@ mod tests {
     }
 
     #[test]
+    fn impl_index_ignores_unaccepted_generic_impl_and_deduplicates_subject() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "traits.zil",
+            "trait Marker{fn mark(self:&Self)->i32;}struct Point{x:i32}impl Marker for Point{fn mark()->i32=>.x}struct Box<T>{value:T}impl<T> Marker for Box<T>{fn mark()->i32=>0}fn main(){}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        assert!(environment.impl_index.is_some(), "unrelated unsupported impl blocked the static index");
+        let items = &parsed[0].module.items;
+        let subject = environment.index.symbol_at(ModuleId(0), items[1].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), items[5].span).unwrap();
+        let value = CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Nominal { symbol: subject, arguments: Vec::new() }],
+            root: CtTypeNodeId(0),
+        });
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        let (result, _) = reader.query(&requester, CtQueryKind::ImplIndex, &[value.clone(), value], &mut budget).unwrap();
+        assert!(matches!(result, CtValue::List(values) if values.len() == 1));
+    }
+
+    #[test]
     fn generic_type_application_reflects_instantiated_field_shape() {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "generic.zil",
             "struct Cell<T>{value:T}fn main(){}");
@@ -348,6 +378,38 @@ mod tests {
     }
 
     #[test]
+    fn nested_multi_argument_field_reorders_checked_type_arguments() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "nested_multi.zil",
+            "struct Cell<T,U>{left:T,right:U}struct Outer<A,B>{inner:Cell<B,A>}fn main(){}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        let items = &parsed[0].module.items;
+        let cell = environment.index.symbol_at(ModuleId(0), items[0].span).unwrap();
+        let outer = environment.index.symbol_at(ModuleId(0), items[1].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), items[2].span).unwrap();
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        let i32_value = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
+        let bool_value = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)], root: CtTypeNodeId(0) });
+        let owner = reader.type_apply(&requester, &outer, &[i32_value.clone(), bool_value.clone()], &mut budget).unwrap();
+        let (field, _) = reader.query(&requester, CtQueryKind::Field,
+            &[CtValue::Type(owner), CtValue::Text("inner".into())], &mut budget).unwrap();
+        let CtValue::FieldInfo(field) = field else { panic!("expected field info") };
+        let direct = reader.type_apply(&requester, &cell, &[bool_value, i32_value], &mut budget).unwrap();
+        assert_eq!(field.ty, direct);
+    }
+
+    #[test]
     fn token_cursor_uses_canonical_borrowed_wire_identity() {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "token.zil", "fn main(){}");
         let parsed = Arc::new(zil_syntax::parse(&source));
@@ -387,5 +449,134 @@ mod tests {
         assert!(changed_reader.token_inspect(&CtValue::TokenTree(changed.clone()),
             CtTokenProjection::RootAt, Some(0), &mut tiny).is_err());
         assert_eq!(tiny.usage().analysis_work, 2, "failed wire hashing must debit completed work");
+    }
+
+    #[test]
+    fn generic_enum_type_and_layout_use_checked_concrete_instance() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "enum.zil",
+            "enum Option<T>{None,Some(T)}fn main(){}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        let items = &parsed[0].module.items;
+        let nominal = environment.index.symbol_at(ModuleId(0), items[0].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), items[1].span).unwrap();
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        let arg = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
+        let ty = reader.type_apply(&requester, &nominal, &[arg], &mut budget).unwrap();
+        assert!(matches!(ty.nodes.get(ty.root.0 as usize), Some(CtTypeNode::Nominal { symbol, arguments })
+            if symbol == &nominal && arguments.len() == 1));
+        let (layout, _) = reader.query(&requester, CtQueryKind::Layout, &[CtValue::Type(ty)], &mut budget).unwrap();
+        assert!(matches!(layout, CtValue::LayoutInfo(info) if info.size >= 4 && info.alignment >= 4
+            && info.target_fingerprint == target.fingerprint()));
+    }
+
+    #[test]
+    fn type_alias_values_normalize_through_ordinary_checked_target() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "alias.zil",
+            "struct Cell<T>{value:T}type Entry<T>=Cell<T>;type Number=i32;struct Pair<T,U>{left:T,right:U}type Swapped<T,U>=Pair<U,T>;type Middle=Number;type Top=Middle;type Wrapper<T>=Entry<T>;type Vector=[i32;2];type Callback=fn(i32)->i32;type View=&i32;type PairAlias=(i32,i64);type PairWrap<T>=(T,[T;2]);fn main(){}type Bad=Missing;");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        let items = &parsed[0].module.items;
+        let cell = environment.index.symbol_at(ModuleId(0), items[0].span).unwrap();
+        let entry = environment.index.symbol_at(ModuleId(0), items[1].span).unwrap();
+        let number = environment.index.symbol_at(ModuleId(0), items[2].span).unwrap();
+        let pair = environment.index.symbol_at(ModuleId(0), items[3].span).unwrap();
+        let swapped = environment.index.symbol_at(ModuleId(0), items[4].span).unwrap();
+        let top = environment.index.symbol_at(ModuleId(0), items[6].span).unwrap();
+        let wrapper = environment.index.symbol_at(ModuleId(0), items[7].span).unwrap();
+        let vector = environment.index.symbol_at(ModuleId(0), items[8].span).unwrap();
+        let callback = environment.index.symbol_at(ModuleId(0), items[9].span).unwrap();
+        let view = environment.index.symbol_at(ModuleId(0), items[10].span).unwrap();
+        let pair_alias = environment.index.symbol_at(ModuleId(0), items[11].span).unwrap();
+        let pair_wrap = environment.index.symbol_at(ModuleId(0), items[12].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), items[13].span).unwrap();
+        let bad = environment.index.symbol_at(ModuleId(0), items[14].span).unwrap();
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        assert_eq!(reader.type_name(&requester, &number, &mut budget).unwrap(), CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
+        });
+        assert_eq!(reader.type_name(&requester, &top, &mut budget).unwrap(), CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
+        });
+        for (alias, expected) in [(vector, "array"), (callback, "callback"), (view, "reference"), (pair_alias, "tuple")] {
+            let value = reader.type_name(&requester, &alias, &mut budget).unwrap();
+            let actual = match value.nodes.get(value.root.0 as usize) {
+                Some(CtTypeNode::Array { length: 2, .. }) => "array",
+                Some(CtTypeNode::FunctionPointer { parameters, .. }) if parameters.len() == 1 => "callback",
+                Some(CtTypeNode::Address { mutable: false, .. }) => "reference",
+                Some(CtTypeNode::Tuple(parts)) if parts.len() == 2 => "tuple",
+                other => panic!("unexpected reflected alias type {other:?}"),
+            };
+            assert_eq!(actual, expected);
+        }
+        let wrapped = reader.type_apply(&requester, &pair_wrap, &[CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
+        })], &mut budget).unwrap();
+        let Some(CtTypeNode::Tuple(parts)) = wrapped.nodes.get(wrapped.root.0 as usize) else { panic!("expected generic tuple alias") };
+        assert!(matches!(wrapped.nodes.get(parts[0].0 as usize), Some(CtTypeNode::Primitive(CtScalarTy::I32))));
+        assert!(matches!(wrapped.nodes.get(parts[1].0 as usize), Some(CtTypeNode::Array { length: 2, .. })));
+        assert!(reader.type_name(&requester, &bad, &mut budget).is_err(), "unfinished alias must not become a CT Type");
+        let arg = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
+        let aliased = reader.type_apply(&requester, &entry, &[arg.clone()], &mut budget).unwrap();
+        let direct = reader.type_apply(&requester, &cell, &[arg], &mut budget).unwrap();
+        assert_eq!(aliased, direct, "alias and target Type values must share canonical identity");
+        let chained = reader.type_apply(&requester, &wrapper, &[CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
+        })], &mut budget).unwrap();
+        assert_eq!(chained, direct, "generic aliases must normalize through checked alias chains");
+        let i32_value = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
+        let bool_value = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)], root: CtTypeNodeId(0) });
+        let aliased = reader.type_apply(&requester, &swapped, &[i32_value.clone(), bool_value.clone()], &mut budget).unwrap();
+        let direct = reader.type_apply(&requester, &pair, &[bool_value, i32_value], &mut budget).unwrap();
+        assert_eq!(aliased, direct, "multi-argument alias must substitute actual Types in declaration order");
+    }
+
+    #[test]
+    fn checked_tuple_alias_matches_plain_ordinary_type() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "tuple_alias.zil",
+            "type Top=(i32,i64);fn main(){}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        let alias = environment.index.symbol_at(ModuleId(0), parsed[0].module.items[0].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), parsed[0].module.items[1].span).unwrap();
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        assert_eq!(reader.type_name(&requester, &alias, &mut budget).unwrap(), CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32), CtTypeNode::Primitive(CtScalarTy::I64),
+                CtTypeNode::Tuple(vec![CtTypeNodeId(0), CtTypeNodeId(1)])],
+            root: CtTypeNodeId(2),
+        });
     }
 }

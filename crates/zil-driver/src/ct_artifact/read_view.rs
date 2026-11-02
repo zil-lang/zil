@@ -293,7 +293,12 @@ impl FrozenReadView<'_> {
         ));
         let selected_generic = ready.selected.iter().find(|module| module.id == symbol.module)
             .is_some_and(|module| module.items.iter().any(|candidate| candidate.span == item.span
-                && matches!(&candidate.kind, ItemKind::Aggregate(value) if !value.generics.is_empty())));
+                && match &candidate.kind {
+                    ItemKind::Aggregate(value) => !value.generics.is_empty(),
+                    ItemKind::Enum(value) => !value.generics.is_empty(),
+                    ItemKind::TypeAlias(value) => value.value.is_some(),
+                    _ => false,
+                }));
         if !found && !selected_generic { return Err(phase("type shape depends on a generated or unfinished declaration")); }
         Ok(item)
     }
@@ -481,16 +486,20 @@ impl FrozenReadView<'_> {
         })
     }
     fn append_source_type(&self, requester: &CtSymbolId, module: ModuleId, ty: &s::TypeRef,
-        formal: &str, actual: CtTypeNodeId, nodes: &mut Vec<CtTypeNode>,
+        substitutions: &[(&str, CtTypeNodeId)], nodes: &mut Vec<CtTypeNode>,
         budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<CtTypeNodeId> {
         if depth > self.limits.max_call_depth { return Err(self.unready("generic field type nesting exceeds CT depth")); }
         budget.reserve_analysis_work(1)?;
         let node = match &ty.kind {
-            s::TypeKind::Group(inner) => return self.append_source_type(requester, module, inner, formal, actual, nodes, budget, depth + 1),
-            s::TypeKind::Named { path, args } if path.len() == 1 && path[0] == formal && args.is_empty() => return Ok(actual),
+            s::TypeKind::Group(inner) => return self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1),
+            s::TypeKind::Named { path, args } if path.len() == 1 && args.is_empty()
+                && substitutions.iter().any(|(formal, _)| path[0] == *formal) => {
+                return Ok(substitutions.iter().find(|(formal, _)| path[0] == *formal)
+                    .expect("guarded substitution").1);
+            }
             s::TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => {
                 match path[0].as_str() {
-                    "Unit" => CtTypeNode::Primitive(CtScalarTy::Unit), "bool" => CtTypeNode::Primitive(CtScalarTy::Bool),
+                    "Unit" | "void" => CtTypeNode::Primitive(CtScalarTy::Unit), "bool" => CtTypeNode::Primitive(CtScalarTy::Bool),
                     "u8" => CtTypeNode::Primitive(CtScalarTy::U8), "u16" => CtTypeNode::Primitive(CtScalarTy::U16),
                     "i32" => CtTypeNode::Primitive(CtScalarTy::I32), "i64" => CtTypeNode::Primitive(CtScalarTy::I64),
                     "ByteBuffer" => CtTypeNode::Builtin(CtBuiltinType::ByteBuffer),
@@ -510,20 +519,71 @@ impl FrozenReadView<'_> {
                 let mut arguments = Vec::new();
                 for arg in args {
                     match arg {
-                        s::GenericArg::Type(inner) => arguments.push(CtTypeArgument::Type(self.append_source_type(requester, module, inner, formal, actual, nodes, budget, depth + 1)?)),
+                        s::GenericArg::Type(inner) => arguments.push(CtTypeArgument::Type(self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1)?)),
                         s::GenericArg::Const(_) => return Err(self.unready("nested const generic field argument has no completed CT lineage")),
                     }
                 }
                 CtTypeNode::Nominal { symbol, arguments }
             }
+            s::TypeKind::Tuple(parts) if parts.is_empty() => CtTypeNode::Primitive(CtScalarTy::Unit),
             s::TypeKind::Tuple(parts) => {
                 budget.reserve_temporary_bytes((parts.len() as u64).saturating_mul(8))?;
-                CtTypeNode::Tuple(parts.iter().map(|inner| self.append_source_type(requester, module, inner, formal, actual, nodes, budget, depth + 1)).collect::<CompileResult<Vec<_>>>()?)
+                CtTypeNode::Tuple(parts.iter().map(|inner| self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1)).collect::<CompileResult<Vec<_>>>()?)
             }
+            s::TypeKind::Array { element, length } => {
+                let inner = self.append_source_type(requester, module, element, substitutions, nodes, budget, depth + 1)?;
+                if let Some(length) = length {
+                    let s::ExprKind::Literal(s::Literal::Integer(text)) = &length.kind else {
+                        return Err(self.unready("nonliteral array length has no completed CT Type lineage"));
+                    };
+                    budget.reserve_analysis_work(text.len() as u64)?;
+                    budget.reserve_temporary_bytes(text.len() as u64)?;
+                    let length = text.replace('_', "").parse::<u32>()
+                        .map_err(|_| self.unready("array length is not a bounded integer constant"))?;
+                    budget.release_temporary_bytes(text.len() as u64);
+                    CtTypeNode::Array { element: inner, length }
+                } else { CtTypeNode::Slice(inner) }
+            }
+            s::TypeKind::Function { params, result } => {
+                budget.reserve_temporary_bytes((params.len() as u64).saturating_mul(8))?;
+                let parameters = params.iter().map(|param| self.append_source_type(requester, module, param, substitutions, nodes, budget, depth + 1))
+                    .collect::<CompileResult<Vec<_>>>()?;
+                let result = self.append_source_type(requester, module, result, substitutions, nodes, budget, depth + 1)?;
+                CtTypeNode::FunctionPointer { parameters, result }
+            }
+            s::TypeKind::ForeignFunction { abi, params, result } if abi == "\"C\"" => {
+                budget.reserve_temporary_bytes((params.len() as u64).saturating_mul(8))?;
+                let parameters = params.iter().map(|param| self.append_source_type(requester, module, param, substitutions, nodes, budget, depth + 1))
+                    .collect::<CompileResult<Vec<_>>>()?;
+                let result = self.append_source_type(requester, module, result, substitutions, nodes, budget, depth + 1)?;
+                CtTypeNode::ForeignCallback { parameters, result }
+            }
+            s::TypeKind::Error { error, result } => CtTypeNode::ErrorUnion {
+                error: self.append_source_type(requester, module, error, substitutions, nodes, budget, depth + 1)?,
+                result: self.append_source_type(requester, module, result, substitutions, nodes, budget, depth + 1)?,
+            },
             s::TypeKind::Reference { mutable, inner, .. } => CtTypeNode::Address { mutable: *mutable,
-                inner: self.append_source_type(requester, module, inner, formal, actual, nodes, budget, depth + 1)? },
+                inner: self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1)? },
             _ => return Err(self.unready("nested generic field type has no completed CT lineage")),
         };
+        if let CtTypeNode::Nominal { symbol, arguments } = &node
+            && let ItemKind::TypeAlias(alias) = &self.nominal(requester, symbol)?.kind {
+            let rhs = alias.value.as_ref().ok_or_else(|| self.unready("nested type alias has no checked right hand side"))?;
+            if arguments.len() != alias.generics.len() {
+                return Err(error("E-CT-TYPE-ARITY", "nested alias argument count differs from frozen declaration"));
+            }
+            let charge = (arguments.len() as u64).saturating_mul(32);
+            budget.reserve_temporary_bytes(charge)?;
+            let substitutions = alias.generics.iter().zip(arguments).map(|(parameter, argument)| {
+                match (&parameter.kind, argument) {
+                    (s::GenericParamKind::Type(_), CtTypeArgument::Type(actual)) => Ok((parameter.name.as_str(), *actual)),
+                    _ => Err(self.unready("nested alias has a non-Type formal without completed CT lineage")),
+                }
+            }).collect::<CompileResult<Vec<_>>>()?;
+            let result = self.append_source_type(requester, symbol.module, rhs, &substitutions, nodes, budget, depth + 1);
+            budget.release_temporary_bytes(charge);
+            return result;
+        }
         budget.reserve_generated_nodes(1)?;
         budget.reserve_temporary_bytes(96)?;
         let id = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "generic field Type DAG exceeds identity range"))?);
@@ -536,18 +596,25 @@ impl FrozenReadView<'_> {
         let ItemKind::Aggregate(declaration) = &self.declaration(owner).ok_or_else(|| phase("generic owner declaration is absent"))?.kind else {
             return Err(phase("generic field owner is not an aggregate"));
         };
-        let [parameter] = declaration.generics.as_slice() else { return Err(self.unready("generic field has no single frozen formal Type")); };
         let source_field = declaration.fields.iter().find(|field| field.span == field_span)
             .ok_or_else(|| phase("generic field source identity differs from checked shape"))?;
         let Some(CtTypeNode::Nominal { arguments, .. }) = owner_type.nodes.get(owner_type.root.0 as usize) else {
             return Err(error("E-CT-QUERY-TYPE", "generic field owner requires nominal Type"));
         };
-        let [CtTypeArgument::Type(actual)] = arguments.as_slice() else { return Err(error("E-CT-TYPE-ARITY", "generic field owner requires one Type argument")); };
+        if arguments.len() != declaration.generics.len() {
+            return Err(error("E-CT-TYPE-ARITY", "generic field owner argument count differs from frozen declaration"));
+        }
+        let substitutions = declaration.generics.iter().zip(arguments).map(|(parameter, argument)| {
+            match (&parameter.kind, argument) {
+                (s::GenericParamKind::Type(_), CtTypeArgument::Type(actual)) => Ok((parameter.name.as_str(), *actual)),
+                _ => Err(self.unready("generic field has a non-Type formal without completed CT lineage")),
+            }
+        }).collect::<CompileResult<Vec<_>>>()?;
         budget.reserve_generated_nodes(owner_type.nodes.len() as u64)?;
         budget.reserve_temporary_bytes((owner_type.nodes.len() as u64).saturating_mul(96))?;
         let mut nodes = owner_type.nodes.clone();
         let root = self.append_source_type(requester, owner.module, &source_field.ty,
-            &parameter.name, *actual, &mut nodes, budget, 0)?;
+            &substitutions, &mut nodes, budget, 0)?;
         let Some(CtTypeNode::Nominal { symbol, .. }) = nodes.get(root.0 as usize) else {
             return Err(phase("checked generic field is nominal but source lineage is not"));
         };
@@ -555,6 +622,109 @@ impl FrozenReadView<'_> {
             .ok_or_else(|| phase("checked generic field instance has no frozen declaration"))?;
         if symbol != &expected { return Err(phase("checked generic field instance differs from source lineage")); }
         Self::compact_type_ref(CtTypeRef { nodes, root }, budget)
+    }
+    fn matches_checked_type(&self, checked: &Type, value: &CtTypeRef, id: CtTypeNodeId,
+        derived: &ShapeSnapshot, budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<bool> {
+        if depth >= self.limits.max_call_depth.min(128) { return Err(self.unready("checked alias type exceeds CT depth")); }
+        budget.reserve_analysis_work(1)?;
+        let node = value.nodes.get(id.0 as usize).ok_or_else(|| error("E-CT-TYPE-LIMIT", "alias Type DAG node is absent"))?;
+        let matches = match (checked, node) {
+            (Type::Unit, CtTypeNode::Primitive(CtScalarTy::Unit))
+            | (Type::Bool, CtTypeNode::Primitive(CtScalarTy::Bool))
+            | (Type::U8, CtTypeNode::Primitive(CtScalarTy::U8))
+            | (Type::U16, CtTypeNode::Primitive(CtScalarTy::U16))
+            | (Type::I32, CtTypeNode::Primitive(CtScalarTy::I32))
+            | (Type::I64, CtTypeNode::Primitive(CtScalarTy::I64))
+            | (Type::ByteBuffer, CtTypeNode::Builtin(CtBuiltinType::ByteBuffer))
+            | (Type::ForeignHandle, CtTypeNode::Builtin(CtBuiltinType::ForeignHandle))
+            | (Type::CWideString, CtTypeNode::Builtin(CtBuiltinType::CWideString)) => true,
+            (Type::Record { name, .. } | Type::Package { name, .. } | Type::Enum { name, .. }, CtTypeNode::Nominal { symbol, .. }) =>
+                derived.core.modules.iter().any(|module| {
+                    module.core.aggregates.iter().any(|candidate| {
+                        (name == &candidate.name || name == &format!("@module{}:{}", module.core.module_id.0, candidate.name))
+                            && self.index.symbol_at(module.core.module_id, candidate.span).as_ref() == Some(symbol)
+                    }) || module.core.enums.iter().any(|candidate| {
+                        (name == &candidate.name || name == &format!("@module{}:{}", module.core.module_id.0, candidate.name))
+                            && self.index.symbol_at(module.core.module_id, candidate.span).as_ref() == Some(symbol)
+                    })
+                }),
+            (Type::Tuple(types), CtTypeNode::Tuple(ids)) if types.len() == ids.len() => {
+                let mut valid = true;
+                for (ty, id) in types.iter().zip(ids) { valid &= self.matches_checked_type(ty, value, *id, derived, budget, depth + 1)?; }
+                valid
+            }
+            (Type::Array { element, length }, CtTypeNode::Array { element: actual, length: count }) if length == count =>
+                self.matches_checked_type(element, value, *actual, derived, budget, depth + 1)?,
+            (Type::Slice { element }, CtTypeNode::Slice(actual)) =>
+                self.matches_checked_type(element, value, *actual, derived, budget, depth + 1)?,
+            (Type::Address { mutable, inner }, CtTypeNode::Address { mutable: actual, inner: id }) if mutable == actual =>
+                self.matches_checked_type(inner, value, *id, derived, budget, depth + 1)?,
+            (Type::FunctionPointer { parameters, result }, CtTypeNode::FunctionPointer { parameters: ids, result: id })
+            | (Type::ForeignCallback { parameters, result }, CtTypeNode::ForeignCallback { parameters: ids, result: id })
+                if parameters.len() == ids.len() => {
+                let mut valid = self.matches_checked_type(result, value, *id, derived, budget, depth + 1)?;
+                for (ty, id) in parameters.iter().zip(ids) { valid &= self.matches_checked_type(ty, value, *id, derived, budget, depth + 1)?; }
+                valid
+            }
+            (Type::ErrorUnion { error, result }, CtTypeNode::ErrorUnion { error: left, result: right }) =>
+                self.matches_checked_type(error, value, *left, derived, budget, depth + 1)?
+                    && self.matches_checked_type(result, value, *right, derived, budget, depth + 1)?,
+            _ => false,
+        };
+        Ok(matches)
+    }
+    fn alias_value(&self, requester: &CtSymbolId, alias: &CtSymbolId,
+        handle: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
+        self.alias_value_inner(requester, alias, handle, budget, 0)
+    }
+    fn alias_value_inner(&self, requester: &CtSymbolId, alias: &CtSymbolId,
+        handle: &CtTypeRef, budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<CtTypeRef> {
+        if depth >= self.limits.max_call_depth.min(128) {
+            return Err(self.unready("type alias chain exceeds CT depth"));
+        }
+        budget.reserve_analysis_work(1)?;
+        self.nominal(requester, alias)?;
+        let ItemKind::TypeAlias(declaration) = &self.declaration(alias).ok_or_else(|| phase("type alias declaration is absent"))?.kind else {
+            return Err(phase("type alias identity differs from frozen source"));
+        };
+        let rhs = declaration.value.as_ref().ok_or_else(|| self.unready("type alias has no completed right hand side"))?;
+        let Some(CtTypeNode::Nominal { arguments, .. }) = handle.nodes.get(handle.root.0 as usize) else {
+            return Err(error("E-CT-QUERY-TYPE", "alias requires a nominal Type application"));
+        };
+        if arguments.len() != declaration.generics.len() {
+            return Err(error("E-CT-TYPE-ARITY", "alias argument count differs from frozen declaration"));
+        }
+        let substitutions = declaration.generics.iter().zip(arguments).map(|(parameter, argument)| {
+            match (&parameter.kind, argument) {
+                (s::GenericParamKind::Type(_), CtTypeArgument::Type(actual)) => Ok((parameter.name.as_str(), *actual)),
+                _ => Err(self.unready("alias has a non-Type formal without completed CT lineage")),
+            }
+        }).collect::<CompileResult<Vec<_>>>()?;
+        let (derived, bytes) = self.derived_shape(alias, handle, budget)?;
+        let probe_name = format!("__zil_ct_shape_probe_{}_{}", alias.module.0, alias.declaration.0);
+        let checked = derived.core.modules.iter().find(|module| module.core.module_id == alias.module)
+            .and_then(|module| module.core.functions.iter().find(|function| function.name == probe_name))
+            .and_then(|function| function.parameters.first())
+            .map(|parameter| &parameter.ty)
+            .ok_or_else(|| phase("ordinary type alias probe has no checked type"))?;
+        budget.reserve_generated_nodes(handle.nodes.len() as u64)?;
+        budget.reserve_temporary_bytes((handle.nodes.len() as u64).saturating_mul(96))?;
+        let mut nodes = handle.nodes.clone();
+        let root = self.append_source_type(requester, alias.module, rhs, &substitutions, &mut nodes, budget, 0)?;
+        let value = Self::compact_type_ref(CtTypeRef { nodes, root }, budget)?;
+        let next_alias = match value.nodes.get(value.root.0 as usize) {
+            Some(CtTypeNode::Nominal { symbol, .. })
+                if matches!(self.declaration(symbol).map(|item| &item.kind), Some(ItemKind::TypeAlias(_)))
+                => Some(symbol.clone()),
+            _ => None,
+        };
+        let value = if let Some(next) = next_alias {
+            self.alias_value_inner(requester, &next, &value, budget, depth + 1)?
+        } else { value };
+        let matching = self.matches_checked_type(checked, &value, value.root, &derived, budget, 0)?;
+        if !matching { return Err(self.unready("alias Type lineage differs from checked ordinary type")); }
+        budget.release_temporary_bytes(bytes);
+        Ok(value)
     }
     fn compact_type_ref(ty: CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
         let count = ty.nodes.len();
@@ -572,35 +742,45 @@ impl FrozenReadView<'_> {
         budget.reserve_analysis_work((count as u64).saturating_mul(3).saturating_add(edges))?;
         let scratch = (count as u64).saturating_mul(16).saturating_add(edges.saturating_mul(8));
         budget.reserve_temporary_bytes(scratch)?;
-        let mut reached = vec![false; count];
-        let mut pending = vec![ty.root];
-        while let Some(id) = pending.pop() {
+        let mut reached = vec![0u8; count];
+        let mut pending = vec![(ty.root, false)];
+        let mut order = Vec::with_capacity(count);
+        while let Some((id, complete)) = pending.pop() {
             let index = id.0 as usize;
             let node = ty.nodes.get(index).ok_or_else(|| error("E-CT-TYPE-LIMIT", "type DAG node is outside the frozen field value"))?;
-            if reached[index] { continue; }
-            reached[index] = true;
-            match node {
-                CtTypeNode::Nominal { arguments, .. } => for arg in arguments {
-                    if let CtTypeArgument::Type(id) = arg { pending.push(*id); }
-                },
-                CtTypeNode::Tuple(parts) => pending.extend(parts),
+            if complete {
+                reached[index] = 2;
+                order.push(index);
+                continue;
+            }
+            if reached[index] == 2 { continue; }
+            if reached[index] == 1 { return Err(error("E-CT-TYPE-LIMIT", "type DAG has a cycle")); }
+            reached[index] = 1;
+            pending.push((id, true));
+            let children = match node {
+                CtTypeNode::Nominal { arguments, .. } => arguments.iter().filter_map(|arg| match arg {
+                    CtTypeArgument::Type(id) => Some(*id), CtTypeArgument::Scalar(_) => None,
+                }).collect::<Vec<_>>(),
+                CtTypeNode::Tuple(parts) => parts.clone(),
                 CtTypeNode::Array { element, .. } | CtTypeNode::Slice(element) | CtTypeNode::Managed(element)
                     | CtTypeNode::Desc(element) | CtTypeNode::OwnedStore(element)
-                    | CtTypeNode::Address { inner: element, .. } => pending.push(*element),
+                    | CtTypeNode::Address { inner: element, .. } => vec![*element],
                 CtTypeNode::FunctionPointer { parameters, result } | CtTypeNode::ForeignCallback { parameters, result } => {
-                    pending.extend(parameters); pending.push(*result);
+                    let mut children = parameters.clone(); children.push(*result); children
                 }
-                CtTypeNode::ErrorUnion { error, result } => { pending.push(*error); pending.push(*result); }
-                _ => {},
-            }
+                CtTypeNode::ErrorUnion { error, result } => vec![*error, *result],
+                _ => Vec::new(),
+            };
+            for child in children.into_iter().rev() { pending.push((child, false)); }
         }
-        let live = reached.iter().filter(|value| **value).count();
+        let live = order.len();
         budget.reserve_generated_nodes(live as u64)?;
         budget.reserve_temporary_bytes((live as u64).saturating_mul(96).saturating_add(edges.saturating_mul(32)))?;
         let mut remap = vec![CtTypeNodeId(0); count];
         let mut nodes = Vec::with_capacity(live);
-        for (index, node) in ty.nodes.into_iter().enumerate() {
-            if !reached[index] { continue; }
+        let mut originals = ty.nodes.into_iter().map(Some).collect::<Vec<_>>();
+        for index in order {
+            let node = originals[index].take().expect("each reachable DAG node has one postorder entry");
             let mapped = |id: CtTypeNodeId| remap[id.0 as usize];
             let node = match node {
                 CtTypeNode::Nominal { symbol, arguments } => CtTypeNode::Nominal { symbol,
@@ -720,10 +900,14 @@ impl CtReadView for FrozenReadView<'_> {
         }
     }
     fn type_name(&self, requester: &CtSymbolId, symbol: &CtSymbolId, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
-        self.nominal(requester, symbol)?;
+        let item = self.nominal(requester, symbol)?;
         budget.reserve_analysis_work(1)?;
         budget.reserve_generated_nodes(1)?;
-        Ok(CtTypeRef { nodes: vec![CtTypeNode::Nominal { symbol: symbol.clone(), arguments: Vec::new() }], root: CtTypeNodeId(0) })
+        let handle = CtTypeRef { nodes: vec![CtTypeNode::Nominal { symbol: symbol.clone(), arguments: Vec::new() }], root: CtTypeNodeId(0) };
+        if matches!(&item.kind, ItemKind::TypeAlias(alias) if alias.generics.is_empty()) {
+            return self.alias_value(requester, symbol, &handle, budget);
+        }
+        Ok(handle)
     }
     fn type_apply(&self, requester: &CtSymbolId, nominal: &CtSymbolId, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
         let item = self.nominal(requester, nominal)?;
@@ -774,7 +958,11 @@ impl CtReadView for FrozenReadView<'_> {
         let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "generic Type node identity overflow"))?);
         nodes.push(CtTypeNode::Nominal { symbol: nominal.clone(), arguments });
         let applied = CtTypeRef { nodes, root };
-        if matches!(&item.kind, ItemKind::Aggregate(value) if !value.generics.is_empty())
+        if matches!(&item.kind, ItemKind::TypeAlias(_)) {
+            return self.alias_value(requester, nominal, &applied, budget);
+        }
+        if (matches!(&item.kind, ItemKind::Aggregate(value) if !value.generics.is_empty())
+            || matches!(&item.kind, ItemKind::Enum(value) if !value.generics.is_empty()))
             && self.template(nominal).is_none() {
             let (_, bytes) = self.derived_shape(nominal, &applied, budget)?;
             budget.release_temporary_bytes(bytes);
@@ -888,6 +1076,10 @@ impl CtReadView for FrozenReadView<'_> {
                         let Some(trait_symbol) = self.source_nominal(*module, trait_type, true) else { return Err(self.unready("trait declaration is not in the completed implementation index")); };
                         if !self.index.visible(requester, &trait_symbol) { continue; }
                         let implementation = self.index.symbol_at(*module, *span).ok_or_else(|| self.unready("implementation has no frozen declaration identity"))?;
+                        if results.iter().any(|candidate| matches!(candidate,
+                            CtValue::ImplInfo(info) if info.implementation == implementation && info.for_type == *ty)) {
+                            continue;
+                        }
                         budget.reserve_generated_nodes(1u64.saturating_add(ty.nodes.len() as u64))?;
                         budget.reserve_temporary_bytes((ty.nodes.len() as u64).saturating_mul(96).saturating_add(256))?;
                         results.push(CtValue::ImplInfo(CtImplInfo { trait_symbol, implementation, for_type: ty.clone() }));
@@ -918,6 +1110,18 @@ impl CtReadView for FrozenReadView<'_> {
                         AggregateKind::Package => Type::Package { name, fields },
                         AggregateKind::Resource => return Err(self.unready("bare resource layout is not an ordinary value type")),
                     };
+                    budget.release_temporary_bytes(bytes);
+                    ordinary
+                } else if matches!(self.declaration(nominal).map(|item| &item.kind),
+                    Some(ItemKind::Enum(value)) if !value.generics.is_empty()) {
+                    let (derived, bytes) = self.derived_shape(nominal, ty, budget)?;
+                    let span = self.index.span(nominal).ok_or_else(|| phase("generic enum declaration is absent"))?;
+                    let enumeration = derived.core.modules.iter().find(|module| module.core.module_id == nominal.module)
+                        .and_then(|module| module.core.enums.iter().find(|enumeration| enumeration.span == span))
+                        .ok_or_else(|| self.unready("generic enum instance has not completed ordinary checking"))?;
+                    budget.reserve_analysis_work(enumeration.variants.len() as u64)?;
+                    budget.reserve_temporary_bytes((enumeration.variants.len() as u64).saturating_mul(128))?;
+                    let ordinary = Type::Enum { name: format!("@module{}:{}", nominal.module.0, enumeration.name), variants: enumeration.variants.clone() };
                     budget.release_temporary_bytes(bytes);
                     ordinary
                 } else {
