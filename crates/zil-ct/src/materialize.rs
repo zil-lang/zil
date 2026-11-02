@@ -122,6 +122,7 @@ impl Reifier<'_> {
                             kind: CoreExprKind::Name(namespace),
                         }),
                         member,
+                        owner: None,
                     },
                 };
                 let arguments = fields
@@ -423,7 +424,7 @@ mod tests {
                 panic!("ordinary constructor call")
             };
             assert_eq!(callee.id, NodeId(100));
-            let CoreExprKind::Member { object, member } = callee.kind else {
+            let CoreExprKind::Member { object, member, .. } = callee.kind else {
                 panic!("ordinary namespace member")
             };
             assert_eq!(object.id, NodeId(101));
