@@ -1,0 +1,1134 @@
+--- a/crates/zil-backend-llvm/src/machine_cgu.rs
++++ b/crates/zil-backend-llvm/src/machine_cgu.rs
+@@ -6,7 +6,7 @@
+ #[cfg(test)]
+ use zil_ir::LirModule;
+ use zil_ir::LirView;
+-use zil_llvm_api::model::{Item, Module};
++use zil_llvm_api::model::{Function, Item, Module, Op, Val};
+ 
+ pub(crate) struct Plan {
+     pub units: Vec<Module>,
+@@ -17,6 +17,7 @@
+     index: usize,
+     local: bool,
+     refs: BTreeSet<String>,
++    calls: BTreeSet<String>,
+ }
+ 
+ #[cfg(test)]
+@@ -43,7 +44,7 @@
+     }
+     let mut defs = Vec::new();
+     let mut prelude = Vec::new();
+-    let mut symbols = BTreeSet::new();
++    let mut symbols = BTreeSet::<&str>::new();
+     for (index, item) in module.items.iter().enumerate() {
+         // Removing declarations must not hide a collision with a definition in
+         // a different unit. Leave the original module to the ordinary validator.
+@@ -53,7 +54,7 @@
+             Item::NamedType(..) => None,
+         };
+         if let Some(symbol) = symbol
+-            && !symbols.insert(symbol)
++            && !symbols.insert(symbol.as_str())
+         {
+             return fallback(module, "duplicate machine definition or declaration");
+         }
+@@ -63,6 +64,11 @@
+                 index,
+                 local: f.linkage.is_local(),
+                 refs: f.references(),
++                calls: if import_small_functions {
++                    direct_calls(f)
++                } else {
++                    BTreeSet::new()
++                },
+             }),
+             Item::Global(g) if g.initializer.is_some() => {
+                 let mut refs = BTreeSet::new();
+@@ -74,6 +80,7 @@
+                     index,
+                     local: g.linkage.is_local(),
+                     refs,
++                    calls: BTreeSet::new(),
+                 });
+             }
+             _ => prelude.push(index),
+@@ -185,11 +192,12 @@
+             return fallback(module, "invalid machine declaration prelude");
+         }
+     }
+-    // Bodies imported for optimization never acquire ownership. Their original
+-    // symbols keep a unique emitted definition and their complete dependency
+-    // closure becomes part of this unit's normal validation and cache identity.
+-    const IMPORT_FUNCTION_COST: usize = 64;
+-    const IMPORT_UNIT_COST: usize = 65_536;
++    // Import a complete direct-call closure, not a definition-ID prefix. Mere
++    // function addresses retain canonical declarations without copying a body.
++    // Every copy becomes a real private implementation below: its exact body
++    // may participate in non-inlining IPO and must be emitted if not inlined.
++    // Extra copies may consume at most one source graph's instruction/block
++    // cost; exceeding that whole-plan guard falls back without truncation.
+     let mut imports = BTreeMap::<usize, BTreeSet<usize>>::new();
+     if import_small_functions {
+         let source_functions = lir
+@@ -198,41 +206,62 @@
+             .filter(|f| f.foreign.is_none())
+             .map(|f| format!("zil.fn.{}", f.id.0))
+             .collect::<BTreeSet<_>>();
++        let original_cost = source_functions
++            .iter()
++            .filter_map(|name| names.get(name.as_str()))
++            .filter_map(|&id| match &module.items[defs[id].index] {
++                Item::Function(function) => Some(function.cost()),
++                _ => None,
++            })
++            .sum::<usize>();
++        let mut copied_cost = 0usize;
+         for (&owner, definitions) in &members {
+             let mut pending = definitions
+                 .iter()
+-                .flat_map(|&id| defs[id].refs.iter())
++                .flat_map(|&id| defs[id].calls.iter())
+                 .filter_map(|name| names.get(name.as_str()).copied())
+                 .collect::<BTreeSet<_>>();
+             let mut seen = BTreeSet::new();
+             let mut imported = BTreeSet::new();
+-            let mut remaining = IMPORT_UNIT_COST;
+             while let Some(id) = pending.pop_first() {
+-                if owners[id] == owner
+-                    || !seen.insert(id)
+-                    || !source_functions.contains(&defs[id].name)
+-                {
++                if owners[id] == owner || !seen.insert(id) {
+                     continue;
++                }
++                if !source_functions.contains(&defs[id].name) {
++                    return fallback(
++                        module,
++                        "complete O2 call closure includes a compiler-owned definition",
++                    );
+                 }
+                 let Item::Function(function) = &module.items[defs[id].index] else {
+                     continue;
+                 };
+-                let cost = function.cost();
+                 if function.linkage != zil_llvm_api::model::Linkage::External
+-                    || cost > IMPORT_FUNCTION_COST
+-                    || cost > remaining
+                     || defs[id]
+                         .refs
+                         .iter()
+                         .any(|name| names.get(name.as_str()).is_some_and(|&id| defs[id].local))
+                 {
+-                    continue;
++                    // Copying a local global would duplicate observable state;
++                    // referencing it from another unit would lose its identity.
++                    // Preserve the original complete module until a grouping
++                    // policy can represent this closure without either change.
++                    return fallback(
++                        module,
++                        "complete O2 call closure requires a local definition",
++                    );
+                 }
+-                remaining -= cost;
++                let Some(total) = copied_cost.checked_add(function.cost()) else {
++                    return fallback(module, "complete O2 call closure exceeds total copy cost");
++                };
++                if total > original_cost {
++                    return fallback(module, "complete O2 call closure exceeds total copy cost");
++                }
++                copied_cost = total;
+                 imported.insert(id);
+                 pending.extend(
+                     defs[id]
+-                        .refs
++                        .calls
+                         .iter()
+                         .filter_map(|name| names.get(name.as_str()).copied()),
+                 );
+@@ -241,7 +270,7 @@
+         }
+     }
+     let mut prototypes = BTreeMap::new();
+-    let mut imported_bodies = BTreeMap::new();
++    let mut uses_left = vec![1usize; defs.len()];
+     for (&owner, definitions) in &members {
+         let imported = imports.entry(owner).or_default();
+         for &id in definitions.iter().chain(imported.iter()) {
+@@ -261,12 +290,16 @@
+             }
+         }
+         for &id in imported.iter() {
+-            imported_bodies.entry(id).or_insert_with(|| {
+-                let Item::Function(mut function) = module.items[defs[id].index].clone() else {
++            uses_left[id] += 1;
++            let clone_name = format!("zil.import.{owner}.{}", defs[id].name);
++            if symbols.contains(clone_name.as_str()) {
++                return fallback(module, "O2 implementation clone symbol collision");
++            }
++            prototypes.entry(id).or_insert_with(|| {
++                let Item::Function(function) = &module.items[defs[id].index] else {
+                     unreachable!()
+                 };
+-                function.linkage = zil_llvm_api::model::Linkage::AvailableExternally;
+-                Item::Function(function)
++                Item::Function(function.declaration())
+             });
+         }
+     }
+@@ -278,6 +311,15 @@
+     let mut units = Vec::with_capacity(members.len());
+     for (owner, definitions) in members {
+         let imported = &imports[&owner];
++        let clone_names = imported
++            .iter()
++            .map(|&id| {
++                (
++                    defs[id].name.clone(),
++                    format!("zil.import.{owner}.{}", defs[id].name),
++                )
++            })
++            .collect::<BTreeMap<_, _>>();
+         let referenced = definitions
+             .iter()
+             .chain(imported.iter())
+@@ -307,11 +349,26 @@
+                 items.push(prototypes[&id].clone());
+             }
+         }
+-        items.extend(imported.iter().map(|id| imported_bodies[id].clone()));
++        for &id in imported {
++            // Address operands and callback arguments must still resolve to
++            // the canonical owner even when the direct callee is a clone.
++            items.push(prototypes[&id].clone());
++            let Item::Function(mut function) =
++                distribute_item(&mut original[defs[id].index], &mut uses_left[id])
++            else {
++                unreachable!()
++            };
++            function.linkage = zil_llvm_api::model::Linkage::Internal;
++            function.name = clone_names[&defs[id].name].clone();
++            rewrite_direct_calls(&mut function, &clone_names);
++            items.push(Item::Function(function));
++        }
+         items.extend(definitions.iter().map(|&id| {
+-            original[defs[id].index]
+-                .take()
+-                .expect("definition has one owner")
++            let mut item = distribute_item(&mut original[defs[id].index], &mut uses_left[id]);
++            if let Item::Function(function) = &mut item {
++                rewrite_direct_calls(function, &clone_names);
++            }
++            item
+         }));
+         units.push(Module {
+             triple: module.triple.clone(),
+@@ -322,6 +379,59 @@
+     Plan {
+         units,
+         fallback: None,
++    }
++}
++
++fn distribute_item(original: &mut Option<Item>, remaining: &mut usize) -> Item {
++    assert!(
++        *remaining > 0,
++        "definition distribution has a remaining consumer"
++    );
++    *remaining -= 1;
++    if *remaining == 0 {
++        original.take().expect("definition has one canonical owner")
++    } else {
++        original
++            .as_ref()
++            .expect("definition has future consumers")
++            .clone()
++    }
++}
++
++fn direct_calls(function: &Function) -> BTreeSet<String> {
++    function
++        .blocks
++        .iter()
++        .flatten()
++        .flat_map(|block| &block.instructions)
++        .filter_map(|instruction| match &instruction.op {
++            Op::Call {
++                callee: Val::Global(name),
++                ..
++            } => Some(name.clone()),
++            _ => None,
++        })
++        .collect()
++}
++
++fn rewrite_direct_calls(function: &mut Function, names: &BTreeMap<String, String>) {
++    if names.is_empty() {
++        return;
++    }
++    for instruction in function
++        .blocks
++        .iter_mut()
++        .flatten()
++        .flat_map(|block| &mut block.instructions)
++    {
++        if let Op::Call {
++            callee: Val::Global(name),
++            ..
++        } = &mut instruction.op
++            && let Some(clone) = names.get(name)
++        {
++            *name = clone.clone();
++        }
+     }
+ }
+ 
+@@ -408,6 +518,15 @@
+     }
+ }
+ 
++#[cfg(all(
++    test,
++    feature = "llvm-api",
++    target_os = "linux",
++    target_arch = "x86_64"
++))]
++#[path = "machine_cgu_clone_controls.rs"]
++mod clone_controls;
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -442,6 +561,33 @@
+             fingerprint: "test".into(),
+             items,
+         }
++    }
++    fn call_function(name: &str, result: Ty, target: &str) -> Item {
++        Item::Function(Function {
++            name: name.into(),
++            linkage: Linkage::External,
++            signature: Signature::new(result.clone(), vec![]),
++            attrs: vec![],
++            blocks: Some(vec![Block {
++                name: "entry".into(),
++                instructions: vec![
++                    Inst::new(
++                        Some("value".into()),
++                        Op::Call {
++                            result: result.clone(),
++                            result_attrs: vec![],
++                            callee: Val::Global(target.into()),
++                            args: vec![],
++                            vararg: None,
++                        },
++                    ),
++                    Inst::new(
++                        None,
++                        Op::Return(Some(Arg::new(result, Val::Local("value".into())))),
++                    ),
++                ],
++            }]),
++        })
+     }
+     fn definitions(m: &Module) -> BTreeSet<&str> {
+         m.items
+@@ -520,12 +666,12 @@
+     }
+     #[test]
+     fn o2_imports_follow_transitive_bodies_and_keep_unique_emitted_owners() {
+-        let source = candidate_lir(&(0..600).collect::<Vec<_>>());
+-        let mut items = (0..600)
++        let source = candidate_lir(&(0..900).collect::<Vec<_>>());
++        let mut items = (0..900)
+             .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
+             .collect::<Vec<_>>();
+-        items[0] = f("zil.fn.0", Ty::Ptr, Val::Global("zil.fn.256".into()));
+-        items[256] = f("zil.fn.256", Ty::Ptr, Val::Global("zil.fn.512".into()));
++        items[0] = call_function("zil.fn.0", Ty::Int(32), "zil.fn.256");
++        items[256] = call_function("zil.fn.256", Ty::Int(32), "zil.fn.512");
+         let plan = partition_view(
+             m(items.clone()),
+             &source.as_view(),
+@@ -534,21 +680,21 @@
+             true,
+             true,
+         );
+-        assert_eq!(plan.units.len(), 3);
++        assert_eq!(plan.units.len(), 4);
+         for unit in &plan.units {
+             zil_llvm_api::validate_module(unit).unwrap();
+         }
+         let first = &plan.units[0];
+         assert_eq!(function_linkage(first, "zil.fn.0"), Linkage::External);
+         assert_eq!(
+-            function_linkage(first, "zil.fn.256"),
+-            Linkage::AvailableExternally
+-        );
+-        assert_eq!(
+-            function_linkage(first, "zil.fn.512"),
+-            Linkage::AvailableExternally
+-        );
+-        for id in 0..600 {
++            function_linkage(first, "zil.import.0.zil.fn.256"),
++            Linkage::Internal
++        );
++        assert_eq!(
++            function_linkage(first, "zil.import.0.zil.fn.512"),
++            Linkage::Internal
++        );
++        for id in 0..900 {
+             assert_eq!(plan.units.iter().flat_map(|u| &u.items).filter(|item| matches!(item, Item::Function(f) if f.name == format!("zil.fn.{id}") && f.blocks.is_some() && f.linkage != Linkage::AvailableExternally)).count(), 1);
+         }
+         // Imported bodies affect exactly the units which consume them; unrelated
+@@ -558,16 +704,17 @@
+         assert_ne!(plan.units[0].items, edited.units[0].items);
+         assert_ne!(plan.units[1].items, edited.units[1].items);
+         assert_ne!(plan.units[2].items, edited.units[2].items);
++        assert_eq!(plan.units[3].items, edited.units[3].items);
+         let mut closed = plan.units;
+         let changed = internalize_closed_executable(&mut closed, &source.as_view());
+         assert!(changed > 0);
+         assert_eq!(
+-            function_linkage(&closed[0], "zil.fn.256"),
+-            Linkage::AvailableExternally
++            function_linkage(&closed[0], "zil.import.0.zil.fn.256"),
++            Linkage::Internal
+         );
+         assert_eq!(
+             function_linkage(&closed[1], "zil.fn.256"),
+-            Linkage::External
++            Linkage::Internal
+         );
+         for unit in &closed {
+             zil_llvm_api::validate_module(unit).unwrap();
+@@ -580,7 +727,7 @@
+         let mut items = (0..600)
+             .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
+             .collect::<Vec<_>>();
+-        items[0] = f("zil.fn.0", Ty::Ptr, Val::Global("zil.fn.256".into()));
++        items[0] = call_function("zil.fn.0", Ty::Ptr, "zil.fn.256");
+         items[256] = f("zil.fn.256", Ty::Ptr, Val::Global("hidden".into()));
+         items.push(Item::Global(Global {
+             name: "hidden".into(),
+@@ -599,19 +746,20 @@
+             true,
+             true,
+         );
+-        assert_eq!(
+-            function_linkage(&plan.units[0], "zil.fn.256"),
+-            Linkage::External
+-        );
+-        assert!(!definitions(&plan.units[0]).contains("zil.fn.256"));
++        assert_eq!(plan.units.len(), 1);
++        assert_eq!(
++            plan.fallback,
++            Some("complete O2 call closure requires a local definition")
++        );
++        assert_eq!(plan.units[0].items, items);
+         let Item::Global(global) = items.last_mut().unwrap() else {
+             panic!()
+         };
+         global.linkage = Linkage::External;
+         let plan = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
+         assert_eq!(
+-            function_linkage(&plan.units[0], "zil.fn.256"),
+-            Linkage::AvailableExternally
++            function_linkage(&plan.units[0], "zil.import.0.zil.fn.256"),
++            Linkage::Internal
+         );
+         assert!(
+             plan.units[0]
+@@ -621,6 +769,183 @@
+         );
+         for unit in &plan.units {
+             zil_llvm_api::validate_module(unit).unwrap();
++        }
++    }
++
++    #[test]
++    fn address_only_references_never_copy_implementations() {
++        let source = candidate_lir(&(0..600).collect::<Vec<_>>());
++        let mut items = (0..600)
++            .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
++            .collect::<Vec<_>>();
++        items[0] = f("zil.fn.0", Ty::Ptr, Val::Global("zil.fn.256".into()));
++        let plan = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
++        assert_eq!(plan.units.len(), 3);
++        for unit in &plan.units {
++            zil_llvm_api::validate_module(unit).unwrap();
++            assert!(unit.items.iter().all(
++                |item| !matches!(item, Item::Function(f) if f.name.starts_with("zil.import."))
++            ));
++        }
++        assert_eq!(
++            function_linkage(&plan.units[0], "zil.fn.256"),
++            Linkage::External
++        );
++        assert!(!definitions(&plan.units[0]).contains("zil.fn.256"));
++    }
++
++    #[test]
++    fn large_transitive_closure_is_complete_and_keeps_canonical_arguments() {
++        let source = candidate_lir(&(0..512).collect::<Vec<_>>());
++        let mut items = (0..512)
++            .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
++            .collect::<Vec<_>>();
++        items[0] = call_function("zil.fn.0", Ty::Int(32), "zil.fn.256");
++        for (id, item) in items.iter_mut().enumerate().take(511).skip(256) {
++            *item = call_function(
++                &format!("zil.fn.{id}"),
++                Ty::Int(32),
++                &format!("zil.fn.{}", id + 1),
++            );
++            let Item::Function(function) = item else {
++                unreachable!()
++            };
++            let body = &mut function.blocks.as_mut().unwrap()[0].instructions;
++            let mut prefix = (0..300)
++                .map(|number| {
++                    Inst::new(
++                        Some(format!("unused.{number}")),
++                        Op::Binary {
++                            opcode: "add".into(),
++                            ty: Ty::Int(32),
++                            left: Val::Int(1),
++                            right: Val::Int(2),
++                        },
++                    )
++                })
++                .collect::<Vec<_>>();
++            prefix.append(body);
++            *body = prefix;
++        }
++        let plan = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
++        assert_eq!(plan.units.len(), 2);
++        assert!(plan.fallback.is_none());
++        let first = &plan.units[0];
++        assert_eq!(first.items.iter().filter(|item| matches!(item, Item::Function(f) if f.name.starts_with("zil.import.0.") && f.blocks.is_some())).count(), 256);
++        for unit in &plan.units {
++            zil_llvm_api::validate_module(unit).unwrap();
++        }
++        // Only the direct callee operand is rewritten, even when the same
++        // function symbol also appears as an argument or a returned address.
++        let mut function = Function {
++            name: "caller".into(),
++            linkage: Linkage::External,
++            signature: Signature::new(Ty::Ptr, vec![]),
++            attrs: vec![],
++            blocks: Some(vec![Block {
++                name: "entry".into(),
++                instructions: vec![
++                    Inst::new(
++                        Some("result".into()),
++                        Op::Call {
++                            result: Ty::Ptr,
++                            result_attrs: vec![],
++                            callee: Val::Global("f".into()),
++                            args: vec![Arg::new(Ty::Ptr, Val::Global("f".into()))],
++                            vararg: None,
++                        },
++                    ),
++                    Inst::new(
++                        None,
++                        Op::Return(Some(Arg::new(Ty::Ptr, Val::Global("f".into())))),
++                    ),
++                ],
++            }]),
++        };
++        rewrite_direct_calls(
++            &mut function,
++            &BTreeMap::from([("f".into(), "private.f".into())]),
++        );
++        let instructions = &function.blocks.as_ref().unwrap()[0].instructions;
++        let Op::Call { callee, args, .. } = &instructions[0].op else {
++            unreachable!()
++        };
++        assert_eq!(callee, &Val::Global("private.f".into()));
++        assert_eq!(args[0].value, Val::Global("f".into()));
++        assert_eq!(
++            instructions[1].op,
++            Op::Return(Some(Arg::new(Ty::Ptr, Val::Global("f".into()))))
++        );
++    }
++
++    #[test]
++    fn multiply_shared_closure_falls_back_before_copying_any_body() {
++        let source = candidate_lir(&(0..600).collect::<Vec<_>>());
++        let module = m((0..600)
++            .map(|id| {
++                call_function(
++                    &format!("zil.fn.{id}"),
++                    Ty::Int(32),
++                    &format!("zil.fn.{}", (id + 1) % 600),
++                )
++            })
++            .collect());
++        let plan = partition_view(
++            module.clone(),
++            &source.as_view(),
++            EntryPoint::None,
++            8,
++            true,
++            true,
++        );
++        assert_eq!(
++            plan.fallback,
++            Some("complete O2 call closure exceeds total copy cost")
++        );
++        assert_eq!(plan.units, vec![module]);
++        zil_llvm_api::validate_module(&plan.units[0]).unwrap();
++    }
++
++    #[test]
++    fn canonical_owner_can_be_first_middle_or_last_consumer() {
++        for target in [0, 256, 512] {
++            let source = candidate_lir(&(0..768).collect::<Vec<_>>());
++            let mut items = (0..768)
++                .map(|id| f(&format!("zil.fn.{id}"), Ty::Int(32), Val::Int(7)))
++                .collect::<Vec<_>>();
++            let target_name = format!("zil.fn.{target}");
++            items[target] = f(&target_name, Ty::Ptr, Val::Global(target_name.clone()));
++            let canonical = items[target].clone();
++            for caller in [0, 256, 512] {
++                if caller != target {
++                    items[caller] =
++                        call_function(&format!("zil.fn.{caller}"), Ty::Ptr, &target_name);
++                }
++            }
++            let plan = partition_view(m(items), &source.as_view(), EntryPoint::None, 8, true, true);
++            assert_eq!(plan.units.len(), 3);
++            assert!(plan.fallback.is_none());
++            for (owner, unit) in plan.units.iter().enumerate() {
++                zil_llvm_api::validate_module(unit).unwrap();
++                if owner == target / 256 {
++                    assert!(unit.items.contains(&canonical));
++                } else {
++                    let name = format!("zil.import.{owner}.{target_name}");
++                    let Item::Function(clone) = unit
++                        .items
++                        .iter()
++                        .find(|item| matches!(item, Item::Function(f) if f.name == name))
++                        .unwrap()
++                    else {
++                        unreachable!()
++                    };
++                    assert_eq!(clone.linkage, Linkage::Internal);
++                    assert!(clone.references().contains(&target_name));
++                    assert!(
++                        matches!(&clone.blocks.as_ref().unwrap()[0].instructions[0].op, Op::Return(Some(arg)) if arg.value == Val::Global(target_name.clone()))
++                    );
++                }
++            }
+         }
+     }
+ 
+--- /dev/null
++++ b/crates/zil-backend-llvm/src/machine_cgu_clone_controls.rs
+@@ -0,0 +1,504 @@
++//! Dynamic machine-model controls; these do not claim frontend acceptance.
++use super::*;
++use std::{fs, process::Command};
++use zil_llvm_api::{Config, FunctionMerging, Optimization, model::*};
++
++fn source(count: u32) -> LirModule {
++    LirModule {
++        schema_version: zil_base::SCHEMA_VERSION,
++        module_id: zil_base::ModuleId(0),
++        verified_fingerprint: Fingerprint::ZERO,
++        target: zil_base::TargetProfile::host_llvm(),
++        resources: vec![],
++        closures: vec![],
++        layouts: vec![],
++        functions: (0..count)
++            .map(|id| zil_ir::TypedFunction {
++                callable_return_contract: None,
++                callable_contract: None,
++                id: zil_ir::FunctionId(id),
++                name: format!("f{id}"),
++                foreign: None,
++                environment: None,
++                parameters: vec![],
++                return_type: zil_ir::Type::I32,
++                result_mode: zil_ir::PassingMode::Infer,
++                locals: vec![],
++                values: vec![],
++                blocks: vec![],
++                entry: zil_ir::BlockId(0),
++                span: zil_base::Span::default(),
++            })
++            .collect(),
++    }
++}
++fn instruction(name: &str, op: Op) -> Inst {
++    Inst::new(
++        if name.is_empty() {
++            None
++        } else {
++            Some(name.into())
++        },
++        op,
++    )
++}
++fn argument(ty: Ty, name: &str) -> Arg {
++    Arg::new(ty, Val::Local(name.into()))
++}
++fn function(name: &str, params: Vec<Param>, instructions: Vec<Inst>) -> Item {
++    Item::Function(Function {
++        name: name.into(),
++        linkage: Linkage::External,
++        signature: Signature::new(Ty::Int(32), params),
++        attrs: vec![],
++        blocks: Some(vec![Block {
++            name: "entry".into(),
++            instructions,
++        }]),
++    })
++}
++fn call(name: &str, args: Vec<Arg>) -> Op {
++    Op::Call {
++        result: Ty::Int(32),
++        result_attrs: vec![],
++        callee: Val::Global(name.into()),
++        args,
++        vararg: None,
++    }
++}
++fn constants(count: u32) -> Vec<Item> {
++    (0..count)
++        .map(|id| {
++            function(
++                &format!("zil.fn.{id}"),
++                vec![],
++                vec![instruction(
++                    "",
++                    Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(7)))),
++                )],
++            )
++        })
++        .collect()
++}
++fn execute(name: &str, items: Vec<Item>, count: u32, c_source: &str, expected: &[u8]) {
++    let directory =
++        std::env::temp_dir().join(format!("zil-complete-clone-{}-{name}", std::process::id()));
++    fs::create_dir(&directory).unwrap();
++    struct Cleanup(std::path::PathBuf);
++    impl Drop for Cleanup {
++        fn drop(&mut self) {
++            let _ = fs::remove_dir_all(&self.0);
++        }
++    }
++    let _cleanup = Cleanup(directory.clone());
++    let module = Module {
++        triple: "x86_64-unknown-linux-gnu".into(),
++        fingerprint: "clone-control".into(),
++        items,
++    };
++    let source = source(count);
++    let plan = partition_view(module, &source.as_view(), EntryPoint::None, 8, true, true);
++    assert!(plan.fallback.is_none(), "{:?}", plan.fallback);
++    assert!(plan.units.len() > 1);
++    assert!(
++        plan.units
++            .iter()
++            .flat_map(|unit| &unit.items)
++            .any(|item| matches!(item, Item::Function(f) if f.name.starts_with("zil.import.")))
++    );
++    let config = Config {
++        triple: "x86_64-unknown-linux-gnu",
++        optimization: Optimization::O2,
++    };
++    let mut objects = vec![];
++    for (index, module) in plan.units.iter().enumerate() {
++        zil_llvm_api::validate_module(module).unwrap();
++        let object = zil_llvm_api::compile_module_with_function_merging(
++            module,
++            &config,
++            FunctionMerging::AfterOptimization,
++            &|| false,
++        )
++        .unwrap();
++        assert!(object.receipt.verify_before_after);
++        let path = directory.join(format!("unit-{index}.o"));
++        fs::write(&path, object.bytes).unwrap();
++        objects.push(path);
++    }
++    fs::write(directory.join("oracle.c"), c_source).unwrap();
++    let executable = directory.join("program");
++    let linked =
++        Command::new(std::env::var_os("ZIL_CLANG").expect("explicit clang for dynamic control"))
++            .arg("-O2")
++            .arg(directory.join("oracle.c"))
++            .args(objects)
++            .arg("-o")
++            .arg(&executable)
++            .output()
++            .unwrap();
++    assert!(
++        linked.status.success(),
++        "{}",
++        String::from_utf8_lossy(&linked.stderr)
++    );
++    let native = Command::new(&executable).output().unwrap();
++    assert!(native.status.success(), "{native:?}");
++    assert_eq!(native.stdout, expected);
++    assert!(native.stderr.is_empty());
++}
++
++#[test]
++fn direct_clones_preserve_self_addresses_callbacks_globals_and_distinct_equal_functions() {
++    let mut items = constants(600);
++    for id in [256, 257] {
++        let name = format!("zil.fn.{id}");
++        items[id] = function(
++            &name,
++            vec![Param::new(Ty::Ptr, "candidate")],
++            vec![
++                instruction(
++                    "old",
++                    Op::Load {
++                        ty: Ty::Int(32),
++                        ptr: Val::Global("shared_counter".into()),
++                        align: 4,
++                    },
++                ),
++                instruction(
++                    "next",
++                    Op::Binary {
++                        opcode: "add".into(),
++                        ty: Ty::Int(32),
++                        left: Val::Local("old".into()),
++                        right: Val::Int(1),
++                    },
++                ),
++                instruction(
++                    "",
++                    Op::Store {
++                        arg: argument(Ty::Int(32), "next"),
++                        ptr: Val::Global("shared_counter".into()),
++                        align: 4,
++                    },
++                ),
++                instruction(
++                    "same",
++                    Op::Compare {
++                        predicate: "eq".into(),
++                        ty: Ty::Ptr,
++                        left: Val::Local("candidate".into()),
++                        right: Val::Global(name),
++                    },
++                ),
++                instruction(
++                    "result",
++                    Op::Cast {
++                        opcode: "zext".into(),
++                        arg: argument(Ty::Int(1), "same"),
++                        to: Ty::Int(32),
++                    },
++                ),
++                instruction("", Op::Return(Some(argument(Ty::Int(32), "result")))),
++            ],
++        );
++    }
++    items[0] = function(
++        "zil.fn.0",
++        vec![],
++        vec![
++            instruction(
++                "direct",
++                call(
++                    "zil.fn.256",
++                    vec![Arg::new(Ty::Ptr, Val::Global("zil.fn.256".into()))],
++                ),
++            ),
++            instruction(
++                "callback",
++                call(
++                    "check_callback",
++                    vec![
++                        Arg::new(Ty::Ptr, Val::Global("zil.fn.256".into())),
++                        Arg::new(Ty::Ptr, Val::Global("zil.fn.257".into())),
++                        Arg::new(Ty::Ptr, Val::Global("zil.fn.256".into())),
++                    ],
++                ),
++            ),
++            instruction(
++                "result",
++                Op::Binary {
++                    opcode: "add".into(),
++                    ty: Ty::Int(32),
++                    left: Val::Local("direct".into()),
++                    right: Val::Local("callback".into()),
++                },
++            ),
++            instruction("", Op::Return(Some(argument(Ty::Int(32), "result")))),
++        ],
++    );
++    items.push(Item::Function(Function {
++        name: "check_callback".into(),
++        linkage: Linkage::External,
++        signature: Signature::new(
++            Ty::Int(32),
++            (0..3)
++                .map(|index| Param::new(Ty::Ptr, format!("p{index}")))
++                .collect(),
++        ),
++        attrs: vec![],
++        blocks: None,
++    }));
++    items.push(Item::Global(Global {
++        name: "shared_counter".into(),
++        linkage: Linkage::External,
++        ty: Ty::Int(32),
++        initializer: Some(Val::Int(0)),
++        constant: false,
++        unnamed_addr: false,
++        alignment: 4,
++    }));
++    items.push(Item::Global(Global {
++        name: "callbacks".into(),
++        linkage: Linkage::External,
++        ty: Ty::array(2, Ty::Ptr),
++        initializer: Some(Val::Array(vec![
++            Arg::new(Ty::Ptr, Val::Global("zil.fn.256".into())),
++            Arg::new(Ty::Ptr, Val::Global("zil.fn.257".into())),
++        ])),
++        constant: false,
++        unnamed_addr: false,
++        alignment: 8,
++    }));
++    execute(
++        "addresses",
++        items,
++        600,
++        r#"
++#include <stdio.h>
++typedef int(*Self)(void*);
++extern int invoke(void) __asm__("zil.fn.0");
++extern int equal_a(void) __asm__("zil.fn.1"),equal_b(void) __asm__("zil.fn.2");
++extern int self_a(void*) __asm__("zil.fn.256"),self_b(void*) __asm__("zil.fn.257");
++extern Self callbacks[2]; extern int shared_counter;
++int check_callback(void *a,void *b,Self f){return f==(Self)a && f(a)==1 && f(b)==0;}
++int main(void){int result=invoke();Self volatile a=callbacks[0],b=callbacks[1];int(*volatile x)(void)=equal_a;int(*volatile y)(void)=equal_b;
++if(result!=2||shared_counter!=3||a!=self_a||b!=self_b||a==b||x==y)return 71;
++putchar(result);putchar(shared_counter);putchar(a==self_a);putchar(x!=y);return 0;}
++"#,
++        &[2, 3, 1, 1],
++    );
++}
++
++#[test]
++fn mutual_recursion_preserves_each_direct_call_and_canonical_entry() {
++    let mut items = constants(600);
++    for (id, target) in [(256, 512), (512, 256)] {
++        items[id] = Item::Function(Function {
++            name: format!("zil.fn.{id}"),
++            linkage: Linkage::External,
++            signature: Signature::new(Ty::Int(32), vec![Param::new(Ty::Int(32), "x")]),
++            attrs: vec![],
++            blocks: Some(vec![
++                Block {
++                    name: "entry".into(),
++                    instructions: vec![
++                        instruction(
++                            "done",
++                            Op::Compare {
++                                predicate: "eq".into(),
++                                ty: Ty::Int(32),
++                                left: Val::Local("x".into()),
++                                right: Val::Int(0),
++                            },
++                        ),
++                        instruction(
++                            "",
++                            Op::CondBranch {
++                                condition: Val::Local("done".into()),
++                                yes: "base".into(),
++                                no: "step".into(),
++                            },
++                        ),
++                    ],
++                },
++                Block {
++                    name: "base".into(),
++                    instructions: vec![instruction(
++                        "",
++                        Op::Return(Some(Arg::new(Ty::Int(32), Val::Int(7)))),
++                    )],
++                },
++                Block {
++                    name: "step".into(),
++                    instructions: vec![
++                        instruction(
++                            "next",
++                            Op::Binary {
++                                opcode: "sub".into(),
++                                ty: Ty::Int(32),
++                                left: Val::Local("x".into()),
++                                right: Val::Int(1),
++                            },
++                        ),
++                        instruction(
++                            "value",
++                            call(
++                                &format!("zil.fn.{target}"),
++                                vec![argument(Ty::Int(32), "next")],
++                            ),
++                        ),
++                        instruction(
++                            "result",
++                            Op::Binary {
++                                opcode: "add".into(),
++                                ty: Ty::Int(32),
++                                left: Val::Local("value".into()),
++                                right: Val::Int(1),
++                            },
++                        ),
++                        instruction("", Op::Return(Some(argument(Ty::Int(32), "result")))),
++                    ],
++                },
++            ]),
++        });
++    }
++    items[0] = function(
++        "zil.fn.0",
++        vec![],
++        vec![
++            instruction(
++                "value",
++                call("zil.fn.256", vec![Arg::new(Ty::Int(32), Val::Int(5))]),
++            ),
++            instruction("", Op::Return(Some(argument(Ty::Int(32), "value")))),
++        ],
++    );
++    execute(
++        "recursion",
++        items,
++        600,
++        r#"
++#include <stdio.h>
++extern int invoke(void) __asm__("zil.fn.0");
++extern int canonical(int) __asm__("zil.fn.256");
++int main(void){if(invoke()!=12)return 72;for(int x=0;x<64;x++){int y=canonical(x);if(y!=x+7)return 73;putchar(y);}return 0;}
++"#,
++        &(7..71).collect::<Vec<u8>>(),
++    );
++}
++
++#[test]
++fn direct_recursion_keeps_canonical_self_address_through_every_clone_call() {
++    let mut items = constants(600);
++    items[256] = Item::Function(Function {
++        name: "zil.fn.256".into(),
++        linkage: Linkage::External,
++        signature: Signature::new(
++            Ty::Int(32),
++            vec![Param::new(Ty::Ptr, "p"), Param::new(Ty::Int(32), "n")],
++        ),
++        attrs: vec![],
++        blocks: Some(vec![
++            Block {
++                name: "entry".into(),
++                instructions: vec![
++                    instruction(
++                        "done",
++                        Op::Compare {
++                            predicate: "eq".into(),
++                            ty: Ty::Int(32),
++                            left: Val::Local("n".into()),
++                            right: Val::Int(0),
++                        },
++                    ),
++                    instruction(
++                        "",
++                        Op::CondBranch {
++                            condition: Val::Local("done".into()),
++                            yes: "base".into(),
++                            no: "step".into(),
++                        },
++                    ),
++                ],
++            },
++            Block {
++                name: "base".into(),
++                instructions: vec![
++                    instruction(
++                        "same",
++                        Op::Compare {
++                            predicate: "eq".into(),
++                            ty: Ty::Ptr,
++                            left: Val::Local("p".into()),
++                            right: Val::Global("zil.fn.256".into()),
++                        },
++                    ),
++                    instruction(
++                        "result",
++                        Op::Cast {
++                            opcode: "zext".into(),
++                            arg: argument(Ty::Int(1), "same"),
++                            to: Ty::Int(32),
++                        },
++                    ),
++                    instruction("", Op::Return(Some(argument(Ty::Int(32), "result")))),
++                ],
++            },
++            Block {
++                name: "step".into(),
++                instructions: vec![
++                    instruction(
++                        "next",
++                        Op::Binary {
++                            opcode: "sub".into(),
++                            ty: Ty::Int(32),
++                            left: Val::Local("n".into()),
++                            right: Val::Int(1),
++                        },
++                    ),
++                    instruction(
++                        "value",
++                        call(
++                            "zil.fn.256",
++                            vec![argument(Ty::Ptr, "p"), argument(Ty::Int(32), "next")],
++                        ),
++                    ),
++                    instruction("", Op::Return(Some(argument(Ty::Int(32), "value")))),
++                ],
++            },
++        ]),
++    });
++    items[0] = function(
++        "zil.fn.0",
++        vec![],
++        vec![
++            instruction(
++                "value",
++                call(
++                    "zil.fn.256",
++                    vec![
++                        Arg::new(Ty::Ptr, Val::Global("zil.fn.256".into())),
++                        Arg::new(Ty::Int(32), Val::Int(7)),
++                    ],
++                ),
++            ),
++            instruction("", Op::Return(Some(argument(Ty::Int(32), "value")))),
++        ],
++    );
++    execute(
++        "recursive-address",
++        items,
++        600,
++        r#"
++#include <stdio.h>
++typedef int(*Self)(void*,int);
++extern int invoke(void) __asm__("zil.fn.0");
++extern int canonical(void*,int) __asm__("zil.fn.256");
++extern int other(void) __asm__("zil.fn.1");
++int main(void){Self volatile f=canonical;int(*volatile g)(void)=other;
++int a=invoke(),b=f((void*)f,64),c=f((void*)g,9);if(a!=1||b!=1||c!=0)return 74;
++putchar(a);putchar(b);putchar(c);return 0;}
++"#,
++        &[1, 1, 0],
++    );
++}

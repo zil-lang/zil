@@ -48,11 +48,12 @@ pub(super) fn definitions(
 }
 impl Builder<'_, '_> {
     pub(super) fn owned_closure(&self, ty: &Type) -> bool {
-        matches!(ty, Type::Closure(id) if self.closures.pending[id.0 as usize].owns_resources())
+        matches!(ty, Type::Closure(id) if (self.closures.pending[id.0 as usize].defer_action || self.closures.pending[id.0 as usize].owns_resources()))
     }
     pub(super) fn has_cleanup(&self, ty: &Type) -> bool {
         matches!(ty, Type::Managed(_) | Type::Package { .. })
             || errors::owned(ty)
+            || owned_shapes::enumeration(ty)
             || packages::owned_array_supported(ty)
             || self.owned_closure(ty)
     }
@@ -62,6 +63,8 @@ impl Builder<'_, '_> {
             Some(InstructionKind::DropManaged { local })
         } else if matches!(ty, Type::Package { .. }) {
             Some(InstructionKind::DropPackage { local })
+        } else if owned_shapes::enumeration(ty) {
+            Some(InstructionKind::DropEnum { local })
         } else if errors::owned(ty) {
             Some(InstructionKind::DropErrorUnion { local })
         } else if packages::owned_array_supported(ty) {

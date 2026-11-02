@@ -37,7 +37,9 @@ pub(super) fn supported(ty: &Type) -> bool {
 /// Ordinary owned values have a separate Product gate. Store, Sum and
 /// owned-array callers deliberately retain the older `supported` profile.
 pub(super) fn ordinary(ty: &Type) -> bool {
-    supported(ty) || (product::nested(ty) && product::supported(ty))
+    supported(ty)
+        || (product::nested(ty) && product::owned_supported(ty))
+        || (matches!(ty, Type::Package { .. }) && owned_shapes::value(ty))
 }
 
 /// Capture qualification is separate from ordinary/container admission. The
@@ -539,6 +541,7 @@ impl Builder<'_, '_> {
             InstructionKind::DescribePackageField { local, index }
         } else if array_field_supported(&field)
             || matches!(field, Type::Closure(_) | Type::Package { .. })
+            || owned_shapes::sum(&field)
         {
             InstructionKind::TakePackageField { local, index }
         } else {

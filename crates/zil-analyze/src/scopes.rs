@@ -20,6 +20,7 @@ pub(super) fn check(
     }
     let mut entries = BTreeSet::new();
     let mut scoped = false;
+    let mut deferred = false;
     let mut has_end = false;
     let mut views = BTreeMap::new();
     let mut bound = BTreeSet::new();
@@ -61,9 +62,14 @@ pub(super) fn check(
         for (position, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1, "scope entry scan")?;
             has_end |= matches!(instruction.kind, InstructionKind::EndPackageCapture { .. });
+            deferred |= matches!(instruction.kind, InstructionKind::RegisterDefer { .. });
             package |= matches!(
                 instruction.kind,
-                InstructionKind::MakePackage { .. }
+                InstructionKind::VariantTagLocal { .. }
+                    | InstructionKind::ReadVariantLocal { .. }
+                    | InstructionKind::UnpackVariant { .. }
+                    | InstructionKind::DropEnum { .. }
+                    | InstructionKind::MakePackage { .. }
                     | InstructionKind::ReadPackageField { .. }
                     | InstructionKind::DescribePackageField { .. }
                     | InstructionKind::TakePackageField { .. }
@@ -155,6 +161,9 @@ pub(super) fn check(
     // Preserve the existing non-error raw-IR test/API subset. New source
     // functions always opt into the explicit storage/scope contract.
     if !scoped {
+        if deferred {
+            return Err(bad("defer operations require explicit storage scopes"));
+        }
         if package {
             return Err(bad("package operations require explicit storage scopes"));
         }
@@ -241,7 +250,21 @@ pub(super) fn check(
                         return Err(bad("storage ends before it starts"));
                     }
                 }
-                InstructionKind::Load(local)
+                InstructionKind::UnpackVariant {
+                    local, ref fields, ..
+                } => {
+                    budget.spend(fields.len().saturating_add(1), "Unpack storage uses")?;
+                    if !state.live.contains_key(&local)
+                        || fields.iter().any(|l| !state.live.contains_key(l))
+                    {
+                        return Err(bad("Unpack source or targets outside storage activation"));
+                    }
+                }
+                InstructionKind::VariantTagLocal { local, .. }
+                | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::DropEnum { local }
+                | InstructionKind::Load(local)
+                | InstructionKind::RegisterDefer { local, .. }
                 | InstructionKind::Store { local, .. }
                 | InstructionKind::TakeLocal { local }
                 | InstructionKind::BorrowLocal { local }
@@ -308,6 +331,9 @@ pub(super) fn check(
                 pending.push_back(target.0 as usize);
             }
         }
+    }
+    if deferred {
+        super::defers::check(module, function, budget)?;
     }
     Ok(())
 }

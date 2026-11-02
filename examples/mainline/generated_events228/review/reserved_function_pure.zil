@@ -1,0 +1,1 @@
+#for(n in [1]){fn bytes_len()->i32=>n;pub fn run()->i32=>bytes_len()}fn main()->i32=>run()-1

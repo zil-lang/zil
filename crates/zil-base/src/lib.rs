@@ -1,15 +1,17 @@
 #![forbid(unsafe_code)]
 
-//! Stable, dependency-free identities, diagnostics, limits, and fingerprints.
+//! Stable identities, diagnostics, limits, and byte-compatible SHA-256 fingerprints.
 
 mod sha256;
+#[cfg(test)]
+mod sha256_scalar_reference;
 mod source_map;
 pub use source_map::*;
 
 use std::fmt;
 
 pub const RULE_VERSION: &str = "ZIL-LANG-1.4";
-pub const SCHEMA_VERSION: u32 = 27;
+pub const SCHEMA_VERSION: u32 = 30;
 
 // Keep identities untrusted and trivially constructible. They confer no authority.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]

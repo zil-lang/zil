@@ -1,0 +1,9 @@
+# 实际 LLVM API pass 诊断
+
+诊断使用独立研究LD_PRELOAD constructor，不修改生产代码、unsafe边界、LLVM管线或默认CLI。它只在指定的编译器可执行文件内激活，检查实际解析符号来自给定的LLVM23.1.4动态库，然后调用该版本现有C API LLVMParseCommandLineOptions设置-time-passes。子clang/链接器和最终程序不激活。
+
+精确llvmorg-23.1.4源码已确认：LLVMRunPasses的PassBuilderBindings.cpp创建StandardInstrumentations并registerCallbacks；默认TimePassesHandler读取TimePassesIsEnabled，-time-passes设置该全局值。首次小样本确认启用但没有报告：计时记录移入ManagedStatic全局TimerGroup，原CLI没有LLVMShutdown来刷出它们。研究shim因此仅给此目标进程注册atexit调用现有C API LLVMShutdown；CLI返回后每次编译的owned handles已全部释放。该研究进程的收尾不进入生产，也不修改pass或LLVM对象所有权。仍须实际确认报告存在，不能将“源码看似可行”计为实测。若失败才使用实际捕获CGU的opt/Clang作不同层级诊断，不能用其结果冒充生产API热点。
+
+研究runner记录probe源/二进制/编译命令、指定编译器与实际LLVM库SHA、原命令、当前输入fingerprint/source identities、完整stderr计时、实际native_codegen receipt及native结果。指定object cache会依既有LD_PRELOAD合同自然禁用，必须断言disabled_reason；不给shim绕开缓存禁用。固定jobs=1以避免不同CGU同时执行影响诊断，保留units和其他策略参数，使用独立新输出目录。LLVM按进程汇总各CGU计时，并非每CGU独立表。
+
+计时存在额外开销，只用于定位SROA、Dominator、常量传播、合并与SLP等实际pass贡献，不能作为正式编译收益。实际pass表包含NPM IR与legacy machine passes，不能直接对应optimize_ns或emit_ns；analysis计时与pass工作重叠，不能相加。简单parser对额外无标题组沿用最近heading，完整stderr才是组边界依据，不能把各行或重复Total相加。early+closed已观察约100秒灾难，不扩成重复矩阵，只有普通off/after与SLP诊断支持后才最多复查一次。

@@ -17,6 +17,8 @@ struct Budget<'a> {
     inside_store: bool,
     store_shapes: bool,
     direct_type_callee: bool,
+    products: aggregate_templates::Products,
+    current_module: zil_base::ModuleId,
 }
 impl<'a> Budget<'a> {
     fn new(limits: &'a Limits) -> Self {
@@ -29,6 +31,8 @@ impl<'a> Budget<'a> {
             inside_store: false,
             store_shapes: false,
             direct_type_callee: false,
+            products: None,
+            current_module: zil_base::ModuleId(0),
         }
     }
     fn work(&mut self, count: usize, span: Span) -> R<()> {
@@ -189,7 +193,9 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
     let mut budget = Budget::new(limits);
+    budget.current_module = core.module_id;
     budget.ordinary_functions = core.functions.len();
+    aggregate_templates::Index::new(&[core], limits, &mut budget.work).map_err(|e| vec![e])?;
     let table = headers(core, None, 0, &mut budget).map_err(|e| vec![e])?;
     let flags = core
         .functions
@@ -201,12 +207,17 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
         .collect::<R<Vec<_>>>()
         .map_err(|e| vec![e])?;
     names::check(core, limits).map_err(|e| vec![e])?;
-    let normalized = if flags.iter().any(|f| *f) {
+    let normalized = if flags.iter().any(|f| *f)
+        || !core.aggregate_templates.is_empty()
+        || !core.aggregate_applications.is_empty()
+    {
         Some(aggregates::resolve(core.clone(), limits)?)
     } else {
         None
     };
     let core = normalized.as_ref().unwrap_or(core);
+    budget.products =
+        aggregate_templates::origins(&[core], limits, &mut budget.work).map_err(|e| vec![e])?;
     let table = if normalized.is_some() {
         headers(core, None, 0, &mut budget).map_err(|e| vec![e])?
     } else {
@@ -217,7 +228,9 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
     let mut functions = Vec::new();
     for (function, flag) in core.functions.iter().zip(flags) {
         functions.push(
-            prepare(function, &table, None, &enum_types, flag, &mut budget).map_err(|e| vec![e])?,
+            prepare(function, &table, None, &enum_types, flag, &mut budget)
+                .map_err(|e| vec![e])?
+                .into_owned(),
         );
     }
     Ok(copy_module_metadata(core, functions))
@@ -232,23 +245,22 @@ pub fn infer_program_closures(
     infer_program_closures_borrowed(program, limits).map(Cow::into_owned)
 }
 
-/// Run the same bounded inference and validation, borrowing the original Core
-/// when no declaration or function needs rewriting. A borrowed result is still
-/// untrusted input: it grants no type, CT, or Verify qualification.
-pub fn infer_program_closures_borrowed<'a>(
+pub(super) fn infer_program_closures_borrowed<'a>(
     program: &'a CoreProgram,
     limits: &Limits,
 ) -> CompileResult<Cow<'a, CoreProgram>> {
-    infer_program_closures_update(program, limits)
-        .map(|updated| updated.map_or(Cow::Borrowed(program), Cow::Owned))
-}
-
-fn infer_program_closures_update(
-    program: &CoreProgram,
-    limits: &Limits,
-) -> CompileResult<Option<CoreProgram>> {
+    let original = program;
     let mut budget = Budget::new(limits);
     let mut tables = BTreeMap::new();
+    if program.modules.iter().any(|m| {
+        !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
+    }) {
+        budget
+            .work(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        aggregate_templates::Index::new(&modules, limits, &mut budget.work).map_err(|e| vec![e])?;
+    }
     let mut count = 0usize;
     if program.modules.len() > limits.max_nodes {
         return Err(vec![Diagnostic::limit(
@@ -344,7 +356,10 @@ fn infer_program_closures_update(
         );
     }
     names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
-    let normalized = if flags.iter().flatten().any(|f| *f) {
+    let normalized = if flags.iter().flatten().any(|f| *f)
+        || program.modules.iter().any(|m| {
+            !m.core.aggregate_templates.is_empty() || !m.core.aggregate_applications.is_empty()
+        }) {
         let normalized = aggregates::resolve_program(program, limits)?;
         let mut offset = 0;
         for module in &normalized.modules {
@@ -360,7 +375,18 @@ fn infer_program_closures_update(
         None
     };
     let program = normalized.as_ref().unwrap_or(program);
-    let project_enums = enums::ProjectDefinitions::new(program);
+    if program
+        .modules
+        .iter()
+        .any(|m| !m.core.aggregate_applications.is_empty())
+    {
+        budget
+            .work(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        budget.products = aggregate_templates::origins(&modules, limits, &mut budget.work)
+            .map_err(|e| vec![e])?;
+    }
     let mut modules = Vec::new();
     let mut enum_work = limits.max_analysis_steps;
     for (module, flags) in program.modules.iter().zip(flags) {
@@ -394,53 +420,47 @@ fn infer_program_closures_update(
         }
         let table = &tables[&module.core.module_id];
         validate_module_metadata(&module.core, &mut budget).map_err(|e| vec![e])?;
-        let enum_types = project_enums.resolve(&module.core, &mut enum_work, limits)?;
-        let mut functions: Option<Vec<CoreFunction>> = None;
-        for (index, (function, flag)) in module.core.functions.iter().zip(flags).enumerate() {
-            let prepared = prepare_borrowed(
-                function,
-                table,
-                Some(&imports),
-                &enum_types,
-                flag,
-                &mut budget,
-            )
-            .map_err(|e| vec![e])?;
-            match prepared {
-                Cow::Borrowed(function) => {
-                    if let Some(functions) = &mut functions {
-                        functions.push(function.clone());
-                    }
-                }
-                Cow::Owned(function) => {
-                    functions
-                        .get_or_insert_with(|| module.core.functions[..index].to_vec())
-                        .push(function);
-                }
-            }
+        let enum_types = enums::project_definitions(program, &module.core, &mut enum_work, limits)?;
+        let mut functions = Vec::new();
+        budget.current_module = module.core.module_id;
+        for (function, flag) in module.core.functions.iter().zip(flags) {
+            functions.push(
+                prepare(
+                    function,
+                    table,
+                    Some(&imports),
+                    &enum_types,
+                    flag,
+                    &mut budget,
+                )
+                .map_err(|e| vec![e])?,
+            );
         }
-        modules.push(functions);
+        modules.push((module, functions));
     }
-    if normalized.is_none() && modules.iter().all(Option::is_none) {
-        return Ok(None);
+    // All header/name/import/metadata/dependency checks and logical charges ran
+    // in the original order. Borrow only when no transformation ran anywhere.
+    if normalized.is_none()
+        && modules
+            .iter()
+            .all(|(_, functions)| functions.iter().all(|f| matches!(f, Cow::Borrowed(_))))
+    {
+        return Ok(Cow::Borrowed(original));
     }
-    let modules = program
-        .modules
-        .iter()
-        .zip(modules)
-        .map(|(module, functions)| ProgramModule {
-            core: functions.map_or_else(
-                || module.core.clone(),
-                |functions| copy_module_metadata(&module.core, functions),
-            ),
-            imports: module.imports.clone(),
-            exports: module.exports.clone(),
-        })
-        .collect();
-    Ok(Some(CoreProgram {
+    Ok(Cow::Owned(CoreProgram {
         root: program.root,
         source_fingerprint: program.source_fingerprint,
-        modules,
+        modules: modules
+            .into_iter()
+            .map(|(module, functions)| ProgramModule {
+                core: copy_module_metadata(
+                    &module.core,
+                    functions.into_iter().map(Cow::into_owned).collect(),
+                ),
+                imports: module.imports.clone(),
+                exports: module.exports.clone(),
+            })
+            .collect(),
     }))
 }
 
@@ -591,18 +611,7 @@ fn headers(
     Ok(table)
 }
 
-fn prepare(
-    function: &CoreFunction,
-    signatures: &BTreeMap<String, Signature>,
-    imports: Option<&program::Imports<'_>>,
-    enums: &BTreeMap<String, Type>,
-    has_closure: bool,
-    budget: &mut Budget<'_>,
-) -> R<CoreFunction> {
-    prepare_borrowed(function, signatures, imports, enums, has_closure, budget).map(Cow::into_owned)
-}
-
-fn prepare_borrowed<'a>(
+fn prepare<'a>(
     function: &'a CoreFunction,
     signatures: &BTreeMap<String, Signature>,
     imports: Option<&program::Imports<'_>>,
@@ -610,6 +619,16 @@ fn prepare_borrowed<'a>(
     has_closure: bool,
     budget: &mut Budget<'_>,
 ) -> R<Cow<'a, CoreFunction>> {
+    if let Some(products) = &budget.products {
+        budget.work = budget.work.checked_sub(1).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "generic Product caller binding work exceeded",
+                Some(function.span),
+            )
+        })?;
+        aggregate_templates::source_owner(products, (budget.current_module, function.id));
+    }
     // Scalar-only functions retain their existing inference/default behavior.
     if !has_closure && function.type_parameters.is_empty() && function.state_parameters.is_empty() {
         let dependencies = retained::dependencies(
@@ -630,6 +649,8 @@ fn prepare_borrowed<'a>(
 
 fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> CoreModule {
     CoreModule {
+        aggregate_templates: core.aggregate_templates.clone(),
+        aggregate_applications: core.aggregate_applications.clone(),
         schema_version: core.schema_version,
         module_id: core.module_id,
         source_fingerprint: core.source_fingerprint,
@@ -640,6 +661,7 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
     }
 }
 fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()> {
+    aggregate_templates::metadata_snapshot(core, budget.limits, &mut budget.work)?;
     for aggregate in &core.aggregates {
         budget.node(0, aggregate.span)?;
         budget.work(aggregate.name.len(), aggregate.span)?;
@@ -782,6 +804,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || resources::supported(ty)
             || errors::owned(ty)
             || packages::ordinary(ty)
+            || owned_shapes::enumeration(ty)
             || packages::owned_array_supported(ty)
     };
     if signature.type_parameter.is_none()
@@ -898,9 +921,9 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
                     found |= contains_closure(&arm.body, depth + 1, budget)?;
                 }
             }
-            CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                found |= contains_closure(body, depth + 1, budget)?
-            }
+            CoreStatementKind::Block(body)
+            | CoreStatementKind::Unsafe(body)
+            | CoreStatementKind::Defer(body) => found |= contains_closure(body, depth + 1, budget)?,
             CoreStatementKind::Unsupported(feature) => {
                 budget.work(feature.len(), statement.span)?
             }
@@ -1136,6 +1159,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || packages::ordinary(&function.return_type)
+            || owned_shapes::enumeration(&function.return_type)
             || packages::owned_array_supported(&function.return_type)
             || resources::supported(&function.return_type))
         {
@@ -1695,6 +1719,20 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )),
         }
     }
+    fn product_term_type(&mut self, term: &Term, span: Span) -> R<Type> {
+        match term {
+            Term::Scalar(variable) => self.graph.injection_type(*variable, span),
+            Term::ClosurePackage { shape, .. } | Term::StatePackage { shape, .. } => {
+                validate_type(shape, 0, span, self.budget)?;
+                Ok(shape.as_ref().clone())
+            }
+            _ => Err(error(
+                "E-TYPE-APPLICATION",
+                span,
+                "generic Product inference requires a complete actual value type",
+            )),
+        }
+    }
     fn infer_value_term(
         &mut self,
         pattern: &Type,
@@ -1721,6 +1759,22 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let (failure, success) = self.value_union_parts(value, span)?;
             self.infer_value_term(error, &failure, name, actual, span)?;
             return self.infer_value_term(result, &success, name, actual, span);
+        }
+        if matches!(pattern, Type::Package { .. }) && self.budget.products.is_some() {
+            let ty = self.product_term_type(value, span)?;
+            let products = self.budget.products.clone();
+            let limits = self.budget.limits;
+            if let Some(pairs) =
+                aggregate_templates::input_pairs(pattern, &ty, &products, limits, span, &mut |n| {
+                    self.budget.work(n, span)
+                })?
+            {
+                for (wanted, got) in pairs {
+                    let term = self.known_term(&got, span)?;
+                    self.infer_value_term(&wanted, &term, name, actual, span)?;
+                }
+                return Ok(());
+            }
         }
         self.bind_term(value, pattern, span)
     }
@@ -1753,6 +1807,21 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 result: Rc::new(success),
             });
         }
+        if matches!(pattern, Type::Package { .. }) && self.budget.products.is_some() {
+            let actual = self.product_term_type(actual, span)?;
+            let products = self.budget.products.clone();
+            let limits = self.budget.limits;
+            let ty = store_templates::substitute_type(
+                pattern,
+                name,
+                &actual,
+                limits,
+                &products,
+                span,
+                &mut |n| self.budget.work(n, span),
+            )?;
+            return self.known_term(&ty, span);
+        }
         self.known_term(pattern, span)
     }
     fn value_type_call(
@@ -1777,7 +1846,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         self.budget.work(arguments.len().saturating_mul(2), span)?;
         let mut actual = None;
         for (argument, pattern) in arguments.iter().zip(&signature.parameters) {
-            let hint = (!store_templates::has_parameter(pattern, name)).then_some(pattern);
+            let products = self.budget.products.clone();
+            let limits = self.budget.limits;
+            let parameterized = aggregate_templates::parameter_in(
+                pattern,
+                name,
+                &products,
+                limits,
+                argument.span,
+                &mut |n| self.budget.work(n, argument.span),
+            )?;
+            let hint = (!parameterized).then_some(pattern);
             let value = self.expr_expected(argument, hint, depth + 1, false)?;
             self.infer_value_term(pattern, &value, name, &mut actual, argument.span)?;
         }
@@ -2523,9 +2602,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.scopes.pop();
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
-                    self.block(body, depth + 1)?
-                }
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => self.block(body, depth + 1)?,
                 CoreStatementKind::Break | CoreStatementKind::Continue => {}
                 CoreStatementKind::Unsupported(feature) => {
                     return Err(unsupported(statement.span, feature));
@@ -3124,12 +3203,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         )
                     })?;
                     let limits = self.budget.limits;
+                    let products = self.budget.products.clone();
                     for parameter in &mut signature.parameters {
                         *parameter = store_templates::substitute_type(
                             parameter,
                             &bound.name,
                             actual,
                             limits,
+                            &products,
                             span,
                             &mut |work| self.budget.work(work, span),
                         )?;
@@ -3139,6 +3220,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         &bound.name,
                         actual,
                         limits,
+                        &products,
                         span,
                         &mut |work| self.budget.work(work, span),
                     )?;
@@ -3925,7 +4007,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.normalize_block(&mut arm.body, expression, statement)?;
                     }
                 }
-                CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
+                CoreStatementKind::Block(body)
+                | CoreStatementKind::Unsafe(body)
+                | CoreStatementKind::Defer(body) => {
                     self.normalize_block(body, expression, statement)?
                 }
                 _ => {}

@@ -183,6 +183,104 @@ fn checked_simple(function: TypedFunction) -> VerifiedModule {
         .collect();
     checked(vec![function], vec![boundaries])
 }
+
+#[test]
+fn current_scalar_facts_reach_calls_before_machine_passes_and_reject_stale_lir() {
+    // Raw-IR control complements the real-source/native driver controls. A
+    // runtime parameter prevents the caller from becoming a function summary.
+    for value in [
+        Constant::Bool(true),
+        Constant::U8(255),
+        Constant::U16(65535),
+        Constant::I32(-17),
+        Constant::I64(i64::MIN),
+    ] {
+        let ty = value.ty();
+        let mut caller = function(
+            0,
+            "caller",
+            ty.clone(),
+            vec![ty.clone(), ty.clone(), ty.clone()],
+            vec![block(
+                0,
+                vec![
+                    instruction(
+                        Some(0),
+                        InstructionKind::Call {
+                            function: FunctionId(1),
+                            arguments: vec![],
+                        },
+                    ),
+                    load(1, 0),
+                    binary(
+                        2,
+                        if ty == Type::Bool {
+                            BinaryOp::Or
+                        } else {
+                            BinaryOp::Add
+                        },
+                        0,
+                        1,
+                    ),
+                ],
+                Terminator::Return(Some(ValueId(2))),
+            )],
+        );
+        caller.parameters.push(LocalId(0));
+        caller.locals.push(local(0, ty.clone(), false));
+        let callee = function(
+            1,
+            "known",
+            ty.clone(),
+            vec![ty],
+            vec![block(
+                0,
+                vec![constant(0, value)],
+                Terminator::Return(Some(ValueId(0))),
+            )],
+        );
+        let verified = checked(
+            vec![caller, callee],
+            vec![vec![(vec![0], vec![0])], vec![(vec![], vec![])]],
+        );
+        let mut raw = lir(&verified);
+        for enabled in [false, true] {
+            let machine = crate::emit::lower_view_with_incremental_scalar_policy(
+                &verified,
+                &raw.as_view(),
+                &EmitOptions {
+                    entry: EntryPoint::None,
+                },
+                enabled,
+            )
+            .unwrap();
+            zil_llvm_api::validate_module(&machine).unwrap();
+            let caller = machine
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    zil_llvm_api::model::Item::Function(f) if f.name == "zil.fn.0" => Some(f),
+                    _ => None,
+                })
+                .unwrap();
+            let direct = caller.blocks.iter().flatten().flat_map(|b| &b.instructions).any(|i|
+                matches!(&i.op, zil_llvm_api::model::Op::Call { callee: zil_llvm_api::model::Val::Global(name), .. } if name == "zil.fn.1"));
+            assert_eq!(direct, !enabled);
+        }
+        raw.functions[1].name.push_str("stale");
+        assert!(
+            crate::emit::lower_view_with_incremental_scalar_policy(
+                &verified,
+                &raw.as_view(),
+                &EmitOptions {
+                    entry: EntryPoint::None
+                },
+                true,
+            )
+            .is_err()
+        );
+    }
+}
 fn lir(verified: &VerifiedModule) -> LirModule {
     LirModule {
         resources: Vec::new(),
@@ -988,6 +1086,10 @@ fn tampered_lir_is_rejected_before_invoking_tools_or_creating_outputs() {
         options.clang = directory.0.join("no-such-compiler");
         options.emit.entry = EntryPoint::ReturnValue(FunctionId(0));
         let errors = build(&verified, &mutant, &options).unwrap_err();
+        let view_errors =
+            build_view_with_cancellation(&verified, &mutant.as_view(), &options, &|| false)
+                .unwrap_err();
+        assert_eq!(errors, view_errors);
         assert_eq!(errors[0].code, "E-CODEGEN-UNBOUND-LIR");
         assert_eq!(errors[0].category, ResultCategory::SafeReject);
         assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 0);
@@ -1466,4 +1568,48 @@ fn changing_any_lir_closure_claim_is_rejected_before_tools_or_output() {
         assert_eq!(errors[0].category, ResultCategory::SafeReject);
         assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 0);
     }
+}
+
+#[test]
+fn borrowed_lir_aliases_bind_length_and_the_current_capability() {
+    let verified = checked_simple(returning(Constant::I64(1024)));
+    let original = lir(&verified);
+    let mut view = original.as_view();
+    view.functions = verified.module().functions.as_slice();
+    let options = EmitOptions::default();
+    assert_eq!(
+        crate::emit::lower_view_with_options(&verified, &view, &options).unwrap(),
+        crate::emit::lower_with_options(&verified, &original, &options).unwrap()
+    );
+    view.functions = &verified.module().functions[..0];
+    assert_eq!(
+        view.functions.as_ptr(),
+        verified.module().functions.as_ptr()
+    );
+    assert_eq!(
+        crate::emit::lower_view_with_options(&verified, &view, &options).unwrap_err()[0].code,
+        "E-CODEGEN-UNBOUND-LIR"
+    );
+    let other = checked_simple(returning(Constant::I64(99)));
+    view.functions = verified.module().functions.as_slice();
+    view.verified_fingerprint = other.fingerprint();
+    assert_eq!(
+        crate::emit::lower_view_with_options(&other, &view, &options).unwrap_err()[0].code,
+        "E-CODEGEN-UNBOUND-LIR"
+    );
+}
+
+#[test]
+fn impl243_false_presence_cannot_authorize_mutated_raw_lir_new_opcode() {
+    let verified = checked_simple(returning(Constant::I64(1024)));
+    assert!(!verified.uses_owned_sum_extension());
+    let mut changed = lir(&verified);
+    changed.functions[0].blocks[0]
+        .instructions
+        .push(instruction(
+            None,
+            InstructionKind::DropEnum { local: LocalId(0) },
+        ));
+    let errors = emit(&verified, &changed).unwrap_err();
+    assert_eq!(errors[0].code, "E-CODEGEN-UNBOUND-LIR");
 }

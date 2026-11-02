@@ -1,0 +1,1 @@
+struct Cell{x:i32}fn main()->i32{let Cell=8;let c=Cell{x:3};return c.x+Cell-11}

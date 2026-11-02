@@ -1,0 +1,11 @@
+--- a/crates/zil-backend-llvm/src/machine_cgu_clone_controls.rs
++++ b/crates/zil-backend-llvm/src/machine_cgu_clone_controls.rs
+@@ -187,7 +187,7 @@
+                         predicate: "eq".into(),
+                         ty: Ty::Ptr,
+                         left: Val::Local("candidate".into()),
+-                        right: Val::Global(name),
++                        right: Val::Global(name.clone()),
+                     },
+                 ),
+                 instruction(

@@ -1,4 +1,3 @@
-use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -6,13 +5,13 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use zil_base::{CompileResult, Diagnostic, Phase, ResultCategory};
-use zil_ir::LirModule;
+use zil_ir::{FunctionId, LirModule, LirView};
 use zil_verify::VerifiedModule;
 
 use crate::object_cache::{
     Access, ObjectCacheSummary, PendingObject, PendingObjectCache, PreparedCache,
 };
-use crate::{EmitOptions, EntryPoint, TimingTrace};
+use crate::{EmitOptions, EntryPoint, FunctionMerging};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Optimization {
@@ -74,15 +73,11 @@ pub struct CodegenSummary {
     pub actual_units: usize,
     pub jobs: usize,
     pub fallback: Option<String>,
-    /// Explicit executable-only policy; the diagnostic sidecar remains prepartition IR.
-    pub closed_executable: bool,
-    /// Definitions changed in the actual codegen units, before object-cache lookup.
-    pub internalized_functions: usize,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"closed_executable\":{},\"internalized_functions\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.object_cache.to_json(),
@@ -91,9 +86,7 @@ impl CodegenSummary {
             self.jobs,
             self.fallback
                 .as_ref()
-                .map_or_else(|| "null".into(), |s| zil_base::json_string(s)),
-            self.closed_executable,
-            self.internalized_functions,
+                .map_or_else(|| "null".into(), |s| zil_base::json_string(s))
         )
     }
 }
@@ -104,15 +97,17 @@ pub struct BuildOptions {
     pub clang: PathBuf,
     pub output: PathBuf,
     pub optimization: Optimization,
+    /// Explicit Linux executable without generated ZIL symbol exports.
+    pub closed_executable: bool,
+    /// Explicit stable O2 chunks with complete direct-call implementation copies.
+    pub incremental_o2: bool,
+    /// Explicit O2 pass policy; default preserves the reference pipeline.
+    pub function_merging: FunctionMerging,
     pub codegen: CodegenOptions,
     pub emit: EmitOptions,
     pub windows: Option<WindowsLinkOptions>,
     /// Explicit trusted local cache; None preserves the uncached reference.
     pub object_cache: Option<PathBuf>,
-    /// Opt-in Linux executable policy. Generated ZIL function identity symbols
-    /// are not an exported ABI; actual cross-unit uses remain externally linked.
-    /// Public emit APIs and raw machine modules never use this policy.
-    pub closed_executable: bool,
 }
 
 impl BuildOptions {
@@ -122,10 +117,12 @@ impl BuildOptions {
             clang: PathBuf::from("clang"),
             output: output.into(),
             optimization: Optimization::O0,
+            closed_executable: false,
+            incremental_o2: false,
+            function_merging: FunctionMerging::Disabled,
             codegen: CodegenOptions::default(),
             windows: None,
             object_cache: None,
-            closed_executable: false,
             emit: EmitOptions {
                 entry: EntryPoint::Main,
             },
@@ -146,6 +143,17 @@ pub struct BuildArtifact {
     pub pending_cache: PendingObjectCache,
 }
 impl BuildArtifact {
+    /// Optional private layout destination, pinned before publication guards.
+    pub fn pending_partition_cache_path(&self) -> Option<&Path> {
+        self.pending_cache
+            .layout
+            .as_ref()
+            .map(|pending| pending.path())
+    }
+    /// A cache destination conflict must not reject an otherwise valid request.
+    pub fn discard_partition_cache(&mut self) {
+        self.pending_cache.layout = None;
+    }
     /// Call only after all request validation, cancellation and publication steps.
     pub fn commit_object_cache(&mut self) {
         std::mem::take(&mut self.pending_cache).commit(&mut self.codegen.object_cache);
@@ -176,29 +184,29 @@ pub fn build_with_cancellation(
     options: &BuildOptions,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> CompileResult<BuildArtifact> {
-    build_with_cancellation_traced(verified, lir, options, cancelled, &TimingTrace::default())
+    build_view_with_cancellation(verified, &lir.as_view(), options, cancelled)
 }
 
-/// The optional sink records actual wall intervals, including failed phases.
-/// It does not affect build options, object keys, or publication order.
-pub fn build_with_cancellation_traced(
+/// Borrowed raw LIR uses the same complete binding and machine preflight as the
+/// owned API. Sharing removes allocation, never current-request verification.
+pub fn build_view_with_cancellation(
     verified: &VerifiedModule,
-    lir: &LirModule,
+    lir: &LirView<'_>,
     options: &BuildOptions,
     cancelled: &(dyn Fn() -> bool + Sync),
-    trace: &TimingTrace,
 ) -> CompileResult<BuildArtifact> {
-    trace.measure("backend", "stage", |trace| {
-        build_traced(verified, lir, options, cancelled, trace)
-    })
+    build_view_with_cancellation_and_stable_names(verified, lir, options, cancelled, None)
 }
 
-fn build_traced(
+/// Internal-use cross-crate experiment. The optional current-request spelling
+/// hint is not a verification capability; existing public callers use no hint.
+#[doc(hidden)]
+pub fn build_view_with_cancellation_and_stable_names(
     verified: &VerifiedModule,
-    lir: &LirModule,
+    lir: &LirView<'_>,
     options: &BuildOptions,
     cancelled: &(dyn Fn() -> bool + Sync),
-    trace: &TimingTrace,
+    stable_names: Option<&[(FunctionId, String)]>,
 ) -> CompileResult<BuildArtifact> {
     check_cancelled(cancelled)?;
     if options.emit.entry == EntryPoint::None {
@@ -215,22 +223,112 @@ fn build_traced(
             "codegen units and jobs must be in 1..=64",
         ));
     }
-    let machine = trace.measure("machine_lower", "stage", |_| {
-        crate::emit::lower_with_options(verified, lir, &options.emit)
-    })?;
-    // Diagnostic/reference output only. API preflight runs once per owned unit,
-    // immediately before its LLVMBuilder calls; it cannot be bypassed.
-    let llvm = trace.value("llvm_text_render", || machine.to_text());
-    let mut plan = trace.value("cgu_partition", || {
-        crate::machine_cgu::partition_for_build(
+    if options.function_merging != FunctionMerging::Disabled
+        && options.optimization != Optimization::O2
+    {
+        return Err(infra(
+            "E-CODEGEN-MERGING-OPTIONS",
+            "function merging requires O2",
+        ));
+    }
+    if options.backend == NativeBackend::Clang
+        && options.function_merging == FunctionMerging::BeforeAndAfter
+    {
+        return Err(vec![Diagnostic::new(
+            Phase::Codegen,
+            ResultCategory::Unsupported,
+            "E-CODEGEN-MERGING-BACKEND",
+            "before-and-after function merging requires the LLVM API backend",
+            None,
+        )]);
+    }
+    let (mut machine, collected_closed) =
+        crate::emit::lower_view_with_closed_scalar_policy_and_jobs(
+            verified,
+            lir,
+            &options.emit,
+            options.optimization == Optimization::O2 && options.incremental_o2,
+            options.closed_executable
+                && options.backend == NativeBackend::LlvmApi
+                && options.codegen.units >= 2,
+            options.codegen.jobs,
+        )?;
+    // The opt-in O2 strategy contracts strict checked-add chains before
+    // scalar evaluation. Each nonempty plan validates its complete unchanged
+    // input before mutation. Ordinary O2 skips both passes.
+    if options.optimization == Optimization::O2 && options.incremental_o2 {
+        crate::machine_checked_add_chain::fold_checked_add_chains(&mut machine);
+        crate::machine_scalar::fold_known_leaf_calls(&mut machine, lir);
+    }
+    let mut stable = if options.closed_executable
+        && options.backend == NativeBackend::LlvmApi
+        && options.optimization == Optimization::O2
+        && options.incremental_o2
+        && options.codegen.units >= 2
+        && options.emit.entry == EntryPoint::Main
+        && lir.target.triple == "x86_64-unknown-linux-gnu"
+    {
+        stable_names.and_then(|names| {
+            if collected_closed {
+                crate::machine_stable_identity::prepare_collected(
+                    &machine,
+                    lir,
+                    names,
+                    options.codegen.units,
+                    cancelled,
+                )
+            } else {
+                crate::machine_stable_identity::prepare(
+                    &machine,
+                    lir,
+                    names,
+                    options.codegen.units,
+                    cancelled,
+                )
+            }
+        })
+    } else {
+        None
+    };
+    check_cancelled(cancelled)?;
+    if let Some(plan) = &mut stable {
+        plan.prune_unreachable_closed_definitions(&mut machine);
+        plan.rename(&mut machine);
+    }
+    // Diagnostic/reference output only. Each nonempty transform plan requires
+    // complete original-model preflight. Existing per-unit API preflight still runs
+    // immediately before its LLVMBuilder calls and cannot be bypassed.
+    let llvm = machine.to_text();
+    let mut pending_layout = None;
+    let (mut plan, stable_candidates, stable_diagnostic) = if let Some(stable) = stable {
+        let trace =
+            std::env::var_os(crate::machine_stable_identity::DIAGNOSTIC_ENV).map(PathBuf::from);
+        let (plan, candidates, diagnostic) = stable.partition(machine, trace);
+        (plan, Some(candidates), diagnostic)
+    } else if collected_closed {
+        (
+            crate::machine_cgu::Plan {
+                units: vec![machine],
+                fallback: None,
+            },
+            None,
+            None,
+        )
+    } else {
+        let (plan, pending) = crate::machine_cgu::partition_view_cached(
             machine,
             lir,
             options.emit.entry,
             options.codegen.units,
-            options.optimization,
-            options.closed_executable,
-        )
-    });
+            options.optimization == Optimization::O0 || options.incremental_o2,
+            options.optimization == Optimization::O2 && options.incremental_o2,
+            (options.backend == NativeBackend::LlvmApi)
+                .then_some(options.object_cache.as_deref())
+                .flatten(),
+        );
+        pending_layout = pending;
+        (plan, None, None)
+    };
     if options.backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
         return Err(vec![Diagnostic::new(
             Phase::Codegen,
@@ -255,21 +353,28 @@ fn build_traced(
             None,
         )]);
     }
-    let internalized_functions = if options.closed_executable {
-        trace.value("closed_executable", || {
-            crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir)
-        })
-    } else {
-        0
-    };
+    if options.closed_executable {
+        if let Some(candidates) = stable_candidates {
+            crate::machine_cgu::internalize_closed_executable_names(&mut plan.units, &candidates);
+        } else {
+            crate::machine_cgu::internalize_closed_executable(&mut plan.units, lir);
+        }
+    }
     let mut cache_summary = ObjectCacheSummary {
         requested: options.object_cache.is_some(),
         ..ObjectCacheSummary::default()
     };
     let cache = options.object_cache.as_ref().and_then(|path| {
-        match trace.measure("cache_setup", "stage", |_| {
-            PreparedCache::new(path, &lir.target, options.optimization)
-        }) {
+        match PreparedCache::new(
+            path,
+            lir.target,
+            options.optimization,
+            options.function_merging,
+            options.incremental_o2
+                && options.optimization == Optimization::O2
+                && !options.closed_executable
+                && lir.target.triple == "x86_64-unknown-linux-gnu",
+        ) {
             Ok(cache) => {
                 cache_summary.enabled = true;
                 Some(cache)
@@ -280,8 +385,15 @@ fn build_traced(
             }
         }
     });
+    if let Some(diagnostic) = stable_diagnostic {
+        diagnostic.write(&plan.units, cache.as_ref());
+    }
     let mut pending_cache = PendingObjectCache {
         directory: cache.as_ref().map(|c| c.directory.clone()),
+        layout: cache
+            .as_ref()
+            .and(pending_layout)
+            .and_then(|pending| pending.pin()),
         ..PendingObjectCache::default()
     };
     let actual_units = plan.units.len().max(1);
@@ -293,10 +405,7 @@ fn build_traced(
         actual_units,
         jobs: options.codegen.jobs.min(actual_units),
         fallback: plan.fallback.map(str::to_owned),
-        closed_executable: options.closed_executable,
-        internalized_functions,
     };
-    let mut staging_timing = trace.scope("staging_prepare", "stage");
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     if windows != options.windows.is_some() {
         return Err(infra(
@@ -304,17 +413,6 @@ fn build_traced(
             "Win64 requires explicit WindowsLinkOptions; Linux must not carry them",
         ));
     }
-    // Resolve once per request, not once per codegen unit. Windows has its own
-    // explicit linker contract and never reads this Linux-only configuration.
-    let linux_linker = if windows {
-        None
-    } else {
-        linux_linker_argument(
-            &options.clang,
-            std::env::var_os("ZIL_LINUX_LINKER").as_deref(),
-            std::env::var_os("PATH").as_deref(),
-        )?
-    };
     let imports = options
         .windows
         .as_ref()
@@ -353,7 +451,6 @@ fn build_traced(
     let object_path = staging.0.join("module.obj");
     fs::write(&ir_path, llvm.as_bytes())
         .map_err(|error| io_error("write LLVM IR", &ir_path, error))?;
-    staging_timing.finish("ok");
 
     let optimization = match options.optimization {
         Optimization::O0 => "-O0",
@@ -361,109 +458,80 @@ fn build_traced(
     };
     let mut commands = Vec::new();
     let split = plan.units.len() > 1;
-    let objects = trace.measure(
-        "codegen_units",
-        if codegen.jobs > 1 {
-            "parallel"
+    let objects = if !split && options.backend == NativeBackend::Clang {
+        // Keep one clang invocation, but an explicit closed build must consume
+        // the transformed unit rather than the public diagnostic sidecar.
+        let input = if options.closed_executable {
+            let input = staging.0.join("unit-0.ll");
+            fs::write(&input, plan.units[0].to_text())
+                .map_err(|e| io_error("write closed codegen unit", &input, e))?;
+            input
         } else {
-            "stage"
-        },
-        |unit_trace| {
-            let objects = if !split && options.backend == NativeBackend::Clang {
-                // Keep the one-process Unix reference path; select the same
-                // link strategy used by the separate LLVM API link below.
-                // The public sidecar is the original prepartition reference.
-                // An explicit closed executable must compile the transformed
-                // unit here just as the API and multi-unit Clang paths do.
-                let transformed_ir = if options.closed_executable {
-                    let input = staging.0.join("unit-0.ll");
-                    fs::write(&input, plan.units[0].to_text())
+            ir_path.clone()
+        };
+        drop(plan.units);
+        let mut command = Command::new(&options.clang);
+        command
+            .arg(format!("--target={}", lir.target.triple))
+            .arg("-x")
+            .arg("ir")
+            .arg(optimization);
+        clang_function_merging(&mut command, options.function_merging);
+        if windows {
+            command.arg("-c");
+        }
+        command.arg(&input).arg("-o").arg(if windows {
+            &object_path
+        } else {
+            &executable_path
+        });
+        commands.push(run_command(&mut command, "E-LLVM-COMPILE")?);
+        vec![object_path]
+    } else {
+        let units = plan.units;
+        let inputs = units
+            .into_iter()
+            .enumerate()
+            .map(|(id, module)| {
+                let input = staging.0.join(format!("unit-{id}.ll"));
+                let object = staging.0.join(format!("unit-{id}.o"));
+                // Only the reference backend serializes individual codegen units.
+                if options.backend == NativeBackend::Clang {
+                    fs::write(&input, module.to_text())
                         .map_err(|e| io_error("write codegen unit", &input, e))?;
-                    Some(input)
-                } else {
-                    None
-                };
-                drop(plan.units);
-                let mut command = Command::new(&options.clang);
-                command
-                    .arg(format!("--target={}", lir.target.triple))
-                    .arg("-x")
-                    .arg("ir")
-                    .arg(optimization);
-                if windows {
-                    command.arg("-c");
-                } else if let Some(linker) = &linux_linker {
-                    command.arg(linker);
                 }
-                command
-                    .arg(transformed_ir.as_ref().unwrap_or(&ir_path))
-                    .arg("-o")
-                    .arg(if windows {
-                        &object_path
-                    } else {
-                        &executable_path
-                    });
-                commands.push(unit_trace.measure(
-                    if windows {
-                        "clang_object"
-                    } else {
-                        "clang_compile_and_link"
-                    },
-                    "stage",
-                    |_| run_command(&mut command, "E-LLVM-COMPILE"),
-                )?);
-                vec![object_path]
-            } else {
-                let units = plan.units;
-                let inputs = units
-                    .into_iter()
-                    .enumerate()
-                    .map(|(id, module)| {
-                        let input = staging.0.join(format!("unit-{id}.ll"));
-                        let object = staging.0.join(format!("unit-{id}.o"));
-                        // Only the reference backend serializes individual codegen units.
-                        if options.backend == NativeBackend::Clang {
-                            fs::write(&input, module.to_text())
-                                .map_err(|e| io_error("write codegen unit", &input, e))?;
-                        }
-                        Ok(UnitInput {
-                            input,
-                            object,
-                            module,
-                        })
-                    })
-                    .collect::<CompileResult<Vec<_>>>()?;
-                let compiled = compile_units(
-                    &inputs,
-                    &lir.target.triple,
-                    optimization,
-                    options,
-                    cache.as_ref(),
-                    cancelled,
-                    unit_trace,
-                )?;
-                for result in compiled {
-                    if let Some(command) = result.command {
-                        commands.push(command);
-                    }
-                    if let Some(receipt) = result.receipt {
-                        codegen.object_reports.push(receipt);
-                    }
-                    if let Some(access) = result.access {
-                        codegen.object_cache.add(&access);
-                    }
-                    if let Some(pending) = result.pending {
-                        pending_cache.objects.push(pending);
-                    }
-                }
-                inputs
-                    .into_iter()
-                    .map(|unit| unit.object)
-                    .collect::<Vec<_>>()
-            };
-            Ok::<_, Vec<Diagnostic>>(objects)
-        },
-    )?;
+                Ok(UnitInput {
+                    input,
+                    object,
+                    module,
+                })
+            })
+            .collect::<CompileResult<Vec<_>>>()?;
+        let compiled = compile_units(
+            &inputs,
+            &lir.target.triple,
+            optimization,
+            options,
+            cache.as_ref(),
+            cancelled,
+        )?;
+        for result in compiled {
+            commands.extend(result.commands);
+            if let Some(receipt) = result.receipt {
+                codegen.object_reports.push(receipt);
+            }
+            if let Some(access) = result.access {
+                codegen.object_cache.add(&access);
+            }
+            if let Some(pending) = result.pending {
+                pending_cache.objects.push(pending);
+            }
+        }
+        inputs
+            .into_iter()
+            .map(|unit| unit.object)
+            .collect::<Vec<_>>()
+    };
     check_cancelled(cancelled)?;
     if let Some(config) = &options.windows {
         let mut link = Command::new(&config.linker);
@@ -477,7 +545,7 @@ fn build_traced(
         .arg(format!("/out:{}", executable_path.display()))
         .args(&objects)
         .args(imports);
-        commands.push(trace.measure("link", "stage", |_| run_command(&mut link, "E-WIN64-LINK"))?);
+        commands.push(run_command(&mut link, "E-WIN64-LINK")?);
     } else if split || options.backend == NativeBackend::LlvmApi {
         let mut link = Command::new(&options.clang);
         link.arg(format!("--target={}", lir.target.triple))
@@ -485,15 +553,9 @@ fn build_traced(
             .args(&objects)
             .arg("-o")
             .arg(&executable_path);
-        if let Some(linker) = &linux_linker {
-            link.arg(linker);
-        }
-        commands.push(trace.measure("link", "stage", |_| {
-            run_command(&mut link, "E-LLVM-COMPILE")
-        })?);
+        commands.push(run_command(&mut link, "E-LLVM-COMPILE")?);
     }
     check_cancelled(cancelled)?;
-    let mut publication_timing = trace.scope("backend_publication", "stage");
     let recorded_command = commands[0].clone();
     if !executable_path.is_file() {
         return Err(infra(
@@ -509,7 +571,6 @@ fn build_traced(
         .map_err(|error| io_error("publish LLVM IR", &final_ir, error))?;
     fs::rename(&executable_path, &final_executable)
         .map_err(|error| io_error("publish executable", &final_executable, error))?;
-    publication_timing.finish("ok");
     Ok(BuildArtifact {
         executable: final_executable,
         llvm_ir: final_ir,
@@ -518,83 +579,6 @@ fn build_traced(
         codegen,
         pending_cache,
     })
-}
-
-/// Prefer the LLD shipped beside the configured Clang. A Clang wrapper or
-/// installation without that sibling retains Clang's original linker choice.
-/// `ZIL_LINUX_LINKER=system` explicitly selects that reference; any other value
-/// is a single executable path/name, resolved without shell tokenization.
-fn linux_linker_argument(
-    clang: &Path,
-    override_linker: Option<&OsStr>,
-    search_path: Option<&OsStr>,
-) -> CompileResult<Option<OsString>> {
-    let linker = match override_linker {
-        Some(value) if value == "system" => return Ok(None),
-        Some(value) if value.is_empty() => {
-            return Err(infra(
-                "E-LINK-LINKER-CONFIG",
-                "ZIL_LINUX_LINKER must be 'system' or a nonempty executable path",
-            ));
-        }
-        Some(value) => executable_path(Path::new(value), search_path)
-            .filter(|path| executable_file(path))
-            .ok_or_else(|| {
-                infra(
-                    "E-LINK-LINKER-MISSING",
-                    format!(
-                        "ZIL_LINUX_LINKER does not name an executable: {}",
-                        Path::new(value).display()
-                    ),
-                )
-            })?,
-        None => {
-            let Some(clang) = executable_path(clang, search_path) else {
-                // Preserve the original Clang launch failure and its diagnostic.
-                return Ok(None);
-            };
-            let Some(directory) = clang.parent() else {
-                return Ok(None);
-            };
-            let linker = directory.join("ld.lld");
-            if !executable_file(&linker) {
-                return Ok(None);
-            }
-            linker
-        }
-    };
-    // Keep the final symlink name: LLD uses argv[0] to choose its driver flavor.
-    // OsString also preserves spaces, shell metacharacters and non-UTF8 paths.
-    let mut argument = OsString::from("--ld-path=");
-    argument.push(linker);
-    Ok(Some(argument))
-}
-
-fn executable_path(program: &Path, search_path: Option<&OsStr>) -> Option<PathBuf> {
-    if program.is_absolute() || program.components().count() > 1 {
-        return std::path::absolute(program).ok();
-    }
-    // Match the Unix default used for a bare Command program when PATH is absent.
-    std::env::split_paths(search_path.unwrap_or(OsStr::new("/bin:/usr/bin")))
-        .map(|directory| directory.join(program))
-        .find(|candidate| executable_file(candidate))
-        .and_then(|candidate| std::path::absolute(candidate).ok())
-}
-
-fn executable_file(path: &Path) -> bool {
-    let Ok(metadata) = fs::metadata(path) else {
-        return false;
-    };
-    if !metadata.is_file() {
-        return false;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        metadata.permissions().mode() & 0o111 != 0
-    }
-    #[cfg(not(unix))]
-    true
 }
 
 /// Largest input first reduces tail latency. Workers return results by unit id,
@@ -606,7 +590,7 @@ struct UnitInput {
     module: zil_llvm_api::model::Module,
 }
 struct UnitResult {
-    command: Option<Vec<String>>,
+    commands: Vec<Vec<String>>,
     receipt: Option<String>,
     access: Option<Access>,
     pending: Option<PendingObject>,
@@ -619,7 +603,6 @@ fn compile_units(
     options: &BuildOptions,
     cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
-    trace: &TimingTrace,
 ) -> CompileResult<Vec<UnitResult>> {
     let mut schedule = (0..inputs.len()).collect::<Vec<_>>();
     schedule.sort_by_key(|id| {
@@ -651,8 +634,6 @@ fn compile_units(
                         let Some(&id) = schedule.get(slot) else {
                             break;
                         };
-                        let mut unit_timing = trace.unit_scope("unit", "worker", Some(id));
-                        let unit_trace = unit_timing.trace();
                         let result = check_cancelled(cancelled).and_then(|()| {
                             let unit = &inputs[id];
                             match options.backend {
@@ -664,10 +645,8 @@ fn compile_units(
                                         .arg(&unit.input)
                                         .arg("-o")
                                         .arg(&unit.object);
-                                    let command =
-                                        unit_trace.measure("clang_object", "stage", |_| {
-                                            run_command(&mut command, "E-LLVM-COMPILE")
-                                        })?;
+                                    clang_function_merging(&mut command, options.function_merging);
+                                    let command = run_command(&mut command, "E-LLVM-COMPILE")?;
                                     if !unit.object.is_file() {
                                         return Err(infra(
                                             "E-LINK-MISSING-OUTPUT",
@@ -675,7 +654,7 @@ fn compile_units(
                                         ));
                                     }
                                     Ok(UnitResult {
-                                        command: Some(command),
+                                        commands: vec![command],
                                         receipt: None,
                                         access: None,
                                         pending: None,
@@ -685,13 +664,12 @@ fn compile_units(
                                     unit,
                                     target,
                                     options.optimization,
+                                    options.function_merging,
                                     cache,
                                     cancelled,
-                                    unit_trace,
                                 ),
                             }
                         });
-                        unit_timing.finish(if result.is_ok() { "ok" } else { "error" });
                         results.push((id, result));
                     }
                     results
@@ -758,9 +736,9 @@ fn compile_api_unit(
     unit: &UnitInput,
     target: &str,
     opt: Optimization,
+    function_merging: FunctionMerging,
     cache: Option<&PreparedCache>,
     cancelled: &(dyn Fn() -> bool + Sync),
-    trace: &TimingTrace,
 ) -> CompileResult<UnitResult> {
     use zil_llvm_api::{Config, Optimization as ApiOpt};
     let config = Config {
@@ -772,33 +750,33 @@ fn compile_api_unit(
     };
     let mut access = None;
     if let Some(cache) = cache {
-        let (mut lookup, bytes) = trace.value("object_cache_lookup", || cache.lookup(&unit.module));
+        let (mut lookup, bytes) = cache.lookup(&unit.module);
         check_cancelled(cancelled)?;
         if let Some(bytes) = bytes {
             // A hit is not a native Builder invocation. Current machine checks
             // still run, independently of the checks performed by the producer.
             let t = std::time::Instant::now();
-            trace.measure("cached_machine_preflight", "stage", |_| {
-                zil_llvm_api::validate_module(&unit.module).map_err(api_error)
-            })?;
+            zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
             lookup.preflight_ns = crate::object_cache::elapsed_ns(t);
             check_cancelled(cancelled)?;
-            trace.measure("object_write", "stage", |_| {
-                fs::write(&unit.object, &bytes)
-                    .map_err(|e| io_error("write reused object", &unit.object, e))
-            })?;
+            fs::write(&unit.object, &bytes)
+                .map_err(|e| io_error("write reused object", &unit.object, e))?;
             let q = zil_base::json_string;
             let receipt = format!(
-                "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
+                "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-cache\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"cache\":{},\"llvm_verification_this_request\":false,\"producer_verified_before_after\":true,\"preflight_ns\":{},\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":{}}}",
                 q(&cache.llvm_version),
                 q(target),
+                q(zil_llvm_api::pipeline_identity(
+                    config.optimization,
+                    function_merging
+                )),
                 bytes.len(),
                 lookup.to_json(),
                 lookup.preflight_ns,
                 lookup.key_ns + lookup.lookup_ns + lookup.preflight_ns
             );
             return Ok(UnitResult {
-                command: None,
+                commands: Vec::new(),
                 receipt: Some(receipt),
                 access: Some(lookup),
                 pending: None,
@@ -806,13 +784,93 @@ fn compile_api_unit(
         }
         access = Some(lookup);
     }
-    let object = zil_llvm_api::compile_module_with_trace(&unit.module, &config, cancelled, trace)
-        .map_err(api_error)?;
+    let snapshot = cache
+        .filter(|cache| cache.patch_policy.is_some())
+        .and_then(|_| crate::machine_object_patch::Snapshot::new(&unit.module));
+    let mut commands = Vec::new();
+    let mut patch_fallback = None;
+    if let (Some(cache), Some(snapshot), Some(lookup)) = (cache, snapshot.as_ref(), access.as_ref())
+        && let Some(record) = cache.patch_record(snapshot.index_key)
+        && let Some(plan) = snapshot.plan(&unit.module, &record)
+        && let Some(base) = cache.base_object(plan.base_key)
+    {
+        // The old object is raw cached data. Check the entire current model,
+        // including unchanged definitions, before deriving any current product.
+        let t = std::time::Instant::now();
+        zil_llvm_api::validate_module(&unit.module).map_err(api_error)?;
+        let current_preflight = crate::object_cache::elapsed_ns(t);
+        check_cancelled(cancelled)?;
+        match zil_llvm_api::compile_module_with_function_merging(
+            &plan.module,
+            &config,
+            function_merging,
+            cancelled,
+        ) {
+            Ok(patch) => {
+                check_cancelled(cancelled)?;
+                let t = std::time::Instant::now();
+                let attempt = plan.derive(
+                    cache.patch_policy.as_ref().expect("eligible patch policy"),
+                    &base,
+                    &patch.bytes,
+                    &unit.object,
+                    lookup.key,
+                );
+                let derive_ns = crate::object_cache::elapsed_ns(t);
+                commands.extend(attempt.commands);
+                check_cancelled(cancelled)?;
+                if let Some(bytes) = attempt.bytes {
+                    let mut lookup = access.take().expect("current cache action");
+                    lookup.preflight_ns = current_preflight;
+                    let q = zil_base::json_string;
+                    let r = &patch.receipt;
+                    let receipt = format!(
+                        "{{\"backend\":\"llvm-api\",\"input_kind\":\"object-patch\",\"llvm_version\":{},\"triple\":{},\"pipeline\":{},\"object_bytes\":{},\"patched_functions\":{},\"reused_functions\":{},\"base_action_key\":{},\"llvm_verification_scope\":\"current-patch\",\"base_producer_verified_before_after\":true,\"current_full_machine_preflight\":true,\"verify_before_after\":true,\"cache\":{},\"preflight_ns\":{},\"builder_ns\":{},\"parse_ns\":0,\"optimize_ns\":{},\"emit_ns\":{},\"derive_ns\":{},\"total_ns\":{}}}",
+                        q(&r.llvm_version),
+                        q(target),
+                        q(&r.pipeline),
+                        bytes.len(),
+                        plan.replacements.len(),
+                        plan.reused_functions,
+                        q(&plan.base_key.to_hex()),
+                        lookup.to_json(),
+                        current_preflight + r.preflight_ns,
+                        r.builder_ns,
+                        r.optimize_ns,
+                        r.emit_ns,
+                        derive_ns,
+                        current_preflight + r.total_ns + derive_ns
+                    );
+                    let pending = PendingObject {
+                        key: lookup.key,
+                        bytes,
+                        base: None,
+                    };
+                    return Ok(UnitResult {
+                        commands,
+                        receipt: Some(receipt),
+                        access: Some(lookup),
+                        pending: Some(pending),
+                    });
+                }
+                patch_fallback = attempt.reason;
+            }
+            Err(error) => {
+                check_cancelled(cancelled)?;
+                patch_fallback = Some(error.to_string());
+            }
+        }
+    }
+    let object = zil_llvm_api::compile_module_with_function_merging(
+        &unit.module,
+        &config,
+        function_merging,
+        cancelled,
+    )
+    .map_err(api_error)?;
     check_cancelled(cancelled)?;
-    trace.measure("object_write", "stage", |_| {
-        fs::write(&unit.object, &object.bytes)
-            .map_err(|e| io_error("write LLVM API object", &unit.object, e))
-    })?;
+    fs::write(&unit.object, &object.bytes)
+        .map_err(|e| io_error("write LLVM API object", &unit.object, e))?;
     let r = &object.receipt;
     let q = zil_base::json_string;
     let mut receipt = format!(
@@ -842,12 +900,27 @@ fn compile_api_unit(
         receipt.push_str(&access.to_json());
         receipt.push('}');
     }
-    let pending = access.as_ref().map(|a| PendingObject {
-        key: a.key,
-        bytes: object.bytes,
+    if let Some(reason) = patch_fallback {
+        receipt.pop();
+        receipt.push_str(",\"patch_fallback\":");
+        receipt.push_str(&q(&reason));
+        receipt.push('}');
+    }
+    let pending = access.as_ref().map(|a| {
+        let base = snapshot.map(|s| {
+            (
+                s.index_key,
+                s.encode_base(a.key, zil_base::Fingerprint::of(&object.bytes)),
+            )
+        });
+        PendingObject {
+            key: a.key,
+            bytes: object.bytes,
+            base,
+        }
     });
     Ok(UnitResult {
-        command: None,
+        commands,
         receipt: Some(receipt),
         access,
         pending,
@@ -858,14 +931,25 @@ fn compile_api_unit(
     _unit: &UnitInput,
     _target: &str,
     _opt: Optimization,
+    _function_merging: FunctionMerging,
     _cache: Option<&PreparedCache>,
     _cancelled: &(dyn Fn() -> bool + Sync),
-    _trace: &TimingTrace,
 ) -> CompileResult<UnitResult> {
     Err(infra(
         "E-LLVM-API-UNAVAILABLE",
         "LLVM API support was not compiled in",
     ))
+}
+
+fn clang_function_merging(command: &mut Command, policy: FunctionMerging) {
+    if policy == FunctionMerging::AfterOptimization {
+        command.args([
+            "-mllvm",
+            "-enable-merge-functions=true",
+            "-mllvm",
+            "-mergefunc-use-aliases=false",
+        ]);
+    }
 }
 
 fn run_command(command: &mut Command, code: &str) -> CompileResult<Vec<String>> {

@@ -369,3 +369,46 @@ fn failed_new_publications_cannot_create_forward_edges_or_replace_old_snapshots(
     assert!(Arc::ptr_eq(&db.read(&key(0)).unwrap().unwrap(), &snapshot));
     assert_closed(&db);
 }
+
+#[test]
+fn collecting_raw_roots_keeps_transitive_receipts_and_current_invalidation() {
+    let mut db = Database::default();
+    let fps = fingerprints();
+    publish(&mut db, 0, fps.clone(), vec![]);
+    publish(
+        &mut db,
+        1,
+        fps.clone(),
+        vec![edge(0, FingerprintKind::Semantic, &fps)],
+    );
+    let root = publish(
+        &mut db,
+        2,
+        fps.clone(),
+        vec![edge(1, FingerprintKind::Abi, &fps)],
+    );
+    publish(&mut db, 3, fps.clone(), vec![]);
+    db.retain_reachable([&key(2)]);
+    assert_eq!(db.len(), 3);
+    assert!(Arc::ptr_eq(&root, &db.read(&key(2)).unwrap().unwrap()));
+    assert!(db.read(&key(3)).unwrap().is_none());
+    let mut changed = fps;
+    changed.semantic = Fingerprint::of(b"changed after raw eviction");
+    publish(&mut db, 0, changed, vec![]);
+    assert!(db.read(&key(2)).unwrap().is_none());
+    db.retain_reachable(std::iter::empty());
+    assert!(db.is_empty());
+}
+
+#[test]
+fn collection_does_not_interrupt_an_active_query() {
+    let mut db = Database::default();
+    publish(&mut db, 0, fingerprints(), vec![]);
+    db.begin(key(1)).unwrap();
+    db.retain_reachable(std::iter::empty());
+    assert_eq!(db.len(), 1);
+    assert_eq!(db.active_count(), 1);
+    db.abort(&key(1));
+    db.retain_reachable(std::iter::empty());
+    assert!(db.is_empty());
+}

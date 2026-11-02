@@ -1,0 +1,10 @@
+{
+  "repository": "llvm/llvm-project",
+  "commit": "7a941dfb2877a0b8cf30323fefa85ad019e0b0f5",
+  "ref": "llvmorg-23.1.4",
+  "upstream_path": "llvm/lib/Transforms/Utils/SSAUpdaterBulk.cpp",
+  "url": "https://raw.githubusercontent.com/llvm/llvm-project/7a941dfb2877a0b8cf30323fefa85ad019e0b0f5/llvm/lib/Transforms/Utils/SSAUpdaterBulk.cpp",
+  "sha256": "923fa36dd298d9241894db6214f2bfe0c6f08d8123343526a917bff67c40a2ed",
+  "bytes": 11544,
+  "license": "Apache-2.0 WITH LLVM-exception"
+}

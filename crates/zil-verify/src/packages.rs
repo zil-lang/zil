@@ -114,11 +114,12 @@ pub(super) fn capture_views(
     Ok(views)
 }
 
-pub(super) fn owned_field(ty: &Type) -> bool {
+pub(super) fn owned_field(ty: &Type, sum_extension: bool) -> bool {
     matches!(
         ty,
         Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
     ) || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+        || (sum_extension && sums::owned(ty))
 }
 
 /// A shape classification only. Admission remains independently checked at
@@ -137,7 +138,41 @@ pub(super) fn check_capture_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    check_ordinary_type(module, ty, span, budget)
+    check_product_type(module, ty, span, budget, false)
+}
+
+/// Qualification of an actual complete ordinary Product head. This does not
+/// establish a loan, lifetime, initialization or permission to consume fields.
+/// The complete raw type tree is bounded before this shape classification.
+pub(super) fn shared_product_head(ty: &Type) -> bool {
+    matches!(ty, Type::Package { fields, .. }
+        if fields.iter().any(|(_, field)| matches!(field, Type::Managed(_) | Type::Package { .. }))
+            && fields.iter().all(|(_, field)| field.is_copy_value()
+                || matches!(field, Type::Managed(payload)
+                    if **payload == Type::ByteBuffer
+                        || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))
+                || shared_product_head(field)))
+}
+
+pub(super) fn check_shared_product_type(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    check_product_type(module, ty, span, budget, false)?;
+    if !has_children(ty) {
+        let Type::Package { fields, .. } = ty else {
+            unreachable!("checked Package")
+        };
+        budget.spend(fields.len())?;
+        if !fields.iter().all(|(_, field)| field.is_copy_value()
+            || matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::Record { .. })))
+        {
+            return Err(unsupported("shared ordinary Product heads require Copy and finite Managed leaves", span));
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn check_ordinary_type(
@@ -145,6 +180,20 @@ pub(super) fn check_ordinary_type(
     ty: &Type,
     span: Option<Span>,
     budget: &mut Budget,
+) -> Check<()> {
+    if sums::needs_shape(ty, budget)? {
+        return sums::check_type_for(module, ty, span, budget);
+    }
+    check_product_type(module, ty, span, budget, true)
+}
+
+/// The old complete Product gate for container and capture consumers.
+pub(super) fn check_product_type(
+    module: &TypedModule,
+    ty: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+    stores: bool,
 ) -> Check<()> {
     if !has_children(ty) {
         return check_type_for(module, ty, span, budget);
@@ -183,7 +232,8 @@ pub(super) fn check_ordinary_type(
                     pending.push((field, depth + 1));
                 }
                 Type::Managed(inner)
-                    if matches!(inner.as_ref(), Type::ByteBuffer | Type::Record { .. }) =>
+                    if matches!(inner.as_ref(), Type::ByteBuffer | Type::Record { .. })
+                        || (stores && matches!(inner.as_ref(), Type::OwnedStore { .. })) =>
                 {
                     resources::check_type_for(module, field, span, budget)?;
                     owns = true;
@@ -447,6 +497,12 @@ pub(super) fn check_instruction(
                 InstructionKind::BorrowPackageField { mutable, .. } => {
                     if let Type::Closure(id) = ty {
                         closures::self_contained(module, *id, budget)?;
+                    } else if !*mutable && matches!(ty, Type::Package { .. }) {
+                        check_shared_product_type(module, ty, span, budget)?;
+                    } else if !*mutable
+                        && matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
+                    {
+                        resources::check_type_for(module, ty, span, budget)?;
                     } else if !ty.is_copy_value() {
                         return Err(bad(
                             "field borrow requires a finite Copy or exact concrete Closure field",
@@ -472,7 +528,7 @@ pub(super) fn check_instruction(
                 }
                 InstructionKind::TakePackageField { .. }
                 | InstructionKind::DropPackageField { .. } => {
-                    if !owned_field(ty) {
+                    if !owned_field(ty, budget.sums) {
                         return Err(bad(
                             "package field transfer or cleanup requires an owning field",
                         ));
@@ -498,7 +554,7 @@ pub(super) fn check_instruction(
                     Ok(None)
                 }
                 InstructionKind::ReadPackageField { .. } => {
-                    if owned_field(ty) {
+                    if owned_field(ty, budget.sums) {
                         return Err(bad("package Copy projection cannot copy an owning field"));
                     }
                     check_type(ty, span)?;

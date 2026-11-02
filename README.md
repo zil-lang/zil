@@ -2,6 +2,8 @@
 
 本轮入口见 [174–177 实施报告](docs/LANGUAGE-177.md)：普通 State 拥有动态 Store、共享读取实际元素、保存并多次调用具体回调环境，以及三者的真实组合。内部 schema/raw Wire 为 **21**；完整 workspace **1620项通过、0失败、0忽略**，Clippy与格式检查通过。新组合完成64次原生执行，其中28次分配失败注入；上一阶段44次消费者也已重跑。完整语言 NotSatisfied、产品 NotRun、B0 Doing。源码包不放执行产物或证据；见 [交付与恢复](docs/DELIVERY.md)和[下一阶段建议](docs/NEXT-LANGUAGE-178.md)。
 
+当前编译效率研究分支使用精确锁定的 RustCrypto SHA-256；首次在可联网环境运行 `cargo fetch --locked` 准备 registry 依赖，之后才可使用下述离线命令。源码包不附带 Cargo registry 缓存。
+
 ```sh
 cargo build --offline --locked -p zil-cli
 python3 tools/language/177/consumer.py --repo . --cli target/debug/zil --out out/language177-new-run
@@ -142,7 +144,7 @@ printf '+r-q' | ./out/owned-component
 cargo test --offline --locked -p zil-driver --test impl077_package_captures --test impl079_package_captures
 ```
 
-输出 `0\n1\nS1\n0\n#4\nMSU`、退出0。Window由工厂返回的拥有FnMut环境持续持有；S是替换旧Surface，最终MSU是剩余组件字段按声明顺序清理。完整输入、生命周期与真实fd边界见样例和审核收据。首次准备独立Roam工具时仍须按其已有锁文件fetch第三方依赖；生产14个crate只用标准库及本项目路径依赖。
+输出 `0\n1\nS1\n0\n#4\nMSU`、退出0。Window由工厂返回的拥有FnMut环境持续持有；S是替换旧Surface，最终MSU是剩余组件字段按声明顺序清理。完整输入、生命周期与真实fd边界见样例和审核收据。首次准备独立Roam工具时仍须按其已有锁文件fetch第三方依赖；当前生产编译器还使用 Cargo.lock 中固定的 RustCrypto SHA-256 及其传递依赖，ZIL 通过安全接口调用，工作区 unsafe 禁令保持。
 
 ## 保留的组件字段更新主线
 

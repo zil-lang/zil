@@ -7,6 +7,9 @@ pub(super) struct Materializer<'a, 'b> {
     pub target: &'a TargetProfile,
     pub trace: &'a mut Vec<Trace>,
     pub locals: Vec<Vec<String>>,
+    pub iterations: Vec<generation::Binding>,
+    pub for_trace: &'a mut Vec<generation::ForTrace>,
+    pub next_generation: u64,
 }
 impl Materializer<'_, '_> {
     pub fn items(
@@ -14,8 +17,9 @@ impl Materializer<'_, '_> {
         items: &mut Vec<s::Item>,
         depth: usize,
         generated: bool,
-    ) -> CompileResult<()> {
+    ) -> CompileResult<bool> {
         let mut output = Vec::new();
+        let mut has_types = false;
         for mut item in std::mem::take(items) {
             self.budget.node(item.span, depth)?;
             match &mut item.kind {
@@ -31,18 +35,40 @@ impl Materializer<'_, '_> {
                             Some(item.span),
                         )]);
                     }
+                    if !self.iterations.is_empty() {
+                        self.expression(condition, depth + 1)?;
+                    }
                     let chosen = self.choose(condition)?;
                     let selected = if chosen { then_items } else { else_items };
-                    self.items(selected, depth + 1, true)?;
+                    has_types |= self.items(selected, depth + 1, true)?;
                     for item in std::mem::take(selected) {
                         self.budget.node(item.span, depth + 1)?;
                         output.push(item);
                     }
                 }
+                s::ItemKind::Meta(s::MetaItem::For {
+                    binding,
+                    iterable,
+                    items,
+                }) => {
+                    if !item.attributes.is_empty() || item.public {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Expand,
+                            "attributes or public modifier on a generation directive",
+                            Some(item.span),
+                        )]);
+                    }
+                    let (generated, generated_types) =
+                        self.for_items(binding, iterable, items, depth + 1)?;
+                    has_types |= generated_types;
+                    self.budget
+                        .spend(generated.len(), generated.len(), item.span)?;
+                    output.extend(generated);
+                }
                 s::ItemKind::Meta(_) => {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Expand,
-                        "#for/#emit source generation is not implemented",
+                        "#emit source generation is not implemented",
                         Some(item.span),
                     )]);
                 }
@@ -54,6 +80,15 @@ impl Materializer<'_, '_> {
                     )]);
                 }
                 _ => {
+                    // This item has already paid its node visit. Carry the
+                    // result through selection instead of rescanning emitted
+                    // lists just to choose the type-hygiene path.
+                    has_types |= matches!(
+                        item.kind,
+                        s::ItemKind::Aggregate(_)
+                            | s::ItemKind::TypeAlias(_)
+                            | s::ItemKind::Enum(_)
+                    );
                     self.item(&mut item, depth + 1)?;
                     self.budget.node(item.span, depth + 1)?;
                     output.push(item);
@@ -61,25 +96,47 @@ impl Materializer<'_, '_> {
             }
         }
         *items = output;
-        Ok(())
+        Ok(has_types)
     }
     fn item(&mut self, item: &mut s::Item, depth: usize) -> CompileResult<()> {
         self.budget.node(item.span, depth)?;
+        if !self.iterations.is_empty() {
+            self.generation_attributes(&mut item.attributes, depth + 1)?;
+        }
         match &mut item.kind {
             s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } => {
                 self.function(f, depth + 1)?
             }
             s::ItemKind::Aggregate(a) => {
                 for field in &mut a.fields {
+                    if !self.iterations.is_empty() {
+                        self.generation_type(&mut field.ty, depth + 1)?;
+                        self.generation_attributes(&mut field.attributes, depth + 1)?;
+                    }
                     if let Some(value) = &mut field.default {
                         self.expression(value, depth + 1)?;
                     }
                 }
                 self.items(&mut a.methods, depth + 1, false)?;
             }
+            s::ItemKind::TypeAlias(alias) if !self.iterations.is_empty() => {
+                if let Some(value) = &mut alias.value {
+                    self.generation_type(value, depth + 1)?;
+                }
+            }
             s::ItemKind::Enum(e) => {
                 for variant in &mut e.variants {
                     self.budget.node(variant.span, depth + 1)?;
+                    if !self.iterations.is_empty() {
+                        self.generation_attributes(&mut variant.attributes, depth + 2)?;
+                        if let s::VariantFields::Tuple(types) = &mut variant.fields {
+                            for field in types {
+                                // Rewrite only the type: retain the exact manages marker
+                                // and source span of the original tuple payload field.
+                                self.generation_type(&mut field.ty, depth + 2)?;
+                            }
+                        }
+                    }
                     if let s::VariantFields::Record(fields) = &mut variant.fields {
                         for field in fields {
                             if let Some(e) = &mut field.default {
@@ -89,8 +146,12 @@ impl Materializer<'_, '_> {
                     }
                 }
             }
-            s::ItemKind::Trait(t) => self.items(&mut t.members, depth + 1, false)?,
-            s::ItemKind::Impl(i) => self.items(&mut i.members, depth + 1, false)?,
+            s::ItemKind::Trait(t) => {
+                self.items(&mut t.members, depth + 1, false)?;
+            }
+            s::ItemKind::Impl(i) => {
+                self.items(&mut i.members, depth + 1, false)?;
+            }
             s::ItemKind::Const(c) => {
                 if let Some(e) = &mut c.value {
                     self.expression(e, depth + 1)?;
@@ -126,8 +187,18 @@ impl Materializer<'_, '_> {
     fn function(&mut self, f: &mut s::Function, depth: usize) -> CompileResult<()> {
         self.budget.node(f.span, depth)?;
         self.locals.push(Vec::new());
+        if !self.iterations.is_empty() {
+            for parameter in &f.generics {
+                if matches!(parameter.kind, s::GenericParamKind::Const(_)) {
+                    self.bind_name(&parameter.name, parameter.span)?;
+                }
+            }
+        }
         for p in &f.params {
             self.bind_name(&p.name, p.span)?;
+        }
+        if !self.iterations.is_empty() {
+            self.generation_signature(f, depth + 1)?;
         }
         let result = match &mut f.body {
             s::FunctionBody::Block(b) => self.block(b, depth + 1),
@@ -144,7 +215,11 @@ impl Materializer<'_, '_> {
         self.locals.pop();
         result
     }
-    fn statements(&mut self, statements: &mut Vec<s::Stmt>, depth: usize) -> CompileResult<()> {
+    pub(super) fn statements(
+        &mut self,
+        statements: &mut Vec<s::Stmt>,
+        depth: usize,
+    ) -> CompileResult<()> {
         let mut output = Vec::new();
         for mut statement in std::mem::take(statements) {
             self.budget.node(statement.span, depth + 1)?;
@@ -154,6 +229,9 @@ impl Materializer<'_, '_> {
                     then_body,
                     else_body,
                 }) => {
+                    if !self.iterations.is_empty() {
+                        self.expression(condition, depth + 1)?;
+                    }
                     let chosen = self.choose(condition)?;
                     let selected = if chosen {
                         Some(then_body)
@@ -171,10 +249,20 @@ impl Materializer<'_, '_> {
                         }
                     }
                 }
+                s::StmtKind::Meta(s::MetaStatement::For {
+                    binding,
+                    iterable,
+                    body,
+                }) => {
+                    let generated = self.for_statements(binding, iterable, body, depth + 1)?;
+                    self.budget
+                        .spend(generated.len(), generated.len(), statement.span)?;
+                    output.extend(generated);
+                }
                 s::StmtKind::Meta(_) => {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Expand,
-                        "#for/#emit source generation is not implemented",
+                        "#emit source generation is not implemented",
                         Some(statement.span),
                     )]);
                 }
@@ -211,7 +299,14 @@ impl Materializer<'_, '_> {
     fn statement(&mut self, s: &mut s::Stmt, depth: usize) -> CompileResult<()> {
         self.budget.node(s.span, depth)?;
         match &mut s.kind {
-            s::StmtKind::Binding { pattern, value, .. } => {
+            s::StmtKind::Binding {
+                pattern, ty, value, ..
+            } => {
+                if !self.iterations.is_empty()
+                    && let Some(ty) = ty
+                {
+                    self.generation_type(ty, depth + 1)?;
+                }
                 self.expression(value, depth + 1)?;
                 self.bind(pattern, depth + 1)?;
             }
@@ -292,8 +387,11 @@ impl Materializer<'_, '_> {
             s::ArrowBody::Block(b) => self.block(b, depth),
         }
     }
-    fn expression(&mut self, e: &mut s::Expr, depth: usize) -> CompileResult<()> {
+    pub(super) fn expression(&mut self, e: &mut s::Expr, depth: usize) -> CompileResult<()> {
         self.budget.node(e.span, depth)?;
+        if !self.iterations.is_empty() {
+            self.substitute(e)?;
+        }
         match &mut e.kind {
             s::ExprKind::Group(e)
             | s::ExprKind::Try(e)
@@ -316,8 +414,12 @@ impl Materializer<'_, '_> {
             s::ExprKind::TypeApply { callee, arguments } => {
                 self.expression(callee, depth + 1)?;
                 for a in arguments {
-                    if let s::GenericArg::Const(e) = a {
-                        self.expression(e, depth + 1)?;
+                    match a {
+                        s::GenericArg::Const(e) => self.expression(e, depth + 1)?,
+                        s::GenericArg::Type(ty) if !self.iterations.is_empty() => {
+                            self.generation_type(ty, depth + 1)?;
+                        }
+                        s::GenericArg::Type(_) => {}
                     }
                 }
             }
@@ -339,20 +441,49 @@ impl Materializer<'_, '_> {
                 }
             }
             s::ExprKind::Record { ty, base, fields } => {
-                for e in [ty, base].into_iter().flatten() {
-                    self.expression(e, depth + 1)?;
+                if let Some(ty) = ty {
+                    if self.iterations.is_empty() {
+                        self.expression(ty, depth + 1)?;
+                    } else {
+                        self.generation_record_type(ty, depth + 1)?;
+                    }
+                }
+                if let Some(base) = base {
+                    self.expression(base, depth + 1)?;
                 }
                 for f in fields {
                     self.budget.node(f.span, depth + 1)?;
+                    if f.value.is_none() && !self.iterations.is_empty() {
+                        self.budget.spend(1, f.name.len(), f.span)?;
+                        f.value = Some(s::Expr {
+                            span: f.span,
+                            kind: s::ExprKind::Name(f.name.clone()),
+                        });
+                    }
                     if let Some(e) = &mut f.value {
                         self.expression(e, depth + 2)?;
                     }
                 }
             }
-            s::ExprKind::Closure { params, body, .. } => {
+            s::ExprKind::Closure {
+                params,
+                return_type,
+                body,
+                ..
+            } => {
                 self.locals.push(Vec::new());
-                for p in params {
+                for p in params.iter() {
                     self.bind_name(&p.name, p.span)?;
+                }
+                if !self.iterations.is_empty() {
+                    for p in params.iter_mut() {
+                        if let Some(ty) = &mut p.ty {
+                            self.generation_type(ty, depth + 1)?;
+                        }
+                    }
+                    if let Some(ty) = return_type {
+                        self.generation_type(ty, depth + 1)?;
+                    }
                 }
                 self.arrow(body, depth + 1)?;
                 self.locals.pop();

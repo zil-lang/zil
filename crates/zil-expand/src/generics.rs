@@ -22,6 +22,8 @@ mod copy;
 mod enums;
 #[path = "generic_helper_graph.rs"]
 mod helper_graph;
+#[path = "generic_products.rs"]
+pub(super) mod products;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
@@ -30,14 +32,42 @@ pub(super) mod store_templates;
 mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
+#[path = "generic_where.rs"]
+mod where_copy;
 
-pub(super) fn specialize<'a>(
+fn check_nominal_name(name: &str, span: Span) -> R<()> {
+    if super::byte_buffer_name(name) || super::owned_store_name(name) {
+        return Err(super::primitive_name_error(name, span));
+    }
+    if copy::reserved_name(name) {
+        return Err(error(span, "Copy is a reserved structural capability name"));
+    }
+    Ok(())
+}
+
+pub(super) fn check_generated_type_name(name: &str, span: Span) -> R<()> {
+    check_nominal_name(name, span)?;
+    if aliases::reserved_declaration_name(name) {
+        return Err(Diagnostic::error(
+            Phase::Expand,
+            "E-NAME-DUPLICATE",
+            Some(span),
+            "duplicate alias or declaration name",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn specialize_products<'a>(
     module: &'a Module,
     limits: &Limits,
+    products: &mut products::Products,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
+    let mut has_where = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
+        has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
         if let ItemKind::Impl(implementation) = &item.kind
             && implementation
                 .trait_type
@@ -67,16 +97,8 @@ pub(super) fn specialize<'a>(
             ItemKind::Trait(t) => Some(t.name.as_str()),
             _ => None,
         };
-        if let Some(name) =
-            declared.filter(|n| super::byte_buffer_name(n) || super::owned_store_name(n))
-        {
-            return Err(vec![super::primitive_name_error(name, item.span)]);
-        }
-        if declared.is_some_and(copy::reserved_name) {
-            return Err(vec![error(
-                item.span,
-                "Copy is a reserved structural capability name",
-            )]);
+        if let Some(name) = declared {
+            check_nominal_name(name, item.span).map_err(|error| vec![error])?;
         }
         for param in params(item) {
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
@@ -84,6 +106,23 @@ pub(super) fn specialize<'a>(
                 return Err(vec![super::primitive_name_error(&param.name, param.span)]);
             }
         }
+    }
+    if has_where {
+        let normalized = where_copy::normalize(module, &mut names_budget).map_err(|e| vec![e])?;
+        let (aliased, budget) =
+            aliases::normalize_with_budget(&normalized, names_budget).map_err(|e| vec![e])?;
+        return match aliased {
+            Some(aliased) => specialize_with_budget(
+                &aliased.module,
+                limits,
+                &aliased.pattern_types,
+                budget,
+                products,
+            ),
+            None => specialize_with_budget(&normalized, limits, &BTreeMap::new(), budget, products),
+        }
+        .map(Cow::Owned)
+        .map_err(|e| vec![e]);
     }
     if let Some(normalized) = aliases::normalize(module, limits).map_err(|e| vec![e])? {
         if normalized
@@ -94,14 +133,19 @@ pub(super) fn specialize<'a>(
         {
             return Ok(Cow::Owned(normalized.module));
         }
-        return specialize_engine(&normalized.module, limits, &normalized.pattern_types)
-            .map(Cow::Owned)
-            .map_err(|error| vec![error]);
+        return specialize_engine(
+            &normalized.module,
+            limits,
+            &normalized.pattern_types,
+            products,
+        )
+        .map(Cow::Owned)
+        .map_err(|error| vec![error]);
     }
     if module.items.iter().all(|item| params(item).is_empty()) {
         return Ok(Cow::Borrowed(module));
     }
-    specialize_engine(module, limits, &BTreeMap::new())
+    specialize_engine(module, limits, &BTreeMap::new(), products)
         .map(Cow::Owned)
         .map_err(|error| vec![error])
 }
@@ -110,23 +154,34 @@ fn specialize_engine(
     module: &Module,
     limits: &Limits,
     pattern_types: &BTreeMap<String, TypeRef>,
+    products: &mut products::Products,
 ) -> R<Module> {
-    let mut engine = Engine::new(module, limits, pattern_types)?;
-    if !engine.callable_nominal_collision {
-        return engine.run(module);
+    specialize_with_budget(module, limits, pattern_types, Budget::new(limits), products)
+}
+
+fn specialize_with_budget<'a>(
+    module: &'a Module,
+    limits: &'a Limits,
+    pattern_types: &'a BTreeMap<String, TypeRef>,
+    budget: Budget<'a>,
+    products: &mut products::Products,
+) -> R<Module> {
+    let mut engine = Engine::with_budget(module, limits, pattern_types, budget)?;
+    if !engine.nominal_binder_collision {
+        return engine.run(module, products);
     }
     // Generated aggregates no longer carry the original generic declaration.
     // Protect actual nominal identities in the original, still-scoped AST,
     // before substituting a caller binder into those aggregate fields.
     let protected = super::modules::protect_alias_nominals(module, &mut engine.budget)?;
     let mut engine = Engine::with_budget(&protected, limits, pattern_types, engine.budget)?;
-    if engine.callable_nominal_collision {
+    if engine.nominal_binder_collision {
         return Err(error(
             module.span,
-            "callable binder still collides with a nominal identity after scoped normalization",
+            "type binder still collides with a nominal identity after scoped normalization",
         ));
     }
-    engine.run(&protected)
+    engine.run(&protected, products)
 }
 
 struct Engine<'a> {
@@ -139,11 +194,13 @@ struct Engine<'a> {
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
     store_parameter: Option<String>,
+    product_owner: Option<products::Scope>,
+    products: products::Products,
     retained_stores: Vec<String>,
     inferred_state_values: BTreeSet<String>,
     has_store_templates: bool,
     has_single_state_values: bool,
-    callable_nominal_collision: bool,
+    nominal_binder_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
     instances: BTreeMap<(String, Vec<String>), String>,
@@ -187,13 +244,6 @@ fn name(item: &Item) -> Option<&str> {
 }
 
 impl<'a> Engine<'a> {
-    fn new(
-        module: &'a Module,
-        limits: &'a Limits,
-        pattern_types: &'a BTreeMap<String, TypeRef>,
-    ) -> R<Self> {
-        Self::with_budget(module, limits, pattern_types, Budget::new(limits))
-    }
     fn with_budget(
         module: &'a Module,
         limits: &'a Limits,
@@ -211,11 +261,13 @@ impl<'a> Engine<'a> {
             callable_name: None,
             callable_pair: None,
             store_parameter: None,
+            product_owner: None,
+            products: products::Products::default(),
             retained_stores: Vec::new(),
             inferred_state_values: BTreeSet::new(),
             has_store_templates: false,
             has_single_state_values: false,
-            callable_nominal_collision: false,
+            nominal_binder_collision: false,
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
@@ -289,12 +341,21 @@ impl<'a> Engine<'a> {
                 // This parameter/name was already charged by item preflight.
                 // Borrow the existing nominal index; do not add a global scan,
                 // name copy or a hygiene pass to the noncolliding old path.
-                if callable
-                    .as_ref()
-                    .is_some_and(|bounds| bounds.contains_generic(&parameter.name))
-                    && engine.nominals.contains_key(&parameter.name)
-                {
-                    engine.callable_nominal_collision = true;
+                if engine.nominals.contains_key(&parameter.name) {
+                    if callable
+                        .as_ref()
+                        .is_some_and(|bounds| bounds.contains_generic(&parameter.name))
+                    {
+                        // Preserve the already-accounted callable protection path.
+                        engine.nominal_binder_collision = true;
+                    } else if matches!(parameter.kind, GenericParamKind::Type(_)) {
+                        // Ordinary type binders need the same nominal isolation.
+                        // Do not inspect a symbolic body against an ambiguously
+                        // named nominal table: the caller first protects the
+                        // fully prepaid AST, then validates that scoped module.
+                        engine.nominal_binder_collision = true;
+                        return Ok(engine);
+                    }
                 }
                 if !seen.insert(&parameter.name) {
                     return Err(error(parameter.span, "duplicate type parameter"));
@@ -397,7 +458,8 @@ impl<'a> Engine<'a> {
     fn tick(&mut self, span: Span, depth: usize) -> R<()> {
         self.budget.node(span, depth)
     }
-    fn run(&mut self, module: &Module) -> R<Module> {
+    fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
+        self.collect_products(module)?;
         let mut result = Module {
             id: module.id,
             span: module.span,
@@ -416,6 +478,8 @@ impl<'a> Engine<'a> {
             self.item(&mut item)?;
             result.items.push(item);
         }
+        self.products.allowance = Some(self.budget.remaining_limits());
+        *products = std::mem::take(&mut self.products);
         Ok(result)
     }
     fn instantiate(&mut self, template: &str, arguments: Vec<TypeRef>, span: Span) -> R<String> {
@@ -438,6 +502,16 @@ impl<'a> Engine<'a> {
             .get(template)
             .cloned()
             .ok_or_else(|| error(span, format!("unknown generic declaration {template}")))?;
+        let product =
+            matches!(&item.kind, ItemKind::Aggregate(a) if products::parameter(a).is_some());
+        let product_arguments = if product {
+            for argument in &arguments {
+                self.budget.ty(argument)?;
+            }
+            Some(arguments.clone())
+        } else {
+            None
+        };
         // Canonical source type applications identify an instance, independent
         // of whether inference or explicit ::<...> reached it first.
         let scope = if allow_store_template {
@@ -499,6 +573,15 @@ impl<'a> Engine<'a> {
                 .map(|ty| type_key(ty, &mut self.budget))
                 .collect::<R<Vec<_>>>()?,
         );
+        let product_scope = if product {
+            self.product_scope(&arguments, span)?
+        } else {
+            None
+        };
+        if let Some(scope) = &product_scope {
+            self.budget.text(&scope.owner, span)?;
+            key.1.push(format!("@product-owner:{}", scope.owner));
+        }
         let family = self.state_family(item, &arguments, &key.1, span)?;
         if let Some(family) = family {
             // A source type name shadowing a callable binder must not share a
@@ -543,12 +626,20 @@ impl<'a> Engine<'a> {
             .zip(arguments)
             .map(|(p, ty)| (p.name.clone(), ty))
             .collect();
+        let mut product_bounds = trait_bounds::Bounds::new();
+        let mut product_variables = BTreeSet::new();
+        if product && let Some(name) = &self.store_parameter {
+            self.budget.node(span, 0)?;
+            self.budget.text(name, span)?;
+            product_bounds.insert(name.clone(), vec![stores::BOUND.to_owned()]);
+            product_variables.insert(name.clone());
+        }
         self.traits.check_arguments(
             params(item),
             &substitution,
             (
-                &trait_bounds::Bounds::new(),
-                &BTreeSet::new(),
+                &product_bounds,
+                &product_variables,
                 callable::StoreCallbacks::from_names(
                     self.callable_name.as_deref(),
                     self.callable_pair.as_ref(),
@@ -562,6 +653,21 @@ impl<'a> Engine<'a> {
         let mut instance = item.clone();
         substitute_item(&mut instance, &substitution)?;
         self.budget.item(&instance)?;
+        // Original generic enums retain their existing Copy payload profile,
+        // even though ordinary monomorphic enums now admit owners. Inspect the
+        // actual substituted fields while the real template identity exists.
+        if let ItemKind::Enum(e) = &instance.kind {
+            for variant in &e.variants {
+                if let VariantFields::Tuple(fields) = &variant.fields {
+                    for field in fields {
+                        if field.manages {
+                            return Err(unsupported(field.span, "owned generic enum payload"));
+                        }
+                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                    }
+                }
+            }
+        }
         match &mut instance.kind {
             ItemKind::Function(f) => {
                 f.generics.retain(|parameter| {
@@ -582,6 +688,9 @@ impl<'a> Engine<'a> {
                 e.name.clone_from(&generated);
             }
             _ => unreachable!(),
+        }
+        if let Some(arguments) = product_arguments {
+            self.record_product(template, &generated, arguments, product_scope, span)?;
         }
         self.pending.push_back(instance);
         Ok(store_templates::Instantiation::Eager(generated))
@@ -656,6 +765,30 @@ impl<'a> Engine<'a> {
                         .as_ref()
                         .and_then(|bound| bound.single_generic().map(str::to_owned)),
                 );
+                let saved_product_owner = self.product_owner.take();
+                if !self.products.is_empty()
+                    && (self.store_parameter.is_some()
+                        || self.callable_name.is_some()
+                        || self.callable_pair.is_some())
+                {
+                    self.budget.node(f.span, 0)?;
+                    self.budget.text(&f.name, f.span)?;
+                    for name in self
+                        .store_parameter
+                        .iter()
+                        .chain(self.callable_name.iter())
+                        .chain(self.callable_pair.iter().flatten())
+                    {
+                        self.budget.text(name, f.span)?;
+                    }
+                    self.product_owner = Some(products::Scope {
+                        owner: f.name.clone(),
+                        span: f.span,
+                        ordinary: self.store_parameter.clone(),
+                        callable: self.callable_name.clone(),
+                        pair: self.callable_pair.clone(),
+                    });
+                }
                 for parameter in &mut f.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
@@ -705,8 +838,31 @@ impl<'a> Engine<'a> {
                 self.callable_name = saved_callable;
                 self.callable_pair = saved_pair;
                 self.store_parameter = saved_store;
+                self.product_owner = saved_product_owner;
             }
             ItemKind::Aggregate(a) => {
+                let saved = (
+                    self.product_owner.clone(),
+                    self.store_parameter.clone(),
+                    self.callable_name.clone(),
+                    self.callable_pair.clone(),
+                );
+                if let Some(scope) = self.product_aggregate_scope(&a.name, item.span)? {
+                    // Restoring the engine's lexical view creates a second
+                    // copy beside the retained application owner context.
+                    for name in scope
+                        .ordinary
+                        .iter()
+                        .chain(scope.callable.iter())
+                        .chain(scope.pair.iter().flatten())
+                    {
+                        self.budget.text(name, item.span)?;
+                    }
+                    self.store_parameter = scope.ordinary.clone();
+                    self.callable_name = scope.callable.clone();
+                    self.callable_pair = scope.pair.clone();
+                    self.product_owner = Some(scope);
+                }
                 for field in &mut a.fields {
                     self.ty(&mut field.ty, 0)?;
                     if let Some(value) = &mut field.default {
@@ -716,6 +872,12 @@ impl<'a> Engine<'a> {
                 for item in &mut a.methods {
                     self.item(item)?;
                 }
+                (
+                    self.product_owner,
+                    self.store_parameter,
+                    self.callable_name,
+                    self.callable_pair,
+                ) = saved;
             }
             ItemKind::Enum(e) => {
                 for variant in &mut e.variants {

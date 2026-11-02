@@ -1,117 +1,90 @@
-// FIPS 180-4 SHA-256 compression. Arithmetic is explicitly modulo 2^32.
-const K: [u32; 64] = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
-];
-fn block(state: &mut [u32; 8], bytes: &[u8], k: &[u32; 64]) {
-    let mut w = [0u32; 64];
-    for i in 0..16 {
-        w[i] = u32::from_be_bytes(bytes[i * 4..i * 4 + 4].try_into().expect("four bytes"));
-    }
-    for i in 16..64 {
-        let a = w[i - 15];
-        let b = w[i - 2];
-        let s0 = a.rotate_right(7) ^ a.rotate_right(18) ^ (a >> 3);
-        let s1 = b.rotate_right(17) ^ b.rotate_right(19) ^ (b >> 10);
-        w[i] = w[i - 16]
-            .wrapping_add(s0)
-            .wrapping_add(w[i - 7])
-            .wrapping_add(s1);
-    }
-    let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = *state;
-    for i in 0..64 {
-        let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
-        let ch = (e & f) ^ (!e & g);
-        let t1 = h
-            .wrapping_add(s1)
-            .wrapping_add(ch)
-            .wrapping_add(k[i])
-            .wrapping_add(w[i]);
-        let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
-        let maj = (a & b) ^ (a & c) ^ (b & c);
-        let t2 = s0.wrapping_add(maj);
-        h = g;
-        g = f;
-        f = e;
-        e = d.wrapping_add(t1);
-        d = c;
-        c = b;
-        b = a;
-        a = t1.wrapping_add(t2);
-    }
-    for (x, y) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
-        *x = x.wrapping_add(y);
-    }
-}
+//! SHA-256 through RustCrypto's safe streaming interface. Runtime CPU dispatch
+//! stays inside the fixed dependency; digest bytes and callers are unchanged.
+use sha2::{Digest, Sha256 as Backend};
+
 #[derive(Clone)]
-pub(crate) struct Sha256 {
-    state: [u32; 8],
-    tail: [u8; 64],
-    used: usize,
-    bytes: u64,
-}
+pub(crate) struct Sha256(Backend);
+
 impl Sha256 {
     pub(crate) fn new() -> Self {
-        Self {
-            state: [
-                0x6a09e667u32,
-                0xbb67ae85,
-                0x3c6ef372,
-                0xa54ff53a,
-                0x510e527f,
-                0x9b05688c,
-                0x1f83d9ab,
-                0x5be0cd19,
-            ],
-            tail: [0; 64],
-            used: 0,
-            bytes: 0,
-        }
+        Self(Backend::new())
     }
-    pub(crate) fn update(&mut self, mut input: &[u8]) {
-        self.bytes = self.bytes.wrapping_add(input.len() as u64);
-        if self.used != 0 {
-            let n = input.len().min(64 - self.used);
-            self.tail[self.used..self.used + n].copy_from_slice(&input[..n]);
-            self.used += n;
-            input = &input[n..];
-            if self.used != 64 {
-                return;
-            }
-            block(&mut self.state, &self.tail, &K);
-            self.used = 0;
-        }
-        let (chunks, remaining) = input.as_chunks::<64>();
-        for chunk in chunks {
-            block(&mut self.state, chunk, &K);
-        }
-        self.tail[..remaining.len()].copy_from_slice(remaining);
-        self.used = remaining.len();
+
+    pub(crate) fn update(&mut self, input: &[u8]) {
+        self.0.update(input);
     }
-    pub(crate) fn finish(mut self) -> [u8; 32] {
-        let mut tail = [0u8; 128];
-        tail[..self.used].copy_from_slice(&self.tail[..self.used]);
-        tail[self.used] = 0x80;
-        let length = if self.used < 56 { 64 } else { 128 };
-        tail[length - 8..length].copy_from_slice(&self.bytes.wrapping_mul(8).to_be_bytes());
-        for chunk in tail[..length].as_chunks::<64>().0 {
-            block(&mut self.state, chunk, &K);
-        }
-        let mut result = [0u8; 32];
-        for (i, word) in self.state.into_iter().enumerate() {
-            result[i * 4..i * 4 + 4].copy_from_slice(&word.to_be_bytes());
-        }
-        result
+
+    pub(crate) fn finish(self) -> [u8; 32] {
+        let digest = self.0.finalize();
+        let mut bytes = [0; 32];
+        bytes.copy_from_slice(&digest);
+        bytes
     }
 }
+
 pub(crate) fn digest(input: &[u8]) -> [u8; 32] {
     let mut state = Sha256::new();
     state.update(input);
     state.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{FingerprintBuilder, sha256_scalar_reference as reference};
+    use std::hash::Hasher;
+
+    #[test]
+    fn rustcrypto_matches_scalar_at_streaming_boundaries() {
+        let bytes = (0..8193).map(|i| (i * 73 + 19) as u8).collect::<Vec<_>>();
+        let mut current = Sha256::new();
+        let mut previous = reference::Sha256::new();
+        let mut start = 0;
+        for end in [
+            0, 1, 55, 56, 63, 64, 65, 127, 128, 129, 4095, 4096, 4097, 8193,
+        ] {
+            current.update(&bytes[start..end]);
+            previous.update(&bytes[start..end]);
+            current.update(&[]);
+            previous.update(&[]);
+            let expected = previous.clone().finish();
+            assert_eq!(current.clone().finish(), expected, "stream prefix {end}");
+            assert_eq!(digest(&bytes[..end]), expected, "one-shot prefix {end}");
+            start = end;
+        }
+        assert_eq!(current.finish(), previous.finish());
+    }
+
+    #[test]
+    fn cloned_streams_and_observational_finish_preserve_scalar_identity() {
+        let prefix = [23; 63];
+        let mut left = Sha256::new();
+        let mut previous_left = reference::Sha256::new();
+        left.update(&prefix);
+        previous_left.update(&prefix);
+        let mut right = left.clone();
+        let mut previous_right = previous_left.clone();
+
+        let mut public = FingerprintBuilder::new();
+        public.update(&prefix);
+        let expected = reference::digest(&prefix);
+        for _ in 0..2 {
+            assert_eq!(
+                public.finish(),
+                u64::from_le_bytes(expected[..8].try_into().unwrap())
+            );
+        }
+        left.update(&[41; 65]);
+        previous_left.update(&[41; 65]);
+        public.update(&[41; 65]);
+        let expected_left = previous_left.finish();
+        assert_eq!(left.finish(), expected_left);
+        assert_eq!(public.digest().0, expected_left);
+
+        right.update(&[7; 55]);
+        previous_right.update(&[7; 55]);
+        let expected_right = previous_right.finish();
+        assert_eq!(right.finish(), expected_right);
+        assert_ne!(expected_left, expected_right);
+    }
 }

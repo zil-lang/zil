@@ -4,10 +4,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
 
-#[cfg(test)]
-#[path = "source/reuse_cp19.rs"]
-mod reuse_cp19;
-
 /// Evaluate the currently supported closed scalar `#(...)` expressions.
 /// A driver-supplied raw CFG producer extends calls/control flow through
 /// `evaluate_source_constants_with_compiler`; the VM still verifies every query.
@@ -56,6 +52,19 @@ impl<'a> SourceProgramContext<'a> {
         let mut imports = BTreeMap::new();
         let mut ids = BTreeSet::new();
         for module in &program.modules {
+            if !module.core.aggregate_templates.is_empty()
+                || !module.core.aggregate_applications.is_empty()
+            {
+                let metadata_limits = Limits {
+                    max_nodes: limits.max_nodes.saturating_sub(nodes),
+                    max_analysis_steps: work,
+                    ..limits.clone()
+                };
+                let (metadata_nodes, metadata_work) =
+                    crate::preflight_aggregate_metadata(&module.core, &metadata_limits)?;
+                nodes += metadata_nodes;
+                work -= metadata_work;
+            }
             let id = module.core.module_id;
             if !ids.insert(id) {
                 return Err(vec![Diagnostic::error(
@@ -521,6 +530,199 @@ pub fn evaluate_source_constants_with_compiler(
     evaluate_with_context(core, target, limits, context, Some(compiler))
 }
 
+/// Validate a bounded unchanged subset with the original CT walk's checks and
+/// fees, without copying Core. `None` requests ordinary evaluation; a returned
+/// error is the current evaluator's error, never a cached admission decision.
+pub fn validate_unchanged_source(
+    core: &CoreModule,
+    target: &TargetProfile,
+    limits: &Limits,
+    context: Option<&SourceProgramContext<'_>>,
+) -> Option<CompileResult<SourceEvaluationUsage>> {
+    unchanged_shape(core, limits)?;
+    Some((|| {
+        if core.schema_version != SCHEMA_VERSION {
+            return Err(vec![Diagnostic::error(
+                Phase::Ct,
+                "E-SCHEMA-VERSION",
+                None,
+                "unknown Core schema",
+            )]);
+        }
+        let mut walker = Walker {
+            core,
+            target,
+            limits,
+            nodes: 0,
+            work_left: limits.max_analysis_steps,
+            next_node: None,
+            steps_left: limits.max_ct_steps,
+            context,
+            compiler: None,
+            scopes: Vec::new(),
+        };
+        walker.declarations()?;
+        for f in &core.functions {
+            let mut scope = BTreeMap::new();
+            for p in &f.parameters {
+                walker.text(&p.name, Some(p.span))?;
+                walker.pattern_type_shape(&p.ty, 0, p.span)?;
+                scope.insert(p.name.clone(), Some(p.ty.clone()));
+            }
+            walker.scopes.push(scope);
+            walker.unchanged_block(&f.body, Some(&f.return_type), 0)?;
+            walker.scopes.pop();
+        }
+        Ok(SourceEvaluationUsage {
+            steps: limits.max_ct_steps - walker.steps_left,
+            nodes: walker.nodes,
+        })
+    })())
+}
+
+// This iterative classification establishes every recursive visitor's shape
+// and depth before it starts. Classification failure has no diagnostic effect.
+fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
+    fn scalar(ty: &Type) -> bool {
+        matches!(
+            ty,
+            Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+        )
+    }
+    enum Node<'a> {
+        Block(&'a CoreBlock),
+        Expr(&'a CoreExpr),
+    }
+    fn push<'a>(
+        stack: &mut Vec<(Node<'a>, usize)>,
+        fuel: &mut usize,
+        node: Node<'a>,
+        depth: usize,
+    ) -> Option<()> {
+        *fuel = fuel.checked_sub(1)?;
+        stack.push((node, depth));
+        Some(())
+    }
+    if !core.aggregate_templates.is_empty()
+        || !core.aggregate_applications.is_empty()
+        || !core.aggregates.is_empty()
+        || !core.enums.is_empty()
+        || !core.unsupported.is_empty()
+    {
+        return None;
+    }
+    let mut fuel = limits.max_nodes.min(1_000_000);
+    let mut stack = Vec::new();
+    for f in &core.functions {
+        fuel = fuel.checked_sub(f.parameters.len().checked_add(1)?)?;
+        if !f.type_parameters.is_empty()
+            || !f.state_parameters.is_empty()
+            || !f.callable_parameters.is_empty()
+            || f.callable_return.is_some()
+            || f.receiver.is_some()
+            || !scalar(&f.return_type)
+            || !f.parameters.iter().all(|p| scalar(&p.ty))
+        {
+            return None;
+        }
+        push(&mut stack, &mut fuel, Node::Block(&f.body), 0)?;
+        while let Some((node, depth)) = stack.pop() {
+            if depth > limits.max_call_depth.min(128) {
+                return None;
+            }
+            let next = depth + 1;
+            match node {
+                Node::Block(block) => {
+                    fuel = fuel.checked_sub(block.statements.len())?;
+                    for s in &block.statements {
+                        match &s.kind {
+                            CoreStatementKind::Binding {
+                                ty, initializer, ..
+                            } => {
+                                if ty.as_ref().is_some_and(|ty| !scalar(ty)) {
+                                    return None;
+                                }
+                                if let Some(e) = initializer {
+                                    push(&mut stack, &mut fuel, Node::Expr(e), next)?;
+                                }
+                            }
+                            CoreStatementKind::Assign { target, value } => {
+                                push(&mut stack, &mut fuel, Node::Expr(target), next)?;
+                                push(&mut stack, &mut fuel, Node::Expr(value), next)?;
+                            }
+                            CoreStatementKind::Expression(e)
+                            | CoreStatementKind::Return(Some(e)) => {
+                                push(&mut stack, &mut fuel, Node::Expr(e), next)?
+                            }
+                            CoreStatementKind::If {
+                                condition,
+                                then_body,
+                                else_body,
+                            } => {
+                                push(&mut stack, &mut fuel, Node::Expr(condition), next)?;
+                                push(&mut stack, &mut fuel, Node::Block(then_body), next)?;
+                                if let Some(b) = else_body {
+                                    push(&mut stack, &mut fuel, Node::Block(b), next)?;
+                                }
+                            }
+                            CoreStatementKind::While { condition, body } => {
+                                push(&mut stack, &mut fuel, Node::Expr(condition), next)?;
+                                push(&mut stack, &mut fuel, Node::Block(body), next)?;
+                            }
+                            CoreStatementKind::Block(b)
+                            | CoreStatementKind::Defer(b)
+                            | CoreStatementKind::Unsafe(b) => {
+                                push(&mut stack, &mut fuel, Node::Block(b), next)?
+                            }
+                            CoreStatementKind::Return(None)
+                            | CoreStatementKind::Break
+                            | CoreStatementKind::Continue => {}
+                            _ => return None,
+                        }
+                    }
+                }
+                Node::Expr(e) => match &e.kind {
+                    CoreExprKind::Integer(_)
+                    | CoreExprKind::Bool(_)
+                    | CoreExprKind::Unit
+                    | CoreExprKind::Name(_) => {}
+                    CoreExprKind::Literal(c) if scalar(&c.ty()) => {}
+                    CoreExprKind::Unary { operand, .. } => {
+                        push(&mut stack, &mut fuel, Node::Expr(operand), next)?
+                    }
+                    CoreExprKind::IntegerConvert { value, target } if scalar(target) => {
+                        push(&mut stack, &mut fuel, Node::Expr(value), next)?
+                    }
+                    CoreExprKind::Binary { left, right, .. } => {
+                        push(&mut stack, &mut fuel, Node::Expr(left), next)?;
+                        push(&mut stack, &mut fuel, Node::Expr(right), next)?;
+                    }
+                    CoreExprKind::Call { callee, arguments } => {
+                        push(&mut stack, &mut fuel, Node::Expr(callee), next)?;
+                        for a in arguments {
+                            push(&mut stack, &mut fuel, Node::Expr(a), next)?;
+                        }
+                    }
+                    CoreExprKind::Member { object, .. } => {
+                        push(&mut stack, &mut fuel, Node::Expr(object), next)?
+                    }
+                    CoreExprKind::If {
+                        condition,
+                        then_value,
+                        else_value,
+                    } => {
+                        for e in [condition, then_value, else_value] {
+                            push(&mut stack, &mut fuel, Node::Expr(e), next)?;
+                        }
+                    }
+                    _ => return None,
+                },
+            }
+        }
+    }
+    Some(())
+}
+
 fn evaluate_with_context(
     core: &CoreModule,
     target: &TargetProfile,
@@ -547,7 +749,6 @@ fn evaluate_with_context(
         context,
         compiler,
         scopes: Vec::new(),
-        type_shapes: BTreeMap::new(),
     };
     // Every declaration is borrowed and bounded before the first body, query,
     // or forward-reference hint can copy any of its metadata.
@@ -584,6 +785,8 @@ fn evaluate_with_context(
     };
     Ok((
         CoreModule {
+            aggregate_templates: core.aggregate_templates.clone(),
+            aggregate_applications: core.aggregate_applications.clone(),
             functions,
             schema_version: core.schema_version,
             module_id: core.module_id,
@@ -613,16 +816,154 @@ struct Walker<'a> {
     // still check the entire rewritten module after CT execution.
     // An unknown closure parameter still shadows an outer type hint.
     scopes: Vec<BTreeMap<String, Option<Type>>>,
-    // This reference-bearing, request-local table cannot outlive its immutable
-    // Core inputs. The pointer only provides constant-sized identity comparison.
-    type_shapes: BTreeMap<(*const Type, usize), CheckedTypeShape<'a>>,
-}
-struct CheckedTypeShape<'a> {
-    _input: &'a Type,
-    nodes: usize,
-    work: usize,
 }
 impl<'a> Walker<'a> {
+    // Only called after unchanged_shape has classified the complete module.
+    // Every hint below observes the original child, which that classification
+    // proves the rebuilding evaluator would leave byte-for-byte unchanged.
+    fn unchanged_block(
+        &mut self,
+        block: &CoreBlock,
+        result: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.charge(depth, block.span)?;
+        self.scopes.push(BTreeMap::new());
+        for s in &block.statements {
+            self.charge(depth + 1, s.span)?;
+            match &s.kind {
+                CoreStatementKind::Binding {
+                    name,
+                    ty,
+                    initializer,
+                    ..
+                } => {
+                    self.text(name, Some(s.span))?;
+                    if let Some(ty) = ty {
+                        self.pattern_type_shape(ty, depth + 1, s.span)?;
+                    }
+                    if let Some(e) = initializer {
+                        self.unchanged_expr(e, ty.as_ref(), depth + 1)?;
+                    }
+                    let hint = if let Some(ty) = ty {
+                        self.pattern_type_shape(ty, depth + 1, s.span)?;
+                        Some(ty.clone())
+                    } else if let Some(e) = initializer {
+                        self.hint(e)?
+                    } else {
+                        None
+                    };
+                    self.text(name, Some(s.span))?;
+                    self.scopes
+                        .last_mut()
+                        .expect("block scope")
+                        .insert(name.clone(), hint);
+                }
+                CoreStatementKind::Assign { target, value } => {
+                    let hint = self.hint(target)?;
+                    self.unchanged_expr(target, None, depth + 1)?;
+                    self.unchanged_expr(value, hint.as_ref(), depth + 1)?;
+                }
+                CoreStatementKind::Expression(e) => self.unchanged_expr(e, None, depth + 1)?,
+                CoreStatementKind::Return(e) => {
+                    if let Some(e) = e {
+                        self.unchanged_expr(e, result, depth + 1)?;
+                    }
+                }
+                CoreStatementKind::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
+                    self.unchanged_expr(condition, Some(&Type::Bool), depth + 1)?;
+                    self.unchanged_block(then_body, result, depth + 1)?;
+                    if let Some(b) = else_body {
+                        self.unchanged_block(b, result, depth + 1)?;
+                    }
+                }
+                CoreStatementKind::While { condition, body } => {
+                    self.unchanged_expr(condition, Some(&Type::Bool), depth + 1)?;
+                    self.unchanged_block(body, result, depth + 1)?;
+                }
+                CoreStatementKind::Defer(b) => {
+                    self.unchanged_block(b, Some(&Type::Unit), depth + 1)?
+                }
+                CoreStatementKind::Block(b) | CoreStatementKind::Unsafe(b) => {
+                    self.unchanged_block(b, result, depth + 1)?
+                }
+                CoreStatementKind::Break | CoreStatementKind::Continue => {}
+                _ => unreachable!("complete unchanged Core classification"),
+            }
+        }
+        self.scopes.pop();
+        Ok(())
+    }
+    fn unchanged_expr(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.charge(depth, e.span)?;
+        match &e.kind {
+            CoreExprKind::Literal(_) | CoreExprKind::Bool(_) | CoreExprKind::Unit => {}
+            CoreExprKind::Integer(text) | CoreExprKind::Name(text) => {
+                self.text(text, Some(e.span))?
+            }
+            CoreExprKind::IntegerConvert { value, target } => {
+                self.pattern_type_shape(target, depth + 1, e.span)?;
+                if !target.is_integer() {
+                    return Err(unsupported(
+                        e.span,
+                        "integer conversion target must be u8/u16/i32/i64",
+                    ));
+                }
+                self.unchanged_expr(value, None, depth + 1)?;
+            }
+            CoreExprKind::Unary { op, operand } => self.unchanged_expr(
+                operand,
+                if *op == UnaryOp::Not {
+                    Some(&Type::Bool)
+                } else {
+                    expected
+                },
+                depth + 1,
+            )?,
+            CoreExprKind::Binary { op, left, right } => {
+                let left_hint = self.hint(left)?;
+                let hint = if comparison(*op) {
+                    None
+                } else {
+                    expected.or(left_hint.as_ref())
+                };
+                self.unchanged_expr(left, hint, depth + 1)?;
+                let right_hint = self.hint(left)?;
+                self.unchanged_expr(right, hint.or(right_hint.as_ref()), depth + 1)?;
+            }
+            CoreExprKind::Call { callee, arguments } => {
+                let hints = self.call_hints(callee, arguments.len(), depth + 1, e.span)?;
+                for (i, a) in arguments.iter().enumerate() {
+                    self.unchanged_expr(a, hints.get(i), depth + 1)?;
+                }
+                self.unchanged_expr(callee, None, depth + 1)?;
+            }
+            CoreExprKind::Member { object, member } => {
+                self.text(member, Some(e.span))?;
+                self.unchanged_expr(object, None, depth + 1)?;
+            }
+            CoreExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                self.unchanged_expr(condition, Some(&Type::Bool), depth + 1)?;
+                self.unchanged_expr(then_value, expected, depth + 1)?;
+                self.unchanged_expr(else_value, expected, depth + 1)?;
+            }
+            _ => unreachable!("complete unchanged Core classification"),
+        }
+        Ok(())
+    }
     fn text(&mut self, text: &str, span: Option<Span>) -> CompileResult<()> {
         self.work_left = self.work_left.checked_sub(text.len()).ok_or_else(|| {
             vec![Diagnostic::limit(
@@ -633,12 +974,7 @@ impl<'a> Walker<'a> {
         })?;
         Ok(())
     }
-    fn parameters(
-        &mut self,
-        parameters: &'a [Type],
-        result: &'a Type,
-        span: Span,
-    ) -> CompileResult<()> {
+    fn parameters(&mut self, parameters: &[Type], result: &Type, span: Span) -> CompileResult<()> {
         if parameters.len() > self.limits.max_locals {
             return Err(vec![Diagnostic::limit(
                 Phase::Ct,
@@ -653,6 +989,16 @@ impl<'a> Walker<'a> {
     }
     fn declarations(&mut self) -> CompileResult<()> {
         let core = self.core;
+        if !core.aggregate_templates.is_empty() || !core.aggregate_applications.is_empty() {
+            let metadata_limits = Limits {
+                max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
+                max_analysis_steps: self.work_left,
+                ..self.limits.clone()
+            };
+            let (nodes, work) = crate::preflight_aggregate_metadata(core, &metadata_limits)?;
+            self.nodes += nodes;
+            self.work_left -= work;
+        }
         if core.functions.len() > self.limits.max_functions {
             return Err(vec![Diagnostic::limit(
                 Phase::Ct,
@@ -786,7 +1132,7 @@ impl<'a> Walker<'a> {
     }
     fn block(
         &mut self,
-        block: &'a CoreBlock,
+        block: &CoreBlock,
         result: Option<&Type>,
         depth: usize,
     ) -> CompileResult<CoreBlock> {
@@ -964,6 +1310,9 @@ impl<'a> Walker<'a> {
                 CoreStatementKind::Block(b) => {
                     CoreStatementKind::Block(self.block(b, result, depth + 1)?)
                 }
+                CoreStatementKind::Defer(b) => {
+                    CoreStatementKind::Defer(self.block(b, Some(&Type::Unit), depth + 1)?)
+                }
                 CoreStatementKind::Unsafe(b) => {
                     CoreStatementKind::Unsafe(self.block(b, result, depth + 1)?)
                 }
@@ -986,7 +1335,7 @@ impl<'a> Walker<'a> {
             span: block.span,
         })
     }
-    fn bind_pattern(&mut self, pattern: &'a CorePattern, depth: usize) -> CompileResult<()> {
+    fn bind_pattern(&mut self, pattern: &CorePattern, depth: usize) -> CompileResult<()> {
         self.charge(depth, pattern.span)?;
         match &pattern.kind {
             CorePatternKind::Name(name) => {
@@ -1020,58 +1369,7 @@ impl<'a> Walker<'a> {
     }
     // Raw Core patterns carry a full nominal type. Bound that tree before the
     // enclosing pattern is cloned; visiting only the payload patterns is insufficient.
-    fn pattern_type_shape(&mut self, ty: &'a Type, depth: usize, span: Span) -> CompileResult<()> {
-        // Leaves need no lookup. Successful compound walks of at least eight
-        // nodes amortize the index; smaller shapes keep their ordinary walk.
-        if !matches!(
-            ty,
-            Type::Tuple(_)
-                | Type::Record { .. }
-                | Type::Package { .. }
-                | Type::Array { .. }
-                | Type::Enum { .. }
-                | Type::Address { .. }
-                | Type::OwnedStore { .. }
-                | Type::Slice { .. }
-                | Type::Managed(_)
-                | Type::Desc(_)
-                | Type::Opaque { .. }
-                | Type::ErrorUnion { .. }
-                | Type::FunctionPointer { .. }
-                | Type::ForeignCallback { .. }
-        ) {
-            return self.walk_type_shape(ty, depth, span);
-        }
-        let key = (std::ptr::from_ref(ty), depth);
-        if let Some(cost) = self.type_shapes.get(&key) {
-            if let (Some(nodes), Some(work)) = (
-                self.nodes
-                    .checked_add(cost.nodes)
-                    .filter(|nodes| *nodes <= self.limits.max_nodes),
-                self.work_left.checked_sub(cost.work),
-            ) {
-                self.nodes = nodes;
-                self.work_left = work;
-                return Ok(());
-            }
-            // Replay the exact original traversal when the complete charge
-            // cannot be paid, preserving its first failure and partial usage.
-        }
-        let before_nodes = self.nodes;
-        let before_work = self.work_left;
-        self.walk_type_shape(ty, depth, span)?;
-        let nodes = self.nodes - before_nodes;
-        if nodes >= 8 {
-            self.type_shapes.entry(key).or_insert(CheckedTypeShape {
-                _input: ty,
-                nodes,
-                work: before_work - self.work_left,
-            });
-        }
-        Ok(())
-    }
-    #[inline]
-    fn walk_type_shape(&mut self, ty: &Type, depth: usize, span: Span) -> CompileResult<()> {
+    fn pattern_type_shape(&mut self, ty: &Type, depth: usize, span: Span) -> CompileResult<()> {
         hint_type(ty, depth, &mut self.nodes, &mut self.work_left, self.limits)
             .map(|_| ())
             .map_err(|mut errors| {
@@ -1083,7 +1381,7 @@ impl<'a> Walker<'a> {
     }
     fn expr(
         &mut self,
-        e: &'a CoreExpr,
+        e: &CoreExpr,
         expected: Option<&Type>,
         depth: usize,
     ) -> CompileResult<CoreExpr> {
@@ -1241,49 +1539,10 @@ impl<'a> Walker<'a> {
                 } else {
                     None
                 };
-                let core = self.core;
-                // The original Core/context outlives every argument walk. Keep
-                // the original per-use shape charges without copying its types.
-                let mut hints = Vec::new();
-                if let Some(f) = self.function(callee) {
-                    for p in f.parameters.iter().take(arguments.len()) {
-                        self.pattern_type_shape(&p.ty, depth + 1, e.span)?;
-                        hints.push(&p.ty);
-                    }
-                } else {
-                    let enum_fields = (|| {
-                        let CoreExprKind::Member { object, member } = &callee.kind else {
-                            return None;
-                        };
-                        let CoreExprKind::Name(name) = &object.kind else {
-                            return None;
-                        };
-                        if self
-                            .scopes
-                            .iter()
-                            .rev()
-                            .any(|scope| scope.contains_key(name))
-                        {
-                            return None;
-                        }
-                        core.enums
-                            .iter()
-                            .find(|declaration| &declaration.name == name)
-                            .and_then(|declaration| {
-                                declaration.variants.iter().find(|(name, _)| name == member)
-                            })
-                            .map(|(_, fields)| fields)
-                    })();
-                    if let Some(fields) = enum_fields {
-                        for ty in fields.iter().take(arguments.len()) {
-                            self.pattern_type_shape(ty, depth + 1, e.span)?;
-                            hints.push(ty);
-                        }
-                    }
-                }
+                let hints = self.call_hints(callee, arguments.len(), depth + 1, e.span)?;
                 let mut args = Vec::new();
                 for (i, a) in arguments.iter().enumerate() {
-                    args.push(self.expr(a, hints.get(i).copied(), depth + 1)?);
+                    args.push(self.expr(a, hints.get(i), depth + 1)?);
                 }
                 CoreExprKind::Call {
                     callee: Box::new(match application {
@@ -1627,7 +1886,7 @@ impl<'a> Walker<'a> {
     }
     fn fields(
         &mut self,
-        fields: &'a [(String, CoreExpr)],
+        fields: &[(String, CoreExpr)],
         depth: usize,
     ) -> CompileResult<Vec<(String, CoreExpr)>> {
         fields
@@ -1637,6 +1896,53 @@ impl<'a> Walker<'a> {
                 Ok((name.clone(), self.expr(e, None, depth)?))
             })
             .collect()
+    }
+    fn call_hints(
+        &mut self,
+        callee: &CoreExpr,
+        argument_count: usize,
+        depth: usize,
+        span: Span,
+    ) -> CompileResult<Vec<Type>> {
+        let core = self.core;
+        let mut hints = Vec::new();
+        if let Some(f) = self.function(callee) {
+            for p in f.parameters.iter().take(argument_count) {
+                self.pattern_type_shape(&p.ty, depth, span)?;
+                hints.push(p.ty.clone());
+            }
+        } else {
+            let enum_fields = (|| {
+                let CoreExprKind::Member { object, member } = &callee.kind else {
+                    return None;
+                };
+                let CoreExprKind::Name(name) = &object.kind else {
+                    return None;
+                };
+                if self
+                    .scopes
+                    .iter()
+                    .rev()
+                    .any(|scope| scope.contains_key(name))
+                {
+                    return None;
+                }
+                core.enums
+                    .iter()
+                    .find(|declaration| &declaration.name == name)
+                    .and_then(|declaration| {
+                        declaration.variants.iter().find(|(name, _)| name == member)
+                    })
+                    .map(|(_, fields)| fields)
+            })();
+            if let Some(fields) = enum_fields {
+                for ty in fields.iter().take(argument_count) {
+                    self.pattern_type_shape(ty, depth, span)?;
+                    hints.push(ty.clone());
+                }
+            }
+        }
+        Ok(hints)
     }
     fn function(&self, callee: &CoreExpr) -> Option<&'a CoreFunction> {
         let original = callee;
@@ -2091,6 +2397,8 @@ mod tests {
     fn module(value: CoreExpr, ty: Type) -> CoreModule {
         let span = value.span;
         CoreModule {
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
@@ -2575,6 +2883,113 @@ mod tests {
             .unwrap_err();
             assert_eq!(errors[0].phase, Phase::Ct);
             assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
+        }
+    }
+
+    #[test]
+    fn defer227_normalization_preserves_body_and_checks_runtime_names() {
+        let target = TargetProfile::default();
+        let limits = Limits::default();
+        let mut core = module(number("42"), Type::Unit);
+        let span = core.functions[0].span;
+        core.functions[0].body.statements[0].kind = CoreStatementKind::Defer(CoreBlock {
+            span,
+            statements: vec![CoreStatement {
+                id: NodeId(3),
+                span,
+                kind: CoreStatementKind::Binding {
+                    name: "cleanup_value".into(),
+                    mutable: false,
+                    ty: None,
+                    initializer: Some(expr(CoreExprKind::CompileTime(Box::new(number("42"))))),
+                },
+            }],
+        });
+        let normalized = evaluate_source_constants(&core, &target, &limits).unwrap();
+        let CoreStatementKind::Defer(body) = &normalized.functions[0].body.statements[0].kind
+        else {
+            panic!("defer body preserved")
+        };
+        let CoreStatementKind::Binding {
+            initializer: Some(value),
+            ..
+        } = &body.statements[0].kind
+        else {
+            panic!("body binding preserved")
+        };
+        assert_eq!(value.kind, CoreExprKind::Integer("42i32".into()));
+        let CoreStatementKind::Defer(body) = &mut core.functions[0].body.statements[0].kind else {
+            unreachable!()
+        };
+        body.statements.push(CoreStatement {
+            id: NodeId(4),
+            span,
+            kind: CoreStatementKind::Expression(expr(CoreExprKind::CompileTime(Box::new(expr(
+                CoreExprKind::Name("cleanup_value".into()),
+            ))))),
+        });
+        struct Compiler;
+        impl SourceCompiler for Compiler {
+            fn compile(
+                &self,
+                _: &CoreExpr,
+                _: Option<&Type>,
+                _: &Limits,
+            ) -> CompileResult<CtProgram> {
+                unreachable!("runtime names must be rejected before compiler invocation")
+            }
+        }
+        assert_eq!(
+            evaluate_source_constants_with_compiler(&core, &target, &limits, None, &Compiler)
+                .unwrap_err()[0]
+                .code,
+            "E-CT-RUNTIME"
+        );
+    }
+
+    #[test]
+    fn defer227_unchanged_body_has_the_same_bounded_visit_as_rebuilding() {
+        let target = TargetProfile::default();
+        let mut core = module(number("42"), Type::Unit);
+        let span = core.functions[0].span;
+        core.functions[0].body.statements[0].kind = CoreStatementKind::Defer(CoreBlock {
+            span,
+            statements: vec![CoreStatement {
+                id: NodeId(3),
+                span,
+                kind: CoreStatementKind::Expression(expr(CoreExprKind::Name(
+                    "ordinary_name".into(),
+                ))),
+            }],
+        });
+        let limits = Limits::default();
+        let (rebuilt, usage) =
+            evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();
+        assert_eq!(rebuilt, core);
+        assert_eq!(
+            validate_unchanged_source(&core, &target, &limits, None)
+                .unwrap()
+                .unwrap(),
+            usage
+        );
+        for limits in [
+            Limits {
+                max_nodes: usage.nodes - 1,
+                ..limits.clone()
+            },
+            Limits {
+                max_call_depth: 1,
+                ..limits.clone()
+            },
+            Limits {
+                max_analysis_steps: 4,
+                ..limits.clone()
+            },
+        ] {
+            assert_eq!(
+                evaluate_source_constants(&core, &target, &limits).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
         }
     }
 }

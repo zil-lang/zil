@@ -77,7 +77,7 @@ impl<'a> Index<'a> {
         })
     }
 
-    fn declaration(&self, bound: &TypeRef, budget: &mut Budget<'_>) -> R<&'a TraitDecl> {
+    pub(super) fn declaration(&self, bound: &TypeRef, budget: &mut Budget<'_>) -> R<&'a TraitDecl> {
         budget.ty(bound)?;
         let name = plain(bound).ok_or_else(|| {
             unsupported(
@@ -105,10 +105,12 @@ impl<'a> Index<'a> {
                 "generic or supertrait bound requires the full trait solver",
             ));
         }
-        if matches!(
-            name,
-            "Copy" | "Transfer" | "Share" | "Send" | "Sync" | "Drop" | "Fn" | "FnMut" | "FnOnce"
-        ) {
+        if name.starts_with("$module") {
+            // The same exact prefix exclusion applies to both static impls and
+            // generic bounds. Charge this path as before sharing the predicate.
+            budget.text(name, bound.span)?;
+        }
+        if super::super::static_traits::reserved_trait(name) {
             return Err(error(
                 bound.span,
                 "nominal bounds cannot manufacture built-in capabilities",

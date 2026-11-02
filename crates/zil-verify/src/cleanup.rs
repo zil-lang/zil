@@ -46,6 +46,9 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
                 pending.extend(fields.iter().map(|(_, ty)| ty));
             }
             Type::Enum { variants, .. } => {
+                if budget.sums && sums::owned_enum(ty) {
+                    return Ok(true);
+                }
                 budget.spend(variants.len())?;
                 for (_, fields) in variants {
                     budget.spend(fields.len())?;
@@ -67,6 +70,11 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
 fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
     match instruction {
         InstructionKind::Load(local)
+        | InstructionKind::VariantTagLocal { local, .. }
+        | InstructionKind::ReadVariantLocal { local, .. }
+        | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::DropEnum { local }
+        | InstructionKind::RegisterDefer { local, .. }
         | InstructionKind::Store { local, .. }
         | InstructionKind::DescribeLocal { local }
         | InstructionKind::ReadPackageField { local, .. }
@@ -95,12 +103,14 @@ fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
 }
 
 pub(super) fn check_function(
+    module: &TypedModule,
     function: &TypedFunction,
     graph: &FunctionGraph,
     budget: &mut Budget,
 ) -> Check<()> {
     let bad = |span, message| reject("E-VERIFY-CLEANUP", Some(span), message);
     let mut required = false;
+    let mut deferred = false;
     for ty in std::iter::once(&function.return_type)
         .chain(function.locals.iter().map(|local| &local.ty))
         .chain(&function.values)
@@ -112,6 +122,7 @@ pub(super) fn check_function(
     for (index, block) in function.blocks.iter().enumerate() {
         for instruction in &block.instructions {
             budget.spend(1)?;
+            deferred |= matches!(instruction.kind, InstructionKind::RegisterDefer { .. });
             match instruction.kind {
                 InstructionKind::ScopeEnter { scope } => {
                     required = true;
@@ -124,6 +135,7 @@ pub(super) fn check_function(
                     }
                 }
                 InstructionKind::ScopeExit { .. }
+                | InstructionKind::RegisterDefer { .. }
                 | InstructionKind::BindPackageCapture { .. }
                 | InstructionKind::EndPackageCapture { .. }
                 | InstructionKind::MakePackage { .. }
@@ -146,6 +158,15 @@ pub(super) fn check_function(
                 | InstructionKind::ReadErrorUnion { .. } => required = true,
                 _ => {}
             }
+            if matches!(
+                instruction.kind,
+                InstructionKind::VariantTagLocal { .. }
+                    | InstructionKind::ReadVariantLocal { .. }
+                    | InstructionKind::UnpackVariant { .. }
+                    | InstructionKind::DropEnum { .. }
+            ) {
+                required = true;
+            }
             if let InstructionKind::MakeErrorUnion { is_error: true, .. } = instruction.kind {
                 budget.spend(error_values.len().saturating_add(1))?;
                 error_values.insert(instruction.result.expect("checked error union result"));
@@ -154,6 +175,7 @@ pub(super) fn check_function(
                 && matches!(
                     instruction.kind,
                     InstructionKind::ScopeEnter { .. }
+                        | InstructionKind::RegisterDefer { .. }
                         | InstructionKind::ScopeExit { .. }
                         | InstructionKind::BindPackageCapture { .. }
                         | InstructionKind::EndPackageCapture { .. }
@@ -317,6 +339,23 @@ pub(super) fn check_function(
                                     ));
                                 }
                             }
+                            if let InstructionKind::UnpackVariant { ref fields, .. } =
+                                instruction.kind
+                            {
+                                budget.spend(
+                                    fields
+                                        .len()
+                                        .saturating_mul(state.live.len().saturating_add(1)),
+                                )?;
+                                for target in fields {
+                                    if !state.live.contains_key(target) {
+                                        return Err(bad(
+                                            instruction.span,
+                                            "every Unpack destination requires active storage",
+                                        ));
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -347,6 +386,9 @@ pub(super) fn check_function(
                 pending.push(successor);
             }
         }
+    }
+    if deferred {
+        defers::check(module, function, graph, budget)?;
     }
     Ok(())
 }

@@ -269,6 +269,12 @@ fn ordinary_product_admission_does_not_widen_other_raw_parent_contexts() {
         fs::write(dir.join("typed.txt"), format!("{module:#?}")).unwrap();
         let result = zil_analyze::analyze(&module, &Limits::default());
         fs::write(dir.join("analyze.txt"), format!("{result:#?}")).unwrap();
+        if label == "address" || label == "sum" {
+            // 224 admits shared Outer; §8.1.5 now also admits the unchanged
+            // internally consistent bool!Outer parameter/result mutation.
+            assert!(result.is_ok(), "{label}: {result:#?}");
+            continue;
+        }
         let errors = result.expect_err(label);
         if label == "capture" {
             // 214-216 admits complete Product captures, but this unchanged
@@ -279,6 +285,16 @@ fn ordinary_product_admission_does_not_widen_other_raw_parent_contexts() {
                     && d.category == ResultCategory::SafeReject
                     && d.code == "E-ANALYZE-IR"
                     && d.message == "resource closure: package field type mismatch"),
+                "{label}: {errors:#?}"
+            );
+        } else if label == "store" {
+            // 223 admits complete Product Store values. This unchanged raw
+            // mutation still retains the old canonical Store element name.
+            assert!(
+                errors.iter().any(|d| d.phase == Phase::Analyze
+                    && d.category == ResultCategory::SafeReject
+                    && d.code == "E-ANALYZE-IR"
+                    && d.message == "Product Store lacks its exact canonical element definition"),
                 "{label}: {errors:#?}"
             );
         } else {

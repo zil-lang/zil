@@ -43,106 +43,93 @@ pub(super) fn definitions(core: &CoreModule) -> BTreeMap<String, Type> {
         .collect()
 }
 
-/// Request-local declaration view. Empty enum tables have no semantic work or
-/// budget charge; removing those scans does not remove module validation.
-pub(super) struct ProjectDefinitions<'a> {
-    modules: Vec<&'a CoreModule>,
-}
-
-impl<'a> ProjectDefinitions<'a> {
-    pub(super) fn new(program: &'a CoreProgram) -> Self {
-        Self {
-            modules: program
-                .modules
+pub(super) fn project_definitions(
+    program: &CoreProgram,
+    current: &CoreModule,
+    remaining: &mut usize,
+    limits: &Limits,
+) -> CompileResult<BTreeMap<String, Type>> {
+    let mut result = BTreeMap::new();
+    for module in &program.modules {
+        for e in &module.core.enums {
+            if module.core.module_id != current.module_id && !aggregates::project_symbol(&e.name) {
+                continue;
+            }
+            let limit = || {
+                vec![Diagnostic::limit(
+                    Phase::Types,
+                    "project enum shape budget exceeded",
+                    Some(e.span),
+                )]
+            };
+            *remaining = remaining
+                .checked_sub(e.name.len().saturating_add(e.variants.len()))
+                .ok_or_else(limit)?;
+            let mut pending = e
+                .variants
                 .iter()
-                .map(|module| &module.core)
-                .filter(|core| !core.enums.is_empty())
-                .collect(),
-        }
-    }
-
-    pub(super) fn resolve(
-        &self,
-        current: &CoreModule,
-        remaining: &mut usize,
-        limits: &Limits,
-    ) -> CompileResult<BTreeMap<String, Type>> {
-        let mut result = BTreeMap::new();
-        for module in &self.modules {
-            for e in &module.enums {
-                if module.module_id != current.module_id && !aggregates::project_symbol(&e.name) {
-                    continue;
+                .flat_map(|(_, fields)| fields)
+                .map(|ty| (ty, 0))
+                .collect::<Vec<_>>();
+            while let Some((ty, depth)) = pending.pop() {
+                if depth > limits.max_call_depth {
+                    return Err(limit());
                 }
-                let limit = || {
-                    vec![Diagnostic::limit(
-                        Phase::Types,
-                        "project enum shape budget exceeded",
-                        Some(e.span),
-                    )]
-                };
-                *remaining = remaining
-                    .checked_sub(e.name.len().saturating_add(e.variants.len()))
-                    .ok_or_else(limit)?;
-                let mut pending = e
-                    .variants
-                    .iter()
-                    .flat_map(|(_, fields)| fields)
-                    .map(|ty| (ty, 0))
-                    .collect::<Vec<_>>();
-                while let Some((ty, depth)) = pending.pop() {
-                    if depth > limits.max_call_depth {
-                        return Err(limit());
+                *remaining = remaining.checked_sub(1).ok_or_else(limit)?;
+                match ty {
+                    Type::Record { name, fields } | Type::Package { name, fields } => {
+                        *remaining = remaining
+                            .checked_sub(name.len().saturating_add(fields.len()))
+                            .ok_or_else(limit)?;
+                        pending.extend(fields.iter().map(|(_, t)| (t, depth + 1)));
                     }
-                    *remaining = remaining.checked_sub(1).ok_or_else(limit)?;
-                    match ty {
-                        Type::Record { name, fields } => {
-                            *remaining = remaining
-                                .checked_sub(name.len().saturating_add(fields.len()))
-                                .ok_or_else(limit)?;
-                            pending.extend(fields.iter().map(|(_, t)| (t, depth + 1)));
-                        }
-                        Type::Enum { name, variants } => {
-                            *remaining = remaining
-                                .checked_sub(name.len().saturating_add(variants.len()))
-                                .ok_or_else(limit)?;
-                            pending.extend(
-                                variants
-                                    .iter()
-                                    .flat_map(|(_, fields)| fields)
-                                    .map(|t| (t, depth + 1)),
-                            );
-                        }
-                        Type::Tuple(fields) => {
-                            pending.extend(fields.iter().map(|t| (t, depth + 1)))
-                        }
-                        Type::Array { element, .. }
-                        | Type::Slice { element }
-                        | Type::Address { inner: element, .. } => {
-                            pending.push((element, depth + 1))
-                        }
-                        _ => {}
+                    Type::Enum { name, variants } => {
+                        *remaining = remaining
+                            .checked_sub(name.len().saturating_add(variants.len()))
+                            .ok_or_else(limit)?;
+                        pending.extend(
+                            variants
+                                .iter()
+                                .flat_map(|(_, fields)| fields)
+                                .map(|t| (t, depth + 1)),
+                        );
                     }
-                }
-                if result
-                    .insert(
-                        e.name.clone(),
-                        Type::Enum {
-                            name: format!("@module{}:{}", module.module_id.0, e.name),
-                            variants: e.variants.clone(),
-                        },
-                    )
-                    .is_some()
-                {
-                    return Err(vec![error(
-                        "E-NAME-DUPLICATE",
-                        e.span,
-                        "duplicate enum identity in project",
-                    )]);
+                    Type::Managed(inner)
+                    | Type::Desc(inner)
+                    | Type::OwnedStore { element: inner } => {
+                        pending.push((inner, depth + 1));
+                    }
+                    ty @ Type::ErrorUnion { error, result } if errors::owned(ty) => {
+                        *remaining = remaining.checked_sub(2).ok_or_else(limit)?;
+                        pending.push((error, depth + 1));
+                        pending.push((result, depth + 1));
+                    }
+                    Type::Tuple(fields) => pending.extend(fields.iter().map(|t| (t, depth + 1))),
+                    Type::Array { element, .. }
+                    | Type::Slice { element }
+                    | Type::Address { inner: element, .. } => pending.push((element, depth + 1)),
+                    _ => {}
                 }
             }
+            if result
+                .insert(
+                    e.name.clone(),
+                    Type::Enum {
+                        name: format!("@module{}:{}", module.core.module_id.0, e.name),
+                        variants: e.variants.clone(),
+                    },
+                )
+                .is_some()
+            {
+                return Err(vec![error(
+                    "E-NAME-DUPLICATE",
+                    e.span,
+                    "duplicate enum identity in project",
+                )]);
+            }
         }
-        Ok(result)
     }
+    Ok(result)
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Constructor {
@@ -434,6 +421,24 @@ impl Builder<'_, '_> {
         if let Some(expected) = expected {
             self.same(ty, expected, span)?;
         }
+        if owned_shapes::enumeration(ty) {
+            let work = inference::type_snapshot_work(ty, span, self.limits)?;
+            self.closures
+                .snapshot(work.saturating_mul(4).saturating_add(fields.len()), span)?;
+            let mut staged = Vec::new();
+            for (expression, expected) in expressions.iter().zip(fields) {
+                let (value, actual) = self.argument_expr(expression, expected)?;
+                self.same(&actual, expected, expression.span)?;
+                staged.push(self.stage_argument(value, &actual, expression.span)?);
+            }
+            let fields = self.commit_arguments(staged, span)?;
+            let value = self.value(
+                InstructionKind::MakeVariant { variant, fields },
+                ty.clone(),
+                span,
+            )?;
+            return Ok((value, ty.clone()));
+        }
         let mut values = Vec::new();
         for (expression, expected) in expressions.iter().zip(fields) {
             let (value, actual) = self.expr(expression, Some(expected))?;
@@ -458,40 +463,19 @@ impl Builder<'_, '_> {
         arms: &[CoreMatchArm],
         span: Span,
     ) -> R<()> {
+        if self
+            .known_type(expression)
+            .as_ref()
+            .is_some_and(owned_shapes::enumeration)
+        {
+            return self.owned_enum_match(expression, arms, span);
+        }
         let (value, ty) = self.expr(expression, None)?;
         if !ty.is_copy_value() {
             return Err(unsupported(span, "match requires a finite Copy value"));
         }
         self.finish_resource_temps(expression.span)?;
-        let mut coverage = Coverage {
-            remaining: &mut self.match_work_left,
-            depth_limit: self.limits.max_call_depth,
-            span,
-        };
-        let mut rows = Vec::new();
-        for arm in arms {
-            let pattern = coverage.pattern(&arm.pattern, &ty, &mut BTreeSet::new(), 0)?;
-            if !coverage.useful(
-                &rows,
-                std::slice::from_ref(&pattern),
-                std::slice::from_ref(&ty),
-                0,
-            )? {
-                return Err(error(
-                    "E-MATCH-UNREACHABLE",
-                    arm.span,
-                    "match arm is already covered by previous arms",
-                ));
-            }
-            rows.push(vec![pattern]);
-        }
-        if coverage.useful(&rows, &[Pattern::Any], std::slice::from_ref(&ty), 0)? {
-            return Err(error(
-                "E-MATCH-NONEXHAUSTIVE",
-                span,
-                "match does not cover every possible value",
-            ));
-        }
+        self.check_match_coverage(&ty, arms, span)?;
         let mut ends = Vec::new();
         for arm in arms {
             let fail = self.block_id()?;
@@ -522,7 +506,44 @@ impl Builder<'_, '_> {
         }
         Ok(())
     }
-    fn pattern_branch(
+    pub(super) fn check_match_coverage(
+        &mut self,
+        ty: &Type,
+        arms: &[CoreMatchArm],
+        span: Span,
+    ) -> R<()> {
+        let mut coverage = Coverage {
+            remaining: &mut self.match_work_left,
+            depth_limit: self.limits.max_call_depth,
+            span,
+        };
+        let mut rows = Vec::new();
+        for arm in arms {
+            let pattern = coverage.pattern(&arm.pattern, ty, &mut BTreeSet::new(), 0)?;
+            if !coverage.useful(
+                &rows,
+                std::slice::from_ref(&pattern),
+                std::slice::from_ref(ty),
+                0,
+            )? {
+                return Err(error(
+                    "E-MATCH-UNREACHABLE",
+                    arm.span,
+                    "match arm is already covered by previous arms",
+                ));
+            }
+            rows.push(vec![pattern]);
+        }
+        if coverage.useful(&rows, &[Pattern::Any], std::slice::from_ref(ty), 0)? {
+            return Err(error(
+                "E-MATCH-NONEXHAUSTIVE",
+                span,
+                "match does not cover every possible value",
+            ));
+        }
+        Ok(())
+    }
+    pub(super) fn pattern_branch(
         &mut self,
         value: ValueId,
         expected: Constant,

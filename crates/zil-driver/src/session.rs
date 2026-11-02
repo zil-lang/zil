@@ -7,18 +7,19 @@ use std::sync::Arc;
 use std::time::Instant;
 use zil_backend_llvm::{BuildOptions, EmitOptions, EntryPoint};
 use zil_base::{
-    CompileResult, Diagnostic, Fingerprint, Phase, RULE_VERSION, ResultCategory, SCHEMA_VERSION,
-    SourceUnit,
+    CompileResult, Diagnostic, Fingerprint, Limits, Phase, RULE_VERSION, ResultCategory,
+    SCHEMA_VERSION, SourceUnit,
 };
 use zil_db::{
     ArtifactCache, CacheRead, CacheWriteError, Database, Dependency, FingerprintKind, QueryKey,
     QuerySnapshot, ResultFingerprints,
 };
-use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule};
+use zil_ir::{CandidatePlan, CoreModule, Type, TypedModule, TypedProgram};
 use zil_syntax::ParseResult;
 
 /// Only unverified, immutable data can be retained across requests. There is no
-/// VerifiedModule/VerifiedCTIR variant and no disk deserializer for this enum.
+/// VerifiedModule/VerifiedCTIR variant. The explicit trusted semantic cache can
+/// restore raw ProjectTyped and Candidate values, followed by current Verify.
 #[derive(Clone, Debug)]
 pub(super) enum RawSnapshot {
     Parse(Arc<ParseResult>),
@@ -27,15 +28,64 @@ pub(super) enum RawSnapshot {
     Typed(Arc<TypedModule>),
     Candidate(Arc<CandidatePlan>),
     Project(Arc<super::project::ExpandedProject>),
-    ProjectCore(Arc<super::project::EvaluatedProject>),
+    ProjectCore(Arc<zil_types::PreparedProgram>),
     ProjectTyped(Arc<zil_ir::TypedProgram>),
+}
+/// Shared raw ownership never carries verification authority. Each request
+/// independently checks the embedded module with its current limits and target.
+pub(super) enum TypedInput {
+    Module(Arc<TypedModule>),
+    Program(Arc<TypedProgram>),
+    CachedProgram(Arc<TypedProgram>, Arc<CandidatePlan>),
+}
+pub(super) struct ProjectFrontend {
+    pub typed: Arc<TypedProgram>,
+    pub snapshot: Arc<QuerySnapshot>,
+}
+impl TypedInput {
+    fn module(&self) -> &TypedModule {
+        match self {
+            Self::Module(m) => m,
+            Self::Program(p) | Self::CachedProgram(p, _) => &p.module,
+        }
+    }
+    fn program(&self) -> Option<&TypedProgram> {
+        match self {
+            Self::Module(_) => None,
+            Self::Program(p) | Self::CachedProgram(p, _) => Some(p),
+        }
+    }
+    fn verify(
+        &self,
+        candidate: Arc<CandidatePlan>,
+        options: &CompileOptions,
+    ) -> CompileResult<zil_verify::VerifiedModule> {
+        match self {
+            Self::Module(m) => zil_verify::verify_shared_module(
+                m.clone(),
+                candidate,
+                &options.target,
+                &options.limits,
+            ),
+            Self::Program(p) | Self::CachedProgram(p, _) => {
+                zil_verify::verify_shared_program_module(
+                    p.clone(),
+                    candidate,
+                    &options.target,
+                    &options.limits,
+                )
+            }
+        }
+    }
 }
 impl RawSnapshot {
     /// Identity of a deterministic, private, process-local construction. This is
     /// NOT a content checksum or a verifier capability. Its complete query key
     /// binds source bytes/positions, rules, every limit and target; ordered
     /// dependency identities bind the exact upstream constructions observed.
-    /// Raw snapshots cannot be deserialized or injected through the public API.
+    /// Most values are private constructions. ProjectTyped/Candidate can also come from
+    /// the explicit trusted semantic cache, bound to the complete key and
+    /// installed compiler identity; deserialization never grants authority.
     /// The public Typed/Verified fingerprints and independent Verify are intact.
     fn digest(&self, key: &QueryKey, dependencies: &[Arc<QuerySnapshot>]) -> Fingerprint {
         if let Self::Typed(typed) = self {
@@ -73,6 +123,10 @@ pub struct CompilationSession {
     pub(super) database: Database,
     pub(super) raw: BTreeMap<QueryKey, RawSnapshot>,
     pub(super) capacity: usize,
+    recency: BTreeMap<QueryKey, u64>,
+    clock: u64,
+    analysis: zil_analyze::AnalysisSession,
+    pub(super) function_types: zil_types::FunctionSession,
 }
 impl Default for CompilationSession {
     fn default() -> Self {
@@ -85,17 +139,95 @@ impl CompilationSession {
             database: Database::default(),
             raw: BTreeMap::new(),
             capacity: capacity.max(8),
+            recency: BTreeMap::new(),
+            clock: 0,
+            analysis: zil_analyze::AnalysisSession::default(),
+            function_types: zil_types::FunctionSession::default(),
         }
     }
     pub fn clear(&mut self) {
         self.database.clear();
         self.raw.clear();
+        self.recency.clear();
+        self.clock = 0;
+        self.analysis.clear();
+        self.function_types.clear();
+    }
+    /// Statistics of the last executed project Types computation. Whole-project
+    /// query hits do not execute the function cache and leave these unchanged.
+    pub fn function_type_stats(&self) -> zil_types::FunctionStats {
+        self.function_types.last_stats()
     }
     pub fn cached_query_count(&self) -> usize {
         self.raw.len()
     }
     pub fn active_query_count(&self) -> usize {
         self.database.active_count()
+    }
+    /// Successful syntax is independent of preceding modules' consumption.
+    /// Insufficient receipts use the original quota-specific query/parser so
+    /// the first error, source span and partial work remain unchanged.
+    pub(super) fn parse_key(&self, source: &SourceUnit, options: &CompileOptions) -> QueryKey {
+        let key = parse_identity(source, options);
+        if matches!(self.raw.get(&key), Some(RawSnapshot::Parse(parsed)) if !parsed.fits_limits(&options.limits))
+        {
+            query_key(source, options, Phase::Parse, false)
+        } else {
+            key
+        }
+    }
+
+    /// Borrow one matching project's syntax without borrowing its much larger
+    /// semantic owner. The owner remains subject to the normal raw LRU, and its
+    /// successful query receipt must still be present before it lends syntax.
+    pub(super) fn retained_project_syntax(
+        &self,
+        root: &SourceUnit,
+    ) -> Option<Arc<super::project::ProjectSyntax>> {
+        let (key, syntax) = self
+            .raw
+            .iter()
+            .filter_map(|(key, raw)| {
+                let RawSnapshot::Project(project) = raw else {
+                    return None;
+                };
+                let (file, module, path) = &project.syntax.root;
+                (*file == root.file_id && *module == root.module_id && *path == root.path)
+                    .then_some((key, &project.syntax))
+            })
+            .max_by_key(|(key, _)| self.recency.get(*key))?;
+        self.database.read(key).ok()??;
+        Some(syntax.clone())
+    }
+
+    /// Return a current Parse key and, when available, an immutable successful
+    /// input. Even a borrowed input must pass the active-query guard and its
+    /// current remaining token/node receipt; all other axes remain in the key.
+    pub(super) fn project_parse_input(
+        &self,
+        source: &SourceUnit,
+        options: &CompileOptions,
+        syntax: Option<&super::project::ProjectSyntax>,
+    ) -> CompileResult<(QueryKey, Option<Arc<ParseResult>>)> {
+        options
+            .cancellation
+            .check(Phase::Parse)
+            .map_err(|error| vec![error])?;
+        let key = self.parse_key(source, options);
+        let published = self.database.read(&key).map_err(|error| vec![error])?;
+        let cached = if published.is_some() {
+            match self.raw.get(&key) {
+                Some(RawSnapshot::Parse(parsed)) => Some(parsed),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let parsed = cached
+            .or_else(|| syntax.and_then(|syntax| syntax.entries.get(&key)))
+            .filter(|parsed| parsed.fits_limits(&options.limits))
+            .cloned();
+        Ok((key, parsed))
     }
     pub fn compile_path(&mut self, path: &Path, options: &CompileOptions) -> CompileReport {
         self.compile_project_path(path, options)
@@ -115,38 +247,76 @@ impl CompilationSession {
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> CompileReport {
-        self.compile_source_traced(
-            source,
-            options,
-            observer,
-            &TimingTrace::new(options.timings),
-        )
-    }
-
-    pub(super) fn compile_source_traced(
-        &mut self,
-        source: &SourceUnit,
-        options: &CompileOptions,
-        observer: &mut dyn FnMut(&QueryEvent),
-        trace: &TimingTrace,
-    ) -> CompileReport {
-        let mut request = trace.scope("compile_source", "request");
-        if self.raw.len() > self.capacity {
-            request.trace().value("session_eviction", || self.clear());
-        }
         let start = Instant::now();
         let mut report = CompileReport::new(source);
-        report.query_cache =
-            QueryCacheReport::requested(options, "direct source entry uses the original pipeline");
-        report.trace = request.trace().clone();
         if let Err(errors) = self.pipeline(source, options, &mut report, observer) {
             report.fail(errors);
         }
+        self.trim_history();
         report.seconds = start.elapsed().as_secs_f64();
-        request.finish(report.status.as_str());
-        report.timings = trace.report();
-        report.trace = TimingTrace::default();
         report
+    }
+
+    fn touch(&mut self, key: &QueryKey) {
+        self.clock = self.clock.saturating_add(1);
+        self.recency.insert(key.clone(), self.clock);
+    }
+
+    /// A project larger than the raw capacity cannot retain both complete
+    /// epochs. Release obsolete whole-project owners before constructing the
+    /// next epoch, while retaining unchanged Parse inputs and exact-current
+    /// semantic results. This avoids doubling the live IR on every private edit.
+    pub(super) fn prepare_project(
+        &mut self,
+        identity: &QueryKey,
+        target: Fingerprint,
+        modules: usize,
+    ) {
+        if modules.saturating_add(4) <= self.capacity {
+            return;
+        }
+        let before = self.raw.len();
+        self.raw.retain(|key, raw| {
+            let project_stage = matches!(
+                raw,
+                RawSnapshot::Project(_)
+                    | RawSnapshot::ProjectCore(_)
+                    | RawSnapshot::ProjectTyped(_)
+                    | RawSnapshot::Candidate(_)
+            );
+            !project_stage
+                || key.module != identity.module
+                || (key.input == identity.input
+                    && key.rules == identity.rules
+                    && (key.target == Fingerprint::ZERO || key.target == target))
+        });
+        if before != self.raw.len() {
+            self.recency.retain(|key, _| self.raw.contains_key(key));
+            self.database.retain_reachable(self.raw.keys());
+        }
+    }
+
+    /// Bound retained raw snapshots without deleting the current query graph.
+    /// Dependency metadata is retained only while reachable from a raw root.
+    /// Eviction occurs between requests, never while borrowed inputs execute.
+    pub(super) fn trim_history(&mut self) {
+        if self.raw.len() <= self.capacity {
+            return;
+        }
+        let mut oldest = self
+            .recency
+            .iter()
+            .map(|(key, &age)| (age, key.clone()))
+            .collect::<Vec<_>>();
+        oldest.sort_unstable();
+        for (_, key) in oldest.into_iter().take(self.raw.len() - self.capacity) {
+            self.raw.remove(&key);
+            self.recency.remove(&key);
+        }
+        // The driver closes/aborts every query before a request returns. If a
+        // future path violates that invariant, preserve state rather than GC an
+        // in-progress dependency; active-query controls detect that defect.
+        self.database.retain_reachable(self.raw.keys());
     }
 
     pub(super) fn query(
@@ -158,71 +328,173 @@ impl CompilationSession {
         observer: &mut dyn FnMut(&QueryEvent),
         execute: impl FnOnce() -> CompileResult<RawSnapshot>,
     ) -> CompileResult<(RawSnapshot, Arc<QuerySnapshot>)> {
-        let trace = report.trace.clone();
-        trace.measure(key.phase.as_str(), "query", |query_trace| {
+        self.query_with_disposition(
+            key,
+            dependencies,
+            options,
+            report,
+            observer,
+            execute,
+            QueryDisposition::Executed,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn query_with_disposition(
+        &mut self,
+        key: QueryKey,
+        dependencies: &[Arc<QuerySnapshot>],
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+        execute: impl FnOnce() -> CompileResult<RawSnapshot>,
+        disposition: QueryDisposition,
+    ) -> CompileResult<(RawSnapshot, Arc<QuerySnapshot>)> {
+        options
+            .cancellation
+            .check(key.phase)
+            .map_err(|error| vec![error])?;
+        if let Some(snapshot) = self.database.read(&key).map_err(|error| vec![error])?
+            && let Some(raw) = self.raw.get(&key).cloned()
+        {
+            event(key.phase, QueryDisposition::Reused, report, observer);
             options
                 .cancellation
                 .check(key.phase)
                 .map_err(|error| vec![error])?;
-            if let Some(snapshot) = self.database.read(&key).map_err(|error| vec![error])?
-                && let Some(raw) = self.raw.get(&key).cloned()
-            {
-                event(key.phase, QueryDisposition::Reused, report, observer);
-                options
-                    .cancellation
-                    .check(key.phase)
-                    .map_err(|error| vec![error])?;
-                report.cache_hit = true;
-                return Ok((raw, snapshot));
-            }
-            self.database
-                .begin(key.clone())
-                .map_err(|error| vec![error])?;
-            let result = query_trace.measure("execute", "stage", |_| execute());
-            event(key.phase, QueryDisposition::Executed, report, observer);
-            let raw = match result {
-                Ok(raw) => raw,
-                Err(errors) => {
-                    self.database.abort(&key);
-                    return Err(errors);
-                }
-            };
-            if let Err(error) = options.cancellation.check(key.phase) {
+            report.cache_hit = true;
+            self.touch(&key);
+            return Ok((raw, snapshot));
+        }
+        self.database
+            .begin(key.clone())
+            .map_err(|error| vec![error])?;
+        let result = execute();
+        event(key.phase, disposition, report, observer);
+        let raw = match result {
+            Ok(raw) => raw,
+            Err(errors) => {
                 self.database.abort(&key);
-                return Err(vec![error]);
+                return Err(errors);
             }
-            let digest = query_trace.value("snapshot_identity", || raw.digest(&key, dependencies));
-            // The current whole-module raw queries conservatively observe complete
-            // implementation identity. Kind-selective graph support is separate;
-            // this does not claim cross-module private-body incremental checking.
-            let fingerprints = ResultFingerprints {
-                semantic: digest,
-                abi: key.target,
-                private_implementation: digest,
-                source_positions: key.input,
-                build_inputs: options.build_inputs,
+        };
+        if let Err(error) = options.cancellation.check(key.phase) {
+            self.database.abort(&key);
+            return Err(vec![error]);
+        }
+        let digest = raw.digest(&key, dependencies);
+        // The current whole-module raw queries conservatively observe complete
+        // implementation identity. Kind-selective graph support is separate;
+        // this does not claim cross-module private-body incremental checking.
+        let fingerprints = ResultFingerprints {
+            semantic: digest,
+            abi: key.target,
+            private_implementation: digest,
+            source_positions: key.input,
+            build_inputs: options.build_inputs,
+        };
+        let dependencies = dependencies
+            .iter()
+            .map(|input| Dependency {
+                key: input.key.clone(),
+                kind: FingerprintKind::PrivateImplementation,
+                observed: input.fingerprints.private_implementation,
+            })
+            .collect();
+        let snapshot = self
+            .database
+            .publish(
+                key.clone(),
+                ResultCategory::Success,
+                fingerprints,
+                dependencies,
+                digest.0.to_vec(),
+            )
+            .map_err(|error| vec![error])?;
+        self.touch(&key);
+        self.raw.insert(key, raw.clone());
+        Ok((raw, snapshot))
+    }
+
+    /// Reuse an exact, successfully constructed project frontend without
+    /// materializing evicted Parse values. This is raw computation reuse, never
+    /// verification authority. The caller has checked all current source and
+    /// artifact guards and excluded requests requiring intermediate artifacts.
+    pub(super) fn reuse_project_frontend(
+        &mut self,
+        key: &QueryKey,
+        sources: &[SourceUnit],
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+    ) -> CompileResult<Option<ProjectFrontend>> {
+        let Some(RawSnapshot::ProjectTyped(typed)) = self.raw.get(key).cloned() else {
+            return Ok(None);
+        };
+        // Any incomplete/incompatible metadata falls through to the original
+        // ordered pipeline, which retains its original first-error behavior.
+        let trace = (|| {
+            let types = self.database.read(key).ok()??;
+            let [ct_dependency] = types.dependencies.as_slice() else {
+                return None;
             };
-            let dependencies = dependencies
+            if ct_dependency.key != phase_key(key, Phase::Ct, true, key.target) {
+                return None;
+            }
+            let ct = self.database.read(&ct_dependency.key).ok()??;
+            let [expand_dependency] = ct.dependencies.as_slice() else {
+                return None;
+            };
+            let expand_key = &expand_dependency.key;
+            if expand_key != &phase_key(key, Phase::Expand, false, key.target)
+                && expand_key != &phase_key(key, Phase::Expand, true, key.target)
+            {
+                return None;
+            }
+            let expand = self.database.read(expand_key).ok()??;
+            if [types.status, ct.status, expand.status]
                 .iter()
-                .map(|input| Dependency {
-                    key: input.key.clone(),
-                    kind: FingerprintKind::PrivateImplementation,
-                    observed: input.fingerprints.private_implementation,
-                })
-                .collect();
-            let snapshot = self
-                .database
-                .publish(
-                    key.clone(),
-                    ResultCategory::Success,
-                    fingerprints,
-                    dependencies,
-                    digest.0.to_vec(),
-                )
-                .map_err(|error| vec![error])?;
-            self.raw.insert(key, raw.clone());
-            Ok((raw, snapshot))
-        })
+                .any(|status| *status != ResultCategory::Success)
+                || expand.dependencies.len() != sources.len()
+                || expand
+                    .dependencies
+                    .iter()
+                    .zip(sources)
+                    .any(|(dep, source)| {
+                        dep.key.phase != Phase::Parse || dep.key.module != source.module_id
+                    })
+            {
+                return None;
+            }
+            let mut replay = expand
+                .dependencies
+                .iter()
+                .map(|dep| dep.key.clone())
+                .collect::<Vec<_>>();
+            replay.extend([expand.key.clone(), ct.key.clone(), types.key.clone()]);
+            Some((types, replay))
+        })();
+        let Some((snapshot, replay)) = trace else {
+            return Ok(None);
+        };
+        for completed in replay {
+            options
+                .cancellation
+                .check(completed.phase)
+                .map_err(|e| vec![e])?;
+            event(completed.phase, QueryDisposition::Reused, report, observer);
+            options
+                .cancellation
+                .check(completed.phase)
+                .map_err(|e| vec![e])?;
+            report.cache_hit = true;
+            // A dependency receipt does not own a raw value. Do not invent
+            // recency entries for evicted values or change the capacity bound.
+            if self.raw.contains_key(&completed) {
+                self.touch(&completed);
+            }
+        }
+        Ok(Some(ProjectFrontend { typed, snapshot }))
     }
 
     fn pipeline(
@@ -232,7 +504,6 @@ impl CompilationSession {
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> CompileResult<()> {
-        check_timing_support(options)?;
         options
             .cancellation
             .check(Phase::Driver)
@@ -252,15 +523,13 @@ impl CompilationSession {
             )]);
         }
         let artifacts = ArtifactPlan::new(source, options)?;
-        let parse_key = query_key(source, options, Phase::Parse, false);
-        report.trace.clone().measure("source_cache", "stage", |_| {
-            disk_source(source, options, report, &parse_key)
-        })?;
+        let identity = query_key(source, options, Phase::Parse, false);
+        disk_source(source, options, report, &identity)?;
         // These immutable identities describe this request, not a proof. Reuse
         // them vertically instead of rehashing source bytes for every phase.
         let target = options.target.fingerprint();
-        let key =
-            |phase, depends_on_target| phase_key(&parse_key, phase, depends_on_target, target);
+        let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
+        let parse_key = self.parse_key(source, options);
         let (parsed, parse_snapshot) =
             self.query(parse_key.clone(), &[], options, report, observer, || {
                 let parsed = zil_syntax::parse_with_limits(source, &options.limits);
@@ -391,12 +660,35 @@ impl CompilationSession {
             options,
             report,
             observer,
-            &typed,
+            TypedInput::Module(typed),
             typed_snapshot,
             artifacts,
             None,
         )
-        .map(|_| ())
+    }
+
+    /// Retrieve only the candidate actually adopted for this exact current
+    /// Types construction. Optional persistence cannot use a stale raw entry.
+    pub(super) fn analysis_candidate(
+        &self,
+        typed_snapshot: &QuerySnapshot,
+    ) -> Option<Arc<CandidatePlan>> {
+        let mut key = typed_snapshot.key.clone();
+        key.phase = Phase::Analyze;
+        let snapshot = self.database.read(&key).ok()??;
+        let [dependency] = snapshot.dependencies.as_slice() else {
+            return None;
+        };
+        if dependency.key != typed_snapshot.key
+            || dependency.kind != FingerprintKind::PrivateImplementation
+            || dependency.observed != typed_snapshot.fingerprints.private_implementation
+        {
+            return None;
+        }
+        match self.raw.get(&key)? {
+            RawSnapshot::Candidate(candidate) => Some(candidate.clone()),
+            _ => None,
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -405,49 +697,56 @@ impl CompilationSession {
         options: &CompileOptions,
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
-        typed: &TypedModule,
+        typed: TypedInput,
         typed_snapshot: Arc<QuerySnapshot>,
         artifacts: ArtifactPlan,
-        project: Option<&zil_ir::TypedProgram>,
-    ) -> CompileResult<Arc<CandidatePlan>> {
+        stable_source: Option<&super::stable_source_identity::SourceIdentities>,
+    ) -> CompileResult<()> {
         // Types and Analyze depend on the same complete request identity. The
         // cached raw result is still independently checked below on every call.
         let mut analysis_key = typed_snapshot.key.clone();
         analysis_key.phase = Phase::Analyze;
-        let (candidate, _) = self.query(
-            analysis_key,
-            std::slice::from_ref(&typed_snapshot),
-            options,
-            report,
-            observer,
-            || {
-                zil_analyze::analyze(typed, &options.limits)
-                    .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
-            },
-        )?;
+        // A completed subquery is still raw data. Commit its replacement epoch
+        // only if the enclosing driver query survives publication/cancellation.
+        let queried = if let TypedInput::CachedProgram(_, candidate) = &typed {
+            self.query_with_disposition(
+                analysis_key,
+                std::slice::from_ref(&typed_snapshot),
+                options,
+                report,
+                observer,
+                || Ok(RawSnapshot::Candidate(candidate.clone())),
+                QueryDisposition::Reused,
+            )
+        } else {
+            let mut analysis = std::mem::take(&mut self.analysis);
+            let checkpoint = analysis.clone();
+            let queried = self.query(
+                analysis_key,
+                std::slice::from_ref(&typed_snapshot),
+                options,
+                report,
+                observer,
+                || {
+                    analysis
+                        .analyze(typed.module(), &options.limits)
+                        .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
+                },
+            );
+            self.analysis = if queried.is_ok() {
+                analysis
+            } else {
+                checkpoint
+            };
+            queried
+        };
+        let (candidate, _) = queried?;
         let RawSnapshot::Candidate(candidate) = candidate else {
             return Err(infra(
                 "E-QUERY-KIND",
                 "analysis query returned another snapshot kind",
             ));
         };
-        self.finish_candidate(
-            options, report, observer, typed, &candidate, artifacts, project,
-        )?;
-        Ok(candidate)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn finish_candidate(
-        &mut self,
-        options: &CompileOptions,
-        report: &mut CompileReport,
-        observer: &mut dyn FnMut(&QueryEvent),
-        typed: &TypedModule,
-        candidate: &CandidatePlan,
-        artifacts: ArtifactPlan,
-        project: Option<&zil_ir::TypedProgram>,
-    ) -> CompileResult<()> {
         report.phase = Phase::Analyze;
         artifacts.dump_lazy(report, options, "candidate", |_| format!("{candidate:#?}"))?;
         if options.stop_after == Stage::Analyze {
@@ -459,24 +758,16 @@ impl CompilationSession {
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         report.verification_runs += 1;
-        let verified = report.trace.measure("verify", "stage", |_| {
-            zil_verify::verify_module(
-                typed.clone(),
-                (*candidate).clone(),
-                &options.target,
-                &options.limits,
-            )
-        });
+        let verified = typed.verify(candidate, options);
         event(Phase::Verify, QueryDisposition::Executed, report, observer);
         options
             .cancellation
             .check(Phase::Verify)
             .map_err(|error| vec![error])?;
         let verified = verified?;
+        let project = typed.program();
         report.phase = Phase::Verify;
-        report.trace.measure("contract_publish", "stage", |_| {
-            super::contracts::publish(&verified, &mut report.scalar_interfaces)
-        })?;
+        super::contracts::publish(&verified, &mut report.scalar_interfaces)?;
         if project.is_some() {
             artifacts.dump_lazy(report, options, "verified-interfaces", |report| {
                 format!("{:#?}", report.scalar_interfaces)
@@ -492,9 +783,7 @@ impl CompilationSession {
         if options.stop_after == Stage::Verify {
             return Ok(());
         }
-        let lir = report
-            .trace
-            .measure("lower", "stage", |_| zil_lower::lower(&verified))?;
+        let lir = zil_lower::lower_view(&verified)?;
         event(Phase::Lower, QueryDisposition::Executed, report, observer);
         options
             .cancellation
@@ -555,8 +844,10 @@ impl CompilationSession {
         let mut build = BuildOptions::new(publication.output());
         build.backend = options.backend;
         build.optimization = options.optimization;
-        build.codegen = options.codegen;
         build.closed_executable = options.closed_executable;
+        build.incremental_o2 = options.incremental_o2;
+        build.function_merging = options.function_merging;
+        build.codegen = options.codegen;
         build.object_cache = options.object_cache.clone();
         build.windows = options.windows.clone();
         build.clang = options
@@ -571,34 +862,46 @@ impl CompilationSession {
         // itself is a single external build step; this API does not claim to
         // interrupt a linker already running. Outputs stay in a private directory
         // until the last cancellation check and all fallible dumps have finished.
-        let artifact = zil_backend_llvm::build_with_cancellation_traced(
+        let stable_names = stable_source.and_then(|source| source.bind(verified.module()));
+        let mut artifact = zil_backend_llvm::build_view_with_cancellation_and_stable_names(
             &verified,
             &lir,
             &build,
             &|| options.cancellation.check(Phase::Link).is_err(),
-            &report.trace,
+            stable_names.as_deref(),
         )?;
+        // Layout work products are optional. Protect their actual destination
+        // against every current source and output before publishing any bytes.
+        let partition_cache_plan = artifact.pending_partition_cache_path().and_then(|path| {
+            let mut plan = artifacts.clone();
+            plan.cache_destination("partition-cache", path)
+                .ok()
+                .map(|_| plan)
+        });
+        if partition_cache_plan.is_none() {
+            artifact.discard_partition_cache();
+        }
         event(Phase::Link, QueryDisposition::Executed, report, observer);
         if let Err(error) = options.cancellation.check(Phase::Link) {
             return Err(vec![error]);
         }
-        let llvm = report.trace.measure("llvm_sidecar_read", "stage", |_| {
-            fs::read_to_string(&artifact.llvm_ir)
-                .map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))
-        })?;
+        let llvm = fs::read_to_string(&artifact.llvm_ir)
+            .map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))?;
         report.phase = Phase::Link;
         artifacts.dump(report, options, "llvm", &llvm)?;
-        report
-            .trace
-            .measure("publication_validation", "stage", |_| artifacts.validate())?;
-        let mut artifact = report.trace.measure("publication", "stage", |_| {
-            publication.commit(artifact, &options.cancellation)
-        })?;
+        artifacts.validate()?;
+        let mut artifact = publication.commit(artifact, &options.cancellation)?;
         // Only complete successful requests populate the machine cache. The
         // permission/capability for this request is never serialized or reused.
-        report
-            .trace
-            .value("cache_store", || artifact.commit_object_cache());
+        // Observer callbacks and artifact publication can change path aliases.
+        // A failed optional-cache guard only discards the pending layout.
+        if partition_cache_plan
+            .as_ref()
+            .is_some_and(|plan| plan.validate().is_err())
+        {
+            artifact.discard_partition_cache();
+        }
+        artifact.commit_object_cache();
         report.artifacts.insert("llvm".into(), artifact.llvm_ir);
         report
             .artifacts
@@ -625,6 +928,15 @@ pub(super) fn query_key(
     phase: Phase,
     target_dependent: bool,
 ) -> QueryKey {
+    query_key_with_limits(source, options, phase, target_dependent, &options.limits)
+}
+fn query_key_with_limits(
+    source: &SourceUnit,
+    options: &CompileOptions,
+    phase: Phase,
+    target_dependent: bool,
+    limits: &Limits,
+) -> QueryKey {
     let mut input = b"ZIL-DRIVER-SOURCE-2\0".to_vec();
     input.extend_from_slice(&source.file_id.0.to_le_bytes());
     input.extend_from_slice(&source.module_id.0.to_le_bytes());
@@ -636,7 +948,6 @@ pub(super) fn query_key(
         env!("CARGO_PKG_VERSION")
     )
     .into_bytes();
-    let limits = &options.limits;
     for value in [
         limits.max_source_bytes as u64,
         limits.max_tokens as u64,
@@ -664,6 +975,16 @@ pub(super) fn query_key(
             Fingerprint::ZERO
         },
     }
+}
+fn parse_identity(source: &SourceUnit, options: &CompileOptions) -> QueryKey {
+    let mut neutral = options.limits.clone();
+    neutral.max_tokens = 0;
+    neutral.max_nodes = 0;
+    let mut key = query_key_with_limits(source, options, Phase::Parse, false, &neutral);
+    let mut rules = b"ZIL-PARSE-RECEIPT-CP33-v1\0".to_vec();
+    rules.extend_from_slice(&key.rules.0);
+    key.rules = Fingerprint::of(&rules);
+    key
 }
 pub(super) fn phase_key(
     identity: &QueryKey,
@@ -892,3 +1213,310 @@ mod construction_identity150_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod bounded_history_tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId};
+
+    fn project(n: u32) -> ProjectSources {
+        ProjectSources {
+            root: ModuleId(0),
+            paths: BTreeMap::new(),
+            modules: (0..n)
+                .map(|i| {
+                    SourceUnit::new(
+                        FileId(i),
+                        ModuleId(i),
+                        format!("history-{i}.zil"),
+                        format!("fn f{i}()->i32 {{ return {i}; }}"),
+                    )
+                })
+                .collect(),
+        }
+    }
+    fn success(report: &CompileReport) {
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    fn equivalent(a: &CompileReport, b: &CompileReport) {
+        assert_eq!(a.status, b.status);
+        assert_eq!(a.phase, b.phase);
+        assert_eq!(a.diagnostics, b.diagnostics);
+        assert_eq!(a.scalar_interfaces, b.scalar_interfaces);
+        assert_eq!(a.input_fingerprint, b.input_fingerprint);
+        assert_eq!(a.verification_runs, b.verification_runs);
+    }
+    #[test]
+    fn large_current_projects_reuse_semantics_across_the_old_capacity_cliff() {
+        for n in [28, 29, 40, 128] {
+            for capacity in [8, 32] {
+                let p = project(n);
+                let options = CompileOptions::default();
+                let mut session = CompilationSession::with_capacity(capacity);
+                success(&session.compile_project(&p, &options));
+                for _ in 0..3 {
+                    let warm = session.compile_project(&p, &options);
+                    success(&warm);
+                    for phase in [Phase::Expand, Phase::Ct, Phase::Types, Phase::Analyze] {
+                        assert!(
+                            warm.query_events.iter().any(|event| event.phase == phase
+                                && event.disposition == QueryDisposition::Reused),
+                            "n={n} capacity={capacity} phase={phase:?}"
+                        );
+                    }
+                    assert!(session.raw.len() <= capacity);
+                    assert_eq!(session.raw.len(), session.recency.len());
+                    assert_eq!(session.database.len(), n as usize + 4);
+                    assert_eq!(session.active_query_count(), 0);
+                }
+            }
+        }
+    }
+    #[test]
+    fn large_edits_release_obsolete_owners_before_constructing_the_new_epoch() {
+        let mut project = project(128);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::default();
+        success(&session.compile_project(&project, &options));
+        let old = session
+            .raw
+            .values()
+            .find_map(|raw| match raw {
+                RawSnapshot::ProjectTyped(program) => Some(Arc::downgrade(program)),
+                _ => None,
+            })
+            .unwrap();
+        let old_core = session
+            .raw
+            .values()
+            .find_map(|raw| match raw {
+                RawSnapshot::Project(program) => Some(Arc::downgrade(program)),
+                _ => None,
+            })
+            .unwrap();
+        success(&session.compile_project(&project, &options));
+        assert!(
+            old.upgrade().is_some(),
+            "unchanged input retains the current epoch"
+        );
+        project.modules[0].text = "fn f0()->i32 { return 123 + 0; }".into();
+        let mut observed = false;
+        let edited = session.compile_project_with_observer(&project, &options, &mut |event| {
+            if event.phase == Phase::Parse {
+                assert!(
+                    old.upgrade().is_none(),
+                    "obsolete semantic owners were retained"
+                );
+                assert!(
+                    old_core.upgrade().is_none(),
+                    "lending syntax retained the obsolete Core owner"
+                );
+                observed = true;
+            }
+        });
+        assert!(observed);
+        success(&edited);
+        equivalent(
+            &edited,
+            &CompilationSession::default().compile_project(&project, &options),
+        );
+    }
+
+    #[test]
+    fn edits_errors_cancellation_and_eviction_match_fresh_without_growing_history() {
+        let mut p = project(40);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::with_capacity(8);
+        for edit in 0..48 {
+            p.modules[0].text = format!("fn f0()->i32 {{ return {edit} + 0; }}");
+            let current = session.compile_project(&p, &options);
+            success(&current);
+            equivalent(
+                &current,
+                &CompilationSession::default().compile_project(&p, &options),
+            );
+            assert!(session.raw.len() <= 8);
+            // Roots include only this request's late Parse and semantic stages;
+            // previous source epochs are not immortal dependency receipts.
+            assert_eq!(session.database.len(), 44);
+            let mut invalid = p.clone();
+            invalid.modules[1].text = "fn f1()->i32 { return true; }".into();
+            let rejected = session.compile_project(&invalid, &options);
+            assert_ne!(rejected.status, ResultCategory::Success);
+            equivalent(
+                &rejected,
+                &CompilationSession::default().compile_project(&invalid, &options),
+            );
+            let cancelled = CompileOptions::default();
+            cancelled.cancellation.cancel();
+            let stopped = session.compile_project(&p, &cancelled);
+            assert_eq!(stopped.status, ResultCategory::Cancelled);
+            assert_eq!(session.active_query_count(), 0);
+            assert!(session.raw.len() <= 8);
+        }
+        session.clear();
+        assert!(session.database.is_empty());
+        assert!(session.raw.is_empty());
+        assert!(session.recency.is_empty());
+        success(&session.compile_project(&p, &CompileOptions::default()));
+    }
+
+    #[test]
+    fn frontend_reuse_requires_reachable_receipts_and_never_supplies_authority() {
+        let p = project(40);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::with_capacity(8);
+        success(&session.compile_project(&p, &options));
+        session.database.clear();
+        let repaired = session.compile_project(&p, &options);
+        success(&repaired);
+        assert!(
+            repaired.query_events.iter().any(|e| {
+                e.phase == Phase::Parse && e.disposition == QueryDisposition::Executed
+            })
+        );
+        equivalent(
+            &repaired,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+
+        // Fault-inject only private raw input. An exact-source checkpoint must
+        // still obtain current independent Verify, which rejects this change.
+        for raw in session.raw.values_mut() {
+            if let RawSnapshot::ProjectTyped(typed) = raw {
+                Arc::make_mut(typed).module.schema_version = 0;
+            }
+        }
+        let rejected = session.compile_project(&p, &options);
+        assert_eq!(rejected.verification_runs, 1);
+        assert_eq!(rejected.phase, Phase::Verify);
+        assert_eq!(rejected.status, ResultCategory::SafeReject);
+        assert_eq!(rejected.diagnostics[0].code, "E-VERIFY-SCHEMA");
+        assert!(
+            rejected
+                .query_events
+                .iter()
+                .filter(|e| e.phase == Phase::Parse)
+                .all(|e| e.disposition == QueryDisposition::Reused)
+        );
+        assert_eq!(session.raw.len(), session.recency.len());
+        assert!(session.raw.len() <= 8);
+    }
+
+    #[test]
+    fn reactive_initialization_queries_survive_real_private_and_public_source_edits() {
+        let mut p = project(40);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::with_capacity(8);
+        success(&session.compile_project(&p, &options));
+        p.modules[0].text = "fn f0()->i32 { return 123; }".into();
+        let edited = session.compile_project(&p, &options);
+        success(&edited);
+        equivalent(
+            &edited,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        assert_eq!(session.analysis.last_stats().reused_functions, 40);
+        assert_eq!(session.analysis.last_stats().executed_functions, 0);
+
+        // An inserted declaration shifts later whole-program IDs. Initialization
+        // identity follows the actual local semantic input instead of that ID.
+        p.modules[0].text = "fn inserted()->i32 {return 9;} fn f0()->i32 {return 123;}".into();
+        let inserted = session.compile_project(&p, &options);
+        success(&inserted);
+        equivalent(
+            &inserted,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        assert_eq!(session.analysis.last_stats().reused_functions, 41);
+        assert_eq!(session.analysis.last_stats().executed_functions, 0);
+
+        p.modules[0].text = "pub fn f0(x:i32)->i32 {return x;}".into();
+        let public = session.compile_project(&p, &options);
+        success(&public);
+        equivalent(
+            &public,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        assert!(session.analysis.last_stats().reused_functions >= 39);
+        assert!(session.analysis.last_stats().executed_functions > 0);
+        p.modules[0].text = "fn f0()->i32 {return true;}".into();
+        let rejected = session.compile_project(&p, &options);
+        assert_ne!(rejected.status, ResultCategory::Success);
+        equivalent(
+            &rejected,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        session.clear();
+        assert_eq!(session.analysis.last_stats().retained_queries, 0);
+    }
+
+    #[test]
+    fn cancellation_after_analysis_rolls_back_the_subquery_epoch() {
+        let mut p = project(4);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::default();
+        success(&session.compile_project(&p, &options));
+        let prior = session.analysis.last_stats();
+        p.modules[0].text = "pub fn f0(x:i32)->i32 {return x;}".into();
+        let cancelled = CompileOptions::default();
+        let stopped = session.compile_project_with_observer(&p, &cancelled, &mut |event| {
+            if event.phase == Phase::Analyze {
+                cancelled.cancellation.cancel();
+            }
+        });
+        assert_eq!(stopped.status, ResultCategory::Cancelled);
+        assert_eq!(session.analysis.last_stats(), prior);
+        assert_eq!(session.active_query_count(), 0);
+        let resumed = session.compile_project(&p, &options);
+        success(&resumed);
+        equivalent(
+            &resumed,
+            &CompilationSession::default().compile_project(&p, &options),
+        );
+        assert!(session.analysis.last_stats().executed_functions > 0);
+    }
+
+    #[test]
+    fn real_source_subquery_hits_replay_the_exact_current_budget_boundary() {
+        let p = project(4);
+        let options = CompileOptions::default();
+        let mut session = CompilationSession::default();
+        success(&session.compile_project(&p, &options));
+        let mut low = 0;
+        let mut high = options.limits.max_analysis_steps;
+        while high - low > 1 {
+            let middle = low + (high - low) / 2;
+            let mut limited = CompileOptions::default();
+            limited.limits.max_analysis_steps = middle;
+            let result = CompilationSession::default().compile_project(&p, &limited);
+            if result.status == ResultCategory::Success {
+                high = middle;
+            } else {
+                assert_eq!(result.status, ResultCategory::ResourceLimit);
+                low = middle;
+            }
+        }
+        for limit in [high, high - 1, high] {
+            let mut limited = CompileOptions::default();
+            limited.limits.max_analysis_steps = limit;
+            let current = session.compile_project(&p, &limited);
+            equivalent(
+                &current,
+                &CompilationSession::default().compile_project(&p, &limited),
+            );
+            assert_eq!(current.status == ResultCategory::Success, limit == high);
+            assert_eq!(session.active_query_count(), 0);
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "function_incremental_tests.rs"]
+mod function_incremental_tests;

@@ -4,11 +4,14 @@
 //! data, not authority: the LLVM backend rebinds it to this same capability.
 
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION};
-use zil_ir::{CallableKind, LirModule, ScalarLayout, Type};
+use zil_ir::{CallableKind, LirModule, LirView, ScalarLayout, Type};
 use zil_verify::VerifiedModule;
+mod owned_sums;
 
 /// Retain the independently checked CFG and concrete closure definitions, and
-/// attach the supported target layout. No source AST, candidate plan, or raw
+/// attach the supported target layout. RegisterDefer stays in the retained CFG
+/// as a checked fact; its adjacent TakeLocal/CallClosureOnce carries the action.
+/// No source AST, candidate plan, or raw
 /// typed module is an entry point.
 ///
 /// ```compile_fail
@@ -17,6 +20,12 @@ use zil_verify::VerifiedModule;
 /// }
 /// ```
 pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
+    lower_view(verified).map(|view| view.to_owned())
+}
+
+/// Run the same lowering admission checks, borrowing immutable verified CFG
+/// storage. The returned public raw view must be rebound by the backend.
+pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
     let module = verified.module();
     let target = &module.target;
     if module.schema_version != SCHEMA_VERSION {
@@ -47,6 +56,9 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                    // Only the immutable verifier capability reaches Lower;
+                    // ordinary shared Product captures retain plain pointers.
+                    || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
                     // Verify already qualified the complete captured Store
                     // leaf, canonical definition, result and actual operands.
                     // A borrowed Store description still has no owning ABI.
@@ -68,31 +80,55 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
             )]);
         }
     }
+    let mut sum_budget = verified
+        .uses_owned_sum_extension()
+        .then(|| owned_sums::Budget::new(verified.limits()));
     for function in &module.functions {
-        if !(function.return_type.is_copy_value()
+        let old_return = function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resource_type(&function.return_type, &module.resources)
             || package_value_type(&function.return_type, &module.resources)
             || error_type(&function.return_type, &module.resources)
             || owned_array_type(&function.return_type, &module.resources)
             || (matches!(function.return_type, Type::Closure(_))
-                && function.callable_return_contract.is_some()))
-            || function.parameters.iter().any(|id| {
-                let ty = &function.locals[id.0 as usize].ty;
-                !(ty.is_copy_value()
-                    || ty.is_scalar_or_address()
-                    || resource_type(ty, &module.resources)
-                    || package_value_type(ty, &module.resources)
-                    || error_type(ty, &module.resources)
-                    || owned_array_type(ty, &module.resources)
-                    || callable_parameter_type(ty, &module.closures))
-            })
-        {
+                && function.callable_return_contract.is_some());
+        let extra_return = if old_return {
+            false
+        } else if let Some(budget) = &mut sum_budget {
+            budget.admits(&function.return_type, &module.resources, 0)?
+        } else {
+            false
+        };
+        if !old_return && !extra_return {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
-                "lowering requires a scalar function signature",
+                "lowering requires a supported ordinary function result",
                 Some(function.span),
             )]);
+        }
+        for id in &function.parameters {
+            let ty = &function.locals[id.0 as usize].ty;
+            let old = ty.is_copy_value()
+                || ty.is_scalar_or_address()
+                || resource_type(ty, &module.resources)
+                || package_value_type(ty, &module.resources)
+                || error_type(ty, &module.resources)
+                || owned_array_type(ty, &module.resources)
+                || callable_parameter_type(ty, &module.closures);
+            let extra = if old {
+                false
+            } else if let Some(budget) = &mut sum_budget {
+                budget.admits(ty, &module.resources, 0)?
+            } else {
+                false
+            };
+            if !old && !extra {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Lower,
+                    "lowering requires a supported ordinary parameter",
+                    Some(function.span),
+                )]);
+            }
         }
         for ty in function
             .locals
@@ -110,6 +146,11 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
                 && !package_value_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)
                 && !owned_array_type(ty, &module.resources)
+                && !if let Some(budget) = &mut sum_budget {
+                    budget.admits(ty, &module.resources, 0)?
+                } else {
+                    false
+                }
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Lower,
@@ -119,15 +160,15 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
             }
         }
     }
-    Ok(LirModule {
-        resources: module.resources.clone(),
+    Ok(LirView {
+        resources: &module.resources,
         schema_version: SCHEMA_VERSION,
         module_id: module.module_id,
         verified_fingerprint: verified.fingerprint(),
-        target: target.clone(),
-        functions: module.functions.clone(),
-        closures: module.closures.clone(),
-        layouts: scalar_layouts(),
+        target,
+        functions: &module.functions,
+        closures: &module.closures,
+        layouts: std::borrow::Cow::Owned(scalar_layouts()),
     })
 }
 
@@ -168,7 +209,7 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
 // Keep the existing predicate above for error-payload and array qualification.
 // Verify has already bounded the full inline type and its cleanup paths.
 fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
-    package_type(ty, resources) || product_type(ty, resources)
+    package_type(ty, resources) || owned_product_type(ty, resources)
 }
 
 fn package_capture_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
@@ -196,6 +237,24 @@ fn product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     owns
 }
 
+fn owned_product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    let Type::Package { fields, .. } = ty else {
+        return false;
+    };
+    let mut owns = false;
+    for (_, field) in fields {
+        match field {
+            Type::Managed(_) if resource_type(field, resources) => {
+                owns = true;
+            }
+            Type::Package { .. } if owned_product_type(field, resources) => owns = true,
+            field if field.is_copy_value() => {}
+            _ => return false,
+        }
+    }
+    owns
+}
+
 fn package_array_fields(ty: &Type) -> bool {
     matches!(ty, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))))
 }
@@ -209,7 +268,9 @@ fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
         if ((error.is_copy_value() || package_type(error, resources))
             && (result.is_copy_value() || package_type(result, resources)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
-                && resource_type(result, resources)))
+                && resource_type(result, resources))
+            || (**error == Type::Unit && product_type(result, resources))
+            || (**result == Type::Unit && product_type(error, resources)))
 }
 
 fn owned_array_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {

@@ -5,7 +5,6 @@
 
 pub mod model;
 mod preflight;
-pub mod timing;
 
 include!(concat!(env!("OUT_DIR"), "/llvm_version.rs"));
 
@@ -17,6 +16,34 @@ mod native;
 pub enum Optimization {
     O0,
     O2,
+}
+
+/// Machine optimization policy, independent of language verification and ABI.
+/// Neither enabled policy grants permission to alias distinct function addresses.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FunctionMerging {
+    #[default]
+    Disabled,
+    AfterOptimization,
+    BeforeAndAfter,
+}
+
+/// Exact pass policy used by both native receipts and object-cache namespaces.
+pub const fn pipeline_identity(
+    optimization: Optimization,
+    function_merging: FunctionMerging,
+) -> &'static str {
+    match (optimization, function_merging) {
+        (Optimization::O0, FunctionMerging::Disabled) => "default<O0>",
+        (Optimization::O0, _) => "unsupported<O0,function-merging>",
+        (Optimization::O2, FunctionMerging::Disabled) => "default<O2>",
+        (Optimization::O2, FunctionMerging::AfterOptimization) => {
+            "default<O2>|merge-functions=after|aliases=false"
+        }
+        (Optimization::O2, FunctionMerging::BeforeAndAfter) => {
+            "mergefunc,default<O2>|merge-functions=after|aliases=false"
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,13 +115,23 @@ pub fn compile(
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
+    compile_with_function_merging(ir, config, FunctionMerging::Disabled, cancelled)
+}
+
+/// Text-reference differential entry with an explicit, fully identified policy.
+pub fn compile_with_function_merging(
+    ir: &str,
+    config: &Config<'_>,
+    function_merging: FunctionMerging,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<Object, Error> {
     #[cfg(feature = "text-reference")]
     {
-        native::compile(ir, config, cancelled)
+        native::compile(ir, config, function_merging, cancelled)
     }
     #[cfg(not(feature = "text-reference"))]
     {
-        let _ = (ir, config, cancelled);
+        let _ = (ir, config, function_merging, cancelled);
         Err(Error {
             kind: ErrorKind::Unavailable,
             message: "text parsing is reference-only; use compile_module or enable text-reference"
@@ -106,7 +143,7 @@ pub fn compile(
 /// Check the machine representation before any LLVMBuilder operation.
 /// This is not and cannot create a ZIL VerifiedModule capability.
 pub fn validate_module(module: &model::Module) -> Result<(), Error> {
-    preflight::validate(module)
+    preflight::validate_only(module)
         .map(|_| ())
         .map_err(|message| Error {
             kind: ErrorKind::Verify,
@@ -122,26 +159,24 @@ pub fn compile_module(
     config: &Config<'_>,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
-    compile_module_with_trace(module, config, cancelled, &timing::TimingTrace::default())
+    compile_module_with_function_merging(module, config, FunctionMerging::Disabled, cancelled)
 }
 
-/// Optional diagnostic intervals, including failures and native-handle cleanup.
-/// This does not change Config, object identity, verification, or optimization.
-pub fn compile_module_with_trace(
+/// Structured machine entry with an explicit pass policy. Current preflight and
+/// LLVM verification before/after optimization are identical to compile_module.
+pub fn compile_module_with_function_merging(
     module: &model::Module,
     config: &Config<'_>,
+    function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
-    trace: &timing::TimingTrace,
 ) -> Result<Object, Error> {
     #[cfg(feature = "native")]
     {
-        trace.measure("llvm", "stage", |trace| {
-            native::compile_module(module, config, cancelled, trace)
-        })
+        native::compile_module(module, config, function_merging, cancelled)
     }
     #[cfg(not(feature = "native"))]
     {
-        let _ = (module, config, cancelled, trace);
+        let _ = (module, config, function_merging, cancelled);
         Err(Error {
             kind: ErrorKind::Unavailable,
             message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),

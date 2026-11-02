@@ -1,6 +1,48 @@
 # 每轮交付的 Rust 对照
 
+## 2026-11-02：239–244普通拥有Sum
+
+| 目标 | 本批实际结论 |
+| --- | --- |
+| Rust同类安全 | 有限Sum责任、tag、来源/作用域、未用定义及raw/Wire经独立核验；P/Q原遗漏和修复保留，完整语言安全未完成。 |
+| 运行与内存同级 | O0/O2、活动载荷和实际分配失败live0有证；沿旧内联ABI，无新增隐式Box/RC/锁，没有Rust运行/RSS配对结论。 |
+| 表达与维护 | 自然Session状态分支、Product/Sum和拥有错误载荷可组合；完整框架维护优势未测。 |
+| 编译成本 | 实际消费者在默认额度内通过；两项具名Copy证明费用增加明确留证，旧控制保持。未做本轮Rust编译速度比较。 |
+| 至少一项突破 | 原先Unsupported的拥有Sum及含Store错误载荷原源原样到达原生；四目标产品合取和可重复净突破仍未建立。 |
+
+精确R、实际main与分账验收见docs/LANGUAGE-OWNED-SUM-20261102.md及evidence/integration/owned-sum-20261102/ACCEPTANCE.json。默认3575/0、参考3474/0与PR两CI已核；main两条重放及完整归档/精确源码亦已核回通过，成绩分别记账。完整1.4/ZUI NotSatisfied、B0 Doing、产品及原生WindowsNotRun保持，唯一量化合同仍为validation/product-gates.json。
+
+## 2026-11-02：227/235/236/237/238同步核心组合
+
+| 目标 | 本批实际结论 |
+| --- | --- |
+| Rust同类安全 | 有限defer履行、Product/Store/泛型身份、替换及真实来源由独立核与raw/Wire近邻核验；完整语言安全未完成。 |
+| 运行与内存同级 | 原生O0/O2与实际分配失败回收成立，无新增隐式Box/RC/锁；没有Rust运行/RSS配对结论。 |
+| 表达与维护 | 原自然API、跨模块封装和捕获补回保持，原五模块Session闭环运行；完整框架维护优势未测。 |
+| 编译成本 | 新路径预付且必要N/N−1/fresh/旧预算成立，默认额度未升；本批未做编译性能比较。 |
+| 至少一项突破 | 有限同步组合能力真实增加；产品级四目标合取及可重复净突破尚未建立。 |
+
+精确源码Q、实际main/CI身份和原失败见docs/LANGUAGE-CORE-20261102.md与evidence/integration/language-core-20261102/ACCEPTANCE.json。重放计数不相加，完整1.4/ZUI、B0及产品状态不因本批晋升。
+
 ZIL目标同时覆盖Rust同类安全、运行与内存成本、表达与维护、编译成本，并至少取得一项可重复净突破。唯一量化合同仍是validation/product-gates.json。本轮没有改低门槛。
+
+## 2026-10-31 施工10：225/226/230/231
+
+| 目标 | 本轮实证与保留边界 |
+| --- | --- |
+| Rust同类安全 | 有限局部来源、拥有/共享捕获、生成卫生与名义trait边界经独立raw/Wire、模块反例及两后端验证；完整语言安全尚未建立。 |
+| 运行与内存同级 | 实际O0/O2清理、128消费者与56故障注入的live0可核；没有同语义Rust运行、RSS或尾延迟结论。 |
+| 表达与维护 | Product Store环境、局部共享Product、生成枚举和where约束形成实际源组合；完整维护成本和框架演进优势未测。 |
+| 编译成本 | 按真实输入核预算、缓存与恢复，默认额度未升；本轮没有Rust编译性能比较，编译专项独立。 |
+| 至少一项突破 | 有限语言组合能力真实增加；四目标合取与产品级可重复净突破未建立。 |
+
+完整1.4/ZUI NotSatisfied、B0 Doing、181施工、产品及原生Windows NotRun。精确受测身份、原Fail和恢复限制见[施工10报告](LANGUAGE-CONSTRUCTION10.md)，不把作者、独审、PR与main重放相加。
+
+## 2026-10-30 施工8：222–224
+
+有限 `#for`、完整 Product Store 与同步共享 `&Product` 已形成实际组合；独审发现的类型槽替换、地址资格越界和直接子包后端遗漏按原输入分别返修。当前结果、精确身份和待完成的正式门见 [LANGUAGE-222-224.md](LANGUAGE-222-224.md) 及 `evidence/integration/222-224/`，不把作者、独审和整仓重放相加成新覆盖量。
+
+安全实证限于已核有限同步形状；真实内联布局、O0/O2和分配失败live0不证明同语义Rust运行/RSS同级。普通组件可组合表达的增量不代替完整框架维护成本比较。本语言批次没有编译性能采样，默认额度和产品门保持原字节，编译专项独立。四目标合取与产品级可重复净突破未建立；完整1.4 NotSatisfied、B0 Doing、产品和原生Windows NotRun。
 
 ## 2026-10-28 语言206
 
@@ -275,3 +317,9 @@ Package完整拥有数组字段、真实共享用户资源头、有限动态Stor
 | 至少一项实质突破 | 声明模式与实际环境身份分离的可运行组合片推进；正式全仓2404/0/0，原失败与修复可核 | 完整产品四目标合取与产品级净突破尚未建立，原product-gates不改 |
 
 证据和准确身份见docs/LANGUAGE-203.md与evidence/integration/203/final/RESULT.json。完整1.4 NotSatisfied、B0 Doing、产品及原生Windows NotRun；重复执行集合不相加。
+
+## 2026-10-31（北京时间）：222–224正式验收与合入
+
+共同实现 4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41 保留作者与非作者审查身份；正式候选 f4c742fd8bb9567120902812c9a7117928784e5c 的 PR run41088376020 通过；原PR9合并39e52ef7的main run41101248493保留Fail。stdin测试驱动修复经非作者复核后进入新的主线合并 ccae8c60c96a2c174b137b2fab084e9e8a97a02f，其 main run41106864272 全部必需门通过。默认 2861/0/0、参考 2826/0/0；机器故障控制、Clippy、text-reference与迁移门均按实际原收据核回。原Fail/Incomplete和Superseded分别保留，不叠加本地132/19或作者/独审重放。
+
+施工7原29份check输入现15成功/12Unsupported/2原语法无效，0native、旧成功零回退。本轮有限#for、完整Product Store及同步共享Product已能组合；defer普通lowering、&Product闭包捕获、拥有捕获Store<Product>、完整Type/Syntax和更深拥有/长期外部生命周期继续保留。B0/181、完整1.4、全部ZUI、原生Windows及Rust产品四目标未因此完成；编译性能研究分支独立。详见 docs/LANGUAGE-222-224.md 与 evidence/integration/222-224/closeout/ACCEPTANCE.json。

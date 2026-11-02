@@ -118,10 +118,24 @@ pub(super) fn check_definitions(
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
             if ty.is_package_address() {
-                return Err(unsupported(
-                    "Store element address capture requires a separate retained element-window contract",
-                    None,
-                ));
+                let Type::Address {
+                    mutable: false,
+                    inner,
+                } = ty
+                else {
+                    return Err(unsupported(
+                        "mutable Product capture is not implemented",
+                        None,
+                    ));
+                };
+                packages::check_shared_product_type(module, inner, None, budget)?;
+                resources::charge_payload(&closure.result, budget)?;
+                if !closure.result.is_copy_value() {
+                    return Err(unsupported(
+                        "shared Product captures require a finite Copy result",
+                        None,
+                    ));
+                }
             }
             if ty.is_shared_resource_head_address() {
                 return Err(unsupported(
@@ -144,7 +158,16 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            if errors::owned(ty) {
+            if budget.sums && matches!(ty, Type::Enum { .. }) {
+                resources::charge_payload(ty, budget)?;
+                if sums::owned_enum(ty) {
+                    return Err(unsupported(
+                        "owning Enum capture is outside the finite closure profile",
+                        None,
+                    ));
+                }
+            }
+            if errors::owned(ty, budget.sums) {
                 return Err(unsupported(
                     "owning error-union captures are outside the finite closure profile",
                     None,

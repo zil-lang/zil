@@ -1,0 +1,1110 @@
+//! Independently bounded source-only generic Product recipes. These facts never
+//! grant ownership, StoreElement, capture, Copy or borrowing authority.
+use super::*;
+use std::collections::BTreeSet;
+use zil_base::{Fingerprint, ModuleId, NodeId};
+pub(super) type Family = (ModuleId, NodeId);
+pub(super) type Owner = (ModuleId, NodeId);
+
+pub(super) fn spend(left: &mut usize, n: usize, span: Span) -> R<()> {
+    *left = left.checked_sub(n).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "generic Product identity work exceeded",
+            Some(span),
+        )
+    })?;
+    Ok(())
+}
+fn bad(span: Span, message: &str) -> Diagnostic {
+    error("E-PRODUCT-TEMPLATE", span, message)
+}
+
+#[derive(Clone, Default)]
+pub(super) struct Bindings {
+    pub ordinary: Option<String>,
+    pub callable: Vec<(u32, String)>,
+}
+impl Bindings {
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.ordinary
+            .iter()
+            .map(String::as_str)
+            .chain(self.callable.iter().map(|(_, n)| n.as_str()))
+    }
+}
+pub(super) struct Index {
+    pub templates: BTreeMap<Family, std::rc::Rc<CoreAggregateTemplate>>,
+    pub applications: BTreeMap<
+        String,
+        (
+            ModuleId,
+            std::rc::Rc<CoreAggregateApplication>,
+            std::rc::Rc<CoreAggregate>,
+        ),
+    >,
+    pub owners: BTreeMap<Owner, Bindings>,
+    pub resolved: BTreeMap<(ModuleId, NodeId), Vec<Type>>,
+    pub symbolic_names: BTreeMap<String, Owner>,
+    pub canonical_arguments: BTreeMap<String, (Family, Vec<Type>, Option<Owner>)>,
+}
+impl Index {
+    pub fn new(modules: &[&CoreModule], limits: &Limits, remaining: &mut usize) -> R<Self> {
+        let mut result = Self {
+            templates: BTreeMap::new(),
+            applications: BTreeMap::new(),
+            owners: BTreeMap::new(),
+            resolved: BTreeMap::new(),
+            symbolic_names: BTreeMap::new(),
+            canonical_arguments: BTreeMap::new(),
+        };
+        if modules
+            .iter()
+            .all(|m| m.aggregate_templates.is_empty() && m.aggregate_applications.is_empty())
+        {
+            return Ok(result);
+        }
+        let span = Span::default();
+        spend(remaining, modules.len(), span)?;
+        let functions = modules
+            .iter()
+            .try_fold(0usize, |n, m| n.checked_add(m.functions.len()))
+            .filter(|n| *n <= limits.max_functions);
+        let records = modules
+            .iter()
+            .try_fold(0usize, |n, m| {
+                n.checked_add(m.aggregate_templates.len())?
+                    .checked_add(m.aggregate_applications.len())
+            })
+            .filter(|n| *n <= limits.max_nodes);
+        if functions.is_none() || records.is_none() {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "generic Product project table count exceeded",
+                None,
+            ));
+        }
+        if modules.len() > limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "generic Product module count exceeded",
+                None,
+            ));
+        }
+        for m in modules {
+            if m.functions.len() > limits.max_functions {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "generic Product owner count exceeded",
+                    None,
+                ));
+            }
+            spend(remaining, m.functions.len(), span)?;
+            for f in &m.functions {
+                let cost = f
+                    .type_parameters
+                    .iter()
+                    .fold(1usize, |n, p| n.saturating_add(p.name.len() + 1))
+                    .saturating_add(
+                        f.callable_parameters
+                            .iter()
+                            .map(|p| p.generic_name.len() + 1)
+                            .sum::<usize>(),
+                    )
+                    .saturating_add(
+                        f.state_parameters
+                            .iter()
+                            .flat_map(|s| &s.bindings)
+                            .map(|p| p.generic_name.len() + 1)
+                            .sum::<usize>(),
+                    );
+                spend(remaining, cost, f.span)?;
+                store_templates::validate_header(f)?;
+                let mut bindings = Bindings {
+                    ordinary: f.type_parameters.first().map(|p| p.name.clone()),
+                    callable: Vec::new(),
+                };
+                for (index, name) in f
+                    .callable_parameters
+                    .iter()
+                    .map(|b| (b.generic_index, &b.generic_name))
+                    .chain(
+                        f.state_parameters
+                            .iter()
+                            .flat_map(|s| &s.bindings)
+                            .map(|b| (b.generic_index, &b.generic_name)),
+                    )
+                {
+                    if let Some((_, old)) = bindings.callable.iter().find(|(i, _)| *i == index) {
+                        if old != name {
+                            return Err(bad(f.span, "conflicting callable declaration identity"));
+                        }
+                    } else {
+                        bindings.callable.push((index, name.clone()));
+                    }
+                }
+                if result
+                    .owners
+                    .insert((m.module_id, f.id), bindings)
+                    .is_some()
+                {
+                    return Err(bad(f.span, "duplicate generic Product owner identity"));
+                }
+            }
+            spend(
+                remaining,
+                m.aggregate_templates
+                    .len()
+                    .saturating_add(m.aggregate_applications.len())
+                    .saturating_mul(2),
+                span,
+            )?;
+            if m.aggregate_templates
+                .len()
+                .saturating_add(m.aggregate_applications.len())
+                > limits.max_nodes
+            {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "generic Product table size exceeded",
+                    None,
+                ));
+            }
+            for t in &m.aggregate_templates {
+                let before = *remaining;
+                spend(
+                    remaining,
+                    t.name
+                        .len()
+                        .saturating_add(t.parameter.name.len())
+                        .saturating_add(t.fields.len().saturating_mul(2)),
+                    t.span,
+                )?;
+                if t.name.is_empty()
+                    || t.parameter.index != 0
+                    || t.parameter.name.is_empty()
+                    || t.parameter.bound != CoreTypeBound::StoreElement
+                {
+                    return Err(bad(
+                        t.span,
+                        "generic Product requires one index-zero StoreElement formal",
+                    ));
+                }
+                let mut names = BTreeSet::new();
+                for f in &t.fields {
+                    spend(
+                        remaining,
+                        f.name
+                            .len()
+                            .saturating_mul(t.fields.len().saturating_add(1)),
+                        f.span,
+                    )?;
+                    if f.name.is_empty() || !names.insert(&f.name) {
+                        return Err(bad(
+                            f.span,
+                            "generic Product recipe fields must be unique and nonempty",
+                        ));
+                    }
+                    validate_recipe(&f.ty, 0, limits, remaining, f.span)?;
+                }
+                spend(remaining, before.saturating_sub(*remaining), t.span)?;
+                if result
+                    .templates
+                    .insert((m.module_id, t.id), std::rc::Rc::new(t.clone()))
+                    .is_some()
+                {
+                    return Err(bad(t.span, "duplicate generic Product family identity"));
+                }
+            }
+            let mut applications = BTreeSet::new();
+            for a in &m.aggregate_applications {
+                spend(
+                    remaining,
+                    m.aggregates.len().saturating_add(a.arguments.len()),
+                    span,
+                )?;
+                if !applications.insert(a.aggregate) {
+                    return Err(bad(span, "duplicate generic Product aggregate application"));
+                }
+                let mut declared = m.aggregates.iter().filter(|d| d.id == a.aggregate);
+                let d = declared.next().ok_or_else(|| {
+                    bad(span, "generic Product application has no aggregate header")
+                })?;
+                if declared.next().is_some()
+                    || d.kind != AggregateKind::Package
+                    || d.teardown.is_some()
+                {
+                    return Err(bad(
+                        d.span,
+                        "generic Product application requires one Package header without teardown",
+                    ));
+                }
+                if a.arguments.len() != 1 {
+                    return Err(bad(
+                        d.span,
+                        "generic Product application needs one complete argument",
+                    ));
+                }
+                for arg in &a.arguments {
+                    if let CoreAggregateArgument::Concrete(ty) = arg {
+                        type_work(ty, limits, remaining, d.span)?;
+                    } else if !matches!(arg, CoreAggregateArgument::Parameter { index: 0 }) {
+                        return Err(bad(
+                            d.span,
+                            "generic Product owner parameter is outside its declaration",
+                        ));
+                    }
+                }
+                spend(
+                    remaining,
+                    d.name.len().saturating_add(d.fields.len()),
+                    d.span,
+                )?;
+                for f in &d.fields {
+                    spend(remaining, f.name.len(), f.span)?;
+                    type_work(&f.ty, limits, remaining, f.span)?;
+                }
+                for arg in &a.arguments {
+                    if let CoreAggregateArgument::Concrete(ty) = arg {
+                        type_work(ty, limits, remaining, d.span)?;
+                    }
+                }
+                if result
+                    .applications
+                    .insert(
+                        d.name.clone(),
+                        (
+                            m.module_id,
+                            std::rc::Rc::new(a.clone()),
+                            std::rc::Rc::new(d.clone()),
+                        ),
+                    )
+                    .is_some()
+                {
+                    return Err(bad(d.span, "duplicate generic Product application name"));
+                }
+            }
+        }
+        for (_, a, d) in result.applications.values() {
+            if !result
+                .templates
+                .contains_key(&(a.template_module, a.template))
+            {
+                return Err(bad(d.span, "generic Product application family is absent"));
+            }
+            if let Some(o) = &a.owner {
+                let bindings = result
+                    .owners
+                    .get(&(o.module, o.function))
+                    .ok_or_else(|| bad(d.span, "generic Product lexical owner is absent"))?;
+                if a.arguments
+                    .iter()
+                    .any(|a| matches!(a, CoreAggregateArgument::Parameter { .. }))
+                    && bindings.ordinary.is_none()
+                {
+                    return Err(bad(
+                        d.span,
+                        "generic Product argument requires its owner's ordinary declaration",
+                    ));
+                }
+            } else if a
+                .arguments
+                .iter()
+                .any(|a| matches!(a, CoreAggregateArgument::Parameter { .. }))
+            {
+                return Err(bad(
+                    d.span,
+                    "generic Product parameter has no lexical owner",
+                ));
+            }
+        }
+        for t in result.templates.values() {
+            for f in &t.fields {
+                result.check_links(&f.ty, f.span, remaining)?;
+            }
+        }
+        Ok(result)
+    }
+    fn check_links(&self, recipe: &CoreAggregateTypeRecipe, span: Span, left: &mut usize) -> R<()> {
+        spend(left, 1, span)?;
+        match recipe {
+            CoreAggregateTypeRecipe::Apply {
+                module,
+                template,
+                arguments,
+            } => {
+                if !self.templates.contains_key(&(*module, *template)) || arguments.len() != 1 {
+                    return Err(bad(
+                        span,
+                        "generic Product recipe references an absent family or wrong arity",
+                    ));
+                }
+                for a in arguments {
+                    self.check_links(a, span, left)?;
+                }
+            }
+            CoreAggregateTypeRecipe::Store { element } => self.check_links(element, span, left)?,
+            _ => {}
+        }
+        Ok(())
+    }
+}
+pub(super) fn type_work(ty: &Type, limits: &Limits, left: &mut usize, span: Span) -> R<()> {
+    let work = inference::type_snapshot_work(ty, span, limits)?;
+    spend(left, work, span)
+}
+fn validate_recipe(
+    r: &CoreAggregateTypeRecipe,
+    depth: usize,
+    limits: &Limits,
+    left: &mut usize,
+    span: Span,
+) -> R<()> {
+    spend(left, 1, span)?;
+    if depth > limits.max_call_depth {
+        return Err(Diagnostic::limit(
+            Phase::Types,
+            "generic Product recipe depth exceeded",
+            Some(span),
+        ));
+    }
+    match r {
+        CoreAggregateTypeRecipe::Parameter { index: 0 } => {}
+        CoreAggregateTypeRecipe::Parameter { .. } => {
+            return Err(bad(
+                span,
+                "generic Product recipe formal is outside its declaration",
+            ));
+        }
+        CoreAggregateTypeRecipe::Concrete(ty) => type_work(ty, limits, left, span)?,
+        CoreAggregateTypeRecipe::Store { element } => {
+            validate_recipe(element, depth + 1, limits, left, span)?
+        }
+        CoreAggregateTypeRecipe::Apply { arguments, .. } => {
+            spend(left, arguments.len(), span)?;
+            for a in arguments {
+                validate_recipe(a, depth + 1, limits, left, span)?;
+            }
+        }
+    }
+    Ok(())
+}
+pub(super) fn canonical(
+    family: Family,
+    args: &[Type],
+    owner: Option<Owner>,
+    limits: &Limits,
+    left: &mut usize,
+    span: Span,
+) -> R<String> {
+    let mut work = 1usize;
+    for a in args {
+        work = work.saturating_add(inference::type_snapshot_work(a, span, limits)?)
+    }
+    // Debug's fixed tags/punctuation have a bounded per-type-node expansion.
+    spend(left, work.saturating_mul(128), span)?;
+    let key = format!("{family:?}:{owner:?}:{args:?}");
+    Ok(format!(
+        "@module{}:product-template{}:{}",
+        family.0.0,
+        family.1.0,
+        Fingerprint::of(key.as_bytes()).to_hex()
+    ))
+}
+
+#[derive(Clone)]
+struct Origin {
+    family: Family,
+    arguments: Vec<Type>,
+    owner: Option<Owner>,
+    bindings: Bindings,
+}
+#[derive(Default)]
+pub(super) struct Origins {
+    entries: BTreeMap<String, Origin>,
+    owners: BTreeMap<Owner, Bindings>,
+    source_owner: Option<Owner>,
+}
+pub(super) type Products = Option<std::rc::Rc<std::cell::RefCell<Origins>>>;
+
+pub(super) fn origins(modules: &[&CoreModule], limits: &Limits, left: &mut usize) -> R<Products> {
+    if modules.iter().all(|m| m.aggregate_applications.is_empty()) {
+        return Ok(None);
+    }
+    let index = Index::new(modules, limits, left)?;
+    spend(
+        left,
+        index.applications.len().saturating_mul(3),
+        Span::default(),
+    )?;
+    let mut rows = Vec::new();
+    for (_, app, header) in index.applications.values() {
+        let owner = app.owner.as_ref().map(|o| (o.module, o.function));
+        let bindings = if let Some(b) = owner.and_then(|o| index.owners.get(&o)) {
+            spend(
+                left,
+                b.names().fold(1usize, |n, s| n.saturating_add(s.len())),
+                header.span,
+            )?;
+            b.clone()
+        } else {
+            Bindings::default()
+        };
+        spend(left, app.arguments.len(), header.span)?;
+        let mut arguments = Vec::new();
+        for arg in &app.arguments {
+            arguments.push(match arg {
+                CoreAggregateArgument::Concrete(t) => {
+                    type_work(t, limits, left, header.span)?;
+                    t.clone()
+                }
+                CoreAggregateArgument::Parameter { index: 0 } => {
+                    spend(
+                        left,
+                        bindings.ordinary.as_ref().map_or(0, String::len),
+                        header.span,
+                    )?;
+                    Type::Named(bindings.ordinary.clone().ok_or_else(|| {
+                        bad(header.span, "generic Product origin has no owner binder")
+                    })?)
+                }
+                _ => return Err(bad(header.span, "generic Product origin binder is invalid")),
+            });
+        }
+        rows.push((
+            Origin {
+                family: (app.template_module, app.template),
+                arguments,
+                owner,
+                bindings,
+            },
+            header.span,
+        ));
+    }
+    let mut origins = Origins::default();
+    let mut names = vec![None; rows.len()];
+    let mut complete = false;
+    // A hidden phantom edge may not occur in the runtime field tree. Resolve
+    // only those source argument dependencies; every pass/clone is prepaid.
+    for depth in 0..=limits.max_call_depth {
+        let mut changed = false;
+        for (i, (row, span)) in rows.iter().enumerate() {
+            let mut symbolic = false;
+            if let Some(owner) = row.owner {
+                for a in &row.arguments {
+                    symbolic |= contextual_free(
+                        a,
+                        &row.bindings,
+                        owner,
+                        &origins.entries,
+                        limits,
+                        *span,
+                        &mut |n| spend(left, n, *span),
+                    )?;
+                }
+            }
+            let owner = if symbolic { row.owner } else { None };
+            let name = canonical(row.family, &row.arguments, owner, limits, left, *span)?;
+            spend(
+                left,
+                name.len().saturating_add(origins.entries.len()),
+                *span,
+            )?;
+            changed |= names[i].as_ref() != Some(&name);
+            names[i] = Some(name.clone());
+            for a in &row.arguments {
+                type_work(a, limits, left, *span)?;
+            }
+            spend(
+                left,
+                row.bindings
+                    .names()
+                    .fold(1usize, |n, s| n.saturating_add(s.len())),
+                *span,
+            )?;
+            if let Some(prior) = origins.entries.get(&name)
+                && (prior.family != row.family
+                    || prior.arguments != row.arguments
+                    || prior.owner != owner)
+            {
+                return Err(bad(*span, "generic Product canonical identity collision"));
+            }
+            let mut origin = row.clone();
+            origin.owner = owner;
+            origins.entries.insert(name, origin);
+        }
+        if !changed {
+            complete = true;
+            break;
+        }
+        if depth == limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "generic Product hidden-argument depth exceeded",
+                None,
+            ));
+        }
+    }
+    if !complete {
+        return Err(bad(
+            Span::default(),
+            "generic Product argument origins do not converge",
+        ));
+    }
+    let mut final_entries = BTreeMap::new();
+    for ((mut row, span), name) in rows.into_iter().zip(names) {
+        let name = name.expect("each bounded origin pass assigns a key");
+        spend(
+            left,
+            name.len()
+                .saturating_mul(final_entries.len().saturating_add(1).ilog2() as usize + 2),
+            span,
+        )?;
+        row.owner = origins.entries[&name].owner;
+        final_entries.insert(name, row);
+    }
+    origins.entries = final_entries;
+    origins.owners = index.owners;
+    Ok(Some(std::rc::Rc::new(std::cell::RefCell::new(origins))))
+}
+
+fn contextual_free(
+    ty: &Type,
+    bindings: &Bindings,
+    owner: Owner,
+    entries: &BTreeMap<String, Origin>,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<bool> {
+    let work = inference::type_snapshot_work(ty, span, limits)?;
+    charge(work.saturating_mul(2))?;
+    fn visit(
+        ty: &Type,
+        b: &Bindings,
+        owner: Owner,
+        entries: &BTreeMap<String, Origin>,
+        charge: &mut impl FnMut(usize) -> R<()>,
+    ) -> R<bool> {
+        charge(1)?;
+        if let Type::Package { name, .. } = ty {
+            charge(
+                name.len()
+                    .saturating_mul(entries.len().saturating_add(1).ilog2() as usize + 2),
+            )?;
+            if entries.get(name).is_some_and(|o| o.owner == Some(owner)) {
+                return Ok(true);
+            }
+        }
+        let mut found = false;
+        match ty {
+            Type::Named(n) => found = b.names().any(|name| name == n),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                for (_, t) in fields {
+                    found |= visit(t, b, owner, entries, charge)?;
+                }
+            }
+            Type::Tuple(ts) => {
+                for t in ts {
+                    found |= visit(t, b, owner, entries, charge)?;
+                }
+            }
+            Type::Managed(t)
+            | Type::Desc(t)
+            | Type::Address { inner: t, .. }
+            | Type::OwnedStore { element: t }
+            | Type::Array { element: t, .. }
+            | Type::Slice { element: t }
+            | Type::Opaque { hidden: t, .. } => found |= visit(t, b, owner, entries, charge)?,
+            Type::ErrorUnion { error, result } => {
+                found |= visit(error, b, owner, entries, charge)?;
+                found |= visit(result, b, owner, entries, charge)?;
+            }
+            Type::Enum { variants, .. } => {
+                for (_, ts) in variants {
+                    for t in ts {
+                        found |= visit(t, b, owner, entries, charge)?;
+                    }
+                }
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                for t in parameters {
+                    found |= visit(t, b, owner, entries, charge)?;
+                }
+                found |= visit(result, b, owner, entries, charge)?;
+            }
+            _ => {}
+        }
+        Ok(found)
+    }
+    visit(ty, bindings, owner, entries, charge)
+}
+
+/// Rebuild the nominal identity from complete real arguments after an ordinary
+/// or callable binding. The application owner selects its lexical arguments;
+/// only a still-symbolic identity includes owner, never a completed instance.
+pub(super) fn rebind_type(
+    ty: &mut Type,
+    replacements: &[(&str, &Type)],
+    products: &Products,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<()> {
+    let Some(products) = products else {
+        return Ok(());
+    };
+    let work = inference::type_snapshot_work(ty, span, limits)?;
+    charge(work.saturating_mul(4))?;
+    fn visit(
+        ty: &mut Type,
+        r: &[(&str, &Type)],
+        products: &std::rc::Rc<std::cell::RefCell<Origins>>,
+        limits: &Limits,
+        span: Span,
+        charge: &mut impl FnMut(usize) -> R<()>,
+        depth: usize,
+    ) -> R<()> {
+        if depth > limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "generic Product specialization depth exceeded",
+                Some(span),
+            ));
+        }
+        charge(1)?;
+        let old = if let Type::Package { name, .. } = ty {
+            charge(name.len().saturating_add(products.borrow().entries.len()))?;
+            let view = products.borrow();
+            if let Some(origin) = view.entries.get(name) {
+                let mut work = 1usize;
+                for a in &origin.arguments {
+                    work = work.saturating_add(inference::type_snapshot_work(a, span, limits)?);
+                }
+                charge(
+                    work.saturating_mul(2)
+                        .saturating_add(origin.bindings.names().map(str::len).sum::<usize>()),
+                )?;
+                Some(origin.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        match ty {
+            Type::Named(n) => {
+                if let Some((_, actual)) = r.iter().find(|(name, _)| *name == n) {
+                    charge(inference::type_snapshot_work(actual, span, limits)?)?;
+                    *ty = (*actual).clone();
+                }
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                for (_, t) in fields {
+                    visit(t, r, products, limits, span, charge, depth + 1)?;
+                }
+            }
+            Type::Tuple(ts) => {
+                for t in ts {
+                    visit(t, r, products, limits, span, charge, depth + 1)?;
+                }
+            }
+            Type::Managed(t)
+            | Type::Desc(t)
+            | Type::Address { inner: t, .. }
+            | Type::OwnedStore { element: t }
+            | Type::Array { element: t, .. }
+            | Type::Slice { element: t }
+            | Type::Opaque { hidden: t, .. } => {
+                visit(t, r, products, limits, span, charge, depth + 1)?
+            }
+            Type::ErrorUnion { error, result } => {
+                visit(error, r, products, limits, span, charge, depth + 1)?;
+                visit(result, r, products, limits, span, charge, depth + 1)?;
+            }
+            Type::Enum { variants, .. } => {
+                for (_, ts) in variants {
+                    for t in ts {
+                        visit(t, r, products, limits, span, charge, depth + 1)?;
+                    }
+                }
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                for t in parameters {
+                    visit(t, r, products, limits, span, charge, depth + 1)?;
+                }
+                visit(result, r, products, limits, span, charge, depth + 1)?;
+            }
+            _ => {}
+        }
+        if let Some(mut origin) = old {
+            for arg in &mut origin.arguments {
+                // Preserve legacy State callable-family naming for real F/G.
+                charge(r.len().saturating_mul(2))?;
+                let callbacks = r
+                    .iter()
+                    .filter_map(|(n, t)| {
+                        if let Type::Closure(id) = t {
+                            Some((*n, *id))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                if let Some((name, id)) = callbacks
+                    .first()
+                    .filter(|(name, _)| callbacks.iter().all(|(other, _)| other == name))
+                {
+                    callable_fields::specialize_type(arg, name, *id);
+                } else if !callbacks.is_empty() {
+                    callable_fields::specialize_type_all(arg, &callbacks);
+                }
+                visit(arg, r, products, limits, span, charge, depth + 1)?;
+            }
+            // A symbolic actual is resolved in the caller, independently of
+            // the same-spelled formal in the callee's definition.
+            let caller = {
+                let registry = products.borrow();
+                charge(registry.owners.len().saturating_add(1))?;
+                if let Some(owner) = registry.source_owner
+                    && let Some(bindings) = registry.owners.get(&owner)
+                {
+                    charge(
+                        bindings
+                            .names()
+                            .fold(1usize, |n, name| n.saturating_add(name.len())),
+                    )?;
+                    Some((owner, bindings.clone()))
+                } else {
+                    None
+                }
+            };
+            if let Some((owner, bindings)) = caller {
+                let registry = products.borrow();
+                let mut symbolic = false;
+                for arg in &origin.arguments {
+                    symbolic |= contextual_free(
+                        arg,
+                        &bindings,
+                        owner,
+                        &registry.entries,
+                        limits,
+                        span,
+                        charge,
+                    )?;
+                }
+                if symbolic {
+                    origin.owner = Some(owner);
+                    origin.bindings = bindings;
+                }
+            }
+            if let Some(owner) = origin.owner {
+                let registry = products.borrow();
+                let mut symbolic = false;
+                for arg in &origin.arguments {
+                    symbolic |= contextual_free(
+                        arg,
+                        &origin.bindings,
+                        owner,
+                        &registry.entries,
+                        limits,
+                        span,
+                        charge,
+                    )?;
+                }
+                if !symbolic {
+                    origin.owner = None;
+                }
+            }
+            let mut allowance = limits.max_analysis_steps;
+            let name = canonical(
+                origin.family,
+                &origin.arguments,
+                origin.owner,
+                limits,
+                &mut allowance,
+                span,
+            )?;
+            charge(limits.max_analysis_steps - allowance)?;
+            charge(name.len().saturating_add(products.borrow().entries.len()))?;
+            let mut registry = products.borrow_mut();
+            if let Some(prior) = registry.entries.get(&name) {
+                if prior.family != origin.family
+                    || prior.arguments != origin.arguments
+                    || prior.owner != origin.owner
+                {
+                    return Err(bad(span, "generic Product canonical identity collision"));
+                }
+            } else {
+                registry.entries.insert(name.clone(), origin);
+            }
+            if let Type::Package { name: target, .. } = ty {
+                *target = name;
+            }
+        }
+        Ok(())
+    }
+    visit(ty, replacements, products, limits, span, charge, 0)
+}
+
+pub(super) fn rebind_function(
+    f: &mut CoreFunction,
+    replacements: &[(&str, &Type)],
+    products: &Products,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<()> {
+    if products.is_none() {
+        return Ok(());
+    }
+    let mut result = Ok(());
+    callable_fields::visit(f, &mut |ty| {
+        if result.is_ok() {
+            result = rebind_type(ty, replacements, products, limits, span, charge);
+        }
+    });
+    result
+}
+
+pub(super) fn metadata_snapshot(core: &CoreModule, limits: &Limits, left: &mut usize) -> R<()> {
+    if core.aggregate_templates.is_empty() && core.aggregate_applications.is_empty() {
+        return Ok(());
+    }
+    spend(
+        left,
+        core.aggregate_templates
+            .len()
+            .saturating_add(core.aggregate_applications.len()),
+        Span::default(),
+    )?;
+    for t in &core.aggregate_templates {
+        spend(
+            left,
+            t.name
+                .len()
+                .saturating_add(t.parameter.name.len())
+                .saturating_add(t.fields.len()),
+            t.span,
+        )?;
+        for f in &t.fields {
+            spend(left, f.name.len(), f.span)?;
+            validate_recipe(&f.ty, 0, limits, left, f.span)?;
+        }
+    }
+    for a in &core.aggregate_applications {
+        spend(left, a.arguments.len().saturating_add(3), Span::default())?;
+        for arg in &a.arguments {
+            if let CoreAggregateArgument::Concrete(t) = arg {
+                type_work(t, limits, left, Span::default())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn rebind_callable_type(
+    ty: &mut Type,
+    bounds: &[CoreCallableParameter],
+    bindings: helpers::Bindings,
+    state: &mut closures::State,
+    limits: &Limits,
+    span: Span,
+) -> R<()> {
+    if state.products.is_none() {
+        return Ok(());
+    }
+    state.snapshot(bounds.len().saturating_mul(4), span)?;
+    let actuals = bounds
+        .iter()
+        .map(|b| {
+            Ok((
+                b.generic_name.as_str(),
+                Type::Closure(bindings.get(b.generic_index, span)?),
+            ))
+        })
+        .collect::<R<Vec<_>>>()?;
+    let replacements = actuals.iter().map(|(n, t)| (*n, t)).collect::<Vec<_>>();
+    let products = state.products.clone();
+    rebind_type(ty, &replacements, &products, limits, span, &mut |n| {
+        state.snapshot(n, span)
+    })
+}
+pub(super) fn rebind_callable_function(
+    f: &mut CoreFunction,
+    bounds: &[CoreCallableParameter],
+    bindings: helpers::Bindings,
+    state: &mut closures::State,
+    limits: &Limits,
+    span: Span,
+) -> R<()> {
+    if state.products.is_none() {
+        return Ok(());
+    }
+    state.snapshot(bounds.len().saturating_mul(4), span)?;
+    let actuals = bounds
+        .iter()
+        .map(|b| {
+            Ok((
+                b.generic_name.as_str(),
+                Type::Closure(bindings.get(b.generic_index, span)?),
+            ))
+        })
+        .collect::<R<Vec<_>>>()?;
+    let replacements = actuals.iter().map(|(n, t)| (*n, t)).collect::<Vec<_>>();
+    let products = state.products.clone();
+    rebind_function(f, &replacements, &products, limits, span, &mut |n| {
+        state.snapshot(n, span)
+    })
+}
+
+pub(super) fn source_owner(products: &std::rc::Rc<std::cell::RefCell<Origins>>, owner: Owner) {
+    products.borrow_mut().source_owner = Some(owner);
+}
+
+fn product_origin(
+    ty: &Type,
+    products: &Products,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<Option<Origin>> {
+    let (Type::Package { name, .. }, Some(products)) = (ty, products) else {
+        return Ok(None);
+    };
+    let registry = products.borrow();
+    charge(name.len().saturating_add(registry.entries.len()))?;
+    let Some(origin) = registry.entries.get(name) else {
+        return Ok(None);
+    };
+    let mut work = origin
+        .bindings
+        .names()
+        .fold(1usize, |n, name| n.saturating_add(name.len()));
+    for a in &origin.arguments {
+        work = work.saturating_add(inference::type_snapshot_work(a, span, limits)?);
+    }
+    charge(work.saturating_mul(2))?;
+    Ok(Some(origin.clone()))
+}
+pub(super) fn parameter_in(
+    ty: &Type,
+    name: &str,
+    products: &Products,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<bool> {
+    if store_templates::has_parameter(ty, name) {
+        return Ok(true);
+    }
+    if products.is_none() {
+        return Ok(false);
+    }
+    struct Search<'a, F> {
+        name: &'a str,
+        products: &'a Products,
+        limits: &'a Limits,
+        span: Span,
+        charge: &'a mut F,
+        active: BTreeSet<String>,
+    }
+    impl<F: FnMut(usize) -> R<()>> Search<'_, F> {
+        fn visit(&mut self, ty: &Type, depth: usize) -> R<bool> {
+            if store_templates::has_parameter(ty, self.name) {
+                return Ok(true);
+            }
+            (self.charge)(1)?;
+            if depth > self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "generic Product input argument depth exceeded",
+                    Some(self.span),
+                ));
+            }
+            match ty {
+                Type::Managed(inner) | Type::Desc(inner) => {
+                    if let Type::OwnedStore { element } = inner.as_ref() {
+                        return self.visit(element, depth + 1);
+                    }
+                }
+                Type::ErrorUnion { error, result } => {
+                    return Ok(self.visit(error, depth + 1)? || self.visit(result, depth + 1)?);
+                }
+                _ => {}
+            }
+            let Some(origin) =
+                product_origin(ty, self.products, self.limits, self.span, self.charge)?
+            else {
+                return Ok(false);
+            };
+            let Type::Package { name, .. } = ty else {
+                unreachable!()
+            };
+            (self.charge)(
+                name.len()
+                    .saturating_add(self.active.len())
+                    .saturating_add(1),
+            )?;
+            if !self.active.insert(name.clone()) {
+                return Err(bad(
+                    self.span,
+                    "cyclic generic Product input argument origins",
+                ));
+            }
+            let mut found = false;
+            for a in &origin.arguments {
+                if self.visit(a, depth + 1)? {
+                    found = true;
+                    break;
+                }
+            }
+            (self.charge)(name.len().saturating_add(self.active.len()))?;
+            self.active.remove(name);
+            Ok(found)
+        }
+    }
+    Search {
+        name,
+        products,
+        limits,
+        span,
+        charge,
+        active: BTreeSet::new(),
+    }
+    .visit(ty, 0)
+}
+pub(super) fn input_pairs(
+    pattern: &Type,
+    actual: &Type,
+    products: &Products,
+    limits: &Limits,
+    span: Span,
+    charge: &mut impl FnMut(usize) -> R<()>,
+) -> R<Option<Vec<(Type, Type)>>> {
+    let Some(pattern) = product_origin(pattern, products, limits, span, charge)? else {
+        return Ok(None);
+    };
+    let actual = product_origin(actual, products, limits, span, charge)?.ok_or_else(|| {
+        bad(
+            span,
+            "generic Product argument has no actual family identity",
+        )
+    })?;
+    if pattern.family != actual.family || pattern.arguments.len() != actual.arguments.len() {
+        return Err(bad(
+            span,
+            "generic Product argument belongs to a different nominal family",
+        ));
+    }
+    charge(pattern.arguments.len())?;
+    Ok(Some(
+        pattern
+            .arguments
+            .into_iter()
+            .zip(actual.arguments)
+            .collect(),
+    ))
+}

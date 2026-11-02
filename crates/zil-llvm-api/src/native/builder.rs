@@ -33,6 +33,7 @@ unsafe extern "C" {
     fn LLVMSetInitializer(global: Handle, value: Handle);
     fn LLVMSetAlignment(value: Handle, align: c_uint);
     fn LLVMGetParam(function: Handle, index: c_uint) -> Handle;
+    fn LLVMSetValueName2(value: Handle, name: *const c_char, len: usize);
     fn LLVMAppendBasicBlockInContext(
         context: Handle,
         function: Handle,
@@ -132,6 +133,7 @@ fn linkage(link: m::Linkage) -> c_int {
     // LLVMLinkage from llvmorg-23.1.4/llvm/include/llvm-c/Core.h.
     match link {
         m::Linkage::External => 0,
+        m::Linkage::AvailableExternally => 1,
         m::Linkage::Internal => 8,
         m::Linkage::Private => 9,
     }
@@ -195,7 +197,17 @@ impl<'a> Construction<'a> {
                     .globals
                     .get(n.as_str())
                     .ok_or_else(|| error(ErrorKind::Verify, format!("unbuilt symbol @{n}")))?,
-                m::Val::Int(n) => LLVMConstInt(self.ty(ty)?, *n as u64, 0),
+                m::Val::Int(n) => {
+                    let m::Ty::Int(bits @ (1 | 8 | 16 | 32 | 64)) = ty else {
+                        return Err(error(ErrorKind::Verify, "integer constant type mismatch"));
+                    };
+                    // LLVM 23's APInt constructor requires a canonical bit
+                    // pattern when SignExtend is false. Passing a negative i32
+                    // as full-width u64 leaves hidden high bits: printing hides
+                    // them, but IPSCCP can then mismerge distinct return values.
+                    let value = (*n as u64) & (u64::MAX >> (64 - bits));
+                    LLVMConstInt(self.ty(ty)?, value, 0)
+                }
                 m::Val::Bool(b) => LLVMConstInt(self.ty(ty)?, u64::from(*b), 0),
                 m::Val::Null | m::Val::Zero => LLVMConstNull(self.ty(ty)?),
                 m::Val::Undef => LLVMGetUndef(self.ty(ty)?),
@@ -277,9 +289,8 @@ impl<'a> Construction<'a> {
         Ok(())
     }
     fn emit(&mut self, inst: &'a m::Inst) -> Result<Handle, Error> {
-        // The checked model and local handle map retain diagnostic identity.
-        // Avoid building C strings and a second local name table inside LLVM.
-        let n = c"".as_ptr();
+        let name = inst.result.as_deref().map(cstring).transpose()?;
+        let n = name.as_ref().map_or(c"".as_ptr(), |name| name.as_ptr());
         let b = self.builder.0;
         // SAFETY: the whole module has passed type/SSA/CFG preflight. The
         // dependency schedule makes operands available before use. Index and
@@ -470,14 +481,17 @@ impl<'a> Construction<'a> {
                 .name
                 .as_deref()
                 .ok_or_else(|| error(ErrorKind::Verify, "parameter name absent"))?;
-            // SAFETY: signature has this parameter. Its checked model name is
-            // used only by our map; LLVM parameter identity is positional.
+            // SAFETY: signature has this parameter and name is a checked atom.
             let value = unsafe { LLVMGetParam(function, i as u32) };
+            unsafe {
+                LLVMSetValueName2(value, name.as_ptr().cast(), name.len());
+            }
             self.locals.insert(name, value);
         }
         for block in blocks {
+            let name = cstring(&block.name)?;
             let raw =
-                unsafe { LLVMAppendBasicBlockInContext(self.context, function, c"".as_ptr()) };
+                unsafe { LLVMAppendBasicBlockInContext(self.context, function, name.as_ptr()) };
             if raw.is_null() {
                 return Err(error(ErrorKind::Emit, "LLVM block creation failed"));
             }

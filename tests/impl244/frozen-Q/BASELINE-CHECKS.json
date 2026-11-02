@@ -1,0 +1,111 @@
+{
+  "compiler_source_commit": "e92508be996a190fa188d08319d37cc8b522bae6",
+  "cli_sha256": "ebc418f594c91f1c54b4f655cf6fdd0d99a9461852aec8e1f7ad09701d433395",
+  "cases": [
+    {
+      "name": "01-unit-flat",
+      "purpose": "Existing Unit error / complete flat owned Package success",
+      "source_sha256": "ca1b2ad3ee2fc50293458e996537be8ffaf8438b500db89dcf2d847b6d333fd7",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "negative": false
+    },
+    {
+      "name": "02-unit-nested-and-owned-error-unit",
+      "purpose": "Existing Unit/nested Product protocol shell and owned flat error/Unit shell",
+      "source_sha256": "ee7903a07715d935a37f2c3b3294250cb2ca8b1470c860670755cf7bf3b0512d",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "negative": false
+    },
+    {
+      "name": "03-unit-store-session",
+      "purpose": "Natural complete Session containing a Product child that owns Store, as Unit-error success payload",
+      "source_sha256": "711e96d70a4225254168ec1134d678baeb5f934a5fb75dbe0fe7d98adeaa434c",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "error union payloads require finite Copy values or complete owned Packages; direct owned resource success requires explicit mode and a Copy error",
+          "span": {
+            "file": 0,
+            "start": 623,
+            "end": 877
+          },
+          "notes": []
+        }
+      ],
+      "negative": false
+    },
+    {
+      "name": "04-both-owned-flat",
+      "purpose": "Both ErrorUnion sides own distinct flat Packages; each side has a Unit-shell control above",
+      "source_sha256": "f205b79668d60de59e38c48fa82dea544bcb7d98661e70c327b1b75f5c514d49",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "negative": false
+    },
+    {
+      "name": "05-owned-option-session",
+      "purpose": "Ordinary owning enum with Unit and complete Session/Store Product alternatives",
+      "source_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "enum payload requires a finite Copy value",
+          "span": {
+            "file": 0,
+            "start": 900,
+            "end": 938
+          },
+          "notes": []
+        }
+      ],
+      "negative": false
+    },
+    {
+      "name": "06-negative-double-consume",
+      "purpose": "Nearest invalid source: consume the same already-owned ErrorUnion a second time",
+      "source_sha256": "16fb83ba3a1a3541422dbad23ec6f7f405b053a74d805328ccf449a6b3effa0e",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 1 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 641,
+            "end": 647
+          },
+          "notes": []
+        }
+      ],
+      "negative": true
+    }
+  ]
+}

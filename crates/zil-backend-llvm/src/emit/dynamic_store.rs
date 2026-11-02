@@ -34,7 +34,7 @@ pub(super) fn helper(
 }
 
 pub(super) fn runtime(
-    lir: &LirModule,
+    lir: &LirView<'_>,
     closures: &BTreeMap<ClosureId, &ClosureDefinition>,
 ) -> CompileResult<m::Code> {
     if !lir
@@ -63,7 +63,7 @@ pub(super) fn runtime(
         let Type::OwnedStore { element } = &resource.payload else {
             continue;
         };
-        let Type::Package { fields, .. } = element.as_ref() else {
+        let Type::Package { .. } = element.as_ref() else {
             return invalid(
                 "E-CODEGEN-CFG",
                 "Store runtime element is not a Package",
@@ -681,82 +681,39 @@ pub(super) fn runtime(
                 },
             )),
         ]));
-        for (field_index, (_, ty)) in fields.iter().enumerate() {
-            if let Type::Closure(id) = ty {
-                output.append(m::Code::from(vec![
-                    m::Event::Instruction(m::Inst::new(
-                        Some(format!("field.{field_index}")),
-                        m::Op::Gep {
-                            ty: item.clone(),
-                            ptr: m::local("slot".into()),
-                            indices: vec![
-                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                                m::Arg::new(m::Ty::Int(32), m::val(field_index)),
-                            ],
-                        },
-                    )),
-                    m::Event::Instruction(m::Inst::new(
-                        None,
-                        m::Op::Call {
-                            result: m::Ty::Void,
-                            result_attrs: vec![],
-                            callee: m::global(format!("zil.closure.drop.{}", id.0)),
-                            args: vec![m::Arg::new(
-                                m::Ty::Ptr,
-                                m::local(format!("field.{field_index}")),
-                            )],
-                            vararg: None,
-                        },
-                    )),
-                ]));
-                continue;
-            }
-            let Type::Managed(payload) = ty else { continue };
-            let definition = lir
-                .resources
-                .iter()
-                .find(|r| r.payload == **payload)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        Phase::Codegen,
-                        "E-CODEGEN-CFG",
-                        None,
-                        "Store element field lacks its resource definition",
-                    )]
-                })?;
-            let teardown = if definition.payload == Type::ByteBuffer {
-                Some("zil.bytes.drop".into())
-            } else {
-                definition.teardown.map(symbol)
-            };
-            if let Some(teardown) = teardown {
-                output.append(m::Code::from(vec![
-                    m::Event::Instruction(m::Inst::new(
-                        Some(format!("field.{}", field_index)),
-                        m::Op::Gep {
-                            ty: (item).clone(),
-                            ptr: m::local("slot".into()),
-                            indices: vec![
-                                m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
-                                m::Arg::new(m::Ty::Int(32), m::val(field_index)),
-                            ],
-                        },
-                    )),
-                    m::Event::Instruction(m::Inst::new(
-                        None,
-                        m::Op::Call {
-                            result: m::Ty::Void,
-                            result_attrs: vec![],
-                            callee: m::global(teardown.to_string()),
-                            args: vec![m::Arg::new(
-                                m::Ty::Ptr,
-                                m::local(format!("field.{}", field_index)),
-                            )],
-                            vararg: None,
-                        },
-                    )),
-                ]));
-            }
+        // Whole Store elements are complete inline values. The same checked
+        // declaration-order leaf paths used by ordinary Product cleanup also
+        // reach every nested child here; no extra partial flags or allocation.
+        for (path, teardown) in packages::teardown_paths(element, lir.resources)? {
+            let name = format!(
+                "field.{}",
+                path.iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<_>>()
+                    .join(".")
+            );
+            let mut indices = vec![m::Arg::new(m::Ty::Int(32), m::Val::Int(0))];
+            indices.extend(path.iter().map(|index| m::Arg::new(m::Ty::Int(32), *index)));
+            output.append(m::Code::from(vec![
+                m::Event::Instruction(m::Inst::new(
+                    Some(name.clone()),
+                    m::Op::Gep {
+                        ty: item.clone(),
+                        ptr: m::local("slot".into()),
+                        indices,
+                    },
+                )),
+                m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Call {
+                        result: m::Ty::Void,
+                        result_attrs: vec![],
+                        callee: m::global(teardown),
+                        args: vec![m::Arg::new(m::Ty::Ptr, m::local(name))],
+                        vararg: None,
+                    },
+                )),
+            ]));
         }
         output.append(m::Code::from(vec![
             m::Event::Instruction(m::Inst::new(

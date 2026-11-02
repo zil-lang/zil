@@ -210,32 +210,23 @@ fn finite_record_and_array_fields_use_actual_inline_storage() {
 }
 
 #[test]
-fn whole_parent_overwrite_keeps_its_existing_unpaid_owner_gate() {
-    // Whole-Package overwrite already rejects an unpaid owner, with or
-    // without a field loan. This is not credited as a new loan proof.
-    for body in [
-        "state=make();return state.x;",
-        "let p=&state.x;state=make();return *p;",
-    ] {
-        let report = check(&format!(
-            "{SIMPLE}fn main()->i32{{var state=make();{body}}}"
-        ));
-        assert_eq!(
-            report.status,
-            ResultCategory::SafeReject,
-            "{}",
-            report.to_json()
-        );
-        assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
-        assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|d| d.message.contains("unpaid resource")),
-            "{}",
-            report.to_json()
-        );
-    }
+fn whole_parent_replacement_succeeds_without_a_field_loan() {
+    let source = format!("{SIMPLE}fn main()->i32{{var state=make();state=make();return state.x;}}");
+    let report = check(&source);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    native(&[("main", &source)], b"", 20);
+}
+
+#[test]
+fn whole_parent_replacement_rejects_a_live_field_loan() {
+    conflict("let p=&state.x;state=make();return *p;");
 }
 
 #[test]
@@ -279,7 +270,8 @@ fn owning_package_captures_borrow_the_actual_environment_field() {
         ordinary
             .diagnostics
             .iter()
-            .any(|d| d.message.contains("Package capture requires explicit move")),
+            .any(|d| d.code == "E-UNSUPPORTED"
+                && d.message == "mutable Product capture is not implemented"),
         "{}",
         ordinary.to_json()
     );
@@ -417,15 +409,20 @@ fn finite_field_loans_follow_branch_and_loop_last_use() {
 }
 
 #[test]
-fn ordinary_package_and_noncopy_field_addresses_remain_closed() {
-    for source in [
-        format!("{SIMPLE}fn main(){{var state=make();let p=&state;}}"),
-        format!("{SIMPLE}fn main(){{var state=make();let p=&state.r;}}"),
-        "package P{manages bytes:ByteBuffer;n:i32}fn main(){var state=P{bytes:bytes_new(),n:1};let p=&state.bytes;}".to_string(),
+fn ordinary_shared_heads_are_admitted_while_bytebuffer_heads_remain_closed() {
+    // Preserve all three original sources. 224 admits the ordinary complete
+    // Package and its finite Copy resource head, but not a ByteBuffer head.
+    for (source, category, phase) in [
+        (format!("{SIMPLE}fn main(){{var state=make();let p=&state;}}"), ResultCategory::Success, Phase::Verify),
+        (format!("{SIMPLE}fn main(){{var state=make();let p=&state.r;}}"), ResultCategory::Success, Phase::Verify),
+        ("package P{manages bytes:ByteBuffer;n:i32}fn main(){var state=P{bytes:bytes_new(),n:1};let p=&state.bytes;}".to_string(), ResultCategory::Unsupported, Phase::Types),
     ] {
         let report = check(&source);
-        assert_eq!(report.status, ResultCategory::Unsupported, "{source}: {}", report.to_json());
-        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+        assert_eq!(report.status, category, "{source}: {}", report.to_json());
+        assert_eq!(report.phase, phase, "{}", report.to_json());
+        if category == ResultCategory::Success {
+            assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+        }
     }
 }
 

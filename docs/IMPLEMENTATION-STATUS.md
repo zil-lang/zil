@@ -1,3 +1,13 @@
+# 当前入口：222–224 / zil施工8
+
+## 2026-10-31 当前增量：施工10
+
+有限Product Store拥有捕获、显式同步共享局部Product捕获、生成Unit/Tuple enum与既有名义trait where已完成两后端及PR/main验收。当前身份/边界见[LANGUAGE-CONSTRUCTION10.md](LANGUAGE-CONSTRUCTION10.md)与[CURRENT-HANDOFF.md](CURRENT-HANDOFF.md)。完整语言与产品状态保持；以下保留各历史阶段记录。
+
+222–224 已通过分片非作者审查及完整 GitHub PR/main 验收并进入主线。当前范围和边界见 [LANGUAGE-222-224.md](LANGUAGE-222-224.md)，冷启动入口为 [CURRENT-HANDOFF.md](CURRENT-HANDOFF.md)。完整1.4、B0/181、全部ZUI和产品门仍未完成。
+
+下方保留各历史阶段的受测身份与当时判断；其中“当前”均指对应历史阶段，不覆盖以上接续入口。
+
 # 2026-10-29 当前入口：213–217
 
 语言206与LLVM212已完成真实合流，214–216补齐有限完整Product拥有捕获，并通过独立安全核与实际API/Clang执行复核。最终生产源码在8628d976正式默认workspace2743/0/0、同源fmt/Clippy/release及208消费者通过；相同生产与测试字节的46a2947f参考后端2711/0/0。217五模块同步消费者与逐真实分配失败经非作者复跑。当前精确来源、测试和边界见[LANGUAGE-217](LANGUAGE-217.md)、[ZUI语言闭合矩阵](ZUI-LANGUAGE-READINESS-217.md)及evidence/integration/217/RESULT.json。

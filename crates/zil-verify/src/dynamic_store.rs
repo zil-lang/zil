@@ -69,8 +69,8 @@ fn check_capture_leaf_tree(element: &Type, budget: &mut Budget) -> Check<()> {
     Ok(())
 }
 
-/// The inner Store of an owning capture deliberately uses the old leaf
-/// element profile, not the broader callback Store predicate. This check is
+/// A captured inner Store permits complete Products as well as old leaves,
+/// but never the broader callback Store profile. This check is
 /// also used while qualifying resource-only outer Store metadata, before the
 /// ordinary module closure pass has run.
 fn check_captured_store(
@@ -99,12 +99,16 @@ fn check_captured_store(
             None,
         ));
     };
-    if !fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
-        || !fields.iter().all(|(_, ty)| {
-            ty.is_copy_value()
-                || matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer
-                    || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
-        })
+    // Full payload work and hidden-type scanning were paid above. Nested
+    // Products are requalified below by this kernel's ordinary-type and actual
+    // layout checks; a child tag alone never establishes admission.
+    if !packages::has_children(element)
+        && (!fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
+            || !fields.iter().all(|(_, ty)| {
+                ty.is_copy_value()
+                    || matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer
+                        || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
+            }))
     {
         return Err(unsupported(
             "Store callback captures retain the finite owning environment profile: inner Store elements must be leaf Copy/direct-Managed Packages",
@@ -233,6 +237,18 @@ pub(super) fn check_element(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    // Existing address signatures and projections use this finite legacy
+    // qualification. Container admission must not grant them Product address
+    // capabilities; shared Product addresses have their own independent gate.
+    check_element_admission(module, element, span, None, false, budget)
+}
+
+pub(super) fn check_store_element(
+    module: &TypedModule,
+    element: &Type,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
     check_element_with_limits(module, element, span, None, budget)
 }
 
@@ -243,7 +259,38 @@ fn check_element_with_limits(
     limits: Option<&Limits>,
     budget: &mut Budget,
 ) -> Check<()> {
+    check_element_admission(module, element, span, limits, true, budget)
+}
+
+fn check_element_admission(
+    module: &TypedModule,
+    element: &Type,
+    span: Option<Span>,
+    limits: Option<&Limits>,
+    product_container: bool,
+    budget: &mut Budget,
+) -> Check<()> {
     resources::charge_payload(element, budget)?;
+    if packages::has_children(element) {
+        if !product_container {
+            return Err(unsupported(
+                "ordinary Product addresses require independent shared qualification",
+                span,
+            ));
+        }
+        // Raw module/resource shapes are bounded before admission. Rebuild
+        // complete nominal children, actual leaf definitions and the layout;
+        // no producer classifier or claimed stride grants container ownership.
+        packages::check_product_type(module, element, span, budget, false)?;
+        let (bytes, _) = layout(element, None, budget)?;
+        if bytes == 0 {
+            return Err(unsupported(
+                "Product Store element requires nonzero actual inline layout",
+                span,
+            ));
+        }
+        return Ok(());
+    }
     let Type::Package { fields, .. } = element else {
         return Err(unsupported(
             "Store elements require a complete direct-Managed Package",
@@ -612,7 +659,7 @@ pub(super) fn check_carrier(
             "expected a Store carrier",
         ));
     };
-    check_element(module, element, span, budget)?;
+    check_store_element(module, element, span, budget)?;
     let name = definition_name(element);
     budget.spend(
         module
@@ -637,7 +684,7 @@ pub(super) fn check_instruction(
     target(&module.target, span)?;
     let bad = |message| reject("E-VERIFY-OWNED-STORE", span, message);
     if let InstructionKind::OwnedStoreNew { element } = &instruction.kind {
-        check_element(module, element, span, budget)?;
+        check_store_element(module, element, span, budget)?;
         let ty = Type::Managed(Box::new(Type::OwnedStore {
             element: Box::new(element.clone()),
         }));
@@ -668,6 +715,16 @@ pub(super) fn check_instruction(
             Type::Bool
         }
         InstructionKind::OwnedStoreBorrow { .. } | InstructionKind::OwnedStoreBorrowMut { .. } => {
+            if matches!(
+                instruction.kind,
+                InstructionKind::OwnedStoreBorrowMut { .. }
+            ) && packages::has_children(element)
+            {
+                return Err(unsupported(
+                    "Product Store elements currently expose only shared windows",
+                    span,
+                ));
+            }
             if value_type(function, extra.expect("element index"), span)? != &Type::I64 {
                 return Err(bad("Store element index must be i64"));
             }

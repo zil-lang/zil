@@ -1,33 +1,15 @@
-# 209当前接续（本地已集成，远端状态须实际回读）
+# 当前接续入口：普通拥有Sum与同步语言组合
 
-远端冻结基线：`ab2aaa7aa25e3c10d2908801d5e06dff1079df25`。通过主线CI artifact 12653433445恢复真实Git历史后完成三方源码整合，保留该基线为祖先；不导入8100份历史证据。
+[PR17](https://github.com/zil-lang/zil/pull/17)已把239–244合入实际main `8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad`。共同受测/独审源码R为`15498f14af8f11d3a3bf4b198fe69208be5913ce`，两者整树相同。Rust/Cargo1.99.1、LLVM/Clang23.1.4，schema/Wire30；无需重装环境。
 
-208输入：`0f391c0a8cb8a421ffca5cef441fee201cf7c123`。具体支持、策略与剩余缺口见`docs/research/209/INTEGRATION.md`。用户授权采用LLVM API研发主路线；直接Builder与完整产品门不冒称完成。GitHub推送状态以本轮交付收据为准，不能从存在本文件推断远端更新。
+本批普通非泛型拥有Enum、Product内Sum、含Store Product错误载荷，接通构造、参数/返回、消耗式match、嵌套模式、整值替换、defer与真实失败清理。227/235/236/237/238此前已合入的同步defer、嵌套Store、完整泛型Product身份与替换继续保留。新普通资格不自动开放capture、StoreElement、数组、FFI或拥有泛型Enum。
 
-本地209回归：标准workspace1664、参考1647、原生消费者16构建/128运行，均通过。发布工具见`tools/research/209/publish.py`；上传之前必须重新检查远端，拒绝force覆盖。样例输入是ASCII字符`3`，不是单字节0x03。
+本地默认3575/0、参考3474/0、文本参考64/0，均零忽略/过滤；严格Clippy、格式、State控制通过。239–243独审138/0，240独立补充61/0；五模块消费者476次native含252次真实分配失败，均live0。root另按源码独立推导预期复跑100次native（26次真实失败）；重放次数不叠加。
 
-## 以下为原GitHub主线交接原文
+PR source CI41363882129、research LLVM CI41363882134均成功，各自默认3575/0、参考3474/0、文本参考64/0。常规artifact上传不可用，两份完整日志恢复归档已取回，root重核全部blob、4092个当前源文件及实际checkout b59b9f1a的整树身份。main自动重放41366807735/41366807646均已成功；root重新核对两份完整归档、4092个当前源文件及实际checkout M，各自测试计数与PR一致。入口为[evidence/integration/owned-sum-20261102/ACCEPTANCE.json](../evidence/integration/owned-sum-20261102/ACCEPTANCE.json)。
 
-# 当前 GitHub 接续入口（2026-10-26，136/137）
+P3548/12、Q全仓3575/0但独立合法owner被误拒、所有原输入及修复均保存。Q远端两次取消的可取日志已封存，其native归档无法完整恢复，不能计验收。最终handoff记录检查仍有1144项历史错误、0警告，本批239–244六张工单均0错误；check-plan自测通过。历史记录债务按Fail保留。阶段总结见[本批报告](LANGUAGE-OWNED-SUM-20261102.md)。
 
-GitHub的实际main是当前开发基准；每次接续重新读远端ref，不能把本文记录的提交当永远最新。旧GITHUB-SYNC.md中的draft24恢复说明只作历史来源，不代表当前实现状态。
+下一主线是同步拥有Event/Reply经过具体闭包和公共generic dispatch的责任闭环；最终R检查确认三个拥有callback探针在Types拒绝，F原样转交在Expand拒绝，而已有State/Store对照到Verify通过。详见[下一优先级](LANGUAGE-NEXT-PRIORITIES.md)。完整1.4/ZUI NotSatisfied、B0 Doing、181施工、产品及原生WindowsNotRun保持；没有本轮Rust性能比较。
 
-## 已进入主干
-
-137由PR3合入：852854f7ccd124ef7c95b8f0d85516b7ca24f581。远端受测源码20de6d9734393bf70db58bec0d4f7c1ac0e7beb4，与本地963f9dcc生产对象一致。bytes_truncate纵切、schema/wire18、规范和接口变更，以及原worklist测试Clippy修复均已进入main；跨模块默认字段没有回退。
-
-本地与Actions40326379096各1264项workspace通过，fmt/Clippy通过。独立Codex代码审核于2026-10-26T13:13:17Z完成，绑定20de6d97、未发现重大问题。其结果不等于全语言安全证明或新测试执行。正式35门、产品/Rust四目标最终验收仍未运行，B0 Doing不变。
-
-## 未进入主干
-
-136：research/136-compiled-effects，PR4。实际生产受测9c1644be786b33abf3549378714865be27606bb0，后续54d9b0f1aeb24d16d826bba4bbe849d4ae46466b只追加完整成本脚本/结果。真实源码参数事实图与当前worklist等价验证完成；本地与CI各1263通过。固定1716编译进程/396原生执行成功，但完整成本Inconclusive/NotEligible，禁止将个别较快点值记作生产优化获批。现有工作量节省不是时间倍数。
-
-旧research/131-effect-retraction=66644baae15ce4d481363038c34747256522b020，impl/132-owned-text=0ba64a223494860d513d7d7522e1d1b942af6069，PR1/2仍未合入。旧报告中“main为空”是历史描述。不得直接把旧分支基线/成绩替换成当前主干成绩。
-
-## 可恢复事实
-
-Actions artifact12650489762（136）SHA256 57da96589702ccc25a8ee2f62abc70ec174850468a476af8b11313bdfed3e748；artifact12652295020（137）SHA256 ce59a4b05d4f9d85e0846e13c18a042a3f09348b3f207225ed5ff9832fedf8c7。大体积阶段IR、二进制、全部原生测试原件保存在artifact和旁置交付证据，不入Git。
-
-任务工作流可能先应用hash校验的窄补丁后测试，事件head不是实际受测提交；读取artifact receipts/commit.txt和source-tree.txt，不能仅看workflow绿色。生产对象和测试对象已在本地逐一核对。新增主干CI不修改Git，直接测试checkout HEAD并保存小型bundle与命令日志。
-
-旧完整施工Git历史仍单独归档，当前源码仓只有真实导入后的历史，不能将旧缺失审计对象的handoff失败改成Pass。常规开发用当前GitHub；一任务一worktree，阶段提交同步，研究不满足准入留分支，语言通过验证与独审后合入。
+接续从主树AGENTS.md进入，运行handoff和check-plan。机器摘要、六张实施卡及当前交接已更新到本批身份，旧schema27摘要保存在本批previous-final-summary.json；源码事实仍以Git和精确收据为准。施工枝及原证据保留，没有进行分支清理。

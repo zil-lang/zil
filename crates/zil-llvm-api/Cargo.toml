@@ -16,6 +16,3 @@ default = []
 native = []
 # Legacy text-to-object path is an explicit differential-test capability only.
 text-reference = ["native"]
-
-# Opt-in phase diagnostics; default builds erase the collector.
-timings = []

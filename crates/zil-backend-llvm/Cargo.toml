@@ -17,6 +17,3 @@ zil-verify.workspace = true
 [features]
 default = []
 llvm-api = ["zil-llvm-api/native"]
-
-# Opt-in phase diagnostics; default builds erase the collector.
-timings = ["zil-llvm-api/timings"]

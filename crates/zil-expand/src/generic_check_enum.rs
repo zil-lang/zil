@@ -78,7 +78,12 @@ impl Check<'_, '_, '_> {
         }
         syntax_enum::application(decl, &found, e.span, self.budget).map(Some)
     }
-    fn enum_fields(&mut self, ty: &TypeRef, variant: &str) -> R<Vec<TypeRef>> {
+    fn enum_fields(
+        &mut self,
+        ty: &TypeRef,
+        variant: &str,
+        mut managed: Option<&mut Vec<usize>>,
+    ) -> R<Vec<TypeRef>> {
         let TypeKind::Named { path, args } = &group(ty).kind else {
             return Err(error(
                 ty.span,
@@ -103,7 +108,19 @@ impl Check<'_, '_, '_> {
         }
         syntax_enum::fields(decl, variant, ty.span)?
             .iter()
-            .map(|t| syntax_enum::substituted(t, &found, self.budget))
+            .enumerate()
+            .map(|(index, t)| {
+                if t.manages {
+                    if !decl.generics.is_empty() {
+                        return Err(unsupported(t.span, "owned generic enum payload"));
+                    }
+                    if let Some(managed) = &mut managed {
+                        self.budget.node(t.span, 0)?;
+                        managed.push(index);
+                    }
+                }
+                syntax_enum::substituted(t, &found, self.budget)
+            })
             .collect()
     }
     fn pattern(
@@ -162,7 +179,8 @@ impl Check<'_, '_, '_> {
                     return Err(error(p.span, "generic pattern nominal type mismatch"));
                 }
                 let variant = path.last().expect("variant");
-                let fields = self.enum_fields(ty, variant)?;
+                let mut managed = Vec::new();
+                let fields = self.enum_fields(ty, variant, Some(&mut managed))?;
                 if fields.len() != arguments.len() {
                     return Err(error(p.span, "generic enum pattern payload arity mismatch"));
                 }
@@ -172,7 +190,51 @@ impl Check<'_, '_, '_> {
                     arguments
                         .iter()
                         .zip(&fields)
-                        .map(|(p, t)| self.pattern(p, t, state, seen))
+                        .enumerate()
+                        .map(|(index, (p, t))| {
+                            let pattern = self.pattern(p, t, state, seen)?;
+                            if !managed.is_empty()
+                                && managed.binary_search(&index).is_ok()
+                                && let PatternKind::Name(name) = &p.kind
+                            {
+                                self.budget.node(p.span, 0)?;
+                                for _ in
+                                    0..(state.locals.len().saturating_add(1).ilog2() as usize + 2)
+                                {
+                                    self.budget.text(name, p.span)?;
+                                }
+                                // Resolve this real declaration field in its own scope,
+                                // not against the helper's possibly same-spelled binders.
+                                self.budget.ty(t)?;
+                                let declaration_resource = self.declared_resource(t);
+                                let roots =
+                                    if declaration_resource {
+                                        Some(self.resource_description_root(
+                                            state.locals[name].id,
+                                            p.span,
+                                        )?)
+                                    } else {
+                                        None
+                                    };
+                                let local =
+                                    state.locals.get_mut(name).expect("actual pattern binding");
+                                local.owned_resource = true;
+                                local.declaration_resource = declaration_resource;
+                                local.description_roots = roots;
+                                local.description_reference_depth =
+                                    declaration_resource.then_some(0);
+                                self.enum_resource_flow = true;
+                                if stores::element(&local.ty).is_some() {
+                                    // Extraction is incoming ownership, never a create producer.
+                                    self.budget.node(p.span, 0)?;
+                                    state.store_owners.insert(local.id);
+                                    state
+                                        .store_origins
+                                        .insert(local.id, BTreeSet::from([local.id]));
+                                }
+                            }
+                            Ok(pattern)
+                        })
                         .collect::<R<_>>()?,
                 )
             }
@@ -199,6 +261,7 @@ impl Check<'_, '_, '_> {
         };
         for arm in arms {
             let mut branch = self.clone_state(state)?;
+            let first_resource_local = self.next_local;
             let p = self.pattern(&arm.pattern, &ty, &mut branch, &mut BTreeSet::new())?;
             if !self.useful(
                 &rows,
@@ -222,6 +285,7 @@ impl Check<'_, '_, '_> {
                     BlockFlow::NEXT
                 }
             };
+            self.resource_description_scope_exit(&mut branch, first_resource_local, arm.span)?;
             flow.returns |= branch_flow.returns;
             if branch_flow.fallthrough {
                 flow.fallthrough = true;
@@ -280,7 +344,7 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(fields.clone())
             }
-            (Ctor::Variant(v), _) => self.enum_fields(ty, v),
+            (Ctor::Variant(v), _) => self.enum_fields(ty, v, None),
             _ => Ok(vec![]),
         }
     }

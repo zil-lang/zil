@@ -45,9 +45,32 @@ fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     if let Type::Package { fields, .. } = ty {
         budget.spend(fields.len(), "captured Store whole-position classification")?;
-        return Ok(fields
-            .iter()
-            .any(|(_, ty)| dynamic_store::is_owned_carrier(ty)));
+        for (_, field) in fields {
+            if dynamic_store::is_owned_carrier(field)
+                || (matches!(field, Type::Package { .. }) && contains_owned_store(field, budget)?)
+            {
+                return Ok(true);
+            }
+        }
+        return Ok(false);
+    }
+    if !budget.sum_functions.is_empty()
+        && let Type::Enum { variants, .. } = ty
+    {
+        budget.spend(variants.len(), "ordinary Sum Store alternatives")?;
+        for (_, fields) in variants {
+            budget.spend(fields.len(), "ordinary Sum Store fields")?;
+            for t in fields {
+                if contains_owned_store(t, budget)? {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    if !budget.sum_functions.is_empty()
+        && let Type::ErrorUnion { error, result } = ty
+    {
+        return Ok(contains_owned_store(error, budget)? || contains_owned_store(result, budget)?);
     }
     Ok(false)
 }
@@ -73,7 +96,9 @@ fn store_window_transition(
         {
             Some(Root::Capture(index))
         }
-        InstructionKind::TakeLocal { local }
+        InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::DropEnum { local }
+        | InstructionKind::TakeLocal { local }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropPackage { local }
             if contains_owned_store(&f.locals[local.0 as usize].ty, budget)? =>
@@ -83,8 +108,17 @@ fn store_window_transition(
         InstructionKind::TakePackageField { local, index }
         | InstructionKind::DropPackageField { local, index }
         | InstructionKind::StorePackageField { local, index, .. }
-            if matches!(&f.locals[local.0 as usize].ty, Type::Package { fields, .. }
-                if fields.get(index as usize).is_some_and(|(_, ty)| dynamic_store::is_owned_carrier(ty))) =>
+            if match &f.locals[local.0 as usize].ty {
+                Type::Package { fields, .. } => match fields.get(index as usize) {
+                    Some((_, ty)) => {
+                        dynamic_store::is_owned_carrier(ty)
+                            || (matches!(ty, Type::Package { .. })
+                                && contains_owned_store(ty, budget)?)
+                    }
+                    None => false,
+                },
+                _ => false,
+            } =>
         {
             Some(Root::Field(local, index))
         }
@@ -94,6 +128,13 @@ fn store_window_transition(
     if let Some(root) = single {
         budget.spend(1, "captured Store transition root")?;
         changed.insert(root);
+    }
+    if let InstructionKind::UnpackVariant { fields, .. } = &instruction.kind {
+        budget.spend(fields.len(), "Unpack target window roots")?;
+        for local in fields {
+            budget.spend(1, "Unpack target window insertion")?;
+            changed.insert(Root::Local(*local));
+        }
     }
     if let InstructionKind::OwnedStoreReserve { store, .. }
     | InstructionKind::OwnedStorePush { store, .. }
@@ -347,7 +388,15 @@ fn infer(
                             state.insert(*local, source.clone());
                         }
                     }
-                    InstructionKind::StorageLive(local)
+                    InstructionKind::UnpackVariant { local, fields, .. } => {
+                        budget.spend(fields.len().saturating_add(1), "Unpack Hold local reset")?;
+                        state.remove(local);
+                        for local in fields {
+                            state.remove(local);
+                        }
+                    }
+                    InstructionKind::DropEnum { local }
+                    | InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local)
                     | InstructionKind::BindPackageCapture { local, .. }
                     | InstructionKind::EndPackageCapture { local, .. }
@@ -461,6 +510,90 @@ pub(super) fn infer_module(
     store_profiles: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
+    let result = infer_module_inner(module, graphs, store_profiles, budget)?;
+    if !budget.shared_product_capture {
+        return Ok(result);
+    }
+    // Only inspect the producer's own completed solution. In particular, an
+    // empty intermediate return-origin approximation is never a rejection or
+    // proof before the module-level fixed point has converged.
+    budget.spend(module.functions.len(), "shared Product capture functions")?;
+    for ((f, (_, reachable)), values) in module.functions.iter().zip(graphs).zip(&result) {
+        budget.spend(f.blocks.len(), "shared Product capture blocks")?;
+        for (block, live) in f.blocks.iter().zip(reachable) {
+            if !live {
+                continue;
+            }
+            budget.spend(
+                block.instructions.len(),
+                "shared Product capture instructions",
+            )?;
+            for instruction in &block.instructions {
+                let InstructionKind::MakeClosure { captures, .. } = &instruction.kind else {
+                    continue;
+                };
+                budget.spend(captures.len(), "shared Product capture operands")?;
+                for value in captures {
+                    if !f.values[value.0 as usize].is_package_address() {
+                        continue;
+                    }
+                    let origins = &values[value.0 as usize].roots;
+                    budget.spend(origins.len(), "shared Product capture origins")?;
+                    if origins.is_empty() {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "shared Product capture requires proven ordinary local Product origins",
+                            Some(instruction.span),
+                        )]);
+                    }
+                    for origin in origins {
+                        let HoldRoot::Local(local) = origin else {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "shared Product capture requires proven ordinary local Product origins",
+                                Some(instruction.span),
+                            )]);
+                        };
+                        let actual = &f.locals[local.0 as usize].ty;
+                        // A coarsened field root is allowed only when its entire
+                        // real carrier is an ordinary Product, which excludes
+                        // all Store fields. Field-name inequality grants nothing.
+                        if !matches!(actual, Type::Package { .. }) {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "shared Product capture requires proven ordinary local Product origins",
+                                Some(instruction.span),
+                            )]);
+                        }
+                        super::resources::product::admit(actual, budget)?;
+                    }
+                }
+            }
+        }
+    }
+    Ok(result)
+}
+
+// Preflight records these private bits during paid complete-type admission.
+// Index by the actual function table position, never producer FunctionId.
+fn ordinary_store_function(index: usize, budget: &mut Budget) -> CompileResult<bool> {
+    if budget.ordinary_store_functions.is_empty() {
+        return Ok(false);
+    }
+    budget.spend(1, "ordinary Product Store function flag lookup")?;
+    budget
+        .ordinary_store_functions
+        .get(index)
+        .copied()
+        .ok_or_else(|| bad("ordinary Product Store function profile is absent"))
+}
+
+fn infer_module_inner(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    store_profiles: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<ValueHold>>> {
     if !module
         .functions
         .iter()
@@ -470,7 +603,8 @@ pub(super) fn infer_module(
             .functions
             .iter()
             .zip(graphs)
-            .map(|(f, (preds, reachable))| {
+            .enumerate()
+            .map(|(index, (f, (preds, reachable)))| {
                 infer(
                     module,
                     &[],
@@ -479,7 +613,7 @@ pub(super) fn infer_module(
                     reachable,
                     f.environment.is_some_and(|id| {
                         store_profiles.get(id.0 as usize).copied().unwrap_or(false)
-                    }),
+                    }) || ordinary_store_function(index, budget)?,
                     budget,
                 )
             })
@@ -540,7 +674,8 @@ pub(super) fn infer_module(
             reachable,
             function
                 .environment
-                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false)),
+                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false))
+                || ordinary_store_function(index, budget)?,
             budget,
         )?;
         let mut changed = false;

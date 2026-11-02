@@ -20,6 +20,11 @@ pub(super) struct Budget {
     pub(super) helper_calls: usize,
     pub(super) helper_edges: usize,
     pub(super) helper_depth: usize,
+    pub(super) shared_product_capture: bool,
+    // Empty on legacy modules; populated only by the paid ordinary admission.
+    pub(super) ordinary_store_functions: Vec<bool>,
+    pub(super) sum_functions: Vec<bool>,
+    sum_roots: BTreeSet<usize>,
 }
 
 impl Budget {
@@ -30,7 +35,22 @@ impl Budget {
             helper_calls: limits.max_instructions,
             helper_edges: limits.max_analysis_steps,
             helper_depth: limits.max_call_depth,
+            shared_product_capture: false,
+            ordinary_store_functions: Vec::new(),
+            sum_functions: Vec::new(),
+            sum_roots: BTreeSet::new(),
         }
+    }
+
+    pub(super) fn sum_type(&mut self, ty: &Type) -> CompileResult<bool> {
+        if self.sum_roots.is_empty() {
+            return Ok(false);
+        }
+        self.lookup(self.sum_roots.len(), "ordinary Sum type inventory")?;
+        Ok(self.sum_roots.contains(&(ty as *const Type as usize)))
+    }
+    pub(super) fn remaining(&self) -> usize {
+        self.remaining
     }
 
     pub(super) fn spend(&mut self, amount: usize, context: &str) -> CompileResult<()> {
@@ -167,6 +187,16 @@ fn scalar(ty: &Type, span: Span) -> CompileResult<()> {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+struct SumContext {
+    blocked: bool,
+    in_enum: bool,
+    in_product: bool,
+    in_error: bool,
+    error_products: u8,
+    product_sum: bool,
+}
+
 fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
     matches!(ty, Type::Package { fields, .. }
     if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
@@ -181,7 +211,7 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
     }))
 }
 
-fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
+pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
     if matches!(ty, Type::Address { inner, .. }
         if super::resources::product::nested(inner))
     {
@@ -251,11 +281,24 @@ fn local_value(
     span: Span,
     module: &TypedModule,
     budget: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<bool> {
+    if budget.sum_type(ty)? {
+        return super::resources::sums::admit(module, ty, budget);
+    }
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = ty
+        && super::resources::product::nested(inner)
+    {
+        return super::resources::product::admit(inner, budget).map(|_| false);
+    }
     if super::resources::product::nested(ty) {
-        super::resources::product::admit(ty, budget)
+        super::resources::product::admit_owned(module, ty, budget)
+    } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
+        super::dynamic_store::product_element(payload, budget).map(|_| false)
     } else {
-        legacy_value(ty, span, module)
+        legacy_value(ty, span, module).map(|_| false)
     }
 }
 
@@ -295,6 +338,7 @@ pub(super) fn preflight(
     // Only a real Closure occurrence allocates a new admission entry; old
     // noncallback Store paths receive no new traversal or logical charge.
     let mut callback_store_elements = Vec::new();
+    let mut product_store_elements = Vec::new();
     let mut owned_store_capture_roots = Vec::new();
     for (ty, store_element, capture_owner, resource_head) in module
         .functions
@@ -337,8 +381,32 @@ pub(super) fn preflight(
                 )
         }))
     {
-        let mut pending = vec![(ty, 0usize, store_element, capture_owner, resource_head)];
-        while let Some((ty, depth, store_element, capture_owner, resource_head)) = pending.pop() {
+        if let Some(element) = store_element
+            && super::resources::product::nested(element)
+        {
+            budget.spend(1, "Product Store instruction admission entry")?;
+            product_store_elements.push(element);
+        }
+        // Reuse the already paid structural visit to classify new ordinary
+        // positions. No extra recursive eligibility scan runs on legacy types.
+        let root = ty as *const Type as usize;
+        // The old Store protocol already admitted Unit!ordinary Product with
+        // no Store/Sum child; retain that exact profile and fee path.
+        let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
+            if **error == Type::Unit || **result == Type::Unit);
+        let mut new_sum = false;
+        let mut first = Some((
+            ty,
+            0usize,
+            store_element,
+            capture_owner,
+            resource_head,
+            SumContext::default(),
+        ));
+        let mut pending = Vec::new();
+        while let Some((ty, depth, store_element, capture_owner, resource_head, context)) =
+            first.take().or_else(|| pending.pop())
+        {
             budget.input(1, "type shape")?;
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
@@ -352,6 +420,57 @@ pub(super) fn preflight(
                 )?;
                 owned_store_capture_roots.push(owner);
             }
+            let mut child = context;
+            match ty {
+                Type::Enum { .. } => child.in_enum = true,
+                Type::Package { .. } => {
+                    child.in_product = true;
+                    if context.in_error {
+                        child.error_products = context.error_products.saturating_add(1);
+                    }
+                }
+                Type::ErrorUnion { .. } => {
+                    child.in_error = true;
+                    child.product_sum |= context.in_product;
+                }
+                Type::Managed(_) => {
+                    let extension = context.in_enum
+                        || context.product_sum
+                        || (context.error_products >= 2
+                            && (!legacy_product_union
+                                || super::dynamic_store::is_owned_carrier(ty)));
+                    if extension
+                        && (context.blocked
+                            || store_element.is_some()
+                            || capture_owner.is_some()
+                            || resource_head)
+                    {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "ordinary owned Sum does not grant array, StoreElement, capture, borrowed or resource-head qualification",
+                            None,
+                        )]);
+                    }
+                    new_sum |= extension;
+                    child = SumContext {
+                        blocked: true,
+                        ..SumContext::default()
+                    };
+                }
+                Type::Array { .. }
+                | Type::OwnedStore { .. }
+                | Type::Address { .. }
+                | Type::Desc(_)
+                | Type::Opaque { .. }
+                | Type::FunctionPointer { .. }
+                | Type::ForeignCallback { .. } => {
+                    child = SumContext {
+                        blocked: true,
+                        ..SumContext::default()
+                    }
+                }
+                _ => {}
+            }
             match ty {
                 Type::Array { element, length } => {
                     budget.input(*length as usize, "array type size")?;
@@ -361,31 +480,47 @@ pub(super) fn preflight(
                         store_element,
                         capture_owner,
                         resource_head,
+                        child,
                     ));
                 }
                 Type::Slice { element } => {
-                    pending.push((element, depth + 1, store_element, None, resource_head));
+                    pending.push((
+                        element,
+                        depth + 1,
+                        store_element,
+                        None,
+                        resource_head,
+                        child,
+                    ));
                 }
                 Type::OwnedStore { element } => {
                     if super::resources::product::nested(element) {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "ordinary Package Product is not a Store element profile",
-                            None,
-                        )]);
+                        budget.spend(1, "Product Store type admission entry")?;
+                        product_store_elements.push(element);
                     }
                     pending.push((
                         element,
                         depth + 1,
                         store_element.or(Some(element)),
                         None,
-                        resource_head,
+                        // Only the top-level sealed Store definition owns an
+                        // ordinary element. A Store hidden in a user resource
+                        // head cannot erase that head's closed Copy profile.
+                        resource_head && depth != 0,
+                        child,
                     ));
                 }
                 Type::Tuple(fields) => {
                     budget.input(fields.len(), "aggregate type shape")?;
                     for t in fields {
-                        pending.push((t, depth + 1, store_element, capture_owner, resource_head));
+                        pending.push((
+                            t,
+                            depth + 1,
+                            store_element,
+                            capture_owner,
+                            resource_head,
+                            child,
+                        ));
                     }
                 }
                 Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -407,7 +542,14 @@ pub(super) fn preflight(
                                 None,
                             )]);
                         }
-                        pending.push((t, depth + 1, store_element, capture_owner, resource_head));
+                        pending.push((
+                            t,
+                            depth + 1,
+                            store_element,
+                            capture_owner,
+                            resource_head,
+                            child,
+                        ));
                     }
                 }
                 Type::Enum { name, variants } => {
@@ -424,6 +566,7 @@ pub(super) fn preflight(
                                 store_element,
                                 capture_owner,
                                 resource_head,
+                                child,
                             ));
                         }
                     }
@@ -434,18 +577,19 @@ pub(super) fn preflight(
                     store_element,
                     capture_owner,
                     resource_head,
+                    child,
                 )),
                 Type::Address { inner, .. }
                 | Type::Desc(inner)
                 | Type::Opaque { hidden: inner, .. } => {
-                    pending.push((inner, depth + 1, store_element, None, resource_head))
+                    pending.push((inner, depth + 1, store_element, None, resource_head, child))
                 }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {
                     budget.input(parameters.len(), "function pointer signature")?;
-                    pending.push((result, depth + 1, store_element, None, false));
+                    pending.push((result, depth + 1, store_element, None, false, child));
                     for parameter in parameters {
-                        pending.push((parameter, depth + 1, store_element, None, false));
+                        pending.push((parameter, depth + 1, store_element, None, false, child));
                     }
                 }
                 Type::ErrorUnion { error, result } => {
@@ -455,6 +599,7 @@ pub(super) fn preflight(
                         store_element,
                         capture_owner,
                         resource_head,
+                        child,
                     ));
                     pending.push((
                         result,
@@ -462,6 +607,7 @@ pub(super) fn preflight(
                         store_element,
                         capture_owner,
                         resource_head,
+                        child,
                     ));
                 }
                 Type::Closure(_) if store_element.is_some() => {
@@ -471,6 +617,16 @@ pub(super) fn preflight(
                 _ => {}
             }
         }
+        if new_sum {
+            budget.lookup(budget.sum_roots.len(), "ordinary Sum root insertion")?;
+            budget.spend(1, "ordinary Sum root allocation")?;
+            budget.sum_roots.insert(root);
+        }
+    }
+    // Complete shape and depth preflight precedes recursive Product admission.
+    // A Store element is a value, not an owning user-resource header.
+    for element in product_store_elements {
+        super::dynamic_store::product_carrier(module, element, budget)?;
     }
     count(0, module.closures.len(), limits.max_functions, "closure")?;
     budget.input(module.closures.len(), "closure table preflight")?;
@@ -495,6 +651,30 @@ pub(super) fn preflight(
             "closure signature preflight",
         )?;
         for ty in &closure.captures {
+            if ty.is_package_address() {
+                budget.shared_product_capture = true;
+                let Type::Address {
+                    mutable: false,
+                    inner,
+                } = ty
+                else {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "mutable Product capture is not implemented",
+                        None,
+                    )]);
+                };
+                super::resources::product::admit(inner, budget)?;
+                budget.type_work(&closure.result, true, "shared Product capture result")?;
+                if !closure.result.is_copy_value() {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "shared Product captures require a finite Copy result",
+                        None,
+                    )]);
+                }
+                continue;
+            }
             if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -546,7 +726,10 @@ pub(super) fn preflight(
     // Each bounded function visit also materializes one flag; no second type
     // scan is needed in the scope checker, including for legacy scalar IR.
     let mut package_functions = Vec::new();
-    for function in &module.functions {
+    for (function_index, function) in module.functions.iter().enumerate() {
+        if function.id.0 as usize != function_index {
+            return Err(bad("noncanonical function ID"));
+        }
         blocks = count(blocks, function.blocks.len(), limits.max_blocks, "block")?;
         locals = count(locals, function.locals.len(), limits.max_locals, "local")?;
         values = count(values, function.values.len(), limits.max_values, "value")?;
@@ -650,7 +833,8 @@ pub(super) fn preflight(
             )?;
         }
         budget.input(1, "return type preflight")?;
-        local_value(&function.return_type, function.span, module, budget)?;
+        let mut sum_function = budget.sum_type(&function.return_type)?;
+        let mut product_store = local_value(&function.return_type, function.span, module, budget)?;
         let scoped_aggregate = |ty: &Type| {
             matches!(ty, Type::Package { .. })
                 || super::resources::owned_error(ty)
@@ -662,7 +846,7 @@ pub(super) fn preflight(
             if parameter.0 as usize >= function.locals.len() {
                 return Err(bad("parameter local outside table"));
             }
-            local_value(
+            product_store |= local_value(
                 &function.locals[parameter.0 as usize].ty,
                 function.span,
                 module,
@@ -675,15 +859,20 @@ pub(super) fn preflight(
         {
             return Err(bad("function references an absent environment"));
         }
-        for local in &function.locals {
+        for (index, local) in function.locals.iter().enumerate() {
             budget.input(1, "local type preflight")?;
+            if local.id.0 as usize != index {
+                return Err(bad("noncanonical local ID"));
+            }
             budget.input(local.name.len(), "local metadata")?;
-            local_value(&local.ty, local.span, module, budget)?;
+            sum_function |= budget.sum_type(&local.ty)?;
+            product_store |= local_value(&local.ty, local.span, module, budget)?;
             package |= scoped_aggregate(&local.ty);
         }
         for ty in &function.values {
             budget.input(1, "value type preflight")?;
-            local_value(ty, function.span, module, budget)?;
+            sum_function |= budget.sum_type(ty)?;
+            product_store |= local_value(ty, function.span, module, budget)?;
             package |= scoped_aggregate(ty);
         }
         for block in &function.blocks {
@@ -697,6 +886,37 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::VariantTagLocal { local, path }
+                    | InstructionKind::ReadVariantLocal { local, path } => {
+                        sum_function = true;
+                        if local.0 as usize >= function.locals.len() {
+                            return Err(bad("Sum local outside table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "Sum path")?;
+                        budget.input(
+                            path.len().saturating_mul(2).saturating_add(1),
+                            "Sum path preflight",
+                        )?;
+                    }
+                    InstructionKind::UnpackVariant { local, fields, .. } => {
+                        sum_function = true;
+                        count(0, fields.len(), limits.max_locals, "Unpack fields")?;
+                        budget.input(fields.len().saturating_add(1), "Unpack target preflight")?;
+                        // Reserve the semantic cache key's owned target vector
+                        // on every request, including uncached analysis.
+                        budget.spend(fields.len(), "Unpack cache key allocation reserve")?;
+                        if local.0 as usize >= function.locals.len()
+                            || fields.iter().any(|l| l.0 as usize >= function.locals.len())
+                        {
+                            return Err(bad("Unpack local outside table"));
+                        }
+                    }
+                    InstructionKind::DropEnum { local } => {
+                        sum_function = true;
+                        if local.0 as usize >= function.locals.len() {
+                            return Err(bad("DropEnum local outside table"));
+                        }
+                    }
                     InstructionKind::Constant(Constant::WideString(units)) => {
                         budget.input(units.len(), "static UTF-16 units")?;
                     }
@@ -704,6 +924,7 @@ pub(super) fn preflight(
                         return Err(bad("integer conversion target is not a supported integer"));
                     }
                     InstructionKind::Load(local)
+                    | InstructionKind::RegisterDefer { local, .. }
                     | InstructionKind::Store { local, .. }
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local }
@@ -779,7 +1000,33 @@ pub(super) fn preflight(
             };
             budget.input(operands, "terminator operand preflight")?;
         }
+        if sum_function && function.foreign.is_some() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "ordinary owned Sum does not grant foreign ABI qualification",
+                Some(function.span),
+            )]);
+        }
+        if sum_function {
+            if budget.sum_functions.is_empty() {
+                budget.spend(module.functions.len(), "ordinary Sum function inventory")?;
+                budget.sum_functions = vec![false; module.functions.len()];
+            }
+            budget.sum_functions[function_index] = true;
+        }
+        package |= sum_function;
         package_functions.push(package);
+        if product_store {
+            if budget.ordinary_store_functions.is_empty() {
+                budget.spend(
+                    module.functions.len(),
+                    "ordinary Product Store function flags",
+                )?;
+                budget.ordinary_store_functions = vec![false; module.functions.len()];
+            }
+            budget.spend(1, "ordinary Product Store function flag")?;
+            budget.ordinary_store_functions[function_index] = true;
+        }
     }
     // All raw type and capture trees are now bounded. Admission must include
     // resource-only and unused Store occurrences, not just body operations.

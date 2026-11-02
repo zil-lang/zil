@@ -8,6 +8,7 @@ mod foreign;
 mod generics;
 mod mapping;
 mod modules;
+mod project_traits;
 mod receivers;
 mod records;
 mod resources;
@@ -16,7 +17,7 @@ mod static_traits;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{
     CompileResult, Diagnostic, ExpansionRole, Limits, NodeId, Phase, SCHEMA_VERSION, SourceMap,
-    SourceMapId, SourceMapValidator, SourceTarget, SourceUnit, Span,
+    SourceMapId, SourceTarget, SourceUnit, Span,
 };
 use zil_ir::*;
 use zil_syntax::ast as s;
@@ -108,6 +109,22 @@ fn conversion_name_error(span: Span) -> Diagnostic {
     )
 }
 
+/// Preserve ordinary nominal/alias reserved-name checks before an untrusted
+/// source generator alpha-renames a declaration. This grants no type facts.
+pub fn check_generated_type_name(name: &str, span: Span) -> CompileResult<()> {
+    generics::check_generated_type_name(name, span).map_err(|error| vec![error])
+}
+
+/// Preserve the ordinary function primitive-name rule before hygiene changes
+/// its source spelling. Function and nominal reserved-name sets are distinct.
+pub fn check_generated_function_name(name: &str, span: Span) -> CompileResult<()> {
+    if primitive_name(name) {
+        Err(vec![primitive_name_error(name, span)])
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ExpandedModule {
     pub core: CoreModule,
@@ -115,26 +132,11 @@ pub struct ExpandedModule {
     // Compiler-generated ordinary imports, never safety capabilities.
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
+    imported_public_traits: BTreeSet<String>,
+    project_trait_work: usize,
 }
 
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
-type AggregateDeclarations<'a> = BTreeMap<String, &'a s::Aggregate>;
-
-fn aggregate_declarations<'a>(
-    modules: impl IntoIterator<Item = &'a s::Module>,
-) -> AggregateDeclarations<'a> {
-    // This read-only lookup neither resolves traits nor evaluates defaults.
-    // Keep the first written aggregate in the original module/item order.
-    let mut declarations = BTreeMap::new();
-    for item in modules.into_iter().flat_map(|module| &module.items) {
-        if let s::ItemKind::Aggregate(aggregate) = &item.kind {
-            declarations
-                .entry(aggregate.name.clone())
-                .or_insert(aggregate);
-        }
-    }
-    declarations
-}
 
 pub fn expand(source: &SourceUnit, module: &s::Module) -> CompileResult<CoreModule> {
     Ok(expand_with_map(source, module)?.core)
@@ -149,8 +151,15 @@ pub fn expand_with_map_limits(
     module: &s::Module,
     limits: &Limits,
 ) -> CompileResult<ExpandedModule> {
-    let specialized = generics::specialize(module, limits)?;
-    expand_inner(source, &specialized, false)
+    let mut products = generics::products::Products::default();
+    let specialized = generics::specialize_products(module, limits, &mut products)?;
+    let mut expanded = expand_inner(source, &specialized, false)?;
+    products.publish(
+        &mut [(&mut expanded.core, &mut expanded.source_map)],
+        std::slice::from_ref(source),
+        limits,
+    )?;
+    Ok(expanded)
 }
 
 pub fn expand_program_module(
@@ -167,10 +176,16 @@ pub fn expand_program_module_with_limits(
     imports: Vec<CoreImport>,
     limits: &Limits,
 ) -> CompileResult<(ProgramModule, SourceMap)> {
-    let specialized = generics::specialize(module, limits)?;
+    let mut products = generics::products::Products::default();
+    let specialized = generics::specialize_products(module, limits, &mut products)?;
     let module = &specialized;
-    let expanded = expand_inner(source, module, true)?;
-    let exports = source_exports(module, &expanded.core);
+    let mut expanded = expand_inner(source, module, true)?;
+    products.publish(
+        &mut [(&mut expanded.core, &mut expanded.source_map)],
+        std::slice::from_ref(source),
+        limits,
+    )?;
+    let exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
     Ok((
         ProgramModule {
             core: expanded.core,
@@ -184,8 +199,13 @@ pub fn expand_program_module_with_limits(
 /// Export ordinary functions and declared public methods. A method's
 /// visibility comes from its declaration and public nominal owner, never from
 /// seeing a same-spelled method in a downstream module. Trait signatures in a
-/// public local trait are public through their public concrete implementation.
-fn source_exports(module: &s::Module, core: &CoreModule) -> Vec<NodeId> {
+/// public local or checked imported trait are public through their public
+/// concrete implementation.
+fn source_exports(
+    module: &s::Module,
+    core: &CoreModule,
+    imported_public_traits: &BTreeSet<String>,
+) -> Vec<NodeId> {
     let public_nominals: std::collections::BTreeSet<_> = module
         .items
         .iter()
@@ -247,7 +267,10 @@ fn source_exports(module: &s::Module, core: &CoreModule) -> Vec<NodeId> {
                     .trait_type
                     .as_ref()
                     .and_then(type_path)
-                    .is_some_and(|name| public_traits.contains(name.as_str()));
+                    .is_some_and(|name| {
+                        public_traits.contains(name.as_str())
+                            || imported_public_traits.contains(&name)
+                    });
                 for member in &i.members {
                     if (if i.trait_type.is_some() {
                         public_trait
@@ -274,7 +297,10 @@ pub fn expand_program_with_limits(
     imports: &[Vec<CoreImport>],
     limits: &Limits,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
-    let specialized = modules::specialize(sources, syntax, imports, limits)?;
+    let mut products = generics::products::Products::default();
+    let specialized = modules::specialize(sources, syntax, imports, limits, &mut products)?;
+    let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
+    let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
     let mut remaining = limits.clone();
     let mut defaults = ProjectDefaults::new();
@@ -314,18 +340,30 @@ pub fn expand_program_with_limits(
             }
         }
     }
-    let declarations = aggregate_declarations(specialized.iter().map(|(module, _)| module));
-    let mut source_maps = SourceMapValidator::new(sources);
-    for (source, (module, imports)) in sources.iter().zip(&specialized) {
+    for ((source, (module, module_imports)), source_imports) in
+        sources.iter().zip(&specialized).zip(imports)
+    {
         let expanded = expand_inner_project(
             source,
             module,
             true,
-            &mut source_maps,
-            &declarations,
+            sources,
+            (&declarations, &project_modules, source_imports),
             &remaining,
             Some(&defaults),
         )?;
+        // New project trait work shares the project's remaining allowance; a
+        // later implementation module does not receive those steps again.
+        remaining.max_analysis_steps = remaining
+            .max_analysis_steps
+            .checked_sub(expanded.project_trait_work)
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Expand,
+                    "project trait work budget exceeded",
+                    Some(module.span),
+                )]
+            })?;
         remaining.max_nodes = remaining
             .max_nodes
             .checked_sub(expanded.source_map.entries.len())
@@ -352,9 +390,9 @@ pub fn expand_program_with_limits(
                     Some(module.span),
                 )]
             })?;
-        let mut exports = source_exports(module, &expanded.core);
+        let mut exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
         exports.extend(expanded.generated_exports);
-        let mut resolved_imports = imports.clone();
+        let mut resolved_imports = module_imports.clone();
         resolved_imports.extend(expanded.generated_imports);
         result.push((
             ProgramModule {
@@ -365,6 +403,11 @@ pub fn expand_program_with_limits(
             expanded.source_map,
         ));
     }
+    let mut product_cores = result
+        .iter_mut()
+        .map(|(module, map)| (&mut module.core, map))
+        .collect::<Vec<_>>();
+    products.publish(&mut product_cores, sources, limits)?;
     Ok(result)
 }
 
@@ -373,28 +416,42 @@ fn expand_inner(
     module: &s::Module,
     imports_resolved: bool,
 ) -> CompileResult<ExpandedModule> {
-    let declarations = aggregate_declarations([module]);
-    let mut source_maps = SourceMapValidator::new(std::slice::from_ref(source));
+    let declarations = declaration_index(std::iter::once(module));
     expand_inner_project(
         source,
         module,
         imports_resolved,
-        &mut source_maps,
-        &declarations,
+        std::slice::from_ref(source),
+        (&declarations, &[module], &[]),
         &Limits::default(),
         None,
     )
+}
+
+// Collect once for the whole immutable syntax snapshot. Re-scanning every
+// project's declaration list once per module is quadratic in module count.
+// First declaration wins exactly as in the original ordered traversal.
+type Declarations<'a> = BTreeMap<String, &'a s::Aggregate>;
+fn declaration_index<'a>(modules: impl IntoIterator<Item = &'a s::Module>) -> Declarations<'a> {
+    let mut declarations = BTreeMap::new();
+    for item in modules.into_iter().flat_map(|module| &module.items) {
+        if let s::ItemKind::Aggregate(a) = &item.kind {
+            declarations.entry(a.name.clone()).or_insert(a);
+        }
+    }
+    declarations
 }
 
 fn expand_inner_project(
     source: &SourceUnit,
     module: &s::Module,
     imports_resolved: bool,
-    source_maps: &mut SourceMapValidator<'_>,
-    declarations: &AggregateDeclarations<'_>,
+    sources: &[SourceUnit],
+    project: (&Declarations<'_>, &[&s::Module], &[CoreImport]),
     limits: &Limits,
     project_defaults: Option<&ProjectDefaults>,
 ) -> CompileResult<ExpandedModule> {
+    let (declarations, project_modules, imports) = project;
     let mut e = Expander::new(
         module.id,
         imports_resolved,
@@ -408,7 +465,7 @@ fn expand_inner_project(
         }
     }
     e.collect_resource_drops(module);
-    e.collect_static_traits(module, limits);
+    e.collect_static_traits(module, project_modules, imports, limits);
     // A public default is a declaration: check its body even when a particular
     // consumer explicitly supplies that field. Private/local defaults retain
     // their existing lazy lowering.
@@ -429,8 +486,10 @@ fn expand_inner_project(
     if !e.diagnostics.is_empty() {
         return Err(e.diagnostics);
     }
-    source_maps.validate(&e.source_map, limits)?;
+    e.source_map.validate(sources, limits)?;
     let core = CoreModule {
+        aggregate_templates: Vec::new(),
+        aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: module.id,
         source_fingerprint: source.fingerprint(),
@@ -444,6 +503,8 @@ fn expand_inner_project(
         source_map: e.source_map,
         generated_imports: e.generated_imports.into_values().collect(),
         generated_exports: e.generated_exports,
+        imported_public_traits: e.imported_public_traits,
+        project_trait_work: e.project_trait_work,
     })
 }
 struct Expander<'a> {
@@ -461,9 +522,11 @@ struct Expander<'a> {
     functions: Vec<CoreFunction>,
     aggregates: Vec<CoreAggregate>,
     enums: Vec<CoreEnum>,
-    declarations: &'a AggregateDeclarations<'a>,
+    declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
+    imported_public_traits: BTreeSet<String>,
+    project_trait_work: usize,
     static_traits: BTreeSet<String>,
     static_trait_impls: BTreeSet<Span>,
     source_map: SourceMap,
@@ -481,7 +544,7 @@ impl<'a> Expander<'a> {
         imports_resolved: bool,
         limits: &Limits,
         project_defaults: Option<&'a ProjectDefaults>,
-        declarations: &'a AggregateDeclarations<'a>,
+        declarations: &'a Declarations<'a>,
     ) -> Self {
         Self {
             imports_resolved,
@@ -501,6 +564,8 @@ impl<'a> Expander<'a> {
             declarations,
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),
+            imported_public_traits: BTreeSet::new(),
+            project_trait_work: 0,
             static_traits: BTreeSet::new(),
             static_trait_impls: BTreeSet::new(),
             source_map: SourceMap::new(module_id),
@@ -914,6 +979,7 @@ impl Expander<'_> {
                     body: self.block(body),
                 }
             }
+            s::StmtKind::Defer(body) => CoreStatementKind::Defer(self.block(body)),
             s::StmtKind::Unsafe(body) => CoreStatementKind::Unsafe(self.block(body)),
             s::StmtKind::Break => CoreStatementKind::Break,
             s::StmtKind::Continue => CoreStatementKind::Continue,

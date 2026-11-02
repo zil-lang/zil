@@ -3,6 +3,86 @@ use zil_ir::{InstructionKind, Type, ValueId};
 
 use super::{Budget, CompileResult, Diagnostic, Phase, TypedModule, callable_fields};
 
+/// The caller completes bounded raw type preflight before invoking this
+/// producer-only admission. No Types result is used as a proof here.
+pub(super) fn product_element(element: &Type, budget: &mut Budget) -> CompileResult<()> {
+    super::resources::product::admit(element, budget)?;
+    budget.type_work(element, true, "Product Store nonzero layout")?;
+    fn storage(ty: &Type) -> bool {
+        match ty {
+            Type::Unit => false,
+            Type::Managed(payload) => storage(payload),
+            Type::Tuple(fields) => fields.iter().any(storage),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.iter().any(|(_, ty)| storage(ty))
+            }
+            Type::Array { element, length } => *length > 0 && storage(element),
+            _ => true,
+        }
+    }
+    if !storage(element) {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "Product Store element requires nonzero actual inline storage",
+            None,
+        )]);
+    }
+    Ok(())
+}
+
+pub(super) fn product_protocol_payload(ty: &Type) -> Option<&Type> {
+    let Type::ErrorUnion { error, result } = ty else {
+        return None;
+    };
+    if **error == Type::Unit && super::resources::product::nested(result) {
+        Some(result)
+    } else if **result == Type::Unit && super::resources::product::nested(error) {
+        Some(error)
+    } else {
+        None
+    }
+}
+
+pub(super) fn product_carrier(
+    module: &TypedModule,
+    element: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    product_element(element, budget)?;
+    let Type::Package { name, .. } = element else {
+        unreachable!("independently admitted Product")
+    };
+    budget.spend(
+        name.len()
+            .saturating_add("@builtin:OwnedStore<".len())
+            .saturating_add(">".len()),
+        "Product Store canonical identity",
+    )?;
+    let expected = format!("@builtin:OwnedStore<{name}>");
+    for definition in &module.resources {
+        budget.spend(
+            expected
+                .len()
+                .saturating_add(definition.name.len())
+                .saturating_add(1),
+            "Product Store definition lookup",
+        )?;
+        if definition.name != expected {
+            continue;
+        }
+        budget.type_work(&definition.payload, true, "Product Store exact definition")?;
+        budget.type_work(element, true, "Product Store exact element")?;
+        if definition.teardown.is_none()
+            && matches!(&definition.payload, Type::OwnedStore { element: actual } if actual.as_ref() == element)
+        {
+            return Ok(());
+        }
+    }
+    Err(super::bad(
+        "Product Store lacks its exact canonical element definition",
+    ))
+}
+
 /// The structural preflight records only Store elements that actually contain
 /// a concrete Closure. Ordinary Store inputs therefore keep their old work
 /// bound. This pass reads the raw element and environment tables; no Types
@@ -85,6 +165,71 @@ pub(super) fn callback_element(
     if let Some(other) = second {
         budget.spend(1, "callback Store second environment root")?;
         callable_fields::self_contained(module, other, budget)?;
+    }
+    Ok(())
+}
+
+/// Newly composed ordinary Products recheck their actual Store, independently
+/// of capture qualification. This path accepts exactly the existing element
+/// shapes and requires one canonical resource even in unused metadata.
+pub(super) fn ordinary_owned(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    const WORK: &str = "ordinary Product canonical Store";
+    let Type::Managed(payload) = ty else {
+        return Err(super::bad("ordinary Product Store must be owned"));
+    };
+    let Type::OwnedStore { element } = payload.as_ref() else {
+        return Err(super::bad("ordinary Product Store payload is absent"));
+    };
+    budget.type_work(element, true, WORK)?;
+    let Type::Package { name, fields } = element.as_ref() else {
+        return Err(super::bad(
+            "ordinary Product Store requires an actual Package element",
+        ));
+    };
+    if fields
+        .iter()
+        .any(|(_, field)| matches!(field, Type::Closure(_)))
+    {
+        callback_element(module, element, budget)?;
+    } else {
+        product_element(element, budget)?;
+    }
+    budget.spend(name.len().saturating_add(32), WORK)?;
+    let canonical = format!("@builtin:OwnedStore<{name}>");
+    budget.spend(module.resources.len(), WORK)?;
+    let mut found = 0usize;
+    for resource in &module.resources {
+        budget.spend(resource.name.len().saturating_add(canonical.len()), WORK)?;
+        let related = if let Type::OwnedStore { element: actual } = &resource.payload
+            && let Type::Package { name: actual, .. } = actual.as_ref()
+        {
+            budget.spend(actual.len().saturating_add(name.len()), WORK)?;
+            actual == name
+        } else {
+            false
+        };
+        if resource.name != canonical && !related {
+            continue;
+        }
+        budget.type_work(&resource.payload, true, WORK)?;
+        if resource.name != canonical
+            || resource.payload != **payload
+            || resource.teardown.is_some()
+        {
+            return Err(super::bad(
+                "ordinary Product Store requires its exact canonical definition and no user teardown",
+            ));
+        }
+        found += 1;
+    }
+    if found != 1 {
+        return Err(super::bad(
+            "ordinary Product Store requires exactly one canonical definition",
+        ));
     }
     Ok(())
 }
@@ -211,6 +356,73 @@ fn leaf_element(element: &Type, budget: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 
+/// The flat route keeps its exact historical charging. A nested capture first
+/// bounds and charges every queued node, including hidden Copy/resource heads,
+/// then independently admits the complete Product shape and nonzero layout.
+fn capture_element(element: &Type, budget: &mut Budget) -> CompileResult<()> {
+    if !super::resources::product::nested(element) {
+        return leaf_element(element, budget);
+    }
+    const WORK: &str = "owned Product Store capture qualification";
+    budget.spend(1, WORK)?;
+    let mut pending = vec![(element, 0usize)];
+    while let Some((ty, depth)) = pending.pop() {
+        budget.spend(1, WORK)?;
+        if depth > budget.helper_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "owned Product Store capture type depth exceeded",
+                None,
+            )]);
+        }
+        let mut push = |child| -> CompileResult<()> {
+            budget.spend(pending.len().saturating_add(1), WORK)?;
+            pending.push((child, depth + 1));
+            Ok(())
+        };
+        match ty {
+            Type::Closure(_)
+            | Type::FunctionPointer { .. }
+            | Type::ForeignCallback { .. }
+            | Type::Address { .. }
+            | Type::Desc(_)
+            | Type::OwnedStore { .. }
+            | Type::Opaque { .. }
+            | Type::Named(_)
+            | Type::Unsupported(_)
+            | Type::Slice { .. } => {
+                return Err(capture_error(
+                    "captured Product Store cannot hide callbacks, nested Store, borrowed or unresolved fields",
+                ));
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                for (_, child) in fields {
+                    push(child)?;
+                }
+            }
+            Type::Managed(child) | Type::Array { element: child, .. } => push(child)?,
+            Type::Tuple(fields) => {
+                for child in fields {
+                    push(child)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    for child in fields {
+                        push(child)?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                push(error)?;
+                push(result)?;
+            }
+            _ => {}
+        }
+    }
+    product_element(element, budget)
+}
+
 pub(super) fn owned_capture(
     module: &TypedModule,
     ty: &Type,
@@ -227,7 +439,7 @@ pub(super) fn owned_capture(
             "owned Store capture requires the actual Store payload",
         ));
     };
-    leaf_element(element, budget)?;
+    capture_element(element, budget)?;
     let Type::Package { name, .. } = element.as_ref() else {
         unreachable!("qualified leaf")
     };
@@ -255,7 +467,7 @@ pub(super) fn owned_capture(
                 "owned Store capture canonical name has a different payload",
             ));
         };
-        leaf_element(actual, budget)?;
+        capture_element(actual, budget)?;
         budget.type_work(&resource.payload, false, WORK)?;
         if resource.name != canonical
             || resource.payload != **payload

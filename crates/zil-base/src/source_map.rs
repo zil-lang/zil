@@ -54,14 +54,6 @@ pub struct SourceMap {
     pub entries: Vec<SourceMapEntry>,
 }
 
-/// Reuse only an immutable source-file lookup across maps in one request.
-/// Every call still validates its complete map and charges its full logical
-/// cost. Neither the lookup nor a successful call certifies a Core tree.
-pub struct SourceMapValidator<'s> {
-    sources: &'s [SourceUnit],
-    files: Option<BTreeMap<FileId, &'s SourceUnit>>,
-}
-
 fn error(message: impl Into<String>, span: Option<Span>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         Phase::Expand,
@@ -86,7 +78,49 @@ impl SourceMap {
     /// targets, parent order, and quotas. Target AST existence remains the
     /// producer/consumer's job; this source table cannot certify a Core tree.
     pub fn validate(&self, sources: &[SourceUnit], limits: &Limits) -> CompileResult<()> {
-        SourceMapValidator::new(sources).validate(self, limits)
+        if self.entries.len() > limits.max_nodes || sources.len() > limits.max_nodes {
+            return Err(resource("source-map node budget exceeded"));
+        }
+        let mut remaining = limits.max_analysis_steps;
+        let mut files: BTreeMap<FileId, &SourceUnit> = BTreeMap::new();
+        for source in sources {
+            remaining = remaining
+                .checked_sub(1)
+                .ok_or_else(|| resource("source-map validation work budget exceeded"))?;
+            if files.insert(source.file_id, source).is_some() {
+                return Err(error("duplicate source file identity", Some(source.span())));
+            }
+        }
+        let check_span = |span: Span| -> CompileResult<()> {
+            match files.get(&span.file) {
+                Some(source) if span.is_valid_for(source) => Ok(()),
+                _ => Err(error(
+                    "source-map span is absent, outside its source, or not on UTF-8 boundaries",
+                    Some(span),
+                )),
+            }
+        };
+        let mut targets = BTreeSet::new();
+        for (index, entry) in self.entries.iter().enumerate() {
+            remaining = remaining
+                .checked_sub(entry.related.len().saturating_add(1))
+                .ok_or_else(|| resource("source-map validation work budget exceeded"))?;
+            self.check_entry(index)?;
+            if !targets.insert(&entry.target) {
+                return Err(error(
+                    "source-map target is mapped more than once",
+                    Some(entry.origin),
+                ));
+            }
+            check_span(entry.origin)?;
+            for &related in &entry.related {
+                check_span(related)?;
+            }
+            if let SourceTarget::Span(generated) = entry.target {
+                check_span(generated)?;
+            }
+        }
+        Ok(())
     }
 
     /// Return the target-to-root expansion chain. This also fails closed for
@@ -147,76 +181,6 @@ impl SourceMap {
                 "source-map parent must precede its child; cyclic or forward parent",
                 Some(entry.origin),
             ));
-        }
-        Ok(())
-    }
-}
-
-impl<'s> SourceMapValidator<'s> {
-    /// Bind one source slice without validating or spending a map's budget.
-    pub fn new(sources: &'s [SourceUnit]) -> Self {
-        Self {
-            sources,
-            files: None,
-        }
-    }
-
-    /// Perform the same validation as `SourceMap::validate`, reusing only a
-    /// complete source index. Failed source scans never populate the index.
-    pub fn validate(&mut self, map: &SourceMap, limits: &Limits) -> CompileResult<()> {
-        if map.entries.len() > limits.max_nodes || self.sources.len() > limits.max_nodes {
-            return Err(resource("source-map node budget exceeded"));
-        }
-        let mut remaining = limits.max_analysis_steps;
-        if self.files.is_some() {
-            // A complete earlier scan established unique IDs in this same
-            // borrowed slice. Each map still pays for every source.
-            remaining = remaining
-                .checked_sub(self.sources.len())
-                .ok_or_else(|| resource("source-map validation work budget exceeded"))?;
-        } else {
-            let mut files = BTreeMap::new();
-            for source in self.sources {
-                // Keep the cold-path order: a duplicate may precede exhaustion
-                // of the budget needed for later, never-visited sources.
-                remaining = remaining
-                    .checked_sub(1)
-                    .ok_or_else(|| resource("source-map validation work budget exceeded"))?;
-                if files.insert(source.file_id, source).is_some() {
-                    return Err(error("duplicate source file identity", Some(source.span())));
-                }
-            }
-            self.files = Some(files);
-        }
-        let files = self.files.as_ref().expect("complete source index");
-        let check_span = |span: Span| -> CompileResult<()> {
-            match files.get(&span.file) {
-                Some(source) if span.is_valid_for(source) => Ok(()),
-                _ => Err(error(
-                    "source-map span is absent, outside its source, or not on UTF-8 boundaries",
-                    Some(span),
-                )),
-            }
-        };
-        let mut targets = BTreeSet::new();
-        for (index, entry) in map.entries.iter().enumerate() {
-            remaining = remaining
-                .checked_sub(entry.related.len().saturating_add(1))
-                .ok_or_else(|| resource("source-map validation work budget exceeded"))?;
-            map.check_entry(index)?;
-            if !targets.insert(&entry.target) {
-                return Err(error(
-                    "source-map target is mapped more than once",
-                    Some(entry.origin),
-                ));
-            }
-            check_span(entry.origin)?;
-            for &related in &entry.related {
-                check_span(related)?;
-            }
-            if let SourceTarget::Span(generated) = entry.target {
-                check_span(generated)?;
-            }
         }
         Ok(())
     }

@@ -65,12 +65,13 @@ pub(super) struct Pending {
     // Private source classification. It only restricts this resolved result;
     // Analyze and Verify independently inspect actual captures and values.
     pub owns_leaf_store: bool,
+    pub defer_action: bool,
     pub inference: Inference,
     pub typed: Option<TypedFunction>,
 }
 impl Pending {
     pub fn callable_kind(&self) -> CallableKind {
-        if self.captures.iter().any(|capture| capture.consumed) {
+        if self.defer_action || self.captures.iter().any(|capture| capture.consumed) {
             CallableKind::FnOnce
         } else if self.captures.iter().any(Capture::mutable_call) {
             CallableKind::FnMut
@@ -89,6 +90,7 @@ impl Pending {
 }
 
 pub(super) struct Input<'a> {
+    pub defer_action: bool,
     pub move_capture: bool,
     pub parameters: &'a [CoreClosureParameter],
     pub result: Option<&'a Type>,
@@ -104,6 +106,9 @@ pub(super) struct State {
     pub helper_tables: std::rc::Rc<helpers::Tables>,
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
     pub store_instances: Vec<store_templates::Instance>,
+    pub products: aggregate_templates::Products,
+    // Private compiler provenance; public Core/Typed/Wire cannot supply it.
+    pub internal_product_fields: BTreeMap<FunctionId, BTreeMap<(BlockId, usize), InstructionKind>>,
     pub helper_functions: Vec<TypedFunction>,
     pub helper_exports: Vec<helpers::Export>,
     pub pending: Vec<Pending>,
@@ -120,6 +125,91 @@ pub(super) struct State {
 }
 
 impl State {
+    pub(super) fn inserted_instruction(
+        &mut self,
+        function: FunctionId,
+        block: BlockId,
+        position: usize,
+        span: Span,
+    ) -> R<()> {
+        if self.internal_product_fields.is_empty() {
+            return Ok(());
+        }
+        self.snapshot(
+            self.internal_product_fields.len().saturating_add(1).ilog2() as usize + 1,
+            span,
+        )?;
+        let Some(receipts) = self.internal_product_fields.get(&function) else {
+            return Ok(());
+        };
+        let count = receipts.len();
+        self.snapshot(
+            count
+                .saturating_mul(count.saturating_add(1).ilog2() as usize + 3)
+                .saturating_add(
+                    self.internal_product_fields.len().saturating_add(1).ilog2() as usize + 1,
+                ),
+            span,
+        )?;
+        let receipts = self
+            .internal_product_fields
+            .get_mut(&function)
+            .expect("existing receipts");
+        *receipts = std::mem::take(receipts)
+            .into_iter()
+            .map(|((owner, index), kind)| {
+                (
+                    (
+                        owner,
+                        if owner == block && index >= position {
+                            index + 1
+                        } else {
+                            index
+                        },
+                    ),
+                    kind,
+                )
+            })
+            .collect();
+        Ok(())
+    }
+
+    // Private work-product receipts record only shared accounting, never proof.
+    pub(super) fn accounting(&self) -> [usize; 6] {
+        [
+            self.blocks,
+            self.locals,
+            self.values,
+            self.instructions,
+            self.limits.max_analysis_steps - self.work_left,
+            self.limits.max_nodes - self.nodes_left,
+        ]
+    }
+
+    pub(super) fn replay_accounting(&mut self, cost: [usize; 6]) -> bool {
+        let before = self.accounting();
+        let maxima = [
+            self.limits.max_blocks,
+            self.limits.max_locals,
+            self.limits.max_values,
+            self.limits.max_instructions,
+            self.limits.max_analysis_steps,
+            self.limits.max_nodes,
+        ];
+        let mut after = [0; 6];
+        for i in 0..6 {
+            let Some(value) = before[i].checked_add(cost[i]).filter(|n| *n <= maxima[i]) else {
+                return false;
+            };
+            after[i] = value;
+        }
+        [self.blocks, self.locals, self.values, self.instructions] =
+            [after[0], after[1], after[2], after[3]];
+        self.work_left = maxima[4] - after[4];
+        self.nodes_left = maxima[5] - after[5];
+        true
+    }
+
     pub(super) fn factory_self_contained(&mut self, id: ClosureId, span: Span) -> R<()> {
         retained::self_contained(&self.pending, id, &mut self.work_left, span)
     }
@@ -133,6 +223,8 @@ impl State {
             helper_tables: std::rc::Rc::new(BTreeMap::new()),
             helper_instances: BTreeMap::new(),
             store_instances: Vec::new(),
+            products: None,
+            internal_product_fields: BTreeMap::new(),
             helper_functions: Vec::new(),
             helper_exports: Vec::new(),
             pending: vec![],
@@ -236,13 +328,7 @@ impl State {
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         let mut owns_leaf_store = false;
-        for capture in &checker.captures {
-            if packages::product::nested(&capture.ty) && !capture.moved {
-                return Err(unsupported(
-                    capture.span,
-                    "Product capture requires explicit move or an actual whole/child ownership use",
-                ));
-            }
+        for capture in &mut checker.captures {
             if dynamic_store::is_carrier(&capture.stored_type()) {
                 if !capture.moved
                     || !dynamic_store::owned_capture(
@@ -296,6 +382,24 @@ impl State {
                     owns_leaf_store = true;
                 }
             }
+            if matches!(capture.ty, Type::Package { .. }) && !capture.moved {
+                // Resolve the complete body's ownership uses before choosing
+                // a shared window. Reading a child path must not take it, and
+                // a later real take must not be hidden by an earlier read.
+                packages::product::validate(
+                    &capture.ty,
+                    checker.work_left,
+                    self.limits.max_call_depth,
+                    capture.span,
+                )?;
+                if capture.written || capture.consumed {
+                    return Err(unsupported(
+                        capture.span,
+                        "mutable Product capture is not implemented",
+                    ));
+                }
+                capture.borrowed = true;
+            }
             // A local byte-storage Desc uses the same actual capture-source
             // and dynamic access checks as a direct synchronous operation.
             // Retained results still independently require self containment.
@@ -318,6 +422,7 @@ impl State {
             span: input.span,
             captures: checker.captures,
             owns_leaf_store,
+            defer_action: input.defer_action,
             inference,
             typed: None,
         });
@@ -667,6 +772,7 @@ impl Graph {
                 || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
+                || owned_shapes::enumeration(ty)
                 || packages::ordinary(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
@@ -1543,10 +1649,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             ));
         };
         if ty.is_package_address() {
-            return Err(unsupported(
-                span,
-                "Store element address capture requires a separate retained element-window contract",
-            ));
+            let Type::Address {
+                mutable: false,
+                inner,
+            } = ty
+            else {
+                return Err(unsupported(
+                    span,
+                    "mutable Product capture is not implemented",
+                ));
+            };
+            // This is shape admission, not origin authority. Analyze and Verify
+            // independently exclude dynamic Store and unknown incoming roots.
+            packages::product::validate(inner, self.work_left, self.limits.max_call_depth, span)?;
         }
         if ty.is_shared_resource_head_address() {
             return Err(unsupported(
@@ -1645,7 +1760,16 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     && !nested_owned
                     && !dynamic_store::owned_capture(ty, self.work_left, self.limits, span)?
                 {
-                    return Err(unsupported(span, "Package capture requires explicit move"));
+                    // Flat ordinary Products share the same window profile as
+                    // recursive Products. Other Package kinds still fail this
+                    // complete qualifier; Store/array/callback ownership is not
+                    // granted by the new default-read path.
+                    packages::product::validate(
+                        ty,
+                        self.work_left,
+                        self.limits.max_call_depth,
+                        span,
+                    )?;
                 }
                 (ty, None)
             }
@@ -1654,6 +1778,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             Type::Address { mutable, inner } if inner.is_copy_value() => {
                 (inner.as_ref(), Some(*mutable))
+            }
+            Type::Address {
+                mutable: false,
+                inner,
+            } if matches!(inner.as_ref(), Type::Package { .. }) => {
+                // Complete Product qualification was charged above. Capturing
+                // the address keeps a loan; it never creates an owning slot.
+                (inner.as_ref(), Some(false))
             }
             _ => {
                 return Err(unsupported(
@@ -1852,6 +1984,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         self.block(&arm.body, depth + 1)?;
                         self.scopes.pop();
                     }
+                }
+                CoreStatementKind::Defer(body) => {
+                    // A deferred mutation reaches this closure's activation
+                    // local through a nested borrowed environment. Like a
+                    // non-move nested closure, it needs final Copy capture
+                    // writeback even when no outer Store executes.
+                    self.nested_depth += 1;
+                    self.block(body, depth + 1)?;
+                    self.nested_depth -= 1;
                 }
                 CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
                     self.block(body, depth + 1)?

@@ -2,8 +2,7 @@
 //! Invariants: every owned handle is released once; module dies before context;
 //! ParseIR consumes its memory buffer even on failure; target refs are borrowed;
 //! all LLVM work for one unit stays on one thread. No raw handle is Send/Sync.
-use super::{Config, Error, ErrorKind, Object, Optimization, Receipt};
-use crate::timing::TimingTrace;
+use super::{Config, Error, ErrorKind, FunctionMerging, Object, Optimization, Receipt};
 enum Input<'a> {
     #[cfg(feature = "text-reference")]
     Text(&'a str),
@@ -26,7 +25,6 @@ unsafe extern "C" {
     fn LLVMInitializeX86AsmParser();
     fn LLVMContextCreate() -> Handle;
     fn LLVMContextDispose(ctx: Handle);
-    fn LLVMContextSetDiscardValueNames(ctx: Handle, discard: c_int);
     #[cfg(feature = "text-reference")]
     fn LLVMCreateMemoryBufferWithMemoryRangeCopy(
         data: *const c_char,
@@ -72,6 +70,7 @@ unsafe extern "C" {
     fn LLVMPassBuilderOptionsSetLoopInterleaving(options: Handle, value: c_int);
     fn LLVMPassBuilderOptionsSetLoopVectorization(options: Handle, value: c_int);
     fn LLVMPassBuilderOptionsSetSLPVectorization(options: Handle, value: c_int);
+    fn LLVMPassBuilderOptionsSetMergeFunctions(options: Handle, value: c_int);
     fn LLVMRunPasses(
         module: Handle,
         pipeline: *const c_char,
@@ -163,17 +162,23 @@ fn verify(module: &Module) -> Result<(), Error> {
 pub(super) fn compile(
     ir: &str,
     config: &Config<'_>,
+    function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
-    compile_input(Input::Text(ir), config, cancelled, &TimingTrace::default())
+    compile_input(Input::Text(ir), config, function_merging, cancelled)
 }
 pub(super) fn compile_module(
     module: &crate::model::Module,
     config: &Config<'_>,
+    function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
-    trace: &TimingTrace,
 ) -> Result<Object, Error> {
-    compile_input(Input::Structured(module), config, cancelled, trace)
+    compile_input(
+        Input::Structured(module),
+        config,
+        function_merging,
+        cancelled,
+    )
 }
 pub(super) fn check_config(config: &Config<'_>) -> Result<[u32; 3], Error> {
     if !matches!(
@@ -241,13 +246,15 @@ pub(super) fn runtime_library() -> Result<std::path::PathBuf, Error> {
 fn compile_input(
     input: Input<'_>,
     config: &Config<'_>,
+    function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
-    trace: &TimingTrace,
 ) -> Result<Object, Error> {
     let start = Instant::now();
-    let mut setup = trace.scope("llvm_setup", "stage");
     check(cancelled)?;
     check_config(config)?;
+    if config.optimization != Optimization::O2 && function_merging != FunctionMerging::Disabled {
+        return Err(error(ErrorKind::Optimize, "function merging requires O2"));
+    }
     INIT.call_once(|| {
         // SAFETY: target registry is initialized once, before worker lookups.
         unsafe {
@@ -301,7 +308,6 @@ fn compile_input(
         ));
     }
     let data_layout = unsafe { take_message(LLVMCopyStringRepOfTargetData(layout.0)) };
-    setup.finish("ok");
     let (module, input_kind, preflight_ns, builder_ns, parse_ns) = match input {
         #[cfg(feature = "text-reference")]
         Input::Text(ir) => {
@@ -335,27 +341,17 @@ fn compile_input(
                 ));
             }
             let t = Instant::now();
-            let schedule = trace.measure("machine_preflight", "stage", |_| {
-                crate::preflight::validate(program)
-                    .map_err(|message| error(ErrorKind::Verify, message))
-            })?;
+            let schedule = crate::preflight::validate(program)
+                .map_err(|message| error(ErrorKind::Verify, message))?;
             let preflight_ns = nanos(t);
             check(cancelled)?;
-            // Names of local values are only diagnostic. Builder resolves all
-            // uses through its own checked maps; the original machine model
-            // still supplies the readable sidecar. LLVM retains GlobalValue
-            // names, including the functions/globals that form the link ABI.
-            unsafe { LLVMContextSetDiscardValueNames(context.0, 1) };
             let t = Instant::now();
-            let module = trace.measure("llvm_builder", "stage", |_| {
-                builder::build(context.0, program, layout.0, &schedule, cancelled)
-            })?;
+            let module = builder::build(context.0, program, layout.0, &schedule, cancelled)?;
             (module, "builder", preflight_ns, nanos(t), 0)
         }
     };
-    trace.measure("llvm_verify_before", "stage", |_| verify(&module))?;
+    verify(&module)?;
     check(cancelled)?;
-    let mut pass_setup = trace.scope("llvm_pass_setup", "stage");
     if unsafe { text(LLVMGetTarget(module.0)) } != config.triple {
         return Err(error(
             ErrorKind::Target,
@@ -370,10 +366,10 @@ fn compile_input(
         ));
     }
     unsafe { LLVMSetModuleDataLayout(module.0, layout.0) };
-    let pipeline = if optimized {
-        c"default<O2>"
-    } else {
-        c"default<O0>"
+    let pipeline = match (optimized, function_merging) {
+        (false, _) => c"default<O0>",
+        (true, FunctionMerging::BeforeAndAfter) => c"mergefunc,default<O2>",
+        (true, _) => c"default<O2>",
     };
     let opts = PassOptions(unsafe { LLVMCreatePassBuilderOptions() });
     if opts.0.is_null() {
@@ -384,9 +380,13 @@ fn compile_input(
         LLVMPassBuilderOptionsSetLoopInterleaving(opts.0, i32::from(optimized));
         LLVMPassBuilderOptionsSetLoopVectorization(opts.0, i32::from(optimized));
         LLVMPassBuilderOptionsSetSLPVectorization(opts.0, i32::from(optimized));
+        // LLVM's aliases option remains false. Do not add unnamed_addr: emitted
+        // canonical functions keep their address identity and external names.
+        LLVMPassBuilderOptionsSetMergeFunctions(
+            opts.0,
+            i32::from(function_merging != FunctionMerging::Disabled),
+        );
     }
-    pass_setup.finish("ok");
-    let mut optimization = trace.scope("llvm_optimize", "stage");
     let t = Instant::now();
     let failure = unsafe { LLVMRunPasses(module.0, pipeline.as_ptr(), machine.0, opts.0) };
     if !failure.is_null() {
@@ -399,10 +399,8 @@ fn compile_input(
         return Err(error(ErrorKind::Optimize, message));
     }
     let optimize_ns = nanos(t);
-    optimization.finish("ok");
-    trace.measure("llvm_verify_after", "stage", |_| verify(&module))?;
+    verify(&module)?;
     check(cancelled)?;
-    let mut emission = trace.scope("llvm_object_emit", "stage");
     let t = Instant::now();
     let mut object = ptr::null_mut();
     let mut msg = ptr::null_mut();
@@ -423,7 +421,6 @@ fn compile_input(
     // SAFETY: immutable borrowed byte range from a live LLVM memory buffer.
     let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec();
     let emit_ns = nanos(t);
-    emission.finish("ok");
     check(cancelled)?;
     Ok(Object {
         bytes,
@@ -433,7 +430,7 @@ fn compile_input(
             cpu: "x86-64".into(),
             features: String::new(),
             data_layout,
-            pipeline: pipeline.to_string_lossy().into_owned(),
+            pipeline: super::pipeline_identity(config.optimization, function_merging).into(),
             relocation: "PIC".into(),
             code_model: "default".into(),
             verify_before_after: true,

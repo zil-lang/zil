@@ -436,6 +436,19 @@ fn raw_unused_nested_metadata_does_not_gain_ordinary_or_legacy_authority() {
             }
             _ => unreachable!(),
         }
+        if variant == 5 {
+            // The original raw Product contains a legal E!Leaf field. Its
+            // unused local has no initialized payload responsibility.
+            let case = Case::new("unused-nested-metadata-5-promoted");
+            let actual = zil_analyze::analyze(&module, &Limits::default());
+            case.write("analyze.txt", format!("{actual:#?}"));
+            let actual = actual.unwrap();
+            verify_pair("unused-nested-metadata-5-actual", &module, &actual, true);
+            let mut rebound = plan.clone();
+            rebound.module_fingerprint = module.fingerprint();
+            verify_pair("unused-nested-metadata-5-rebound", &module, &rebound, true);
+            continue;
+        }
         attack(
             &format!("unused-nested-metadata-{variant}"),
             &module,
@@ -788,26 +801,14 @@ fn source_21_copy_companions() {
 
 #[test]
 fn source_22_inner_store() {
-    rejected(
-        "22_inner_store",
-        source!("22_inner_store"),
-        Phase::Types,
-        ResultCategory::Unsupported,
-        None,
-        None,
-    );
+    // 235 promotes the original frozen source without rewriting its fixture.
+    accepted("22_inner_store", source!("22_inner_store"));
 }
 
 #[test]
 fn source_23_store_parent() {
-    rejected(
-        "23_store_parent",
-        source!("23_store_parent"),
-        Phase::Types,
-        ResultCategory::Unsupported,
-        None,
-        None,
-    );
+    // 223 promotes the original frozen source without rewriting its fixture.
+    accepted("23_store_parent", source!("23_store_parent"));
 }
 
 #[test]
@@ -824,14 +825,8 @@ fn source_24_array_parent() {
 
 #[test]
 fn source_25_sum_parent() {
-    rejected(
-        "25_sum_parent",
-        source!("25_sum_parent"),
-        Phase::Types,
-        ResultCategory::Unsupported,
-        None,
-        None,
-    );
+    // §8.1.5 promotes the original frozen fixture bytes.
+    accepted("25_sum_parent", source!("25_sum_parent"));
 }
 
 #[test]
@@ -860,14 +855,8 @@ fn source_27_inner_owning_array() {
 
 #[test]
 fn source_28_inner_owning_sum() {
-    rejected(
-        "28_inner_owning_sum",
-        source!("28_inner_owning_sum"),
-        Phase::Types,
-        ResultCategory::Unsupported,
-        None,
-        None,
-    );
+    // §8.1.5 promotes the original frozen fixture bytes.
+    accepted("28_inner_owning_sum", source!("28_inner_owning_sum"));
 }
 
 #[test]

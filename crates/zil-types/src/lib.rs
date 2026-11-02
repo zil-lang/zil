@@ -5,33 +5,45 @@ use std::collections::BTreeMap;
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
 mod addresses;
+mod aggregate_templates;
 mod aggregates;
 mod byte_buffer;
 mod callable_fields;
 mod closures;
 mod conditions;
+mod deferred;
 mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
 mod functions;
 mod helpers;
+mod incremental;
 mod inference;
+pub use incremental::{FunctionSession, FunctionStats};
 mod lending;
 mod managed_slots;
 mod names;
+mod owned_enums;
+mod owned_shapes;
 mod owning_factory;
 mod packages;
+mod preparation;
+mod product_replacement;
 mod program;
+mod sum_slots;
+pub use preparation::{
+    InferredProgram, PreparedProgram, check_prepared_program, infer_program_for_ct,
+    infer_shared_program_for_ct,
+};
 mod resource_effects;
 mod resources;
 mod retained;
+mod scalar_shapes;
 mod state_origins;
 mod store_templates;
-pub use inference::{
-    infer_program_closures, infer_program_closures_borrowed, infer_source_closures,
-};
-pub use program::{check_program, resolve_program_shapes, resolve_program_shapes_borrowed};
+pub use inference::{infer_program_closures, infer_source_closures};
+pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
@@ -114,7 +126,26 @@ fn signatures(
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
         }
-        if let Err(diagnostic) = helpers::validate_template(f) {
+        if let Err(diagnostic) = helpers::validate_template(f, &mut |ty, span| {
+            let work = inference::type_snapshot_work(
+                ty,
+                span,
+                &Limits {
+                    max_analysis_steps: foreign_work,
+                    ..limits.clone()
+                },
+            )?;
+            foreign_work = foreign_work
+                .checked_sub(work.saturating_mul(2))
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "ordinary Sum helper parameter qualification budget exceeded",
+                        Some(span),
+                    )
+                })?;
+            Ok(())
+        }) {
             errors.push(diagnostic);
         }
         if let Err(diagnostic) = store_templates::validate_header(f) {
@@ -203,6 +234,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || f.return_type.is_scalar_or_address()
         || packages::ordinary(&f.return_type)
         || errors::supported(&f.return_type)
+        || owned_shapes::enumeration(&f.return_type)
         || packages::owned_array_supported(&f.return_type)
         || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
     {
@@ -245,6 +277,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
             || resources::supported(&p.ty)
             || packages::ordinary(&p.ty)
             || errors::supported(&p.ty)
+            || owned_shapes::enumeration(&p.ty)
             || packages::owned_array_supported(&p.ty))
         {
             errors.push(unsupported(
@@ -299,6 +332,12 @@ pub fn check(
         })
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
+    let mut product_work = limits.max_analysis_steps;
+    closure_state.products =
+        aggregate_templates::origins(&[core], limits, &mut product_work).map_err(|e| vec![e])?;
+    closure_state
+        .snapshot(limits.max_analysis_steps - product_work, Span::default())
+        .map_err(|e| vec![e])?;
     closure_state.resource_writes =
         resource_effects::single(core, &signatures, limits).map_err(|e| vec![e])?;
     helpers::install_single(core, &signatures, &enum_types, &mut closure_state, limits)
@@ -419,6 +458,8 @@ struct Builder<'a, 'c> {
     match_work_left: usize,
     closures: &'c mut closures::State,
     first_closure: usize,
+    defer_body: bool,
+    defer_locals: std::collections::BTreeSet<LocalId>,
     borrowed_captures: BTreeMap<LocalId, Type>,
     written_captures: BTreeMap<LocalId, u32>,
     stored_copy_captures: BTreeMap<LocalId, u32>,
@@ -436,6 +477,8 @@ struct Builder<'a, 'c> {
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
     managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
+    replacement_input: Option<LocalId>,
+    sum_slots: BTreeMap<LocalId, Type>,
 }
 struct LoopContext {
     continue_target: BlockId,
@@ -494,6 +537,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             match_work_left: limits.max_analysis_steps,
             closures,
             first_closure,
+            defer_body: false,
+            defer_locals: std::collections::BTreeSet::new(),
             borrowed_captures: BTreeMap::new(),
             written_captures: BTreeMap::new(),
             stored_copy_captures: BTreeMap::new(),
@@ -509,6 +554,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             resource_temps: Vec::new(),
             sequenced_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
+            replacement_input: None,
+            sum_slots: BTreeMap::new(),
             managed_slot_work: limits.max_analysis_steps,
             managed_rebindings: managed_slots::reassigned_bindings(&f.body, limits)?,
         };
@@ -715,6 +762,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         }) {
             position += 1;
         }
+        self.closures
+            .inserted_instruction(self.function.id, entry, position + 1, span)?;
         instructions.insert(position + 1, instruction);
         // Earlier exits already emitted in this scope also see the reserved
         // vacant slot. Close its storage there without inventing a cleanup.
@@ -732,6 +781,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                         Some(span),
                     ));
                 }
+                self.closures
+                    .inserted_instruction(self.function.id, block.id, position, span)?;
                 block.instructions.insert(
                     position,
                     Instruction {
@@ -851,7 +902,17 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )?;
                     continue;
                 }
-                if !self.temporary_locals.contains(&local) || self.resource_temps.contains(&local) {
+                let deferred = if self.defer_locals.is_empty() {
+                    false
+                } else {
+                    self.closures.snapshot(self.defer_locals.len(), span)?;
+                    self.defer_locals.contains(&local)
+                };
+                if deferred {
+                    self.invoke_defer(local, span)?;
+                } else if !self.temporary_locals.contains(&local)
+                    || self.resource_temps.contains(&local)
+                {
                     self.drop_owned_local(local, span)?;
                 }
                 if let Some(capture) = self.address_written_captures.get(&local).copied() {
@@ -906,7 +967,15 @@ impl<'a, 'c> Builder<'a, 'c> {
         Ok(())
     }
     fn stmt_inner(&mut self, s: &CoreStatement) -> R<()> {
+        if self.defer_body && matches!(s.kind, CoreStatementKind::Return(_)) {
+            return Err(error(
+                "E-DEFER-CONTROL",
+                s.span,
+                "return cannot leave a defer cleanup body",
+            ));
+        }
         match &s.kind {
+            CoreStatementKind::Defer(body) => self.register_defer(body, s.span)?,
             CoreStatementKind::Binding {
                 name,
                 mutable,
@@ -941,6 +1010,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .contains(&(s.id, s.span, name.clone()))
                 {
                     return self.managed_slot(name, t, v, s.span);
+                }
+                if *mutable
+                    && owned_shapes::sum(&t)
+                    && self
+                        .managed_rebindings
+                        .contains(&(s.id, s.span, name.clone()))
+                {
+                    return self.sum_slot(name, t, v, s.span);
                 }
                 if *mutable
                     && self.owned_closure(&t)
@@ -990,6 +1067,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                         target.span,
                         format!("{name} is not mutable"),
                     ));
+                }
+                if self.replace_sum_slot(l, value, s.span)? {
+                    return Ok(());
+                }
+                if self.replace_product(l, &d.ty, value, s.span)? {
+                    return Ok(());
                 }
                 if errors::owned(&d.ty) {
                     return Err(unsupported(
@@ -1333,6 +1416,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.expr_raw(e, expected)
     }
     fn expr_raw(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        if let Some(value) = self.take_replacement_input(e, expected)? {
+            return Ok(value);
+        }
+
         let result = match &e.kind {
             CoreExprKind::Literal(value) => {
                 foreign::check_literal(value, e.span)?;
@@ -1366,7 +1453,16 @@ impl<'a, 'c> Builder<'a, 'c> {
                 )?;
                 (result, target.clone())
             }
-            CoreExprKind::Try(operand) => self.try_expr(operand, e.span)?,
+            CoreExprKind::Try(operand) => {
+                if self.defer_body {
+                    return Err(error(
+                        "E-DEFER-CONTROL",
+                        e.span,
+                        "a defer body cannot propagate an error outside its cleanup boundary",
+                    ));
+                }
+                self.try_expr(operand, e.span)?
+            }
             CoreExprKind::Integer(text) => {
                 self.constant(integer(text, expected, false, e.span)?, e.span)?
             }
@@ -1376,6 +1472,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 if let Some(local) = self.lookup(name) {
                     if self.closure_slots.contains_key(&local) {
                         return self.take_closure_slot(local, e.span);
+                    }
+                    if let Some(value) = self.take_sum_slot(local, expected, e.span, false)? {
+                        return Ok(value);
                     }
                     let ty = self.function.locals[local.0 as usize].ty.clone();
                     if let Type::Managed(payload) = ty {
@@ -1394,6 +1493,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     } else if matches!(ty, Type::Package { .. })
                         || packages::owned_array_supported(&ty)
                         || errors::owned(&ty)
+                        || owned_shapes::enumeration(&ty)
                     {
                         InstructionKind::TakeLocal { local }
                     } else {
@@ -1737,6 +1837,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 body,
             } => {
                 let input = closures::Input {
+                    defer_action: false,
                     move_capture: *move_capture,
                     parameters,
                     result: return_type.as_ref(),
@@ -1751,6 +1852,16 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none()) => {
                 self.function_reference(e)?
+            }
+            CoreExprKind::Member { object, .. }
+                if matches!(object.kind, CoreExprKind::Member { .. })
+                    && !self.package_captures.is_empty() =>
+            {
+                if let Some(value) = self.captured_product_copy_projection(e)? {
+                    value
+                } else {
+                    self.aggregate(e, expected)?
+                }
             }
             CoreExprKind::Tuple(_)
             | CoreExprKind::Array(_)
@@ -1770,6 +1881,88 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.same(&result.1, expected, e.span)?
         }
         Ok(result)
+    }
+    /// An owning capture still reads a Copy leaf without taking its inline
+    /// Product prefixes. The whole environment retains its original cleanup.
+    fn captured_product_copy_projection(
+        &mut self,
+        expression: &CoreExpr,
+    ) -> R<Option<(ValueId, Type)>> {
+        let mut root = expression;
+        let mut path = Vec::new();
+        while let CoreExprKind::Member { object, member } = &root.kind {
+            if path.len() >= self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "Product capture projection depth exceeded",
+                    Some(expression.span),
+                ));
+            }
+            self.closures
+                .snapshot(member.len().saturating_add(1), root.span)?;
+            path.push((member.as_str(), root.span));
+            root = object;
+        }
+        let CoreExprKind::Name(name) = &root.kind else {
+            return Ok(None);
+        };
+        let Some(local) = self.lookup(name) else {
+            return Ok(None);
+        };
+        if !self.package_captures.contains_key(&local) {
+            return Ok(None);
+        }
+        let ty = &self.function.locals[local.0 as usize].ty;
+        let work = inference::type_snapshot_work(ty, expression.span, self.limits)?;
+        self.closures.snapshot(
+            work.saturating_mul(path.len().saturating_mul(2).saturating_add(2)),
+            expression.span,
+        )?;
+        if !packages::product::supported(ty)
+            || !self
+                .known_type(expression)
+                .is_some_and(|ty| ty.is_copy_value())
+        {
+            return Ok(None);
+        }
+        // A bound Package environment is a view, not ordinary local storage.
+        // Its first projection must use the existing field-window operation;
+        // BorrowLocal would invent an independent addressable owner.
+        let mut path = path.into_iter().rev();
+        let (first, span) = path.next().expect("member path");
+        let (index, field) = aggregates::field(ty, first, span)?;
+        let (mut address, mut ty) = self.borrow_package_field(local, index, field, false, span)?;
+        for (member, span) in path {
+            let Type::Address {
+                inner,
+                mutable: false,
+            } = ty
+            else {
+                unreachable!()
+            };
+            let (index, field) = aggregates::field(&inner, member, span)?;
+            ty = Type::Address {
+                mutable: false,
+                inner: Box::new(field),
+            };
+            address = self.value(
+                InstructionKind::AddressField { address, index },
+                ty.clone(),
+                span,
+            )?;
+        }
+        let Type::Address { inner, .. } = ty else {
+            unreachable!()
+        };
+        let ty = *inner;
+        Ok(Some((
+            self.value(
+                InstructionKind::ReadAddress { address },
+                ty.clone(),
+                expression.span,
+            )?,
+            ty,
+        )))
     }
     /// A known operand constrains an unsuffixed integer literal; this does not
     /// insert numeric conversions or change the type of a bound runtime value.
@@ -1810,6 +2003,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .get(&id)
                         .cloned()
                         .or_else(|| self.closure_slots.get(&id).copied().map(Type::Closure))
+                        .or_else(|| self.sum_slots.get(&id).cloned())
                         .unwrap_or_else(|| self.function.locals[id.0 as usize].ty.clone())
                 })
                 .or_else(|| self.signatures.get(name).and_then(Signature::pointer_type)),
@@ -1883,6 +2077,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             } => self
                 .known_type(operand)
                 .filter(|ty| ty.is_address_pointee()
+                    || (*op == UnaryOp::Borrow && matches!(ty, Type::Package { .. }))
                     || (*op == UnaryOp::Borrow && matches!(ty, Type::Managed(payload)
                         if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())))
                 .map(|inner| Type::Address {
@@ -1893,7 +2088,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 op: UnaryOp::Dereference,
                 operand,
             } => match self.known_type(operand)? {
-                Type::Address { inner, .. } if inner.is_address_pointee() => Some(*inner),
+                Type::Address { inner, mutable } if inner.is_address_pointee()
+                    || (!mutable && matches!(inner.as_ref(), Type::Package { .. })) => Some(*inner),
                 _ => None,
             },
             CoreExprKind::Unary {
@@ -2092,6 +2288,21 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 self.expr(&expression, Some(&stored))?.0
             } else if capture.borrowed {
+                if matches!(capture.ty, Type::Package { .. }) {
+                    self.closures.snapshot(
+                        self.function.parameters.len().saturating_add(1),
+                        capture.span,
+                    )?;
+                    if self.function.parameters.contains(&capture.source)
+                        || self.package_captures.contains_key(&capture.source)
+                        || self.borrowed_captures.contains_key(&capture.source)
+                    {
+                        return Err(unsupported(
+                            capture.span,
+                            "default Product capture requires an ordinary local owner; parameter and outer capture origins remain unsupported",
+                        ));
+                    }
+                }
                 let expression = CoreExpr {
                     id: zil_base::NodeId(0),
                     kind: CoreExprKind::Name(capture.name.clone()),
@@ -2193,6 +2404,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         builder.imports = self.imports;
         builder.enums = self.enums;
         builder.function.environment = Some(id);
+        builder.defer_body = builder.closures.pending[id.0 as usize].defer_action;
         let lends = lending::supported_result(&function.return_type);
         for (index, capture) in captures.iter().enumerate() {
             let stored = capture.stored_type();
@@ -2651,6 +2863,8 @@ mod tests {
     }
     fn module(value: CoreExpr) -> CoreModule {
         CoreModule {
+            aggregate_templates: Vec::new(),
+            aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,

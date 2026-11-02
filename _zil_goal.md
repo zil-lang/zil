@@ -1,5 +1,27 @@
 # ZIL 施工总计划
 
+## 2026-11-02：普通拥有Sum已合入
+
+239–244共同源码`15498f14af8f11d3a3bf4b198fe69208be5913ce`通过独审、默认3575/0、参考3474/0与两条PR CI完整核回，经PR17合入实际main`8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad`，整树相同。schema/Wire30；普通非泛型拥有Enum、Product内Sum、含Store Product错误载荷，以及构造、消耗式match、完整替换、defer和失败清理形成五模块同步API闭环。P3548/12及Q3575/0仍误拒合法owner的历史分别保留。main两条自动重放已成功，完整归档与4092项源码逐项复核，成绩分列。
+
+下一单一主目标为同步拥有Event/Reply穿过具体闭包和公共generic dispatch，之后接F原样转交、Type/Syntax及长期外部生命周期；最终R原源探针已确认这些真实缺口，并保留State/Store已可用对照。B0 Doing、完整1.4/ZUI NotSatisfied、产品及原生WindowsNotRun保持；没有新的Rust性能比较。见docs/LANGUAGE-OWNED-SUM-20261102.md及evidence/integration/owned-sum-20261102/ACCEPTANCE.json。
+
+## 2026-11-02：同步语言核心组合已合入
+
+227/235/236/237/238共同源码e92508be已通过独审和正式默认3446/0、参考3347/0（均零忽略/过滤），原五模块消费者新364次/208真实分配失败全部通过；PR16两条CI与完整恢复归档已核回，实际main fde80814。schema/Wire29；普通同步defer、递归Product内Store、完整泛型Product身份与整体替换形成实际API闭环。原P整仓3425/11及修复均保存，B0 Doing、完整1.4/ZUI NotSatisfied、产品NotRun保持。下一主线按实际Q探针补普通拥有Sum和含Store Product的错误载荷，再推进同步高阶拥有参数/结果及F原样转交；两侧平坦Package错误联合已可用，不重复派工。见docs/LANGUAGE-CORE-20261102.md。
+
+## 2026-11-02：ZUI语言核心前置重新集中施工
+
+以已合Stage15编译专项的a68398ad主线为基线，227普通同步defer、235普通Product内Store组合及236真实联合消费者并行。227公共注册义务、前端和Analyze/Verify按不相交写集推进，schema/Wire28同批核验；235仅扩普通拥有资格，不自动开放新capture/StoreElement/Sum。实施者使用gpt-6.1-sol/high，复杂责任核及独审xhigh；root负责合同、集成和正式全量。当前均为施工，历史Fail、B0/181、完整1.4/ZUI及产品门保持，源码/原生/失败清理与非作者证据完成后再裁决。后续由同一真实API继续拥有Sum、通用抽象/生成和长期外部生命周期，当前优先ZIL语言，不扩框架与性能实验。
+
+## 2026-10-31 施工11已合入及状态核查
+
+232普通局部Product默认只读捕获、233跨模块普通trait实现、234LLVM窄整数常量正确性修复已随PR15进入实际main `f2572502beb76eb86e9254dea855404e4998a64d`。原main run41198113948全部25步骤成功，默认3027/0/0、reference2983/0/0，零过滤。本次状态核查补发布review分支的14个遗留提交（相对受测main净差异仅docs/evidence），并恢复三单工单及真实main连续性；不变更语言、schema/Wire27、预算或产品门。当前按功能进度见docs/LANGUAGE-STATUS-20261031.md，交接与清理以docs/CURRENT-HANDOFF.md为准。227普通defer及一般拥有组合、Type/Syntax、长期外部生命周期和挂起并发继续待施工；完整1.4/ZUI NotSatisfied、B0 Doing、181施工及产品/原生WindowsNotRun保持。
+
+## 2026-10-31 施工11接续
+
+以施工10收尾main 0a3d0021fa788a27c87df20454c34c338039f1c5建立独立工作副本。232继续普通局部Product默认只读捕获，233推进跨模块普通trait实现；两个独立写集并行，第三代理进行非作者审核，root负责规范、集成与正式LLVM23全门。只按真实已核来源放宽，历史1145项交接错误保留，完整1.4/ZUI与Rust四目标状态不随派工升级。原227 defer注册和全部退出合同仍待独立冻结，未作为已实现能力。
+
 ## 依据与状态
 
 终态语言行为、架构不变量、永久拒绝和验收族只由 `_zil_design.md` 及其具名附件定义；量化条件只引用 `validation/product-gates.json`。本文件安排阶段、依赖和交付归属，不重复定义语义。`spec/interfaces.json` 规定阶段输入输出、生产者/消费者和可信访问方式；工单状态只维护在主工作区 `.task/<ID>.md`。
@@ -146,8 +168,46 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 
 按当前LLVM23主线重新冻结218单F公共拥有工厂，218前端、220独立Analyze、221独立Verify并行；219独立推进已封闭纯标量函数条件的源级#if。旧218不可恢复，不复用旧成绩。输入及实际工具链/基线构建见evidence/planning/218-221/FREEZE.json，实时可核进度入口docs/CONSTRUCTION-PROGRESS.md。有限候选须交叉独审与组合全量后合入；完整1.4、全部ZUI、B0/181与四目标保持原状态。
 
-218–221在冻结组合69931f83完成单F公共拥有工厂、独立Analyze/Verify与源级纯标量#if，两个独审缺口经原字节闭合。GitHub run41057841800的实际合并tree与该组合相同，默认2817/0/0、参考2785/0/0、Clippy、text-reference36、迁移9及208真实机器门通过；作者、独审新增、既有oracle重放和两次本地容量失败分别记账。详见docs/LANGUAGE-218-221.md。当前29旧探针13成功/14Unsupported/2原无效，不把本片当作全部ZUI或完整1.4完成；B0/181与Rust四目标保持原门。
+218–221在冻结组合69931f83完成单F公共拥有工厂、独立Analyze/Verify与源级纯标量#if，两个独审缺口经原字节闭合。GitHub run41057841800的实际合并tree与该组合相同，默认2817/0/0、参考2785/0/0、Clippy、text-reference36、迁移9及208真实机器门通过；作者、独审新增、既有oracle重放和两次本地容量失败分别记账。详见docs/LANGUAGE-218-221.md。当轮29旧探针13成功/14Unsupported/2原无效，不把本片当作全部ZUI或完整1.4完成；B0/181与Rust四目标保持原门。
 
 ## 2026-10-30 施工8接续
 
 以GitHub main a8e8831a为实际基线，222源级有限#for、223完整Product Store元素、224完整Product共享借入并行。公共接点由集成者协调、独立核验及机器清理闭合后验收；编译性能支线仍独立。历史handoff Fail原样保存，不以新编号掩盖旧状态；完整语言、B0及产品门保持。
+
+## 2026-10-30：222–224组合验收中（历史进度）
+
+有限源级#for、完整Product Store及普通共享Product分别完成实现并经交叉独审返修；root补入实际三者组合与旧边界迁移，本地11组132/0/0通过。正式全仓由GitHub统一执行，当前不能据此写整批已合入。精确作者、独审、原失败和整仓身份见docs/LANGUAGE-222-224.md及evidence/integration/222-224/。完整Type/Syntax生成、深层拥有容器、长期外部生命周期和挂起并发继续保留；B0/181、完整1.4、全部ZUI、Rust产品门不随有限片升级。
+
+## 2026-10-31（北京时间）：222–224正式验收与合入
+
+共同实现 4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41 保留作者与非作者审查身份；正式候选 f4c742fd8bb9567120902812c9a7117928784e5c 的 PR run41088376020 通过；原PR9合并39e52ef7的main run41101248493保留Fail。stdin测试驱动修复经非作者复核后进入新的主线合并 ccae8c60c96a2c174b137b2fab084e9e8a97a02f，其 main run41106864272 全部必需门通过。默认 2861/0/0、参考 2826/0/0；机器故障控制、Clippy、text-reference与迁移门均按实际原收据核回。原Fail/Incomplete和Superseded分别保留，不叠加本地132/19或作者/独审重放。
+
+施工7原29份check输入现15成功/12Unsupported/2原语法无效，0native、旧成功零回退。本轮有限#for、完整Product Store及同步共享Product已能组合；defer普通lowering、&Product闭包捕获、拥有捕获Store<Product>、完整Type/Syntax和更深拥有/长期外部生命周期继续保留。B0/181、完整1.4、全部ZUI、原生Windows及Rust产品四目标未因此完成；编译性能研究分支独立。详见 docs/LANGUAGE-222-224.md 与 evidence/integration/222-224/closeout/ACCEPTANCE.json。
+
+## 2026-10-31 施工8下一阶段225–227
+
+222–224已验收的五个实施/集成/修复分支经逐SHA祖先检查清理，transport仅归档不混入main；编译研究支线及未合任务保留。225推进完整Product Store拥有捕获，226推进同步共享Product捕获（来源区分为必要前置），227先固定普通defer退出/清理合同。没有子代理接口时不虚构独审；新实现仍需独立审核方可合入，父B0、完整1.4/ZUI、原生Windows与四目标产品门保持。
+
+## 2026-10-31 施工9并行228–229
+
+以精确远端6ba0b04e接续，施工8的225–227保留其派工和冻结身份。228补有限#for struct/type alias生成，229补普通泛型自由函数where Copy正规化；两作者独立写集，第三代理编写生成事件与普通展开对照，交叉非作者审核绑定精确提交。新增规范与旧拥有/借用合同不相交；主树由集成者管理，日志只更新zil施工9专属行。共享磁盘缓存回收和GitHub对象恢复只算环境恢复，不计语言进展。
+
+两片须完成源正反例、真实预算边界、原回归及LLVM API O0/O2组合后才可晋升；完整Type/Syntax/#emit、一般trait/lending、defer及225–227、长期生命周期/异步/并发、完整1.4/ZUI与Rust产品门继续按各自真实状态保留。
+
+## 2026-10-31 施工9验收228–229
+
+有限生成非泛型struct/alias与普通自由泛型where Copy已随PR11合入main；共同实现04fbd476、实际main e60f9e22，完整PR/main runs41154458005/41156023933各25步骤通过，各自默认2905/0/0、reference2863/0/0。三个独审问题已返修且原Fail保留；预算变化按具名源记录，不宣称编译性能收益。225–227并行记录保留，B0/181、完整1.4/ZUI、Rust四目标和原生Windows状态不变。接续以docs/CURRENT-HANDOFF.md及真实main为准。
+
+
+## 2026-10-31 施工10并行接续
+
+从aaeb67f12接续，230有限Unit/Tuple enum生成与231既有名义trait where正规化按独立写集施工；225/226先核精确来源、独审与最新集成回归再合入。227普通defer仍需注册/必须执行/清理顺序完整合同，不能用FnOnce最多一次代替必须执行。B0/181与完整1.4/ZUI/Rust产品门保持原状态。
+
+## 2026-10-31 施工10验收225/226/230/231
+
+四片有限能力经三位非作者绑定P2 `75d08022213a5da96e1968d7fe7d1d1e341b5907` 审查，PR14合入实际M `9e7072b1ebdc6900c7370863c27c7432953bd830`。PR/main runs 41184530698/41186163758 各25步骤通过，默认2976/0/0、reference2933/0/0，零过滤；原首轮Fail与恢复边界完整保留。source/schema/Wire27、默认预算及产品门不改。见docs/LANGUAGE-CONSTRUCTION10.md和新final-summary。下一优先默认只读Product捕获及227注册/必须执行合同；完整1.4/ZUI、B0/181、四目标产品和原生Windows状态保持，未合编译研究支线保留。
+
+
+## 2026-11-02 语言主线组合缺口
+
+用户优先完整语言及ZUI前置，编译优化研究不占主线必要时段。227同步defer、235普通嵌套Store Product已有可恢复候选，236真实消费者暴露whole-Product再赋值缺口，独审暴露泛型Product完整身份缺口，由238与237分别承接；保留原失败，不改oracle规避。主线以实际组合运行、错误退出、替换和清理闭环验收，形式工单及完整1.4/ZUI/产品门不随候选推送晋升。

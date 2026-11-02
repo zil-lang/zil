@@ -3,7 +3,9 @@
 //! Public, untrusted compiler schemas. Constructing these records never grants
 //! safety authority. Only `zil-verify` can produce an immutable verified wrapper.
 
-use zil_base::{Fingerprint, ModuleId, NodeId, SCHEMA_VERSION, Span, TargetProfile};
+use zil_base::{
+    Fingerprint, FingerprintBuilder, ModuleId, NodeId, SCHEMA_VERSION, Span, TargetProfile,
+};
 
 mod program;
 pub mod wire;
@@ -279,6 +281,10 @@ pub struct CoreModule {
     pub source_fingerprint: Fingerprint,
     pub functions: Vec<CoreFunction>,
     pub aggregates: Vec<CoreAggregate>,
+    /// Untrusted finite Product recipes; empty on pre-237 source paths.
+    pub aggregate_templates: Vec<CoreAggregateTemplate>,
+    /// Exact nominal applications, never ownership certificates.
+    pub aggregate_applications: Vec<CoreAggregateApplication>,
     pub enums: Vec<CoreEnum>,
     pub unsupported: Vec<UnsupportedFeature>,
 }
@@ -294,6 +300,59 @@ pub struct CoreTypeParameter {
     pub index: u32,
     pub name: String,
     pub bound: CoreTypeBound,
+}
+
+/// A finite Package family's original declaration and field recipe.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreAggregateTemplate {
+    pub id: NodeId,
+    pub name: String,
+    pub parameter: CoreTypeParameter,
+    pub fields: Vec<CoreAggregateFieldRecipe>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreAggregateFieldRecipe {
+    pub name: String,
+    pub public: bool,
+    pub manages: bool,
+    pub ty: CoreAggregateTypeRecipe,
+    pub span: Span,
+}
+/// Recipe Parameter refers only to this template's formal declaration slot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreAggregateTypeRecipe {
+    Concrete(Type),
+    Parameter {
+        index: u32,
+    },
+    Store {
+        element: Box<CoreAggregateTypeRecipe>,
+    },
+    Apply {
+        module: ModuleId,
+        template: NodeId,
+        arguments: Vec<CoreAggregateTypeRecipe>,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreAggregateApplication {
+    pub aggregate: NodeId,
+    pub template_module: ModuleId,
+    pub template: NodeId,
+    pub owner: Option<CoreAggregateOwner>,
+    pub arguments: Vec<CoreAggregateArgument>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CoreAggregateOwner {
+    pub module: ModuleId,
+    pub function: NodeId,
+}
+/// Application Parameter refers only to the actual owner's function binder.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreAggregateArgument {
+    Concrete(Type),
+    Parameter { index: u32 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -495,6 +554,8 @@ pub enum CoreStatementKind {
         arms: Vec<CoreMatchArm>,
     },
     Block(CoreBlock),
+    /// Register an ordinary synchronous cleanup body at this declaration point.
+    Defer(CoreBlock),
     Unsafe(CoreBlock),
     Break,
     Continue,
@@ -853,6 +914,13 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
         CleanupExitKind::Continue => 4,
     }
 }
+/// One checked step through a real Enum variant payload. It never creates a
+/// view or grants ownership; each selected tag must be independently proved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VariantProjection {
+    pub variant: u32,
+    pub index: u32,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstructionKind {
     /// Construct an empty owning prefix; no allocation. Element metadata is a
@@ -933,6 +1001,13 @@ pub enum InstructionKind {
     ScopeExit {
         scope: ScopeId,
         kind: CleanupExitKind,
+    },
+    /// Register an initialized hidden FnOnce local in the current activation.
+    /// This fact has no machine action; TakeLocal followed by CallClosureOnce
+    /// performs the required cleanup, independently checked at every exit.
+    RegisterDefer {
+        scope: ScopeId,
+        local: LocalId,
     },
     MakeErrorUnion {
         is_error: bool,
@@ -1187,6 +1262,32 @@ pub enum InstructionKind {
         variant: u32,
         index: u32,
     },
+    /// Observe a complete live local through Enum-only checked projections.
+    /// Empty path observes the root tag; the terminal type must be Enum.
+    VariantTagLocal {
+        local: LocalId,
+        path: Vec<VariantProjection>,
+    },
+    /// Copy a strict finite Copy terminal through a nonempty Enum-only path.
+    /// Every prefix must have the selected active tag; never produces a view.
+    ReadVariantLocal {
+        local: LocalId,
+        path: Vec<VariantProjection>,
+    },
+    /// Atomically consume one complete Enum and initialize all variant fields.
+    /// Fields are exact distinct vacant locals, registered in reverse order;
+    /// this instruction has no SSA result and inherits no cleanup age.
+    UnpackVariant {
+        local: LocalId,
+        variant: u32,
+        fields: Vec<LocalId>,
+    },
+    /// Conditionally close only the actual active variant of an available Enum.
+    /// Storage-live vacant/transferred states are no-ops; an exact all-path
+    /// cleaned duplicate or storage-dead access remains invalid.
+    DropEnum {
+        local: LocalId,
+    },
     ExtractIndex {
         aggregate: ValueId,
         index: ValueId,
@@ -1357,6 +1458,62 @@ pub struct LirModule {
     pub resources: Vec<ResourceDefinition>,
     pub layouts: Vec<ScalarLayout>,
 }
+/// Borrowed raw LIR, not verification authority. Backends must still bind every
+/// field to the current VerifiedModule. This view avoids copying the checked CFG
+/// when lowering preserves it; the owned LirModule and its wire identity remain.
+#[derive(Clone)]
+pub struct LirView<'a> {
+    pub schema_version: u32,
+    pub module_id: ModuleId,
+    pub verified_fingerprint: Fingerprint,
+    pub target: &'a TargetProfile,
+    pub functions: &'a [TypedFunction],
+    pub closures: &'a [ClosureDefinition],
+    pub resources: &'a [ResourceDefinition],
+    pub layouts: std::borrow::Cow<'a, [ScalarLayout]>,
+}
+impl LirModule {
+    pub fn as_view(&self) -> LirView<'_> {
+        LirView {
+            schema_version: self.schema_version,
+            module_id: self.module_id,
+            verified_fingerprint: self.verified_fingerprint,
+            target: &self.target,
+            functions: &self.functions,
+            closures: &self.closures,
+            resources: &self.resources,
+            layouts: std::borrow::Cow::Borrowed(&self.layouts),
+        }
+    }
+}
+impl LirView<'_> {
+    pub fn to_owned(&self) -> LirModule {
+        LirModule {
+            schema_version: self.schema_version,
+            module_id: self.module_id,
+            verified_fingerprint: self.verified_fingerprint,
+            target: self.target.clone(),
+            functions: self.functions.to_vec(),
+            closures: self.closures.to_vec(),
+            resources: self.resources.to_vec(),
+            layouts: self.layouts.to_vec(),
+        }
+    }
+}
+impl std::fmt::Debug for LirView<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LirModule")
+            .field("schema_version", &self.schema_version)
+            .field("module_id", &self.module_id)
+            .field("verified_fingerprint", &self.verified_fingerprint)
+            .field("target", &self.target)
+            .field("functions", &self.functions)
+            .field("closures", &self.closures)
+            .field("resources", &self.resources)
+            .field("layouts", &self.layouts)
+            .finish()
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScalarLayout {
     pub ty: Type,
@@ -1424,7 +1581,9 @@ impl TypedModule {
     pub fn fingerprint(&self) -> Fingerprint {
         // Versioned, length-delimited encoding is implemented below. This must
         // not depend on Debug formatting or process-randomized hashing.
-        Fingerprint::of(&encode_module(self))
+        let mut bytes = FingerprintStream::new();
+        encode_module(&mut bytes, self);
+        bytes.finish()
     }
 }
 impl CandidatePlan {
@@ -1441,78 +1600,135 @@ impl CandidatePlan {
     }
 }
 
-fn encode_module(module: &TypedModule) -> Vec<u8> {
-    let mut bytes = b"ZIL-TYPED-MODULE-V27\0".to_vec();
-    encode_u32(&mut bytes, module.schema_version);
-    encode_u32(&mut bytes, module.module_id.0);
-    bytes.extend_from_slice(&module.source_fingerprint.0);
-    encode_text(&mut bytes, &module.target.to_json());
-    encode_len(&mut bytes, module.functions.len());
-    for f in &module.functions {
-        encode_function(&mut bytes, f);
+// Byte sinks share the exact versioned encoder. Vec remains available to the
+// existing callable fingerprints and byte-level controls; only module hashing
+// uses fixed storage instead of materializing the complete encoding.
+trait FingerprintSink {
+    fn push(&mut self, byte: u8);
+    fn extend_from_slice(&mut self, bytes: &[u8]);
+}
+impl FingerprintSink for Vec<u8> {
+    fn push(&mut self, byte: u8) {
+        Vec::push(self, byte);
     }
-    encode_len(&mut bytes, module.closures.len());
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        Vec::extend_from_slice(self, bytes);
+    }
+}
+struct FingerprintStream {
+    hash: FingerprintBuilder,
+    buffer: [u8; 4096],
+    used: usize,
+}
+impl FingerprintStream {
+    fn new() -> Self {
+        Self {
+            hash: FingerprintBuilder::new(),
+            buffer: [0; 4096],
+            used: 0,
+        }
+    }
+    fn flush(&mut self) {
+        self.hash.update(&self.buffer[..self.used]);
+        self.used = 0;
+    }
+    fn finish(mut self) -> Fingerprint {
+        self.flush();
+        self.hash.digest()
+    }
+}
+impl FingerprintSink for FingerprintStream {
+    fn push(&mut self, byte: u8) {
+        if self.used == self.buffer.len() {
+            self.flush();
+        }
+        self.buffer[self.used] = byte;
+        self.used += 1;
+    }
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        if bytes.len() > self.buffer.len() - self.used {
+            self.flush();
+        }
+        if bytes.len() >= self.buffer.len() {
+            self.hash.update(bytes);
+        } else {
+            self.buffer[self.used..self.used + bytes.len()].copy_from_slice(bytes);
+            self.used += bytes.len();
+        }
+    }
+}
+
+fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V30\0");
+    encode_u32(bytes, module.schema_version);
+    encode_u32(bytes, module.module_id.0);
+    bytes.extend_from_slice(&module.source_fingerprint.0);
+    encode_text(bytes, &module.target.to_json());
+    encode_len(bytes, module.functions.len());
+    for f in &module.functions {
+        encode_function(bytes, f);
+    }
+    encode_len(bytes, module.closures.len());
     for closure in &module.closures {
-        encode_u32(&mut bytes, closure.id.0);
-        encode_u32(&mut bytes, closure.function.0);
-        encode_len(&mut bytes, closure.captures.len());
+        encode_u32(bytes, closure.id.0);
+        encode_u32(bytes, closure.function.0);
+        encode_len(bytes, closure.captures.len());
         for ty in &closure.captures {
-            encode_type(&mut bytes, ty);
+            encode_type(bytes, ty);
         }
-        encode_len(&mut bytes, closure.parameters.len());
+        encode_len(bytes, closure.parameters.len());
         for ty in &closure.parameters {
-            encode_type(&mut bytes, ty);
+            encode_type(bytes, ty);
         }
-        encode_type(&mut bytes, &closure.result);
+        encode_type(bytes, &closure.result);
         bytes.push(match closure.kind {
             CallableKind::FunctionPointer => 0,
             CallableKind::Fn => 1,
             CallableKind::FnMut => 2,
             CallableKind::FnOnce => 3,
         });
-        encode_len(&mut bytes, closure.lending_captures.len());
+        encode_len(bytes, closure.lending_captures.len());
         for index in &closure.lending_captures {
-            encode_u32(&mut bytes, *index);
+            encode_u32(bytes, *index);
         }
     }
-    encode_len(&mut bytes, module.resources.len());
+    encode_len(bytes, module.resources.len());
     for resource in &module.resources {
-        encode_text(&mut bytes, &resource.name);
-        encode_type(&mut bytes, &resource.payload);
+        encode_text(bytes, &resource.name);
+        encode_type(bytes, &resource.payload);
         bytes.push(u8::from(resource.teardown.is_some()));
         if let Some(teardown) = resource.teardown {
-            encode_u32(&mut bytes, teardown.0);
+            encode_u32(bytes, teardown.0);
         }
     }
-    encode_len(&mut bytes, module.unsupported.len());
+    encode_len(bytes, module.unsupported.len());
     for feature in &module.unsupported {
-        encode_text(&mut bytes, &feature.feature);
-        encode_optional_span(&mut bytes, feature.span);
+        encode_text(bytes, &feature.feature);
+        encode_optional_span(bytes, feature.span);
     }
-    bytes
 }
-fn encode_u32(b: &mut Vec<u8>, n: u32) {
+fn encode_u32(b: &mut impl FingerprintSink, n: u32) {
     b.extend_from_slice(&n.to_le_bytes());
 }
-fn encode_len(b: &mut Vec<u8>, n: usize) {
+fn encode_len(b: &mut impl FingerprintSink, n: usize) {
     b.extend_from_slice(&(n as u64).to_le_bytes());
 }
-fn encode_text(b: &mut Vec<u8>, s: &str) {
+fn encode_text(b: &mut impl FingerprintSink, s: &str) {
     encode_len(b, s.len());
     b.extend_from_slice(s.as_bytes());
 }
-fn encode_span(b: &mut Vec<u8>, s: Span) {
+fn encode_span(b: &mut impl FingerprintSink, s: Span) {
     encode_u32(b, s.file.0);
     encode_len(b, s.start);
     encode_len(b, s.end);
 }
-fn encode_optional_span(b: &mut Vec<u8>, s: Option<Span>) {
+fn encode_optional_span(b: &mut impl FingerprintSink, s: Option<Span>) {
     b.push(u8::from(s.is_some()));
     if let Some(s) = s {
         encode_span(b, s);
     }
 }
-fn encode_type(b: &mut Vec<u8>, t: &Type) {
+fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     match t {
         Type::Unit => b.push(0),
         Type::Bool => b.push(1),
@@ -1625,7 +1841,7 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         }
     }
 }
-fn encode_function(b: &mut Vec<u8>, f: &TypedFunction) {
+fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
     b.push(u8::from(f.callable_return_contract.is_some()));
     if let Some(contract) = &f.callable_return_contract {
         encode_callable_return_contract(b, contract);
@@ -1709,7 +1925,7 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction) {
     encode_u32(b, f.entry.0);
     encode_span(b, f.span);
 }
-fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
+fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
     match c {
         Constant::Unit => b.push(0),
         Constant::Bool(v) => b.extend_from_slice(&[1, u8::from(*v)]),
@@ -1737,7 +1953,7 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
         }
     }
 }
-fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
+fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
     match i {
         InstructionKind::ConvertInteger { value, target } => {
             b.push(59);
@@ -1855,6 +2071,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             b.push(58);
             encode_u32(b, local.0);
             encode_u32(b, *index);
+        }
+        InstructionKind::RegisterDefer { scope, local } => {
+            b.push(89);
+            encode_u32(b, scope.0);
+            encode_u32(b, local.0);
         }
         InstructionKind::ScopeEnter { scope } => {
             b.push(44);
@@ -2076,6 +2297,37 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind) {
             encode_u32(b, *variant);
             encode_u32(b, *index);
         }
+        InstructionKind::VariantTagLocal { local, path }
+        | InstructionKind::ReadVariantLocal { local, path } => {
+            b.push(if matches!(i, InstructionKind::VariantTagLocal { .. }) {
+                90
+            } else {
+                91
+            });
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+        }
+        InstructionKind::UnpackVariant {
+            local,
+            variant,
+            fields,
+        } => {
+            b.push(92);
+            encode_u32(b, local.0);
+            encode_u32(b, *variant);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::DropEnum { local } => {
+            b.push(93);
+            encode_u32(b, local.0);
+        }
         InstructionKind::ExtractField { aggregate, index } => {
             b.push(14);
             encode_u32(b, aggregate.0);
@@ -2270,7 +2522,7 @@ pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -
     encode_callable_return_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
-fn encode_callable_return_contract(b: &mut Vec<u8>, c: &CallableReturnContract) {
+fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableReturnContract) {
     encode_u32(b, c.closure.0);
     b.push(callable_kind_tag(c.kind));
     for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
@@ -2288,7 +2540,7 @@ fn callable_kind_tag(kind: CallableKind) -> u8 {
         CallableKind::FnOnce => 3,
     }
 }
-fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
+fn encode_callable_contract(b: &mut impl FingerprintSink, c: &CallableParameterContract) {
     encode_len(b, c.roles.len());
     for role in &c.roles {
         encode_u32(b, role.parameter);
@@ -2337,14 +2589,14 @@ fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
         }
     }
 }
-fn encode_callable_calls(b: &mut Vec<u8>, calls: &[CallEvent]) {
+fn encode_callable_calls(b: &mut impl FingerprintSink, calls: &[CallEvent]) {
     encode_len(b, calls.len());
     for call in calls {
         encode_u32(b, call.parameter);
         b.push(callable_kind_tag(call.kind));
     }
 }
-fn encode_callable_exit(b: &mut Vec<u8>, exit: CallableExit) {
+fn encode_callable_exit(b: &mut impl FingerprintSink, exit: CallableExit) {
     b.push(match exit {
         CallableExit::Return => 0,
         CallableExit::Trap => 1,

@@ -973,6 +973,9 @@ impl MoveWalk<'_, '_> {
                     }
                     self.flow = joined;
                 }
+                // The declaration-origin walk checks this separate callable;
+                // its body does not execute in the ordinary State move flow.
+                CoreStatementKind::Defer(_) => {}
                 CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
                     self.block(body, depth + 1)?
                 }
@@ -2375,6 +2378,12 @@ impl Walk<'_, '_> {
                         after |= self.live;
                     }
                     self.live = after;
+                }
+                CoreStatementKind::Defer(body) => {
+                    let previous = self.capture;
+                    self.capture = true;
+                    self.block(body, depth + 1)?;
+                    self.capture = previous;
                 }
                 CoreStatementKind::Block(body) | CoreStatementKind::Unsafe(body) => {
                     self.block(body, depth + 1)?

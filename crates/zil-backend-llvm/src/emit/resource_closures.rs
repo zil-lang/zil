@@ -391,6 +391,7 @@ impl FunctionEmitter<'_> {
         match ty {
             Type::Managed(_) | Type::Package { .. } => true,
             Type::ErrorUnion { .. } => errors::owned(ty),
+            Type::Enum { .. } => !ty.is_copy_value(),
             Type::Closure(id) => self.closures.get(id).is_some_and(|definition| {
                 owns(definition) || definition.kind == CallableKind::FnOnce
             }),
@@ -703,12 +704,16 @@ impl FunctionEmitter<'_> {
             }
         }
         self.event(m::Event::Instruction(m::Inst::new(
-            assignment,
+            (assignment).clone(),
             m::Op::Call {
-                result: llvm_type(result_ty)?,
+                result: (llvm_type(result_ty)?).clone(),
                 result_attrs: vec![],
                 callee: m::global(symbol(function).to_string()),
-                args: emitted_arguments,
+                args: {
+                    let mut args = vec![];
+                    args.extend((emitted_arguments.clone()).clone());
+                    args
+                },
                 vararg: None,
             },
         )));

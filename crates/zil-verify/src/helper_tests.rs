@@ -3,6 +3,7 @@
 use super::*;
 use std::collections::BTreeMap;
 use zil_base::{FileId, ModuleId};
+mod sum_data;
 
 fn span() -> Span {
     Span::new(FileId(0), 0, 1)

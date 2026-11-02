@@ -1,136 +1,182 @@
 {
   "schema_version": 1,
-  "observed_at_utc": "2026-10-30T13:33:29.186838+00:00",
-  "status": "MilestoneComplete",
-  "accepted_main_at_start": "63b5d064f443e9ed7989e0ec87d4e18b540a370a",
-  "milestone": "218–221 accepted and merged into main; completed task branches removed",
-  "tasks": [
-    {
-      "id": "218",
-      "state": "已合入",
-      "owner": "/root/language218",
-      "branch": "task/218",
-      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "4d331dd6b321685ea575a132c05dfb03aa7758fc",
-      "branch_status": "DeletedAfterMerge"
+  "observed_at_utc": "2026-10-31T13:45:25.307851+00:00",
+  "status": "ConstructionStatusAuditComplete;LanguageMainlinePartial",
+  "conversation": "zil施工状态核查",
+  "actual_tested_main": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "restored_review_tip": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+  "main_merge_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "integration_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+  "accepted_pr": 15,
+  "tasks": {
+    "232": {
+      "status": "已合入",
+      "card": ".task/impl/232.md"
     },
-    {
-      "id": "219",
-      "state": "已合入",
-      "owner": "/root/language_parallel",
-      "branch": "task/219",
-      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "19375551b7963f4c44536895322c9502fa4945e5",
-      "branch_status": "DeletedAfterMerge"
+    "233": {
+      "status": "已合入",
+      "card": ".task/impl/233.md"
     },
-    {
-      "id": "220",
-      "state": "已合入",
-      "owner": "/root",
-      "branch": "task/220",
-      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "e115ba5cfdc2cf56d092b912ae5077cffd0d92a3",
-      "branch_status": "DeletedAfterMerge"
-    },
-    {
-      "id": "221",
-      "state": "已合入",
-      "owner": "/root/language_review_plan",
-      "branch": "task/221",
-      "latest_source_checkpoint": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-      "observed_work": "有限切片已通过独审、同树完整CI并随联合源码合入main",
-      "author_delivery_checkpoint": "d61264ba57af08ddb7e0b8dafe2fc584632c6833",
-      "branch_status": "DeletedAfterMerge"
+    "234": {
+      "status": "已合入",
+      "card": ".task/impl/234.md"
     }
-  ],
-  "proof": [
-    "evidence/planning/218-221/FREEZE.json",
-    "evidence/planning/218-221/DIAGNOSTIC-AMENDMENT.json"
-  ],
-  "stale_after_minutes": 20,
-  "stale_interpretation": "StatusUnknown; an old heartbeat does not prove execution or termination.",
-  "notification": {
-    "requested_minutes_approximately": 10,
-    "native_minimum_minutes": 60,
-    "automation_created": false,
-    "conversation_updates": true,
-    "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
-    "row": "zil施工7",
-    "page_updates_during_active_construction": true
   },
-  "previous218_recovered": false,
-  "full_language": "NotSatisfied",
-  "full_zui": "NotSatisfied",
   "last_main_ci": {
-    "source": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
-    "run_id": 41061704505,
-    "url": "https://github.com/zil-lang/zil/actions/runs/41061704505",
-    "observed_status": "completed",
+    "schema_version": 1,
+    "status": "Pass",
+    "scope": "Read-only reconstruction of the actual main CI result and exact source continuity; no compiler tests rerun in this audit",
+    "observed_at_utc": "2026-10-31T13:15:00Z",
+    "reviewer": "/root/closeout_review",
+    "main_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+    "pr_candidate": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+    "pr_checkout": "db07200ba221bdb67f3f1b7bef7f8e9851592a1a",
+    "source_tree": "da369979b8a7f7d0a93f14defbb2e68ba9e53142",
+    "all_three_complete_trees_equal": true,
+    "published_review_branch_tip": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+    "review_tip_net_root_changes_from_main": [
+      "docs",
+      "evidence"
+    ],
+    "run_id": 41198113948,
+    "job_id": 124528303818,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41198113948",
+    "workflow": "Main source verification",
+    "event": "push",
     "conclusion": "success",
-    "receipt": "evidence/integration/221/ci41061704505/RESULT.json"
-  },
-  "new_language_acceptance": true,
-  "readiness_recheck": {
-    "source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-    "unchanged_original_sources": 29,
-    "success": 13,
-    "unsupported": 14,
-    "malformed_excluded": 2,
-    "promoted": [
-      "ct-item-if",
-      "ct-statement-if"
+    "successful_steps": 25,
+    "test_counts": {
+      "workspace": {
+        "groups": 336,
+        "passed": 3027,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "reference": {
+        "groups": 336,
+        "passed": 2983,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "text_reference": {
+        "groups": 8,
+        "passed": 37,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      }
+    },
+    "migration_runner_passed": 9,
+    "other_successful_gates": [
+      "Formatting",
+      "Native API State and allocation-failure controls",
+      "All-target Clippy"
     ],
-    "full_readiness": false,
-    "receipt": "evidence/integration/221/readiness-final/READINESS.json"
+    "decoded_job_log": {
+      "path": "evidence/integration/construction-status-20261031/main-job124528303818.log.gz",
+      "uncompressed_bytes": 1005182,
+      "uncompressed_sha256": "64e3b0f3aae3a8d825a62e47904b38c5207ef35ad3400f3b4bdffac71c14f47b",
+      "compressed_sha256": "a81a1248078aed97f5a85610bc83547e404f442864c67624e5e8e30e9c425a0e"
+    },
+    "counting_policy": "PR, main, author and independent replays remain separate; configurations are not summed as unique coverage",
+    "unpublished_checkpoint": {
+      "prefix": "1c868827",
+      "github_lookup": "No commit found on 2026-10-31; not used as evidence"
+    },
+    "boundaries": {
+      "full_language": "NotSatisfied",
+      "full_ZUI": "NotSatisfied",
+      "B0": "Doing",
+      "native_Windows": "NotRun",
+      "Rust_product_goals": "NotRun"
+    }
   },
-  "candidate_ci": {
-    "source": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-    "run_id": 41057841800,
-    "url": "https://github.com/zil-lang/zil/actions/runs/41057841800",
-    "pr": 8,
-    "observed_status": "completed",
-    "default_workspace": "success",
-    "full_workflow_conclusion": "success",
-    "actual_checkout": "fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
-    "same_tree": true
+  "accepted_capabilities": [
+    "default readonly local Product capture",
+    "cross-module ordinary static trait implementations",
+    "LLVM integer constants truncated to actual bit width"
+  ],
+  "limits": {
+    "full_language": "NotSatisfied",
+    "full_ZUI": "NotSatisfied",
+    "B0": "Doing",
+    "181": "施工",
+    "product_gates": "NotRun",
+    "native_Windows": "NotRun"
   },
-  "accepted_source_commit": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-  "last_acceptance_ci": {
-    "source": "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
-    "run_id": 41057841800,
-    "url": "https://github.com/zil-lang/zil/actions/runs/41057841800",
-    "pr": 8,
-    "observed_status": "completed",
-    "default_workspace": "success",
-    "full_workflow_conclusion": "success",
-    "actual_checkout": "fc5b3c058c1f4c112cbadffdb4f9f41705049ea6",
-    "same_tree": true
-  },
-  "accepted_main_commit": "66d4954f0dfbbf074e19435e5e507f1cef795c82",
-  "closeout_status": "Complete; historical handoff remains Fail/1138, with zero errors introduced by this stage",
+  "next_candidates": [
+    "227 ordinary synchronous defer registration and must-execute contract",
+    "general owned Sum/deep Store",
+    "general traits/lending/dyn",
+    "Type/Syntax/ui",
+    "retained callbacks/drain/suspend/cancel/concurrency"
+  ],
   "branch_cleanup": {
-    "completed_tasks": [
-      "task/218",
-      "task/219",
-      "task/220",
-      "task/221"
+    "status": "ArchivedDeletedAndVerified",
+    "run_id": 41206556938,
+    "run_attempt": 2,
+    "run_url": "https://github.com/zil-lang/zil/actions/runs/41206556938/attempts/2",
+    "checked_main": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "deleted_refs": [
+      "refs/heads/chore/construction8-resume",
+      "refs/heads/chore/construction10-cleanup",
+      "refs/heads/chore/construction10-exact-transport",
+      "refs/heads/chore/construction10-recovery",
+      "refs/heads/chore/construction11-exact-transport",
+      "refs/heads/integration/construction11",
+      "refs/heads/review/construction11",
+      "refs/heads/task/construction-status-20261031-cleanup"
     ],
-    "preserved_branches": [
-      "main",
-      "research/compile-performance"
-    ],
-    "receipt": "evidence/integration/221/closeout/BRANCHES.json"
+    "original_branches": 23,
+    "remaining_branches": 16,
+    "archive_tags": {
+      "refs/tags/archive/20261031/construction8-resume-6f7b7679a4fd": "6f7b7679a4fd54df0e0460a7b61c425710ad0953",
+      "refs/tags/archive/20261031/construction10-cleanup-acccc78fe1b4": "acccc78fe1b4719fe7598f8ea5d64812e1e9ff5c",
+      "refs/tags/archive/20261031/construction10-exact-transport-d6218fe763f1": "d6218fe763f13cac89f52f0c6663344bb916b371",
+      "refs/tags/archive/20261031/construction10-recovery-88d3e426af67": "88d3e426af67e48d0fbc041ec406f35b54b17b60",
+      "refs/tags/archive/20261031/construction11-exact-transport-a40d12be3767": "a40d12be3767c198d80e8928fac84fe8fb5a5522",
+      "refs/tags/archive/20261031/construction11-integration-c0418f532e75": "c0418f532e750e7df2b00d9b7d76da82baa5086c",
+      "refs/tags/archive/20261031/construction11-review-61203584c01e": "61203584c01ede0e3bd25c5d4d694198d0b2aa52",
+      "refs/tags/archive/20261031/construction-status-cleanup-62e273ac1159": "62e273ac1159056a3a0d305f1363001460ac0a71"
+    },
+    "research_and_cp25": "Retained; all unrelated refs unchanged during atomic operation",
+    "receipt": "evidence/integration/construction-status-20261031/cleanup/RESULT.json",
+    "local_worktrees": "This fresh audit environment did not have the old worktrees; no claim of deleting another sandbox process or worktree"
   },
-  "active_development_agents": 0,
-  "handoff": {
+  "handoff_record_integrity": {
     "status": "Fail",
-    "historical_errors": 1138,
-    "new_errors": 0,
-    "task_218_to_221_errors": 0,
+    "checked_commit": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "baseline_commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+    "errors": 1145,
     "warnings": 0,
-    "receipt": "evidence/integration/221/closeout/RESULT.json"
+    "baseline_error_multiset_equal": true,
+    "added_errors": 0,
+    "removed_errors": 0,
+    "three_accepted_task_errors": 0,
+    "receipt": "evidence/integration/construction-status-20261031/cleanup/RESULT.json",
+    "first_attempt_retained": "evidence/integration/construction-status-20261031/attempt1/FAILURE.json"
+  },
+  "previous_snapshot": {
+    "commit": "f2572502beb76eb86e9254dea855404e4998a64d",
+    "path": "data/construction-progress.json"
+  },
+  "metadata_scope": "Compiler/tests/tools/CI/normative inputs remain identical to actual tested main; new HEAD is not a new test execution",
+  "latest_main_observed": "886ce5581aa4d176c19d9edf302282297d907a97",
+  "check_plan": {
+    "status": "Pass",
+    "checked_commit": "886ce5581aa4d176c19d9edf302282297d907a97",
+    "tasks": 14,
+    "negative_self_tests": 7,
+    "receipt": "evidence/integration/construction-status-20261031/cleanup/RESULT.json"
+  },
+  "notification": {
+    "page": "https://chatgpt.com/space/page_5799fccae05c8191b25b68c26ec7a4ab",
+    "row": "zil施工状态核查",
+    "heartbeat": "Only while actual work is active; audit completion ends this heartbeat"
   }
 }

@@ -13,7 +13,7 @@ pub(super) fn is_resource(ty: &Type, definitions: &[ResourceDefinition]) -> bool
 
 /// Emit allocator declarations once, checking rather than silently overriding
 /// a user's foreign ABI. Buffer primitives never import a C source host.
-pub(super) fn runtime(lir: &LirModule) -> CompileResult<m::Code> {
+pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
     if !lir
         .resources
         .iter()
@@ -56,7 +56,7 @@ pub(super) fn runtime(lir: &LirModule) -> CompileResult<m::Code> {
             ("free", vec![Type::ForeignHandle], Type::Unit),
         ]
     };
-    for function in &lir.functions {
+    for function in lir.functions {
         if function
             .foreign
             .as_ref()

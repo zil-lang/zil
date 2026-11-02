@@ -1,6 +1,5 @@
 //! Resolution and construction of finite Copy records and tuples.
 use super::*;
-use std::borrow::Cow;
 use std::collections::BTreeSet;
 use zil_base::ModuleId;
 
@@ -8,15 +7,36 @@ use zil_base::ModuleId;
 /// module restriction, not a runtime capability or a change to record layout.
 pub(super) struct Visibility<'a> {
     records: BTreeMap<String, (ModuleId, &'a [CoreField])>,
+    generic_records: BTreeMap<String, (ModuleId, &'a [CoreAggregateFieldRecipe])>,
     remaining: usize,
 }
 impl<'a> Visibility<'a> {
     pub(super) fn new(program: &'a CoreProgram, limits: &Limits) -> CompileResult<Self> {
         let mut result = Self {
             records: BTreeMap::new(),
+            generic_records: BTreeMap::new(),
             remaining: limits.max_analysis_steps,
         };
         for module in &program.modules {
+            for template in &module.core.aggregate_templates {
+                result
+                    .spend(
+                        template
+                            .name
+                            .len()
+                            .saturating_add(template.fields.len())
+                            .saturating_add(96),
+                        template.span,
+                    )
+                    .map_err(|e| vec![e])?;
+                result.generic_records.insert(
+                    format!(
+                        "@module{}:product-template{}",
+                        module.core.module_id.0, template.id.0
+                    ),
+                    (module.core.module_id, &template.fields),
+                );
+            }
             for record in &module.core.aggregates {
                 result
                     .spend(
@@ -51,6 +71,21 @@ impl<'a> Visibility<'a> {
             return Ok(());
         };
         self.spend(name.len(), span)?;
+        if !self.generic_records.is_empty()
+            && let Some((family, _)) = name.rsplit_once(':')
+        {
+            self.spend(family.len().saturating_add(1), span)?;
+            if let Some((owner, fields)) = self.generic_records.get(family) {
+                if *owner != module && fields.get(field as usize).is_some_and(|f| !f.public) {
+                    return Err(error(
+                        "E-FIELD-PRIVATE",
+                        span,
+                        "record field is private to its declaring module",
+                    ));
+                }
+                return Ok(());
+            }
+        }
         if !self.records.contains_key(name) {
             self.spend(
                 self.records
@@ -87,10 +122,29 @@ impl<'a> Visibility<'a> {
         &mut self,
         function: &TypedFunction,
         module: ModuleId,
+        internal: &BTreeMap<FunctionId, BTreeMap<(BlockId, usize), InstructionKind>>,
     ) -> CompileResult<()> {
+        if !internal.is_empty() {
+            self.spend(
+                internal.len().saturating_add(1).ilog2() as usize + 1,
+                function.span,
+            )
+            .map_err(|e| vec![e])?;
+        }
+        let internal = internal.get(&function.id);
         for block in &function.blocks {
-            for instruction in &block.instructions {
+            for (index, instruction) in block.instructions.iter().enumerate() {
                 self.spend(1, instruction.span).map_err(|e| vec![e])?;
+                if let Some(internal) = internal {
+                    self.spend(
+                        internal.len().saturating_add(1).ilog2() as usize + 1,
+                        instruction.span,
+                    )
+                    .map_err(|e| vec![e])?;
+                    if internal.get(&(block.id, index)) == Some(&instruction.kind) {
+                        continue;
+                    }
+                }
                 let access = match &instruction.kind {
                     InstructionKind::ExtractField { aggregate, index }
                     | InstructionKind::UpdateField {
@@ -139,34 +193,7 @@ impl<'a> Visibility<'a> {
 
 pub(super) fn resolve(core: CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
     let mut remaining = limits.max_analysis_steps;
-    let callable_names = collect_callable_names([&core]);
-    match resolve_indexed(&core, &[], &callable_names, limits, &mut remaining)? {
-        Cow::Borrowed(_) => Ok(core),
-        Cow::Owned(resolved) => Ok(resolved),
-    }
-}
-
-fn collect_callable_names<'a>(
-    modules: impl IntoIterator<Item = &'a CoreModule>,
-) -> BTreeSet<String> {
-    modules
-        .into_iter()
-        .flat_map(|module| &module.functions)
-        .flat_map(|function| {
-            function
-                .callable_parameters
-                .iter()
-                .map(|binding| &binding.generic_name)
-                .chain(
-                    function
-                        .state_parameters
-                        .iter()
-                        .flat_map(|state| &state.bindings)
-                        .map(|binding| &binding.generic_name),
-                )
-        })
-        .cloned()
-        .collect()
+    resolve_indexed(core, &[], limits, &mut remaining)
 }
 
 pub(super) fn project_symbol(name: &str) -> bool {
@@ -180,61 +207,45 @@ pub(super) fn resolve_program(
     program: &CoreProgram,
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
-    resolve_program_borrowed(program, limits).map(Cow::into_owned)
-}
-
-pub(super) fn resolve_program_borrowed<'a>(
-    program: &'a CoreProgram,
-    limits: &Limits,
-) -> CompileResult<Cow<'a, CoreProgram>> {
     let mut remaining = limits.max_analysis_steps;
-    // Empty modules contribute no declarations or logical charges to the
-    // per-module index. Keep only declaration-bearing modules, in original
-    // order; this avoids rescanning every empty table for every source module.
-    let modules = program
-        .modules
-        .iter()
-        .map(|m| &m.core)
-        .filter(|core| !core.aggregates.is_empty() || !core.enums.is_empty())
-        .collect::<Vec<_>>();
-    // Each core below belongs to this same immutable project. The old
-    // local-plus-project union therefore has identical membership and size
-    // for every module; only that uncharged lookup construction is shared.
-    let callable_names = collect_callable_names(program.modules.iter().map(|m| &m.core));
-    let normalized = map_cow(&program.modules, |module| -> CompileResult<_> {
-        let core = resolve_indexed(
-            &module.core,
-            &modules,
-            &callable_names,
-            limits,
-            &mut remaining,
-        )?;
-        Ok(match core {
-            Cow::Borrowed(_) => Cow::Borrowed(module),
-            Cow::Owned(core) => Cow::Owned(ProgramModule {
-                core,
-                imports: module.imports.clone(),
-                exports: module.exports.clone(),
-            }),
-        })
-    })?;
-    Ok(match normalized {
-        Cow::Borrowed(_) => Cow::Borrowed(program),
-        Cow::Owned(modules) => Cow::Owned(CoreProgram {
-            root: program.root,
-            source_fingerprint: program.source_fingerprint,
-            modules,
-        }),
+    let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+    let mut normalized = Vec::new();
+    for module in &program.modules {
+        let core = resolve_indexed(module.core.clone(), &modules, limits, &mut remaining)?;
+        normalized.push(ProgramModule {
+            core,
+            imports: module.imports.clone(),
+            exports: module.exports.clone(),
+        });
+    }
+    Ok(CoreProgram {
+        root: program.root,
+        source_fingerprint: program.source_fingerprint,
+        modules: normalized,
     })
 }
 
-fn resolve_indexed<'a>(
-    core: &'a CoreModule,
+/// The prepared input is immutable and already bounded by current inference.
+/// A borrowed result still performs shape resolution's complete ordered work;
+/// it carries no Types, Analyze or Verify capability.
+pub(super) fn resolve_prepared_program<'a>(
+    program: &'a CoreProgram,
+    limits: &Limits,
+) -> CompileResult<std::borrow::Cow<'a, CoreProgram>> {
+    match scalar_shapes::validate(program, limits) {
+        Some(result) => result.map(|()| std::borrow::Cow::Borrowed(program)),
+        // Unsupported shapes restart with the original allowance. No partial
+        // speculative work changes the existing resolver's diagnostic order.
+        None => resolve_program(program, limits).map(std::borrow::Cow::Owned),
+    }
+}
+
+fn resolve_indexed(
+    mut core: CoreModule,
     project: &[&CoreModule],
-    callable_names: &BTreeSet<String>,
     limits: &Limits,
     remaining: &mut usize,
-) -> CompileResult<Cow<'a, CoreModule>> {
+) -> CompileResult<CoreModule> {
     let mut declarations = BTreeMap::new();
     for d in &core.aggregates {
         if d.kind != AggregateKind::Package && d.fields.iter().any(|f| f.manages) {
@@ -364,11 +375,69 @@ fn resolve_indexed<'a>(
             }
         }
     }
+    let mut generic_modules = Vec::new();
+    if !core.aggregate_templates.is_empty()
+        || !core.aggregate_applications.is_empty()
+        || project
+            .iter()
+            .any(|m| !m.aggregate_templates.is_empty() || !m.aggregate_applications.is_empty())
+    {
+        aggregate_templates::spend(remaining, project.len().saturating_add(1), Span::default())
+            .map_err(|e| vec![e])?;
+        generic_modules.push(&core);
+        generic_modules.extend(
+            project
+                .iter()
+                .copied()
+                .filter(|m| m.module_id != core.module_id),
+        );
+    }
+    let generic = aggregate_templates::Index::new(&generic_modules, limits, remaining)
+        .map_err(|e| vec![e])?;
     let mut resolver = Resolver {
+        generic,
+        generic_types: BTreeMap::new(),
+        generic_active: BTreeSet::new(),
+        current_owner: None,
+        metadata_context: true,
+        generic_limits: limits.clone(),
         ordinary_parameter: None,
         active_callable_parameters: &[],
         active_state_parameters: &[],
-        callable_names,
+        callable_names: core
+            .functions
+            .iter()
+            .flat_map(|f| f.callable_parameters.iter().map(|b| b.generic_name.clone()))
+            .chain(
+                project
+                    .iter()
+                    .flat_map(|m| m.functions.iter())
+                    .flat_map(|f| f.callable_parameters.iter().map(|b| b.generic_name.clone())),
+            )
+            .chain(
+                core.functions
+                    .iter()
+                    .flat_map(|f| f.state_parameters.iter())
+                    .flat_map(|state| {
+                        state
+                            .bindings
+                            .iter()
+                            .map(|binding| binding.generic_name.clone())
+                    }),
+            )
+            .chain(
+                project
+                    .iter()
+                    .flat_map(|m| m.functions.iter())
+                    .flat_map(|f| f.state_parameters.iter())
+                    .flat_map(|state| {
+                        state
+                            .bindings
+                            .iter()
+                            .map(|binding| binding.generic_name.clone())
+                    }),
+            )
+            .collect(),
         declarations,
         enum_declarations,
         owners,
@@ -377,135 +446,165 @@ fn resolve_indexed<'a>(
         remaining: *remaining,
         depth_limit: limits.max_call_depth,
     };
+    if !resolver.generic.templates.is_empty() {
+        aggregate_templates::spend(
+            &mut resolver.remaining,
+            resolver.generic.templates.len(),
+            Span::default(),
+        )
+        .map_err(|e| vec![e])?;
+        let templates = resolver
+            .generic
+            .templates
+            .iter()
+            .map(|(key, t)| (*key, t.clone()))
+            .collect::<Vec<_>>();
+        for (family, template) in templates {
+            resolver.ordinary_parameter = Some(template.parameter.name.clone());
+            resolver
+                .generic_materialize(
+                    family,
+                    &[Type::Named(template.parameter.name.clone())],
+                    None,
+                    0,
+                    template.span,
+                )
+                .map_err(|e| vec![e])?;
+        }
+        resolver.ordinary_parameter = None;
+    }
     for d in &core.aggregates {
         resolver
             .ty(&Type::Named(d.name.clone()), 0, d.span)
             .map_err(|e| vec![e])?;
     }
-    let resolved_enums = map_cow(&core.enums, |declaration| {
-        let Type::Enum { variants, .. } =
-            resolver.ty(&Type::Named(declaration.name.clone()), 0, declaration.span)?
+    let mut resolved_enums = core.enums.clone();
+    for declaration in &mut resolved_enums {
+        let Type::Enum { variants, .. } = resolver
+            .ty(&Type::Named(declaration.name.clone()), 0, declaration.span)
+            .map_err(|e| vec![e])?
         else {
             unreachable!()
         };
-        Ok(if variants == declaration.variants {
-            Cow::Borrowed(declaration)
-        } else {
-            Cow::Owned(CoreEnum {
-                id: declaration.id,
-                name: declaration.name.clone(),
-                variants,
-                span: declaration.span,
-            })
-        })
-    })
-    .map_err(|e| vec![e])?;
-    // The original headers remain borrowed while their resolved forms are built.
-    // Bodies which do not change are checked and charged without being copied.
-    let functions = map_cow(&core.functions, |f| resolver.function(f)).map_err(|e| vec![e])?;
-    *remaining = resolver.remaining;
-    let aggregates = map_cow(&core.aggregates, |aggregate| {
-        let fields = map_cow(&aggregate.fields, |field| {
-            let ty = resolver.field_type(field, 0)?;
-            Ok(if ty == field.ty {
-                Cow::Borrowed(field)
-            } else {
-                Cow::Owned(CoreField {
-                    name: field.name.clone(),
-                    ty,
-                    public: field.public,
-                    manages: field.manages,
-                    span: field.span,
-                })
-            })
-        })?;
-        Ok(match fields {
-            Cow::Borrowed(_) => Cow::Borrowed(aggregate),
-            Cow::Owned(fields) => Cow::Owned(CoreAggregate {
-                id: aggregate.id,
-                name: aggregate.name.clone(),
-                kind: aggregate.kind,
-                teardown: aggregate.teardown.clone(),
-                fields,
-                span: aggregate.span,
-            }),
-        })
-    })
-    .map_err(|e| vec![e])?;
-    *remaining = resolver.remaining;
-    Ok(
-        if matches!(aggregates, Cow::Borrowed(_))
-            && matches!(functions, Cow::Borrowed(_))
-            && matches!(resolved_enums, Cow::Borrowed(_))
-        {
-            Cow::Borrowed(core)
-        } else {
-            Cow::Owned(CoreModule {
-                schema_version: core.schema_version,
-                module_id: core.module_id,
-                source_fingerprint: core.source_fingerprint,
-                functions: functions.into_owned(),
-                aggregates: aggregates.into_owned(),
-                enums: resolved_enums.into_owned(),
-                unsupported: core.unsupported.clone(),
-            })
-        },
-    )
-}
-
-// Preserve a borrowed collection until its first changed element. An unchanged
-// subtree is copied at most once when its parent actually needs an owned result.
-fn map_cow<'a, T: Clone, E>(
-    items: &'a [T],
-    mut map: impl FnMut(&'a T) -> Result<Cow<'a, T>, E>,
-) -> Result<Cow<'a, [T]>, E> {
-    let mut owned: Option<Vec<T>> = None;
-    for (index, item) in items.iter().enumerate() {
-        match map(item)? {
-            Cow::Borrowed(item) => {
-                if let Some(owned) = &mut owned {
-                    owned.push(item.clone());
+        declaration.variants = variants;
+    }
+    // Resolve using the original declaration headers while moving function bodies.
+    // State selectors need the unmodified headers, but cloning every body is unnecessary.
+    let original_headers: Vec<_> = core
+        .functions
+        .iter()
+        .map(|f| (f.callable_parameters.clone(), f.state_parameters.clone()))
+        .collect();
+    let mut functions = std::mem::take(&mut core.functions);
+    for (f, (callable_parameters, state_parameters)) in functions.iter_mut().zip(&original_headers)
+    {
+        resolver.current_owner = Some((core.module_id, f.id));
+        resolver.metadata_context = false;
+        resolver.active_callable_parameters = callable_parameters;
+        resolver.active_state_parameters = state_parameters;
+        store_templates::validate_header(f).map_err(|e| vec![e])?;
+        if let Some(parameter) = f.type_parameters.first() {
+            resolver.remaining = resolver
+                .remaining
+                .checked_sub(parameter.name.len().saturating_add(1))
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Types,
+                        "ordinary binder resolution budget exceeded",
+                        Some(f.span),
+                    )]
+                })?;
+            resolver.ordinary_parameter = Some(parameter.name.clone());
+        }
+        for state in &mut f.state_parameters {
+            for bound in &mut state.bindings {
+                bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
+                for ty in &mut bound.parameters {
+                    *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;
                 }
             }
-            Cow::Owned(item) => {
-                owned
-                    .get_or_insert_with(|| items[..index].to_vec())
-                    .push(item);
+        }
+        for bound in &mut f.callable_parameters {
+            bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
+            for ty in &mut bound.parameters {
+                *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;
+            }
+        }
+        if let Some(bound) = &mut f.callable_return {
+            bound.result = resolver.ty(&bound.result, 0, f.span).map_err(|e| vec![e])?;
+            for ty in &mut bound.parameters {
+                *ty = resolver.ty(ty, 0, f.span).map_err(|e| vec![e])?;
+            }
+        }
+        let raw_result = if matches!(f.result_mode, PassingMode::Create | PassingMode::Give) {
+            owned_mode_type(&f.return_type)
+        } else {
+            f.return_type.clone()
+        };
+        f.return_type = resolver.ty(&raw_result, 0, f.span).map_err(|e| vec![e])?;
+        for p in &mut f.parameters {
+            let raw = if p.mode == PassingMode::Give {
+                owned_mode_type(&p.ty)
+            } else {
+                p.ty.clone()
+            };
+            p.ty = resolver.ty(&raw, 0, p.span).map_err(|e| vec![e])?;
+            if matches!(p.ty, Type::Desc(_)) {
+                p.mode = PassingMode::Describe;
+            }
+        }
+        if let Some(r) = &mut f.receiver {
+            let raw = if r.mode == PassingMode::Give {
+                Type::Managed(Box::new(r.ty.clone()))
+            } else {
+                r.ty.clone()
+            };
+            r.ty = resolver.ty(&raw, 0, f.span).map_err(|e| vec![e])?;
+            if matches!(r.ty, Type::Desc(_)) {
+                r.mode = PassingMode::Describe;
+            }
+        }
+        resolver.block(&mut f.body, 0).map_err(|e| vec![e])?;
+        resolver.ordinary_parameter = None;
+        resolver.active_callable_parameters = &[];
+        resolver.active_state_parameters = &[];
+    }
+    resolver.current_owner = None;
+    resolver.metadata_context = true;
+    let resolved_arguments = std::mem::take(&mut resolver.generic.resolved);
+    *remaining = resolver.remaining;
+    let mut aggregates = core.aggregates.clone();
+    for aggregate in &mut aggregates {
+        let application = resolver
+            .generic
+            .applications
+            .get(&aggregate.name)
+            .map(|(_, a, _)| a.clone());
+        resolver.current_owner =
+            application.and_then(|a| a.owner.as_ref().map(|o| (o.module, o.function)));
+        resolver.ordinary_parameter = resolver
+            .current_owner
+            .and_then(|o| resolver.generic.owners.get(&o))
+            .and_then(|b| b.ordinary.clone());
+        for field in &mut aggregate.fields {
+            field.ty = resolver.field_type(field, 0).map_err(|e| vec![e])?;
+        }
+    }
+    *remaining = resolver.remaining;
+    drop(resolver);
+    for application in &mut core.aggregate_applications {
+        if let Some(arguments) = resolved_arguments.get(&(core.module_id, application.aggregate)) {
+            for (arg, resolved) in application.arguments.iter_mut().zip(arguments) {
+                if matches!(arg, CoreAggregateArgument::Concrete(_)) {
+                    *arg = CoreAggregateArgument::Concrete(resolved.clone());
+                }
             }
         }
     }
-    Ok(owned.map_or(Cow::Borrowed(items), Cow::Owned))
-}
-
-fn map_optional<'a, T: Clone, E>(
-    item: &'a Option<T>,
-    map: impl FnOnce(&'a T) -> Result<Cow<'a, T>, E>,
-) -> Result<Cow<'a, Option<T>>, E> {
-    Ok(match item {
-        Some(value) => match map(value)? {
-            Cow::Owned(value) => Cow::Owned(Some(value)),
-            Cow::Borrowed(_) => Cow::Borrowed(item),
-        },
-        None => Cow::Borrowed(item),
-    })
-}
-
-fn retain_equal<T: Clone + PartialEq>(original: &T, value: T) -> Cow<'_, T> {
-    if original == &value {
-        Cow::Borrowed(original)
-    } else {
-        Cow::Owned(value)
-    }
-}
-
-macro_rules! changed {
-    ($value:expr; $($part:expr),+ $(,)?) => {
-        if $(matches!($part, Cow::Borrowed(_)))&&+ {
-            None
-        } else {
-            Some($value)
-        }
-    };
+    core.aggregates = aggregates;
+    core.functions = functions;
+    core.enums = resolved_enums;
+    Ok(core)
 }
 
 /// A source ownership mode selects the direct success resource of a fallible
@@ -521,7 +620,13 @@ fn owned_mode_type(ty: &Type) -> Type {
 }
 
 struct Resolver<'a> {
-    callable_names: &'a BTreeSet<String>,
+    generic: aggregate_templates::Index,
+    generic_types: BTreeMap<String, Type>,
+    generic_active: BTreeSet<aggregate_templates::Family>,
+    current_owner: Option<aggregate_templates::Owner>,
+    metadata_context: bool,
+    generic_limits: Limits,
+    callable_names: BTreeSet<String>,
     ordinary_parameter: Option<String>,
     active_callable_parameters: &'a [CoreCallableParameter],
     active_state_parameters: &'a [CoreStateParameter],
@@ -533,147 +638,7 @@ struct Resolver<'a> {
     remaining: usize,
     depth_limit: usize,
 }
-impl<'a> Resolver<'a> {
-    fn function<'b: 'a>(&mut self, f: &'b CoreFunction) -> R<Cow<'b, CoreFunction>> {
-        self.active_callable_parameters = &f.callable_parameters;
-        self.active_state_parameters = &f.state_parameters;
-        store_templates::validate_header(f)?;
-        if let Some(parameter) = f.type_parameters.first() {
-            self.remaining = self
-                .remaining
-                .checked_sub(parameter.name.len().saturating_add(1))
-                .ok_or_else(|| {
-                    Diagnostic::limit(
-                        Phase::Types,
-                        "ordinary binder resolution budget exceeded",
-                        Some(f.span),
-                    )
-                })?;
-            self.ordinary_parameter = Some(parameter.name.clone());
-        }
-        let state_parameters = map_cow(&f.state_parameters, |state| {
-            let bindings = map_cow(&state.bindings, |bound| {
-                let result = self.type_cow(&bound.result, 0, f.span)?;
-                let parameters = map_cow(&bound.parameters, |ty| self.type_cow(ty, 0, f.span))?;
-                Ok(changed!(CoreStateBinding {
-                    generic_index: bound.generic_index,
-                    generic_name: bound.generic_name.clone(),
-                    kind: bound.kind,
-                    parameters: parameters.into_owned(),
-                    result: result.into_owned(),
-                    fields: bound.fields.clone(),
-                }; result, parameters)
-                .map_or(Cow::Borrowed(bound), Cow::Owned))
-            })?;
-            Ok(match bindings {
-                Cow::Borrowed(_) => Cow::Borrowed(state),
-                Cow::Owned(bindings) => Cow::Owned(CoreStateParameter {
-                    index: state.index,
-                    bindings,
-                }),
-            })
-        })?;
-        let callable_parameters = map_cow(&f.callable_parameters, |bound| {
-            let result = self.type_cow(&bound.result, 0, f.span)?;
-            let parameters = map_cow(&bound.parameters, |ty| self.type_cow(ty, 0, f.span))?;
-            Ok(changed!(CoreCallableParameter {
-                index: bound.index,
-                generic_index: bound.generic_index,
-                generic_name: bound.generic_name.clone(),
-                kind: bound.kind,
-                parameters: parameters.into_owned(),
-                result: result.into_owned(),
-            }; result, parameters)
-            .map_or(Cow::Borrowed(bound), Cow::Owned))
-        })?;
-        let callable_return = map_optional(&f.callable_return, |bound| {
-            let result = self.type_cow(&bound.result, 0, f.span)?;
-            let parameters = map_cow(&bound.parameters, |ty| self.type_cow(ty, 0, f.span))?;
-            Ok(changed!(CoreCallableReturn {
-                kind: bound.kind,
-                parameters: parameters.into_owned(),
-                result: result.into_owned(),
-            }; result, parameters)
-            .map_or(Cow::Borrowed(bound), Cow::Owned))
-        })?;
-        let raw_result = if matches!(f.result_mode, PassingMode::Create | PassingMode::Give) {
-            owned_mode_type(&f.return_type)
-        } else {
-            f.return_type.clone()
-        };
-        let return_type = retain_equal(&f.return_type, self.ty(&raw_result, 0, f.span)?);
-        let parameters = map_cow(&f.parameters, |p| {
-            let raw = if p.mode == PassingMode::Give {
-                owned_mode_type(&p.ty)
-            } else {
-                p.ty.clone()
-            };
-            let ty = self.ty(&raw, 0, p.span)?;
-            let mode = if matches!(ty, Type::Desc(_)) {
-                PassingMode::Describe
-            } else {
-                p.mode
-            };
-            Ok(if ty == p.ty && mode == p.mode {
-                Cow::Borrowed(p)
-            } else {
-                Cow::Owned(CoreParameter {
-                    name: p.name.clone(),
-                    ty,
-                    mode,
-                    span: p.span,
-                })
-            })
-        })?;
-        let receiver = map_optional(&f.receiver, |r| {
-            let raw = if r.mode == PassingMode::Give {
-                Type::Managed(Box::new(r.ty.clone()))
-            } else {
-                r.ty.clone()
-            };
-            let ty = self.ty(&raw, 0, f.span)?;
-            let mode = if matches!(ty, Type::Desc(_)) {
-                PassingMode::Describe
-            } else {
-                r.mode
-            };
-            Ok(if ty == r.ty && mode == r.mode {
-                Cow::Borrowed(r)
-            } else {
-                Cow::Owned(ReceiverShape {
-                    ty,
-                    mode,
-                    implicit: r.implicit,
-                })
-            })
-        })?;
-        let body = self.block(&f.body, 0)?;
-        self.ordinary_parameter = None;
-        self.active_callable_parameters = &[];
-        self.active_state_parameters = &[];
-        Ok(changed!(CoreFunction {
-            type_parameters: f.type_parameters.clone(),
-            state_parameters: state_parameters.into_owned(),
-            callable_return: callable_return.into_owned(),
-            id: f.id,
-            name: f.name.clone(),
-            callable_parameters: callable_parameters.into_owned(),
-            foreign: f.foreign.clone(),
-            parameters: parameters.into_owned(),
-            return_type: return_type.into_owned(),
-            result_mode: f.result_mode,
-            body: body.into_owned(),
-            receiver: receiver.into_owned(),
-            span: f.span,
-        }; state_parameters, callable_parameters, callable_return, return_type, parameters, receiver, body)
-            .map_or(Cow::Borrowed(f), Cow::Owned))
-    }
-
-    fn type_cow<'b>(&mut self, ty: &'b Type, depth: usize, span: Span) -> R<Cow<'b, Type>> {
-        self.ty(ty, depth, span)
-            .map(|resolved| retain_equal(ty, resolved))
-    }
-
+impl Resolver<'_> {
     fn callback_error_payload(&mut self, ty: &Type, depth: usize, span: Span) -> R<bool> {
         let Type::Package { fields, .. } = ty else {
             return Ok(false);
@@ -809,6 +774,34 @@ impl<'a> Resolver<'a> {
     }
     fn ty(&mut self, ty: &Type, depth: usize, span: Span) -> R<Type> {
         self.charge(depth, span)?;
+        if let Type::Named(name) = ty
+            && !self.generic.applications.is_empty()
+        {
+            aggregate_templates::spend(
+                &mut self.remaining,
+                name.len().saturating_mul(
+                    self.generic.applications.len().saturating_add(1).ilog2() as usize + 2,
+                ),
+                span,
+            )?;
+            if self.generic.applications.contains_key(name) {
+                return self.generic_application(name, depth, span);
+            }
+        }
+        if let Type::Package { name, .. } = ty
+            && !self.metadata_context
+            && self
+                .generic
+                .symbolic_names
+                .get(name)
+                .is_some_and(|owner| Some(*owner) != self.current_owner)
+        {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "symbolic Product used outside its exact lexical owner",
+            ));
+        }
         Ok(match ty {
             Type::Named(name) if self.ordinary_parameter.as_ref() == Some(name) => ty.clone(),
             Type::Named(name) if name == "ByteBuffer" => Type::Desc(Box::new(Type::ByteBuffer)),
@@ -858,27 +851,35 @@ impl<'a> Resolver<'a> {
                 self.active.insert(name.clone());
                 let result = if let Some(declaration) = self.enum_declarations.get(name).copied() {
                     let mut variants = Vec::new();
+                    let mut owns = false;
                     for (variant, raw_fields) in &declaration.variants {
                         let mut fields = Vec::new();
                         for field in raw_fields {
                             let ty = self.ty(field, depth + 1, declaration.span)?;
-                            if !ty.is_copy_value() {
+                            let copy = ty.is_copy_value();
+                            owns |= !copy;
+                            if !copy && !owned_shapes::value(&ty) {
                                 return Err(unsupported(
                                     declaration.span,
-                                    "enum payload requires a finite Copy value",
+                                    "enum payload requires finite Copy or an ordinary complete owned value",
                                 ));
                             }
                             fields.push(ty);
                         }
                         variants.push((variant.clone(), fields));
                     }
-                    Type::Enum {
+                    let ty = Type::Enum {
                         name: format!("@module{}:{}", self.owners[name], name),
                         variants,
+                    };
+                    if owns {
+                        owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
                     }
+                    ty
                 } else {
                     let d = self.declarations[name];
                     let mut fields = Vec::new();
+                    let mut new_shape = false;
                     for f in &d.fields {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
@@ -892,30 +893,48 @@ impl<'a> Resolver<'a> {
                             || (d.kind == AggregateKind::Package
                                 && !f.manages
                                 && matches!(ty, Type::Package { .. })
-                                && packages::product::supported(&ty))
+                                && packages::product::owned_supported(&ty))
                             || (d.kind == AggregateKind::Package
                                 && f.manages
                                 && matches!(ty, Type::Managed(_))
                                 && resources::supported(&ty)))
                         {
-                            return Err(unsupported(
-                                f.span,
-                                "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array",
-                            ));
+                            if d.kind == AggregateKind::Package
+                                && !f.manages
+                                && ((matches!(ty, Type::Package { .. })
+                                    && owned_shapes::value(&ty))
+                                    || owned_shapes::sum(&ty))
+                            {
+                                new_shape = true;
+                            } else {
+                                return Err(unsupported(
+                                    f.span,
+                                    "aggregate field requires finite Copy, explicit manages, or an ordinary complete owned child",
+                                ));
+                            }
                         }
                         fields.push((f.name.clone(), ty));
                     }
                     let name = format!("@module{}:{}", self.owners[name], name);
                     if d.kind == AggregateKind::Package {
                         let ty = Type::Package { name, fields };
-                        if packages::product::nested(&ty) {
-                            packages::product::validate(
+                        if new_shape {
+                            owned_shapes::validate(
                                 &ty,
                                 &mut self.remaining,
                                 self.depth_limit,
                                 span,
                             )?;
-                        } else if !d.fields.iter().any(|f| f.manages) {
+                        }
+                        if packages::product::nested(&ty) && packages::product::owned_supported(&ty)
+                        {
+                            packages::product::validate_owned(
+                                &ty,
+                                &mut self.remaining,
+                                self.depth_limit,
+                                span,
+                            )?;
+                        } else if !d.fields.iter().any(|f| f.manages) && !owned_shapes::value(&ty) {
                             return Err(unsupported(
                                 span,
                                 "package requires at least one manages field or complete owning child",
@@ -936,7 +955,16 @@ impl<'a> Resolver<'a> {
                 result
             }
             ty @ Type::Package { .. } if packages::product::nested(ty) => {
-                packages::product::validate(ty, &mut self.remaining, self.depth_limit, span)?;
+                if packages::product::owned_supported(ty) {
+                    packages::product::validate_owned(
+                        ty,
+                        &mut self.remaining,
+                        self.depth_limit,
+                        span,
+                    )?;
+                } else {
+                    owned_shapes::validate(ty, &mut self.remaining, self.depth_limit, span)?;
+                }
                 ty.clone()
             }
             Type::OwnedStore { element } => {
@@ -1022,6 +1050,24 @@ impl<'a> Resolver<'a> {
                     {
                         Type::Managed(payload)
                     }
+                    Type::Package { .. }
+                        if packages::product::nested(&inner)
+                            || (!*mutable && packages::product::supported(&inner)) =>
+                    {
+                        if *mutable {
+                            return Err(unsupported(
+                                span,
+                                "ordinary Product addresses are shared synchronous inputs",
+                            ));
+                        }
+                        packages::product::validate(
+                            &inner,
+                            &mut self.remaining,
+                            self.depth_limit,
+                            span,
+                        )?;
+                        inner
+                    }
                     Type::Package { .. } if self.store_element_shape(&inner, depth, span)? => inner,
                     Type::Managed(_) | Type::Desc(_) | Type::Package { .. } => {
                         return Err(unsupported(
@@ -1101,314 +1147,202 @@ impl<'a> Resolver<'a> {
             _ => ty.clone(),
         })
     }
-    fn block<'b>(&mut self, b: &'b CoreBlock, depth: usize) -> R<Cow<'b, CoreBlock>> {
+    fn block(&mut self, b: &mut CoreBlock, depth: usize) -> R<()> {
         self.charge(depth, b.span)?;
-        let statements = map_cow(&b.statements, |s| self.statement(s, depth))?;
-        Ok(match statements {
-            Cow::Borrowed(_) => Cow::Borrowed(b),
-            Cow::Owned(statements) => Cow::Owned(CoreBlock {
-                statements,
-                span: b.span,
-            }),
-        })
+        for s in &mut b.statements {
+            match &mut s.kind {
+                CoreStatementKind::Binding {
+                    ty, initializer, ..
+                } => {
+                    if let Some(t) = ty {
+                        *t = self.ty(t, depth + 1, s.span)?;
+                    }
+                    if let Some(e) = initializer {
+                        self.expr(e, depth + 1)?;
+                    }
+                }
+                CoreStatementKind::Assign { target, value } => {
+                    self.expr(target, depth + 1)?;
+                    self.expr(value, depth + 1)?;
+                }
+                CoreStatementKind::Expression(e) | CoreStatementKind::Return(Some(e)) => {
+                    self.expr(e, depth + 1)?
+                }
+                CoreStatementKind::If {
+                    condition,
+                    then_body,
+                    else_body,
+                } => {
+                    self.expr(condition, depth + 1)?;
+                    self.block(then_body, depth + 1)?;
+                    if let Some(b) = else_body {
+                        self.block(b, depth + 1)?;
+                    }
+                }
+                CoreStatementKind::While { condition, body } => {
+                    self.expr(condition, depth + 1)?;
+                    self.block(body, depth + 1)?;
+                }
+                CoreStatementKind::IfLet {
+                    pattern,
+                    value,
+                    then_body,
+                    else_body,
+                } => {
+                    self.expr(value, depth + 1)?;
+                    self.pattern(pattern, depth + 1)?;
+                    self.block(then_body, depth + 1)?;
+                    if let Some(body) = else_body {
+                        self.block(body, depth + 1)?;
+                    }
+                }
+                CoreStatementKind::WhileLet {
+                    pattern,
+                    value,
+                    body,
+                } => {
+                    self.expr(value, depth + 1)?;
+                    self.pattern(pattern, depth + 1)?;
+                    self.block(body, depth + 1)?;
+                }
+                CoreStatementKind::ForRange {
+                    start, end, body, ..
+                } => {
+                    self.expr(start, depth + 1)?;
+                    self.expr(end, depth + 1)?;
+                    self.block(body, depth + 1)?;
+                }
+                CoreStatementKind::Match { value, arms } => {
+                    self.expr(value, depth + 1)?;
+                    for arm in arms {
+                        self.pattern(&mut arm.pattern, depth + 1)?;
+                        self.block(&mut arm.body, depth + 1)?;
+                    }
+                }
+                CoreStatementKind::Block(b)
+                | CoreStatementKind::Unsafe(b)
+                | CoreStatementKind::Defer(b) => self.block(b, depth + 1)?,
+                _ => {}
+            }
+        }
+        Ok(())
     }
-
-    fn statement<'b>(&mut self, s: &'b CoreStatement, depth: usize) -> R<Cow<'b, CoreStatement>> {
-        let kind = match &s.kind {
-            CoreStatementKind::Binding {
-                name,
-                mutable,
-                ty,
-                initializer,
-            } => {
-                let ty = map_optional(ty, |t| self.type_cow(t, depth + 1, s.span))?;
-                let initializer = map_optional(initializer, |e| self.expr(e, depth + 1))?;
-                changed!(CoreStatementKind::Binding {
-                    name: name.clone(), mutable: *mutable,
-                    ty: ty.into_owned(), initializer: initializer.into_owned(),
-                }; ty, initializer)
-            }
-            CoreStatementKind::Assign { target, value } => {
-                let target = self.expr(target, depth + 1)?;
-                let value = self.expr(value, depth + 1)?;
-                changed!(CoreStatementKind::Assign { target: target.into_owned(), value: value.into_owned() }; target, value)
-            }
-            CoreStatementKind::Expression(e) => match self.expr(e, depth + 1)? {
-                Cow::Borrowed(_) => None,
-                Cow::Owned(e) => Some(CoreStatementKind::Expression(e)),
-            },
-            CoreStatementKind::Return(Some(e)) => match self.expr(e, depth + 1)? {
-                Cow::Borrowed(_) => None,
-                Cow::Owned(e) => Some(CoreStatementKind::Return(Some(e))),
-            },
-            CoreStatementKind::If {
-                condition,
-                then_body,
-                else_body,
-            } => {
-                let condition = self.expr(condition, depth + 1)?;
-                let then_body = self.block(then_body, depth + 1)?;
-                let else_body = map_optional(else_body, |b| self.block(b, depth + 1))?;
-                changed!(CoreStatementKind::If {
-                    condition: condition.into_owned(), then_body: then_body.into_owned(), else_body: else_body.into_owned(),
-                }; condition, then_body, else_body)
-            }
-            CoreStatementKind::While { condition, body } => {
-                let condition = self.expr(condition, depth + 1)?;
-                let body = self.block(body, depth + 1)?;
-                changed!(CoreStatementKind::While { condition: condition.into_owned(), body: body.into_owned() }; condition, body)
-            }
-            CoreStatementKind::IfLet {
-                pattern,
-                value,
-                then_body,
-                else_body,
-            } => {
-                let value = self.expr(value, depth + 1)?;
-                let pattern = self.pattern(pattern, depth + 1)?;
-                let then_body = self.block(then_body, depth + 1)?;
-                let else_body = map_optional(else_body, |b| self.block(b, depth + 1))?;
-                changed!(CoreStatementKind::IfLet {
-                    pattern: pattern.into_owned(), value: value.into_owned(),
-                    then_body: then_body.into_owned(), else_body: else_body.into_owned(),
-                }; value, pattern, then_body, else_body)
-            }
-            CoreStatementKind::WhileLet {
-                pattern,
-                value,
-                body,
-            } => {
-                let value = self.expr(value, depth + 1)?;
-                let pattern = self.pattern(pattern, depth + 1)?;
-                let body = self.block(body, depth + 1)?;
-                changed!(CoreStatementKind::WhileLet {
-                    pattern: pattern.into_owned(), value: value.into_owned(), body: body.into_owned(),
-                }; value, pattern, body)
-            }
-            CoreStatementKind::ForRange {
-                name,
-                start,
-                end,
-                body,
-            } => {
-                let start = self.expr(start, depth + 1)?;
-                let end = self.expr(end, depth + 1)?;
-                let body = self.block(body, depth + 1)?;
-                changed!(CoreStatementKind::ForRange {
-                    name: name.clone(), start: start.into_owned(), end: end.into_owned(), body: body.into_owned(),
-                }; start, end, body)
-            }
-            CoreStatementKind::Match { value, arms } => {
-                let value = self.expr(value, depth + 1)?;
-                let arms = map_cow(arms, |arm| {
-                    let pattern = self.pattern(&arm.pattern, depth + 1)?;
-                    let body = self.block(&arm.body, depth + 1)?;
-                    Ok(changed!(CoreMatchArm { pattern: pattern.into_owned(), body: body.into_owned(), span: arm.span }; pattern, body)
-                        .map_or(Cow::Borrowed(arm), Cow::Owned))
-                })?;
-                changed!(CoreStatementKind::Match { value: value.into_owned(), arms: arms.into_owned() }; value, arms)
-            }
-            CoreStatementKind::Block(b) => match self.block(b, depth + 1)? {
-                Cow::Borrowed(_) => None,
-                Cow::Owned(b) => Some(CoreStatementKind::Block(b)),
-            },
-            CoreStatementKind::Unsafe(b) => match self.block(b, depth + 1)? {
-                Cow::Borrowed(_) => None,
-                Cow::Owned(b) => Some(CoreStatementKind::Unsafe(b)),
-            },
-            _ => None,
-        };
-        Ok(kind.map_or_else(
-            || Cow::Borrowed(s),
-            |kind| {
-                Cow::Owned(CoreStatement {
-                    id: s.id,
-                    kind,
-                    span: s.span,
-                })
-            },
-        ))
-    }
-
-    fn pattern<'b>(&mut self, p: &'b CorePattern, depth: usize) -> R<Cow<'b, CorePattern>> {
+    fn pattern(&mut self, p: &mut CorePattern, depth: usize) -> R<()> {
         self.charge(depth, p.span)?;
-        let kind = match &p.kind {
-            CorePatternKind::Variant {
-                ty,
-                variant,
-                fields,
-            } => {
-                let ty = self.type_cow(ty, depth + 1, p.span)?;
-                let fields = map_cow(fields, |field| self.pattern(field, depth + 1))?;
-                changed!(CorePatternKind::Variant { ty: ty.into_owned(), variant: variant.clone(), fields: fields.into_owned() }; ty, fields)
-            }
-            CorePatternKind::Tuple(fields) => {
-                match map_cow(fields, |field| self.pattern(field, depth + 1))? {
-                    Cow::Borrowed(_) => None,
-                    Cow::Owned(fields) => Some(CorePatternKind::Tuple(fields)),
+        match &mut p.kind {
+            CorePatternKind::Variant { ty, fields, .. } => {
+                *ty = self.ty(ty, depth + 1, p.span)?;
+                for field in fields {
+                    self.pattern(field, depth + 1)?;
                 }
             }
-            _ => None,
-        };
-        Ok(kind.map_or_else(
-            || Cow::Borrowed(p),
-            |kind| Cow::Owned(CorePattern { kind, span: p.span }),
-        ))
+            CorePatternKind::Tuple(fields) => {
+                for field in fields {
+                    self.pattern(field, depth + 1)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
-
-    fn named_expressions<'b>(
-        &mut self,
-        values: &'b [(String, CoreExpr)],
-        depth: usize,
-    ) -> R<Cow<'b, [(String, CoreExpr)]>> {
-        map_cow(values, |item| match self.expr(&item.1, depth)? {
-            Cow::Borrowed(_) => Ok(Cow::Borrowed(item)),
-            Cow::Owned(value) => Ok(Cow::Owned((item.0.clone(), value))),
-        })
-    }
-
-    fn expr<'b>(&mut self, e: &'b CoreExpr, depth: usize) -> R<Cow<'b, CoreExpr>> {
+    fn expr(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
         self.charge(depth, e.span)?;
-        let kind = match &e.kind {
+        match &mut e.kind {
             CoreExprKind::Ascribed { ty, value }
             | CoreExprKind::IntegerConvert { target: ty, value } => {
-                let ty = self.type_cow(ty, depth + 1, e.span)?;
-                let value = self.expr(value, depth + 1)?;
-                changed!(match &e.kind {
-                    CoreExprKind::Ascribed { .. } => CoreExprKind::Ascribed { ty: ty.into_owned(), value: Box::new(value.into_owned()) },
-                    _ => CoreExprKind::IntegerConvert { target: ty.into_owned(), value: Box::new(value.into_owned()) },
-                }; ty, value)
+                *ty = self.ty(ty, depth + 1, e.span)?;
+                self.expr(value, depth + 1)?;
             }
             CoreExprKind::Record { ty, fields } => {
-                let resolved = match self.ty(ty, depth + 1, e.span)? {
+                *ty = match self.ty(ty, depth + 1, e.span)? {
                     Type::Desc(payload) => Type::Managed(payload),
                     other => other,
                 };
-                let ty = retain_equal(ty, resolved);
-                let fields = self.named_expressions(fields, depth + 1)?;
-                changed!(CoreExprKind::Record { ty: ty.into_owned(), fields: fields.into_owned() }; ty, fields)
+                for (_, v) in fields {
+                    self.expr(v, depth + 1)?;
+                }
             }
             CoreExprKind::RecordUpdate { ty, base, fields } => {
-                let ty = map_optional(ty, |t| self.type_cow(t, depth + 1, e.span))?;
-                let base = self.expr(base, depth + 1)?;
-                let fields = self.named_expressions(fields, depth + 1)?;
-                changed!(CoreExprKind::RecordUpdate { ty: ty.into_owned(), base: Box::new(base.into_owned()), fields: fields.into_owned() }; ty, base, fields)
+                if let Some(t) = ty {
+                    *t = self.ty(t, depth + 1, e.span)?;
+                }
+                self.expr(base, depth + 1)?;
+                for (_, v) in fields {
+                    self.expr(v, depth + 1)?;
+                }
             }
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::CompileTime(operand)
-            | CoreExprKind::Try(operand) => match self.expr(operand, depth + 1)? {
-                Cow::Borrowed(_) => None,
-                Cow::Owned(operand) => Some(match &e.kind {
-                    CoreExprKind::Unary { op, .. } => CoreExprKind::Unary {
-                        op: *op,
-                        operand: Box::new(operand),
-                    },
-                    CoreExprKind::CompileTime(_) => CoreExprKind::CompileTime(Box::new(operand)),
-                    _ => CoreExprKind::Try(Box::new(operand)),
-                }),
-            },
-            CoreExprKind::Binary { op, left, right } => {
-                let left = self.expr(left, depth + 1)?;
-                let right = self.expr(right, depth + 1)?;
-                changed!(CoreExprKind::Binary { op: *op, left: Box::new(left.into_owned()), right: Box::new(right.into_owned()) }; left, right)
+            | CoreExprKind::Try(operand) => self.expr(operand, depth + 1)?,
+            CoreExprKind::Binary { left, right, .. } => {
+                self.expr(left, depth + 1)?;
+                self.expr(right, depth + 1)?;
             }
             CoreExprKind::TypeApply {
                 callee,
                 type_arguments,
             } => {
-                let type_arguments =
-                    map_cow(type_arguments, |t| self.type_cow(t, depth + 1, e.span))?;
-                let callee = self.expr(callee, depth + 1)?;
-                changed!(CoreExprKind::TypeApply { callee: Box::new(callee.into_owned()), type_arguments: type_arguments.into_owned() }; type_arguments, callee)
+                for argument in type_arguments {
+                    *argument = self.ty(argument, depth + 1, e.span)?;
+                }
+                self.expr(callee, depth + 1)?;
             }
             CoreExprKind::Call { callee, arguments } => {
-                let callee = self.expr(callee, depth + 1)?;
-                let arguments = map_cow(arguments, |e| self.expr(e, depth + 1))?;
-                changed!(CoreExprKind::Call { callee: Box::new(callee.into_owned()), arguments: arguments.into_owned() }; callee, arguments)
-            }
-            CoreExprKind::Index { object, index } => {
-                let object = self.expr(object, depth + 1)?;
-                let index = self.expr(index, depth + 1)?;
-                changed!(CoreExprKind::Index { object: Box::new(object.into_owned()), index: Box::new(index.into_owned()) }; object, index)
-            }
-            CoreExprKind::Slice { object, start, end } => {
-                let object = self.expr(object, depth + 1)?;
-                let start = map_optional(start, |boxed| match self.expr(boxed, depth + 1)? {
-                    Cow::Borrowed(_) => Ok(Cow::Borrowed(boxed)),
-                    Cow::Owned(e) => Ok(Cow::Owned(Box::new(e))),
-                })?;
-                let end = map_optional(end, |boxed| match self.expr(boxed, depth + 1)? {
-                    Cow::Borrowed(_) => Ok(Cow::Borrowed(boxed)),
-                    Cow::Owned(e) => Ok(Cow::Owned(Box::new(e))),
-                })?;
-                changed!(CoreExprKind::Slice { object: Box::new(object.into_owned()), start: start.into_owned(), end: end.into_owned() }; object, start, end)
-            }
-            CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
-                match map_cow(values, |e| self.expr(e, depth + 1))? {
-                    Cow::Borrowed(_) => None,
-                    Cow::Owned(values) => Some(match &e.kind {
-                        CoreExprKind::Tuple(_) => CoreExprKind::Tuple(values),
-                        _ => CoreExprKind::Array(values),
-                    }),
+                self.expr(callee, depth + 1)?;
+                for e in arguments {
+                    self.expr(e, depth + 1)?;
                 }
             }
-            CoreExprKind::Member { object, member } => match self.expr(object, depth + 1)? {
-                Cow::Borrowed(_) => None,
-                Cow::Owned(object) => Some(CoreExprKind::Member {
-                    object: Box::new(object),
-                    member: member.clone(),
-                }),
-            },
+            CoreExprKind::Index { object, index } => {
+                self.expr(object, depth + 1)?;
+                self.expr(index, depth + 1)?;
+            }
+            CoreExprKind::Slice { object, start, end } => {
+                self.expr(object, depth + 1)?;
+                for endpoint in [start, end].into_iter().flatten() {
+                    self.expr(endpoint, depth + 1)?;
+                }
+            }
+            CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
+                for e in values {
+                    self.expr(e, depth + 1)?;
+                }
+            }
+            CoreExprKind::Member { object, .. } => self.expr(object, depth + 1)?,
             CoreExprKind::Sequence { bindings, value } => {
-                let bindings = self.named_expressions(bindings, depth + 1)?;
-                let value = self.expr(value, depth + 1)?;
-                changed!(CoreExprKind::Sequence { bindings: bindings.into_owned(), value: Box::new(value.into_owned()) }; bindings, value)
+                for (_, e) in bindings {
+                    self.expr(e, depth + 1)?;
+                }
+                self.expr(value, depth + 1)?;
             }
             CoreExprKind::Closure {
-                move_capture,
                 parameters,
                 return_type,
                 body,
+                ..
             } => {
-                let parameters = map_cow(parameters, |p| {
-                    let ty = map_optional(&p.ty, |t| self.type_cow(t, depth + 1, p.span))?;
-                    Ok(match ty {
-                        Cow::Borrowed(_) => Cow::Borrowed(p),
-                        Cow::Owned(ty) => Cow::Owned(CoreClosureParameter {
-                            name: p.name.clone(),
-                            ty,
-                            mode: p.mode,
-                            span: p.span,
-                        }),
-                    })
-                })?;
-                let return_type =
-                    map_optional(return_type, |t| self.type_cow(t, depth + 1, e.span))?;
-                let body = self.block(body, depth + 1)?;
-                changed!(CoreExprKind::Closure { move_capture: *move_capture, parameters: parameters.into_owned(), return_type: return_type.into_owned(), body: body.into_owned() }; parameters, return_type, body)
+                for p in parameters {
+                    if let Some(t) = &mut p.ty {
+                        *t = self.ty(t, depth + 1, p.span)?;
+                    }
+                }
+                if let Some(t) = return_type {
+                    *t = self.ty(t, depth + 1, e.span)?;
+                }
+                self.block(body, depth + 1)?;
             }
             CoreExprKind::If {
                 condition,
                 then_value,
                 else_value,
             } => {
-                let condition = self.expr(condition, depth + 1)?;
-                let then_value = self.expr(then_value, depth + 1)?;
-                let else_value = self.expr(else_value, depth + 1)?;
-                changed!(CoreExprKind::If { condition: Box::new(condition.into_owned()), then_value: Box::new(then_value.into_owned()), else_value: Box::new(else_value.into_owned()) }; condition, then_value, else_value)
+                self.expr(condition, depth + 1)?;
+                self.expr(then_value, depth + 1)?;
+                self.expr(else_value, depth + 1)?;
             }
-            _ => None,
-        };
-        Ok(kind.map_or_else(
-            || Cow::Borrowed(e),
-            |kind| {
-                Cow::Owned(CoreExpr {
-                    id: e.id,
-                    kind,
-                    span: e.span,
-                })
-            },
-        ))
+            _ => {}
+        }
+        Ok(())
     }
 }
 
@@ -1800,6 +1734,7 @@ impl Builder<'_, '_> {
             }
             CoreExprKind::Member { object, member } => {
                 if matches!(self.known_type(object), Some(Type::Package { .. }))
+                    && !self.indirect_place(e)
                     && self.method_signature(object, member).is_none()
                 {
                     return self.package_field(object, member, e.span);
@@ -1807,7 +1742,8 @@ impl Builder<'_, '_> {
                 if matches!(
                     self.known_type(object),
                     Some(Type::Managed(_) | Type::Desc(_))
-                ) && self.method_signature(object, member).is_none()
+                ) && !self.indirect_place(e)
+                    && self.method_signature(object, member).is_none()
                 {
                     return self.resource_field(object, member, e.span);
                 }
@@ -1820,12 +1756,19 @@ impl Builder<'_, '_> {
                 }
                 if matches!(self.known_type(object), Some(Type::Address { .. }))
                     || dynamic_store::borrow_expression(object)
+                    || self.indirect_place(e)
                 {
                     let (address, ty) = self.borrow_place(e)?;
                     let Type::Address { inner, .. } = ty else {
                         unreachable!()
                     };
                     let ty = *inner;
+                    if !ty.is_copy_value() {
+                        return Err(unsupported(
+                            e.span,
+                            "shared Product projections only read Copy leaves; borrow an owned child explicitly",
+                        ));
+                    }
                     return Ok((
                         self.value(InstructionKind::ReadAddress { address }, ty.clone(), e.span)?,
                         ty,
@@ -1984,5 +1927,493 @@ impl Builder<'_, '_> {
             }
         }
         hints
+    }
+}
+
+impl Resolver<'_> {
+    fn generic_check_names(
+        &mut self,
+        ty: &Type,
+        bindings: &aggregate_templates::Bindings,
+        owner: Option<aggregate_templates::Owner>,
+        span: Span,
+    ) -> R<bool> {
+        aggregate_templates::type_work(ty, &self.generic_limits, &mut self.remaining, span)?;
+        fn check(
+            ty: &Type,
+            b: &aggregate_templates::Bindings,
+            owner: Option<aggregate_templates::Owner>,
+            symbols: &BTreeMap<String, aggregate_templates::Owner>,
+            left: &mut usize,
+            span: Span,
+        ) -> R<bool> {
+            aggregate_templates::spend(left, 1, span)?;
+            let mut symbolic = false;
+            if let Type::Package { name, .. } = ty {
+                aggregate_templates::spend(
+                    left,
+                    name.len()
+                        .saturating_mul(symbols.len().saturating_add(1).ilog2() as usize + 2),
+                    span,
+                )?;
+                if let Some(actual) = symbols.get(name) {
+                    if Some(*actual) != owner {
+                        return Err(error(
+                            "E-PRODUCT-TEMPLATE",
+                            span,
+                            "hidden Product argument belongs to another lexical owner",
+                        ));
+                    }
+                    symbolic = true;
+                }
+            }
+            match ty {
+                Type::Named(n) => {
+                    if !b.names().any(|name| name == n) {
+                        return Err(error(
+                            "E-PRODUCT-TEMPLATE",
+                            span,
+                            "generic Product contains a free type outside its declared scope",
+                        ));
+                    }
+                    symbolic = true;
+                }
+                Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                    for (_, t) in fields {
+                        symbolic |= check(t, b, owner, symbols, left, span)?;
+                    }
+                }
+                Type::Tuple(ts) => {
+                    for t in ts {
+                        symbolic |= check(t, b, owner, symbols, left, span)?;
+                    }
+                }
+                Type::Managed(t)
+                | Type::Desc(t)
+                | Type::Address { inner: t, .. }
+                | Type::OwnedStore { element: t }
+                | Type::Array { element: t, .. }
+                | Type::Slice { element: t }
+                | Type::Opaque { hidden: t, .. } => {
+                    symbolic |= check(t, b, owner, symbols, left, span)?
+                }
+                Type::ErrorUnion { error, result } => {
+                    symbolic |= check(error, b, owner, symbols, left, span)?;
+                    symbolic |= check(result, b, owner, symbols, left, span)?;
+                }
+                Type::Enum { variants, .. } => {
+                    for (_, ts) in variants {
+                        for t in ts {
+                            symbolic |= check(t, b, owner, symbols, left, span)?;
+                        }
+                    }
+                }
+                Type::FunctionPointer { parameters, result }
+                | Type::ForeignCallback { parameters, result } => {
+                    for t in parameters {
+                        symbolic |= check(t, b, owner, symbols, left, span)?;
+                    }
+                    symbolic |= check(result, b, owner, symbols, left, span)?;
+                }
+                _ => {}
+            }
+            Ok(symbolic)
+        }
+        check(
+            ty,
+            bindings,
+            owner,
+            &self.generic.symbolic_names,
+            &mut self.remaining,
+            span,
+        )
+    }
+    fn generic_bindings(
+        &mut self,
+        owner: Option<aggregate_templates::Owner>,
+        span: Span,
+    ) -> R<aggregate_templates::Bindings> {
+        let Some(owner) = owner else {
+            return Ok(aggregate_templates::Bindings::default());
+        };
+        aggregate_templates::spend(
+            &mut self.remaining,
+            self.generic.owners.len().saturating_add(1).ilog2() as usize + 2,
+            span,
+        )?;
+        let bindings = self.generic.owners.get(&owner).ok_or_else(|| {
+            error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product owner declaration is absent",
+            )
+        })?;
+        aggregate_templates::spend(
+            &mut self.remaining,
+            bindings
+                .names()
+                .fold(bindings.callable.len().saturating_add(1), |n, s| {
+                    n.saturating_add(s.len())
+                }),
+            span,
+        )?;
+        Ok(bindings.clone())
+    }
+    fn generic_application(&mut self, name: &str, depth: usize, span: Span) -> R<Type> {
+        let (module, application, header) = self.generic.applications[name].clone();
+        let owner = application.owner.as_ref().map(|o| (o.module, o.function));
+        let bindings = self.generic_bindings(owner, span)?;
+        aggregate_templates::spend(
+            &mut self.remaining,
+            name.len()
+                .saturating_mul(self.generic_types.len().saturating_add(1).ilog2() as usize + 2),
+            span,
+        )?;
+        if let Some(cached) = self.generic_types.get(name) {
+            let Type::Package { name: nominal, .. } = cached else {
+                unreachable!()
+            };
+            if !self.metadata_context
+                && self
+                    .generic
+                    .symbolic_names
+                    .get(nominal)
+                    .is_some_and(|o| Some(*o) != self.current_owner)
+            {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "symbolic Product used outside its exact lexical owner",
+                ));
+            }
+            aggregate_templates::type_work(
+                cached,
+                &self.generic_limits,
+                &mut self.remaining,
+                span,
+            )?;
+            return Ok(cached.clone());
+        }
+        let saved_owner = self.current_owner;
+        aggregate_templates::spend(
+            &mut self.remaining,
+            self.ordinary_parameter.as_ref().map_or(0, String::len),
+            span,
+        )?;
+        let saved_ordinary = self.ordinary_parameter.clone();
+        if self.metadata_context {
+            self.current_owner = owner;
+            aggregate_templates::spend(
+                &mut self.remaining,
+                bindings.ordinary.as_ref().map_or(0, String::len),
+                span,
+            )?;
+            self.ordinary_parameter = bindings.ordinary.clone();
+        }
+        let mut args = Vec::new();
+        let mut symbolic = false;
+        aggregate_templates::spend(&mut self.remaining, application.arguments.len(), span)?;
+        for argument in &application.arguments {
+            let ty = match argument {
+                CoreAggregateArgument::Concrete(t) => self.ty(t, depth + 1, span)?,
+                CoreAggregateArgument::Parameter { index: 0 } => {
+                    aggregate_templates::spend(
+                        &mut self.remaining,
+                        bindings.ordinary.as_ref().map_or(0, String::len),
+                        span,
+                    )?;
+                    Type::Named(bindings.ordinary.clone().ok_or_else(|| {
+                        error(
+                            "E-PRODUCT-TEMPLATE",
+                            span,
+                            "Product argument has no ordinary owner binder",
+                        )
+                    })?)
+                }
+                _ => {
+                    return Err(error(
+                        "E-PRODUCT-TEMPLATE",
+                        span,
+                        "Product argument binder index is invalid",
+                    ));
+                }
+            };
+            symbolic |= self.generic_check_names(&ty, &bindings, owner, span)?;
+            args.push(ty);
+        }
+        if symbolic && !self.metadata_context && owner != self.current_owner {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product argument belongs to another lexical function",
+            ));
+        }
+        let family = (application.template_module, application.template);
+        let ty = self.generic_materialize(
+            family,
+            &args,
+            if symbolic { owner } else { None },
+            depth + 1,
+            span,
+        )?;
+        let template = self.generic.templates[&family].clone();
+        if header.fields.len() != template.fields.len() {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "Product header and original recipe field counts differ",
+            ));
+        }
+        let Type::Package { fields, .. } = &ty else {
+            unreachable!()
+        };
+        for ((actual, recipe), (_, expected)) in
+            header.fields.iter().zip(&template.fields).zip(fields)
+        {
+            if actual.name != recipe.name
+                || actual.public != recipe.public
+                || actual.manages != recipe.manages
+            {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "Product header differs from its original field recipe",
+                ));
+            }
+            let actual = self.field_type(actual, depth + 1)?;
+            aggregate_templates::type_work(
+                &actual,
+                &self.generic_limits,
+                &mut self.remaining,
+                span,
+            )?;
+            aggregate_templates::type_work(
+                expected,
+                &self.generic_limits,
+                &mut self.remaining,
+                span,
+            )?;
+            if actual != *expected {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "Product header type differs from its original field recipe",
+                ));
+            }
+        }
+        self.current_owner = saved_owner;
+        self.ordinary_parameter = saved_ordinary;
+        aggregate_templates::type_work(&ty, &self.generic_limits, &mut self.remaining, span)?;
+        self.generic
+            .resolved
+            .insert((module, application.aggregate), args);
+        aggregate_templates::spend(
+            &mut self.remaining,
+            name.len()
+                .saturating_mul(self.generic_types.len().saturating_add(1).ilog2() as usize + 2),
+            span,
+        )?;
+        self.generic_types.insert(name.to_owned(), ty.clone());
+        Ok(ty)
+    }
+    fn generic_materialize(
+        &mut self,
+        family: aggregate_templates::Family,
+        args: &[Type],
+        owner: Option<aggregate_templates::Owner>,
+        depth: usize,
+        span: Span,
+    ) -> R<Type> {
+        self.charge(depth, span)?;
+        aggregate_templates::spend(
+            &mut self.remaining,
+            self.generic_active.len().saturating_add(1),
+            span,
+        )?;
+        if !self.generic_active.insert(family) {
+            return Err(error(
+                "E-INFINITE-LAYOUT",
+                span,
+                "recursive generic Product recipe has infinite layout",
+            ));
+        }
+        let owner = if let Some(owner) = owner {
+            let bindings = self.generic_bindings(Some(owner), span)?;
+            let mut symbolic = false;
+            for arg in args {
+                symbolic |= self.generic_check_names(arg, &bindings, Some(owner), span)?;
+            }
+            if symbolic { Some(owner) } else { None }
+        } else {
+            None
+        };
+        let template = self
+            .generic
+            .templates
+            .get(&family)
+            .cloned()
+            .ok_or_else(|| {
+                error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "generic Product family is absent",
+                )
+            })?;
+        if args.len() != 1 {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product needs one complete type argument",
+            ));
+        }
+        aggregate_templates::type_work(&args[0], &self.generic_limits, &mut self.remaining, span)?;
+        if !self.store_element_shape(&args[0], depth, span)? {
+            return Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product actual type does not satisfy its StoreElement declaration",
+            ));
+        }
+        aggregate_templates::spend(&mut self.remaining, template.fields.len(), span)?;
+        let mut fields = Vec::new();
+        for f in &template.fields {
+            aggregate_templates::spend(
+                &mut self.remaining,
+                f.name.len().saturating_mul(3).saturating_add(1),
+                f.span,
+            )?;
+            let field = self.generic_recipe(&f.ty, args, owner, depth + 1, f.span)?;
+            let field = if f.manages {
+                if let Type::Desc(p) = field {
+                    Type::Managed(p)
+                } else {
+                    field
+                }
+            } else {
+                field
+            };
+            let raw = CoreField {
+                name: f.name.clone(),
+                ty: field,
+                public: f.public,
+                manages: f.manages,
+                span: f.span,
+            };
+            let ty = self.field_type(&raw, depth + 1)?;
+            if !f.manages && matches!(ty, Type::Managed(_) | Type::Desc(_)) {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "generic Product Managed leaves require an explicit manages declaration",
+                ));
+            }
+            fields.push((f.name.clone(), ty));
+        }
+        let name = aggregate_templates::canonical(
+            family,
+            args,
+            owner,
+            &self.generic_limits,
+            &mut self.remaining,
+            span,
+        )?;
+        for arg in args {
+            aggregate_templates::type_work(arg, &self.generic_limits, &mut self.remaining, span)?;
+        }
+        aggregate_templates::spend(
+            &mut self.remaining,
+            name.len()
+                .saturating_add(self.generic.canonical_arguments.len()),
+            span,
+        )?;
+        if let Some((prior_family, prior_args, prior_owner)) =
+            self.generic.canonical_arguments.get(&name)
+        {
+            if *prior_family != family || prior_args != args || *prior_owner != owner {
+                return Err(error(
+                    "E-PRODUCT-TEMPLATE",
+                    span,
+                    "generic Product canonical identity collision",
+                ));
+            }
+        } else {
+            for arg in args {
+                aggregate_templates::type_work(
+                    arg,
+                    &self.generic_limits,
+                    &mut self.remaining,
+                    span,
+                )?;
+            }
+            self.generic
+                .canonical_arguments
+                .insert(name.clone(), (family, args.to_vec(), owner));
+        }
+        if let Some(owner) = owner {
+            aggregate_templates::spend(&mut self.remaining, name.len().saturating_add(1), span)?;
+            self.generic.symbolic_names.insert(name.clone(), owner);
+        }
+        let ty = Type::Package { name, fields };
+        packages::product::validate_owned(&ty, &mut self.remaining, self.depth_limit, span)?;
+        self.generic_active.remove(&family);
+        Ok(ty)
+    }
+    fn generic_recipe(
+        &mut self,
+        recipe: &CoreAggregateTypeRecipe,
+        args: &[Type],
+        owner: Option<aggregate_templates::Owner>,
+        depth: usize,
+        span: Span,
+    ) -> R<Type> {
+        self.charge(depth, span)?;
+        match recipe {
+            CoreAggregateTypeRecipe::Concrete(t) => {
+                // Concrete recipe syntax is in the aggregate declaration, not
+                // the caller's T/F scope. It cannot capture a same-spelled binder.
+                let saved = self.ordinary_parameter.take();
+                let ty = self.ty(t, depth + 1, span)?;
+                self.ordinary_parameter = saved;
+                self.generic_check_names(
+                    &ty,
+                    &aggregate_templates::Bindings::default(),
+                    None,
+                    span,
+                )?;
+                Ok(ty)
+            }
+            CoreAggregateTypeRecipe::Parameter { index: 0 } => {
+                aggregate_templates::type_work(
+                    &args[0],
+                    &self.generic_limits,
+                    &mut self.remaining,
+                    span,
+                )?;
+                Ok(args[0].clone())
+            }
+            CoreAggregateTypeRecipe::Parameter { .. } => Err(error(
+                "E-PRODUCT-TEMPLATE",
+                span,
+                "generic Product formal index is invalid",
+            )),
+            CoreAggregateTypeRecipe::Store { element } => {
+                let element = self.generic_recipe(element, args, owner, depth + 1, span)?;
+                Ok(Type::Desc(Box::new(Type::OwnedStore {
+                    element: Box::new(element),
+                })))
+            }
+            CoreAggregateTypeRecipe::Apply {
+                module,
+                template,
+                arguments,
+            } => {
+                aggregate_templates::spend(&mut self.remaining, arguments.len(), span)?;
+                let mut actual = Vec::new();
+                for a in arguments {
+                    actual.push(self.generic_recipe(a, args, owner, depth + 1, span)?);
+                }
+                self.generic_materialize((*module, *template), &actual, owner, depth + 1, span)
+            }
+        }
     }
 }

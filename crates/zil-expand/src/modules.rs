@@ -8,7 +8,9 @@ use zil_syntax::ast::*;
 
 type R<T> = Result<T, Diagnostic>;
 type Names = BTreeSet<String>;
-type Functions = BTreeMap<String, (ModuleId, String)>;
+// The flag distinguishes source declarations from actual specialization output;
+// a spelling prefix alone is not evidence of an instantiated function.
+type Functions = BTreeMap<String, (ModuleId, String, bool)>;
 
 #[derive(Clone)]
 struct Symbol {
@@ -213,14 +215,16 @@ pub(super) fn specialize(
     modules: &[&Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
+    products: &mut generics::products::Products,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    normalize(sources, modules, imports, limits).map_err(|e| vec![e])
+    normalize(sources, modules, imports, limits, products).map_err(|e| vec![e])
 }
 fn normalize(
     sources: &[SourceUnit],
     modules: &[&Module],
     imports: &[Vec<CoreImport>],
     limits: &Limits,
+    products: &mut generics::products::Products,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
     let mut budget = Budget::new(limits);
     if sources.len() != modules.len() || modules.len() != imports.len() || modules.is_empty() {
@@ -282,7 +286,7 @@ fn normalize(
                 let canonical = format!("$module{}_{}", module.id.0, name);
                 budget.text(&canonical, item.span)?;
                 if function {
-                    functions.insert(canonical.clone(), (module.id, name.to_owned()));
+                    functions.insert(canonical.clone(), (module.id, name.to_owned(), true));
                 }
                 symbols.insert(
                     name.to_owned(),
@@ -331,10 +335,13 @@ fn normalize(
             combined.items.push(item);
         }
     }
-    let specialized = generics::specialize(&combined, limits).map_err(|mut e| e.remove(0))?;
-    let items = match specialized {
-        Cow::Borrowed(_) => combined.items,
-        Cow::Owned(module) => module.items,
+    let specialized = match generics::specialize_products(&combined, limits, products)
+        .map_err(|mut e| e.remove(0))?
+    {
+        // A borrowed result is the unchanged combined input. Keep that owned
+        // syntax rather than cloning it again while redistributing modules.
+        Cow::Borrowed(_) => combined,
+        Cow::Owned(module) => module,
     };
     let mut output = modules
         .iter()
@@ -350,8 +357,9 @@ fn normalize(
             )
         })
         .collect::<Vec<_>>();
-    for item in items {
-        budget.item(&item)?;
+    let mut has_project_trait_impl = false;
+    for item in &specialized.items {
+        budget.item(item)?;
         let position = *files.get(&item.span.file).ok_or_else(|| {
             error(
                 "E-MODULE-ID",
@@ -359,16 +367,51 @@ fn normalize(
                 "instantiated declaration lost its definition source",
             )
         })?;
+        has_project_trait_impl |= project_traits::is_external_impl(item, modules[position].id);
         if let ItemKind::Function(f) = &item.kind {
             // An instance stays in its template's defining module. Publicness
             // is inherited from that declaration, never from the consumer.
-            functions
-                .entry(f.name.clone())
-                .or_insert((modules[position].id, f.name.clone()));
+            functions.entry(f.name.clone()).or_insert((
+                modules[position].id,
+                f.name.clone(),
+                false,
+            ));
         }
+    }
+    let method_owners = if has_project_trait_impl {
+        project_traits::method_owners(&specialized, modules, &files, &mut budget)?
+    } else {
+        BTreeMap::new()
+    };
+    // All source identities, budget visits and project-method checks above
+    // retain their original order. No fallible check depends on the copies;
+    // transfer each declaration only after those checks have succeeded.
+    for item in specialized.items {
+        let position = files[&item.span.file];
         output[position].0.items.push(item);
     }
     for (module, edges) in &mut output {
+        if !method_owners.is_empty() {
+            for item in &module.items {
+                budget.node(item.span, 0)?;
+                let ItemKind::Function(function) = &item.kind else {
+                    continue;
+                };
+                budget.text(&function.name, item.span)?;
+                if functions
+                    .get(&function.name)
+                    .is_some_and(|(_, _, original)| !original)
+                {
+                    project_traits::instance_dependencies(
+                        item,
+                        &method_owners,
+                        module.id,
+                        edges,
+                        &mut budget,
+                    )?;
+                }
+            }
+        }
         let mut visitor = Visitor {
             default_nominal: None,
             mode: Mode::Restore {
@@ -382,6 +425,7 @@ fn normalize(
             visitor.item(item, &Names::new(), true, 0)?;
         }
     }
+    products.restore_owners(&functions)?;
     Ok(output)
 }
 
@@ -411,9 +455,9 @@ impl Visitor<'_, '_, '_> {
         }
         Ok(input.clone())
     }
-    fn symbol(
+    fn symbol<S: AsRef<str>>(
         &mut self,
-        path: &[String],
+        path: &[S],
         types: &Names,
         values: &Names,
         span: Span,
@@ -421,6 +465,7 @@ impl Visitor<'_, '_, '_> {
     ) -> R<Option<String>> {
         if let Mode::Binders { bindings, .. } = &self.mode {
             let [name] = path else { return Ok(None) };
+            let name = name.as_ref();
             if type_position
                 && types.contains(name)
                 && let Some(canonical) = bindings.get(name)
@@ -433,19 +478,19 @@ impl Visitor<'_, '_, '_> {
         let Mode::Normalize(index) = &self.mode else {
             return Ok(None);
         };
-        let Some(first) = path.first() else {
+        let Some(first) = path.first().map(AsRef::as_ref) else {
             return Ok(None);
         };
         if types.contains(first) || (!type_position && values.contains(first)) {
             return Ok(None);
         }
         let (owner, name, external) = match path {
-            [name] => (self.module, name, false),
+            [name] => (self.module, name.as_ref(), false),
             [alias, name] => {
-                let Some(owner) = index.imports[&self.module].get(alias) else {
+                let Some(owner) = index.imports[&self.module].get(alias.as_ref()) else {
                     return Ok(None);
                 };
-                (*owner, name, true)
+                (*owner, name.as_ref(), true)
             }
             _ => return Ok(None),
         };
@@ -517,7 +562,7 @@ impl Visitor<'_, '_, '_> {
                 }
             }
             Mode::Restore { functions, .. } => {
-                if let Some((_, original)) = functions.get(name) {
+                if let Some((_, original, _)) = functions.get(name) {
                     self.budget.text(original, span)?;
                     *name = original.clone();
                 }
@@ -636,6 +681,22 @@ impl Visitor<'_, '_, '_> {
                         for bound in bounds {
                             self.ty(bound, &types, depth + 1)?;
                         }
+                    }
+                }
+                // A where bound has the same lexical/module identity as an
+                // inline bound. Resolve it before combining modules; leaving
+                // source spellings here would lose privacy and nominal identity.
+                for clause in &mut f.where_clause {
+                    self.budget.node(clause.span, depth + 1)?;
+                    match &mut clause.subject {
+                        BoundSubject::Type(subject) => self.ty(subject, &types, depth + 1)?,
+                        BoundSubject::Lifetime(name) => self.budget.text(name, clause.span)?,
+                    }
+                    for bound in &mut clause.bounds {
+                        self.ty(bound, &types, depth + 1)?;
+                    }
+                    if let Some(name) = &clause.lifetime_bound {
+                        self.budget.text(name, clause.span)?;
                     }
                 }
                 for p in &mut f.params {
@@ -897,26 +958,39 @@ impl Visitor<'_, '_, '_> {
             e.kind = ExprKind::Name(nominal.clone());
             return Ok(());
         }
-        let written = match &e.kind {
-            ExprKind::Name(n) => Some(vec![n.clone()]),
-            ExprKind::Member {
-                object,
-                member: MemberName::Name(n),
-            } => match &object.kind {
-                ExprKind::Name(alias) => Some(vec![alias.clone(), n.clone()]),
+        // Lookup paths are transient borrowed names, not new syntax. Restore
+        // cannot normalize a symbol; its separate canonical-name lookup below
+        // retains all of its original work, charges and generated imports.
+        let normalized = if matches!(self.mode, Mode::Restore { .. }) {
+            None
+        } else {
+            match &e.kind {
+                ExprKind::Name(name) => {
+                    self.symbol(std::slice::from_ref(name), types, values, e.span, false)?
+                }
+                ExprKind::Member {
+                    object,
+                    member: MemberName::Name(name),
+                } => match &object.kind {
+                    ExprKind::Name(alias) => self.symbol(
+                        &[alias.as_str(), name.as_str()],
+                        types,
+                        values,
+                        e.span,
+                        false,
+                    )?,
+                    _ => None,
+                },
                 _ => None,
-            },
-            _ => None,
+            }
         };
-        if let Some(path) = written
-            && let Some(name) = self.symbol(&path, types, values, e.span, false)?
-        {
+        if let Some(name) = normalized {
             e.kind = ExprKind::Name(name);
             return Ok(());
         }
         if let (Mode::Restore { functions, edges }, ExprKind::Name(name)) =
             (&mut self.mode, &e.kind)
-            && let Some((owner, local)) = functions.get(name)
+            && let Some((owner, local, _)) = functions.get(name)
         {
             self.budget.text(local, e.span)?;
             e.kind = if *owner == self.module {

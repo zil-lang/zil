@@ -7,10 +7,10 @@ mod contracts;
 mod ct_program;
 mod ct_selection;
 mod project;
-mod query_cache;
+mod semantic_cache;
 mod session;
+mod stable_source_identity;
 pub use project::{ProjectSources, compile_project};
-pub use query_cache::QueryCacheReport;
 pub use session::CompilationSession;
 pub use zil_db::CancellationToken;
 
@@ -19,7 +19,7 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 pub use zil_backend_llvm::{
-    CodegenOptions, CodegenSummary, NativeBackend, Optimization, TimingReport, TimingTrace,
+    CodegenOptions, CodegenSummary, FunctionMerging, NativeBackend, Optimization,
     WindowsLinkOptions,
 };
 use zil_base::{
@@ -59,25 +59,25 @@ pub enum ExecutionProfile {
 }
 #[derive(Clone, Debug)]
 pub struct CompileOptions {
-    /// Diagnostic monotonic wall spans; not a compilation/cache input.
-    pub timings: bool,
     pub backend: NativeBackend,
     pub stop_after: Stage,
     pub emit_dir: Option<PathBuf>,
     pub output: Option<PathBuf>,
     pub entry: Option<String>,
     pub cache_dir: Option<PathBuf>,
+    /// Explicitly trusted local raw TypedProgram cache; never stores Verified.
+    pub semantic_cache: Option<PathBuf>,
     /// Trusted local machine-object cache; independent of source-candidate cache.
     pub object_cache: Option<PathBuf>,
-    /// Opt-in trusted private local checkpoint of complete, identical builds.
-    /// This is separate from untrusted source candidates and never stores Verified.
-    pub query_cache: Option<PathBuf>,
     pub clang: Option<PathBuf>,
     pub optimization: zil_backend_llvm::Optimization,
-    pub codegen: CodegenOptions,
-    /// Opt-in Linux executable linkage; generated ZIL symbols have no export ABI.
-    /// Applied only after a fresh Verify, independently of frontend checkpoints.
+    /// Explicit Linux build without generated ZIL symbol exports; default false.
     pub closed_executable: bool,
+    /// Explicit O2 partitioning with complete direct-call implementation copies.
+    pub incremental_o2: bool,
+    /// O2 function-merging policy, with address-preserving reference controls.
+    pub function_merging: FunctionMerging,
+    pub codegen: CodegenOptions,
     pub windows: Option<zil_backend_llvm::WindowsLinkOptions>,
     pub target: TargetProfile,
     pub limits: Limits,
@@ -90,19 +90,20 @@ pub struct CompileOptions {
 impl Default for CompileOptions {
     fn default() -> Self {
         Self {
-            timings: false,
             backend: NativeBackend::default(),
             stop_after: Stage::Verify,
             emit_dir: None,
             output: None,
             entry: None,
             cache_dir: None,
+            semantic_cache: None,
             object_cache: None,
-            query_cache: None,
             clang: None,
             optimization: zil_backend_llvm::Optimization::O0,
-            codegen: CodegenOptions::default(),
             closed_executable: false,
+            incremental_o2: false,
+            function_merging: FunctionMerging::Disabled,
+            codegen: CodegenOptions::default(),
             windows: None,
             target: TargetProfile::host_llvm(),
             limits: Limits::default(),
@@ -156,15 +157,12 @@ pub struct CompileReport {
     pub artifacts: BTreeMap<String, PathBuf>,
     pub input_fingerprint: Fingerprint,
     pub seconds: f64,
-    pub timings: Option<TimingReport>,
-    pub(crate) trace: TimingTrace,
     /// Compatibility summary; inspect query_events and disk_cache to determine
     /// what was reused. This flag never indicates a cached Verified object.
     pub cache_hit: bool,
     pub commands: Vec<Vec<String>>,
     pub native_codegen: Option<CodegenSummary>,
     pub disk_cache: DiskCacheStatus,
-    pub query_cache: QueryCacheReport,
     pub query_events: Vec<QueryEvent>,
     pub verification_runs: usize,
     pub source_files: BTreeMap<FileId, String>,
@@ -179,13 +177,10 @@ impl CompileReport {
             artifacts: BTreeMap::new(),
             input_fingerprint: source.fingerprint(),
             seconds: 0.0,
-            timings: None,
-            trace: TimingTrace::default(),
             cache_hit: false,
             commands: vec![],
             native_codegen: None,
             disk_cache: DiskCacheStatus::Disabled,
-            query_cache: QueryCacheReport::default(),
             query_events: vec![],
             verification_runs: 0,
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
@@ -194,7 +189,7 @@ impl CompileReport {
     }
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"timings\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}},\"scalar_interfaces\":[{}]}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -213,7 +208,6 @@ impl CompileReport {
                 .join(","),
             json_string(&self.input_fingerprint.to_hex()),
             self.seconds,
-            self.timings.as_ref().map_or_else(|| "null".into(), TimingReport::to_json),
             self.cache_hit,
             self.commands
                 .iter()
@@ -229,7 +223,6 @@ impl CompileReport {
                 .join(","),
             self.native_codegen.as_ref().map_or_else(|| "null".into(), CodegenSummary::to_json),
             json_string(self.disk_cache.as_str()),
-            self.query_cache.to_json(),
             self.query_events
                 .iter()
                 .map(|event| format!(
@@ -271,18 +264,6 @@ pub fn compile_source(source: &SourceUnit, options: &CompileOptions) -> CompileR
 }
 pub fn compile_path(path: &Path, options: &CompileOptions) -> CompileReport {
     CompilationSession::default().compile_path(path, options)
-}
-// Keep a requested diagnostic capability explicit even for library callers.
-fn check_timing_support(options: &CompileOptions) -> CompileResult<()> {
-    if options.timings && !cfg!(feature = "timings") {
-        Err(vec![Diagnostic::unsupported(
-            Phase::Driver,
-            "stage timings require building zil-driver with --features timings",
-            None,
-        )])
-    } else {
-        Ok(())
-    }
 }
 fn read_source(path: &Path, options: &CompileOptions) -> CompileResult<SourceUnit> {
     options

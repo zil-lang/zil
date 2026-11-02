@@ -1,5 +1,4 @@
 use super::*;
-use std::borrow::Cow;
 use std::collections::BTreeSet;
 use zil_base::{Fingerprint, ModuleId};
 
@@ -14,27 +13,10 @@ pub fn resolve_program_shapes(
     program: &CoreProgram,
     limits: &Limits,
 ) -> CompileResult<CoreProgram> {
-    resolve_program_shapes_borrowed(program, limits).map(Cow::into_owned)
-}
-
-/// Resolve and check every shape, preserving the original allocation when the
-/// complete result is unchanged. Borrowing confers no verification authority.
-pub fn resolve_program_shapes_borrowed<'a>(
-    program: &'a CoreProgram,
-    limits: &Limits,
-) -> CompileResult<Cow<'a, CoreProgram>> {
     // Raw callers receive the same bounded preflight as the source driver;
     // no recursive Type clone in signatures may precede it.
-    match infer_program_closures_borrowed(program, limits)? {
-        Cow::Borrowed(inferred) => aggregates::resolve_program_borrowed(inferred, limits),
-        Cow::Owned(inferred) => {
-            let resolved = aggregates::resolve_program_borrowed(&inferred, limits)?;
-            Ok(Cow::Owned(match resolved {
-                Cow::Borrowed(_) => inferred,
-                Cow::Owned(resolved) => resolved,
-            }))
-        }
-    }
+    let inferred = infer_program_closures(program, limits)?;
+    aggregates::resolve_program(&inferred, limits)
 }
 
 pub fn check_program(
@@ -42,9 +24,24 @@ pub fn check_program(
     target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<TypedProgram> {
-    let inferred = resolve_program_shapes_borrowed(program, limits)?;
-    let program = &inferred;
-    let project_enums = enums::ProjectDefinitions::new(program);
+    let inferred = resolve_program_shapes(program, limits)?;
+    check_resolved_program(&inferred, target, limits)
+}
+
+pub(super) fn check_resolved_program(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
+) -> CompileResult<TypedProgram> {
+    check_resolved_program_with_reuse(program, target, limits, None)
+}
+
+pub(super) fn check_resolved_program_with_reuse(
+    program: &CoreProgram,
+    target: &TargetProfile,
+    limits: &Limits,
+    mut reuse: Option<&mut incremental::Reuse<'_>>,
+) -> CompileResult<TypedProgram> {
     let reject = |code: &str, text: &str| vec![Diagnostic::error(Phase::Types, code, None, text)];
     let limit = || {
         vec![Diagnostic::limit(
@@ -141,6 +138,22 @@ pub fn check_program(
     // Reserve the complete ordinary-function range before any local closure
     // gets an identity. Generated environment entries never enter interfaces.
     let mut closure_state = closures::State::new(count, limits);
+    if program
+        .modules
+        .iter()
+        .any(|m| !m.core.aggregate_applications.is_empty())
+    {
+        closure_state
+            .snapshot(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
+        let mut product_work = limits.max_analysis_steps;
+        closure_state.products = aggregate_templates::origins(&modules, limits, &mut product_work)
+            .map_err(|e| vec![e])?;
+        closure_state
+            .snapshot(limits.max_analysis_steps - product_work, Span::default())
+            .map_err(|e| vec![e])?;
+    }
     closure_state.resource_writes =
         resource_effects::program(program, &signatures_by_module, limits).map_err(|e| vec![e])?;
     let mut enum_work = limits.max_analysis_steps;
@@ -174,7 +187,7 @@ pub fn check_program(
                     .iter()
                     .map(|i| (i.alias.clone(), i.module))
                     .collect(),
-                enums: project_enums.resolve(core, &mut enum_budget, limits)?,
+                enums: enums::project_definitions(program, core, &mut enum_budget, limits)?,
             });
             helpers::install(core, context, &mut closure_state, limits).map_err(|e| vec![e])?;
         }
@@ -211,7 +224,7 @@ pub fn check_program(
     for id in factory_order {
         let (module, f) = factory_sources[&id];
         let core = &module.core;
-        let enum_types = project_enums.resolve(core, &mut enum_work, limits)?;
+        let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
         let table = &signatures_by_module[&core.module_id];
         let imports = imports_for(module, &signatures_by_module)?;
         let pending_start = closure_state.pending.len();
@@ -221,14 +234,26 @@ pub fn check_program(
         builder.imports = Some(&imports);
         builder.enums = Some(&enum_types);
         let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
-        visibility.check(&typed, core.module_id)?;
+        visibility.check(
+            &typed,
+            core.module_id,
+            &closure_state.internal_product_fields,
+        )?;
         for closure in &closure_state.pending[pending_start..] {
             if let Some(function) = &closure.typed {
-                visibility.check(function, core.module_id)?;
+                visibility.check(
+                    function,
+                    core.module_id,
+                    &closure_state.internal_product_fields,
+                )?;
             }
         }
         for function in closure_state.thin[thin_start..].iter().flatten() {
-            visibility.check(function, core.module_id)?;
+            visibility.check(
+                function,
+                core.module_id,
+                &closure_state.internal_product_fields,
+            )?;
         }
         signatures_by_module
             .get_mut(&core.module_id)
@@ -246,6 +271,9 @@ pub fn check_program(
         .map_err(|e| vec![e])?;
         factories.insert(id, typed);
     }
+    if let Some(reuse) = &mut reuse {
+        reuse.prepare(program, &signatures_by_module, target, limits);
+    }
     let mut functions = Vec::new();
     let mut interfaces = Vec::new();
     let mut resources = Vec::new();
@@ -254,7 +282,7 @@ pub fn check_program(
         let core = &module.core;
         let table = &signatures_by_module[&core.module_id];
         resources.extend(resources::definitions(core, table).map_err(|e| vec![e])?);
-        let enum_types = project_enums.resolve(core, &mut enum_work, limits)?;
+        let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
         let imports = imports_for(module, &signatures_by_module)?;
         let mut exports = Vec::new();
         for f in core.functions.iter().filter(|f| {
@@ -266,7 +294,18 @@ pub fn check_program(
             let id = signature.concrete_id(f.span).map_err(|e| vec![e])?;
             let mut typed = if let Some(typed) = factories.remove(&id) {
                 typed
+            } else if let Some(typed) = reuse
+                .as_mut()
+                .and_then(|reuse| reuse.get(core.module_id, f, &mut closure_state))
+            {
+                visibility.check(
+                    &typed,
+                    core.module_id,
+                    &closure_state.internal_product_fields,
+                )?;
+                typed
             } else {
+                let accounting_before = closure_state.accounting();
                 let pending_start = closure_state.pending.len();
                 let thin_start = closure_state.thin.len();
                 let mut builder =
@@ -274,14 +313,35 @@ pub fn check_program(
                 builder.imports = Some(&imports);
                 builder.enums = Some(&enum_types);
                 let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
-                visibility.check(&typed, core.module_id)?;
+                visibility.check(
+                    &typed,
+                    core.module_id,
+                    &closure_state.internal_product_fields,
+                )?;
                 for closure in &closure_state.pending[pending_start..] {
                     if let Some(function) = &closure.typed {
-                        visibility.check(function, core.module_id)?;
+                        visibility.check(
+                            function,
+                            core.module_id,
+                            &closure_state.internal_product_fields,
+                        )?;
                     }
                 }
                 for function in closure_state.thin[thin_start..].iter().flatten() {
-                    visibility.check(function, core.module_id)?;
+                    visibility.check(
+                        function,
+                        core.module_id,
+                        &closure_state.internal_product_fields,
+                    )?;
+                }
+                if let Some(reuse) = &mut reuse {
+                    reuse.save(
+                        core.module_id,
+                        f,
+                        &typed,
+                        accounting_before,
+                        closure_state.accounting(),
+                    );
                 }
                 typed
             };
@@ -327,7 +387,11 @@ pub fn check_program(
         .iter()
         .zip(&closure_state.helper_exports)
     {
-        visibility.check(function, export.module)?;
+        visibility.check(
+            function,
+            export.module,
+            &closure_state.internal_product_fields,
+        )?;
         if export.public {
             let interface = interfaces
                 .iter_mut()

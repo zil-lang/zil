@@ -2,10 +2,11 @@
 //! A selected payload is not a second responsibility: Take consumes its union.
 use super::*;
 
-pub(super) fn owned(ty: &Type) -> bool {
+pub(super) fn owned(ty: &Type, sum_extension: bool) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_))
+            || (sum_extension && (sums::owned(error) || sums::owned(result))))
 }
 
 /// Classifies a raw shape; admission and responsibility are checked elsewhere.
@@ -19,6 +20,9 @@ pub(super) fn check_type_for(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    if sums::needs_shape(ty, budget)? {
+        return sums::check_type_for(module, ty, span, budget);
+    }
     let Type::ErrorUnion { error, result } = ty else {
         return Err(reject(
             "E-VERIFY-ERROR",
@@ -27,6 +31,15 @@ pub(super) fn check_type_for(
         ));
     };
     budget.spend(2)?;
+    // Store push/pop use these exact complete Product/Unit protocols. The
+    // active-tag and linear checks below remain the ordinary union checks;
+    // arbitrary error payload combinations keep their previous gate.
+    if (**error == Type::Unit && packages::has_children(result))
+        || (**result == Type::Unit && packages::has_children(error))
+    {
+        let payload = if **error == Type::Unit { result } else { error };
+        return dynamic_store::check_store_element(module, payload, span, budget);
+    }
     if matches!(result.as_ref(), Type::Managed(_)) {
         // Only the success arm is opened, with a finite Copy error. Check the
         // nominal/sealed resource table independently of the source resolver.
@@ -50,6 +63,7 @@ pub(super) fn check_type_for(
 pub(super) fn check_instruction(
     function: &TypedFunction,
     instruction: &Instruction,
+    budget: &mut Budget,
 ) -> Check<Option<Type>> {
     let span = Some(instruction.span);
     match instruction.kind {
@@ -62,7 +76,7 @@ pub(super) fn check_instruction(
                     "TakeErrorUnion requires an error union",
                 ));
             };
-            if !owned(ty) {
+            if !owned(ty, budget.sums) {
                 return Err(reject(
                     "E-VERIFY-ERROR",
                     span,
@@ -76,7 +90,7 @@ pub(super) fn check_instruction(
             }))
         }
         InstructionKind::DropErrorUnion { local } => {
-            if !owned(local_type(function, local, span)?) {
+            if !owned(local_type(function, local, span)?, budget.sums) {
                 return Err(reject(
                     "E-VERIFY-ERROR",
                     span,
