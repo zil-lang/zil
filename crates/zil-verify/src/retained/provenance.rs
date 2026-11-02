@@ -7,6 +7,16 @@ const EMPTY: u8 = 1;
 const PARAMETER: u8 = 2;
 const OTHER: u8 = 4;
 
+// Existing mutable owning locals lower to one internal array cell. This
+// carrier is tracked as its sole element, not admitted as a public F shape.
+fn singleton(f: &TypedFunction, ty: &Type) -> bool {
+    matches!(ty, Type::Array { element, length: 1 } if element.as_ref() == &f.return_type)
+}
+
+fn tracked(f: &TypedFunction, ty: &Type) -> bool {
+    ty == &f.return_type || singleton(f, ty)
+}
+
 fn live(mask: u8, f: &TypedFunction) -> Check<u8> {
     if mask == 0 || mask & EMPTY != 0 {
         return Err(bad(f, "callable instance is absent on a reachable path"));
@@ -41,10 +51,12 @@ fn transfer(
         budget.spend(1)?;
         let result = instruction
             .result
-            .filter(|value| f.values[value.0 as usize] == f.return_type);
+            .filter(|value| tracked(f, &f.values[value.0 as usize]));
         let mut output = None;
         match &instruction.kind {
-            InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
+            InstructionKind::StorageLive(local)
+            | InstructionKind::StorageDead(local)
+            | InstructionKind::DropOwnedArray { local } => {
                 state[local.0 as usize] = EMPTY;
             }
             InstructionKind::DropClosure { local } => {
@@ -66,9 +78,60 @@ fn transfer(
                 output = Some(origin);
             }
             InstructionKind::Store { local, value }
-                if f.locals[local.0 as usize].ty == f.return_type =>
+                if tracked(f, &f.locals[local.0 as usize].ty) =>
             {
                 state[local.0 as usize] = take_value(f, state, *value)?;
+            }
+            InstructionKind::MakeOwnedArray { elements } if result.is_some() => {
+                let [source] = elements.as_slice() else {
+                    return Err(bad(f, "forwarded F requires one internal array element"));
+                };
+                output = Some(take_value(f, state, *source)?);
+            }
+            InstructionKind::TakeOwnedArrayElement { local, index } if result.is_some() => {
+                if *index != 0 || !singleton(f, &f.locals[local.0 as usize].ty) {
+                    return Err(bad(
+                        f,
+                        "forwarded F take must name its actual array element",
+                    ));
+                }
+                output = Some(live(state[local.0 as usize], f)?);
+                state[local.0 as usize] = EMPTY;
+            }
+            InstructionKind::StoreOwnedArrayElement {
+                local,
+                index,
+                value,
+            } if singleton(f, &f.locals[local.0 as usize].ty) => {
+                if *index != 0 {
+                    return Err(bad(
+                        f,
+                        "forwarded F refill must name its actual array element",
+                    ));
+                }
+                state[local.0 as usize] = take_value(f, state, *value)?;
+            }
+            InstructionKind::DropOwnedArrayElement { local, index }
+                if singleton(f, &f.locals[local.0 as usize].ty) =>
+            {
+                if *index != 0 {
+                    return Err(bad(
+                        f,
+                        "forwarded F drop must name its actual array element",
+                    ));
+                }
+                state[local.0 as usize] = EMPTY;
+            }
+            InstructionKind::BorrowOwnedArrayElement { local, index, .. }
+                if singleton(f, &f.locals[local.0 as usize].ty) =>
+            {
+                if *index != 0 {
+                    return Err(bad(
+                        f,
+                        "forwarded F borrow must name its actual array element",
+                    ));
+                }
+                live(state[local.0 as usize], f)?;
             }
             InstructionKind::Call {
                 function,
@@ -103,6 +166,9 @@ fn transfer(
                 }
                 budget.spend(arguments.len())?;
                 for value in arguments {
+                    if singleton(f, &f.values[value.0 as usize]) {
+                        return Err(bad(f, "internal F array cannot cross a call boundary"));
+                    }
                     if f.values[value.0 as usize] == f.return_type {
                         take_value(f, state, *value)?;
                     }
@@ -114,7 +180,7 @@ fn transfer(
                 }
                 budget.spend(arguments.len())?;
                 for value in arguments {
-                    if f.values[value.0 as usize] == f.return_type {
+                    if tracked(f, &f.values[value.0 as usize]) {
                         take_value(f, state, *value)?;
                     }
                 }
@@ -137,6 +203,9 @@ fn transfer(
             InstructionKind::MakeClosure { captures, .. } => {
                 budget.spend(captures.len())?;
                 for value in captures {
+                    if singleton(f, &f.values[value.0 as usize]) {
+                        return Err(bad(f, "internal F array cannot be captured"));
+                    }
                     if f.values[value.0 as usize] == f.return_type {
                         take_value(f, state, *value)?;
                     }
@@ -160,6 +229,8 @@ fn transfer(
         let known = matches!(
             instruction.kind,
             InstructionKind::Store { .. }
+                | InstructionKind::MakeOwnedArray { .. }
+                | InstructionKind::StoreOwnedArrayElement { .. }
                 | InstructionKind::Call { .. }
                 | InstructionKind::CallClosureOnce { .. }
                 | InstructionKind::CallClosure { .. }
@@ -168,7 +239,7 @@ fn transfer(
         );
         if !known {
             for operand in instruction_operands(&instruction.kind) {
-                if f.values[operand.0 as usize] == f.return_type
+                if tracked(f, &f.values[operand.0 as usize])
                     && state[value_slot(f, operand)] & PARAMETER != 0
                 {
                     return Err(bad(f, "forwarded F enters an unsupported value operation"));
