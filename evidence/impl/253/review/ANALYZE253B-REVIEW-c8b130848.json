@@ -1,0 +1,252 @@
+{
+  "status": "ChangesRequestedBudgetOnly",
+  "reviewer": "/root/assess_delivery_process",
+  "reviewed_head": "c8b130848d53c0fc292982184e8f64049586ea02",
+  "tree": "2e51a58dedf2516d598b2cb8a60536c6dd986751",
+  "analyze_tree": "b61e962583584c9dad313e8d2dc15459e57ebcd5",
+  "baseline_pass": "../ANALYZE253-PASS-883f55c64.json",
+  "scope": "253-B increment only; no rerun or replacement of prior forward identity matrix",
+  "semantic_status": "Pass",
+  "observations": [
+    {
+      "case": "control_nested_no_keep",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_nested_no_keep",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_uninvoked_body",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_uninvoked_body",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_branch_no_keep",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_branch_no_keep",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_loop_no_keep",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_loop_no_keep",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_direct_borrow",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_direct_borrow",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "reject_direct_drop_old_loan",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_direct_drop_old_loan",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_direct_take_old_loan",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_direct_take_old_loan",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_slot_take_refill_old_loan",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_slot_take_refill_old_loan",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "control_slot_borrow",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_slot_borrow",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "reject_slot_drop_old_loan",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_slot_drop_old_loan",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_call_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_call_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_package_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"package requires finite Copy/complete array fields and at least one explicit Managed resource\", span: Some(Span { file: FileId(0), start: 140, end: 346 }), notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_package_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"package requires finite Copy/complete array fields and at least one explicit Managed resource\", span: Some(Span { file: FileId(0), start: 140, end: 346 }), notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_capture_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_capture_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_store_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_store_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_return_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot cannot escape through return\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_return_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot cannot escape through return\", span: None, notes: [] }])"
+    }
+  ],
+  "source_level": "Syntax -> Expand -> Types -> Analyze, then independently raw/Wire Analyze; no Verify call",
+  "all_modules_have_no_callable_return_contract": true,
+  "uninvoked_body_control": "Root main replaced by constant return; nested actual body retained and checked without external consumer invocation edge",
+  "budget_boundary": {
+    "N": 14112,
+    "N_minus_1": "ResourceLimit only",
+    "fresh_N": "same candidate",
+    "limitation": "Exact charged threshold cannot prove uncharged BTreeSet membership work is bounded correctly"
+  },
+  "findings": [
+    {
+      "id": "AN253B-R1",
+      "kind": "prepayment",
+      "location": "owned_callbacks.rs:174-176 and 333-335",
+      "evidence": "New candidate classification calls both growing BTreeSet.contains operations without budget.lookup; local_profiles performs them before type_work. private_slots repeats classification for public/local/value/operand/terminator positions with only fixed per-instruction/operand fees. budget.rs:100-102 explicitly charges logarithmic lookup levels.",
+      "minimal_fix": "Use one prepaid candidate helper with mutable Budget and budget.lookup before membership, or an upfront prepaid dense closure membership table; preserve admission semantics."
+    }
+  ],
+  "limitations": [
+    "Package carrier escape rejects at the earlier unsupported aggregate-type boundary, not the new operand guard.",
+    "No full suite or native execution."
+  ],
+  "production_modified": false,
+  "artifacts_sha256": {
+    "B-probe-c8b130848-final.log": "52c8d30168af5461015fc7a15dfff377975eb8f2576fef8f2ed0a91d1740b758",
+    "B-probe-c8b130848-initial.log": "a4d05b209cddf338e2afea0a71260713cec01c38370ded16b60a5a49698c1d34",
+    "B-probe-c8b130848.log": "a4d05b209cddf338e2afea0a71260713cec01c38370ded16b60a5a49698c1d34",
+    "control_branch_no_keep.typed.txt": "3235b19361b0b01f59b46dd08f7b773c59ba520e67b19c35e71c47eaa12c965e",
+    "control_branch_no_keep.wire": "46e988185d2bbdc56db533dfc72c491291f0c46f52bb4950eba56bf70d8bab99",
+    "control_direct_borrow.typed.txt": "bb29fa887f4dc39f22f533085d27c58417738ed0b4d4da8aa816ecb233cb71b4",
+    "control_direct_borrow.wire": "f0df9849e598881a3f52a0cb6c8fda77e3b5afd2e65abc0309aaef8561df7d72",
+    "control_loop_no_keep.typed.txt": "9febb388eabd4152791c44cf279c4890ef0fbe54d00677396bcacf2fcc07ba5a",
+    "control_loop_no_keep.wire": "e9c1bd4c8636d0b9299ff8f506d6b8cc0e14abe85e5c4652b807a56ba3ed54fc",
+    "control_nested_no_keep.typed.txt": "306fedf76dd4efe40e7b23d00e9faa1135bb0c924ed8ba8bd93dab9ad59f895b",
+    "control_nested_no_keep.wire": "6552f4d8d8ef1d7a39ae80001f012a30101c507650f868b3c52160514e163f83",
+    "control_slot_borrow.typed.txt": "a145261c194de8f487bfe6c86e151dd124d49f6b40236bdd98a43bc97ae18999",
+    "control_slot_borrow.wire": "ebdbace517f042833cb7218ddf3b38f5ce579c23014b65b104d1a40bdff159c8",
+    "control_uninvoked_body.typed.txt": "94bdcbeb40f8a6ffaa14141c3d52be80c1bb80ed859791a9e642ca4294c4b492",
+    "control_uninvoked_body.wire": "5aa4be1fe0709cc7b4650b194be55972e1e3911412bb378e25cb56b6e6675e4f",
+    "probe-initial.rs": "f28a8de02e2a61673ab837b4edc008b0d9444f7d30ceff736cfd0a01ce64374c",
+    "reject_carrier_call_escape.typed.txt": "3c1fcdef4868c1ed8d22b9f57b0aaa8d90d2e1b2d7b4f73aeb9737b52adf4b59",
+    "reject_carrier_call_escape.wire": "e197010fbff26fa33361e9efc03e74cb182b70b0f334733227af4646205d642b",
+    "reject_carrier_capture_escape.typed.txt": "0cdb3c314d7ede7bf814db536940fa58b0c3c77ccc4ef24ace69f5e5e6efa89b",
+    "reject_carrier_capture_escape.wire": "31cd807c97d27b2d1c84713376d8a1043bd0908c9077075bea6ea929f959b03d",
+    "reject_carrier_package_escape.typed.txt": "0be58fc9e34681895c4d10bb03abeece58faad0a434e99e76dad4b547a90a59c",
+    "reject_carrier_package_escape.wire": "95b61f8de4c2ea2138bc1c0a3fb52553c610aad0926476b5ea8e4df62c2cc1d3",
+    "reject_carrier_return_escape.typed.txt": "b6f7f8ca9b4efbfdb15361e97e3908432dd0ddaaa4bdcbc018fc8d8612b125ef",
+    "reject_carrier_return_escape.wire": "bdac8ad737d55440acd006638c50201fe0e03e7041f11e5d55991608bb722e0a",
+    "reject_carrier_store_escape.typed.txt": "8248e75643afec4eadd0387ca0913fb8ebcc8cc4aef3e37790e4a6aca090a260",
+    "reject_carrier_store_escape.wire": "1c2831ff42bfc20edfe659ca19a9827c19ce3a634bda3e223ff64db11fafa37c",
+    "reject_direct_drop_old_loan.typed.txt": "5861b31caee5e30de0eade075972d5c2a72f82f255a59efb0f63412a5b5c0952",
+    "reject_direct_drop_old_loan.wire": "93f1c98146b4bfaa7a9fc14448a4fa9015cf58289c8ab0a4c593df923e011f23",
+    "reject_direct_take_old_loan.typed.txt": "f966784fe44fa96192f710b5cc7ff41f72f0bcba23a27b79f9acbbc7871c8247",
+    "reject_direct_take_old_loan.wire": "8b04928c27cef64d61d541975cded810a0567f2cc043a705dd9cb205c8d445c8",
+    "reject_slot_drop_old_loan.typed.txt": "911ebb34a23fa30d709a27f9906163b21ee4bd9e64bc97e8c96be0fece20de48",
+    "reject_slot_drop_old_loan.wire": "611d4616b3d44917e0868aab1108b71bebdb724d83c09753ea2870f825b226ab",
+    "reject_slot_take_refill_old_loan.typed.txt": "4a0b4288dddeb67d93693ad8690d31f3d00ee4151c82010ddf649e4b0e3b196e",
+    "reject_slot_take_refill_old_loan.wire": "aa069ffb8cf3212e929841a429bae4fa0834792931cc4ef1456d5b3b0aed294c"
+  },
+  "probe_sha256": "1084536930a20163ef2441966bfba0d6fdf8ad3d202f5ee80f042df8e4b51f3e"
+}

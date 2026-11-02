@@ -1,0 +1,10 @@
+   Compiling zil-analyze v0.1.0 (/workspace/zil-253/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 7.43s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-253/debug/deps/zil_analyze-aa0422b5c4d89887)
+
+running 1 test
+253 raw owning slot Analyze N=2193; N-1 ResourceLimit only; fresh N identical; incremental stale loan rejected
+test forward::tests::forward_work_is_per_request_exact_and_not_a_cached_permission ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.01s
+

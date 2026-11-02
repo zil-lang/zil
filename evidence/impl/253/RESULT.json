@@ -1,8 +1,8 @@
 {
   "slice": 253,
-  "status": "author-bounded-validation-pass; independent incremental review pending",
-  "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02",
-  "production_analyze_tree": "b61e962583584c9dad313e8d2dc15459e57ebcd5",
+  "status": "author bounded validation pass; 253-B budget review repair pending independent revalidation",
+  "production_commit": "6d4e8016fc4714cf3111fcfb6a6e766ea2209839",
+  "production_analyze_tree": "2df4f100c79d985e20693efb4a1845327780df2d",
   "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
   "scope": "Independent Analyze implementation and bounded source/raw/Wire regressions. No formal full suite or native execution claimed. Verify evidence only separately attributed where an existing budget probe invokes it.",
   "environment": {
@@ -16,57 +16,68 @@
     {
       "command": "cargo test -p zil-analyze --lib forward::tests --offline --locked -j 2 -- --nocapture",
       "passed": 14,
-      "log": "final/kernel.log"
+      "log": "final/kernel.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo test -p zil-driver --test impl253_source --offline --locked -j 2 -- --nocapture",
       "passed": 9,
-      "log": "final/source.log"
+      "log": "final/source.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo test -p zil-analyze --lib resource_tests --offline --locked -j 2 -- --nocapture",
       "passed": 15,
-      "log": "final/resource-neighbors.log"
+      "log": "final/resource-neighbors.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo test -p zil-analyze --test budgets --offline --locked -j 2 -- --nocapture",
       "passed": 12,
-      "log": "final/budget-neighbors.log"
+      "log": "final/budget-neighbors.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo test -p zil-driver --test impl247_source --offline --locked -j 2 -- --nocapture",
       "passed": 7,
-      "log": "final/owned-source-neighbors.log"
+      "log": "final/owned-source-neighbors.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo test -p zil-analyze --test impl220_factory --offline --locked -j 2 -- --nocapture",
       "passed": 11,
-      "log": "final/fresh-kernel.log"
+      "log": "final/fresh-kernel.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo test -p zil-driver --test impl220_factory_source --offline --locked -j 2 -- --nocapture",
       "passed": 5,
-      "log": "final/fresh-source.log"
+      "log": "final/fresh-source.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo test -p zil-driver --test impl206_budget old_flat_package_records_exact_phase_boundaries --offline --locked -j 2 -- --nocapture",
       "passed": 1,
-      "log": "final/legacy-flat.log"
+      "log": "final/legacy-flat.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo test -p zil-driver --test impl235_budget legacy_flat_capture_boundaries_unchanged --offline --locked -j 2 -- --nocapture",
       "passed": 1,
-      "log": "final/legacy-capture.log"
+      "log": "final/legacy-capture.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo clippy -p zil-analyze --all-targets --offline --locked -j 2 -- -D warnings",
       "status": "pass",
-      "log": "final/clippy.log"
+      "log": "final/clippy.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     },
     {
       "command": "cargo fmt --all -- --check",
       "status": "pass",
-      "log": "final/fmt.log"
+      "log": "final/fmt.log",
+      "production_commit": "c8b130848d53c0fc292982184e8f64049586ea02"
     }
   ],
   "budgets": {
@@ -123,7 +134,8 @@
       },
       {
         "fixture": "impl253 raw owning slot",
-        "N": 2163
+        "N": 2193,
+        "prior_c8_N": 2163
       },
       {
         "fixture": "impl247 original event reply source",
@@ -156,7 +168,6 @@
   "test_expectation_correction": "Original unused/uninitialized Array1 local retained explicitly as raw/Wire positive; original old function bytes and failure log preserved under pre-fix. State and a separately added Array2 remain negative. A new raw/Wire MakeOwnedArray SSA leaked without tracked slot or cleanup is independently rejected by resource conservation.",
   "cross_layer": "Source tests stop at Analyze and replay Wire31 through Analyze. Frozen modules/oracles unmodified. Constructor/call actual signatures, responsibility facts and window roots reconstructed locally; Verify proof is not consumed.",
   "artifacts": "final/stages.tar.gz with per-file final/stages-sha256.json; direct-source TypedIR, candidate, Wire and project stage reports",
-  "bounded_test_count": 75,
   "production_changes_after_bound_commit": false,
   "receipt_test_changes": "Test-only followup adds fixed reviewer Wire31 regressions, explicit empty-slot positive/leaked SSA negative, and raw/Wire replay plus artifacts for the real stale-loan source.",
   "production_file_sha256": {
@@ -173,13 +184,20 @@
     "crates/zil-analyze/src/retained.rs": "858eebf9f00190338b038d4bfc4a285740e762d497de16e4a4c82b7cb44db279",
     "crates/zil-analyze/src/forward.rs": "3369b79f3c487723138e5bb0be8371c0e50cc334c15dabe53c4bb833d2b826a1",
     "crates/zil-analyze/src/lib.rs": "4383195e109685f117457e803533bd981453947a199d2767a9d2fb4acc3e4148",
-    "crates/zil-analyze/src/owned_callbacks.rs": "51e037e01f4720441d13c9656c534e80de01815bdd1f366fca84fb6e6516e494",
+    "crates/zil-analyze/src/owned_callbacks.rs": "407134086470f4c917bb2c7b1f2af543cd128563aad1d907c7ff1223dbe64daa",
     "crates/zil-analyze/src/helpers.rs": "aa45b6a99a5d5d5097c39e804a2bce039f4b4aa766a5b429e160480cfc5e159d",
     "crates/zil-analyze/src/resources/sums.rs": "166039aa956e7b4737379c5da85a21836ad078604768b6fe4df212172e78b65c",
     "crates/zil-analyze/src/resources/product.rs": "b56db82efcb9c1b3f59957333205344bbf577550c883b471b0b17aedfd0b8f84",
     "crates/zil-analyze/src/resources/summary_graph.rs": "97cb60c86c69f627a5b4e397ad39310d2568d4b970ba5b302b7f715640bec98a"
   },
   "artifact_sha256": {
+    "budget-fix/clippy.log": "37d5cac93488bf4ea7ee00fcba42e62948cb4f7de75fd5d3ca5a4c9ee2f7a301",
+    "budget-fix/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "budget-fix/new-kernel.log": "c7954e131a427d75cc8281716256868e33d8572a46c24ab72ec9e53a83c8cc1b",
+    "budget-fix/old-flat.log": "99654a00e5ac14e70c747d1e8149f5ddcc7543e6a5ee560aba17b8992f9be438",
+    "budget-fix/old-fresh.log": "b1d6f0f66cbfd2278a3654fd17f71e4a920608d8b1b6f0b026022f7bae22f1a6",
+    "budget-fix/source.log": "6dd4a65a30c19af01fed4f90af269a3fa0f5f0e99b38679d075822be6b51af67",
+    "budget-fix/structural-source.log": "94964d874394eb5ac190f7132fd571fc6502738daabf2f0bc812885c10352c87",
     "final/budget-neighbors.log": "9dbe088feef198575b419d68ade51381a9eba9820bac0bc277dabb1c2017cae6",
     "final/clippy.log": "cbf4ddb9c8b075e960f2a02ba13164934d0c2fe6df52f449eeca4264b2f8b54a",
     "final/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -193,6 +211,7 @@
     "final/source.log": "8e869765c4f66f1cc1c760f3962491ea7fe6c6fa98c5b0405985cf0b5f3eccca",
     "final/stages-sha256.json": "72ca7b0f18bdaf9fae0ca4845d322cbe78f90b2aadd74d17851293aae0caae66",
     "final/stages.tar.gz": "d02509d02cbaa3c97dcd5c0eae5b690d3cea53a3abbc070cd5e9deb3153485b0",
+    "history/RESULT-22d3f2716.json": "3d59cfe7cad5a25526839ee7f78b2c955f420a23c384e1a2ac28caeb8c6c256c",
     "pre-fix/legacy-array1-expectation-test.rs": "f3ca9c8fca74db1e48bf0f9ff5c0d235cac35d4fa79365cfec88cdd203053a06",
     "pre-fix/legacy-array1-expectation.log": "25e4b3f56637ba48d50b437fdd9e2d83c4f0d5d959eec9e425fe1c0bba6a313b",
     "pre-fix/nested-no-keep-analyze-rejection.log": "332d3af6a7ecfe1f11e69de840e780f2095dadead48e2b6457d9e93f4e6879af",
@@ -207,8 +226,76 @@
     "review/ANALYZE253-CORRECTION-AND-R3.json": "dd74f34f2de4a1e0e197ff5804d2e48af12e9866d627082582e4a1739c94c414",
     "review/ANALYZE253-PASS-883f55c64.json": "590f80d5d126c6b4bb44c69f8866de4952de032e9810e32a6ea0234d8c950ef8",
     "review/ANALYZE253-REVIEW-6c1cf564c.json": "6f59f539e987b073f91569e46bab3f285c404acfa90c30e45d938fdde3a72d01",
+    "review/ANALYZE253B-REVIEW-c8b130848.json": "869d70cc068d1a5b955399a482671dafed24a29e9026aa3e3f415f04e074b439",
     "review/fixed-883-RESULT.json": "aada5705a2bb53ab565d24a196d2feebf4486bf16632ce2fdab4f14d7b8c5271",
     "review/fixed-883-probe.log": "ef9c85b8004877fac3ec2a057d2d2c0af4c68c095881cc8f610b79c78ac397b7",
     "review/original-operands-fail.log": "b69f1515d86ce3aa5152b3173b12ebc906d01ad637ce56ee231b19828b4496b1"
+  },
+  "prior_production_commit": "c8b130848d53c0fc292982184e8f64049586ea02",
+  "prior_receipt": "history/RESULT-22d3f2716.json; original 75-test receipt and c8 stage artifacts preserved unchanged",
+  "prior_bounded_test_count": 75,
+  "incremental_bounded_test_count": 5,
+  "incremental_checks": [
+    {
+      "command": "cargo test -p zil-analyze --lib forward::tests::forward_work_is_per_request_exact_and_not_a_cached_permission --offline --locked -j 2 -- --nocapture",
+      "passed_tests": 1,
+      "status": "pass",
+      "log": "budget-fix/new-kernel.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl253_source source_forward_has_an_exact_fresh_request_budget --offline --locked -j 2 -- --nocapture",
+      "passed_tests": 1,
+      "status": "pass",
+      "log": "budget-fix/source.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl253_source private_replacement_slots_need_no_helper_edge_even_in_a_closure_body --offline --locked -j 2 -- --nocapture",
+      "passed_tests": 1,
+      "status": "pass",
+      "log": "budget-fix/structural-source.log"
+    },
+    {
+      "command": "cargo test -p zil-analyze --test impl220_factory raw_and_wire_replay_charge_exact_n_and_reject_one_less --offline --locked -j 2 -- --nocapture",
+      "passed_tests": 1,
+      "status": "pass",
+      "log": "budget-fix/old-fresh.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl206_budget old_flat_package_records_exact_phase_boundaries --offline --locked -j 2 -- --nocapture",
+      "passed_tests": 1,
+      "status": "pass",
+      "log": "budget-fix/old-flat.log"
+    },
+    {
+      "command": "cargo clippy -p zil-analyze --lib --offline --locked -j 2 -- -D warnings",
+      "passed_tests": 0,
+      "status": "pass",
+      "log": "budget-fix/clippy.log"
+    },
+    {
+      "command": "cargo fmt -p zil-analyze -- --check",
+      "passed_tests": 0,
+      "status": "pass",
+      "log": "budget-fix/fmt.log"
+    }
+  ],
+  "budget_repair": {
+    "finding": "AN253B-R1: new BTreeSet memberships were not individually prepaid",
+    "repair": "one fallible private_slot_candidate used by every root/parameter/local/output/operand/terminator classification; each BTreeSet.contains is preceded by Budget.lookup for its current size; short circuit retained",
+    "production_scope": "only crates/zil-analyze/src/owned_callbacks.rs",
+    "admission_changed": false,
+    "default_limits_changed": false,
+    "new_raw_owning_slot_N": 2193,
+    "previous_c8_N": 2163,
+    "delta": 30,
+    "N_minus_one": "ResourceLimit only",
+    "fresh_N": "identical candidate",
+    "incremental_stale_loan": "rejected then valid reentry succeeds",
+    "unchanged_controls": {
+      "source_without_slot_N": 995,
+      "old_Fresh_raw_N": 880,
+      "old_flat_Types": 418,
+      "old_flat_Analyze": 8673
+    }
   }
 }

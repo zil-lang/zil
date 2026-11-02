@@ -1,0 +1,11 @@
+   Compiling zil-analyze v0.1.0 (/workspace/zil-253/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/zil-253/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 11.02s
+     Running tests/impl253_source.rs (/workspace/.zil-env/target-253/debug/deps/impl253_source-523c899956394cd0)
+
+running 1 test
+253 original source Analyze N=995; Parameter contracts=1; N-1 ResourceLimit only; fresh N identical
+test source_forward_has_an_exact_fresh_request_budget ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.01s
+
