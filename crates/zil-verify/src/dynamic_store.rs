@@ -321,6 +321,18 @@ fn check_element_admission(
             span,
         ));
     }
+    // Sealed Store definitions run before the raw closure signature trees
+    // receive their module-wide bounded preflight. Their callback IDs are
+    // checked after that preflight in closures::check_definitions; ordinary
+    // Store uses arrive later and can check the exact signature here.
+    if limits.is_none() {
+        if let Some(id) = callback {
+            closures::old_container_signature(module, id, span, budget)?;
+        }
+        if let Some(id) = second {
+            closures::old_container_signature(module, id, span, budget)?;
+        }
+    }
     // Resource definitions are admitted before the module-wide closure pass.
     // Only the new callback route walks reachable capture metadata here, with
     // the caller's depth limits before any recursive Copy/layout predicate.
