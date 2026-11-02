@@ -560,6 +560,7 @@ impl Builder<'_, '_> {
         }
         self.function.return_type = Type::Closure(id);
         self.function.callable_return_contract = Some(CallableReturnContract {
+            source: zil_ir::CallableReturnSource::Fresh,
             lending_captures: Vec::new(),
             closure: id,
             kind: bound.kind,

@@ -72,6 +72,12 @@ pub(super) fn check_claim(
             "a callable result requires its independently checkable return contract",
         )
     })?;
+    if c.source != CallableReturnSource::Fresh {
+        return Err(unsupported(
+            "parameter callable returns require an independent instance proof",
+            Some(f.span),
+        ));
+    }
     if f.foreign.is_some()
         || f.environment.is_some()
         || f.callable_contract.is_some()
