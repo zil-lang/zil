@@ -472,7 +472,7 @@ fn imported_template_stays_in_its_definition_module_and_keeps_caller_type() {
     };
     assert_eq!(type_arguments, &vec![caller_element(caller).clone()]);
     assert!(
-        matches!(&callee.kind, CoreExprKind::Member { object, member }
+        matches!(&callee.kind, CoreExprKind::Member { object, member, owner: None }
         if member == "reserve" && matches!(&object.kind, CoreExprKind::Name(name) if name == "ops"))
     );
     for (_, map) in &modules {

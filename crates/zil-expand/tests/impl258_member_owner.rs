@@ -104,8 +104,14 @@ fn unused_generic_definition_cannot_substitute_same_shaped_wrong_owner() {
     let (source, mut module) = parsed(
         "struct A{pub x:i32}\nstruct B{pub x:i32}\nfn unused<T:Copy>(a:A,v:T)->i32{return a.x}\nfn main()->i32{return 0}",
     );
+    let mut positive = module.clone();
+    attach(return_member(&mut positive, 2), named("A", source.span()));
+    assert!(zil_expand::expand(&source, &positive).is_ok());
     attach(return_member(&mut module, 2), named("B", source.span()));
-    assert!(zil_expand::expand(&source, &module).is_err());
+    let errors = zil_expand::expand(&source, &module).unwrap_err();
+    assert!(errors.iter().any(
+        |error| error.message == "generic body types must agree before concrete instantiation"
+    ));
 }
 #[test]
 fn selection_budget_and_remap_visit_the_complete_nested_owner_type() {
@@ -239,6 +245,7 @@ fn module_qualified_owner_keeps_same_type_identity_as_parameter() {
         panic!()
     };
     assert_eq!(owner, &read.parameters[0].ty);
+    assert_eq!(owner, &Type::Named("$module0_A".into()));
 }
 #[test]
 fn compound_place_preserves_owner_on_target_and_read_without_ascription() {
@@ -395,4 +402,77 @@ fn project_owner_work_is_accumulated_across_modules() {
             .collect::<Vec<_>>()
     );
     println!("member owner two-module Expand work N={n}; N-1 ResourceLimit; fresh=N");
+}
+#[test]
+fn self_owner_prepays_actual_host_name_before_substitution_and_clone() {
+    let mut measured = Vec::new();
+    for name in ["A", "NominalWithALongerActualDefinitionName"] {
+        let (source, mut module) = parsed(&format!(
+            "struct {name}{{pub x:i32;fn read(self:&Self)->i32{{return self.x}}}}"
+        ));
+        let s::ItemKind::Aggregate(a) = &mut module.items[0].kind else {
+            panic!()
+        };
+        let s::ItemKind::Function(f) = &mut a.methods[0].kind else {
+            panic!()
+        };
+        let s::FunctionBody::Block(b) = &mut f.body else {
+            panic!()
+        };
+        let s::StmtKind::Return(Some(s::Expr {
+            kind: s::ExprKind::Member { member, .. },
+            ..
+        })) = &mut b.statements[0].kind
+        else {
+            panic!()
+        };
+        attach(member, named("Self", source.span()));
+        let n = boundary(|n| {
+            zil_expand::expand_with_map_limits(
+                &source,
+                &module,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            )
+            .is_ok()
+        });
+        let core = zil_expand::expand_with_map_limits(
+            &source,
+            &module,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .unwrap()
+        .core;
+        let C::Member {
+            owner: Some(Type::Named(owner)),
+            object,
+            ..
+        } = &core_return(&core.functions[0]).kind
+        else {
+            panic!()
+        };
+        assert_eq!(owner, name);
+        assert!(matches!(&object.kind,C::Name(n) if n=="self"));
+        assert!(
+            zil_expand::expand_with_map_limits(
+                &source,
+                &module,
+                &Limits {
+                    max_analysis_steps: n - 1,
+                    ..Limits::default()
+                }
+            )
+            .unwrap_err()
+            .iter()
+            .all(|e| e.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        measured.push(n);
+    }
+    assert!(measured[1] > measured[0]);
+    println!("member owner Self actual host work N={measured:?}; N-1 ResourceLimit");
 }

@@ -1168,7 +1168,11 @@ impl Expander<'_> {
                             max_call_depth: self.member_owner_depth,
                             ..Limits::default()
                         };
-                        let cost = match ct_selection::type_cost(owner, &limits) {
+                        let cost = match ct_selection::member_owner_type_cost(
+                            owner,
+                            self.self_type.as_ref(),
+                            &limits,
+                        ) {
                             Ok(cost) => cost,
                             Err(errors) => {
                                 self.diagnostics.extend(errors);
