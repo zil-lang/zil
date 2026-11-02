@@ -848,7 +848,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             None
         };
         if let Some(modes) = &mut self.factory_modes {
-            modes.record(&kind, result, self.closures, span)?;
+            modes.record(&kind, result, self.closures, span, self.forwarding_modes)?;
         }
         self.function.blocks[self.current.expect("live block").0 as usize]
             .instructions
