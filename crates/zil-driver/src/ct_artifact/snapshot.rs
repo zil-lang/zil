@@ -122,8 +122,16 @@ pub(super) fn freeze_shapes(
         let previous = ready.clone();
         ready.retain(|(module, candidate)| {
             let (mi, ii) = candidates[&(*module, candidate.clone())];
-            referenced_item(&syntax[mi].items[ii]).iter().all(|path| match path.as_slice() {
+            let item = &syntax[mi].items[ii];
+            let type_parameter = |name: &str| match &item.kind {
+                ItemKind::Aggregate(declaration) => declaration.generics.iter().any(|param| param.name == name),
+                ItemKind::Enum(declaration) => declaration.generics.iter().any(|param| param.name == name),
+                ItemKind::TypeAlias(declaration) => declaration.generics.iter().any(|param| param.name == name),
+                _ => false,
+            };
+            referenced_item(item).iter().all(|path| match path.as_slice() {
                 [single] if builtin(single) => true,
+                [single] if type_parameter(single) => true,
                 [single] => previous.contains(&(*module, single.clone())),
                 [alias, member] => aliases.get(module).and_then(|table| table.get(alias)).is_some_and(|target| previous.contains(&(*target, member.clone()))),
                 _ => false,

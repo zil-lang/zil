@@ -26,6 +26,13 @@ impl Builder<'_> {
             let prefix = format!("@module{}:", module.core.module_id.0);
             for aggregate in &module.core.aggregates {
                 if name == aggregate.name || name == format!("{prefix}{}", aggregate.name) {
+                    // This instance shares its declaration span with the
+                    // generic template. The concrete argument lineage is
+                    // not recorded in CoreAggregate, so a bare nominal ID
+                    // would collapse distinct Type values.
+                    if aggregate.name.starts_with("$generic_") {
+                        return Err(reject("instantiated generic type has no canonical argument lineage in this shape view"));
+                    }
                     if let Some(symbol) = self.index.symbol_at(module.core.module_id, aggregate.span) { return Ok(symbol); }
                 }
             }
