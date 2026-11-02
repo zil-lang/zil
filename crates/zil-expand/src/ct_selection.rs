@@ -590,6 +590,9 @@ pub fn walk_expression<V: Visitor + ?Sized>(
         s::ExprKind::MetaBlock(b) => v.block(b, depth + 1)?,
         s::ExprKind::Quote { template, .. } => {
             quote_tree(v, &template.tree, depth + 1)?;
+            for site in &template.name_sites {
+                v.node(site.span, depth + 1)?;
+            }
             for hole in &template.holes {
                 v.node(hole.span, depth + 1)?;
                 v.expression(&hole.value, depth + 2)?;
