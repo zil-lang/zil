@@ -94,6 +94,14 @@ impl CompilationSession {
         loaded: Option<LoadedProject>,
     ) -> CompileReport {
         let start = Instant::now();
+        let mut effective_options = options.clone();
+        if let Some(lock) = &options.syntax_lock {
+            let mut input = b"zil/syntax-lock-build-input/v1\0".to_vec();
+            input.extend_from_slice(&options.build_inputs.0);
+            input.extend_from_slice(&lock.fingerprint.0);
+            effective_options.build_inputs = Fingerprint::of(&input);
+        }
+        let options = &effective_options;
         let fallback = SourceUnit::new(FileId(0), project.root, "<project>", "");
         let root = project
             .modules
@@ -441,7 +449,9 @@ impl CompilationSession {
         if options.stop_after == Stage::Parse {
             return Ok(());
         }
-        let imports = resolve_imports(project, &parsed, &options.limits)?;
+        let syntax_modules = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let locked = options.syntax_lock.as_ref().map(|lock| lock.resolve(&project.modules, &syntax_modules, &project.paths)).transpose()?;
+        let imports = resolve_imports(project, &parsed, &options.limits, locked.as_ref())?;
         let selection_needed = project
             .modules
             .iter()
@@ -729,6 +739,9 @@ fn validate_sources<'a>(
         }
     }
     for (path, id) in &project.paths {
+        if path.first().is_some_and(|segment| segment == "std") {
+            return Err(reject("E-STD-RESERVED", None, "std modules are reserved for the compiler's closed CT interface"));
+        }
         take(
             &mut work,
             path.len(),
@@ -797,11 +810,13 @@ fn resolve_imports(
     project: &ProjectSources,
     parsed: &[Arc<ParseResult>],
     limits: &Limits,
+    locked: Option<&zil_ir::ct_artifact::CtLockedProviderRegistry>,
 ) -> CompileResult<Vec<Vec<CoreImport>>> {
     let mut remaining = limits.max_nodes;
     let mut graph = Vec::new();
     for module in parsed {
         let mut imports = Vec::new();
+        let mut syntax_aliases = BTreeSet::new();
         for item in &module.module.items {
             let ast::ItemKind::Import(import) = &item.kind else {
                 continue;
@@ -813,6 +828,12 @@ fn resolve_imports(
                 "project import edge budget exceeded",
             )?;
             unsupported_import(item, import)?;
+            if import.path.first().is_some_and(|part| part == "std") {
+                if import.syntax || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax")) {
+                    return Err(reject("E-STD-IMPORT", Some(item.span), "only ordinary imports of std.meta and std.syntax are available"));
+                }
+                continue;
+            }
             let id = project.paths.get(&import.path).copied().ok_or_else(|| {
                 reject(
                     "E-MODULE-NOT-FOUND",
@@ -825,6 +846,16 @@ fn resolve_imports(
                 .clone()
                 .or_else(|| import.path.last().cloned())
                 .ok_or_else(|| reject("E-MODULE-PATH", Some(item.span), "empty import path"))?;
+            if import.syntax {
+                if !syntax_aliases.insert(alias) {
+                    return Err(reject("E-SYNTAX-ALIAS", Some(item.span), "duplicate syntax provider alias"));
+                }
+                let path = import.path.join(".");
+                if !locked.is_some_and(|registry| registry.entries.iter().any(|entry| entry.path == path && entry.export == "default")) {
+                    return Err(reject("E-SYNTAX-LOCK-MISSING", Some(item.span), format!("syntax provider {path} needs a locked default entry")));
+                }
+                continue;
+            }
             imports.push(CoreImport {
                 alias,
                 module: id,
@@ -837,11 +868,11 @@ fn resolve_imports(
     Ok(graph)
 }
 
-fn unsupported_import(item: &ast::Item, import: &ast::Import) -> CompileResult<()> {
-    if item.public || import.syntax {
+fn unsupported_import(item: &ast::Item, _import: &ast::Import) -> CompileResult<()> {
+    if item.public {
         return Err(vec![Diagnostic::unsupported(
             Phase::Expand,
-            "public reexports and syntax imports require a later module interface",
+            "public reexports require a later module interface",
             Some(item.span),
         )]);
     }
@@ -1163,6 +1194,12 @@ fn load_sources(
                     Phase::Expand,
                     "project import path depth budget exceeded",
                 ));
+            }
+            if import.path.first().is_some_and(|part| part == "std") {
+                if import.syntax || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax")) {
+                    return Err(reject("E-STD-IMPORT", Some(item.span), "only ordinary imports of std.meta and std.syntax are available"));
+                }
+                continue;
             }
             // Resolve even an already registered path: the root is preseeded
             // in `paths`, but that must not hide a second directory entry.
