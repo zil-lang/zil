@@ -637,10 +637,6 @@ fn syntax_tree_valid(tree: &CtSyntaxTree, raw: &CtArtifactProgram) -> bool {
     if tree.nodes.len() as u64 > raw.budget.max_generated_nodes
         || !origins_valid(&tree.origins, raw.budget.max_generated_nodes)
         || tree.roots.iter().any(|r| r.0 as usize >= tree.nodes.len())
-        || (!matches!(
-            tree.category,
-            CtSyntaxCategory::StmtList | CtSyntaxCategory::ItemList
-        ) && tree.roots.len() != 1)
     {
         return false;
     }
