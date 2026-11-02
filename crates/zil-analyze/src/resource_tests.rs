@@ -387,6 +387,9 @@ fn impl247_owned_callback_definition_and_actual_call_are_checked_independently()
         inner: Box::new(Type::I32),
     });
     assert!(analyze(&malformed, &Limits::default()).is_err());
+    let mut immutable = owned_callback_fixture(CallableKind::FnMut, 1);
+    immutable.functions[0].locals[0].mutable = false;
+    assert!(analyze(&immutable, &Limits::default()).is_err());
 }
 
 #[test]
