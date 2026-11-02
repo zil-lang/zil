@@ -1833,7 +1833,8 @@ impl<'a> Engine<'a> {
                 else_value,
             } => {
                 self.expr(condition, env, depth + 1)?;
-                let ty = self.expr_expected(then_value, env, expected, depth + 1)?;
+                let ty =
+                    self.expr_expected(then_value, env, expected.or(error_context), depth + 1)?;
                 // The erased E!R expectation does not make its first payload
                 // the expected nominal type of a distinct enum alternative.
                 // Preserve the old same-nominal/context-free path exactly.
@@ -1850,6 +1851,7 @@ impl<'a> Engine<'a> {
                 {
                     [error.as_ref(),result.as_ref()].into_iter().find(|payload|
                         matches!(&grouped(payload).kind,TypeKind::Named{path,..} if path.as_slice()==[name]))
+                        .or(error_context)
                 } else {
                     expected.or(ty.as_ref())
                 };

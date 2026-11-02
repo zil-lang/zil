@@ -17,6 +17,7 @@ fn generic_enum_error_injection_preserves_native_error_and_success_arms() {
         include_str!("../../../tests/generic-error-enum/helper.zil"),
         include_str!("../../../tests/generic-error-enum/annotated.zil"),
         include_str!("../../../tests/generic-error-enum/unique-context.zil"),
+        include_str!("../../../tests/generic-error-enum/unique-context-if.zil"),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(

@@ -12,6 +12,7 @@ fn generic_enum_error_context_uses_one_complete_nominal_type() {
         "enum Box<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Box<i32>!Box<i64>{return Box::<i64>.None} fn main(){let f=()->i32=>0;run(f)}",
         "enum Box<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Box<i32>!Box<i64>{return Box.Some(7)} fn main(){let f=()->i32=>0;run(f)}",
         include_str!("../../../tests/generic-error-enum/unique-context.zil"),
+        include_str!("../../../tests/generic-error-enum/unique-context-if.zil"),
         "enum Choice<T>{None;Some(T)} fn run<F:Fn()->i32>(f:F)->Choice<i32>!i32{f();return (Choice.None)} fn main()->i32{let f=()->i32=>1;run(f);return 0}",
         "enum Fault{NoMemory} enum Note{Ready} fn run<F:Fn()->i32>(f:F)->Fault!Note{return Note.Ready} fn main(){let f=()->i32=>0;run(f)}",
         "enum Fault{NoMemory} fn run<F:Fn()->i32>(f:F)->Fault!i32{return Fault.NoMemory} fn main(){}",
