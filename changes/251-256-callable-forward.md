@@ -19,3 +19,5 @@
 ## 草案负例范围纠正
 
 原冻结 `mut_declared_actual_fn_shared_call.zil` 的 outer 按值接收FnMut并返回i32，超出本片裸F返回且落在既有Unsupported helper profile；不能为了草案预期SafeReject改诊断类别或悄悄扩大准入。原源、原预期与实际Unsupported历史Fail均保留，不计本片语义拒绝通过。以同一声明FnMut、outer直接返回F的合法范围正反对照承担模式保持义务：`let current=keep(f)`后共享调用应拒绝，`var current`后合法调用再返必须真实通过且保持后态。该调整纠正草案的前置假设，不改变原native oracle；按值FnMut普通数据结果helper仍记B0未完成能力，不因本片完成而删除。
+
+新合法范围的let/var对照已实测：var在O0/O2输出123M并正确销毁；let命中了真实缺可写位置，但Expand把该明确非法调用误分类为Unsupported。252仅对已准入的Parameter返回profile将此诊断分类修为SafeReject并保留原失败；不放宽旧FnMut数据结果header，不增加扫描或改变native预期。
