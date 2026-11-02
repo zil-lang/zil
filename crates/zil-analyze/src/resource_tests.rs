@@ -643,9 +643,136 @@ fn scoped_helper_rebuilds_repeatable_f_and_single_consumed_body_flow() {
     }
 }
 
+fn scoped_helper_with_local_body(kind: CallableKind, borrowed_scalar: bool) -> TypedModule {
+    let mut module = scoped_helper(kind);
+    if borrowed_scalar {
+        let fixture = scoped_fixture(4);
+        module.closures[1].captures = fixture.closures[1].captures.clone();
+        module.functions[2] = fixture.functions[2].clone();
+    }
+    let f = &mut module.functions[0];
+    f.parameters.truncate(1);
+    let contract = f.callable_contract.as_mut().unwrap();
+    contract.roles.truncate(1);
+    let CallableTraces::Flow(flow) = &mut contract.traces else {
+        unreachable!()
+    };
+    flow.nodes[2].calls.clear();
+    let mut preparation = vec![inst(None, InstructionKind::StorageLive(LocalId(1)))];
+    let captures = if borrowed_scalar {
+        let local = LocalId(f.locals.len() as u32);
+        f.locals.push(LocalDecl {
+            id: local,
+            name: "unrelated".into(),
+            ty: Type::I32,
+            mutable: false,
+            span: s(),
+        });
+        let number = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let address = ValueId(f.values.len() as u32);
+        f.values.push(module.closures[1].captures[0].clone());
+        preparation.extend([
+            inst(None, InstructionKind::StorageLive(local)),
+            inst(Some(number), InstructionKind::Constant(Constant::I32(7))),
+            inst(
+                None,
+                InstructionKind::Store {
+                    local,
+                    value: number,
+                },
+            ),
+            inst(Some(address), InstructionKind::BorrowLocal { local }),
+        ]);
+        let at = f.blocks[0].instructions.len() - 1;
+        f.blocks[0]
+            .instructions
+            .insert(at, inst(None, InstructionKind::StorageDead(local)));
+        vec![address]
+    } else {
+        vec![]
+    };
+    let made = ValueId(f.values.len() as u32);
+    f.values.push(Type::Closure(ClosureId(1)));
+    preparation.extend([
+        inst(
+            Some(made),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(1),
+                captures,
+            },
+        ),
+        inst(
+            None,
+            InstructionKind::Store {
+                local: LocalId(1),
+                value: made,
+            },
+        ),
+    ]);
+    if kind != CallableKind::FnOnce && !borrowed_scalar {
+        f.blocks[0].instructions[1].kind = InstructionKind::Load(LocalId(1));
+    }
+    f.blocks[0].instructions.splice(1..1, preparation);
+    let at = f.blocks[0].instructions.len() - 1;
+    f.blocks[0]
+        .instructions
+        .insert(at, inst(None, InstructionKind::StorageDead(LocalId(1))));
+    module
+}
+
+#[test]
+fn scoped_f_only_helper_tracks_local_concrete_body_without_inventing_a_role() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        for borrowed_scalar in [false, true] {
+            let module = scoped_helper_with_local_body(kind, borrowed_scalar);
+            let limits = Limits::default();
+            let expected = analyze(&module, &limits).unwrap();
+            let bytes = zil_ir::wire::encode_module_candidate(
+                &module,
+                &CandidatePlan::empty_for(&module),
+                &limits,
+            )
+            .unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            assert_eq!(analyze(&decoded, &limits).unwrap(), expected);
+            let mut forged = module.clone();
+            let CallableTraces::Flow(flow) = &mut forged.functions[0]
+                .callable_contract
+                .as_mut()
+                .unwrap()
+                .traces
+            else {
+                unreachable!()
+            };
+            flow.nodes[2].calls.push(CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnOnce,
+            });
+            assert!(analyze(&forged, &limits).is_err());
+            let mut reused = module;
+            let f = &mut reused.functions[0];
+            let at = f.blocks[0]
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::WithForeignCallback { .. }))
+                .unwrap();
+            let mut second = f.blocks[0].instructions[at].clone();
+            second.result = Some(ValueId(f.values.len() as u32));
+            f.values.push(Type::Tuple(vec![Type::Bool, Type::I32]));
+            f.blocks[0].instructions.insert(at + 1, second);
+            assert!(analyze(&reused, &limits).is_err());
+        }
+    }
+}
+
 #[test]
 fn scoped_windows_and_flow_spend_the_current_request_and_recover_fresh() {
-    for module in [scoped_fixture(4), scoped_helper(CallableKind::Fn)] {
+    for module in [
+        scoped_fixture(4),
+        scoped_helper(CallableKind::Fn),
+        scoped_helper_with_local_body(CallableKind::FnOnce, true),
+    ] {
         let expected = analyze(&module, &Limits::default()).unwrap();
         let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
         while low < high {
