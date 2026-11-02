@@ -70,10 +70,7 @@ impl Builder<'_, '_> {
                     && self.sequenced_values.contains(&local);
             if self.affine_type(&ty)
                 || sequenced_owner
-                || self
-                    .factory_modes
-                    .as_ref()
-                    .is_some_and(|modes| modes.locals.contains_key(&local))
+                || (self.forwarding_modes && self.factory_declared_kind(e)?.is_some())
             {
                 if let Some(expected) = expected {
                     self.same(&ty, expected, e.span)?;
