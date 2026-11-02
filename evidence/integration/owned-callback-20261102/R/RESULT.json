@@ -1,0 +1,172 @@
+{
+  "source_commit": "288e29628389d83a335783d5488be39f22b2008b",
+  "scope": "formal common-candidate gates",
+  "checks": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 5.802,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 568.98,
+      "log_sha256": "62d510afb977cbee5d0844812bee1010ef3c3bb8828ef2ffe525df184977a27a",
+      "test_summaries": 403,
+      "totals": {
+        "passed": 3632,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 67.136,
+      "log_sha256": "7c710b181c400851750e29eaeadfef917d5bbed0aa9a3d970cc623a8c970250a",
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "reference",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--no-default-features",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 506.65,
+      "log_sha256": "060cb25519bfe466ce2164064f7fc6d2d864fa9ca2e9a4911a17de3d64230be4",
+      "test_summaries": 403,
+      "totals": {
+        "passed": 3529,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "text-reference",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "text-reference"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 11.615,
+      "log_sha256": "71df1651bbbce9785cade0f6c7887c8c8ff12d032226525812c50ff9108f3711",
+      "test_summaries": 10,
+      "totals": {
+        "passed": 64,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "migration",
+      "command": [
+        "python3",
+        "tools/llvm/test_validate_migration.py"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 0.367,
+      "log_sha256": "57ca7986b70d57787a9595384b63ac81be52723fb2b5faafeb019ffb2a84f9f1",
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "transport",
+      "command": [
+        "python3",
+        "tools/ci/test_evidence_transport.py"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 0.519,
+      "log_sha256": "024ec5702695be7502263a4d7cd00ff63d0ea14b2347e526012f86820766d33c",
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    }
+  ],
+  "status": "Pass"
+}

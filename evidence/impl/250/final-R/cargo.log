@@ -1,0 +1,22 @@
+   Compiling zil-verify v0.1.0 (/workspace/zil-250/crates/zil-verify)
+   Compiling zil-expand v0.1.0 (/workspace/zil-250/crates/zil-expand)
+   Compiling zil-lower v0.1.0 (/workspace/zil-250/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/zil-250/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-250/crates/zil-backend-llvm)
+   Compiling zil-types v0.1.0 (/workspace/zil-250/crates/zil-types)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-250/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/zil-250/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 27.76s
+     Running tests/impl250_consumer.rs (/workspace/.zil-env/target-250/debug/deps/impl250_consumer-d1298073dd3dbc11)
+
+running 7 tests
+test original_r_owned_event_copy_result ... ok
+test original_r_owned_reply_from_once_capture ... ok
+test original_r_event_reply_dispatch ... ok
+test three_module_owned_error_payload_is_prepared_before_cleanup ... ok
+test three_module_owned_error_actual_allocator_failures ... ok
+test three_module_predeclared_native_matrix ... ok
+test three_module_actual_allocator_failures_follow_the_frozen_source_oracle ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.58s
+

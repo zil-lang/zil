@@ -1,0 +1,419 @@
+{
+  "reviewer": "/root/callback_consumer",
+  "implementation_author": "/root/callback_frontend",
+  "implementation_commit": "975b7f8890bdcd18ddac90b013fac22f3e21c31f",
+  "tested_commit": "288e29628389d83a335783d5488be39f22b2008b",
+  "verdict": "Pass",
+  "review_scope": "Non-author review of 246 Expand/Types production diff, independently authored admission/mode/profile cases and same-R source/native consumer.",
+  "production_paths": [
+    "crates/zil-expand/src",
+    "crates/zil-types/src"
+  ],
+  "production_exact_match": true,
+  "production_match_command": "git diff --quiet 975b7f8890bdcd18ddac90b013fac22f3e21c31f 288e29628389d83a335783d5488be39f22b2008b -- crates/zil-expand/src crates/zil-types/src",
+  "commands": [
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-250 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl250-final-R/frontend cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl246_front --test review246_owned_signatures -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-250 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl250-final-R/old-product cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl240_front old_product_type_budget_and_new_sum_boundary_retry_are_exact -- --exact --nocapture"
+  ],
+  "test_counts": {
+    "selected": 16,
+    "executed": 16,
+    "passed": 16,
+    "failed": 0,
+    "author_frontend": 12,
+    "independent_signature": 3,
+    "old_product_control": 1
+  },
+  "independent_source_programs": 11,
+  "budget": {
+    "evidence_level": "actual production Expand/Types fresh requests",
+    "new_owned_dispatch": {
+      "types": 1497,
+      "expand": 1124,
+      "n_minus_one": "ResourceLimit",
+      "fresh_n": "identical IR"
+    },
+    "old_copy_scalar": {
+      "expand": 489,
+      "types": 420
+    },
+    "registered_copy_enum": {
+      "expand_baseline": 649,
+      "expand_final": 665,
+      "types": 610,
+      "registered_delta": 16,
+      "registration_commit": "1500b52634525cbea82846a0b86a1cdbe5172943"
+    },
+    "old_product_types": 418,
+    "nested_sum_types": 5594,
+    "default_limits_changed": false
+  },
+  "resolved_findings": [
+    {
+      "problem": "Outer ordinary function with a closure rejected a valid owning ErrorUnion result",
+      "fix": "Solver::new independently admits and prepays errors::supported after old gate fails",
+      "evidence": "owned_error_main normal and injected failures pass on R"
+    },
+    {
+      "problem": "Explicit shared Product address capture admitted an owning callback result",
+      "pre_fix_evidence": "evidence/reviews/246/early-shared-product/review.json",
+      "fix": "New non-Copy result capture check includes actual shared Package address captures",
+      "evidence": "Independent shared-product-owning-result now Types E-UNSUPPORTED with shared Product capture reason"
+    },
+    {
+      "problem": "Data signature could conceal Closure through Store",
+      "fix": "Owned data classification independently rejects hidden callable storage while preserving ordinary Store eligibility",
+      "evidence": "Author raw/source isolation cases pass and production diff inspected"
+    }
+  ],
+  "diagnostic_migration": {
+    "case": "two-public-roles",
+    "early_stage": "expand",
+    "final_stage": "types",
+    "final_reason": "finite nonescaping callable roles",
+    "why": "Final frontend preserves legacy multi-F Copy Expand fees; complete unused Core helper still rejects the new owning profile independently in Types."
+  },
+  "closed_profiles": [
+    {
+      "case": "review246-address-mixed-64355",
+      "expected_category": "Unsupported",
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "closure signatures require finite Copy or one-layer Copy/slice-address arguments; address arguments require a Copy result",
+            "span": {
+              "file": 0,
+              "start": 65,
+              "end": 108
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {},
+        "input_fingerprint": "5a5d71069e7d27282b76414173ecfc6f41fec7dc66452a8e3ff45c327c0253e9",
+        "seconds": 0.001889501,
+        "cache_hit": false,
+        "commands": [],
+        "native_codegen": null,
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "review246.zil"
+        },
+        "scalar_interfaces": []
+      },
+      "source": "resource R{n:i32}package Event{manages r:R;n:i32}fn main(){let f=(event:Event,p:&i32)->Event=>{return event}}"
+    },
+    {
+      "case": "review246-borrowed-public-64355",
+      "expected_category": "Unsupported",
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "one or two finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented",
+            "span": {
+              "file": 0,
+              "start": 49,
+              "end": 122
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {},
+        "input_fingerprint": "ef56a18076aaa15ecf5b40f3de17e8aae7d1d406ea599b2b1ba56a5fd3e0650f",
+        "seconds": 0.001588658,
+        "cache_hit": false,
+        "commands": [],
+        "native_codegen": null,
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "review246.zil"
+        },
+        "scalar_interfaces": []
+      },
+      "source": "resource R{n:i32}package Event{manages r:R;n:i32}fn dispatch<F:Fn(Event)->Event>(f:&F,event:Event)->Event{return f(event)}fn main(){}"
+    },
+    {
+      "case": "review246-enum-capture-64355",
+      "expected_category": "Unsupported",
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "capture requires a finite Copy value, finite resource, explicit-move Package or one address layer",
+            "span": {
+              "file": 0,
+              "start": 154,
+              "end": 159
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {},
+        "input_fingerprint": "223fee8e3d9600ddf114aac1b62092524521ac1c86b7af900ed1686b0d58639c",
+        "seconds": 0.001557556,
+        "cache_hit": false,
+        "commands": [],
+        "native_codegen": null,
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "review246.zil"
+        },
+        "scalar_interfaces": []
+      },
+      "source": "resource R{n:i32}package Event{manages r:R;n:i32}enum Choice{Empty,Data(Event)}fn main(){let value=Choice.Empty;let f=move(event:Event)->Event=>{let held=value;return event}}"
+    },
+    {
+      "case": "review246-shared-product-owning-result-64355",
+      "expected_category": "Unsupported",
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "shared Product capture environments require Copy results",
+            "span": {
+              "file": 0,
+              "start": 113,
+              "end": 166
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {},
+        "input_fingerprint": "c07e3a07649f129a8af9b4ce65234c59ddc1dd83980ed4add854579fe9f76f16",
+        "seconds": 0.001895667,
+        "cache_hit": false,
+        "commands": [],
+        "native_codegen": null,
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "review246.zil"
+        },
+        "scalar_interfaces": []
+      },
+      "source": "resource R{n:i32}package Event{manages r:R;n:i32}fn main(){let parent=Event{r:R{n:1},n:2};let view=&parent;let f=move(event:Event)->Event=>{let n=view.n;return event}}"
+    },
+    {
+      "case": "review246-store-capture-owning-result-64355",
+      "expected_category": "Unsupported",
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "owned Store capture environments require Copy results",
+            "span": {
+              "file": 0,
+              "start": 101,
+              "end": 159
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {},
+        "input_fingerprint": "be57eecb3d2ffdfb9ba6d1680437539fa28c4fa1e07e7fe4e9227f2e8136552b",
+        "seconds": 0.00148319,
+        "cache_hit": false,
+        "commands": [],
+        "native_codegen": null,
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "review246.zil"
+        },
+        "scalar_interfaces": []
+      },
+      "source": "resource R{n:i32}package Event{manages r:R;n:i32}fn main(){let values:Store<Event>=store_new();let f=move(event:Event)->Event=>{store_len(values);return event}}"
+    },
+    {
+      "case": "review246-two-public-roles-64355",
+      "expected_category": "Unsupported",
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "one or two finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented",
+            "span": {
+              "file": 0,
+              "start": 49,
+              "end": 155
+            },
+            "notes": []
+          }
+        ],
+        "artifacts": {},
+        "input_fingerprint": "7f02902e533a19cab8765bbe17d0e935ae5bddffd697a68991aa3a491ff0be94",
+        "seconds": 0.002686295,
+        "cache_hit": false,
+        "commands": [],
+        "native_codegen": null,
+        "disk_cache": "disabled",
+        "query_events": [
+          {
+            "phase": "parse",
+            "disposition": "executed"
+          },
+          {
+            "phase": "expand",
+            "disposition": "executed"
+          },
+          {
+            "phase": "ct",
+            "disposition": "executed"
+          },
+          {
+            "phase": "types",
+            "disposition": "executed"
+          }
+        ],
+        "verification_runs": 0,
+        "source_files": {
+          "0": "review246.zil"
+        },
+        "scalar_interfaces": []
+      },
+      "source": "resource R{n:i32}package Event{manages r:R;n:i32}fn dispatch<F:FnOnce(Event)->Event,G:FnOnce(Event)->Event>(f:F,g:G,event:Event)->Event{return g(f(event))}fn main(){}"
+    }
+  ],
+  "actual_mode_typed_ir": [
+    {
+      "case": "review246-fn-64355",
+      "actual_typed_ir": "evidence/reviews/246/final-R/review246-fn-64355.typed.txt.gz",
+      "sha256": "7251b09bff20c8b24ba38d93439f096523223aa255a52e1b88ba76b5568c6e5a"
+    },
+    {
+      "case": "review246-fnmut-64355",
+      "actual_typed_ir": "evidence/reviews/246/final-R/review246-fnmut-64355.typed.txt.gz",
+      "sha256": "806d68ed85da8e2dc34f0f9f3d3d5d39e9955e697758c9acf1e9ac1087fa9cad"
+    },
+    {
+      "case": "review246-once-64355",
+      "actual_typed_ir": "evidence/reviews/246/final-R/review246-once-64355.typed.txt.gz",
+      "sha256": "2ceec6ad3ff957b762dd0d432813314037b6a82154f01a6b08316552f37e72b2"
+    }
+  ],
+  "native_evidence": "evidence/impl/250/final-R/RESULT.json",
+  "native_evidence_reuse": "Same exact R; 122 native executions include cross-module FnOnce dispatch, concrete Fn/FnMut repeat calls and owning error results. This review does not rerun or add those counts.",
+  "limitations": [
+    "This is a limited 246 review, not formal workspace acceptance.",
+    "Registered Copy Enum Expand cost increases by 16; no blanket zero-cost or compile-speed claim."
+  ]
+}

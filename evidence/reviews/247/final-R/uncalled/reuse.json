@@ -1,0 +1,9 @@
+{
+  "status": "Pass",
+  "tested_production_commit": "fa8638df7e9fc30e717e23191252bb1600d1e42f",
+  "common_candidate": "288e29628389d83a335783d5488be39f22b2008b",
+  "production_inputs_identical": true,
+  "native_executions": 4,
+  "not_added_to_consumer_122": true,
+  "existing_boundary": "Explicit defer inside generic callable helpers still rejects under the prior review237 boundary; the accepted at-most-once probe puts defer in the ordinary caller."
+}

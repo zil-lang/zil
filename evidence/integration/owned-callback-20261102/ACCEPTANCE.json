@@ -1,0 +1,45 @@
+{
+  "status": "Pass",
+  "source_commit": "288e29628389d83a335783d5488be39f22b2008b",
+  "baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+  "scope": "Synchronous owned Event to concrete/public dispatch to owned Reply, including failure cleanup",
+  "main_integration": "Pending remote CI and merge",
+  "formal_gates": "evidence/integration/owned-callback-20261102/R/RESULT.json",
+  "consumer": "evidence/impl/250/final-R/ACCEPTANCE.json",
+  "reviews": {
+    "246": "evidence/reviews/246/final-R/review.json",
+    "247": "evidence/reviews/247/final-R/review.json",
+    "248": "evidence/reviews/248/final-R/review.json",
+    "249": "evidence/reviews/249/final-R/review.json",
+    "250": "evidence/reviews/250/final-R/review.json"
+  },
+  "implementation_commits": {
+    "246": "975b7f8890bdcd18ddac90b013fac22f3e21c31f",
+    "247": "78e1f5f8ad09ae0f4eda01ebb52bb8b220db35f9",
+    "248": "468e1d1c73b1b3a76afe991c043c1fc1f9b05a48",
+    "249": "6be4c3a53deed003ca30566f10ce3c92002a2de6",
+    "250": "c174538a391142b422e0dfc1e8a607465135a149"
+  },
+  "schema_wire": 30,
+  "native_consumer": {
+    "executions": 122,
+    "allocator_runs": 90,
+    "actual_failures": 38,
+    "live_after_each": 0
+  },
+  "registered_cost_delta": {
+    "source_sha256": "90c3c8f22ea7b635e6af18637e552f8027b1266dbac09d1073cb17b139e2cf90",
+    "phase": "Expand",
+    "before": 649,
+    "after": 665,
+    "default_limits_changed": false
+  },
+  "full_language": "NotSatisfied",
+  "product_gate": "NotRun",
+  "native_windows": "NotRun",
+  "next": [
+    "Same-instance bare F to F transfer",
+    "Type/Syntax",
+    "Long-lived external callback lifecycle"
+  ]
+}
