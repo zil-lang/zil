@@ -285,7 +285,7 @@ impl Parser<'_> {
             })?;
             StmtKind::Match { value, arms }
         } else if self.eat_word("with") {
-            let name = self.ident()?;
+            let name = self.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
             self.expect(Symbol::Eq)?;
             self.newlines();
             let value = self.expr(false)?;
@@ -458,7 +458,7 @@ impl Parser<'_> {
     pub(super) fn meta_iteration(&mut self) -> P<(String, Expr)> {
         self.expect(Symbol::LParen)?;
         self.scoped(true, |p| {
-            let binding = p.ident()?;
+            let binding = p.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
             p.expect_word("in")?;
             let value = p.expr(true)?;
             p.expect(Symbol::RParen)?;

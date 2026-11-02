@@ -152,3 +152,87 @@ fn syntax_is_contextual_in_standard_paths_aliases_and_ordinary_names() {
     };
     assert!(import.syntax);
 }
+#[test]
+fn name_holes_have_exact_binding_namespaces() {
+    let ExprKind::Quote{template,..}=expression("quote<ItemList>{import $(module) as $(alias)\nfn f<$(ty),life $(lft),#$(constant):i32>(){let c=($(param):i32)=>$(body);with $(guard)=a{work()}}}").kind else {panic!()};
+    let expected = [
+        (QuoteNameNamespace::Module, QuoteNameRole::Reference),
+        (QuoteNameNamespace::Module, QuoteNameRole::Binding),
+        (QuoteNameNamespace::Type, QuoteNameRole::Binding),
+        (QuoteNameNamespace::Label, QuoteNameRole::Binding),
+        (QuoteNameNamespace::Value, QuoteNameRole::Binding),
+        (QuoteNameNamespace::Value, QuoteNameRole::Binding),
+    ];
+    for (hole, (namespace, role)) in template.holes.iter().zip(expected) {
+        assert_eq!(hole.kind, QuoteHoleKind::Ident { namespace, role });
+    }
+    assert_eq!(template.holes.len(), 8);
+    assert_eq!(template.holes[6].kind, QuoteHoleKind::Expr);
+    assert_eq!(
+        template.holes[7].kind,
+        QuoteHoleKind::Ident {
+            namespace: QuoteNameNamespace::Value,
+            role: QuoteNameRole::Binding
+        }
+    );
+}
+#[test]
+fn quote_name_sites_are_original_tokens_and_exclude_hole_expressions() {
+    let text = "fn build(){return quote<Expr>{free + $(inside.member)}}";
+    let source = SourceUnit::new(FileId(3), ModuleId(7), "sites.zil", text);
+    let parsed = parse(&source);
+    assert!(parsed.is_ok(), "{:?}", parsed.diagnostics);
+    let ItemKind::Function(f) = &parsed.module.items[0].kind else {
+        panic!()
+    };
+    let FunctionBody::Block(b) = &f.body else {
+        panic!()
+    };
+    let StmtKind::Return(Some(e)) = &b.statements[0].kind else {
+        panic!()
+    };
+    let ExprKind::Quote { template, .. } = &e.kind else {
+        panic!()
+    };
+    assert_eq!(template.name_sites.len(), 1);
+    let site = template.name_sites[0];
+    let token = &parsed.tokens[site.token_index as usize];
+    assert_eq!(token.span, site.span);
+    assert_eq!(token.text(text), "free");
+}
+#[test]
+fn quote_receipt_exact_n_minus_one_and_fresh_limits() {
+    use zil_base::Limits;
+    for text in [
+        "fn f(){return quote<Expr>{x+$(value)}}",
+        "fn f(){return quote<ItemList>{pub fn $(name)(x:$(ty)){ $(body)\n }}}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "budget.zil", text);
+        let full = parse(&source);
+        assert!(full.is_ok(), "{:?}", full.diagnostics);
+        let n = full.usage.nodes_required;
+        let exact = Limits {
+            max_nodes: n,
+            ..Limits::default()
+        };
+        let pass = crate::parse_with_limits(&source, &exact);
+        assert!(pass.is_ok(), "N{n}: {:?}", pass.diagnostics);
+        assert_eq!(pass.module, full.module);
+        let fail = crate::parse_with_limits(
+            &source,
+            &Limits {
+                max_nodes: n - 1,
+                ..Limits::default()
+            },
+        );
+        assert!(
+            fail.diagnostics
+                .iter()
+                .any(|d| d.code == "E-RESOURCE-LIMIT")
+        );
+        let fresh = crate::parse_with_limits(&source, &exact);
+        assert!(fresh.is_ok());
+        assert_eq!(fresh.usage, pass.usage);
+        println!("quote parser N={n}, N-1=ResourceLimit, fresh=N");
+    }
+}

@@ -6,6 +6,8 @@ pub mod ct_selection;
 mod enums;
 mod foreign;
 mod generics;
+mod generated_spans;
+pub use generated_spans::remap_generated_spans;
 mod mapping;
 mod modules;
 mod project_traits;
