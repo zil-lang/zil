@@ -95,42 +95,44 @@ fn a_generic_cleanup_has_its_own_legal_loop_control_boundary() {
 
 #[test]
 fn generic_defer_keeps_the_existing_direct_callable_helper_boundary() {
-    for (label, text) in [
-        (
-            "helper-local-capture-F-boundary",
-            "fn cleanup<F:Fn()->i32>(callback:F)->i32{defer{var i=0;while i<2{i+=1;if i==1{continue}break}callback()}return 0}fn make()->impl Fn()->i32{return move()=>7}fn main()->i32{return cleanup(make())}",
-        ),
-        (
-            "helper-local-empty-capture-boundary",
-            "fn cleanup<F:Fn()->i32>(callback:F)->i32{defer{var i=0;while i<2{i+=1;if i==1{continue}break}}return 0}fn make()->impl Fn()->i32{return move()=>7}fn main()->i32{return cleanup(make())}",
-        ),
-    ] {
-        let out = dir(label);
-        fs::write(out.join("source.zil"), text).unwrap();
-        let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "generic_defer.zil", text),
-            &CompileOptions {
-                stop_after: Stage::Verify,
-                emit_dir: Some(out.join("phases")),
-                ..CompileOptions::default()
-            },
-        );
-        fs::write(out.join("report.json"), report.to_json()).unwrap();
-        assert_eq!(
-            report.status,
-            ResultCategory::Unsupported,
-            "{}",
-            report.to_json()
-        );
-        assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|d| d.phase == Phase::Types && d.category == ResultCategory::Unsupported)
-        );
-        assert_eq!(report.verification_runs, 0);
-        assert!(!report.artifacts.contains_key("executable"));
-    }
+    let (label, text) = (
+        "helper-local-capture-F-boundary",
+        "fn cleanup<F:Fn()->i32>(callback:F)->i32{defer{var i=0;while i<2{i+=1;if i==1{continue}break}callback()}return 0}fn make()->impl Fn()->i32{return move()=>7}fn main()->i32{return cleanup(make())}",
+    );
+    let out = dir(label);
+    fs::write(out.join("source.zil"), text).unwrap();
+    let report = compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "generic_defer.zil", text),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            emit_dir: Some(out.join("phases")),
+            ..CompileOptions::default()
+        },
+    );
+    fs::write(out.join("report.json"), report.to_json()).unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == Phase::Types && d.category == ResultCategory::Unsupported)
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(!report.artifacts.contains_key("executable"));
+}
+
+#[test]
+fn generic_defer_without_role_captures_executes_in_a_callable_helper() {
+    native(
+        "helper-local-empty-capture",
+        "fn cleanup<F:Fn()->i32>(callback:F)->i32{defer{var i=0;while i<2{i+=1;if i==1{continue}break}}return 0}fn make()->impl Fn()->i32{return move()=>7}fn main()->i32{return cleanup(make())}",
+        b"",
+    );
 }
 
 #[test]

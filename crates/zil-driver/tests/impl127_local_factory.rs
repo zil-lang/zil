@@ -207,6 +207,46 @@ fn parameter_alias_retains_parameter_origin() {
     trace(&source, CallableKind::Fn, &[1]);
     native(&project(&[("main", &source)]), "parameter-alias", "42\n", 0);
 }
+
+#[test]
+fn ordinary_factory_keeps_legacy_fn_move_alias_observations() {
+    let text = "fn make(seed:i32)->impl Fn()->i32{return move()->i32=>seed}\nfn run<F:Fn()->i32>(f:F)->i32{let local=make(5);let alias=f;return alias()+alias()+local()}fn main()->i32{let f=make(10);return run(f)-25}\n";
+    let input = project(&[("app", text)]);
+    let case = Case::new("legacy-fn-move-alias");
+    success(&compile(&input, &case, None));
+}
+
+#[test]
+fn ordinary_factory_keeps_legacy_fn_borrowed_alias_observations() {
+    let text = "fn make(seed:i32)->impl Fn()->i32{return move()->i32=>seed}\nfn run<F:Fn()->i32>(f:F)->i32{let local=make(5);let alias=&f;return f()+alias()+local()}fn main()->i32{let f=make(10);return run(f)-25}\n";
+    let input = project(&[("app", text)]);
+    let case = Case::new("legacy-fn-borrowed-alias");
+    success(&compile(&input, &case, None));
+}
+
+#[test]
+fn concrete_helper_local_closure_keeps_copy_fn_observations() {
+    for (label, body, expected) in [
+        ("direct", "return f()+local()", 15),
+        (
+            "move-alias",
+            "let alias=f;return alias()+alias()+local()",
+            25,
+        ),
+        (
+            "borrowed-alias",
+            "let alias=&f;return f()+alias()+local()",
+            25,
+        ),
+    ] {
+        let text = format!(
+            "fn run<F:Fn()->i32>(f:F)->i32{{let local=()->i32=>5;{body}}}fn main()->i32{{let f=()->i32=>10;return run(f)-{expected}}}"
+        );
+        let input = project(&[("app", &text)]);
+        let case = Case::new(&format!("local-copy-fn-{label}"));
+        success(&compile(&input, &case, None));
+    }
+}
 #[test]
 fn four_modules_clean_called_unused_and_error_environments() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -395,4 +435,80 @@ fn local_invocations_pay_each_independent_phase_budget() {
         records.push(format!("{{\"phase\":\"{phase:?}\",\"N\":{low},\"N_minus_1\":{},\"at_N\":\"Pass\",\"at_N_minus_1\":\"ResourceLimit\",\"retry\":\"Pass\"}}", low - 1));
     }
     case.write("boundaries.json", format!("[{}]\n", records.join(",")));
+}
+
+#[test]
+fn concrete_copy_fn_observations_and_aliases_reach_native() {
+    let backend = if cfg!(feature = "llvm-api") {
+        zil_driver::NativeBackend::LlvmApi
+    } else {
+        zil_driver::NativeBackend::Clang
+    };
+    let sources = [
+        (
+            "observe",
+            include_str!(
+                "../../../tests/foreign-scoped-callback/callable-composition/alias-controls/observe.zil"
+            ),
+        ),
+        (
+            "move-alias",
+            include_str!(
+                "../../../tests/foreign-scoped-callback/callable-composition/alias-controls/move_alias.zil"
+            ),
+        ),
+        (
+            "borrow-alias",
+            include_str!(
+                "../../../tests/foreign-scoped-callback/callable-composition/alias-controls/borrow_alias.zil"
+            ),
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (label, text) in sources {
+        let input = project(&[(label, text)]);
+        let verified = compile_project(&input, &CompileOptions::default());
+        if verified.status != ResultCategory::Success || verified.verification_runs != 1 {
+            failures.push(format!("{label}: {}", verified.to_json()));
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let case = Case::new(&format!(
+                "copy-fn-{label}-{}-{optimization:?}",
+                backend.name()
+            ));
+            let report = compile_project(
+                &input,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(case.0.join("program")),
+                    emit_dir: Some(case.0.join("phases")),
+                    ..CompileOptions::default()
+                },
+            );
+            case.write("compile.json", report.to_json());
+            success(&report);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            if cfg!(feature = "llvm-api") {
+                assert!(!codegen.object_reports.is_empty());
+                assert!(codegen.object_reports.iter().all(|r| {
+                    r.contains("\"input_kind\":\"builder\"")
+                        && r.contains("\"parse_ns\":0,")
+                        && r.contains("\"verify_before_after\":true")
+                }));
+            }
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            // Source arithmetic: 10+5=15 or 10+10+5=25; main subtracts it.
+            assert_eq!(output.status.code(), Some(0), "{label}: {output:?}");
+            assert!(output.stdout.is_empty(), "{label}: {output:?}");
+            assert!(output.stderr.is_empty(), "{label}: {output:?}");
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

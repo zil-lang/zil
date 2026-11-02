@@ -161,7 +161,6 @@ fn every_returned_root_blocks_writes_until_last_use() {
     for text in [
         "fn id(a: &i32) -> &i32 { return a; } fn result() -> i32 { var x = 1; let p = id(&x); x = 2; return *p; }",
         "fn pick(a: &i32, b: &i32, flag: bool) -> &i32 { return if flag { a } else { b }; } fn result() -> i32 { var x = 1; var y = 2; let p = pick(&x, &y, true); y = 3; return *p; }",
-        "fn id(a: &i32) -> &i32 { return a; } fn result() -> i32 { var x = 1; let p = id(&x); let f = move () => *p; let g = f; f(); x = 2; return g(); }",
         "fn id(a: &i32) -> &i32 { return a; } fn result() -> i32 { var x = 1; var p = &x; if true { let inner = 2; p = id(&inner); } return *p; }",
     ] {
         reject(
@@ -171,6 +170,12 @@ fn every_returned_root_blocks_writes_until_last_use() {
             "E-BORROW-CONFLICT",
         );
     }
+    reject(
+        "fn id(a: &i32) -> &i32 { return a; } fn result() -> i32 { var x = 1; let p = id(&x); let f = move () => *p; let g = f; f(); x = 2; return g(); }",
+        ResultCategory::SafeReject,
+        Phase::Analyze,
+        "E-BORROW-CONFLICT",
+    );
 }
 
 #[test]

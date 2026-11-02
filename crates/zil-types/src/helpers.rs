@@ -10,6 +10,10 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 use zil_base::{ModuleId, NodeId};
 
+#[cfg(test)]
+#[path = "helper_capture_tests.rs"]
+mod capture_tests;
+
 pub(super) type TemplateKey = (ModuleId, NodeId);
 pub(super) type Tables = BTreeMap<ModuleId, BTreeMap<String, Signature>>;
 /// The finite two-type profile uses a fixed ordered binding vector. Empty
@@ -696,10 +700,10 @@ impl Builder<'_, '_> {
         if let Some(id) = self.closures.helper_instances.get(&(key, bindings)) {
             return Ok(*id);
         }
-        if !self.closures.active_helpers.is_empty() {
+        if self.closures.active_helpers.contains(&key) {
             return Err(unsupported(
                 span,
-                "actual helper instance is not available from the finite dependency plan",
+                "recursive local callable instantiation has no finite dependency plan",
             ));
         }
         self.instantiate_plan(plan::Node::Callable((key, bindings)), span)?;
@@ -713,13 +717,21 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn instantiate_plan(&mut self, root: plan::Node, span: Span) -> R<()> {
-        if !self.closures.active_helpers.is_empty() {
-            return Err(unsupported(
-                span,
-                "actual template instance is absent from the finite dependency plan",
-            ));
-        }
-        let order = plan::order(root, self.closures, self.limits, span)?;
+        let nested_limits;
+        let limits = if self.closures.active_helpers.is_empty() {
+            self.limits
+        } else {
+            self.closures.snapshot(1, span)?;
+            nested_limits = Limits {
+                max_call_depth: self
+                    .limits
+                    .max_call_depth
+                    .saturating_sub(self.closures.active_helpers.len()),
+                ..self.limits.clone()
+            };
+            &nested_limits
+        };
+        let order = plan::order(root, self.closures, limits, span)?;
         for node in order {
             match node {
                 plan::Node::Callable((key, bindings)) => {
@@ -1156,6 +1168,64 @@ fn scoped_body_sources(
     Ok(sources)
 }
 
+// These are ordinary Flow-profile operations. Owning State constructors use
+// their separate declaration/position checker, outside this helper Flow path.
+fn ordinary_aggregate_inputs<'a>(
+    instruction: &'a Instruction,
+    function: &TypedFunction,
+) -> Option<(&'a [ValueId], Option<&'a ValueId>)> {
+    let inputs = match &instruction.kind {
+        InstructionKind::MakeOwnedArray { elements } if elements.len() == 1 => return None,
+        InstructionKind::StoreOwnedArrayElement {
+            local, index: 0, ..
+        } if matches!(
+            function.locals[local.0 as usize].ty,
+            Type::Array { length: 1, .. }
+        ) =>
+        {
+            return None;
+        }
+        InstructionKind::MakePackage { fields }
+        | InstructionKind::MakeManaged { fields }
+        | InstructionKind::MakeAggregate { fields }
+        | InstructionKind::MakeVariant { fields, .. }
+        | InstructionKind::MakeOwnedArray { elements: fields } => (fields.as_slice(), None),
+        InstructionKind::MakeErrorUnion { value, .. }
+        | InstructionKind::StorePackageField { value, .. }
+        | InstructionKind::WriteAddress { value, .. }
+        | InstructionKind::StoreOwnedArrayElement { value, .. }
+        | InstructionKind::OwnedStorePush { value, .. } => (std::slice::from_ref(value), None),
+        InstructionKind::UpdateField {
+            aggregate, value, ..
+        }
+        | InstructionKind::UpdateIndex {
+            aggregate, value, ..
+        } => (std::slice::from_ref(aggregate), Some(value)),
+        _ => return None,
+    };
+    match inputs {
+        ([], None) => None,
+        // This is a constant-time type check within the prepaid instruction
+        // visit. A lone scalar cannot carry a callable role, so it needs no
+        // retained audit entry or second operand visit. Compound inputs keep
+        // the full audit; do not recursively search their shape here.
+        ([value], None)
+            if matches!(
+                function.values[value.0 as usize],
+                Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+            ) =>
+        {
+            None
+        }
+        _ => Some(inputs),
+    }
+}
+
+fn environment_carrier_type(ty: &Type) -> bool {
+    environment_type(ty)
+        || matches!(ty, Type::Array { element, length: 1 } if environment_type(element))
+}
+
 /// Private value provenance, not hidden type identity. Factory calls may
 /// produce the very same ClosureId as the supplied parameter. A monotone union
 /// deliberately rejects a slot that can carry both origins.
@@ -1178,10 +1248,16 @@ fn environment_origins(
     }
     let tables = Rc::clone(&state.helper_tables);
     let mut scoped_bodies = None;
+    let mut concrete_captures = Vec::new();
+    let mut ordinary_aggregates = Vec::new();
     for block in &function.blocks {
         state.snapshot(1, span)?;
         for instruction in &block.instructions {
             state.snapshot(1, instruction.span)?;
+            if ordinary_aggregate_inputs(instruction, function).is_some() {
+                state.snapshot(1, instruction.span)?;
+                ordinary_aggregates.push(instruction);
+            }
             if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
                 if scoped_bodies.is_none() {
                     scoped_bodies = Some(scoped_body_sources(function, state, span)?);
@@ -1190,15 +1266,6 @@ fn environment_origins(
                     plan::tree_work(scoped_bodies.as_ref().unwrap().len()),
                     instruction.span,
                 )?;
-                if !instruction
-                    .result
-                    .is_some_and(|value| scoped_bodies.as_ref().unwrap().contains(&value))
-                {
-                    return Err(unsupported(
-                        instruction.span,
-                        "helper-local nested environments require an additional contract",
-                    ));
-                }
             }
             let Some(result) = instruction.result else {
                 continue;
@@ -1208,12 +1275,27 @@ fn environment_origins(
                 continue;
             }
             values[result.0 as usize] = match &instruction.kind {
-                InstructionKind::MakeClosure { .. } => 16,
+                InstructionKind::MakeClosure { .. } => {
+                    // With body provenance does not grant permission to hide
+                    // either supplied role inside a local environment.
+                    state.snapshot(1, instruction.span)?;
+                    concrete_captures.push(instruction);
+                    if scoped_bodies.as_ref().unwrap().contains(&result) {
+                        16
+                    } else {
+                        32
+                    }
+                }
                 InstructionKind::Load(_)
                 | InstructionKind::TakeLocal { .. }
                 | InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
                 | InstructionKind::ReborrowAddress { .. }
+                | InstructionKind::ReadAddress { .. }
+                | InstructionKind::AddressField { .. }
+                | InstructionKind::AddressIndex { .. }
+                | InstructionKind::ExtractField { .. }
+                | InstructionKind::ExtractIndex { .. }
                 | InstructionKind::TakeOwnedArrayElement { index: 0, .. }
                 | InstructionKind::BorrowOwnedArrayElement { index: 0, .. } => 0,
                 InstructionKind::Call {
@@ -1264,7 +1346,14 @@ fn environment_origins(
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => locals[local.0 as usize],
-                    InstructionKind::ReborrowAddress { address, .. } => values[address.0 as usize],
+                    InstructionKind::ReborrowAddress { address, .. }
+                    | InstructionKind::ReadAddress { address }
+                    | InstructionKind::AddressField { address, .. }
+                    | InstructionKind::AddressIndex { address, .. } => values[address.0 as usize],
+                    InstructionKind::ExtractField { aggregate, .. }
+                    | InstructionKind::ExtractIndex { aggregate, .. } => {
+                        values[aggregate.0 as usize]
+                    }
                     InstructionKind::MakeOwnedArray { ref elements } if elements.len() == 1 => {
                         values[elements[0].0 as usize]
                     }
@@ -1319,6 +1408,41 @@ fn environment_origins(
             break;
         }
     }
+    // Resolve every alias first: a zero mask during convergence grants no
+    // permission to send a supplied role through an ordinary aggregate.
+    for instruction in ordinary_aggregates {
+        let (inputs, extra) = ordinary_aggregate_inputs(instruction, function).unwrap();
+        state.snapshot(
+            inputs.len().saturating_add(usize::from(extra.is_some())),
+            instruction.span,
+        )?;
+        if inputs.iter().chain(extra).any(|value| {
+            let index = value.0 as usize;
+            values[index] & 3 != 0
+                || (environment_carrier_type(&function.values[index])
+                    && !matches!(values[index], 4 | 16 | 32))
+        }) {
+            return Err(unsupported(
+                instruction.span,
+                "supplied callable role cannot enter an ordinary aggregate",
+            ));
+        }
+    }
+    for instruction in concrete_captures {
+        let InstructionKind::MakeClosure { captures, .. } = &instruction.kind else {
+            unreachable!()
+        };
+        state.snapshot(captures.len().saturating_add(1), instruction.span)?;
+        if captures
+            .iter()
+            .any(|value| values[value.0 as usize] & 3 != 0)
+        {
+            return Err(unsupported(
+                instruction.span,
+                "local concrete callable cannot capture a supplied callable role",
+            ));
+        }
+    }
     Ok((locals, values))
 }
 
@@ -1326,6 +1450,7 @@ struct Forwarded {
     position: usize,
     /// Child actual parameter position -> current actual parameter position.
     roles: Vec<(u32, u32)>,
+    concrete: BTreeSet<u32>,
 }
 fn forwarded_contract(
     function: &TypedFunction,
@@ -1342,10 +1467,21 @@ fn forwarded_contract(
         return Ok(None);
     };
     state.snapshot(arguments.len(), instruction.span)?;
-    if !arguments
-        .iter()
-        .any(|value| environment_type(&function.values[value.0 as usize]))
-    {
+    let mut has_environment = false;
+    for value in arguments {
+        if environment_type(&function.values[value.0 as usize]) {
+            has_environment = true;
+        } else if origins[value.0 as usize] & 3 != 0
+            || (environment_carrier_type(&function.values[value.0 as usize])
+                && !matches!(origins[value.0 as usize], 4 | 16 | 32))
+        {
+            return Err(unsupported(
+                instruction.span,
+                "nested helper cannot receive an aggregate containing a supplied callable role",
+            ));
+        }
+    }
+    if !has_environment {
         return Ok(None);
     }
     state.snapshot(state.helper_functions.len(), instruction.span)?;
@@ -1368,23 +1504,32 @@ fn forwarded_contract(
         role_count.saturating_mul(3).saturating_add(arguments.len()),
         instruction.span,
     )?;
-    let contract = state.helper_functions[position]
-        .callable_contract
-        .as_ref()
-        .unwrap();
     let mut roles = Vec::with_capacity(role_count);
+    let mut concrete = BTreeSet::new();
     for (parameter, value) in arguments.iter().enumerate() {
         if !environment_type(&function.values[value.0 as usize]) {
             continue;
         }
-        let child = contract
+        let child = state.helper_functions[position]
+            .callable_contract
+            .as_ref()
+            .unwrap()
             .roles
             .iter()
             .find(|role| role.parameter as usize == parameter)
+            .map(|role| (role.parameter, role.kind))
             .ok_or_else(|| {
                 unsupported(instruction.span, "nested helper environment role is absent")
             })?;
         let mask = origins[value.0 as usize];
+        if mask == 4 || mask == 32 || mask == 16 {
+            state.snapshot(
+                plan::tree_work(concrete.len()).saturating_add(1),
+                instruction.span,
+            )?;
+            concrete.insert(child.0);
+            continue;
+        }
         let caller = if mask == 1 {
             bounds.first()
         } else if mask == 2 {
@@ -1402,19 +1547,23 @@ fn forwarded_contract(
             .callable_return_contract
             .as_ref()
             .is_some_and(|contract| matches!(contract.source, CallableReturnSource::Parameter(_)));
-        if child.kind != caller.kind && !(returns_input && compatible(caller.kind, child.kind)) {
+        if child.1 != caller.kind && !(returns_input && compatible(caller.kind, child.1)) {
             return Err(unsupported(
                 instruction.span,
                 "nested helper role has a different declared callable kind",
             ));
         }
-        roles.push((child.parameter, caller.index));
+        roles.push((child.0, caller.index));
     }
-    if roles.len() != role_count {
+    if roles.len() + concrete.len() != role_count {
         return Err(unsupported(
             instruction.span,
             "nested helper role mapping is incomplete",
         ));
     }
-    Ok(Some(Forwarded { position, roles }))
+    Ok(Some(Forwarded {
+        position,
+        roles,
+        concrete,
+    }))
 }

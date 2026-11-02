@@ -349,6 +349,34 @@ fn concrete_copy(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Compil
     Ok(true)
 }
 
+// Legacy Fn/Owned helpers may observe an actual Copy environment through an
+// SSA snapshot, including a local alias. This is not a transferable F value:
+// consume still rejects it, and Parameter/Returned identity proofs never use
+// this lane. Declared FnOnce alone never acquires Copy from its instantiation.
+fn copy_observation(
+    module: &TypedModule,
+    f: &TypedFunction,
+    claim: &CallableParameterContract,
+    ty: &Type,
+    slot: Slot,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    if !slot.alias || f.callable_return_contract.is_some() || !matches!(ty, Type::Closure(_)) {
+        return Ok(false);
+    }
+    let Some(index) = role(slot.origin)? else {
+        return Ok(false);
+    };
+    if !claim
+        .roles
+        .get(index)
+        .is_some_and(|r| r.kind == CallableKind::Fn && r.cleanup == CallableCleanup::Owned)
+    {
+        return Ok(false);
+    }
+    concrete_copy(module, ty, budget)
+}
+
 fn consume(
     module: &TypedModule,
     f: &TypedFunction,
@@ -438,7 +466,8 @@ fn transfer(
         }
         let call = matches!(
             i.kind,
-            InstructionKind::Call { .. }
+            InstructionKind::MakeClosure { .. }
+                | InstructionKind::Call { .. }
                 | InstructionKind::WithForeignCallback { .. }
                 | InstructionKind::CallClosure { .. }
                 | InstructionKind::CallClosureOnce { .. }
@@ -512,7 +541,21 @@ fn transfer(
                 output = Some(slot);
             }
             InstructionKind::Store { local, value } if carrier(&f.locals[local.0 as usize].ty) => {
-                let slot = if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                let observation = state.values[value.0 as usize];
+                let slot = if matches!(
+                    (&f.locals[local.0 as usize].ty, &f.values[value.0 as usize]),
+                    (Type::Closure(a), Type::Closure(b)) if a == b
+                ) && copy_observation(
+                    module,
+                    f,
+                    claim,
+                    &f.values[value.0 as usize],
+                    observation,
+                    budget,
+                )? {
+                    live(observation, check)?;
+                    observation
+                } else if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                     || internal_slot(&f.locals[local.0 as usize].ty).is_some()
                 {
                     consume(module, f, state, *value, check, budget)?
@@ -747,7 +790,16 @@ fn transfer(
                         arguments,
                         budget,
                     )?;
-                    if matches!(i.kind, InstructionKind::CallClosure { .. }) && slot.origin & 3 != 0
+                    if matches!(i.kind, InstructionKind::CallClosure { .. })
+                        && slot.origin & 3 != 0
+                        && !copy_observation(
+                            module,
+                            f,
+                            claim,
+                            &f.values[callee.0 as usize],
+                            slot,
+                            budget,
+                        )?
                     {
                         return Err(bad(
                             "by-value symbolic Fn call would require a Copy permission",

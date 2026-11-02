@@ -40,6 +40,108 @@ fn raw_wire_forwarding_keeps_declared_modes_and_actual_instance() {
 }
 
 #[test]
+fn owned_copy_fn_observation_counts_aliases_without_merging_local_instances() {
+    for parameter_alias in [false, true] {
+        let mut raw = fixture(CallableKind::Fn, CallableKind::Fn, false, 0, Type::I32);
+        let f = &mut raw.module.functions[0];
+        // This is the ordinary Fn/Owned observation boundary, not an identity
+        // return. Both snapshots retain their actual source despite one ID.
+        assert!(f.callable_return_contract.is_none());
+        f.locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "observed".into(),
+            ty: env(),
+            mutable: true,
+            span: span(),
+        });
+        f.values = vec![
+            Type::I32,
+            env(),
+            env(),
+            Type::I32,
+            env(),
+            Type::I32,
+            Type::I32,
+        ];
+        f.blocks[0].instructions = vec![
+            op(None, InstructionKind::StorageLive(LocalId(1))),
+            op(
+                Some(ValueId(0)),
+                InstructionKind::Constant(Constant::I32(5)),
+            ),
+            op(Some(ValueId(1)), InstructionKind::Load(LocalId(0))),
+            op(
+                Some(ValueId(2)),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![ValueId(0)],
+                },
+            ),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(if parameter_alias { 1 } else { 2 }),
+                },
+            ),
+            op(
+                Some(ValueId(3)),
+                InstructionKind::CallClosure {
+                    callee: ValueId(1),
+                    arguments: vec![],
+                },
+            ),
+            op(Some(ValueId(4)), InstructionKind::Load(LocalId(1))),
+            op(
+                Some(ValueId(5)),
+                InstructionKind::CallClosure {
+                    callee: ValueId(4),
+                    arguments: vec![],
+                },
+            ),
+            op(
+                Some(ValueId(6)),
+                InstructionKind::Binary {
+                    op: BinaryOp::Add,
+                    left: ValueId(3),
+                    right: ValueId(5),
+                },
+            ),
+            op(None, InstructionKind::StorageDead(LocalId(1))),
+        ];
+        f.blocks[0].terminator = Terminator::Return(Some(ValueId(6)));
+        f.callable_contract.as_mut().unwrap().traces =
+            CallableTraces::Finite(vec![CallableTrace {
+                calls: vec![
+                    CallEvent {
+                        parameter: 0,
+                        kind: CallableKind::Fn
+                    };
+                    if parameter_alias { 2 } else { 1 }
+                ],
+                exit: CallableExit::Return,
+            }]);
+        raw.accept();
+        let mut forged = raw;
+        forged.module.functions[0]
+            .callable_contract
+            .as_mut()
+            .unwrap()
+            .traces
+            .as_finite_mut()
+            .unwrap()[0]
+            .calls = vec![
+            CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn
+            };
+            if parameter_alias { 1 } else { 2 }
+        ];
+        forged.reject("traces differ");
+    }
+}
+
+#[test]
 fn same_type_is_not_the_input_instance() {
     let mut raw = keep(CallableKind::Fn, CallableKind::FnOnce);
     // A second value of the same concrete environment type cannot stand in

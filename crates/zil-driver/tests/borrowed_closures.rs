@@ -167,7 +167,7 @@ fn conflicting_writes_include_alias_copies_and_loop_backedges() {
         reject_source(
             text,
             ResultCategory::SafeReject,
-            Phase::Verify,
+            Phase::Analyze,
             "E-BORROW-CONFLICT",
         );
     }
@@ -245,6 +245,7 @@ fn raw_dead_storage_and_reactivation_cannot_hide_a_live_reference() {
     for reactivate in [false, true] {
         let mut module =
             typed("fn result() -> i32 { let x = 40; let f = () => x + 2; return f(); }");
+        let mut plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
         let block = &mut module.functions[0].blocks[0];
         let captured = block
             .instructions
@@ -286,11 +287,22 @@ fn raw_dead_storage_and_reactivation_cannot_hide_a_live_reference() {
             });
         }
         block.instructions.splice(insertion..insertion, transition);
-        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
         assert_eq!(
-            verify(module, plan).unwrap_err()[0].code,
+            zil_analyze::analyze(&module, &Limits::default()).unwrap_err()[0].code,
             "E-BORROW-CONFLICT"
         );
+        // Keep the independent verifier mutation: the valid block-boundary
+        // initialization and Hold rows are unchanged by these storage edits.
+        plan.module_fingerprint = module.fingerprint();
+        let bytes =
+            zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        let target = module.target.clone();
+        for errors in [
+            verify(module, plan).unwrap_err(),
+            zil_verify::verify_module_bytes(&bytes, &target, &Limits::default()).unwrap_err(),
+        ] {
+            assert_eq!(errors[0].code, "E-BORROW-CONFLICT");
+        }
     }
 }
 #[test]

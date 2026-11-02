@@ -223,7 +223,7 @@ fn captures077_original_default_read_borrows_the_actual_package() {
             label,
             &unit(&invalid),
             ResultCategory::SafeReject,
-            Phase::Verify,
+            Phase::Analyze,
             "E-BORROW-CONFLICT",
         );
     }
