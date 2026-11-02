@@ -4,7 +4,7 @@
   "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
   "schema_version": 31,
   "commits": {
-    "verify_implementation": "4faeab893c88b1b88efdef52c0afe5f7c669c0ea",
+    "verify_implementation": "f07a781774361e9a5b1b1dc37824454499637925",
     "frontend_source": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
     "analyze_source": "b5e44e3cd6802065a6c8597ddafaf4ddd44eb857",
     "extended_source": "56cbd4822a4e543114b580929edaf5b7bb7385e9"
@@ -19,13 +19,13 @@
     {
       "command": "cargo check -p zil-verify --offline --locked -j 2",
       "passed": true,
-      "log": "b-2.log"
+      "log": "empty-slot-check.log"
     },
     {
       "command": "cargo test -p zil-verify --lib --offline --locked -j 2 --quiet",
-      "passed": 324,
+      "passed": 325,
       "failed": 0,
-      "log": "b-0.log"
+      "log": "empty-slot-unit.log"
     },
     {
       "command": "cargo test -p zil-driver --test impl254_source --test impl254_wire --test impl254_capture_probe --test impl254_operands --offline --locked -j 2 --quiet",
@@ -34,7 +34,7 @@
       "capture_probe_passed": 1,
       "operand_probe_passed": 1,
       "failed": 0,
-      "log": "b-1.log"
+      "log": "empty-slot-driver.log"
     },
     {
       "command": "cargo test -p zil-verify --lib helper_tests::forward::forward_raw_wire_budget --offline --locked -j 2 -- --nocapture",
@@ -46,7 +46,7 @@
       "command": "cargo test -p zil-verify --lib private_slot_raw_wire_budget --offline --locked -j 2 -- --nocapture",
       "passed": 1,
       "failed": 0,
-      "log": "b-budget-private.log"
+      "log": "empty-slot-budget.log"
     },
     {
       "command": "cargo test -p zil-verify --lib owning_factory_verify_and_wire_have_exact_fresh_budget_boundaries --offline --locked -j 2 -- --nocapture",
@@ -57,7 +57,7 @@
     {
       "command": "cargo clippy -p zil-verify --all-targets --offline --locked -j 2 -- -D warnings",
       "passed": true,
-      "log": "clippy-final.log"
+      "log": "empty-slot-clippy.log"
     },
     {
       "command": "cargo test -p zil-verify --lib helper_tests::forward --offline --locked -j 2 --quiet",
@@ -99,8 +99,8 @@
     "N_minus_1_result": "ResourceLimit",
     "fresh_N_result": "Pass",
     "default_limit_raised": false,
-    "private_slot_raw_wire_N": 4992,
-    "private_slot_N_minus_1": 4991,
+    "private_slot_raw_wire_N": 4990,
+    "private_slot_N_minus_1": 4989,
     "old_fresh_factory_raw_wire_N": 2923,
     "old_fresh_frozen_8d_baseline_N": 2919,
     "old_fresh_difference": "two Fresh source fields at +2 logical units each; no private-slot scan on old profile"
@@ -136,7 +136,7 @@
   },
   "private_slot_profile": {
     "boundary": "closed owning Array<Closure;1> admitted only as a function-private local/SSA carrier with a finite operation whitelist; public parameters/results/captures/State/Store remain under their older gates",
-    "control": "R1 A is dropped, unrelated same-type B enters keep; R2 correlated branches each drop A then keep B/C; raw and Wire both accept because responsibilities and loans are independently valid",
+    "control": "R1 A is dropped, unrelated same-type B enters keep; R2 correlated branches each drop A then keep B/C; inert uninitialized and unused private local is also accepted; raw and Wire controls pass",
     "no_keep_closure_body": "self-contained closure entry with its own private Array1 local constructs, takes, drops and returns scalar; raw and Wire pass",
     "negative": "owning callback Array1 SSA constructed with no actual local carrier rejects raw and Wire",
     "proof": "resources::check_module and borrows::check_module independently reconstruct actual CFG responsibility, element liveness and old loan invalidation; retained::provenance remains mandatory for Parameter-return F",
