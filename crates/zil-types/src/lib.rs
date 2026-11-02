@@ -16,6 +16,7 @@ mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
+mod forwarding;
 mod functions;
 mod helpers;
 mod incremental;
@@ -229,6 +230,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         ));
     }
     if !(f.callable_return.is_some()
+        || forwarding::bound(f).is_some()
         || callable_fields::template(f)
         || f.return_type.is_copy_value()
         || f.return_type.is_scalar_or_address()
@@ -2589,6 +2591,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         } else if let Some(local) = existing_place
             && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
                 || self.lending_closure(&self.function.locals[local.0 as usize].ty)?
+                || declared_capture.is_some()
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
             (None, self.function.locals[local.0 as usize].ty.clone())
@@ -2662,7 +2665,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         let call_place = if borrowed_callee.is_none()
             && (kind == CallableKind::FnMut
-                || (kind == CallableKind::Fn && (owns_resources || lends)))
+                || (kind == CallableKind::Fn
+                    && (owns_resources || lends || declared_kind.is_some())))
         {
             let local = if let Some(local) = existing_place {
                 if kind == CallableKind::FnMut && !self.function.locals[local.0 as usize].mutable {
@@ -2771,10 +2775,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                     callee: call_place.expect("exclusive environment"),
                     arguments: values,
                 },
-                CallableKind::Fn if owns_resources || lends => InstructionKind::CallClosureShared {
-                    callee: call_place.expect("shared environment"),
-                    arguments: values,
-                },
+                CallableKind::Fn if owns_resources || lends || declared_kind.is_some() => {
+                    InstructionKind::CallClosureShared {
+                        callee: call_place.expect("shared environment"),
+                        arguments: values,
+                    }
+                }
                 _ => InstructionKind::CallClosure {
                     callee: callee_value.expect("Copy environment"),
                     arguments: values,

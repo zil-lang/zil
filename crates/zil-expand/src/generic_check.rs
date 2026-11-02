@@ -39,7 +39,7 @@ pub(super) fn validate_parametric<'l>(
     let owned_dispatch = function.generics.len() == 1 && callable.as_ref().is_some_and(|bounds| {
         !bounds.owned_state && !bounds.owned_factory && bounds.state_bindings.is_empty()
             && matches!(bounds.roles.as_slice(), [role]
-                if role.kind == zil_ir::CallableKind::FnOnce
+                if (role.kind == zil_ir::CallableKind::FnOnce || bounds.forwarded)
                     && callable::parameter_mode(&function.params[role.index].ty, &role.generic_name) == Some(None))
     });
     for p in &function.params {
@@ -2332,7 +2332,8 @@ impl Check<'_, '_, '_> {
                             "generic callable parameter requires a Fn bound",
                         ));
                     };
-                    let owned_state = bounds.owned_state || bounds.owned_factory;
+                    let owned_state =
+                        bounds.owned_state || bounds.owned_factory || bounds.forwarded;
                     let bound = bounds.bindings().find(|bound| {
                         callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
                     });
@@ -2587,6 +2588,7 @@ impl Check<'_, '_, '_> {
                         });
                         let (kind, parameters, result) = if let Some(caller) = caller {
                             if !callees.owned_state
+                                && !callees.forwarded
                                 && !self.callable.as_ref().unwrap().owned_state
                                 && caller.kind != callee.kind
                             {

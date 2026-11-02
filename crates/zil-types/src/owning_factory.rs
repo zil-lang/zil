@@ -120,6 +120,9 @@ fn weaker(a: CallableKind, b: CallableKind) -> CallableKind {
 }
 
 impl Modes {
+    pub(super) fn value_mode(&mut self, value: ValueId, kind: CallableKind) {
+        self.values.insert(value, kind);
+    }
     pub(super) fn record(
         &mut self,
         kind: &InstructionKind,
