@@ -1410,7 +1410,7 @@ fn forwarded_contract(
                 unsupported(instruction.span, "nested helper environment role is absent")
             })?;
         let mask = origins[value.0 as usize];
-        if mask == 32 || mask == 16 {
+        if mask == 4 || mask == 32 || mask == 16 {
             state.snapshot(
                 plan::tree_work(concrete.len()).saturating_add(1),
                 instruction.span,

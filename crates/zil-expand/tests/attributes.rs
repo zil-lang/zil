@@ -75,6 +75,7 @@ extern "C" fn close(token:c_handle) contract{provides(static_callbacks(),scoped_
         "let n=3;let body=()->i32=>n;unsafe{return c_with_callback(reg,close,f,body)}",
         "var n=3;let body=()->i32=>{n=n+1;return n};unsafe{return c_with_callback(reg,close,f,body)}",
         "unsafe{return c_with_callback(reg,close,f,()->i32=>3)}",
+        "let ignored=()->i32=>3;unsafe{return c_with_callback(reg,close,f,()->i32=>4)}",
         "let body=()->i32=>3;unsafe{let first=c_with_callback(reg,close,f,body);return c_with_callback(reg,close,f,body)}",
         "var n=3;let body=move ()->i32=>{n=n+1;return n};unsafe{let first=c_with_callback(reg,close,f,body);return c_with_callback(reg,close,f,body)}",
     ] {
@@ -85,7 +86,6 @@ extern "C" fn close(token:c_handle) contract{provides(static_callbacks(),scoped_
     }
     for body in [
         "let body=()->i32=>f(1);unsafe{return c_with_callback(reg,close,f,body)}",
-        "let ignored=()->i32=>3;unsafe{return c_with_callback(reg,close,f,()->i32=>4)}",
         "let body=(x:i32)->i32=>x;unsafe{return c_with_callback(reg,close,f,body)}",
         "let body=()->bool=>true;unsafe{return c_with_callback(reg,close,f,body)}",
         "let n=3;let body=()->i32=>n;unsafe{let first=c_with_callback(reg,close,f,body);return c_with_callback(reg,close,f,body)}",

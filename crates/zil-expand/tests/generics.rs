@@ -286,6 +286,7 @@ fn concrete_local_callables_keep_owned_signatures_and_actual_modes() {
         "let handler=(value:F)->i32=>0;return 0",
         "let handler=(value:Unknown)->i32=>0;return 0",
         "let handler=(value:R)->i32=>0;return 0",
+        "let handler=(value:&i32)->&i32=>value;return 0",
     ] {
         let text = format!(
             "{DATA}fn run<F:FnMut(i32)->i32>(f:&mut F,event:Event,other:Event,last:Event)->i32{{{body}}}fn main(){{}}"

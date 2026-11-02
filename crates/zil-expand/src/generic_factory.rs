@@ -79,7 +79,7 @@ impl Check<'_, '_, '_> {
 
     fn local_signature(&mut self, parameters: &[TypeRef], result: &TypeRef) -> R<()> {
         let mut owned = false;
-        for ty in parameters.iter().chain(std::iter::once(result)) {
+        for (index, ty) in parameters.iter().chain(std::iter::once(result)).enumerate() {
             if dependent(ty, &self.variables) {
                 return Err(unsupported(
                     ty.span,
@@ -93,7 +93,7 @@ impl Check<'_, '_, '_> {
                     inner,
                     lifetime: None,
                     ..
-                } => match &group(inner).kind {
+                } if index < parameters.len() => match &group(inner).kind {
                     TypeKind::Array {
                         element,
                         length: None,
