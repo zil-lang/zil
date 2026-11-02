@@ -22,6 +22,17 @@ fn env(ty: &Type) -> Option<(ClosureId, Option<bool>)> {
 const FACTORY: u8 = 4;
 const UNKNOWN: u8 = 8;
 
+// retained::check_function has independently checked every public factory
+// before helpers run. Match this Call's actual result, not just its type ID or
+// the presence of a return claim; Parameter forwarding is never Fresh.
+fn fresh_result(producer: &TypedFunction, ty: &Type) -> bool {
+    producer.callable_return_contract.as_ref().is_some_and(|c| {
+        c.source == CallableReturnSource::Fresh
+            && *ty == Type::Closure(c.closure)
+            && producer.return_type == *ty
+    })
+}
+
 fn origins(
     module: &TypedModule,
     function: &TypedFunction,
@@ -64,11 +75,7 @@ fn origins(
                         .ok_or_else(|| bad("helper factory producer is absent"))?;
                     // retained::check_function has independently checked every
                     // factory before helpers run. Presence alone is not proof.
-                    if producer.callable_return_contract.as_ref().is_some_and(|c| {
-                        c.source == CallableReturnSource::Fresh
-                            && *ty == Type::Closure(c.closure)
-                            && producer.return_type == *ty
-                    }) {
+                    if fresh_result(producer, ty) {
                         FACTORY
                     } else {
                         UNKNOWN
@@ -193,6 +200,18 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         .functions
                         .get(callee)
                         .ok_or_else(|| bad("helper dependency target is absent"))?;
+                    if instruction
+                        .result
+                        .and_then(|v| function.values.get(v.0 as usize))
+                        .is_some_and(|ty| fresh_result(target, ty))
+                    {
+                        budget.spend(1, "actual public Fresh factory proof trigger")?;
+                        if budget.forward_functions.is_empty() {
+                            budget.spend(count, "concrete factory helper dependency flags")?;
+                            budget.forward_functions = vec![false; count];
+                        }
+                        budget.forward_functions[caller] = true;
+                    }
                     if target.callable_contract.is_some() {
                         budget.spend(2, "helper dependency edge")?;
                         incoming[caller] += 1;

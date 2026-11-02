@@ -2769,3 +2769,159 @@ fn concrete_local_282_same_closure_id_never_revives_or_merges_actual_roots_raw_w
     );
     result_wire_282(&mixed, false);
 }
+
+// 282 follow-up: no With and no MakeClosure in the symbolic helper itself.
+fn factory_only_composition_282() -> TypedModule {
+    let mut module = local_composition_282(true, false);
+    let f = &mut module.functions[0];
+    let construction = f.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| {
+            matches!(
+                i.kind,
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(1),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    construction.kind = InstructionKind::Call {
+        function: FunctionId(6),
+        arguments: vec![],
+    };
+    let mut factory = Body::new(6);
+    factory.0.return_type = Type::Closure(ClosureId(1));
+    let result = factory.value(
+        Type::Closure(ClosureId(1)),
+        InstructionKind::MakeClosure {
+            closure: ClosureId(1),
+            captures: vec![],
+        },
+    );
+    factory.0.callable_return_contract = Some(CallableReturnContract {
+        source: CallableReturnSource::Fresh,
+        closure: ClosureId(1),
+        kind: CallableKind::FnOnce,
+        hold: vec![],
+        call: vec![],
+        writes: vec![],
+        cleanup: vec![],
+        lending_captures: vec![],
+    });
+    let mut factory = factory.finish(result);
+    factory.return_type = Type::Closure(ClosureId(1));
+    module.functions.push(factory);
+    module
+}
+
+#[test]
+fn concrete_factory_only_282_actual_fresh_contract_is_required_raw_wire() {
+    let module = factory_only_composition_282();
+    assert!(
+        !module.functions[0]
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(
+                i.kind,
+                InstructionKind::MakeClosure { .. } | InstructionKind::WithForeignCallback { .. }
+            ))
+    );
+    result_wire_282(&module, true);
+    let mut unknown = module.clone();
+    unknown.functions[6].callable_return_contract = None;
+    result_wire_282(&unknown, false);
+    let mut parameter = module.clone();
+    parameter.functions[6]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .source = CallableReturnSource::Parameter(0);
+    result_wire_282(&parameter, false);
+    let mut wrong_result = module.clone();
+    let result = wrong_result.functions[0].blocks[0]
+        .instructions
+        .iter()
+        .find_map(|i| {
+            matches!(
+                i.kind,
+                InstructionKind::Call {
+                    function: FunctionId(6),
+                    ..
+                }
+            )
+            .then_some(i.result)
+            .flatten()
+        })
+        .unwrap();
+    wrong_result.functions[0].values[result.0 as usize] = Type::Closure(ClosureId(0));
+    result_wire_282(&wrong_result, false);
+    let mut wrong_claim = module.clone();
+    wrong_claim.functions[6]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .closure = ClosureId(0);
+    result_wire_282(&wrong_claim, false);
+    let mut reused = module;
+    let f = &mut reused.functions[0];
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| {
+            matches!(
+                i.kind,
+                InstructionKind::Call {
+                    function: FunctionId(5),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let mut second = f.blocks[0].instructions[at].clone();
+    second.result = Some(ValueId(f.values.len() as u32));
+    f.values.push(Type::I32);
+    f.blocks[0].instructions.insert(at + 1, second);
+    result_wire_282(&reused, false);
+}
+
+#[test]
+fn concrete_factory_only_282_shared_allowance_n_minus_one_fresh_raw_wire() {
+    let module = factory_only_composition_282();
+    let defaults = Limits::default();
+    let mut budget = Budget::new(&defaults);
+    let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
+    let exact = defaults.max_analysis_steps - budget.remaining();
+    assert_eq!(exact, 2073);
+    let bytes = zil_ir::wire::encode_module_candidate(
+        &module,
+        &CandidatePlan::empty_for(&module),
+        &defaults,
+    )
+    .unwrap();
+    let decoded = zil_ir::wire::decode_module_candidate(&bytes, &defaults)
+        .unwrap()
+        .0;
+    for input in [&module, &decoded] {
+        for steps in [exact, exact - 1, exact] {
+            let actual = analyze(
+                input,
+                &Limits {
+                    max_analysis_steps: steps,
+                    ..defaults.clone()
+                },
+            );
+            if steps == exact {
+                assert_eq!(actual.unwrap(), expected);
+            } else {
+                assert_eq!(
+                    actual.unwrap_err()[0].category,
+                    zil_base::ResultCategory::ResourceLimit
+                );
+            }
+        }
+    }
+    println!("282 factory-only raw=Wire N={exact}; N-1 ResourceLimit; fresh equality");
+}

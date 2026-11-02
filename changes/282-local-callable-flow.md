@@ -18,6 +18,14 @@
 
 新增无With输入的raw与Wire费用：直接局部调用1470、子helper转交1934、捕获实际局部handler2014。每个输入均N通过、N−1返回ResourceLimit、fresh N与原候选相等；没有重置请求额度。
 
+## 无本地构造的公共工厂近邻
+
+同一合同亦覆盖普通generic helper仅调用已有普通工厂取得具体local，再交给子helper的情形：helper自身没有With或MakeClosure。依赖扫描已预付的实际Call访问只在结果类型与已核公共`Fresh`返回合同及callee返回类型逐项一致时，启用原`forward::prove`实际CFG位置图；标记及传播预费。`Parameter(k)`不触发Fresh资格，原值返回继续替换实际实参来源，不得伪装具体local。未知/混合来源、真实F捕获、同型值替换及声明模式防线保持。
+
+限定raw/Wire新增2项覆盖合法前缀、缺合同、Parameter伪称、错误实际结果/合同身份和local重复消费；具名`factory_only_composition_282()`精确N=2073，N−1为ResourceLimit，fresh N候选相等。旧普通1548、无local helper1219、scoped借入local2352及新增原三项1470/1934/2014均保持。复跑`concrete_local_282`8项、`scoped_`12项、`forward::tests`14项及Analyze Clippy均通过。
+
+277前端补片`8087e344`（本树依赖cherry `76b57102`）消费后，实际命令`cargo run -p zil-cli -j2 -- check /tmp/282-factory-only.zil --stop-after analyze --json --emit-dir /tmp/282-factory-only-analyze`返回Success/phase analyze、diagnostics空、verification_runs=0；Typed/Candidate由CLI实际产生。原字节由280冻结于`tests/foreign-scoped-callback/callable-composition/frozen/factory-only.zil`。其普通generic `run`仅`make()->impl Fn(i32)->i32`再`dispatch`，F调用及返回后使用仍保留；本片不声称该邻例达到Verify或机器执行，280继续消费。
+
 ## 限定验证与分账
 
 工具链 `/workspace/.zil-env/env.sh`，`CARGO_TARGET_DIR=/workspace/.zil-env/target-282`，jobs2：
