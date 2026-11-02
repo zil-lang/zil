@@ -15,6 +15,7 @@ mod resources;
 mod scalar_leaf;
 mod scalar_locals;
 mod scalar_summaries;
+mod scoped_callback;
 mod slices;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
@@ -1217,6 +1218,19 @@ impl FunctionEmitter<'_> {
             m::Op::Unreachable,
         )));
         self.event(m::Event::End);
+        for instruction in self.function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let InstructionKind::WithForeignCallback {
+                register,
+                close,
+                callback,
+                body,
+                ..
+            } = instruction.kind
+            {
+                self.scoped_callback_helper(instruction, register, close, callback, body)?;
+                self.scoped_callback_trampoline(instruction, callback)?;
+            }
+        }
         Ok(self.text)
     }
 
@@ -1330,6 +1344,15 @@ impl FunctionEmitter<'_> {
                 ..
             } => {
                 self.foreign_call(instruction, *function, arguments)?;
+            }
+            InstructionKind::WithForeignCallback {
+                register,
+                close,
+                callback,
+                body,
+                ..
+            } => {
+                self.call_scoped_callback_helper(instruction, *register, *close, *callback, *body)?
             }
             InstructionKind::Constant(constant) => {
                 let result = result(instruction)?;
