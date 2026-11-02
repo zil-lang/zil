@@ -343,7 +343,7 @@ impl Dependencies<'_, '_> {
                 };
                 let signature = match &target.kind {
                     CoreExprKind::Name(name) if !self.bound(name) => self.signatures.get(name),
-                    CoreExprKind::Member { object, member } => {
+                    CoreExprKind::Member { object, member, .. } => {
                         if let CoreExprKind::Name(alias) = &object.kind {
                             if self.bound(alias) {
                                 None

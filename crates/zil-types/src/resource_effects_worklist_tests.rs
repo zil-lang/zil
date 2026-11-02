@@ -58,6 +58,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                         target: expr(CoreExprKind::Member {
                             object: Box::new(name("a")),
                             member: "n".into(),
+                            owner: None,
                         }),
                         value: expr(CoreExprKind::Integer("1".into())),
                     }));
@@ -176,6 +177,7 @@ fn chain(n: usize, reverse: bool) -> CoreModule {
             target: expr(CoreExprKind::Member {
                 object: Box::new(name("a")),
                 member: "n".into(),
+                owner: None,
             }),
             value: expr(CoreExprKind::Integer("1".into())),
         }));
@@ -333,6 +335,7 @@ fn shadowed_calls_remain_conservative_and_imports_register_real_ids() {
         expr(CoreExprKind::Member {
             object: Box::new(name("dep")),
             member: "f1".into(),
+            owner: None,
         }),
         false,
     )];
@@ -566,6 +569,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
         CoreExprKind::Member {
             object: Box::new(name("a")),
             member: "n".into(),
+            owner: None,
         },
         CoreExprKind::ReceiverMember("n".into()),
         CoreExprKind::Record {
