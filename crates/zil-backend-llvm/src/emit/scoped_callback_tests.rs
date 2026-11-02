@@ -72,6 +72,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             Type::I32,
             Type::Bool,
             Type::I32,
+            Type::Bool,
         ],
         blocks: vec![
             zil_ir::BasicBlock {
@@ -140,7 +141,19 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             },
             zil_ir::BasicBlock {
                 id: zil_ir::BlockId(3),
-                instructions: vec![instruction(Some(7), InstructionKind::Load(LocalId(2)))],
+                instructions: vec![
+                    instruction(Some(7), InstructionKind::Load(LocalId(2))),
+                    instruction(Some(8), InstructionKind::Constant(Constant::Bool(false))),
+                ],
+                terminator: Terminator::Branch {
+                    condition: ValueId(8),
+                    then_block: zil_ir::BlockId(0),
+                    else_block: zil_ir::BlockId(4),
+                },
+            },
+            zil_ir::BasicBlock {
+                id: zil_ir::BlockId(4),
+                instructions: vec![],
                 terminator: Terminator::Return(Some(ValueId(7))),
             },
         ],
@@ -264,6 +277,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     assert!(ir.contains("call { i1, i32 } @zil.scoped.with.0.2"));
     assert!(ir.contains("br i1 %v.6, label %bb.1, label %bb.2"));
     assert!(ir.contains("bb.3:"));
+    assert!(ir.contains("br i1 %v.8, label %bb.0, label %bb.4"));
     assert!(ir.contains("phi { i1, i32 }"));
     let clang = std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into());
     let object = std::env::temp_dir().join(format!("zil-scoped-shape-{}.o", std::process::id()));
