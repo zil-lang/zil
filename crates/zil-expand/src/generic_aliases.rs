@@ -330,7 +330,8 @@ impl Check<'_, '_, '_> {
                 let mut origins = self.alias_origins(object, state, depth + 1)?;
                 for origin in &mut origins {
                     if origin.position.field.is_none()
-                        && let MemberName::Name(name) = member
+                        && let MemberName::Name(name) | MemberName::Constrained { name, .. } =
+                            member
                     {
                         origin.position.field =
                             Some(self.field_slot(origin.position.owner, name, expression.span)?);
