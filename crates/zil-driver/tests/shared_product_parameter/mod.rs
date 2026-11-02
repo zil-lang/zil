@@ -11,6 +11,9 @@ use zil_base::{FileId, Fingerprint, Limits, ModuleId, Phase, ResultCategory, Sou
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 use zil_ir::{CallableKind, HoldRoot, InstructionKind, Type};
 
+#[path = "raw_prefix.rs"]
+mod raw_prefix;
+
 const ORACLE: &str =
     include_str!("../../../../tests/shared-product-parameter-capture/expectations.tsv");
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -233,7 +236,7 @@ fn same_store_raw_and_wire_conflicts_bypass_the_analyze_rejection() {
         let target = zil_base::TargetProfile::host_llvm();
         let limits = Limits::default();
         let mut module = zil_types::check(&core, &target, &limits).unwrap();
-        let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+        let mut plan = raw_prefix::straight_line_claims(&module);
         let prefix = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
         zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
         zil_verify::verify_module_bytes(&prefix, &target, &limits).unwrap();
