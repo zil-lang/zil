@@ -254,7 +254,12 @@ impl Builder<'_, '_> {
         &mut self,
         target: &CoreExpr,
     ) -> R<Option<(ValueId, ClosureId, CallableKind)>> {
-        let CoreExprKind::Member { object, member } = &target.kind else {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &target.kind
+        else {
             return Ok(None);
         };
         let CoreExprKind::Name(name) = &object.kind else {
@@ -274,6 +279,12 @@ impl Builder<'_, '_> {
         let Some(local) = self.lookup(name) else {
             return Ok(None);
         };
+        self.member_owner_work(owner.as_ref(), target.span)?;
+        member_owner::check_member_owner(
+            &self.function.locals[local.0 as usize].ty,
+            owner.as_ref(),
+            target.span,
+        )?;
         let Type::Package { fields, .. } = &self.function.locals[local.0 as usize].ty else {
             return if self.function.locals[local.0 as usize]
                 .ty
@@ -350,7 +361,12 @@ impl Builder<'_, '_> {
         &mut self,
         target: &CoreExpr,
     ) -> R<Option<(ValueId, ClosureId, CallableKind)>> {
-        let CoreExprKind::Member { object, member } = &target.kind else {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &target.kind
+        else {
             return Ok(None);
         };
         let (source, from_store) = match &object.kind {
@@ -383,6 +399,7 @@ impl Builder<'_, '_> {
         let Some(local) = self.lookup(source) else {
             return Ok(None);
         };
+        self.member_owner_work(owner.as_ref(), target.span)?;
         let ty = &self.function.locals[local.0 as usize].ty;
         let element = if from_store {
             dynamic_store::element(ty)
@@ -391,6 +408,9 @@ impl Builder<'_, '_> {
         } else {
             None
         };
+        if let Some(element) = element {
+            member_owner::check_member_owner(element, owner.as_ref(), target.span)?;
+        }
         let Some(Type::Package { fields, .. }) = element else {
             return Ok(None);
         };
@@ -414,8 +434,43 @@ impl Builder<'_, '_> {
         Ok(Some((address, id, kind)))
     }
 
-    pub(super) fn package_place(&self, target: &CoreExpr) -> R<Option<(LocalId, u32, Type)>> {
-        let CoreExprKind::Member { object, member } = &target.kind else {
+    pub(super) fn package_place(&mut self, target: &CoreExpr) -> R<Option<(LocalId, u32, Type)>> {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &target.kind
+        else {
+            return Ok(None);
+        };
+        if !matches!(self.known_type(object), Some(Type::Package { .. })) {
+            return Ok(None);
+        }
+        let CoreExprKind::Name(name) = &object.kind else {
+            return Err(unsupported(
+                target.span,
+                "package field transfer or assignment requires a named local shell",
+            ));
+        };
+        let local = self
+            .lookup(name)
+            .ok_or_else(|| error("E-UNKNOWN-NAME", object.span, "unknown package local"))?;
+        self.member_owner_work(owner.as_ref(), target.span)?;
+        member_owner::check_member_owner(
+            &self.function.locals[local.0 as usize].ty,
+            owner.as_ref(),
+            target.span,
+        )?;
+        let (index, ty) = aggregates::field(
+            &self.function.locals[local.0 as usize].ty,
+            member,
+            target.span,
+        )?;
+        Ok(Some((local, index, ty)))
+    }
+
+    pub(super) fn package_place_hint(&self, target: &CoreExpr) -> R<Option<(LocalId, u32, Type)>> {
+        let CoreExprKind::Member { object, member, .. } = &target.kind else {
             return Ok(None);
         };
         if !matches!(self.known_type(object), Some(Type::Package { .. })) {
@@ -492,9 +547,11 @@ impl Builder<'_, '_> {
         &mut self,
         object: &CoreExpr,
         member: &str,
+        owner: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
         if let Some((local, index, element)) = self.owned_array_place(object)? {
+            self.member_owner(&element, owner, span)?;
             let (field, ty) = aggregates::field(&element, member, span)?;
             if array_field_supported(&ty) {
                 return Err(unsupported(
@@ -536,6 +593,7 @@ impl Builder<'_, '_> {
             self.store(local, value, object.span)?;
             (local, ty)
         };
+        self.member_owner(&ty, owner, span)?;
         let (index, field) = aggregates::field(&ty, member, span)?;
         let kind = if matches!(field, Type::Managed(_)) {
             InstructionKind::DescribePackageField { local, index }

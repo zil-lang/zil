@@ -1583,6 +1583,31 @@ struct InferBuilder<'a, 'b> {
     nodes_left: &'b mut usize,
 }
 impl<'a, 'b> InferBuilder<'a, 'b> {
+    fn owner_type(&mut self, actual: LocalType, owner: Option<&Type>, span: Span) -> R<()> {
+        let Some(expected) = owner else {
+            return Ok(());
+        };
+        self.graph.reserve_type(expected, 0, span)?;
+        let variable = match actual {
+            LocalType::Scalar(v) | LocalType::Address(v, _) | LocalType::Resource(v, _) => Some(v),
+            _ => None,
+        };
+        if let Some(variable) = variable
+            && let Some(ty) = self.graph.ty(variable)?
+        {
+            self.graph.reserve_type(&ty, 0, span)?;
+            if member_owner::concrete(&ty, &mut || self.graph.spend(span))?
+                && member_owner::concrete(expected, &mut || self.graph.spend(span))?
+            {
+                self.graph.reserve_type(expected, 0, span)?;
+                self.graph.spend(span)?;
+                self.graph.spend(span)?;
+                member_owner::check_member_owner(&ty, Some(expected), span)?;
+            }
+        }
+        Ok(())
+    }
+
     fn new(
         input: &Input<'_>,
         outer: &'a BTreeMap<String, (LocalId, Type)>,
@@ -2275,7 +2300,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         Ok(LocalType::Scalar(result))
     }
     fn give(&mut self, operand: &CoreExpr, value: LocalType, span: Span) -> R<LocalType> {
-        if let CoreExprKind::Member { object, member } = &operand.kind
+        if let CoreExprKind::Member { object, member, .. } = &operand.kind
             && let CoreExprKind::Name(name) = &object.kind
             && let Some(LocalType::Scalar(variable)) = self.lookup(name).or_else(|| {
                 self.outer
@@ -2457,8 +2482,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     )),
                 }
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
                 let probe = self.expr(object, depth + 1)?;
+                self.owner_type(probe, owner.as_ref(), expression.span)?;
                 if let LocalType::Scalar(variable) = probe
                     && let Some(ty @ Type::Package { .. }) = self.graph.ty(variable)?
                 {
@@ -2848,10 +2878,15 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 if !self.direct(callee) {
                     // Infer the receiver once. Function-valued fields and slice
                     // len keep their existing precedence over nominal methods.
-                    let callee_type = if let CoreExprKind::Member { object, member } = &callee.kind
+                    let callee_type = if let CoreExprKind::Member {
+                        object,
+                        member,
+                        owner,
+                    } = &callee.kind
                     {
                         self.visit(depth + 1, callee.span)?;
                         let base = self.expr(object, depth + 2)?;
+                        self.owner_type(base, owner.as_ref(), callee.span)?;
                         if let Some(result) =
                             self.nominal_method_call(base, object, member, arguments, depth, span)?
                         {
@@ -3068,16 +3103,28 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 Ok(base)
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
                 if let Some((ty, variant)) = self.constructor(expression)? {
                     self.visit(depth + 1, object.span)?;
                     return self.variant(&ty, variant, &[], depth, span);
                 }
                 if self.direct(expression) {
+                    if owner.is_some() {
+                        return Err(error(
+                            "E-MEMBER-OWNER",
+                            span,
+                            "a constrained member requires a value receiver, not a static namespace",
+                        ));
+                    }
                     let ty = self.pointer_type(self.callee(expression)?, span)?;
                     return self.known(&ty, span);
                 }
                 let base = self.expr(object, depth + 1)?;
+                self.owner_type(base, owner.as_ref(), span)?;
                 if member == "len"
                     && matches!(base, LocalType::Address(variable, _) if self.graph.is_slice(variable))
                 {
@@ -3217,7 +3264,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
     }
     fn constructor(&self, expression: &CoreExpr) -> R<Option<(Type, usize)>> {
-        let CoreExprKind::Member { object, member } = &expression.kind else {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &expression.kind
+        else {
             return Ok(None);
         };
         let CoreExprKind::Name(name) = &object.kind else {
@@ -3234,6 +3286,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         else {
             return Ok(None);
         };
+        if owner.is_some() {
+            return Err(error(
+                "E-MEMBER-OWNER",
+                expression.span,
+                "a constrained member cannot denote an enum constructor namespace",
+            ));
+        }
         self.graph.reserve_type(ty, 0, expression.span)?;
         let index = variants
             .iter()
@@ -3322,7 +3381,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     )
                 })
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 let CoreExprKind::Name(alias) = &object.kind else {
                     return Err(unsupported(callee.span, "indirect member call in closure"));
                 };

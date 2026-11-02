@@ -213,6 +213,7 @@ impl Builder<'_, '_> {
         &mut self,
         object: &CoreExpr,
         member: &str,
+        owner: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
         let (value, ty) = self.expr(object, None)?;
@@ -220,6 +221,7 @@ impl Builder<'_, '_> {
         let Type::Desc(payload) = ty else {
             unreachable!()
         };
+        self.member_owner(&payload, owner, span)?;
         let (index, field) = aggregates::field(&payload, member, span)?;
         Ok((
             self.value(
@@ -231,7 +233,12 @@ impl Builder<'_, '_> {
         ))
     }
     pub(super) fn resource_assign(&mut self, target: &CoreExpr, value: &CoreExpr) -> R<bool> {
-        let CoreExprKind::Member { object, member } = &target.kind else {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &target.kind
+        else {
             return Ok(false);
         };
         if !matches!(
@@ -247,6 +254,7 @@ impl Builder<'_, '_> {
         let Type::Desc(payload) = ty else {
             unreachable!()
         };
+        self.member_owner(&payload, owner.as_ref(), target.span)?;
         let (index, expected) = aggregates::field(&payload, member, target.span)?;
         let (value, actual) = self.expr(value, Some(&expected))?;
         self.same(&actual, &expected, target.span)?;

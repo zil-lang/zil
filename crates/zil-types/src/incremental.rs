@@ -573,7 +573,11 @@ impl BodyKey<'_> {
                     return None;
                 }
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner: None,
+            } => {
                 let CoreExprKind::Name(alias) = &object.kind else {
                     return None;
                 };
@@ -639,9 +643,11 @@ impl BodyKey<'_> {
                     self.expr(a, depth + 1)?;
                 }
             }
-            CoreExprKind::Member { object, member }
-                if matches!(object.kind, CoreExprKind::Name(_)) =>
-            {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner: None,
+            } if matches!(object.kind, CoreExprKind::Name(_)) => {
                 10u8.hash(&mut self.hash);
                 member.hash(&mut self.hash);
                 self.expr(object, depth + 1)?;

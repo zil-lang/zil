@@ -481,7 +481,7 @@ impl References<'_, '_> {
                     found |= self.expr(value, shadow, depth + 1)?;
                 }
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 self.state.snapshot(member.len(), value.span)?;
                 found |= self.expr(object, shadow, depth + 1)?;
             }

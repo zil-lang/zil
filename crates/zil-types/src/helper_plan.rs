@@ -243,7 +243,7 @@ impl Walk<'_, '_> {
                 )?;
                 Ok(local.get(name))
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 let CoreExprKind::Name(alias) = &object.kind else {
                     return Ok(None);
                 };
@@ -769,7 +769,7 @@ impl Walk<'_, '_> {
                     Shape::Unknown
                 }
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 let shape = self.expr(object, depth + 1)?;
                 if let Shape::Complete { ty, work } = shape {
                     self.state
