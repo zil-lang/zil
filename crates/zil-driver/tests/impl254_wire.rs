@@ -27,11 +27,11 @@ fn control_and_minimal_transfer_mutation() {
     let mut changed = 0;
     for block in &mut main.blocks {
         for instruction in &mut block.instructions {
-            if let InstructionKind::TakeLocal { local } = &mut instruction.kind {
-                if *local == sibling {
-                    *local = owner;
-                    changed += 1;
-                }
+            if let InstructionKind::TakeLocal { local } = &mut instruction.kind
+                && *local == sibling
+            {
+                *local = owner;
+                changed += 1;
             }
         }
     }

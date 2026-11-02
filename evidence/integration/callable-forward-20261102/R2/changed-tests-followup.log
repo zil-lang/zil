@@ -1,0 +1,16 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-251/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 4.34s
+     Running tests/impl254_wire.rs (/workspace/.zil-env/target-251/debug/deps/impl254_wire-2d0d2d0396cfcea3)
+
+running 1 test
+test control_and_minimal_transfer_mutation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/impl256_contracts.rs (/workspace/.zil-env/target-251/debug/deps/impl256_contracts-ec28686beed4243f)
+
+running 1 test
+test actual_parameter_indices_and_declared_modes_survive_raw_and_wire ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+

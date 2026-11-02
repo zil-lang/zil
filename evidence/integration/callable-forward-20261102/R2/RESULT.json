@@ -1,0 +1,97 @@
+{
+  "source_commit": "5a3515fe3effa6d373bc8a7617d39299e66f1572",
+  "scope": "formal common-candidate gates",
+  "known_feature_gaps_not_closed_by_regression_pass": [
+    "Historical by-value FnMut helper returning i32 remains outside this bare-F return profile and is not counted Pass"
+  ],
+  "profiles": {
+    "debug": 0,
+    "strip": "symbols",
+    "incremental": false,
+    "jobs": 2
+  },
+  "checks": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 9.272,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 101,
+      "timeout": false,
+      "elapsed_seconds": 18.925,
+      "log_sha256": "57d892c87d8c48b3bfc49192c5c5f235c12dbf48d6e2755ae8138cec8493a60e",
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Fail"
+    }
+  ],
+  "archives": [],
+  "status": "Fail",
+  "reused_checks": [
+    {
+      "source_commit": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 591.239,
+      "log_sha256": "f0cbeb2ce35d4549ad91eae0fde36ce71cab180e20fa3640ae28845fc450d0c3",
+      "test_summaries": 414,
+      "totals": {
+        "passed": 3733,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass",
+      "actual_executed_in_this_run": false,
+      "reuse_receipt": "/workspace/.zil-env/forward/R2-reuse-workspace.json",
+      "reuse_receipt_sha256": "248e28475d3995bec6115514829d05b47601833640c731324effe1a16c04a0c5"
+    }
+  ]
+}

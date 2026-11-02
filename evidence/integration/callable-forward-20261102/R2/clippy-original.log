@@ -1,0 +1,28 @@
+    Checking zil-driver v0.1.0 (/workspace/zil-251/crates/zil-driver)
+    Checking zil-cli v0.1.0 (/workspace/zil-251/crates/zil-cli)
+    Checking zil-ide v0.1.0 (/workspace/zil-251/crates/zil-ide)
+error: this `if` statement can be collapsed
+  --> crates/zil-driver/tests/impl254_wire.rs:30:13
+   |
+30 | /             if let InstructionKind::TakeLocal { local } = &mut instruction.kind {
+31 | |                 if *local == sibling {
+32 | |                     *local = owner;
+33 | |                     changed += 1;
+34 | |                 }
+35 | |             }
+   | |_____________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#collapsible_if
+   = note: `-D clippy::collapsible-if` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+   |
+30 ~             if let InstructionKind::TakeLocal { local } = &mut instruction.kind
+31 ~                 && *local == sibling {
+32 |                     *local = owner;
+33 |                     changed += 1;
+34 ~                 }
+   |
+
+error: could not compile `zil-driver` (test "impl254_wire") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

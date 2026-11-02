@@ -1,0 +1,20 @@
+{
+  "original_candidate": "5a3515fe3effa6d373bc8a7617d39299e66f1572",
+  "original_overall_status": "Fail",
+  "repair": "Only collapse nested if in impl254_wire; same mutation selection and assertions",
+  "actual_followup": {
+    "workspace_all_targets_clippy_keep_going": "Pass",
+    "changed_tests": {
+      "passed": 2,
+      "failed": 0,
+      "native_runs": 0
+    }
+  },
+  "default_results": "3733 from R1 only; never relabeled new run",
+  "files": {
+    "clippy-original.log": "57d892c87d8c48b3bfc49192c5c5f235c12dbf48d6e2755ae8138cec8493a60e",
+    "changed-tests-followup.log": "50b18a41a967cd328cb30a77fe59caa47b3a2469b2f9e4f8e2b15d4e7ec6da25",
+    "clippy-all-targets-followup.log": "535eb0be86e3994aaeb4e9133f6141b55b29e3a3fc04f9b3172309af29db92ac",
+    "RESULT.json": "123f6940685a259ede41842eef3aae0b05043f9742ae4378982b94b6f385e122"
+  }
+}
