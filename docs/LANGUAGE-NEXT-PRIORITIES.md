@@ -1,9 +1,9 @@
 # 当前语言主线优先级
 
-已合入：拥有Event→具体闭包/公共dispatch→拥有Reply、F原值转交、Type/Syntax、同线程结构化外部回调。最新已验收main为a7f0783a，见LANGUAGE-SCOPED-CALLBACK.md；历史阶段文档的旧“下一目标”不覆盖这里。
+已合入：拥有Event→具体闭包/公共dispatch→拥有Reply、F原值转交、Type/Syntax、同线程结构化外部回调。最新已验收main为0f84ea00，见LANGUAGE-SCOPED-CALLBACK.md；历史阶段文档的旧“下一目标”不覆盖这里。
 
-1. 273–275：泛型函数内具体资源准备已实现/独审，9c6a64ee正式验收中。
-2. 277、278、280：并行补generic helper内具体Event→Reply handler与工厂取得的拥有body，统一源码/机器失败清理消费者。
+1. 273–275：泛型函数内具体资源准备已在7d5be625完成验收，经PR22合入；同提交一次原生超时及后续通过分别保留。
+2. 277、278、280、282：generic helper内具体Event→Reply handler与工厂body已实现；统一消费者两后端各19/0。283集成正在补角色包装边界及旧合法Fn别名兼容，尚未全量通过。
 3. 279：Analyze捕获窗口caller写漏判的层间一致性；Verify已有准确拒绝，未发现安全绕过。
 4. 下一真实候选：参数来源共享Product捕获、更多一般泛型组合；先做源程序与正控，不凭旧Unsupported文本扩大施工。
 

@@ -1,0 +1,207 @@
+{
+  "source": "7d5be625523cb8726dc4dd85725c6b572e80988c",
+  "integration_commit": "0f84ea00a3d5c580b2ec9c3454e2a42073b824b1",
+  "status": "Pass within the local-resource preparation scope",
+  "pull_request": "https://github.com/zil-lang/zil/pull/22",
+  "local_checks": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 5.3,
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 0.87,
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "workspace-repair",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl177_state_composition"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 1.64,
+      "test_summaries": 1,
+      "totals": {
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "reference",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--no-default-features",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 692.21,
+      "test_summaries": 422,
+      "totals": {
+        "passed": 3812,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "text-reference",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "text-reference"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 2.49,
+      "test_summaries": 10,
+      "totals": {
+        "passed": 64,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "migration",
+      "command": [
+        "python3",
+        "tools/llvm/test_validate_migration.py"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 0.22,
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    }
+  ],
+  "remote_checks": [
+    {
+      "run": 41520844170,
+      "attempt": 2,
+      "head": "7d5be625523cb8726dc4dd85725c6b572e80988c",
+      "conclusion": "Success",
+      "scope": "Complete default workspace, reference, native controls, all-target Clippy, text boundary and CI recovery checks"
+    },
+    {
+      "run": 41520844178,
+      "head": "7d5be625523cb8726dc4dd85725c6b572e80988c",
+      "conclusion": "Success",
+      "scope": "Research LLVM verification"
+    }
+  ],
+  "review": {
+    "reviewer": "/root/resume_verify",
+    "implementation_commit": "7d5be625523cb8726dc4dd85725c6b572e80988c",
+    "verdict": "Pass",
+    "scope": "Concrete owner producer forms, lexical shadowing, independent Analyze/Verify raw and Wire; exact legacy constructor source migration. Limited review, not a substitute for full CI."
+  },
+  "native_consumer": {
+    "functional_target": "foreign_scoped_callbacks",
+    "per_backend": {
+      "tests_passed": 9,
+      "tests_failed": 0,
+      "new_local_preparation_runs": 48,
+      "actual_reserve_failures": 16,
+      "beyond_failure_controls": 16,
+      "tracked_live_allocations_on_return": 0
+    },
+    "backends": [
+      "clang reference",
+      "LLVM API"
+    ],
+    "scope": "Source through production Lower and O0/O2; F remains callable after success, null and preparation failure."
+  },
+  "prior_failures": [
+    {
+      "source": "9c6a64ee84fe8c03af66634236edc4391d5b772a",
+      "gate": "local default",
+      "passed": 3918,
+      "failed": 1,
+      "resolution": "Actual owner constructor was incorrectly expected Unsupported; original source preserved as positive, real descriptor case retained as negative."
+    },
+    {
+      "source": "7d5be625523cb8726dc4dd85725c6b572e80988c",
+      "run": 41520844170,
+      "attempt": 1,
+      "gate": "default workspace",
+      "failure": "impl083_bytes_native traps-O0 exceeded the unchanged five-second execution deadline",
+      "cause": "Undetermined; no timeout increase or assertion relaxation. The same exact source passed attempt 2."
+    }
+  ],
+  "limits": [
+    "This local continuation does not claim a complete default run; the exact-head remote CI supplies that gate.",
+    "Full language/ZUI, native Windows and Rust product-performance comparisons remain incomplete."
+  ]
+}
