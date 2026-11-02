@@ -135,6 +135,141 @@ fn reaches(edges: &[Vec<usize>], source: usize, target: usize, budget: &mut Budg
     Ok(false)
 }
 
+/// A slot qualifier must follow the current value of a local at each CFG
+/// point. A global Store/TakeLocal graph would splice together two distinct
+/// writes to the same local and confuse a discarded instance with a fresh one.
+fn actual_slot_call(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    slot: LocalId,
+    budget: &mut Budget,
+) -> Check<bool> {
+    let blocks = f.blocks.len();
+    let width = f
+        .locals
+        .len()
+        .checked_add(f.values.len())
+        .ok_or_else(|| limit("internal slot provenance width overflow"))?;
+    let instructions = f.blocks.iter().try_fold(0usize, |n, b| {
+        n.checked_add(b.instructions.len())
+            .ok_or_else(|| limit("internal slot instruction count overflow"))
+    })?;
+    let edges = graph.successors.iter().try_fold(0usize, |n, row| {
+        n.checked_add(row.len())
+            .ok_or_else(|| limit("internal slot edge count overflow"))
+    })?;
+    // Boolean inputs only grow at a join. At most blocks*width entries can
+    // change, so this prepays every possible worklist scan and merge.
+    let visits = blocks
+        .checked_mul(width)
+        .and_then(|n| n.checked_add(1))
+        .ok_or_else(|| limit("internal slot fixed-point bound overflow"))?;
+    let work = visits
+        .checked_mul(
+            instructions
+                .saturating_add(edges.saturating_mul(width))
+                .saturating_add(width),
+        )
+        .ok_or_else(|| limit("internal slot work bound overflow"))?;
+    budget.spend(work)?;
+    let at = |value: ValueId| f.locals.len() + value.0 as usize;
+    let mut inputs = vec![None::<Vec<bool>>; blocks];
+    let mut pending = std::collections::VecDeque::new();
+    let mut queued = vec![false; blocks];
+    inputs[f.entry.0 as usize] = Some(vec![false; width]);
+    pending.push_back(f.entry.0 as usize);
+    queued[f.entry.0 as usize] = true;
+    while let Some(index) = pending.pop_front() {
+        queued[index] = false;
+        let mut state = inputs[index].as_ref().unwrap().clone();
+        for instruction in &f.blocks[index].instructions {
+            let result = instruction.result.map(at);
+            let mut output = false;
+            match &instruction.kind {
+                InstructionKind::Store { local, value } => {
+                    state[local.0 as usize] = state[at(*value)];
+                    state[at(*value)] = false;
+                }
+                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                    output = state[local.0 as usize];
+                    if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
+                        state[local.0 as usize] = false;
+                    }
+                }
+                InstructionKind::TakeOwnedArrayElement { local, index: 0 } => {
+                    output = *local == slot || state[local.0 as usize];
+                    state[local.0 as usize] = false;
+                }
+                InstructionKind::MakeOwnedArray { elements } if elements.len() == 1 => {
+                    output = state[at(elements[0])];
+                    state[at(elements[0])] = false;
+                }
+                InstructionKind::StoreOwnedArrayElement {
+                    local,
+                    index: 0,
+                    value,
+                } => {
+                    state[local.0 as usize] = state[at(*value)];
+                    state[at(*value)] = false;
+                }
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                } => {
+                    let target = &module.functions[function.0 as usize];
+                    if let Some(contract) = &target.callable_return_contract
+                        && let CallableReturnSource::Parameter(position) = contract.source
+                        && let Some(actual) = arguments.get(position as usize)
+                    {
+                        if state[at(*actual)] {
+                            return Ok(true);
+                        }
+                        output = state[at(*actual)];
+                    }
+                    for actual in arguments {
+                        state[at(*actual)] = false;
+                    }
+                }
+                InstructionKind::StorageLive(local)
+                | InstructionKind::StorageDead(local)
+                | InstructionKind::DropClosure { local }
+                | InstructionKind::DropOwnedArray { local }
+                | InstructionKind::DropOwnedArrayElement { local, .. } => {
+                    state[local.0 as usize] = false;
+                }
+                _ => {}
+            }
+            if let Some(result) = result {
+                state[result] = output;
+            }
+        }
+        for &next in &graph.successors[index] {
+            if !graph.reachable[next] {
+                continue;
+            }
+            let changed = if let Some(input) = &mut inputs[next] {
+                let mut changed = false;
+                for (existing, incoming) in input.iter_mut().zip(&state) {
+                    if *incoming && !*existing {
+                        *existing = true;
+                        changed = true;
+                    }
+                }
+                changed
+            } else {
+                inputs[next] = Some(state.clone());
+                true
+            };
+            if changed && !queued[next] {
+                queued[next] = true;
+                pending.push_back(next);
+            }
+        }
+    }
+    Ok(false)
+}
+
 /// An ordinary caller may use the already checked single-slot lowering only
 /// when a real Parameter-return call transfers that slot's element out. The
 /// returned instance may move to another local or slot. The per-instruction
@@ -303,23 +438,7 @@ pub(crate) fn check_internal_slot_uses(
                 Some(f.span),
             ));
         }
-        let mut qualified = false;
-        for &(taken_local, taken) in &takes {
-            if taken_local != slot {
-                continue;
-            }
-            for &(actual, _) in &calls {
-                if !reaches(&edges, at(taken), at(actual), budget)? {
-                    continue;
-                }
-                qualified = true;
-                break;
-            }
-            if qualified {
-                break;
-            }
-        }
-        if !qualified {
+        if !actual_slot_call(module, f, graph, slot, budget)? {
             if let Err(old_gate) =
                 closures::old_container_signature(module, id, Some(f.span), budget)
             {
