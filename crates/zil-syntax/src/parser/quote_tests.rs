@@ -132,3 +132,23 @@ fn malformed_or_outside_holes_are_rejected_without_recovery_success() {
         assert!(!parse(&source).is_ok(), "{text}");
     }
 }
+
+#[test]
+fn syntax_is_contextual_in_standard_paths_aliases_and_ordinary_names() {
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "stdsyntax.zil",
+        "import std.syntax as syntax\nsyntax use providers.example as ui\nfn f(){let value=syntax.export(\"answer\");let syntax=1;let next=syntax+1;}",
+    );
+    let module = parse(&source).into_result().unwrap();
+    let ItemKind::Import(import) = &module.items[0].kind else {
+        panic!()
+    };
+    assert_eq!(import.path, vec!["std", "syntax"]);
+    assert_eq!(import.alias.as_deref(), Some("syntax"));
+    let ItemKind::Import(import) = &module.items[1].kind else {
+        panic!()
+    };
+    assert!(import.syntax);
+}
