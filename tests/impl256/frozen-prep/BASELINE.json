@@ -1,0 +1,979 @@
+{
+  "status": "Draft baseline; no feature acceptance",
+  "binary": "/workspace/.zil-env/target-core/debug/zil",
+  "binary_sha256": "a07605bd547068bc0220ea459a66b7f1e2a8d3b085fe78ae5190db15becb13b6",
+  "binary_build_commit": "fa8638df7e9fc30e717e23191252bb1600d1e42f",
+  "production_inputs_equal_tested_R": "288e29628389d83a335783d5488be39f22b2008b",
+  "identity_basis": "Root attested equality of crates/*/src, build.rs, Cargo manifests/lock and toolchain from build commit to tested R. Current main is not used as binary build identity.",
+  "actual_cli_invocations": 30,
+  "new_positive_sources": 8,
+  "negative_sources": 7,
+  "verification_runs": 0,
+  "native_runs": 0,
+  "accepted_new_feature_cases": 0,
+  "rows": [
+    {
+      "case": "original",
+      "target_class": "new-positive",
+      "source_sha256": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/frozen-original/source.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/original/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/frozen-original/source.zil"
+          },
+          "report": "baseline/original/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/frozen-original/source.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/original/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 0,
+                "end": 45
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/frozen-original/source.zil"
+          },
+          "report": "baseline/original/verify/stdout.json"
+        }
+      ],
+      "interpretation": "Unsupported baseline; not Pass"
+    },
+    {
+      "case": "project",
+      "target_class": "new-positive",
+      "source_sha256": "5f44149b429bd51d001f0fed680a345548c68a9677c23820793f663ed0566b20",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/project/main.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/project/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/project/main.zil"
+          },
+          "report": "baseline/project/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/project/main.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/project/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 2,
+                "start": 71,
+                "end": 188
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/project/main.zil",
+            "1": "/workspace/.zil-env/forward-prep/project/model.zil",
+            "2": "/workspace/.zil-env/forward-prep/project/relay.zil"
+          },
+          "report": "baseline/project/verify/stdout.json"
+        }
+      ],
+      "interpretation": "Unsupported baseline; not Pass"
+    },
+    {
+      "case": "probe-fn-copy",
+      "target_class": "new-positive",
+      "source_sha256": "c48be51cc7f89e3e3c6b87ed78d3ef5b484c48ab8deb12a386997c681fa18f20",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fn-copy.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fn-copy/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fn-copy.zil"
+          },
+          "report": "baseline/probe-fn-copy/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fn-copy.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fn-copy/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 18,
+                "end": 59
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fn-copy.zil"
+          },
+          "report": "baseline/probe-fn-copy/verify/stdout.json"
+        }
+      ],
+      "interpretation": "Unsupported baseline; not Pass"
+    },
+    {
+      "case": "probe-fn-owned",
+      "target_class": "new-positive",
+      "source_sha256": "601ba197054506f41bd55c142936bcbed08e54480fd43d042ab4dc57010e857a",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fn-owned.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fn-owned/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fn-owned.zil"
+          },
+          "report": "baseline/probe-fn-owned/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fn-owned.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fn-owned/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 108,
+                "end": 153
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fn-owned.zil"
+          },
+          "report": "baseline/probe-fn-owned/verify/stdout.json"
+        }
+      ],
+      "interpretation": "Unsupported baseline; not Pass"
+    },
+    {
+      "case": "probe-fnmut-copy",
+      "target_class": "new-positive",
+      "source_sha256": "99278121664127a6ddf8d331576caf8abda0ca4881a381c334cb000eefe5db00",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fnmut-copy.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fnmut-copy/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fnmut-copy.zil"
+          },
+          "report": "baseline/probe-fnmut-copy/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fnmut-copy.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fnmut-copy/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+              "span": {
+                "file": 0,
+                "start": 45,
+                "end": 48
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fnmut-copy.zil"
+          },
+          "report": "baseline/probe-fnmut-copy/verify/stdout.json"
+        }
+      ],
+      "interpretation": "Unsupported baseline; not Pass"
+    },
+    {
+      "case": "probe-fnmut-owned",
+      "target_class": "new-positive",
+      "source_sha256": "020ddb603fcd8db9c12bc3fd71924f562720ef25440e861369d0d1c3e98135c2",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fnmut-owned.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fnmut-owned/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fnmut-owned.zil"
+          },
+          "report": "baseline/probe-fnmut-owned/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fnmut-owned.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fnmut-owned/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+              "span": {
+                "file": 0,
+                "start": 139,
+                "end": 142
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fnmut-owned.zil"
+          },
+          "report": "baseline/probe-fnmut-owned/verify/stdout.json"
+        }
+      ],
+      "interpretation": "Unsupported baseline; not Pass"
+    },
+    {
+      "case": "probe-fnonce-copy",
+      "target_class": "new-positive",
+      "source_sha256": "b017bf3162a51a4a4cf8394f0b15bd7e4d1ba4fee6a483d8eb33075c87a9e62f",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fnonce-copy.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fnonce-copy/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fnonce-copy.zil"
+          },
+          "report": "baseline/probe-fnonce-copy/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fnonce-copy.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fnonce-copy/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 18,
+                "end": 63
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fnonce-copy.zil"
+          },
+          "report": "baseline/probe-fnonce-copy/verify/stdout.json"
+        }
+      ],
+      "interpretation": "Unsupported baseline; not Pass"
+    },
+    {
+      "case": "probe-fnonce-owned",
+      "target_class": "new-positive",
+      "source_sha256": "b6ebd3423e1e01936329d7bdac7a8416b2334d879507975384993e6f99810871",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fnonce-owned.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fnonce-owned/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fnonce-owned.zil"
+          },
+          "report": "baseline/probe-fnonce-owned/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/probes/fnonce-owned.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/probe-fnonce-owned/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 108,
+                "end": 157
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/probes/fnonce-owned.zil"
+          },
+          "report": "baseline/probe-fnonce-owned/verify/stdout.json"
+        }
+      ],
+      "interpretation": "Unsupported baseline; not Pass"
+    },
+    {
+      "case": "negative-external_address_environment",
+      "target_class": "negative",
+      "source_sha256": "999ceefd10d1e980ecfb0949663394c774962578f66e2ffba6fb51c3015959d5",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/external_address_environment.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-external_address_environment/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/external_address_environment.zil"
+          },
+          "report": "baseline/negative-external_address_environment/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/external_address_environment.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-external_address_environment/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 0,
+                "end": 42
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/external_address_environment.zil"
+          },
+          "report": "baseline/negative-external_address_environment/verify/stdout.json"
+        }
+      ],
+      "interpretation": "BlockedByMissingPositiveCapability; not correct semantic rejection evidence"
+    },
+    {
+      "case": "negative-mut_declared_actual_fn_shared_call",
+      "target_class": "negative",
+      "source_sha256": "faa31288a9ff9948f6af919b3556d502ad6bb154bf515c2108032d798cad8e17",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/mut_declared_actual_fn_shared_call.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-mut_declared_actual_fn_shared_call/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/mut_declared_actual_fn_shared_call.zil"
+          },
+          "report": "baseline/negative-mut_declared_actual_fn_shared_call/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/mut_declared_actual_fn_shared_call.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-mut_declared_actual_fn_shared_call/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 0,
+                "end": 45
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/mut_declared_actual_fn_shared_call.zil"
+          },
+          "report": "baseline/negative-mut_declared_actual_fn_shared_call/verify/stdout.json"
+        }
+      ],
+      "interpretation": "BlockedByMissingPositiveCapability; not correct semantic rejection evidence"
+    },
+    {
+      "case": "negative-once_declared_actual_fn_copy",
+      "target_class": "negative",
+      "source_sha256": "22361b10f0acb9b5efc71fd976c04ed41ded11f7fc8c135370ff75e0701b7c0f",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/once_declared_actual_fn_copy.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-once_declared_actual_fn_copy/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/once_declared_actual_fn_copy.zil"
+          },
+          "report": "baseline/negative-once_declared_actual_fn_copy/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/once_declared_actual_fn_copy.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-once_declared_actual_fn_copy/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 0,
+                "end": 45
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/once_declared_actual_fn_copy.zil"
+          },
+          "report": "baseline/negative-once_declared_actual_fn_copy/verify/stdout.json"
+        }
+      ],
+      "interpretation": "BlockedByMissingPositiveCapability; not correct semantic rejection evidence"
+    },
+    {
+      "case": "negative-once_declared_actual_fn_twice",
+      "target_class": "negative",
+      "source_sha256": "a9b18780630b93ccb0e8edd36cfcdb6b9ceed8edf829b2e710e7bce9a94b68c7",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/once_declared_actual_fn_twice.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-once_declared_actual_fn_twice/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/once_declared_actual_fn_twice.zil"
+          },
+          "report": "baseline/negative-once_declared_actual_fn_twice/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/once_declared_actual_fn_twice.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-once_declared_actual_fn_twice/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 0,
+                "end": 45
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/once_declared_actual_fn_twice.zil"
+          },
+          "report": "baseline/negative-once_declared_actual_fn_twice/verify/stdout.json"
+        }
+      ],
+      "interpretation": "BlockedByMissingPositiveCapability; not correct semantic rejection evidence"
+    },
+    {
+      "case": "negative-same_closure_id_different_instance",
+      "target_class": "negative",
+      "source_sha256": "130fa4b1fed0d24e806ba8b14e4e90bb244e88932fd56ad7c9a24884cfe9df33",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/same_closure_id_different_instance.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-same_closure_id_different_instance/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/same_closure_id_different_instance.zil"
+          },
+          "report": "baseline/negative-same_closure_id_different_instance/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/same_closure_id_different_instance.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-same_closure_id_different_instance/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 139,
+                "end": 192
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/same_closure_id_different_instance.zil"
+          },
+          "report": "baseline/negative-same_closure_id_different_instance/verify/stdout.json"
+        }
+      ],
+      "interpretation": "BlockedByMissingPositiveCapability; not correct semantic rejection evidence"
+    },
+    {
+      "case": "negative-same_closure_id_wrong_branch",
+      "target_class": "negative",
+      "source_sha256": "4f4079d3971acb0df7084a32c68aef39e3526e410f3f82c0bbd2dfdd37bf1ef2",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/same_closure_id_wrong_branch.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-same_closure_id_wrong_branch/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/same_closure_id_wrong_branch.zil"
+          },
+          "report": "baseline/negative-same_closure_id_wrong_branch/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/same_closure_id_wrong_branch.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-same_closure_id_wrong_branch/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 139,
+                "end": 236
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/same_closure_id_wrong_branch.zil"
+          },
+          "report": "baseline/negative-same_closure_id_wrong_branch/verify/stdout.json"
+        }
+      ],
+      "interpretation": "BlockedByMissingPositiveCapability; not correct semantic rejection evidence"
+    },
+    {
+      "case": "negative-use_after_transfer",
+      "target_class": "negative",
+      "source_sha256": "343b09e22b8666809e7b8c667ff50f87bf0a63241cb7c94886c37ff39c7dd45a",
+      "stages": [
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/use_after_transfer.zil",
+            "--stop-after",
+            "parse",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-use_after_transfer/parse/phases"
+          ],
+          "exit_code": 0,
+          "status": "Success",
+          "phase": "parse",
+          "diagnostics": [],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/use_after_transfer.zil"
+          },
+          "report": "baseline/negative-use_after_transfer/parse/stdout.json"
+        },
+        {
+          "command": [
+            "/workspace/.zil-env/target-core/debug/zil",
+            "check",
+            "/workspace/.zil-env/forward-prep/negative/use_after_transfer.zil",
+            "--stop-after",
+            "verify",
+            "--json",
+            "--emit-dir",
+            "/workspace/.zil-env/forward-prep/baseline/negative-use_after_transfer/verify/phases"
+          ],
+          "exit_code": 3,
+          "status": "Unsupported",
+          "phase": "expand",
+          "diagnostics": [
+            {
+              "phase": "expand",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "escaping callable result is not implemented",
+              "span": {
+                "file": 0,
+                "start": 24,
+                "end": 66
+              },
+              "notes": []
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/forward-prep/negative/use_after_transfer.zil"
+          },
+          "report": "baseline/negative-use_after_transfer/verify/stdout.json"
+        }
+      ],
+      "interpretation": "BlockedByMissingPositiveCapability; not correct semantic rejection evidence"
+    }
+  ],
+  "environment_invocation_errors": [
+    {
+      "command": "target-core/debug/zil check --help without sourcing env.sh",
+      "category": "Infrastructure invocation error",
+      "detail": "libLLVM.so.23.1 loader path absent",
+      "counted_as_compiler_execution": false
+    }
+  ],
+  "usage_probe_errors": [
+    {
+      "command": "zil check --help after sourcing env.sh",
+      "category": "CLI usage error",
+      "detail": "help is a top-level option",
+      "counted_as_source_check": false
+    }
+  ]
+}

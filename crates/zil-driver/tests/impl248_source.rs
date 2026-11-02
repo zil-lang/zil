@@ -85,7 +85,14 @@ fn repeated_fn_and_fnmut_calls_each_consume_a_new_owned_argument() {
 fn callback_return_does_not_revive_a_borrowed_input_window() {
     let target = TargetProfile::host_llvm();
     let limits = Limits::default();
-    let bytes = include_bytes!("../../../evidence/impl/248/loan_revival.wire");
+    // Keep the historical bytes intact; version rejection is distinct from
+    // the current source-derived semantic counterexample in impl254_wire.
+    let archived = include_bytes!("../../../evidence/impl/248/loan_revival.wire");
+    assert_eq!(
+        zil_ir::wire::decode_module_candidate(archived, &limits).unwrap_err()[0].code,
+        "E-WIRE-VERSION"
+    );
+    let bytes = include_bytes!("../../../tests/impl254/loan_revival_v31.wire");
     let (typed, candidate) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
     for errors in [
         zil_verify::verify_module(typed, candidate, &target, &limits).unwrap_err(),

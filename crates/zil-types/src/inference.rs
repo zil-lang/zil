@@ -810,6 +810,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     if signature.type_parameter.is_none()
         && ((!admitted(&signature.result)
             && signature.callable_return.is_none()
+            && forwarding::signature(signature).is_none()
             && !callable_fields::signature(signature))
             || signature.parameters.iter().enumerate().any(|(index, ty)| {
                 !admitted(ty)
@@ -1152,6 +1153,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         budget: &'b mut Budget<'c>,
     ) -> R<Self> {
         let old_result = function.callable_return.is_some()
+            || forwarding::bound(function).is_some()
             || function.type_parameters.first().is_some_and(|parameter| {
                 store_templates::symbolic_type(&function.return_type, &parameter.name)
             })
@@ -3265,6 +3267,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 self.bind_term(&value, ty, argument.span)?;
                             }
                         }
+                        if forwarding::signature(&signature).is_some() {
+                            return Ok(Term::Closure(
+                                state_environment
+                                    .ok_or_else(|| unsupported(span, "forward source absent"))?,
+                            ));
+                        }
                         if let (Some(environment), Some(bound)) =
                             (state_environment, signature.callable.first())
                             && callable_fields::placeholder_package(
@@ -3332,6 +3340,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                     self.expr_expected(argument, Some(ty), depth + 1, false)?;
                                 self.bind_term(&value, ty, argument.span)?;
                             }
+                        }
+                        if forwarding::signature(&signature).is_some() {
+                            return Ok(Term::Closure(
+                                state_environment
+                                    .ok_or_else(|| unsupported(span, "forward source absent"))?,
+                            ));
                         }
                         if let (Some(environment), Some(bound)) =
                             (state_environment, signature.callable.first())

@@ -1313,7 +1313,8 @@ fn legacy_byte_capture_has_exact_fresh_budget_control() {
     // Measured at a94bd81d before any 204 production merge. That complete
     // production domain equals ee0; retain its old source and fees exactly.
     let actual = phase_budgets("legacy-byte-capture", source);
-    assert_eq!(actual, [2, 196, 2230, 2490]);
+    // Schema31 adds one Fresh source tag to each kernel's two metadata scans.
+    assert_eq!(actual, [2, 196, 2230 + 2, 2490 + 2]);
 }
 
 #[test]

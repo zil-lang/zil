@@ -56,6 +56,7 @@ struct MoveWalk<'a, 's> {
     bounds: &'a [CoreCallableParameter],
     scopes: Vec<BTreeMap<String, u32>>,
     next: u32,
+    mutable_positions: Option<std::collections::BTreeSet<u32>>,
     generation: u64,
     flow: MoveFlow,
     loops: Vec<(Option<MoveFlow>, Option<MoveFlow>)>,
@@ -211,7 +212,24 @@ impl MoveWalk<'_, '_> {
         }
         Ok(())
     }
+    fn require_writable(&mut self, root: u32, span: Span) -> R<()> {
+        if let Some(positions) = &self.mutable_positions {
+            self.state
+                .snapshot(helpers::plan::tree_work(positions.len()), span)?;
+            if !positions.contains(&root) {
+                return Err(error(
+                    "E-CLOSURE-MUTABILITY",
+                    span,
+                    "FnMut forwarding requires a mutable actual F position",
+                ));
+            }
+        }
+        Ok(())
+    }
     fn fresh_alias(&mut self, parent: Position, mutable: bool, span: Span) -> R<Vec<Alias>> {
+        if mutable {
+            self.require_writable(parent.0, span)?;
+        }
         let borrowed_at = self.next_generation(span)?;
         let values = vec![Alias {
             parent,
@@ -506,6 +524,9 @@ impl MoveWalk<'_, '_> {
         let Some(position @ (root, field)) = self.position(expression, depth + 1)? else {
             return Ok(());
         };
+        if access == Access::Write {
+            self.require_writable(root, expression.span)?;
+        }
         if access != Access::Write {
             self.check_aliases(AliasKey::Local(root), expression.span)?;
         }
@@ -838,12 +859,22 @@ impl MoveWalk<'_, '_> {
             self.node(depth + 1, statement.span)?;
             match &statement.kind {
                 CoreStatementKind::Binding {
-                    name, initializer, ..
+                    name,
+                    initializer,
+                    mutable,
+                    ..
                 } => {
                     if let Some(value) = initializer {
                         self.expr(value, Access::Move, depth + 1)?;
                     }
                     self.bind(name, statement.span)?;
+                    if *mutable && let Some(positions) = &mut self.mutable_positions {
+                        self.state.snapshot(
+                            helpers::plan::tree_work(positions.len()).saturating_add(1),
+                            statement.span,
+                        )?;
+                        positions.insert(self.next - 1);
+                    }
                     if let Some(value) = initializer {
                         self.copy_aliases(
                             AliasKey::Expression(value.id),
@@ -1022,6 +1053,7 @@ fn check_moves(
         bounds,
         scopes: vec![BTreeMap::new()],
         next: 0,
+        mutable_positions: forwarding::bound(function).map(|_| Default::default()),
         generation: 0,
         flow: MoveFlow {
             live: true,
@@ -1444,8 +1476,10 @@ pub(super) fn collect(
         state.snapshot(work, span)?;
     }
     let legacy_state = legacy_candidate && callable_fields::template(function);
+    let forward = forwarding::bound(function).is_some();
     if function.state_parameters.is_empty()
         && !legacy_state
+        && !forward
         && !callable_fields::dual_constructor(
             &function.callable_parameters,
             &function.return_type,
@@ -1467,7 +1501,8 @@ pub(super) fn collect(
         scopes: vec![BTreeMap::new()],
         expressions: BTreeMap::new(),
         capture: false,
-        position_liveness: replacement(function) || legacy_state,
+        position_liveness: replacement(function) || legacy_state || forward,
+        forward,
         live: 1,
         loops: Vec::new(),
         state,
@@ -1497,6 +1532,7 @@ struct Walk<'a, 's> {
     // One F may name two fields plus a direct replacement. Its declaration
     // kind is shared; MoveWalk owns each actual position and refill lifetime.
     position_liveness: bool,
+    forward: bool,
     // Four possible consumed-slot masks for this declaration's two distinct
     // sources. This is source capability checking, not a concrete loan proof.
     live: u8,
@@ -2283,7 +2319,20 @@ impl Walk<'_, '_> {
                 }
                 CoreStatementKind::Return(value) => {
                     if let Some(value) = value {
-                        self.expr(value, depth + 1)?;
+                        let returned = self.expr(value, depth + 1)?;
+                        if self.forward {
+                            self.same_origin(
+                                &returned,
+                                &Shape::Callable(self.bounds[0].generic_index),
+                                value.span,
+                            )?;
+                        }
+                    } else if self.forward {
+                        return Err(error(
+                            "E-CALLABLE-RETURN",
+                            statement.span,
+                            "forwarding must return its actual F input",
+                        ));
                     }
                     self.live = 0;
                 }

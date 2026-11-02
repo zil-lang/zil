@@ -685,6 +685,24 @@ opaque 返回只隐藏具体类型名；Hold、Call、Cleanup、Resume、来源�
 
 准入须以冻结的真实公共源码、未调用反例、源派生 Analyze/raw Verify/Wire、O0/O2 普通产物、实际分配失败清理和新旧精确预算完成验收。该有限工厂不关闭一般 F 原样返回、开放异构、完整拥有递归、声明式 Syntax、长期外部保留、异步/取消或完整语言与产品门。
 
+### 9.4.2 单一自含 callable 的原值返回（251–256）
+
+普通自由函数允许唯一按值 `F:Fn(...) -> R`、`F:FnMut(...) -> R` 或 `F:FnOnce(...) -> R`，结果直接为同一 binder 的裸 `F`。每条可达正常返回必须交出本次已成功准备的该实参位置的同一有效实例；相同 ClosureId、布局、捕获内容或工厂类型不能代替实例来源。允许合法局部移动、分支、循环和有限跨模块 nested keep，不人为限定零调用或单 return。Fn/FnMut 可以先按真实合同调用再返回有效后态；FnOnce 调用消费该位置，不能再返回它。未调用的拥有 F 仍可返回或按原规则销毁。
+
+Value 准备保留既有 Copy/Move：合格具体 Copy 环境复制为独立实参位置，调用者原位置继续有效；非 Copy 实际值以及未获 Copy 能力的符号 F 位置按移动准备。F bound 自身不授 Copy。返回关系绑定本次实际参数位置，不能把 Copy 原位置和副本合并。返回到调用者后恢复传入前该值位置的声明模式及能力来源：具体 Fn 经过 FnOnce keep 仍为具体 Fn；外层声明 FnOnce 的位置即使实例化为实际 Copy Fn，也不能经 keep 升级为 Fn/Copy。FnMut 的可写位置要求不变。
+
+F 环境及拥有 child 环境必须递归自含，不携外部 Address/Desc 或未结 Hold/Call 来源。调用签名分别复用既有有限 Copy、既有一层同步 Copy/slice Address 参数到 Copy/Unit，以及 §9.3.1 闭合拥有数据签名；不新增借入或 lending 结果。拥有 callback 参数列表仍不混显式 Address/Desc。签名中的未来地址实参不等于环境借入；原值返回不能延长某次调用地址参数的借期、保存该参数或省略窗口核验。
+
+普通伴参允许有限 Copy 和 §8.1.5 已准入的完整闭合 Product/Enum/ErrorUnion，包括既有合法 Store 字段组合，逐项独立核实际完整类型。伴参不夹 F/Closure、opaque 环境、Address/Desc 或未恢复责任，不新开裸资源的拥有参数解释、give 形参、State/容器/数组捕获资格。旧无环境函数指针沿原 Copy/FFI 许可。F 的旧 Address 调用签名可以与独立合法拥有伴参同列，不把 callback 参数规则误用于伴参。
+
+实参按原顺序完整准备。后项失败逆成功准备序清理已准备值，未进入正文不伪造调用。返回 F 先完整准备，再清剩余参数、局部与 defer；其真实环境责任、调用后态、字段活性和未结窗口从参数转入结果，不重新生成 Fresh/Incoming 或私有 Created 权限。普通伴参及其窗口仍按真实来源结算，不因 F 返回而复活。非法复制、重复消费、换实例、调用后失效、部分转移及混合路径均拒绝；trap 不凭空新增 unwind 保证。
+
+公共 `CallableReturnContract.source` 为 `Fresh | Parameter(k)`，k 为实际函数参数索引。Fresh 保留 §9.4.1 原工厂含义和独立准入；Parameter 要求与唯一按值 callable role 对应，role 的 `CallableCleanup::Returned` 表示正常返回转出其实际剩余责任。Parameter 合同的 kind 与本函数声明 bound 一致，调用者来源按实际实参替换；不另设可授信的权限位。Types、Analyze、Verify 分别从真实签名、局部/SSA、CFG 与每个 Return 重建关系、活性和状态，不能靠全函数来源并集、候选摘要或相同 ClosureId 授信。Verify 不调用前两核求证。
+
+schema/Wire/typed 指纹为31，返回合同指纹为3，角色合同指纹为4；新增来源、责任标签都进入Wire与指纹，未知tag及旧版明确拒绝。历史Wire30原字节不覆写，新版语义反例另存。新增索引/来源遍历、状态合流、复制、队列及编码增长在操作前预付同一请求额度，不提高默认限额。旧无新关系逻辑费用保持；新增公开字段的实际编码长度如实记录，不用免计费或跨请求缓存掩盖变化。
+
+以原 f-identity 字节晋升，跨模块 Fn/FnMut/FnOnce × Copy/拥有签名、旧 Address 签名、Store/ErrorUnion 伴参、同型不同实例、实际声明模式、未用定义、raw/Wire、N/N−1/fresh 与 O0/O2 逐分配点失败清理验收。借入 F 逃逸、多 F、普通 T 混合、F 容器、E!F、开放 opaque 工厂签名、CT、异步及长期外部保留不由本条新增。登记仅为合同，不宣告完整语言、ZUI 或产品门完成。
+
 ### 9.5 容器、替换与动态合同
 
 借入回调不逃出其已声明调用边界；拥有回调的实际资源随环境包给出；异构回调选择明确 Box/arena/调用者槽。所谓非逃逸不推导纯、无挂起、无重入或无限可重复。

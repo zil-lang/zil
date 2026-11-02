@@ -746,6 +746,8 @@ pub struct CallableRole {
 /// self-contained concrete environment with no external Hold/Call dependencies.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableReturnContract {
+    /// Untrusted result provenance; each reachable return must prove this relation.
+    pub source: CallableReturnSource,
     pub closure: ClosureId,
     pub kind: CallableKind,
     pub hold: Vec<u32>,
@@ -758,11 +760,20 @@ pub struct CallableReturnContract {
     pub lending_captures: Vec<u32>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CallableReturnSource {
+    /// A newly constructed self-contained environment under the factory profile.
+    Fresh,
+    /// The same live instance supplied in this actual function parameter position.
+    Parameter(u32),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallableCleanup {
     /// The by-value helper settles its environment on every returning path.
     Owned,
     /// The helper preserves the borrowed carrier and acquires no cleanup debt.
     Borrowed,
+    /// On normal return, transfer the actual remaining environment to the result.
+    Returned,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallableExit {
@@ -1659,7 +1670,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V30\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V31\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2512,17 +2523,24 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-3\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-4\0".to_vec();
     encode_callable_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
 /// Deterministic identity only; this hash never grants verification authority.
 pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-2\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-3\0".to_vec();
     encode_callable_return_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
 fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableReturnContract) {
+    match c.source {
+        CallableReturnSource::Fresh => b.push(0),
+        CallableReturnSource::Parameter(parameter) => {
+            b.push(1);
+            encode_u32(b, parameter);
+        }
+    }
     encode_u32(b, c.closure.0);
     b.push(callable_kind_tag(c.kind));
     for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
@@ -2555,6 +2573,7 @@ fn encode_callable_contract(b: &mut impl FingerprintSink, c: &CallableParameterC
         b.push(match role.cleanup {
             CallableCleanup::Owned => 0,
             CallableCleanup::Borrowed => 1,
+            CallableCleanup::Returned => 2,
         });
     }
     match &c.traces {

@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 30;
+pub const WIRE_VERSION: u32 = 31;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -649,6 +649,7 @@ impl<'a> Writer<'a> {
             self.u8(match role.cleanup {
                 CallableCleanup::Owned => 0,
                 CallableCleanup::Borrowed => 1,
+                CallableCleanup::Returned => 2,
             })?;
         }
         match &c.traces {
@@ -704,6 +705,13 @@ impl<'a> Writer<'a> {
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
         self.boolean(function.callable_return_contract.is_some())?;
         if let Some(c) = &function.callable_return_contract {
+            match c.source {
+                CallableReturnSource::Fresh => self.u8(0)?,
+                CallableReturnSource::Parameter(parameter) => {
+                    self.u8(1)?;
+                    self.u32(parameter)?;
+                }
+            }
             self.u32(c.closure.0)?;
             self.u8(callable_kind_tag(c.kind))?;
             for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
@@ -2045,6 +2053,7 @@ impl<'a> Reader<'a> {
             let cleanup = match self.u8()? {
                 0 => CallableCleanup::Owned,
                 1 => CallableCleanup::Borrowed,
+                2 => CallableCleanup::Returned,
                 _ => return Err(malformed("E-WIRE-TAG", "unknown callable cleanup")),
             };
             roles.push(CallableRole {
@@ -2109,6 +2118,11 @@ impl<'a> Reader<'a> {
     fn function(&mut self) -> WireResult<TypedFunction> {
         let callable_return_contract = if self.boolean()? {
             Some(CallableReturnContract {
+                source: match self.u8()? {
+                    0 => CallableReturnSource::Fresh,
+                    1 => CallableReturnSource::Parameter(self.u32()?),
+                    _ => return Err(malformed("E-WIRE-TAG", "unknown callable return source")),
+                },
                 closure: ClosureId(self.u32()?),
                 kind: self.callable_kind()?,
                 hold: self.callable_indices()?,

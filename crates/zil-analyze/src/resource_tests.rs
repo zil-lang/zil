@@ -546,18 +546,34 @@ fn impl247_callback_data_cannot_smuggle_a_callback_state_through_store() {
 #[test]
 fn impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles() {
     let base = owned_callback_fixture(CallableKind::FnOnce, 1);
-    for ty in [
-        Type::Package {
-            name: "State".into(),
-            fields: vec![
-                ("token".into(), managed()),
-                ("callback".into(), Type::Closure(ClosureId(0))),
-            ],
-        },
-        Type::Array {
-            element: Box::new(Type::Closure(ClosureId(0))),
-            length: 1,
-        },
+    for (valid, ty) in [
+        (
+            false,
+            Type::Package {
+                name: "State".into(),
+                fields: vec![
+                    ("token".into(), managed()),
+                    ("callback".into(), Type::Closure(ClosureId(0))),
+                ],
+            },
+        ),
+        // The original Array1 case only declares an unused empty local. It
+        // creates no SSA responsibility and is a valid private carrier slot.
+        (
+            true,
+            Type::Array {
+                element: Box::new(Type::Closure(ClosureId(0))),
+                length: 1,
+            },
+        ),
+        // A separate Array2 negative retains the public container boundary.
+        (
+            false,
+            Type::Array {
+                element: Box::new(Type::Closure(ClosureId(0))),
+                length: 2,
+            },
+        ),
     ] {
         let mut m = base.clone();
         let local = LocalId(m.functions[0].locals.len() as u32);
@@ -568,13 +584,18 @@ fn impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles() {
             mutable: false,
             span: s(),
         });
-        let errors = analyze(&m, &Limits::default()).unwrap_err();
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.message.contains("does not grant a State")),
-            "{errors:?}"
-        );
+        let result = analyze(&m, &Limits::default());
+        if valid {
+            assert!(result.is_ok(), "{result:?}");
+        } else {
+            let errors = result.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.message.contains("does not grant a State")),
+                "{errors:?}"
+            );
+        }
         let bytes = zil_ir::wire::encode_module_candidate(
             &m,
             &CandidatePlan::empty_for(&m),
@@ -584,10 +605,11 @@ fn impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles() {
         let raw = zil_ir::wire::decode_module_candidate(&bytes, &Limits::default())
             .unwrap()
             .0;
-        assert!(analyze(&raw, &Limits::default()).is_err());
+        assert_eq!(analyze(&raw, &Limits::default()).is_ok(), valid);
     }
     let mut m = base;
     m.functions[0].callable_return_contract = Some(CallableReturnContract {
+        source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(0),
         kind: CallableKind::FnOnce,
         hold: vec![],
@@ -740,4 +762,49 @@ fn independent_sources_reject_stale_borrowed_capture_and_repeated_consuming_ssa(
     f.values.push(Type::I32);
     f.blocks[0].instructions.insert(at + 1, again);
     assert!(analyze(&m, &Limits::default()).is_err());
+}
+
+#[test]
+fn private_empty_slot_permission_does_not_discharge_an_unstored_owned_ssa() {
+    let mut m = owned_callback_fixture(CallableKind::FnOnce, 1);
+    let f = &mut m.functions[0];
+    let closure = ValueId(f.values.len() as u32);
+    let array = ValueId(closure.0 + 1);
+    f.values.extend([
+        Type::Closure(ClosureId(0)),
+        Type::Array {
+            element: Box::new(Type::Closure(ClosureId(0))),
+            length: 1,
+        },
+    ]);
+    let at = f.blocks[0].instructions.len() - 1;
+    f.blocks[0].instructions.splice(
+        at..at,
+        [
+            inst(
+                Some(closure),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![],
+                },
+            ),
+            inst(
+                Some(array),
+                InstructionKind::MakeOwnedArray {
+                    elements: vec![closure],
+                },
+            ),
+        ],
+    );
+    assert!(analyze(&m, &Limits::default()).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(
+        &m,
+        &CandidatePlan::empty_for(&m),
+        &Limits::default(),
+    )
+    .unwrap();
+    let raw = zil_ir::wire::decode_module_candidate(&bytes, &Limits::default())
+        .unwrap()
+        .0;
+    assert!(analyze(&raw, &Limits::default()).is_err());
 }

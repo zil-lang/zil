@@ -576,6 +576,7 @@ fn complete_package_factory_input_and_owned_cleanup_contract_are_checked() {
         },
     );
     factory.0.callable_return_contract = Some(CallableReturnContract {
+        source: zil_ir::CallableReturnSource::Fresh,
         lending_captures: Vec::new(),
         closure: ClosureId(0),
         kind: CallableKind::FnMut,

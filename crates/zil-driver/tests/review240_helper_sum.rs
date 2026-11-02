@@ -4,6 +4,7 @@ use std::{fs, path::PathBuf, process::Command};
 use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 const MODEL: &str = "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}enum E{Empty,Pair(manages R,manages R)}package Wrap{state:E;ready:bool}fn sink(give owner:R){}fn make()->E{return E.Pair(R{n:65},R{n:66})}fn fallible()->void!Wrap{return Wrap{state:make(),ready:true}}";
+const RETURN_F: &str = "fn bad<F:Fn()->i32>(f:F,e:E)->F{return f}";
 fn directory(label: &str) -> PathBuf {
     let out = std::env::var_os("ZIL_TEST_REPORT_DIR")
         .map(PathBuf::from)
@@ -124,7 +125,7 @@ fn ordinary_sum_argument_does_not_expand_callable_or_state_permissions() {
             "callable-result",
             "fn bad<F:Fn()->E>(f:F,e:E)->i32{let other=f();return 0}",
         ),
-        ("return-F", "fn bad<F:Fn()->i32>(f:F,e:E)->F{return f}"),
+        ("return-F", RETURN_F),
         (
             "state-constructor",
             "package State<F>{callback:F}fn bad<F:Fn()->i32>(f:F,e:E)->State<F>{return State::<F>{callback:f}}",
@@ -200,6 +201,16 @@ fn ordinary_sum_argument_does_not_expand_callable_or_state_permissions() {
             },
         );
         fs::write(out.join("report.json"), report.to_json()).unwrap();
+        if label == "return-F" {
+            // The original definition is now admitted by the explicit F-return profile.
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            continue;
+        }
         assert!(
             matches!(
                 report.status,
@@ -214,5 +225,55 @@ fn ordinary_sum_argument_does_not_expand_callable_or_state_permissions() {
             report.to_json()
         );
         assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
+fn formerly_unsupported_return_f_keeps_the_instance_and_cleans_owning_companion() {
+    let text = format!(
+        "{MODEL}{RETURN_F}fn main()->i32{{let original=()=>7;let current=bad(original,make());return original()+current()+current()-21}}"
+    );
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let out = directory(&format!("return-F-promoted-{optimization:?}"));
+        fs::write(out.join("source.zil"), &text).unwrap();
+        fs::write(out.join("expected.txt"), "stdout=AB\nexit=0\n").unwrap();
+        let report = compile_source(
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "helper240-return-f.zil",
+                text.as_str(),
+            ),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                backend: if cfg!(feature = "llvm-api") {
+                    NativeBackend::LlvmApi
+                } else {
+                    NativeBackend::Clang
+                },
+                emit_dir: Some(out.join("phases")),
+                output: Some(out.join("program")),
+                ..CompileOptions::default()
+            },
+        );
+        fs::write(out.join("report.json"), report.to_json()).unwrap();
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+        let result = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        fs::write(out.join("stdout"), &result.stdout).unwrap();
+        fs::write(out.join("stderr"), &result.stderr).unwrap();
+        fs::write(out.join("exit.txt"), format!("{:?}", result.status.code())).unwrap();
+        assert_eq!(result.status.code(), Some(0));
+        assert_eq!(result.stdout, b"AB");
+        assert!(result.stderr.is_empty());
     }
 }

@@ -75,6 +75,7 @@ fn fixture(kind: CallableKind, retained: bool) -> TypedModule {
     factory.locals = vec![local(0, input.clone())];
     factory.return_type = output.clone();
     factory.callable_return_contract = Some(CallableReturnContract {
+        source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(1),
         kind,
         hold: vec![],
