@@ -47,3 +47,24 @@ This input/oracle checkpoint establishes no new source, Verify or native Pass.
 The existing foreign_scoped_callbacks functional target will execute these
 groups after the frontend's precise admission fix is available. No new Cargo
 target, original ORACLE change, default budget or product gate is introduced.
+
+The first real functional source replay on the baseline preserves both old
+controls' Verify success. Frozen generic-local still rejects at the exact
+original Expand/E-UNSUPPORTED span 706..710; the observed variant reaches the
+same give gate at span 967..971. These are positive obligations and the test
+fails until the admission fix is integrated, without substituting Unsupported
+for semantic rejection. The old-control clang O0/O2 native group passes its
+24 executions, including eight actual reserve failures and eight beyond-point
+controls, with live=0 throughout. API replay is tracked separately.
+
+Use the existing `foreign_scoped_callbacks` target with
+`CARGO_TARGET_DIR=/workspace/.zil-env/target-275 CARGO_BUILD_JOBS=2` after
+sourcing `/workspace/.zil-env/env.sh`. The exact selectors are
+`scoped_local_preparation_frozen_sources_reach_independent_verification`,
+`scoped_local_preparation_frozen_controls_match_native_oracle`,
+`scoped_local_preparation_generic_source_matches_native_oracle`, and
+`scoped_local_preparation_preserves_cleanup_and_caller_callback`.
+For source or native checks use `cargo test -p zil-driver --test
+foreign_scoped_callbacks NAME -- --exact --nocapture`; add `--features llvm-api`
+for the API backend. Native checks assert the actual backend, no fallback,
+and API builder input, parse_ns=0 and verification before/after optimization.
