@@ -108,13 +108,20 @@ impl Builder<'_, '_> {
             && !self.closure_captures.contains_key(&local)
             && let Type::Closure(id) = self.function.locals[local.0 as usize].ty
             && self.declared_state_kind(body, None, id)?.is_none()
-            && self.closures.pending[id.0 as usize]
+        {
+            self.closures.snapshot(
+                self.closures.pending[id.0 as usize].captures.len(),
+                body.span,
+            )?;
+            if self.closures.pending[id.0 as usize]
                 .captures
                 .iter()
-                .any(|capture| {
-                    matches!(capture.stored_type(), Type::Address { mutable: false, .. })
-                }) {
-            Some((local, Type::Closure(id)))
+                .any(|capture| capture.borrowed || matches!(capture.ty, Type::Address { .. }))
+            {
+                Some((local, Type::Closure(id)))
+            } else {
+                None
+            }
         } else {
             None
         };

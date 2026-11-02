@@ -95,4 +95,22 @@ extern "C" fn close(token:c_handle) contract{provides(static_callbacks(),scoped_
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         assert!(zil_expand::expand(&source, &parsed).is_err(), "{body}");
     }
+    for (calls, accepted) in [
+        ("return c_with_callback(reg,close,f,body)", true),
+        (
+            "let first=c_with_callback(reg,close,f,body);return c_with_callback(reg,close,f,body)",
+            false,
+        ),
+    ] {
+        let text = format!(
+            "{ROLES}resource R{{n:i32}}package P{{manages r:R}}fn consume(p:P)->i32{{return p.r.n}}fn run<F:FnMut(i32)->i32>(f:&mut F,p:P)->(bool,i32){{let body=move ()->i32=>consume(p);unsafe{{{calls}}}}}"
+        );
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "local-once-body.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        assert_eq!(
+            zil_expand::expand(&source, &parsed).is_ok(),
+            accepted,
+            "{calls}"
+        );
+    }
 }
