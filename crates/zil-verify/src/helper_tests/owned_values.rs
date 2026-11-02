@@ -498,7 +498,193 @@ fn slot_through_reused_local(replace: bool) -> Raw {
 }
 
 #[test]
-fn internal_slot_permission_cannot_follow_overwritten_local_raw_wire() {
+fn private_slot_can_discharge_a_and_forward_fresh_b_raw_wire() {
     slot_through_reused_local(false).accept();
-    slot_through_reused_local(true).reject("container and opaque callback profiles");
+    slot_through_reused_local(true).accept();
+}
+
+#[test]
+fn private_slot_responsibility_survives_correlated_branches_raw_wire() {
+    let mut raw = slot_through_reused_local(false);
+    let f = &mut raw.module.functions[2];
+    let split = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::TakeLocal { local: LocalId(1) }))
+        .unwrap();
+    let mut tail = f.blocks[0].instructions.split_off(split);
+    let exit = f.blocks[0].terminator.clone();
+    let flag_local = LocalId(f.locals.len() as u32);
+    f.locals.push(LocalDecl {
+        id: flag_local,
+        name: "flag".into(),
+        ty: Type::Bool,
+        mutable: false,
+        span: span(),
+    });
+    f.parameters.push(flag_local);
+    let cleanup = tail
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ScopeExit { .. }))
+        .unwrap();
+    tail.insert(cleanup, op(None, InstructionKind::StorageDead(flag_local)));
+    let flag = ValueId(f.values.len() as u32);
+    f.values.push(Type::Bool);
+    f.blocks[0]
+        .instructions
+        .push(op(Some(flag), InstructionKind::Load(flag_local)));
+    f.blocks[0].terminator = Terminator::Branch {
+        condition: flag,
+        then_block: BlockId(1),
+        else_block: BlockId(2),
+    };
+    let replacement = |f: &mut TypedFunction| {
+        let fresh = ValueId(f.values.len() as u32);
+        f.values.push(env());
+        vec![
+            op(None, InstructionKind::DropClosure { local: LocalId(1) }),
+            op(
+                Some(fresh),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![],
+                },
+            ),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: fresh,
+                },
+            ),
+        ]
+    };
+    let b = replacement(f);
+    let c = replacement(f);
+    f.blocks.push(BasicBlock {
+        id: BlockId(1),
+        instructions: b,
+        terminator: Terminator::Jump(BlockId(3)),
+    });
+    f.blocks.push(BasicBlock {
+        id: BlockId(2),
+        instructions: vec![],
+        terminator: Terminator::Jump(BlockId(3)),
+    });
+    f.blocks.push(BasicBlock {
+        id: BlockId(3),
+        instructions: vec![],
+        terminator: Terminator::Branch {
+            condition: flag,
+            then_block: BlockId(4),
+            else_block: BlockId(5),
+        },
+    });
+    f.blocks.push(BasicBlock {
+        id: BlockId(4),
+        instructions: vec![],
+        terminator: Terminator::Jump(BlockId(6)),
+    });
+    f.blocks.push(BasicBlock {
+        id: BlockId(5),
+        instructions: c,
+        terminator: Terminator::Jump(BlockId(6)),
+    });
+    f.blocks.push(BasicBlock {
+        id: BlockId(6),
+        instructions: tail,
+        terminator: exit,
+    });
+    // flag=true replaces A at block 1; flag=false replaces A at block 5.
+    // Both paths discharge A and give the new live B/C to keep. This is
+    // valid private-slot responsibility despite no A -> keep connection.
+    raw.accept();
+}
+
+#[test]
+fn closure_body_private_slot_can_discharge_without_a_forwarding_call_raw_wire() {
+    let mut raw = slot_through_reused_local(false);
+    let body = &mut raw.module.functions[2];
+    let stop = body.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::TakeLocal { local: LocalId(1) }))
+        .unwrap();
+    body.blocks[0].instructions.truncate(stop);
+    body.values.truncate(3);
+    body.values.push(Type::I32);
+    body.blocks[0].instructions.extend([
+        op(None, InstructionKind::DropClosure { local: LocalId(1) }),
+        op(None, InstructionKind::DropOwnedArray { local: LocalId(0) }),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::Constant(Constant::I32(0)),
+        ),
+        op(None, InstructionKind::StorageDead(LocalId(1))),
+        op(None, InstructionKind::StorageDead(LocalId(0))),
+        op(
+            None,
+            InstructionKind::ScopeExit {
+                scope: ScopeId(0),
+                kind: CleanupExitKind::Return,
+            },
+        ),
+    ]);
+    body.blocks[0].terminator = Terminator::Return(Some(ValueId(3)));
+    body.environment = Some(ClosureId(1));
+    raw.module.closures.push(ClosureDefinition {
+        id: ClosureId(1),
+        function: FunctionId(2),
+        captures: vec![],
+        parameters: vec![],
+        result: Type::I32,
+        kind: CallableKind::Fn,
+        lending_captures: vec![],
+    });
+    raw.accept();
+}
+
+#[test]
+fn private_array_ssa_without_a_local_carrier_is_rejected_raw_wire() {
+    let mut raw = dispatch();
+    let caller = &mut raw.module.functions[2];
+    caller.return_type = Type::I32;
+    caller.locals.clear();
+    caller.values = vec![
+        env(),
+        Type::Array {
+            element: Box::new(env()),
+            length: 1,
+        },
+        Type::I32,
+    ];
+    caller.blocks[0].instructions = vec![
+        op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(0),
+                captures: vec![],
+            },
+        ),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::MakeOwnedArray {
+                elements: vec![ValueId(0)],
+            },
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::Constant(Constant::I32(0)),
+        ),
+        op(
+            None,
+            InstructionKind::ScopeExit {
+                scope: ScopeId(0),
+                kind: CleanupExitKind::Return,
+            },
+        ),
+    ];
+    caller.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+    raw.reject("private callback array must have an actual local carrier");
 }
