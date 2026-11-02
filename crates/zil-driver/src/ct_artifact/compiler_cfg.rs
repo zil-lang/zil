@@ -218,6 +218,7 @@ impl<'c, 'a> Builder<'c, 'a> {
             }
         }
         self.compiler.budget.text(name, span)?;
+        self.compiler.budget.ty(&ty, 0, span)?;
         let local = self.new_local(ty.clone(), span)?;
         self.compiler.budget.node(span)?;
         self.scopes.last_mut().unwrap().bindings.push(Binding {
@@ -359,6 +360,8 @@ impl<'c, 'a> Builder<'c, 'a> {
                     for b in scope.bindings.iter().rev() {
                         self.compiler.budget.work(1, span)?;
                         if b.name == *name {
+                            self.compiler.budget.text(&b.name, span)?;
+                            self.compiler.budget.ty(&b.ty, 0, span)?;
                             binding = Some(b.clone());
                             break;
                         }
@@ -416,6 +419,7 @@ impl<'c, 'a> Builder<'c, 'a> {
                         "return cannot leave a CT block expression; use yield",
                     ));
                 }
+                self.compiler.budget.ty(&self.result, 0, span)?;
                 let expected = self.result.clone();
                 let value = match expression {
                     Some(e) => Some(self.expr(e, Some(&expected), depth)?.id),
@@ -696,6 +700,9 @@ pub(super) fn expression(
     expected: Option<CtTy>,
     parameters: &[(String, CtTy)],
 ) -> R<CtFunction> {
+    if let Some(ty) = &expected {
+        c.budget.ty(ty, 0, expression.span)?;
+    }
     let mut b = Builder::new(
         c,
         id,

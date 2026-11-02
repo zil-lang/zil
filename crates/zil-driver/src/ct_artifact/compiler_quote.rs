@@ -59,7 +59,14 @@ impl Builder<'_, '_> {
                     (CtHoleKind::Ident(namespace(n)), CtTy::Ident)
                 }
             };
-            let value = self.expr(&hole.value, Some(&ty), depth + 1)?;
+            let value = self.expr(&hole.value, None, depth + 1)?;
+            self.compiler.budget.ty(&value.ty, 0, hole.span)?;
+            if value.ty != ty {
+                return Err(category_error(
+                    hole.span,
+                    "quote hole value has the wrong actual Syntax/Ident category",
+                ));
+            }
             kinds.push(kind);
             holes.push(value.id);
         }

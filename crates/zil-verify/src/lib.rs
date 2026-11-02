@@ -77,7 +77,8 @@ mod retained_tests;
 mod slices;
 mod sums;
 pub use ct_artifact::{
-    CtArtifactAuthority, CtSymbolUsage, VerifiedCTArtifactProgram, verify_ct_artifact,
+    CtArtifactAuthority, CtSymbolUsage, CtVerificationMeter, VerifiedCTArtifactProgram,
+    verify_ct_artifact, verify_ct_artifact_metered,
 };
 pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 

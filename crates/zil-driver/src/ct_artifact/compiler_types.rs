@@ -294,7 +294,7 @@ impl<'a> Compiler<'a> {
                     )?,
                     s::ItemKind::Aggregate(a) => {
                         if a.kind != s::AggregateKind::Struct || !a.generics.is_empty() {
-                            return Err(error(
+                            return Err(forbidden(
                                 ty.span,
                                 "CT data cannot contain runtime resources, packages or unresolved type parameters",
                             ));
