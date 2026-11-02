@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized] target(s) in 0.06s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-254/debug/deps/zil_verify-59420611778c2949)
+
+running 1 test
+private-slot254 wire=false N=4990; N-1=ResourceLimit; fresh N=Pass
+private-slot254 wire=true N=4990; N-1=ResourceLimit; fresh N=Pass
+test helper_tests::owned_values::private_slot_raw_wire_budget_has_exact_fresh_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 324 filtered out; finished in 0.06s
+
