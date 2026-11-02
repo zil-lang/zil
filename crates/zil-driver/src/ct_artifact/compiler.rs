@@ -66,6 +66,9 @@ pub(crate) enum ImportTarget {
 }
 pub(crate) enum Entry<'a> {
     Function(CtSymbolId),
+    // The standalone compiler test imports this file without the driver path
+    // that constructs expression entries.
+    #[allow(dead_code)]
     Expression {
         module: ModuleId,
         expression: &'a s::Expr,
@@ -221,7 +224,7 @@ impl<'a> Compiler<'a> {
     }
     fn indexed(modules: &'a [SourceModule<'a>], limits: &'a Limits) -> R<Self> {
         let mut compiler = Self {
-            modules: modules,
+            modules,
             declarations: Vec::new(),
             selected: BTreeMap::new(),
             pending: VecDeque::new(),

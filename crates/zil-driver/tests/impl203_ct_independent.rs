@@ -390,7 +390,7 @@ fn independent203_imported_value_template_hints_do_not_execute_or_ignore_shadowi
         unreachable!()
     };
     assert!(
-        matches!(&callee.kind,CoreExprKind::Member{object,member} if member=="accept" && matches!(&object.kind,CoreExprKind::Name(name) if name=="child"))
+        matches!(&callee.kind,CoreExprKind::Member{object,member, ..} if member=="accept" && matches!(&object.kind,CoreExprKind::Name(name) if name=="child"))
     );
     assert_eq!(
         arguments[1].kind,

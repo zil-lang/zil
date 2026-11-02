@@ -3,11 +3,10 @@
 //! batch. Full generated output still runs the ordinary pipeline afterwards.
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, TargetProfile};
-use zil_ir::{CoreImport, CoreProgram, ProgramModule, TypedProgram};
+use zil_ir::{CoreImport, CoreProgram, ProgramModule};
 use zil_syntax::ast::{self as s, GenericArg, ItemKind, TypeKind};
 
 pub(super) struct ShapeSnapshot {
-    pub checked: TypedProgram,
     pub core: CoreProgram,
     pub selected: Vec<s::Module>,
 }
@@ -154,12 +153,15 @@ pub(super) fn freeze_shapes(
     // Reuse the language's actual shape resolution and type admission; this
     // batch is never treated as final verification of generated declarations.
     let core = zil_types::resolve_program_shapes(&core, limits)?;
-    let checked = zil_types::check_program(&core, target, limits)?;
-    Ok(ShapeSnapshot { checked, core, selected })
+    zil_types::check_program(&core, target, limits)?;
+    Ok(ShapeSnapshot { core, selected })
 }
 
 /// Admit only already parsed, ordinary trait/impl declarations against the
 /// completed shape batch. Generated declarations are never fed back here.
+// The frozen request identity and ordinary checking inputs are passed as one
+// explicit boundary; grouping them here would only move the same borrowed data.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn freeze_impls(
     sources: &[SourceUnit], syntax: &[&s::Module], imports: &[Vec<CoreImport>],
     root: ModuleId, fingerprint: Fingerprint, target: &TargetProfile, limits: &Limits,

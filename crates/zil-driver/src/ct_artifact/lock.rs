@@ -2,7 +2,7 @@
 //! requests. The compiler never writes a lock or repairs a stale one.
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{CompileResult, Diagnostic, Fingerprint, ModuleId, NodeId, Phase, SourceUnit, Span, RULE_VERSION};
-use zil_ir::ct_artifact::{CtDelimiter, CtLockedProviderRegistry, CtProviderEntry, CtSymbolId, CtSyntaxCategory, CT_ARTIFACT_SCHEMA_VERSION, CT_PROVIDER_FINGERPRINT_DOMAIN};
+use zil_ir::ct_artifact::{CtDelimiter, CtLockedProviderRegistry, CtProviderEntry, CtSymbolId, CtSyntaxCategory, CT_ARTIFACT_SCHEMA_VERSION};
 use zil_syntax::ast::{ItemKind, Module};
 
 const HEADER: &str = "zil-syntax-lock 1";
@@ -155,12 +155,6 @@ impl SyntaxLock {
         }
         Ok(CtLockedProviderRegistry { schema_version: CT_ARTIFACT_SCHEMA_VERSION, entries: resolved, fingerprint: self.fingerprint })
     }
-}
-
-pub fn registry_fingerprint(lock: &SyntaxLock) -> Fingerprint {
-    let mut bytes = CT_PROVIDER_FINGERPRINT_DOMAIN.to_vec();
-    bytes.extend_from_slice(&lock.fingerprint.0);
-    Fingerprint::of(&bytes)
 }
 
 pub(super) fn provider_entry<'a>(

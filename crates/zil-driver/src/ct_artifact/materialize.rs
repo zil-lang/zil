@@ -317,7 +317,7 @@ impl Materializer<'_, '_> {
         }
         let extra_aliases = self.required_imports.iter().filter(|(module, _)| *module == caller)
             .map(|(_, import)| (import.module, import.alias.clone())).collect::<Vec<_>>();
-        let ParsedSyntax { rendered, parsed, names: _ } = self.environment.parse_tree(&tree, span, &extra_aliases)?;
+        let ParsedSyntax { rendered, parsed } = self.environment.parse_tree(&tree, span, &extra_aliases)?;
         let mut syntax = parsed.syntax.ok_or_else(|| category("generated parser returned no category", span))?;
         let longest = rendered.tokens.iter().map(|token| token.span.end.saturating_sub(token.span.start)).max().unwrap_or(0);
         let hygiene_bytes = (rendered.tokens.len() as u64).saturating_mul((longest as u64).saturating_add(64));
@@ -521,7 +521,9 @@ impl Materializer<'_, '_> {
             s::ExprKind::Call { callee, arguments } => { self.expr(module, callee, owner, depth + 1)?; for arg in arguments { self.expr(module, &mut arg.value, owner, depth + 1)?; } },
             s::ExprKind::Index { object, index } => { self.expr(module, object, owner, depth + 1)?; self.expr(module, index, owner, depth + 1)?; },
             s::ExprKind::Slice { object, start, end } => { self.expr(module, object, owner, depth + 1)?; for e in [start, end].into_iter().flatten() { self.expr(module, e, owner, depth + 1)?; } },
-            s::ExprKind::Record { ty, base, fields } => { if let Some(ty) = ty { self.expr(module, ty, owner, depth + 1)?; } if let Some(base) = base { self.expr(module, base, owner, depth + 1)?; }
+            s::ExprKind::Record { ty, base, fields } => {
+                if let Some(ty) = ty { self.expr(module, ty, owner, depth + 1)?; }
+                if let Some(base) = base { self.expr(module, base, owner, depth + 1)?; }
                 for field in fields { if let Some(e) = &mut field.value { self.expr(module, e, owner, depth + 1)?; } } },
             s::ExprKind::Closure { params, return_type, body, .. } => { for param in params { if let Some(ty) = &mut param.ty { self.ty(module, ty, owner, depth + 1)?; } }
                 if let Some(ty) = return_type { self.ty(module, ty, owner, depth + 1)?; } self.arrow(module, body, owner, depth + 1)?; },
@@ -532,6 +534,9 @@ impl Materializer<'_, '_> {
     }
 }
 
+// This is the single project materialization boundary: the parsed graph,
+// target, limits and frozen provider registry are all independent inputs.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn materialize(
     sources: &[SourceUnit], parsed: &[Arc<ParseResult>], modules: &[&s::Module], paths: &BTreeMap<Vec<String>, ModuleId>,
     imports: &[Vec<CoreImport>], root: ModuleId, fingerprint: Fingerprint,

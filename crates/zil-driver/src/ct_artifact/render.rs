@@ -22,7 +22,6 @@ pub(super) struct RenderedSyntax {
 pub(super) struct ParsedSyntax {
     pub rendered: RenderedSyntax,
     pub parsed: GeneratedParseResult,
-    pub names: Vec<CtIdent>,
 }
 
 fn category(value: zil_ir::ct_artifact::CtSyntaxCategory) -> SyntaxCategory {
@@ -129,13 +128,13 @@ pub(super) fn render(tree: &CtSyntaxTree, file: FileId, module: ModuleId, aliase
 
 pub(super) fn parse(tree: &CtSyntaxTree, file: FileId, module: ModuleId, aliases: &BTreeMap<ModuleId, String>, limits: &Limits, budget: &mut CtExecutionBudget) -> CompileResult<ParsedSyntax> {
     let rendered = render(tree, file, module, aliases, budget)?;
-    let mut names = Vec::new();
+    let mut name_count = 0usize;
     let mut context = GeneratedParseContext { tokens: Vec::with_capacity(rendered.tokens.len()) };
     for token in &rendered.tokens {
         let name_context = match &token.name {
-            Some(name) => {
-                let index = u32::try_from(names.len()).map_err(|_| error("generated name context index overflow"))?;
-                names.push(name.clone());
+            Some(_) => {
+                let index = u32::try_from(name_count).map_err(|_| error("generated name context index overflow"))?;
+                name_count = name_count.checked_add(1).ok_or_else(|| error("generated name context index overflow"))?;
                 Some(index)
             }
             None => None,
@@ -147,5 +146,5 @@ pub(super) fn parse(tree: &CtSyntaxTree, file: FileId, module: ModuleId, aliases
     let work = rendered.source.text.len().saturating_mul(16).saturating_add(context.tokens.len().saturating_mul(16));
     budget.reserve_analysis_work(work as u64)?;
     let parsed = zil_syntax::parse_generated(&rendered.source, category(tree.category), &context, limits).into_result()?;
-    Ok(ParsedSyntax { rendered, parsed, names })
+    Ok(ParsedSyntax { rendered, parsed })
 }

@@ -133,7 +133,7 @@ impl Builder<'_, '_> {
                 } {
                     self.emit(CtInstructionKind::TypeBuiltin(t), CtTy::Type, span)?
                 } else {
-                    self.type_name(&[name.clone()], span, depth)?
+                    self.type_name(std::slice::from_ref(name), span, depth)?
                 }
             }
             s::ExprKind::Group(inner) | s::ExprKind::MetaEval(inner) => {

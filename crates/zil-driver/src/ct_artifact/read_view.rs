@@ -368,8 +368,8 @@ impl FrozenReadView<'_> {
         }).collect();
         let core = CoreProgram { root: base.core.root, source_fingerprint: base.core.source_fingerprint, modules };
         let core = zil_types::resolve_program_shapes(&core, &limits)?;
-        let checked = zil_types::check_program(&core, self.target, &limits)?;
-        Ok((ShapeSnapshot { checked, core, selected }, bytes))
+        zil_types::check_program(&core, self.target, &limits)?;
+        Ok((ShapeSnapshot { core, selected }, bytes))
     }
     fn nominal_root<'a>(&self, value: &'a CtValue) -> CompileResult<(&'a CtTypeRef, &'a CtSymbolId)> {
         let CtValue::Type(ty) = value else { return Err(error("E-CT-QUERY-TYPE", "reflection requires a Type value")); };
@@ -485,6 +485,9 @@ impl FrozenReadView<'_> {
             ty, managed: field.manages,
         })
     }
+    // Recursive source substitution carries its definition site, substitutions,
+    // output DAG and shared CT budget through one bounded walk.
+    #[allow(clippy::too_many_arguments)]
     fn append_source_type(&self, requester: &CtSymbolId, module: ModuleId, ty: &s::TypeRef,
         substitutions: &[(&str, CtTypeNodeId)], nodes: &mut Vec<CtTypeNode>,
         budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<CtTypeNodeId> {
@@ -590,6 +593,9 @@ impl FrozenReadView<'_> {
         nodes.push(node);
         Ok(id)
     }
+    // Both field and instantiated owner identities must survive this checked
+    // lineage comparison; packaging them would not reduce the underlying inputs.
+    #[allow(clippy::too_many_arguments)]
     fn generic_field_type(&self, requester: &CtSymbolId, owner: &CtSymbolId,
         owner_type: &CtTypeRef, field_span: Span, expected_module: ModuleId,
         expected_span: Span, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
@@ -1181,9 +1187,9 @@ impl CtReadView for FrozenReadView<'_> {
                     Constant::I64(value) => (value.to_string(), CtTokenClass::Integer),
                     _ => return Err(error("E-CT-SYNTAX-LITERAL", "runtime value is not a CT literal")),
                 };
-                if text.starts_with('-') {
+                if let Some(stripped) = text.strip_prefix('-') {
                     return Self::syntax_tokens(CtSyntaxCategory::Expr,
-                        vec![("-".into(), CtTokenClass::Punctuation, None), (text[1..].into(), class, None)], budget);
+                        vec![("-".into(), CtTokenClass::Punctuation, None), (stripped.into(), class, None)], budget);
                 }
                 Self::syntax_tokens(CtSyntaxCategory::Expr, vec![(text, class, None)], budget)
             }

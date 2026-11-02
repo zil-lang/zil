@@ -28,6 +28,9 @@ pub(super) struct Environment<'a> {
 }
 
 impl<'a> Environment<'a> {
+    // The immutable project graph and request identity enter together; callers
+    // already own these borrowed inputs, so a wrapper would only hide them.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         sources: &'a [SourceUnit], parsed: &'a [Arc<ParseResult>], paths: &BTreeMap<Vec<String>, ModuleId>,
         imports: &[Vec<CoreImport>], root: ModuleId, fingerprint: Fingerprint,
@@ -221,7 +224,7 @@ mod tests {
         let symbol = environment.index.symbol_at(ModuleId(0), item.span).unwrap();
         let input = environment.empty_input(item.span).unwrap();
         let argument = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
-        let result = environment.evaluate(Entry::Function(symbol), &input, None, &[argument.clone()], item.span).unwrap();
+        let result = environment.evaluate(Entry::Function(symbol), &input, None, std::slice::from_ref(&argument), item.span).unwrap();
         assert_eq!(result, argument);
     }
 
@@ -251,7 +254,7 @@ mod tests {
             shape_failure: None, input: None, limits: &limits, target: &target,
             snapshot: &environment.snapshot };
         let mut budget = CtExecutionBudget::new(environment.budget.remaining());
-        let (result, receipt) = reader.query(&requester, CtQueryKind::ImplIndex, &[value.clone()], &mut budget).unwrap();
+        let (result, receipt) = reader.query(&requester, CtQueryKind::ImplIndex, std::slice::from_ref(&value), &mut budget).unwrap();
         assert!(matches!(&result, CtValue::List(values) if values.len() == 1 && matches!(values[0], CtValue::ImplInfo(_))), "{result:?}");
         assert_eq!(receipt.kind, CtQueryKind::ImplIndex);
         let mut missing_grant = environment.snapshot.clone();
@@ -259,7 +262,7 @@ mod tests {
         let mut wrong_stage = environment.snapshot.clone();
         wrong_stage.ready = CtReadyStage::Shape;
         reader.snapshot = &missing_grant;
-        assert!(reader.query(&requester, CtQueryKind::ImplIndex, &[value.clone()], &mut budget).is_err());
+        assert!(reader.query(&requester, CtQueryKind::ImplIndex, std::slice::from_ref(&value), &mut budget).is_err());
         reader.snapshot = &wrong_stage;
         assert!(reader.query(&requester, CtQueryKind::ImplIndex, &[value], &mut budget).is_err());
     }
@@ -539,7 +542,7 @@ mod tests {
         assert!(matches!(wrapped.nodes.get(parts[1].0 as usize), Some(CtTypeNode::Array { length: 2, .. })));
         assert!(reader.type_name(&requester, &bad, &mut budget).is_err(), "unfinished alias must not become a CT Type");
         let arg = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
-        let aliased = reader.type_apply(&requester, &entry, &[arg.clone()], &mut budget).unwrap();
+        let aliased = reader.type_apply(&requester, &entry, std::slice::from_ref(&arg), &mut budget).unwrap();
         let direct = reader.type_apply(&requester, &cell, &[arg], &mut budget).unwrap();
         assert_eq!(aliased, direct, "alias and target Type values must share canonical identity");
         let chained = reader.type_apply(&requester, &wrapper, &[CtValue::Type(CtTypeRef {
@@ -604,7 +607,7 @@ mod tests {
         let i32_type = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
         });
-        let aliased = reader.type_apply(&requester, &duplicate, &[i32_type.clone()], &mut budget).unwrap();
+        let aliased = reader.type_apply(&requester, &duplicate, std::slice::from_ref(&i32_type), &mut budget).unwrap();
         let direct = reader.type_apply(&requester, &pair, &[i32_type.clone(), i32_type], &mut budget).unwrap();
         assert_eq!(aliased, direct, "sharing and copying the same Type argument must agree");
         assert_eq!(direct.nodes.len(), 2, "equal child nodes must share one canonical DAG identity");

@@ -178,7 +178,12 @@ impl Renamer<'_> {
             s::ExprKind::Call { callee, arguments } => { self.expr(callee)?; for argument in arguments { self.expr(&mut argument.value)?; } Ok(()) },
             s::ExprKind::Index { object, index } => { self.expr(object)?; self.expr(index) },
             s::ExprKind::Slice { object, start, end } => { self.expr(object)?; for value in [start, end].into_iter().flatten() { self.expr(value)?; } Ok(()) },
-            s::ExprKind::Record { ty, base, fields } => { if let Some(ty) = ty { self.expr(ty)?; } if let Some(base) = base { self.expr(base)?; } for field in fields { if let Some(value) = &mut field.value { self.expr(value)?; } } Ok(()) },
+            s::ExprKind::Record { ty, base, fields } => {
+                if let Some(ty) = ty { self.expr(ty)?; }
+                if let Some(base) = base { self.expr(base)?; }
+                for field in fields { if let Some(value) = &mut field.value { self.expr(value)?; } }
+                Ok(())
+            },
             s::ExprKind::Closure { params, return_type, body, .. } => {
                 self.scopes.push(BTreeMap::new());
                 for param in params { if let Some(ty) = &mut param.ty { self.ty(ty)?; } self.bind(&mut param.name, param.span)?; }
@@ -202,7 +207,11 @@ impl Renamer<'_> {
             s::ItemKind::Aggregate(aggregate) => { for field in &mut aggregate.fields { self.ty(&mut field.ty)?; } for method in &mut aggregate.methods { self.item(method)?; } Ok(()) },
             s::ItemKind::Enum(enumeration) => { for variant in &mut enumeration.variants { match &mut variant.fields { s::VariantFields::Unit => {}, s::VariantFields::Tuple(fields) => for field in fields { self.ty(&mut field.ty)?; }, s::VariantFields::Record(fields) => for field in fields { self.ty(&mut field.ty)?; }, } } Ok(()) },
             s::ItemKind::TypeAlias(alias) => { if let Some(ty) = &mut alias.value { self.ty(ty)?; } Ok(()) },
-            s::ItemKind::Const(constant) => { if let Some(ty) = &mut constant.ty { self.ty(ty)?; } if let Some(value) = &mut constant.value { self.expr(value)?; } Ok(()) },
+            s::ItemKind::Const(constant) => {
+                if let Some(ty) = &mut constant.ty { self.ty(ty)?; }
+                if let Some(value) = &mut constant.value { self.expr(value)?; }
+                Ok(())
+            },
             s::ItemKind::Trait(declaration) => { for member in &mut declaration.members { self.item(member)?; } Ok(()) },
             s::ItemKind::Impl(declaration) => { for member in &mut declaration.members { self.item(member)?; } Ok(()) },
             _ => Ok(()),

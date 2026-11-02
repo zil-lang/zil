@@ -37,8 +37,9 @@ impl Builder<'_> {
                 }
             }
             for enumeration in &module.core.enums {
-                if name == enumeration.name || name == format!("{prefix}{}", enumeration.name) {
-                    if let Some(symbol) = self.index.symbol_at(module.core.module_id, enumeration.span) { return Ok(symbol); }
+                if (name == enumeration.name || name == format!("{prefix}{}", enumeration.name))
+                    && let Some(symbol) = self.index.symbol_at(module.core.module_id, enumeration.span) {
+                    return Ok(symbol);
                 }
             }
         }
