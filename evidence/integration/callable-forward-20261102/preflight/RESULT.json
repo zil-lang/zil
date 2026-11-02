@@ -1,0 +1,31 @@
+{
+  "source_commit": "42281bcdbf3c4d8cafe1da05e9ebd9d95e7bad5f",
+  "status": "Pass",
+  "scope": "limited composition checks only",
+  "targets": [
+    "impl248_source",
+    "impl253_source",
+    "impl254_source",
+    "impl254_wire",
+    "impl254_capture_probe",
+    "impl256_boundaries",
+    "impl256_contracts"
+  ],
+  "groups": 7,
+  "passed": 28,
+  "failed": 0,
+  "ignored": 0,
+  "log_sha256": "d9c1243a1cb92627daf7a3767638f493c0d8861fb83de67e3d21e583711bcd1f",
+  "not_formal_full_acceptance": true,
+  "blocking_independent_findings": [
+    "AN253-R2 callback arguments escape",
+    "254-R1 overwritten-local ordinary slot eligibility"
+  ],
+  "architecture": {
+    "ok": true,
+    "errors": [],
+    "checkedCrates": 15,
+    "checkedEdges": 38
+  },
+  "plan": "Pending: 14 formal parent card hashes await schema31 integration; main baseline self-test Pass. Original failure retained."
+}
