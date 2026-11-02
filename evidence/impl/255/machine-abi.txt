@@ -1,0 +1,44 @@
+Frozen 256 project LLVM API O0 IR SHA256 24b5a20623eb819b9e6548f7cc122b29e34f0963b6329a859f521ea935a6fdee
+Concrete owned environment helper: aggregate entry, live flag, TakeLocal before conditional cleanup, aggregate return.
+
+3713: define %zil_env_7 @zil.fn.34(%zil_env_7 %arg.0) {
+3714: entry:
+3715:   %resource.live.0 = alloca i1, align 1
+3716:   store i1 true, ptr %resource.live.0, align 1
+3717:   %local.0 = alloca %zil_env_7, align 8
+3718:   store %zil_env_7 %arg.0, ptr %local.0, align 8
+3719:   br label %bb.0
+3720: bb.0:
+3721:   %v.0 = load %zil_env_7, ptr %local.0, align 8
+3722:   store i1 false, ptr %resource.live.0, align 1
+3723:   %tmp.0 = load i1, ptr %resource.live.0, align 1
+3724:   br i1 %tmp.0, label %closure.drop.0, label %closure.done.0
+3725: closure.drop.0:
+3726:   store i1 false, ptr %resource.live.0, align 1
+3727:   call void @zil.closure.drop.7(ptr %local.0)
+3728:   br label %closure.done.0
+3729: closure.done.0:
+3730:   store i1 false, ptr %resource.live.0, align 1
+3731:   ret %zil_env_7 %v.0
+3732: zil.trap:
+3733:   call void @llvm.trap()
+3734:   unreachable
+3735: }
+3736: define %zil_env_7 @zil.fn.35(%zil_env_7 %arg.0, { i32, [5 x i64] } %arg.1, i1 %arg.2) {
+
+Independent FnMut step LLVM API O0 IR SHA256 a8703bb9600eccc52e1d6483a040e7123220be8700a241158497b67d57079d27
+Scalar environment is transferred inline after the first call, then called again by the caller.
+
+68: define %zil_env_0 @zil.fn.2(%zil_env_0 %arg.0) {
+69: entry:
+70:   %local.0 = alloca %zil_env_0, align 4
+71:   %local.1 = alloca %zil_env_0, align 4
+72:   store %zil_env_0 %arg.0, ptr %local.0, align 4
+73:   br label %bb.0
+74: bb.0:
+75:   %v.0 = load %zil_env_0, ptr %local.0, align 4
+76:   store %zil_env_0 %v.0, ptr %local.1, align 4
+77:   %v.1 = add i32 0, 5
+78:   %v.2 = call i32 @zil.fn.1(ptr %local.1, i32 %v.1)
+79:   %v.3 = load %zil_env_0, ptr %local.1, align 4
+80:   ret %zil_env_0 %v.3
