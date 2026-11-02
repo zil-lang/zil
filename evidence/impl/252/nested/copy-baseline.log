@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/.zil-env/forward-review-254/snapshot-6d68133c/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.60s
+     Running tests/impl252_nested_budget_baseline.rs (/workspace/.zil-env/forward-review-254/target-6d68133c/debug/deps/impl252_nested_budget_baseline-399c90b793841cd3)
+
+running 1 test
+nested252 copy Types N=148;N-1 ResourceLimit;fresh N identity
+test nested_types_request_budget_and_copy_control_have_exact_fresh_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

@@ -1,0 +1,7 @@
+252 nested增量前端限定通过，生产33dc3932ec9cab5be85aa4fb7e047f6f2833ab56。
+
+原源码字节未改，嵌套具体Event→Reply不再伪装为公共Copy函数指针；新增私有局部签名身份，真实Builder继续核捕获/模式/责任并生成Closure。f=f的实际slot take/refill与Fn借用调用见original.typed.txt。合法keep、移新局部和未调用版本通过；重复move/外部借入/旧物理地址/指针数组越界分别按实际阶段拒。
+
+最终78/78与Types Clippy通过；新N1135，旧嵌套Copy148保持，旧6工厂控制及既有forward/owned dispatch预算保持。N−1与fresh输出身份实测。原Types失败、推进后Analyze容器gate、未完成nested helper和早期错误阶段预期全部留证。
+
+原源码完整流水线仍待253闭包body carrier gate衔接；旧borrow反例当前Analyze接受但Verify拒，已另报253。未声明author native通过或两独立核都拒；255/256持固定源进一步验机器。Rust四目标只记本片有限能力、内联表示及已测预算，不宣告完整产品门。

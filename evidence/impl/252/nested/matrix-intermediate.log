@@ -1,0 +1,16 @@
+   Compiling zil-types v0.1.0 (/workspace/zil-252/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/zil-252/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 29.61s
+     Running tests/impl252_nested.rs (/workspace/.zil-env/target-252/debug/deps/impl252_nested-71a7836cc5681d16)
+
+running 4 tests
+test nested_owned_callback_can_pass_through_the_existing_keep_profile ... ok
+test original_nested_owned_callback_creates_moves_refills_and_calls ... ok
+nested252 duplicate move: [Diagnostic { phase: Analyze, category: SafeReject, code: "E-UNINITIALIZED", message: "local 2 is not initialized on every incoming path", span: Some(Span { file: FileId(0), start: 281, end: 282 }), notes: [] }]
+nested252 public pointer: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "closure values cannot escape through scalar signatures, captures or scalar operations", span: Some(Span { file: FileId(0), start: 267, end: 298 }), notes: [] }]
+nested252 array: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "address/resource cannot be used in a Copy closure signature or operation", span: Some(Span { file: FileId(0), start: 282, end: 283 }), notes: [] }]
+test nested_owned_environment_is_not_copy_or_a_thin_pointer ... ok
+test nested_owned_callback_creation_and_move_without_refill_or_call ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+

@@ -1,0 +1,273 @@
+{
+  "task": 252,
+  "scope": "nested concrete owned-signature closure local composition; additive delivery",
+  "status": "frontend_limited_pass_with_independent_downstream_work_explicit",
+  "baseline": "95790321e469b1588f5e1a1972d1543616e05a6b",
+  "proposal": "fb6fae38def804d83fee1125271f1c796e228a6a",
+  "production_commit": "33dc3932ec9cab5be85aa4fb7e047f6f2833ab56",
+  "initial_core": "37d55e831333ecdabd3639bc54da6413f473ac92",
+  "environment": {
+    "target": "/workspace/.zil-env/target-252",
+    "offline_locked": true,
+    "jobs": 2,
+    "default_limits_raised": false
+  },
+  "original_source": {
+    "path": "crates/zil-driver/tests/impl252_fixtures/nested_original.zil",
+    "sha256": "36b9029e66295a477de85574489ea13f1f28ca6c459cfc53a073ccffe04e2236",
+    "unchanged": true
+  },
+  "representation": "Only failed non-Copy nested source signature inference gets a private Nested local identity; it is not scalar, Copy or public FunctionPointer. Ordinary Builder still emits actual Closure, capture/mode checks and real local/slot moves. Existing pure Copy graph path retained.",
+  "new_helper_adaptation": "Private nested argument signature compared in full; admitted direct-F helper result keeps that actual nested argument identity; real Builder still independently checks role/mode/origin.",
+  "typed_receipt": {
+    "path": "original.typed.txt",
+    "operations": [
+      "TakeOwnedArrayElement",
+      "StoreOwnedArrayElement",
+      "CallClosureBorrowed Fn"
+    ],
+    "meaning": "f=f moves and refills same actual slot; consuming fresh Event does not make environment FnOnce"
+  },
+  "final_tests": {
+    "selected": 78,
+    "executed": 78,
+    "passed": 78,
+    "failed": 0,
+    "suites": [
+      {
+        "binary": "impl193_slice_arguments",
+        "passed": 7
+      },
+      {
+        "binary": "impl194_copy_callable",
+        "passed": 19
+      },
+      {
+        "binary": "impl206_budget",
+        "passed": 2
+      },
+      {
+        "binary": "impl218_factory_budget",
+        "passed": 3
+      },
+      {
+        "binary": "impl218_factory_types",
+        "passed": 15
+      },
+      {
+        "binary": "impl246_front",
+        "passed": 12
+      },
+      {
+        "binary": "impl252_front",
+        "passed": 14
+      },
+      {
+        "binary": "impl252_nested",
+        "passed": 6
+      }
+    ]
+  },
+  "budget": {
+    "own_nested_types": 1135,
+    "copy_nested_types_before": 148,
+    "copy_nested_types_after": 148,
+    "baseline_source_identity": "6d68133cb06db9be8740011cc03061355820e3be snapshot contains unmodified c16 Types",
+    "original_forward_expand": 305,
+    "original_forward_types": 472,
+    "owned_dispatch_expand": 1124,
+    "owned_dispatch_types": 1497,
+    "N_minus_one": "ResourceLimit",
+    "fresh_N": "same TypedModule",
+    "old_factory_controls": [
+      {
+        "case": "conditional",
+        "expand_work": 818,
+        "types_work": 978,
+        "types_locals": 14,
+        "types_functions": 5,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      {
+        "case": "owning",
+        "expand_work": 724,
+        "types_work": 770,
+        "types_locals": 12,
+        "types_functions": 5,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      {
+        "case": "helper",
+        "expand_work": 586,
+        "types_work": 421,
+        "types_locals": 6,
+        "types_functions": 4,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      {
+        "case": "state",
+        "expand_work": 829,
+        "types_work": 1441,
+        "types_locals": 8,
+        "types_functions": 4,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      {
+        "case": "forwarding",
+        "expand_work": 1438,
+        "types_work": 1556,
+        "types_locals": 18,
+        "types_functions": 7,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      },
+      {
+        "case": "opaque",
+        "expand_work": 3,
+        "types_work": 462,
+        "types_locals": 7,
+        "types_functions": 3,
+        "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+      }
+    ]
+  },
+  "negative_cases": [
+    {
+      "case": "duplicate ordinary owned closure move",
+      "result": "Analyze SafeReject E-UNINITIALIZED"
+    },
+    {
+      "case": "public thin pointer and array",
+      "result": "Types Unsupported; no profile broadened"
+    },
+    {
+      "case": "external borrowed capture through keep",
+      "result": "Types self-contained environment gate rejects"
+    },
+    {
+      "case": "call prior borrowed address after moving physical F local",
+      "result": "Verify SafeReject E-BORROW-CONFLICT; current Analyze acceptance reported separately to253"
+    }
+  ],
+  "remaining_downstream": [
+    {
+      "owner": 253,
+      "case": "original nested body private singleton carrier",
+      "current": "Analyze old callback container gate rejects; no frontend failure",
+      "not_claimed_pass": true
+    },
+    {
+      "owner": 253,
+      "case": "stale borrowed local after move",
+      "current": "Analyze accepts, Verify rejects; reported to253/root",
+      "not_claimed_independent_Analyze_rejection": true
+    },
+    {
+      "owner": "255/256",
+      "case": "native normal/uncalled cleanup",
+      "status": "awaiting fixed Analyze then independent native evidence; no author native claim"
+    }
+  ],
+  "commands": [
+    {
+      "command": "cargo check --offline --locked -p zil-types",
+      "result": "Pass",
+      "log": "check.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_nested -- --nocapture",
+      "result": "Fail",
+      "reason": "Types advanced to old Analyze owning array gate",
+      "log": "pre-fix/analyze-after-types.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_nested --test impl252_front -- --nocapture",
+      "result": "Pass",
+      "tests": 15,
+      "log": "types-checkpoint.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_nested -- --nocapture",
+      "result": "Fail",
+      "tests_passed": 2,
+      "tests_failed": 2,
+      "reason": "valid nested keep still needed private-signature helper adaptation; ordinary duplicate move correctly belongs to Analyze check, not early Types",
+      "log": "pre-fix/keep-and-ordinary-move-expectation.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_nested -- --nocapture",
+      "result": "Pass",
+      "tests": 4,
+      "log": "matrix-intermediate.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_nested -- --nocapture",
+      "result": "Fail",
+      "tests_passed": 5,
+      "tests_failed": 1,
+      "reason": "stale borrowed old local was accepted by current Analyze; subsequent Verify rejects E-BORROW-CONFLICT",
+      "log": "pre-fix/analyze-stale-borrow-expectation.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_nested -- --nocapture",
+      "result": "Pass",
+      "tests": 6,
+      "log": "matrix-checkpoint.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_nested_budget_baseline -- --nocapture",
+      "result": "Pass",
+      "tests": 1,
+      "scope": "external exact6d snapshot; Types baseline c16 production",
+      "log": "copy-baseline.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_front --test impl252_nested --test impl246_front --test impl194_copy_callable --test impl193_slice_arguments --test impl206_budget --test impl218_factory_types --test impl218_factory_budget -- --nocapture",
+      "result": "Pass",
+      "tests": 78,
+      "log": "final-tests.log"
+    },
+    {
+      "command": "cargo clippy --offline --locked -p zil-types --all-targets -- -D warnings",
+      "result": "Pass",
+      "log": "clippy.log"
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_nested original_nested_owned_callback_creates_moves_refills_and_calls -- --nocapture",
+      "result": "Pass",
+      "tests": 1,
+      "log": "ir-receipt.log"
+    }
+  ],
+  "command_counts": {
+    "cargo_invocations": 11,
+    "cargo_test_invocations": 9,
+    "cargo_test_failed_invocations": 3,
+    "check_pass": 1,
+    "clippy_pass": 1,
+    "separate_format_failed_attempts": 1
+  },
+  "format_failure": "rustfmt edition2021 rejected existing2024 let chains; dependent test command did not execute; corrected with edition2024",
+  "rust_goals": {
+    "safety": "finite nested owning signatures and move/borrow negatives checked; complete language safety not claimed",
+    "runtime_memory": "actual inline Closure/Array1 lowering unchanged; native/Rust/RSS comparison not performed",
+    "expression_maintenance": "original valid nested source now reaches Types; uncalled/moved/refilled/keep variants compose; full downstream completion pending",
+    "compile_cost": "new Graph traversals/clones/entries paid; new1135 and unchanged old148/6 factory controls; no default increase or speed claim",
+    "breakthrough": "real previously Unsupported source advances through Types without Copy/pointer authority; not a complete product-gate conclusion"
+  },
+  "artifact_sha256": {
+    "CHECKPOINT.json": "fc217d3a1ba131891db3674d41450430e99dbc671db7d1517e3a863fa980bd1f",
+    "check.log": "15544c80ca36fe1cf581a63309fd0c0098eeac7cfcfe8bf390c57245acea63a5",
+    "clippy.log": "4b0bea3ca3f50e3402db5d3bd4525d4e21acdb497896fd4903e047be2bb8c556",
+    "copy-baseline.log": "b530857c9d91e17c44c11b4dcf286bc4ce60437adac2f2e324f50ac3654830e5",
+    "final-tests.log": "3c580416751201e9b88a0ab1403a7c72bae2d6ef3e78e5375267671fbd5db3b1",
+    "ir-receipt.log": "4390a7c3f185f1d37b58cbc1e93d33f59008b749643aa28944f14a03cc47e378",
+    "matrix-checkpoint.log": "0ae0e39c32d30899eda67fd345100da8c65925bff60fa2f66326fdb6078e9003",
+    "original.typed.txt": "306fedf76dd4efe40e7b23d00e9faa1135bb0c924ed8ba8bd93dab9ad59f895b",
+    "pre-fix/analyze-after-types.log": "332d3af6a7ecfe1f11e69de840e780f2095dadead48e2b6457d9e93f4e6879af",
+    "pre-fix/analyze-stale-borrow-expectation.log": "7d3ef584e52f9c4bee6ceefd5e48c176e973c3da4e125188848a672ff3004a43",
+    "pre-fix/keep-and-ordinary-move-expectation.log": "18f96f661127c11f718e3bc4b6df9635d90799d3aa9b03feac04418a973ecd46",
+    "pre-fix/types-original.log": "698c9d01cf4476e02540b39dcd52f44b7678ecbfdd1a24c05b34ddbe9fadb22e",
+    "types-checkpoint.log": "019bbb999725b0c03c5e71af0d81529519b635ad2b0d0f95f252f99b24d38fe7",
+    "matrix-intermediate.log": "43018b0c9b3f730f931f45393358a4d857597bcecddbd469caad52f66261876a"
+  }
+}

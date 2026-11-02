@@ -1,0 +1,21 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-252/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 2.46s
+     Running tests/impl252_nested.rs (/workspace/.zil-env/target-252/debug/deps/impl252_nested-71a7836cc5681d16)
+
+running 6 tests
+test nested_owned_callback_can_pass_through_the_existing_keep_profile ... ok
+nested252 duplicate move: [Diagnostic { phase: Analyze, category: SafeReject, code: "E-UNINITIALIZED", message: "local 2 is not initialized on every incoming path", span: Some(Span { file: FileId(0), start: 281, end: 282 }), notes: [] }]
+nested252 public pointer: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "closure values cannot escape through scalar signatures, captures or scalar operations", span: Some(Span { file: FileId(0), start: 267, end: 298 }), notes: [] }]
+nested252 array: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "address/resource cannot be used in a Copy closure signature or operation", span: Some(Span { file: FileId(0), start: 282, end: 283 }), notes: [] }]
+test nested_owned_environment_is_not_copy_or_a_thin_pointer ... ok
+nested252 stale borrow: [Diagnostic { phase: Verify, category: SafeReject, code: "E-BORROW-CONFLICT", message: "write or storage change overlaps a shared address still required by a later use", span: Some(Span { file: FileId(0), start: 289, end: 290 }), notes: [] }]
+test original_nested_owned_callback_creates_moves_refills_and_calls ... ok
+test nested_owned_callback_creation_and_move_without_refill_or_call ... ok
+nested252 external capture: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape", span: Some(Span { file: FileId(0), start: 333, end: 334 }), notes: [] }]
+test nested_owned_move_does_not_revive_an_old_borrow_or_retain_external_capture ... ok
+nested252 own Types N=1135;N-1 ResourceLimit;fresh N identity
+nested252 copy Types N=148;N-1 ResourceLimit;fresh N identity
+test nested_types_request_budget_and_copy_control_have_exact_fresh_boundaries ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
