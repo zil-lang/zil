@@ -769,6 +769,7 @@ mod tests {
         let insertion = Span::new(FileId(0), 10, 20);
         let n =
             remap_generated_spans(&mut original.clone(), insertion, &Limits::default()).unwrap();
+        println!("generated span remap N={n}, N-1=ResourceLimit/unchanged, fresh=N");
         let exact = Limits {
             max_analysis_steps: n,
             ..Limits::default()
