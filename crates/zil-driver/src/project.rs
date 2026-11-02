@@ -32,6 +32,7 @@ pub(super) struct ExpandedProject {
     maps: Vec<SourceMap>,
     selection: super::ct_selection::Receipt,
     ct_usage: Option<zil_ir::ct_artifact::CtUsageReceipt>,
+    ct_previews: Vec<super::ct_artifact::Preview>,
     pub(super) syntax: Arc<ProjectSyntax>,
 }
 
@@ -489,7 +490,7 @@ impl CompilationSession {
                     .as_ref()
                     .map(|selected| selected.modules.iter().collect::<Vec<_>>());
                 let selected_syntax = materialized.as_deref().unwrap_or(&syntax);
-                let ct_result = if artifact_needed {
+                let mut ct_result = if artifact_needed {
                     let mut remaining = selected.as_ref().map_or_else(|| Ok(options.limits.clone()),
                         |selected| selected.receipt.remaining(&options.limits))?;
                     remaining.max_ct_steps = remaining.max_ct_steps.min(options.limits.max_ct_steps);
@@ -498,12 +499,50 @@ impl CompilationSession {
                         project.root, fingerprint, &options.target, &remaining, locked.as_ref(),
                     )?)
                 } else { None };
+                let mut runtime_imports = imports.clone();
+                if let Some(result) = &mut ct_result {
+                    for (module, import) in &result.required_imports {
+                        let index = project.modules.iter().position(|source| source.module_id == *module)
+                            .ok_or_else(|| infra("E-CT-IMPORT", "generated caller is outside the frozen project"))?;
+                        if !runtime_imports[index].iter().any(|existing| existing.alias == import.alias && existing.module == import.module) {
+                            runtime_imports[index].push(import.clone());
+                        }
+                    }
+                    let active = result.modules.iter().map(|module| (module.id,
+                        module.items.iter().any(|item| !matches!(item.kind, ast::ItemKind::Import(_)))))
+                        .collect::<BTreeMap<_, _>>();
+                    let mut reachable = BTreeSet::new();
+                    let mut queue = VecDeque::from([project.root]);
+                    while let Some(module) = queue.pop_front() {
+                        if !reachable.insert(module) { continue; }
+                        if let Some(index) = project.modules.iter().position(|source| source.module_id == module) {
+                            for import in &runtime_imports[index] {
+                                if active.get(&import.module).copied().unwrap_or(false) { queue.push_back(import.module); }
+                            }
+                        }
+                    }
+                    for (index, module) in result.modules.iter_mut().enumerate() {
+                        if !reachable.contains(&module.id) {
+                            module.items.clear();
+                            runtime_imports[index].clear();
+                            continue;
+                        }
+                        runtime_imports[index].retain(|import| reachable.contains(&import.module));
+                        module.items.retain(|item| match &item.kind {
+                            ast::ItemKind::Import(import) => {
+                                if import.syntax || matches!(import.path.as_slice(), [a,b] if a == "std" && (b == "meta" || b == "syntax")) { return false; }
+                                project.paths.get(&import.path).is_none_or(|target| reachable.contains(target))
+                            }
+                            _ => true,
+                        });
+                    }
+                }
                 let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
                 let syntax = generated_syntax.as_deref().unwrap_or(selected_syntax);
                 for (module, map) in zil_expand::expand_program_with_limits(
                     &project.modules,
                     syntax,
-                    &imports,
+                    &runtime_imports,
                     &options.limits,
                 )? {
                     modules.push(module);
@@ -520,7 +559,8 @@ impl CompilationSession {
                         .map_or_else(super::ct_selection::Receipt::default, |selected| {
                             selected.receipt
                         }),
-                    ct_usage: ct_result.map(|result| result.usage),
+                    ct_usage: ct_result.as_ref().map(|result| result.usage.clone()),
+                    ct_previews: ct_result.map(|result| result.previews).unwrap_or_default(),
                     syntax: Arc::new(ProjectSyntax {
                         root: (root.file_id, root.module_id, root.path.clone()),
                         entries: dependencies
@@ -547,6 +587,10 @@ impl CompilationSession {
             artifacts.dump_lazy(report, options, "selection", |_| {
                 expanded.selection.to_json()
             })?;
+        }
+        if artifact_needed {
+            artifacts.dump_lazy(report, options, "ct-syntax", |_| format!("[{}]",
+                expanded.ct_previews.iter().map(|preview| preview.json()).collect::<Vec<_>>().join(",")))?;
         }
         if options.stop_after == Stage::Core {
             return Ok(());

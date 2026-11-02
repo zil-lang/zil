@@ -1,0 +1,13 @@
+{
+  "basis": "Explicit provider identity is an immutable source input; no automatic lock repair",
+  "positive_control": "03_providers_hygiene",
+  "native_runs": 0,
+  "cases": [
+    {"name":"missing_lock","phase":"expand","code":"E-SYNTAX-LOCK-MISSING","obligation":"Syntax use cannot guess a provider without the explicit request lock"},
+    {"name":"missing_default","phase":"expand","code":"E-SYNTAX-LOCK-MISSING","obligation":"A default invocation cannot choose an absent export or another provider"},
+    {"name":"stale_source","phase":"expand","code":"E-SYNTAX-LOCK-STALE","obligation":"A coherent source/grammar lock pair for different source bytes must not authenticate the current provider"},
+    {"name":"wrong_grammar","phase":"expand","code":"E-SYNTAX-LOCK-GRAMMAR","obligation":"A correct provider source hash does not repair a mismatched grammar fingerprint"},
+    {"name":"duplicate_entry","phase":"expand","code":"E-SYNTAX-LOCK-DUPLICATE","obligation":"Duplicate path/export keys cannot be selected by entry order"},
+    {"name":"wrong_rule","phase":"expand","code":"E-SYNTAX-LOCK-RULE","obligation":"A stale CT language rule is rejected without silently updating the lock"}
+  ]
+}
