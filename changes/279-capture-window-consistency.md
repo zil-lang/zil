@@ -34,6 +34,14 @@ shared_addresses的两个捕获副本及一个默认捕获写、impl182的一个
 断言Analyze拒绝；另保留原合法边界计划并更新实际module指纹，继续独立要求
 Verify raw及Wire同样拒绝，不再依赖Analyze放过非法IR。
 
+整合279与282时，scoped-local-borrow的实际Analyze成本由282单片2352增加到2798，
+来自真实捕获窗口补核；两片的单独测量不覆写为组合测量。整合预算仍逐项核N/N−1/fresh。
+
+后续整合另核实五个既有源码负例：construction11的跨模块捕获、
+cross_function_borrows的闭包复制后写，以及impl077的三个Package捕获冲突。
+保持原源码、SafeReject与E-BORROW-CONFLICT，仅精确迁移到Analyze；
+纯Address负例仍留在原阶段。三个完整限定目标为2+11+12项通过。
+
 ## 原始源码及最近控制
 
 三例均由真实 source→Types 产生公共候选，再分别直接检查 TypedIR 及

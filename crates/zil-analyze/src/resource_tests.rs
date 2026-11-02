@@ -2591,7 +2591,8 @@ fn concrete_local_282_legacy_cost_controls() {
         (
             "scoped-local-borrow",
             scoped_helper_with_local_body(CallableKind::FnOnce, true),
-            2352,
+            // Includes 279's additional actual captured-address window checks.
+            2798,
         ),
     ] {
         let limits = Limits::default();

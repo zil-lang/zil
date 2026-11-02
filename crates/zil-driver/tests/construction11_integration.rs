@@ -133,8 +133,8 @@ fn cross_module_trait_use_keeps_the_product_capture_loan_active() {
         "{}",
         report.to_json()
     );
-    // The independent Verify invocation rejects the active loan and is counted.
-    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
-    assert_eq!(report.verification_runs, 1);
+    // Analyze now rejects this actual captured-address conflict before Verify.
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
     assert!(!report.artifacts.contains_key("executable"));
 }
