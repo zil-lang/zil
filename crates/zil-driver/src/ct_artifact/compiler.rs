@@ -4,6 +4,8 @@
 mod builtins;
 #[path = "compiler_cfg.rs"]
 mod cfg;
+#[path = "compiler_domain.rs"]
+mod domain;
 #[path = "compiler_expr.rs"]
 mod expr;
 #[path = "compiler_quote.rs"]
@@ -21,6 +23,23 @@ fn error(span: Span, message: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         Phase::Ct,
         "E-CT-SOURCE",
+        Some(span),
+        message,
+    )]
+}
+
+fn category_error(span: Span, message: impl Into<String>) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        Phase::Ct,
+        "E-CT-CATEGORY",
+        Some(span),
+        message,
+    )]
+}
+fn forbidden(span: Span, message: impl Into<String>) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        Phase::Ct,
+        "E-CT-FORBIDDEN",
         Some(span),
         message,
     )]
@@ -180,6 +199,108 @@ struct Compiler<'a> {
     budget: Budget<'a>,
 }
 impl<'a> Compiler<'a> {
+    fn indexed(modules: &'a [SourceModule<'a>], limits: &'a Limits) -> R<Self> {
+        let mut compiler = Self {
+            modules: modules,
+            declarations: Vec::new(),
+            selected: BTreeMap::new(),
+            pending: VecDeque::new(),
+            functions: Vec::new(),
+            constants: Vec::new(),
+            records: Vec::new(),
+            enums: Vec::new(),
+            record_sources: Vec::new(),
+            enum_sources: Vec::new(),
+            templates: Vec::new(),
+            budget: Budget::new(limits),
+        };
+        for (module, input) in modules.iter().enumerate() {
+            compiler.budget.work(1, input.syntax.span)?;
+            if input.source.module_id != input.syntax.id
+                || !input.syntax.span.is_valid_for(input.source)
+            {
+                return Err(error(
+                    input.syntax.span,
+                    "CT syntax does not belong to its actual source unit",
+                ));
+            }
+            for import in input.imports {
+                compiler.budget.text(&import.alias, input.syntax.span)?;
+                let mut found = 0;
+                for item in &input.syntax.items {
+                    compiler.budget.work(1, item.span)?;
+                    match &item.kind {
+                        s::ItemKind::Import(actual) if !actual.syntax => {
+                            let alias = actual
+                                .alias
+                                .as_deref()
+                                .or_else(|| actual.path.last().map(String::as_str));
+                            compiler
+                                .budget
+                                .work(import.alias.len().saturating_add(1), item.span)?;
+                            if alias == Some(import.alias.as_str()) {
+                                let valid = match import.target {
+                                    ImportTarget::Meta => {
+                                        actual.path.iter().map(String::as_str).eq(["std", "meta"])
+                                    }
+                                    ImportTarget::Syntax => {
+                                        actual.path.iter().map(String::as_str).eq(["std", "syntax"])
+                                    }
+                                    ImportTarget::Module(_) => true,
+                                };
+                                if !valid {
+                                    return Err(error(
+                                        item.span,
+                                        "CT standard module identity differs from its actual source import",
+                                    ));
+                                }
+                                found += 1;
+                            }
+                        }
+                        s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. }
+                            if function.name == import.alias =>
+                        {
+                            return Err(error(
+                                item.span,
+                                "CT import alias conflicts with an actual ordinary function binding",
+                            ));
+                        }
+                        s::ItemKind::Const(value) if value.name == import.alias => {
+                            return Err(error(
+                                item.span,
+                                "CT import alias conflicts with an actual value binding",
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+                if found != 1 {
+                    return Err(error(
+                        input.syntax.span,
+                        "CT import must have one actual ordinary source import binding",
+                    ));
+                }
+                if let ImportTarget::Module(id) = import.target {
+                    compiler.module_index(id, input.syntax.span)?;
+                }
+            }
+            for item in &input.syntax.items {
+                compiler.budget.work(1, item.span)?;
+                if let s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } =
+                    &item.kind
+                {
+                    compiler.budget.node(item.span)?;
+                    compiler.declarations.push(Declaration {
+                        module,
+                        item,
+                        function,
+                    });
+                }
+            }
+        }
+        Ok(compiler)
+    }
+
     fn symbol(&mut self, module: usize, span: Span) -> R<CtSymbolId> {
         for (actual, symbol) in self.modules[module].symbols {
             self.budget.work(1, span)?;
@@ -318,44 +439,7 @@ impl<'a> Compiler<'a> {
 }
 
 pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
-    let mut compiler = Compiler {
-        modules: request.modules,
-        declarations: Vec::new(),
-        selected: BTreeMap::new(),
-        pending: VecDeque::new(),
-        functions: Vec::new(),
-        constants: Vec::new(),
-        records: Vec::new(),
-        enums: Vec::new(),
-        record_sources: Vec::new(),
-        enum_sources: Vec::new(),
-        templates: Vec::new(),
-        budget: Budget::new(request.limits),
-    };
-    for (module, input) in request.modules.iter().enumerate() {
-        compiler.budget.work(1, input.syntax.span)?;
-        if input.source.module_id != input.syntax.id
-            || !input.syntax.span.is_valid_for(input.source)
-        {
-            return Err(error(
-                input.syntax.span,
-                "CT syntax does not belong to its actual source unit",
-            ));
-        }
-        for item in &input.syntax.items {
-            compiler.budget.work(1, item.span)?;
-            if let s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } =
-                &item.kind
-            {
-                compiler.budget.node(item.span)?;
-                compiler.declarations.push(Declaration {
-                    module,
-                    item,
-                    function,
-                });
-            }
-        }
-    }
+    let mut compiler = Compiler::indexed(request.modules, request.limits)?;
     // An uncalled CT-only definition is still checked; runtime-only functions
     // are compiled only when actually referenced by the pure CT call graph.
     for index in 0..compiler.declarations.len() {
@@ -453,4 +537,33 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
         snapshot: request.snapshot.clone(),
         budget: compiler.budget.declared(),
     })
+}
+
+/// The raw program retains the shared remaining ledger across classification.
+pub(crate) fn ct_only_definitions(program: &mut CtArtifactProgram) -> R<Vec<CtSymbolId>> {
+    domain::definitions(program)
+}
+
+/// Find an actual CT-only definition for definition-only checking. The caller
+/// compiles/verifies it without running the VM, so no invented source entry is
+/// needed. This inspection charges the same request remainder before returning.
+pub(crate) fn definitions_entry(
+    modules: &[SourceModule<'_>],
+    limits: &mut Limits,
+) -> R<Option<CtSymbolId>> {
+    let mut compiler = Compiler::indexed(modules, limits)?;
+    let mut entry = None;
+    for index in 0..compiler.declarations.len() {
+        let declaration = compiler.declarations[index];
+        if compiler.ct_only_function(declaration.module, declaration.function)? {
+            entry = Some(compiler.symbol(declaration.module, declaration.item.span)?);
+            break;
+        }
+    }
+    let remaining = compiler.budget.declared();
+    drop(compiler);
+    limits.max_analysis_steps = remaining.max_analysis_work as usize;
+    limits.max_nodes = remaining.max_generated_nodes as usize;
+    limits.max_source_bytes = remaining.max_temporary_bytes as usize;
+    Ok(entry)
 }

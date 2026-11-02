@@ -1,20 +1,5 @@
 use super::*;
 use cfg::{Builder, Value};
-pub(super) fn path(expression: &s::Expr) -> Option<Vec<String>> {
-    match &expression.kind {
-        s::ExprKind::Name(n) => Some(vec![n.clone()]),
-        s::ExprKind::Member {
-            object,
-            member: s::MemberName::Name(n),
-        } => {
-            let mut p = path(object)?;
-            p.push(n.clone());
-            Some(p)
-        }
-        s::ExprKind::Group(e) => path(e),
-        _ => None,
-    }
-}
 fn scalar_constant(c: &Constant) -> CtTy {
     CtTy::Scalar(match c {
         Constant::Unit => CtScalarTy::Unit,
@@ -83,8 +68,36 @@ fn text(spelling: &str, span: Span) -> R<String> {
     Ok(out)
 }
 impl Builder<'_, '_> {
+    fn source_path(&mut self, expression: &s::Expr, depth: usize) -> R<Option<Vec<String>>> {
+        self.compiler.budget.depth(depth, expression.span)?;
+        match &expression.kind {
+            s::ExprKind::Name(name) => {
+                self.compiler.budget.text(name, expression.span)?;
+                self.compiler.budget.node(expression.span)?;
+                Ok(Some(vec![name.clone()]))
+            }
+            s::ExprKind::Member {
+                object,
+                member: s::MemberName::Name(name),
+            } => {
+                let Some(mut path) = self.source_path(object, depth + 1)? else {
+                    return Ok(None);
+                };
+                self.compiler.budget.text(name, expression.span)?;
+                self.compiler.budget.node(expression.span)?;
+                path.push(name.clone());
+                Ok(Some(path))
+            }
+            s::ExprKind::Group(inner) => self.source_path(inner, depth + 1),
+            _ => Ok(None),
+        }
+    }
+
     pub(super) fn expr(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
         self.compiler.budget.depth(depth, e.span)?;
+        if let Some(ty) = expected {
+            self.compiler.budget.ty(ty, 0, e.span)?;
+        }
         let span = e.span;
         let value = match &e.kind {
             s::ExprKind::Literal(s::Literal::Bool(v)) => self.constant(
@@ -268,6 +281,25 @@ impl Builder<'_, '_> {
                 let lhs_expected = if compare { None } else { expected };
                 let lhs = self.expr(left, lhs_expected, depth + 1)?;
                 let rhs = self.expr(right, Some(&lhs.ty), depth + 1)?;
+                let integer = matches!(
+                    lhs.ty,
+                    CtTy::Scalar(
+                        CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64
+                    )
+                );
+                let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
+                if !integer
+                    && !(equality
+                        && matches!(
+                            lhs.ty,
+                            CtTy::Scalar(CtScalarTy::Bool) | CtTy::Type | CtTy::Ident | CtTy::Text
+                        ))
+                {
+                    return Err(error(
+                        span,
+                        "CT operator is not defined for these actual data operands",
+                    ));
+                }
                 let result = if compare {
                     CtTy::Scalar(CtScalarTy::Bool)
                 } else {
@@ -308,11 +340,15 @@ impl Builder<'_, '_> {
                 )?
             }
             s::ExprKind::Member { object, member } => {
-                if let Some(path) = path(e)
-                    && path.len() == 2
+                if let Some(path) = self.source_path(e, depth + 1)?
+                    && path.len() >= 2
                     && !self.has_local(&path[0], span)?
                 {
-                    self.type_name(&path, span, depth + 1)?
+                    if let Some(value) = self.enum_value(&path, &[], depth + 1, span)? {
+                        value
+                    } else {
+                        self.type_name(&path, span, depth + 1)?
+                    }
                 } else {
                     let value = self.expr(object, None, depth + 1)?;
                     self.field(value, member, span)?
@@ -326,7 +362,7 @@ impl Builder<'_, '_> {
                     ));
                 }
                 let target = if let Some(t) = ty {
-                    let path = path(t).ok_or_else(|| {
+                    let path = self.source_path(t, depth + 1)?.ok_or_else(|| {
                         error(t.span, "CT record constructor needs a nominal declaration")
                     })?;
                     let t = s::TypeRef {
@@ -345,7 +381,10 @@ impl Builder<'_, '_> {
                 let CtTy::Record(id) = target else {
                     return Err(error(span, "CT record constructor requires a pure struct"));
                 };
-                let (_, decl) = self.compiler.record_sources[id.0 as usize];
+                let (owner, decl) = self.compiler.record_sources[id.0 as usize];
+                for ty in &self.compiler.records[id.0 as usize].fields {
+                    self.compiler.budget.ty(ty, 0, span)?;
+                }
                 let types = self.compiler.records[id.0 as usize].fields.clone();
                 let mut values = Vec::new();
                 if fields.len() != decl.fields.len() {
@@ -355,6 +394,12 @@ impl Builder<'_, '_> {
                     ));
                 }
                 for (field, ty) in decl.fields.iter().zip(types) {
+                    if owner != self.module && !field.public {
+                        return Err(error(
+                            span,
+                            "CT record constructor cannot initialize private foreign fields",
+                        ));
+                    }
                     self.compiler.budget.work(fields.len(), span)?;
                     let mut found = fields.iter().filter(|f| f.name == field.name);
                     let actual = found
@@ -384,6 +429,36 @@ impl Builder<'_, '_> {
                     span,
                 )?
             }
+            s::ExprKind::TypeApply { callee, arguments } => {
+                let names = self.source_path(callee, depth + 1)?.ok_or_else(|| {
+                    error(span, "Type application needs an actual nominal declaration")
+                })?;
+                if self.has_local(&names[0], span)? {
+                    return Err(error(
+                        span,
+                        "value binding shadows a nominal Type application",
+                    ));
+                }
+                let (owner, item) = self.compiler.named_item(self.module, &names, span)?;
+                let nominal = self.compiler.symbol(owner, item.span)?;
+                let mut ids = Vec::new();
+                for argument in arguments {
+                    self.compiler.budget.node(span)?;
+                    let value = match argument {
+                        s::GenericArg::Type(ty) => self.type_ref(self.module, ty, depth + 1)?,
+                        s::GenericArg::Const(e) => self.expr(e, None, depth + 1)?,
+                    };
+                    ids.push(value.id);
+                }
+                self.emit(
+                    CtInstructionKind::TypeApply {
+                        nominal,
+                        arguments: ids,
+                    },
+                    CtTy::Type,
+                    span,
+                )?
+            }
             s::ExprKind::MetaBlock(body) => self.meta_block(body, expected, depth + 1)?,
             s::ExprKind::Quote { category, template } => {
                 self.quote(*category, template, depth + 1, span)?
@@ -396,6 +471,88 @@ impl Builder<'_, '_> {
             }
         };
         self.expect(value, expected, span)
+    }
+    fn enum_value(
+        &mut self,
+        path: &[String],
+        arguments: &[s::Argument],
+        depth: usize,
+        span: Span,
+    ) -> R<Option<Value>> {
+        if path.len() < 2 {
+            return Ok(None);
+        }
+        let (owner, item) =
+            match self
+                .compiler
+                .named_item(self.module, &path[..path.len() - 1], span)
+            {
+                Ok(item) => item,
+                Err(errors)
+                    if errors
+                        .iter()
+                        .any(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+                {
+                    return Err(errors);
+                }
+                Err(_) => return Ok(None),
+            };
+        let s::ItemKind::Enum(enumeration) = &item.kind else {
+            return Ok(None);
+        };
+        let ty = s::TypeRef {
+            kind: s::TypeKind::Named {
+                path: path[..path.len() - 1].to_vec(),
+                args: Vec::new(),
+            },
+            span,
+        };
+        let CtTy::Enum(schema) = self.compiler.ty(self.module, &ty, depth + 1)? else {
+            unreachable!()
+        };
+        let name = path.last().unwrap();
+        let mut tag = None;
+        for (index, variant) in enumeration.variants.iter().enumerate() {
+            self.compiler
+                .budget
+                .work(name.len().saturating_add(1), span)?;
+            if variant.name == *name {
+                tag = Some(index);
+                break;
+            }
+        }
+        let tag = tag.ok_or_else(|| error(span, "CT enum constructor variant is absent"))?;
+        if owner != self.module && !item.public {
+            return Err(error(span, "CT enum is private"));
+        }
+        for ty in &self.compiler.enums[schema.0 as usize].variants[tag] {
+            self.compiler.budget.ty(ty, 0, span)?;
+        }
+        let expected = self.compiler.enums[schema.0 as usize].variants[tag].clone();
+        if expected.len() != arguments.len() {
+            return Err(error(span, "CT enum constructor field count differs"));
+        }
+        let mut fields = Vec::new();
+        for (argument, ty) in arguments.iter().zip(expected) {
+            self.compiler.budget.node(argument.span)?;
+            if argument.spread {
+                return Err(error(
+                    argument.span,
+                    "CT enum field cannot use an unexpanded spread",
+                ));
+            }
+            fields.push(self.expr(&argument.value, Some(&ty), depth + 1)?.id);
+        }
+        self.emit(
+            CtInstructionKind::MakeVariant {
+                schema,
+                tag: tag as u32,
+                fields,
+            },
+            CtTy::Enum(schema),
+            span,
+        )
+        .map(Some)
     }
     fn type_name(&mut self, path: &[String], span: Span, depth: usize) -> R<Value> {
         let (owner, item) = self.compiler.named_item(self.module, path, span)?;
@@ -584,7 +741,7 @@ impl Builder<'_, '_> {
                     .ok_or_else(|| error(span, "CT tuple field is absent"))?,
             ),
             (CtTy::Record(id), s::MemberName::Name(name)) => {
-                let (_, decl) = self.compiler.record_sources[id.0 as usize];
+                let (owner, decl) = self.compiler.record_sources[id.0 as usize];
                 let mut found = None;
                 for (index, field) in decl.fields.iter().enumerate() {
                     self.compiler.budget.work(1, span)?;
@@ -594,6 +751,12 @@ impl Builder<'_, '_> {
                     }
                 }
                 let i = found.ok_or_else(|| error(span, "CT struct field is absent"))?;
+                if owner != self.module && !decl.fields[i].public {
+                    return Err(error(
+                        span,
+                        "CT struct field is private to its actual declaring module",
+                    ));
+                }
                 (
                     i as u32,
                     self.compiler.records[id.0 as usize].fields[i].clone(),
@@ -623,7 +786,7 @@ impl Builder<'_, '_> {
         depth: usize,
         span: Span,
     ) -> R<Value> {
-        let Some(path) = path(callee) else {
+        let Some(path) = self.source_path(callee, depth + 1)? else {
             return Err(error(
                 span,
                 "CT call requires a concrete ordinary function or imported standard operation",
@@ -672,6 +835,9 @@ impl Builder<'_, '_> {
                 CtTy::Scalar(target),
                 span,
             );
+        }
+        if let Some(value) = self.enum_value(&path, arguments, depth, span)? {
+            return Ok(value);
         }
         let declaration = self.compiler.function(self.module, &path, span)?;
         let (types, result) = self.compiler.header(declaration)?;
