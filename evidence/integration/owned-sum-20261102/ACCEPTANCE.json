@@ -16,7 +16,7 @@
     "243": "evidence/reviews/243/integrationR/REVIEW.json",
     "244": "evidence/reviews/244/finalR/REVIEW.json"
   },
-  "frontend_supplement": "evidence/reviews/240/frontend-finalR/REVIEW.json",
+  "frontend_supplement": "evidence/reviews/240/frontend-finalR/VERDICT.json",
   "consumer244": "evidence/reviews/239/integrationR/COMMON-RESULT.json",
   "main_replay": {
     "status": "Running",
