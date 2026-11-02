@@ -139,12 +139,15 @@ impl FrozenReadView<'_> {
                     let value = holes.get(*index as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote hole index is out of range"))?;
                     let expected = template.holes.get(*index as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote hole kind is missing"))?;
                     match (expected, value) {
-                        (CtHoleKind::Ident(namespace), CtValue::Ident(ident)) if namespace == &ident.namespace => {
+                        (CtHoleKind::Ident(namespace), CtValue::Ident(ident))
+                            if namespace == &ident.namespace || ident.namespace == CtNameNamespace::Unbound => {
+                            let mut ident = ident.clone();
+                            ident.namespace = *namespace;
                             let new_origin = CtOriginId(u32::try_from(out.origins.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote origin identity overflow"))?);
                             let span = out.origins.get(origin.0 as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote hole origin is missing"))?.span;
                             out.origins.push(CtOrigin { span, parent: Some(*origin), role: CtOriginRole::Splice });
                             let id = CtSyntaxNodeId(u32::try_from(out.nodes.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote node identity overflow"))?);
-                            out.nodes.push(CtSyntaxNode::Token(CtToken { class: CtTokenClass::Identifier, text: ident.text.clone(), origin: new_origin, name: Some(ident.clone()) }));
+                            out.nodes.push(CtSyntaxNode::Token(CtToken { class: CtTokenClass::Identifier, text: ident.text.clone(), origin: new_origin, name: Some(ident) }));
                             vec![id]
                         }
                         (CtHoleKind::Expr, CtValue::Syntax(tree)) if tree.category == CtSyntaxCategory::Expr => Self::graft(&mut out, tree, *origin)?,
@@ -343,7 +346,7 @@ impl CtReadView for FrozenReadView<'_> {
         let mut limits = self.limits.clone();
         limits.max_nodes = limits.max_nodes.min(budget.remaining().max_analysis_work as usize);
         limits.max_call_depth = limits.max_call_depth.min(budget.remaining().max_call_depth as usize);
-        render::parse(&tree, file, module, &limits, budget)?;
+        render::parse(&tree, file, module, &self.index.aliases(module), &limits, budget)?;
         Ok(tree)
     }
     fn query(&self, requester: &CtSymbolId, kind: CtQueryKind, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<(CtValue, CtQueryDependency)> {
@@ -366,6 +369,9 @@ impl CtReadView for FrozenReadView<'_> {
             }
             CtQueryKind::ImplIndex => return Err(phase("ImplIndexReady has not completed for this generation batch")),
             CtQueryKind::Layout => {
+                if self.snapshot.target_fingerprint != Some(self.target.fingerprint()) {
+                    return Err(self.unready("LayoutReady target does not match this immutable CT snapshot"));
+                }
                 let (ty, nominal) = self.nominal_root(args.first().ok_or_else(|| error("E-CT-QUERY-ARG", "layout query needs a type"))?)?;
                 self.nominal(requester, nominal)?;
                 let ready = self.shape.ok_or_else(|| self.unready("LayoutReady has not completed for this generation batch"))?;

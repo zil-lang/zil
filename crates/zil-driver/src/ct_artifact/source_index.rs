@@ -7,6 +7,7 @@ use zil_ir::ct_artifact::CtSymbolId;
 use zil_syntax::ast::{self as s, ItemKind, VariantFields};
 
 pub(super) struct SourceIndex {
+    module_ids: Vec<ModuleId>,
     imports: Vec<Vec<SourceImport>>,
     symbols: Vec<Vec<(Span, CtSymbolId)>>,
     public: Vec<(CtSymbolId, bool)>,
@@ -83,7 +84,19 @@ impl SourceIndex {
             imports.push(bindings);
             symbols.push(table);
         }
-        Ok(Self { imports, symbols, public })
+        Ok(Self { module_ids: sources.iter().map(|source| source.module_id).collect(), imports, symbols, public })
+    }
+
+    pub(super) fn aliases(&self, requester: ModuleId) -> BTreeMap<ModuleId, String> {
+        let mut result = BTreeMap::new();
+        if let Some(index) = self.module_ids.iter().position(|module| *module == requester) {
+            for import in &self.imports[index] {
+                if let ImportTarget::Module(target) = &import.target {
+                    result.entry(*target).or_insert_with(|| import.alias.clone());
+                }
+            }
+        }
+        result
     }
 
     pub(super) fn modules<'a>(&'a self, sources: &'a [SourceUnit], syntax: &'a [&s::Module]) -> Vec<SourceModule<'a>> {
