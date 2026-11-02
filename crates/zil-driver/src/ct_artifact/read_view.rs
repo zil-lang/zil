@@ -1,7 +1,7 @@
 //! Closed CT services over the pre-generation source snapshot. Host callbacks
 //! return pure data and never execute a provider or grant ordinary Verify.
-use super::{snapshot::ShapeSnapshot, source_index::SourceIndex, type_ref::from_checked_type};
-use zil_base::{CompileResult, Diagnostic, Fingerprint, Phase, SourceUnit, Span};
+use super::{render, snapshot::ShapeSnapshot, source_index::SourceIndex, type_ref::from_checked_type};
+use zil_base::{CompileResult, Diagnostic, FileId, Fingerprint, ModuleId, Phase, SourceUnit, Span};
 use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{Constant, ct_artifact::*};
 use zil_syntax::ast::{self as s, ItemKind};
@@ -17,6 +17,7 @@ pub(super) struct FrozenReadView<'a> {
     pub syntax: &'a [&'a s::Module],
     pub shape: Option<&'a ShapeSnapshot>,
     pub input: Option<&'a CtTokenTree>,
+    pub limits: &'a zil_base::Limits,
 }
 
 impl FrozenReadView<'_> {
@@ -303,8 +304,36 @@ impl CtReadView for FrozenReadView<'_> {
         budget.reserve_temporary_bytes(ident.text.len() as u64)?;
         Ok(ident.clone())
     }
-    fn parse(&self, _category: CtSyntaxCategory, _input: &CtTokenTree, _budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
-        Err(phase("generated syntax parser is not connected to the frozen input view"))
+    fn parse(&self, category: CtSyntaxCategory, input: &CtTokenTree, budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
+        if self.input != Some(input) { return Err(error("E-CT-INPUT", "syntax parser needs the authenticated provider input")); }
+        let [root] = input.roots.as_slice() else { return Err(error("E-CT-CATEGORY", "provider parser needs one outer delimiter")); };
+        let Some(CtTokenNode::Group { children, origin, .. }) = input.nodes.get(root.0 as usize) else {
+            return Err(error("E-CT-CATEGORY", "provider parser needs one outer delimiter"));
+        };
+        let byte_count = input.nodes.iter().filter_map(|node| match node { CtTokenNode::Token(token) => Some(token.text.len() as u64), _ => None }).sum::<u64>();
+        budget.reserve_analysis_work(input.nodes.len().saturating_add(input.origins.len()) as u64)?;
+        budget.reserve_generated_nodes(input.nodes.len().saturating_add(input.origins.len()) as u64)?;
+        budget.reserve_temporary_bytes(byte_count)?;
+        let nodes = input.nodes.iter().map(|node| match node {
+            CtTokenNode::Token(token) => CtSyntaxNode::Token(token.clone()),
+            CtTokenNode::Group { delimiter, children, origin } => CtSyntaxNode::Group {
+                delimiter: *delimiter, children: children.iter().map(|id| CtSyntaxNodeId(id.0)).collect(), origin: *origin,
+            },
+        }).collect::<Vec<_>>();
+        let mut tree = CtSyntaxTree { category, nodes, roots: children.iter().map(|id| CtSyntaxNodeId(id.0)).collect(), origins: input.origins.clone() };
+        if tree.roots.len() != 1 && matches!(category, CtSyntaxCategory::Expr | CtSyntaxCategory::Type) {
+            let id = CtSyntaxNodeId(u32::try_from(tree.nodes.len()).map_err(|_| error("E-CT-CATEGORY", "provider syntax node overflow"))?);
+            let children = std::mem::take(&mut tree.roots);
+            tree.nodes.push(CtSyntaxNode::Group { delimiter: CtDelimiter::Parenthesis, children, origin: *origin });
+            tree.roots.push(id);
+        }
+        let file = input.origins.first().map_or(FileId(0), |origin| origin.span.file);
+        let module = self.sources.iter().find(|source| source.file_id == file).map_or(ModuleId(0), |source| source.module_id);
+        let mut limits = self.limits.clone();
+        limits.max_nodes = limits.max_nodes.min(budget.remaining().max_analysis_work as usize);
+        limits.max_call_depth = limits.max_call_depth.min(budget.remaining().max_call_depth as usize);
+        render::parse(&tree, file, module, &limits, budget)?;
+        Ok(tree)
     }
     fn query(&self, requester: &CtSymbolId, kind: CtQueryKind, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<(CtValue, CtQueryDependency)> {
         let value = match kind {

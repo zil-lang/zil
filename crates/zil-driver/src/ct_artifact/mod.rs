@@ -8,5 +8,7 @@ mod snapshot;
 mod type_ref;
 mod read_view;
 mod render;
+mod input;
+mod execute;
 
 pub use lock::SyntaxLock;
