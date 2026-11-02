@@ -675,6 +675,7 @@ fn store_window_transition(
     state: &State,
     live: &resources::Live,
     callback_windows: bool,
+    parameter_windows: bool,
     budget: &mut Budget,
 ) -> CompileResult<()> {
     budget.spend(1, "captured Store window transition scan")?;
@@ -823,6 +824,12 @@ fn store_window_transition(
                     || matches!((changed.position(), root.position()), (Root::Local(a), Root::Field(b, _)) if a == b)
             })
         }) {
+            if parameter_windows {
+                return Err(window_conflict(
+                    instruction,
+                    "Store transition invalidates a live element window",
+                ));
+            }
             return Err(bad(if callback_windows {
                 "owned storage transition invalidates a live address window"
             } else {
@@ -1014,6 +1021,7 @@ fn infer_with_private(
                         &state,
                         &address_afters[b][position],
                         callback_windows,
+                        private.is_some(),
                         budget,
                     )?;
                 }
@@ -1552,7 +1560,6 @@ fn parameter_product_windows(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     holds: &[Vec<ValueHold>],
-    store_profiles: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<()> {
     let count = module.functions.len();
@@ -1605,17 +1612,32 @@ fn parameter_product_windows(
     let callable_writes = product_may_store_write(module, &store_closures, budget)?;
     let mut private = Vec::with_capacity(count);
     let mut owned_known = Vec::with_capacity(count);
-    for (index, (f, (predecessors, reachable))) in module.functions.iter().zip(graphs).enumerate() {
+    for (f, (predecessors, reachable)) in module.functions.iter().zip(graphs) {
         let mut values = Vec::new();
+        let mut element_windows = false;
+        for (block, live) in f.blocks.iter().zip(reachable) {
+            if !live {
+                continue;
+            }
+            budget.spend(block.instructions.len(), "Product Store window source scan")?;
+            for instruction in &block.instructions {
+                element_windows |= matches!(
+                    instruction.kind,
+                    InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                ) || (matches!(instruction.kind, InstructionKind::Call { .. })
+                    && instruction.result.is_some_and(|result| {
+                        matches!(f.values[result.0 as usize], Type::Address { .. })
+                    }));
+            }
+        }
         infer_with_private(
             module,
             &summaries,
             f,
             predecessors,
             reachable,
-            f.environment
-                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false))
-                || ordinary_store_function(index, budget)?,
+            element_windows,
             budget,
             Some(&mut values),
         )?;
@@ -2277,7 +2299,7 @@ pub(super) fn infer_module(
         }
     }
     if parameter_capture {
-        parameter_product_windows(module, graphs, &result, store_profiles, budget)?;
+        parameter_product_windows(module, graphs, &result, budget)?;
     }
     Ok(result)
 }
