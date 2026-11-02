@@ -1,0 +1,24 @@
+{
+  "reviewer": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "ebbee34647b5297ebd7b9ddd10abe8a1d9295381",
+  "base_implementation_review": "evidence/reviews/250/final-R/review.json",
+  "reviewed_delta": "E e3ddaafee77f9a1becc814e390a51de06bcdcb8e to delivery: one test harness directory label, plus evidence only",
+  "source_change": "Lowercase hex encoding is injective over input bytes and portable; execute still receives the unchanged case.input. No changed oracle, comparison, compiler implementation, transport validation or normative input.",
+  "validation": {
+    "consumer": "7 passed / 0 failed / 0 ignored / 0 filtered; 122 native runs / 90 allocator runs / 38 injected failures / 906 assertions / all live=0",
+    "author_actual_round_trip": "846 files, 74077369 logical bytes; exact paths, bytes, SHA256 and modes restored",
+    "independent_root_archive_verify": {
+      "exit_code": 0,
+      "files": 846,
+      "sha256": "ba876f6ebe3c83ed92386a9f3c907cfa25150c6551bf8b3656724c2480108eb4"
+    }
+  },
+  "evidence_reuse": "Prior R complete local workspace/reference gates remain evidence for unchanged compiler and other test inputs; affected consumer rerun on source280267 and archive transport verified. Remote complete gates still required on new exact head.",
+  "prior_remote_runs": [
+    41417349429,
+    41417349326
+  ],
+  "prior_remote_status": "Fail, original native evidence unavailable; code gates alone do not satisfy remote acceptance",
+  "merge_status": "Blocked until replacement remote runs and complete recovered evidence pass"
+}
