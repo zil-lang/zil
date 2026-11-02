@@ -744,6 +744,7 @@ fn direct_byte_primitives_foreign_and_unknown_calls_remain_seeds() {
         symbol: "model_only".into(),
         noescape_parameters: vec![],
         static_callbacks: false,
+        scoped_callback: None,
     });
     compared += compare_transfers(&core, "foreign model only");
     assert_eq!(compared, 9 * 16 * 2);

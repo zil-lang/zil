@@ -81,6 +81,7 @@ impl Expander<'_> {
                 symbol: function.name.clone(),
                 noescape_parameters,
                 static_callbacks,
+                scoped_callback: None,
             }),
             parameters,
             return_type,

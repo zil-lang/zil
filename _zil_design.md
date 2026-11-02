@@ -818,6 +818,16 @@ extern "C" fn(...) -> T 是独立ForeignCallback类型；c_callback(静态普通
 
 本有限C值ABI接受u8/u16/i32/i64/c_handle/c_wstr/上述静态callback参数，返回仅Unit/u8/u16/i32/i64/c_handle；窄整数使用真实目标C ABI。单层共享Address载荷允许这些静态值及递归非空数组/非空Record，可变载荷仅允许全位模式有效的u8/u16/i32/i64/c_handle及递归非空数组/Record。Bool/Unit/enum/普通函数指针/资源/Package/嵌套Address拒绝。此Record子集按声明顺序、自然C对齐和尾部补齐布局，只通过地址借入；无按值聚合、packing、union、bitfield和变参ABI。padding不是语言字段值，外部仅可读取已初始化声明字段，可以在对象范围内写padding。所有地址仍需完整唯一noescape索引，并独立核验同期活性、来源、初始化及读写冲突；静态字段可被复制留存不等于其外层record地址可留存。新外部值、回调和嵌套组合不进入本片CT执行；u16按普通整数规则执行CT。外部违反合同属于可信边界破坏，与 Rust 同类；不宣称静态语言隔离恶意外部任意写。
 
+### 12.4.1 同线程结构化外部回调
+
+`unsafe { c_with_callback(register_name, close_name, &mut f, body) }` 是有外部效果的结构化调用，裸名称保留，不是可遮蔽的普通构造函数。结果为普通`(bool,i32)`；前两项引用静态外部声明，不开放一般foreign函数值。f须为实际具体、自含的Fn或FnMut(i32)->i32，以真实活位置独占借入；body须为具体零参数i32闭包并可一次消费，不得经直接使用、捕获或别名访问该f。普通不相交借用仍须独立核验。源顺序求值，每项仅一次；该profile仅同线程Direct事件循环，不开放跨线程、Suspend或可脱离调用返回的登记值。
+
+register签名精确为`(extern "C" fn(c_handle,i32)->i64,c_handle)->c_handle`，标记`provides(static_callbacks(),scoped_callback_register());effects(ffi);`；close签名为`(c_handle)->Unit`，标记`provides(static_callbacks(),scoped_callback_close());effects(ffi);`。二者角色只可由组合器调用，不能作普通ForeignCall。角色是unsafe外部承诺，不能制造实际来源、初始化、独占或自含资格。register返回null须保证所有同步反调完成且无未来入口；close返回须保证该登记全部入口/访问已经结束且不会再开始，不能以active=0替代。无法兑现时不得返回释放栈槽，可abort；跨界unwind/longjmp、挂起、外部伪造userdata或跨线程均违反合同。
+
+进入register前建立稳定context栈槽，绑定实际f位置、Closing与active；不产生隐式heap、RC、锁或全局表。同线程回调在无让出窗口内检查Open且非active并登记active后，才沿既有FnMut路径调用f；退出先归还访问再清active。成功返回i64的高32位0、低32位原样承载i32结果；Closing或重入返回高32位1、低32位0。register失败不调用body，清理其未消费环境并返回(false,0)；成功则一次消费body并完成其剩余清理，保存完整结果，置Closing后调用close。close期间反调只拒入；保证no-future后才释放f借入并返回(true,result)。body的可恢复错误在body内部处理；本profile的Trap/panic固定abort，不展开已公布槽，不承诺abort后的清理。
+
+TypedIR/LIR `WithForeignCallback { register, close, callback, body, region }` 保留实际声明、活独占Closure地址、一次消费body以及真实unsafe区；result须为Tuple[Bool,I32]。Types/Analyze和独立Verify各自重建资格、地址/别名、消费及真实签名/角色，候选注解和同ClosureId不证明同值/不同值；CT不得执行此指令。runtime schema/Wire/fingerprint32同批绑定角色和指令，CT artifact schema1不变。旧无新能力路径的语义费用保持，新增工作使用当前请求余额且预付；Wire新增角色字节按真实新格式计费，默认额度不增。
+
 <a id="ZIL-LOWERING"></a>
 
 ## 13. 目标表示：规定主路径，不让每个后端重新发明

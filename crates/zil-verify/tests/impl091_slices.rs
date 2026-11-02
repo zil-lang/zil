@@ -854,6 +854,7 @@ fn slice_profiles_reject_foreign_abi_and_ct() {
         symbol: "consume".into(),
         noescape_parameters: vec![0],
         static_callbacks: false,
+        scoped_callback: None,
     });
     plan.blocks.clear();
     case(vec![(f, plan)]).reject("E-VERIFY-FOREIGN");

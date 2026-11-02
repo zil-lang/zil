@@ -597,6 +597,7 @@ mod tests {
             symbol: "putchar".into(),
             noescape_parameters: vec![],
             static_callbacks: false,
+            scoped_callback: None,
         });
         let mut module = typed(vec![foreign.clone(), main]);
         let names = origins.bind(&module).unwrap();

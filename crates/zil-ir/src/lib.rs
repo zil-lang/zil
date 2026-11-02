@@ -417,6 +417,21 @@ pub struct CoreStateBinding {
     pub fields: Vec<u32>,
 }
 
+/// An explicit unsafe promise for one end of the scoped callback protocol.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScopedCallbackRole {
+    Register,
+    Close,
+}
+
+fn scoped_callback_role_tag(role: Option<ScopedCallbackRole>) -> u8 {
+    match role {
+        None => 0,
+        Some(ScopedCallbackRole::Register) => 1,
+        Some(ScopedCallbackRole::Close) => 2,
+    }
+}
+
 /// An untrusted external ABI/symbol declaration, never proof of its C implementation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ForeignDeclaration {
@@ -427,6 +442,7 @@ pub struct ForeignDeclaration {
     pub noescape_parameters: Vec<u32>,
     /// Explicit external promise allowing only the finite static callback profile.
     pub static_callbacks: bool,
+    pub scoped_callback: Option<ScopedCallbackRole>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreParameter {
@@ -1250,6 +1266,16 @@ pub enum InstructionKind {
         arguments: Vec<ValueId>,
         region: u32,
     },
+    /// A synchronous external registration bounded by this structured call.
+    /// Borrows the actual FnMut environment and consumes the body exactly once
+    /// (call on successful registration, cleanup on failed registration).
+    WithForeignCallback {
+        register: FunctionId,
+        close: FunctionId,
+        callback: ValueId,
+        body: ValueId,
+        region: u32,
+    },
     /// A real, environment-free function address with its exact Copy signature.
     FunctionRef {
         function: FunctionId,
@@ -1676,7 +1702,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V31\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V32\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1878,6 +1904,7 @@ fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
             encode_u32(b, *parameter);
         }
         b.push(u8::from(foreign.static_callbacks));
+        b.push(scoped_callback_role_tag(foreign.scoped_callback));
     }
     b.push(u8::from(f.environment.is_some()));
     if let Some(environment) = f.environment {
@@ -2253,6 +2280,20 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             for a in arguments {
                 encode_u32(b, a.0);
             }
+        }
+        InstructionKind::WithForeignCallback {
+            register,
+            close,
+            callback,
+            body,
+            region,
+        } => {
+            b.push(94);
+            encode_u32(b, register.0);
+            encode_u32(b, close.0);
+            encode_u32(b, callback.0);
+            encode_u32(b, body.0);
+            encode_u32(b, *region);
         }
         InstructionKind::ForeignFunctionRef { function } => {
             b.push(60);
