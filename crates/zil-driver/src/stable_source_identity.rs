@@ -599,12 +599,19 @@ mod tests {
             static_callbacks: false,
             scoped_callback: None,
         });
-        let mut module = typed(vec![foreign.clone(), main]);
-        let names = origins.bind(&module).unwrap();
-        assert_eq!(names.len(), 1);
-        assert_eq!(names[0].0, FunctionId(1));
-        // A source definition cannot silently disappear into the skipped set.
-        module.functions[1].foreign = foreign.foreign;
-        assert!(origins.bind(&module).is_none());
+        for role in [
+            None,
+            Some(zil_ir::ScopedCallbackRole::Register),
+            Some(zil_ir::ScopedCallbackRole::Close),
+        ] {
+            foreign.foreign.as_mut().unwrap().scoped_callback = role;
+            let mut module = typed(vec![foreign.clone(), main.clone()]);
+            let names = origins.bind(&module).unwrap();
+            assert_eq!(names.len(), 1);
+            assert_eq!(names[0].0, FunctionId(1));
+            // A source definition cannot silently disappear into the skipped set.
+            module.functions[1].foreign = foreign.foreign.clone();
+            assert!(origins.bind(&module).is_none());
+        }
     }
 }

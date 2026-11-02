@@ -743,6 +743,9 @@ impl Collector<'_> {
         }
         if let Some(foreign) = &function.foreign {
             self.charge(0)?;
+            if foreign.scoped_callback.is_some() {
+                self.charge(0)?;
+            }
             self.text(&foreign.abi)?;
             self.text(&foreign.symbol)?;
             for _ in &foreign.noescape_parameters {
@@ -1411,6 +1414,69 @@ mod tests {
     use super::*;
     use zil_base::{FileId, ResultCategory, SourceUnit};
     use zil_ct::SourceCompiler;
+
+    #[test]
+    fn scoped_foreign_role_selection_work_is_prepaid_without_changing_none() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "role.zil", "fn f(){}");
+        let ast = zil_syntax::parse(&source).into_result().unwrap();
+        let mut core = zil_expand::expand(&source, &ast).unwrap();
+        core.functions[0].foreign = Some(ForeignDeclaration {
+            abi: "C".into(),
+            symbol: "register".into(),
+            noescape_parameters: vec![],
+            static_callbacks: true,
+            scoped_callback: None,
+        });
+        let mut program = CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let limits = Limits::default();
+        let old = selection_cost(&program, &limits).unwrap();
+        for role in [ScopedCallbackRole::Register, ScopedCallbackRole::Close] {
+            program.modules[0].core.functions[0]
+                .foreign
+                .as_mut()
+                .unwrap()
+                .scoped_callback = Some(role);
+            let (nodes, work) = selection_cost(&program, &limits).unwrap();
+            assert_eq!((nodes, work), (old.0 + 1, old.1 + 1));
+            let exact = Limits {
+                max_nodes: nodes,
+                max_analysis_steps: work,
+                ..limits.clone()
+            };
+            for _ in 0..2 {
+                assert_eq!(selection_cost(&program, &exact).unwrap(), (nodes, work));
+            }
+            for below in [
+                Limits {
+                    max_nodes: nodes - 1,
+                    ..exact.clone()
+                },
+                Limits {
+                    max_analysis_steps: work - 1,
+                    ..exact
+                },
+            ] {
+                assert_eq!(
+                    selection_cost(&program, &below).unwrap_err()[0].category,
+                    ResultCategory::ResourceLimit
+                );
+            }
+        }
+        program.modules[0].core.functions[0]
+            .foreign
+            .as_mut()
+            .unwrap()
+            .scoped_callback = None;
+        assert_eq!(selection_cost(&program, &limits).unwrap(), old);
+    }
 
     #[test]
     fn ct122_original_teardown_is_bounded_before_query_copy() {
