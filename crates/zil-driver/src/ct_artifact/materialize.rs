@@ -1,7 +1,7 @@
 //! Category-directed, transactional project materialization. The caller owns
 //! the cloned AST until every generated list has passed its preflight.
 use super::{compiler::Entry, execute::Environment, input, lock::provider_entry, render::ParsedSyntax};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, Span, TargetProfile};
 use zil_ir::{CoreImport, ct_artifact::*};
@@ -61,6 +61,7 @@ struct Materializer<'a, 'b> {
     paths: &'b BTreeMap<Vec<String>, ModuleId>,
     previews: Vec<Preview>,
     required_imports: Vec<(ModuleId, CoreImport)>,
+    runtime_scopes: Vec<BTreeSet<String>>,
     max_depth: usize,
 }
 
@@ -78,13 +79,76 @@ impl Materializer<'_, '_> {
         self.environment.index.symbol_at(module, span).or_else(|| inherited.cloned())
             .ok_or_else(|| category("CT expression has no frozen declaration owner", span))
     }
+    fn reject_alias_cycle(&self, owner: &CtSymbolId, expression: &s::Expr) -> CompileResult<()> {
+        let Some(index) = self.sources.iter().position(|source| source.module_id == owner.module) else { return Ok(()); };
+        let Some(s::Item { kind: s::ItemKind::TypeAlias(alias), .. }) = self.parsed[index].module.items.get(owner.declaration.0 as usize) else { return Ok(()); };
+        let source = &self.sources[index];
+        if self.parsed[index].tokens.iter().any(|token| token.span.start >= expression.span.start
+            && token.span.end <= expression.span.end
+            && token.kind == zil_syntax::token::TokenKind::Identifier
+            && token.text(&source.text) == alias.name) {
+            return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-PHASE-CYCLE", Some(expression.span),
+                "a generated type alias reads its own unfinished type or layout")]);
+        }
+        Ok(())
+    }
+    fn reject_runtime_capture(&self, expression: &s::Expr) -> CompileResult<()> {
+        let mut pending = vec![expression];
+        while let Some(current) = pending.pop() {
+            match &current.kind {
+                s::ExprKind::Name(name) if self.runtime_scopes.iter().rev().any(|scope| scope.contains(name)) => {
+                    return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-SOURCE", Some(current.span),
+                        format!("runtime local `{name}` cannot be read by a compile-time expression"))]);
+                }
+                s::ExprKind::Group(value) | s::ExprKind::Try(value) | s::ExprKind::MetaEval(value)
+                | s::ExprKind::MetaSplice(value) | s::ExprKind::Unary { operand: value, .. } => pending.push(value),
+                s::ExprKind::Tuple(values) | s::ExprKind::Array(values) => pending.extend(values),
+                s::ExprKind::Binary { left, right, .. } | s::ExprKind::Pipeline { input: left, target: right } => { pending.push(left); pending.push(right); }
+                s::ExprKind::Member { object, .. } => pending.push(object),
+                s::ExprKind::TypeApply { callee, arguments } => { pending.push(callee); for arg in arguments { if let s::GenericArg::Const(value) = arg { pending.push(value); } } }
+                s::ExprKind::Call { callee, arguments } => { pending.push(callee); pending.extend(arguments.iter().map(|arg| &arg.value)); }
+                s::ExprKind::Index { object, index } => { pending.push(object); pending.push(index); }
+                s::ExprKind::Slice { object, start, end } => { pending.push(object); pending.extend(start.iter().map(Box::as_ref)); pending.extend(end.iter().map(Box::as_ref)); }
+                s::ExprKind::Record { ty, base, fields } => { pending.extend(ty.iter().map(Box::as_ref)); pending.extend(base.iter().map(Box::as_ref)); pending.extend(fields.iter().filter_map(|field| field.value.as_ref())); }
+                s::ExprKind::If { condition, then_value, else_value } => { pending.push(condition); pending.push(then_value); pending.push(else_value); }
+                s::ExprKind::Quote { template, .. } => pending.extend(template.holes.iter().map(|hole| hole.value.as_ref())),
+                _ => {},
+            }
+        }
+        Ok(())
+    }
+    fn bind_runtime_pattern(&mut self, pattern: &s::Pattern) {
+        let Some(scope) = self.runtime_scopes.last_mut() else { return; };
+        let mut pending = vec![pattern];
+        while let Some(pattern) = pending.pop() {
+            match &pattern.kind {
+                s::PatternKind::Name(name) => { scope.insert(name.clone()); }
+                s::PatternKind::Reference { pattern, .. } => pending.push(pattern),
+                s::PatternKind::Tuple(parts) => pending.extend(parts),
+                s::PatternKind::Constructor { arguments, .. } => pending.extend(arguments),
+                _ => {},
+            }
+        }
+    }
     fn expression_value(&mut self, module: ModuleId, owner: &CtSymbolId, expression: &s::Expr, expected: Option<CtTy>) -> CompileResult<CtValue> {
         if let s::ExprKind::SyntaxIsland { path, tree } = &expression.kind {
             return self.provider(module, path, tree, expression.span, expected.as_ref().ok_or_else(|| category("provider output needs a Syntax receiving category", expression.span))?);
         }
         let input = self.environment.empty_input(expression.span)?;
+        self.reject_runtime_capture(expression)?;
+        let has_receiving_category = expected.is_some();
         self.environment.evaluate(Entry::Expression { module, expression, definition: owner.clone(), expected, parameters: &[] },
-            &input, None, &[], expression.span)
+            &input, None, &[], expression.span).map_err(|mut errors| {
+                if has_receiving_category {
+                    for error in &mut errors {
+                        if error.code == "E-CT-SOURCE" && error.message == "CT expression type does not match its actual expected type" {
+                            error.code = "E-CT-CATEGORY".into();
+                            error.message = "compile-time value category differs from its receiving syntax slot".into();
+                        }
+                    }
+                }
+                errors
+            })
     }
     fn provider(&mut self, module: ModuleId, path: &[String], tree: &s::TokenTree, span: Span, expected: &CtTy) -> CompileResult<CtValue> {
         let ([alias] | [alias, _]) = path else { return Err(category("provider path needs alias or alias.entry", span)); };
@@ -193,8 +257,11 @@ impl Materializer<'_, '_> {
             s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } => {
                 for param in &mut f.params { self.ty(module, &mut param.ty, owner, depth + 1)?; }
                 if let Some(ty) = &mut f.return_type { self.ty(module, ty, owner, depth + 1)?; }
-                match &mut f.body { s::FunctionBody::Block(block) => self.block(module, block, owner, depth + 1)?,
-                    s::FunctionBody::Expression(e) => self.expr(module, e, owner, depth + 1)?, s::FunctionBody::Declaration => {} }
+                self.runtime_scopes.push(f.params.iter().map(|param| param.name.clone()).collect());
+                let result = match &mut f.body { s::FunctionBody::Block(block) => self.block(module, block, owner, depth + 1),
+                    s::FunctionBody::Expression(e) => self.expr(module, e, owner, depth + 1), s::FunctionBody::Declaration => Ok(()) };
+                self.runtime_scopes.pop();
+                result?;
             }
             s::ItemKind::Aggregate(a) => {
                 for field in &mut a.fields { self.ty(module, &mut field.ty, owner, depth + 1)?;
@@ -215,7 +282,10 @@ impl Materializer<'_, '_> {
         Ok(())
     }
     fn block(&mut self, module: ModuleId, block: &mut s::Block, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
-        self.statements(module, &mut block.statements, owner, depth + 1)
+        self.runtime_scopes.push(BTreeSet::new());
+        let result = self.statements(module, &mut block.statements, owner, depth + 1);
+        self.runtime_scopes.pop();
+        result
     }
     fn statements(&mut self, module: ModuleId, statements: &mut Vec<s::Stmt>, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
         self.depth(depth, statements.first().map_or(Span::default(), |stmt| stmt.span))?;
@@ -245,7 +315,7 @@ impl Materializer<'_, '_> {
     fn statement(&mut self, module: ModuleId, stmt: &mut s::Stmt, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
         self.depth(depth, stmt.span)?;
         match &mut stmt.kind {
-            s::StmtKind::Binding { ty, value, .. } => { if let Some(ty) = ty { self.ty(module, ty, owner, depth + 1)?; } self.expr(module, value, owner, depth + 1)?; },
+            s::StmtKind::Binding { pattern, ty, value, .. } => { if let Some(ty) = ty { self.ty(module, ty, owner, depth + 1)?; } self.expr(module, value, owner, depth + 1)?; self.bind_runtime_pattern(pattern); },
             s::StmtKind::Return(Some(e)) | s::StmtKind::Yield(e) | s::StmtKind::Expression(e) => self.expr(module, e, owner, depth + 1)?,
             s::StmtKind::Return(None) | s::StmtKind::Break | s::StmtKind::Continue => {},
             s::StmtKind::Defer(block) | s::StmtKind::Loop(block) | s::StmtKind::Unsafe(block) => self.block(module, block, owner, depth + 1)?,
@@ -274,11 +344,13 @@ impl Materializer<'_, '_> {
         self.depth(depth, ty.span)?;
         match &mut ty.kind {
             s::TypeKind::MetaSplice(expression) => {
+                self.reject_alias_cycle(owner, expression)?;
                 let value = self.expression_value(module, owner, expression, Some(CtTy::Syntax(CtSyntaxCategory::Type)))?;
                 let GeneratedSyntax::Type(replacement) = self.parsed(value, CtSyntaxCategory::Type, ty.span)? else { return Err(category("type #splice needs Syntax<Type>", ty.span)); };
                 *ty = replacement;
             }
             s::TypeKind::MetaEval(expression) => {
+                self.reject_alias_cycle(owner, expression)?;
                 let value = self.expression_value(module, owner, expression, Some(CtTy::Type))?;
                 let CtValue::Type(value) = value else { return Err(category("type #(...) needs Type value", ty.span)); };
                 let syntax = self.environment.type_syntax(value)?;
@@ -351,7 +423,7 @@ pub(crate) fn materialize(
     environment.classify_definitions()?;
     let mut output = modules.iter().map(|module| (*module).clone()).collect::<Vec<_>>();
     let mut materializer = Materializer { environment: &mut environment, sources, parsed, registry, paths,
-        previews: Vec::new(), required_imports: Vec::new(), max_depth: limits.max_call_depth };
+        previews: Vec::new(), required_imports: Vec::new(), runtime_scopes: Vec::new(), max_depth: limits.max_call_depth };
     for module in &mut output { materializer.items(module.id, &mut module.items, None, 0, false)?; }
     Ok(Materialized { modules: output, previews: materializer.previews, required_imports: materializer.required_imports,
         usage: environment.budget.usage().clone() })

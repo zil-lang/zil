@@ -93,7 +93,15 @@ impl<'a> Environment<'a> {
         let selected_limits = self.remaining_limits();
         let mut expected = compiler::compile(CompileRequest { modules: &modules,
             source_fingerprint: self.source_fingerprint, entry: Entry::Function(entry),
-            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits })?;
+            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits }).map_err(|mut errors| {
+                for error in &mut errors {
+                    if error.code == "E-CT-SOURCE" && error.message == "foreign functions cannot execute in CT" {
+                        error.code = "E-CT-RUNTIME".into();
+                        error.message = "compile-time Type or Ident cannot cross a foreign runtime function boundary".into();
+                    }
+                }
+                errors
+            })?;
         let classified = compiler::ct_only_definitions(&mut expected)?;
         let declared = expected.budget;
         let before = self.budget.remaining();
@@ -141,7 +149,12 @@ impl<'a> Environment<'a> {
         let reader = FrozenReadView { index: &self.index, sources: self.sources, syntax: &syntax,
             shape: self.shape.as_ref(), shape_failure: self.shape_failure.as_deref(), input, limits: &selected_limits, target: self.target, snapshot: &self.snapshot };
         let (value, _usage) = zil_ct::evaluate_ct_artifact(&verified, arguments, &reader, &mut self.budget)
-            .map_err(|mut errors| { for diagnostic in &mut errors { if diagnostic.span.is_none() { diagnostic.span = Some(span); } } errors })?;
+            .map_err(|mut errors| { for diagnostic in &mut errors {
+                if diagnostic.span.is_none() { diagnostic.span = Some(span); }
+                if diagnostic.code == "E-CT-ARTIFACT" && diagnostic.message.contains("name_expr needs a value name, not export intent") {
+                    diagnostic.code = "E-CT-EXPORT-CAPTURE".into();
+                }
+            } errors })?;
         self.budget.release_temporary_bytes(copied_bytes);
         Ok(value)
     }
