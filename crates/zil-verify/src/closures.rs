@@ -206,21 +206,23 @@ pub(super) fn check_definitions(
                 "exclusive capture requires an exclusive environment entry",
             ));
         }
-        for ty in &closure.parameters {
-            if let Type::Address { inner, .. } = ty
-                && closure.result.is_copy_value()
-            {
-                // Raw type preflight already bounded this tree. Verify the
-                // actual finite element shape, not a producer signature bit.
-                slices::check_pointee(inner, None)?;
-            } else {
-                check_type(ty, None)?;
+        if !owned_callbacks::signature(module, closure, budget)? {
+            for ty in &closure.parameters {
+                if let Type::Address { inner, .. } = ty
+                    && closure.result.is_copy_value()
+                {
+                    // Raw type preflight already bounded this tree. Verify the
+                    // actual finite element shape, not a producer signature bit.
+                    slices::check_pointee(inner, None)?;
+                } else {
+                    check_type(ty, None)?;
+                }
             }
-        }
-        if lending_result(&closure.result) {
-            check_local_type(&closure.result, None, module, budget)?;
-        } else {
-            check_type(&closure.result, None)?;
+            if lending_result(&closure.result) {
+                check_local_type(&closure.result, None, module, budget)?;
+            } else {
+                check_type(&closure.result, None)?;
+            }
         }
         let function = module
             .functions
