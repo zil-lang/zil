@@ -234,6 +234,95 @@ fn independent_resource_closure_flow_accepts_repeatable_and_consuming_environmen
         analyze(&fixture(kind, borrowed, count), &Limits::default()).unwrap();
     }
 }
+
+fn owned_callback_fixture(kind: CallableKind, count: usize) -> TypedModule {
+    let event = Type::Package { name: "Event".into(), fields: vec![("token".into(), managed())] };
+    let mut main = Body::new(0);
+    main.op(InstructionKind::ScopeEnter { scope: ScopeId(0) });
+    let environment = main.local(Type::Closure(ClosureId(0)));
+    let closure = main.value(Type::Closure(ClosureId(0)), InstructionKind::MakeClosure {
+        closure: ClosureId(0), captures: vec![],
+    });
+    main.op(InstructionKind::Store { local: environment, value: closure });
+    for n in 0..count {
+        let local = main.local(event.clone());
+        let n = main.constant(n as i32);
+        let token = main.value(managed(), InstructionKind::MakeManaged { fields: vec![n] });
+        let argument = main.value(event.clone(), InstructionKind::MakePackage { fields: vec![token] });
+        let call = match kind {
+            CallableKind::Fn => InstructionKind::CallClosureShared { callee: environment, arguments: vec![argument] },
+            CallableKind::FnMut => InstructionKind::CallClosureMut { callee: environment, arguments: vec![argument] },
+            CallableKind::FnOnce => {
+                let callee = main.value(Type::Closure(ClosureId(0)), InstructionKind::TakeLocal { local: environment });
+                InstructionKind::CallClosureOnce { callee, arguments: vec![argument] }
+            }
+            _ => unreachable!(),
+        };
+        let result = main.value(event.clone(), call);
+        main.op(InstructionKind::Store { local, value: result });
+        main.op(InstructionKind::DropPackage { local });
+        main.op(InstructionKind::StorageDead(local));
+    }
+    if kind == CallableKind::FnOnce {
+        main.op(InstructionKind::DropClosure { local: environment });
+    }
+    main.op(InstructionKind::StorageDead(environment));
+    let zero = main.constant(0);
+    main.op(InstructionKind::ScopeExit { scope: ScopeId(0), kind: CleanupExitKind::Return });
+    let mut entry = Body::new(1);
+    entry.0.environment = Some(ClosureId(0));
+    entry.0.return_type = event.clone();
+    entry.0.locals.push(LocalDecl { id: LocalId(0), name: "event".into(), ty: event.clone(), mutable: false, span: s() });
+    entry.0.parameters.push(LocalId(0));
+    entry.op(InstructionKind::ScopeEnter { scope: ScopeId(0) });
+    let result = entry.value(event.clone(), InstructionKind::TakeLocal { local: LocalId(0) });
+    entry.op(InstructionKind::DropPackage { local: LocalId(0) });
+    entry.op(InstructionKind::StorageDead(LocalId(0)));
+    entry.op(InstructionKind::ScopeExit { scope: ScopeId(0), kind: CleanupExitKind::Return });
+    let mut m = fixture(kind, false, 0);
+    m.functions = vec![main.finish(zero), entry.finish(result)];
+    m.closures[0].parameters = vec![event.clone()];
+    m.closures[0].result = event;
+    m
+}
+
+#[test]
+fn impl247_owned_callbacks_consume_fresh_arguments_and_return_incoming_owners() {
+    for (kind, count) in [(CallableKind::Fn, 2), (CallableKind::FnMut, 2), (CallableKind::FnOnce, 1), (CallableKind::FnOnce, 0)] {
+        analyze(&owned_callback_fixture(kind, count), &Limits::default()).unwrap();
+    }
+}
+
+#[test]
+fn impl247_owned_callback_arguments_and_results_have_one_responsibility() {
+    let m = owned_callback_fixture(CallableKind::Fn, 2);
+    let mut duplicate = m.clone();
+    let arguments: Vec<_> = duplicate.functions[0].blocks[0].instructions.iter_mut().filter_map(|i| {
+        if let InstructionKind::CallClosureShared { arguments, .. } = &mut i.kind { Some(arguments) } else { None }
+    }).collect();
+    let first = arguments[0][0];
+    arguments.into_iter().nth(1).unwrap()[0] = first;
+    assert!(analyze(&duplicate, &Limits::default()).is_err());
+    let mut leak = m;
+    leak.functions[0].blocks[0].instructions.retain(|i| !matches!(i.kind, InstructionKind::DropPackage { .. }));
+    assert!(analyze(&leak, &Limits::default()).is_err());
+}
+
+#[test]
+fn impl247_owned_callback_definition_and_actual_call_are_checked_independently() {
+    let m = owned_callback_fixture(CallableKind::FnOnce, 1);
+    let mut malformed = m.clone();
+    malformed.closures[0].parameters[0] = Type::I32;
+    assert!(analyze(&malformed, &Limits::default()).is_err());
+    let mut malformed = m.clone();
+    for i in &mut malformed.functions[0].blocks[0].instructions {
+        if let InstructionKind::CallClosureOnce { arguments, .. } = &mut i.kind { arguments.clear(); }
+    }
+    assert!(analyze(&malformed, &Limits::default()).is_err());
+    let mut malformed = m;
+    malformed.closures[0].parameters.push(Type::Address { mutable: false, inner: Box::new(Type::I32) });
+    assert!(analyze(&malformed, &Limits::default()).is_err());
+}
 #[test]
 fn independent_resource_diagnostics_reject_copy_leaks_and_repeated_cleanup() {
     let mut m = fixture(CallableKind::Fn, false, 1);
