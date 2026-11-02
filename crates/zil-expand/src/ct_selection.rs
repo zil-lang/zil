@@ -322,7 +322,7 @@ pub fn walk_type<V: Visitor + ?Sized>(
             v.text(lifetime, t.span)?;
             v.ty(inner, depth + 1)?;
         }
-        s::TypeKind::MetaEval(e) => v.expression(e, depth + 1)?,
+        s::TypeKind::MetaEval(e) | s::TypeKind::MetaSplice(e) => v.expression(e, depth + 1)?,
         s::TypeKind::MetaBlock(b) => v.block(b, depth + 1)?,
     }
     Ok(())
@@ -504,6 +504,7 @@ pub fn walk_expression<V: Visitor + ?Sized>(
         s::ExprKind::Group(e)
         | s::ExprKind::Try(e)
         | s::ExprKind::MetaEval(e)
+        | s::ExprKind::MetaSplice(e)
         | s::ExprKind::Unary { operand: e, .. } => v.expression(e, depth + 1)?,
         s::ExprKind::Tuple(es) | s::ExprKind::Array(es) => {
             for e in es {
@@ -587,6 +588,16 @@ pub fn walk_expression<V: Visitor + ?Sized>(
             v.expression(else_value, depth + 1)?;
         }
         s::ExprKind::MetaBlock(b) => v.block(b, depth + 1)?,
+        s::ExprKind::Quote { template, .. } => {
+            quote_tree(v, &template.tree, depth + 1)?;
+            for site in &template.name_sites {
+                v.node(site.span, depth + 1)?;
+            }
+            for hole in &template.holes {
+                v.node(hole.span, depth + 1)?;
+                v.expression(&hole.value, depth + 2)?;
+            }
+        }
         s::ExprKind::SyntaxIsland {
             path: names,
             tree: t,
@@ -726,4 +737,23 @@ pub fn expression_with_next_id(
     } else {
         Err(expander.diagnostics)
     }
+}
+
+fn quote_tree<V: Visitor + ?Sized>(
+    v: &mut V,
+    t: &s::QuoteTokenTree,
+    depth: usize,
+) -> CompileResult<()> {
+    v.node(t.span, depth)?;
+    for entry in &t.children {
+        match entry {
+            s::QuoteTokenTreeEntry::Token { text, span } => {
+                v.node(*span, depth + 1)?;
+                v.text(text, *span)?;
+            }
+            s::QuoteTokenTreeEntry::Tree(child) => quote_tree(v, child, depth + 1)?,
+            s::QuoteTokenTreeEntry::Hole { span, .. } => v.node(*span, depth + 1)?,
+        }
+    }
+    Ok(())
 }
