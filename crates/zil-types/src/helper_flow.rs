@@ -228,7 +228,7 @@ pub(super) fn contract(
                 scoped_loop = true;
                 let event = |value: ValueId, kind: CallableKind| -> R<Option<CallEvent>> {
                     let origin = values[value.0 as usize];
-                    if origin == 4 {
+                    if origin == 4 || (origin == 16 && kind == CallableKind::FnOnce) {
                         return Ok(None);
                     }
                     let bound = match origin {
@@ -473,9 +473,11 @@ pub(super) fn contract(
         state,
         limits,
         span,
-        matches!(function.return_type, Type::Closure(_)),
-        scoped_loop,
-        &once_parameters,
+        LoopRoles {
+            forward: matches!(function.return_type, Type::Closure(_)),
+            scoped: scoped_loop,
+            once: &once_parameters,
+        },
     )
 }
 
@@ -533,15 +535,19 @@ fn canonical(
     Ok(CallableFlow { entry: 0, nodes })
 }
 
+struct LoopRoles<'a> {
+    forward: bool,
+    scoped: bool,
+    once: &'a BTreeSet<u32>,
+}
+
 fn classify(
     flow: CallableFlow,
     bounds: &[CoreCallableParameter],
     state: &mut closures::State,
     limits: &Limits,
     span: Span,
-    forward_loop: bool,
-    scoped_loop: bool,
-    once_parameters: &BTreeSet<u32>,
+    roles: LoopRoles<'_>,
 ) -> R<CallableTraces> {
     let n = flow.nodes.len();
     state.snapshot(n.saturating_mul(3), span)?;
@@ -575,23 +581,23 @@ fn classify(
         }
     }
     if order.len() != n {
-        if scoped_loop {
+        if roles.scoped {
             for bound in bounds {
                 state.snapshot(1, span)?;
-                if bound.kind == CallableKind::FnOnce || once_parameters.contains(&bound.index) {
+                if bound.kind == CallableKind::FnOnce || roles.once.contains(&bound.index) {
                     scoped_once(&flow, bound.index, state, span)?;
                 }
             }
             return Ok(CallableTraces::Flow(flow));
         }
-        if forward_loop {
+        if roles.forward {
             for node in &flow.nodes {
                 state.snapshot(node.calls.len().saturating_add(1), span)?;
             }
         }
         if bounds.iter().any(|bound| {
             bound.kind == CallableKind::FnOnce
-                && !(forward_loop
+                && !(roles.forward
                     && flow.nodes.iter().all(|node| {
                         node.calls
                             .iter()

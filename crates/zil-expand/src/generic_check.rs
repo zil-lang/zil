@@ -83,6 +83,9 @@ pub(super) fn validate_parametric<'l>(
         factory_scopes: Vec::new(),
         factory_values: BTreeMap::new(),
         factory_return_identity: None,
+        scoped_source: &function.body,
+        scoped_body_closures: None,
+        scoped_copy_closures: BTreeSet::new(),
         nominals,
         enums,
         signatures,
@@ -515,6 +518,9 @@ struct Check<'s, 'b, 'l> {
     factory_scopes: Vec<factory::Scope>,
     factory_values: BTreeMap<usize, Span>,
     factory_return_identity: Option<Span>,
+    scoped_source: &'s FunctionBody,
+    scoped_body_closures: Option<BTreeSet<Span>>,
+    scoped_copy_closures: BTreeSet<Span>,
     nominals: &'s BTreeMap<String, &'l Item>,
     enums: &'s BTreeMap<String, &'l EnumDecl>,
     signatures: &'s BTreeMap<String, Cow<'l, Function>>,
@@ -1787,13 +1793,15 @@ impl Check<'_, '_, '_> {
                     ));
                 }
                 self.alias_use_local(state, id, e.span)?;
+                let scoped_copy = self.scoped_copy_local(id, e.span)?;
                 let owning_package = self
                     .callable
                     .as_ref()
                     .is_some_and(|bound| bound.owned_state)
                     && self.package_local(e, state).is_some();
                 if !borrowing
-                    && ((!declaration_resource && !self.known_copy(&ty)?) || owning_package)
+                    && ((!declaration_resource && !scoped_copy && !self.known_copy(&ty)?)
+                        || owning_package)
                 {
                     self.defer_held(state, id, true, e.span)?;
                     self.alias_invalidate(state, id, None, e.span)?;
@@ -2883,8 +2891,10 @@ impl Check<'_, '_, '_> {
             } if self
                 .callable
                 .as_ref()
-                .is_some_and(|bounds| bounds.owned_factory) =>
+                .is_some_and(|bounds| bounds.owned_factory)
+                || self.scoped_body_closure(e.span)? =>
             {
+                let scoped_body = !self.callable.as_ref().is_some_and(|b| b.owned_factory);
                 let saved_cleanup = std::mem::replace(&mut self.defer_body, false);
                 let checked = self.factory_closure(
                     *move_capture,
@@ -2894,6 +2904,7 @@ impl Check<'_, '_, '_> {
                     expected,
                     state,
                     e.span,
+                    scoped_body,
                 );
                 self.defer_body = saved_cleanup;
                 checked

@@ -98,7 +98,34 @@ impl Builder<'_, '_> {
             if diagnostic.category==zil_base::ResultCategory::ResourceLimit {diagnostic}
             else {error("E-FFI-SCOPED-CALLBACK",callback.span,"scoped callback must be self-contained and cannot capture borrowed positions or descriptions")}
         })?;
-        let (body_value, body_type) = self.transfer_expr(body, None)?;
+        // An ordinary shared scalar capture makes this concrete environment
+        // non-Copy too. Keep Copy locals on their existing copying path.
+        let local_body = if !self.helper_bounds.is_empty()
+            && let CoreExprKind::Name(name) = &body.kind
+            && let Some(local) = self.lookup(name)
+            && !self.closure_slots.contains_key(&local)
+            && !self.borrowed_captures.contains_key(&local)
+            && !self.closure_captures.contains_key(&local)
+            && let Type::Closure(id) = self.function.locals[local.0 as usize].ty
+            && self.declared_state_kind(body, None, id)?.is_none()
+            && self.closures.pending[id.0 as usize]
+                .captures
+                .iter()
+                .any(|capture| {
+                    matches!(capture.stored_type(), Type::Address { mutable: false, .. })
+                }) {
+            Some((local, Type::Closure(id)))
+        } else {
+            None
+        };
+        let (body_value, body_type) = if let Some((local, ty)) = local_body {
+            (
+                self.value(InstructionKind::TakeLocal { local }, ty.clone(), body.span)?,
+                ty,
+            )
+        } else {
+            self.transfer_expr(body, None)?
+        };
         let Type::Closure(body_id) = body_type else {
             return Err(error(
                 "E-FFI-SCOPED-BODY",

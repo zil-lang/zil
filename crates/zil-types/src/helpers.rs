@@ -1087,6 +1087,75 @@ fn environment_type(ty: &Type) -> bool {
         || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
 }
 
+/// Only a local concrete environment on the actual With body stream gains
+/// admission. No callback, borrowed path, or general nested helper is added.
+fn scoped_body_sources(
+    function: &TypedFunction,
+    state: &mut closures::State,
+    span: Span,
+) -> R<BTreeSet<ValueId>> {
+    let work = function.blocks.iter().try_fold(
+        function.locals.len().saturating_add(function.values.len()),
+        |work, block| {
+            work.checked_add(block.instructions.len()).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "scoped body provenance size overflow",
+                    Some(span),
+                )
+            })
+        },
+    )?;
+    state.snapshot(work, span)?;
+    let mut definitions = vec![None; function.values.len()];
+    let mut stores = vec![Vec::new(); function.locals.len()];
+    let mut queue = Vec::new();
+    for block in &function.blocks {
+        for instruction in &block.instructions {
+            state.snapshot(1, instruction.span)?;
+            if let Some(value) = instruction.result {
+                definitions[value.0 as usize] = Some(instruction);
+            }
+            if let InstructionKind::Store { local, value } = instruction.kind {
+                stores[local.0 as usize].push(value);
+            }
+            if let InstructionKind::WithForeignCallback { body, .. } = instruction.kind {
+                queue.push(body);
+            }
+        }
+    }
+    state.snapshot(
+        function.values.len().saturating_add(function.locals.len()),
+        span,
+    )?;
+    let mut seen_values = vec![false; function.values.len()];
+    let mut seen_locals = vec![false; function.locals.len()];
+    let mut sources = BTreeSet::new();
+    while let Some(value) = queue.pop() {
+        state.snapshot(1, span)?;
+        if std::mem::replace(&mut seen_values[value.0 as usize], true) {
+            continue;
+        }
+        let Some(instruction) = definitions[value.0 as usize] else {
+            continue;
+        };
+        match instruction.kind {
+            InstructionKind::MakeClosure { .. } => {
+                state.snapshot(plan::tree_work(sources.len()), instruction.span)?;
+                sources.insert(value);
+            }
+            InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
+                if !std::mem::replace(&mut seen_locals[local.0 as usize], true) =>
+            {
+                state.snapshot(stores[local.0 as usize].len(), instruction.span)?;
+                queue.extend(&stores[local.0 as usize]);
+            }
+            _ => {}
+        }
+    }
+    Ok(sources)
+}
+
 /// Private value provenance, not hidden type identity. Factory calls may
 /// produce the very same ClosureId as the supplied parameter. A monotone union
 /// deliberately rejects a slot that can carry both origins.
@@ -1108,15 +1177,28 @@ fn environment_origins(
         locals[parameter.0 as usize] = 1 << role;
     }
     let tables = Rc::clone(&state.helper_tables);
+    let mut scoped_bodies = None;
     for block in &function.blocks {
         state.snapshot(1, span)?;
         for instruction in &block.instructions {
             state.snapshot(1, instruction.span)?;
             if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
-                return Err(unsupported(
+                if scoped_bodies.is_none() {
+                    scoped_bodies = Some(scoped_body_sources(function, state, span)?);
+                }
+                state.snapshot(
+                    plan::tree_work(scoped_bodies.as_ref().unwrap().len()),
                     instruction.span,
-                    "helper-local nested environments require an additional contract",
-                ));
+                )?;
+                if !instruction
+                    .result
+                    .is_some_and(|value| scoped_bodies.as_ref().unwrap().contains(&value))
+                {
+                    return Err(unsupported(
+                        instruction.span,
+                        "helper-local nested environments require an additional contract",
+                    ));
+                }
             }
             let Some(result) = instruction.result else {
                 continue;
@@ -1126,6 +1208,7 @@ fn environment_origins(
                 continue;
             }
             values[result.0 as usize] = match &instruction.kind {
+                InstructionKind::MakeClosure { .. } => 16,
                 InstructionKind::Load(_)
                 | InstructionKind::TakeLocal { .. }
                 | InstructionKind::BorrowLocal { .. }
