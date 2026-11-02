@@ -1,0 +1,28 @@
+{
+  "reviewer": "/root/callback_backend_fallback",
+  "verdict": "Pass",
+  "implementation_commit": "43716e87080a74fec713b2e2b51b751748b161af",
+  "scope": "Honesty of the historical Wire30 fixture retention and current Wire31 semantic counterexample in the single changed impl248_source test; not a review of the entire 254 verifier.",
+  "historical": {
+    "path": "evidence/impl/248/loan_revival.wire",
+    "bytes": 3713,
+    "sha256": "9c32b0267f43de2037bc1579264f114386a0ecc9c9d7cfe9471c964280ca7b9f",
+    "wire_version_hex": "1e000000",
+    "unchanged_from_parent": true,
+    "current_result": "decode_module_candidate returns E-WIRE-VERSION before semantic Verify"
+  },
+  "current": {
+    "path": "tests/impl254/loan_revival_v31.wire",
+    "bytes": 4669,
+    "sha256": "4d8d183a5f905c5095519f7b3c6f26f0f13aaab155a7769218e3e0511c590664",
+    "wire_version_hex": "1f000000",
+    "unchanged_from_parent": true,
+    "provenance": "impl254_wire.rs derives a passing loan_control.zil through Parse/Expand/Types/Analyze/Verify, changes exactly one actual callback argument TakeLocal(other) to TakeLocal(e), refreshes the typed fingerprint, then encodes bytes and asserts exact byte identity with the fixture.",
+    "semantic_result": "Raw and decoded Wire31 both reach Verify and first reject E-BORROW-CONFLICT"
+  },
+  "tests": [
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo test -p zil-driver --test impl248_source --offline --locked -j 2 callback_return_does_not_revive_a_borrowed_input_window -- --exact --nocapture: 1/1 passed",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo test -p zil-driver --test impl254_wire --offline --locked -j 2 control_and_minimal_transfer_mutation -- --exact --nocapture: 1/1 passed"
+  ],
+  "finding": "The commit edits only the test: it adds a distinct version rejection assertion for archived Wire30 and switches the semantic assertion to the already source-derived Wire31 fixture. It does not rewrite either fixture or claim the old bytes pass semantic verification."
+}
