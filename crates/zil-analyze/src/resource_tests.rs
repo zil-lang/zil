@@ -761,8 +761,116 @@ fn scoped_f_only_helper_tracks_local_concrete_body_without_inventing_a_role() {
             second.result = Some(ValueId(f.values.len() as u32));
             f.values.push(Type::Tuple(vec![Type::Bool, Type::I32]));
             f.blocks[0].instructions.insert(at + 1, second);
-            assert!(analyze(&reused, &limits).is_err());
+            let event = CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnMut,
+            };
+            f.callable_contract.as_mut().unwrap().traces = CallableTraces::Flow(CallableFlow {
+                entry: 0,
+                nodes: vec![
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Edges(vec![1, 2, 3]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![event],
+                        next: CallableFlowNext::Edges(vec![1, 2, 3]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Edges(vec![4, 3]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Edges(vec![5, 6, 7]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![event],
+                        next: CallableFlowNext::Edges(vec![4, 3]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![event],
+                        next: CallableFlowNext::Edges(vec![5, 6, 7]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Edges(vec![8, 7]),
+                    },
+                    CallableFlowNode {
+                        calls: vec![],
+                        next: CallableFlowNext::Exit(CallableExit::Return),
+                    },
+                    CallableFlowNode {
+                        calls: vec![event],
+                        next: CallableFlowNext::Edges(vec![8, 7]),
+                    },
+                ],
+            });
+            let actual = analyze(&reused, &limits);
+            // A concrete Copy body supplies independent copies to the two
+            // calls. The consumed generic B role has no such Copy authority.
+            if kind != CallableKind::FnOnce && !borrowed_scalar {
+                actual.as_ref().unwrap();
+            } else {
+                assert_eq!(
+                    actual.as_ref().unwrap_err()[0].message,
+                    "callable instance is moved, absent or cleaned on a reachable path"
+                );
+            }
+            let bytes = zil_ir::wire::encode_module_candidate(
+                &reused,
+                &CandidatePlan::empty_for(&reused),
+                &limits,
+            )
+            .unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            assert_eq!(analyze(&decoded, &limits), actual);
         }
+    }
+}
+
+#[test]
+fn ordinary_once_calls_preserve_concrete_copy_value_semantics() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        let mut module = scoped_fixture(0);
+        module.closures[1].kind = kind;
+        let f = &mut module.functions[0];
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::WithForeignCallback { .. }))
+            .unwrap();
+        let instruction = &mut f.blocks[0].instructions[at];
+        let InstructionKind::WithForeignCallback { body, .. } = instruction.kind else {
+            unreachable!()
+        };
+        instruction.kind = InstructionKind::CallClosureOnce {
+            callee: body,
+            arguments: vec![],
+        };
+        f.values[instruction.result.unwrap().0 as usize] = Type::I32;
+        let mut second = instruction.clone();
+        second.result = Some(ValueId(f.values.len() as u32));
+        f.values.push(Type::I32);
+        f.blocks[0].instructions.insert(at + 1, second);
+        let limits = Limits::default();
+        let actual = analyze(&module, &limits);
+        if kind == CallableKind::FnOnce {
+            assert_eq!(
+                actual.as_ref().unwrap_err()[0].message,
+                "resource closure: call uses consumed environment"
+            );
+        } else {
+            actual.as_ref().unwrap();
+        }
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(analyze(&decoded, &limits), actual);
     }
 }
 
