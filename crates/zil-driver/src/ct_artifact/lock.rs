@@ -77,7 +77,8 @@ impl SyntaxLock {
         if lines.next() != Some(HEADER) {
             return Err(error("E-SYNTAX-LOCK-FORMAT", None, "syntax lock header must be `zil-syntax-lock 1`"));
         }
-        if lines.next() != Some(&format!("rule {RULE_VERSION}")) {
+        let rule = format!("rule {RULE_VERSION}");
+        if lines.next() != Some(rule.as_str()) {
             return Err(error("E-SYNTAX-LOCK-RULE", None, "syntax lock CT rule version is stale or missing"));
         }
         let mut entries = Vec::new();

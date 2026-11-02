@@ -94,6 +94,14 @@ impl SourceIndex {
         self.symbols.iter().flatten().any(|(_, candidate)| candidate == symbol)
     }
 
+    pub(super) fn span(&self, symbol: &CtSymbolId) -> Option<Span> {
+        self.symbols.iter().flatten().find_map(|(span, candidate)| (candidate == symbol).then_some(*span))
+    }
+
+    pub(super) fn symbol_at(&self, module: ModuleId, span: Span) -> Option<CtSymbolId> {
+        self.symbols.iter().flatten().find_map(|(actual, symbol)| (symbol.module == module && *actual == span).then(|| symbol.clone()))
+    }
+
     pub(super) fn visible(&self, requester: &CtSymbolId, symbol: &CtSymbolId) -> bool {
         self.contains(requester) && self.public.iter().any(|(candidate, public)| candidate == symbol && (requester.module == symbol.module || *public))
     }
