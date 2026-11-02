@@ -1,0 +1,100 @@
+//! Frozen source identities for the CT compiler and read views. A symbol is an
+//! index into actual parsed source, never a capability supplied by raw CTIR.
+use super::compiler::{ImportTarget, SourceImport, SourceModule};
+use std::collections::{BTreeMap, BTreeSet};
+use zil_base::{CompileResult, Diagnostic, ModuleId, NodeId, Phase, SourceUnit, Span};
+use zil_ir::ct_artifact::CtSymbolId;
+use zil_syntax::ast::{self as s, ItemKind, VariantFields};
+
+pub(super) struct SourceIndex {
+    imports: Vec<Vec<SourceImport>>,
+    symbols: Vec<Vec<(Span, CtSymbolId)>>,
+    public: Vec<(CtSymbolId, bool)>,
+}
+
+fn error(code: &str, span: Span, message: impl Into<String>) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(Phase::Ct, code, Some(span), message)]
+}
+
+fn add(symbols: &mut Vec<(Span, CtSymbolId)>, public: &mut Vec<(CtSymbolId, bool)>, module: ModuleId, span: Span, visible: bool, next: &mut u32) -> CompileResult<()> {
+    let declaration = NodeId(*next);
+    *next = next.checked_add(1).ok_or_else(|| error("E-CT-SYMBOL-LIMIT", span, "source declaration count overflow"))?;
+    let symbol = CtSymbolId { module, declaration, generation_path: None };
+    public.push((symbol.clone(), visible));
+    symbols.push((span, symbol));
+    Ok(())
+}
+
+fn children(item: &s::Item, module: ModuleId, symbols: &mut Vec<(Span, CtSymbolId)>, public: &mut Vec<(CtSymbolId, bool)>, next: &mut u32, owner_visible: bool) -> CompileResult<()> {
+    match &item.kind {
+        ItemKind::Aggregate(aggregate) => {
+            for field in &aggregate.fields { add(symbols, public, module, field.span, owner_visible && field.public, next)?; }
+            for member in &aggregate.methods { add(symbols, public, module, member.span, owner_visible && member.public, next)?; children(member, module, symbols, public, next, owner_visible && member.public)?; }
+        }
+        ItemKind::Enum(enumeration) => for variant in &enumeration.variants {
+            add(symbols, public, module, variant.span, owner_visible, next)?;
+            match &variant.fields {
+                VariantFields::Unit => {}
+                VariantFields::Tuple(fields) => for field in fields { add(symbols, public, module, field.span, owner_visible, next)?; },
+                VariantFields::Record(fields) => for field in fields { add(symbols, public, module, field.span, owner_visible && field.public, next)?; },
+            }
+        },
+        ItemKind::Trait(declaration) => for member in &declaration.members { add(symbols, public, module, member.span, owner_visible && member.public, next)?; children(member, module, symbols, public, next, owner_visible && member.public)?; },
+        ItemKind::Impl(declaration) => for member in &declaration.members { add(symbols, public, module, member.span, owner_visible && member.public, next)?; children(member, module, symbols, public, next, owner_visible && member.public)?; },
+        _ => {}
+    }
+    Ok(())
+}
+
+impl SourceIndex {
+    pub(super) fn freeze(sources: &[SourceUnit], syntax: &[&s::Module], paths: &BTreeMap<Vec<String>, ModuleId>) -> CompileResult<Self> {
+        if sources.len() != syntax.len() {
+            return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-SOURCE-INDEX", None, "source and syntax counts differ")]);
+        }
+        let mut imports = Vec::with_capacity(sources.len());
+        let mut symbols = Vec::with_capacity(sources.len());
+        let mut public = Vec::new();
+        for (source, module) in sources.iter().zip(syntax) {
+            if source.module_id != module.id { return Err(error("E-CT-SOURCE-INDEX", module.span, "parsed module identity differs from source")); }
+            let mut bindings = Vec::new();
+            let mut used = BTreeSet::new();
+            for item in &module.items {
+                let ItemKind::Import(import) = &item.kind else { continue };
+                let Some(alias) = import.alias.clone().or_else(|| import.path.last().cloned()) else {
+                    return Err(error("E-CT-IMPORT", item.span, "empty import path"));
+                };
+                if !used.insert(alias.clone()) { return Err(error("E-CT-IMPORT-ALIAS", item.span, "duplicate module alias")); }
+                if import.syntax { continue; }
+                let target = match import.path.as_slice() {
+                    [a, b] if a == "std" && b == "meta" => ImportTarget::Meta,
+                    [a, b] if a == "std" && b == "syntax" => ImportTarget::Syntax,
+                    _ => ImportTarget::Module(*paths.get(&import.path).ok_or_else(|| error("E-CT-IMPORT", item.span, "import has no frozen module"))?),
+                };
+                bindings.push(SourceImport { alias, target });
+            }
+            let mut table = Vec::new();
+            let mut next = u32::try_from(module.items.len()).map_err(|_| error("E-CT-SYMBOL-LIMIT", module.span, "source declaration count overflow"))?;
+            for (index, item) in module.items.iter().enumerate() {
+                let symbol = CtSymbolId { module: module.id, declaration: NodeId(u32::try_from(index).map_err(|_| error("E-CT-SYMBOL-LIMIT", item.span, "source declaration index overflow"))?), generation_path: None };
+                public.push((symbol.clone(), item.public));
+                table.push((item.span, symbol));
+            }
+            for item in &module.items { children(item, module.id, &mut table, &mut public, &mut next, item.public)?; }
+            imports.push(bindings);
+            symbols.push(table);
+        }
+        Ok(Self { imports, symbols, public })
+    }
+
+    pub(super) fn modules<'a>(&'a self, sources: &'a [SourceUnit], syntax: &'a [&s::Module]) -> Vec<SourceModule<'a>> {
+        sources.iter().zip(syntax).enumerate().map(|(index, (source, module))| SourceModule { source, syntax: module, imports: &self.imports[index], symbols: &self.symbols[index] }).collect()
+    }
+
+    pub(super) fn contains(&self, symbol: &CtSymbolId) -> bool {
+        self.symbols.iter().flatten().any(|(_, candidate)| candidate == symbol)
+    }
+
+    pub(super) fn visible(&self, requester: &CtSymbolId, symbol: &CtSymbolId) -> bool {
+        self.contains(requester) && self.public.iter().any(|(candidate, public)| candidate == symbol && (requester.module == symbol.module || *public))
+    }
+}
