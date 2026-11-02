@@ -696,10 +696,10 @@ impl Builder<'_, '_> {
         if let Some(id) = self.closures.helper_instances.get(&(key, bindings)) {
             return Ok(*id);
         }
-        if !self.closures.active_helpers.is_empty() {
+        if self.closures.active_helpers.contains(&key) {
             return Err(unsupported(
                 span,
-                "actual helper instance is not available from the finite dependency plan",
+                "recursive local callable instantiation has no finite dependency plan",
             ));
         }
         self.instantiate_plan(plan::Node::Callable((key, bindings)), span)?;
@@ -713,13 +713,21 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn instantiate_plan(&mut self, root: plan::Node, span: Span) -> R<()> {
-        if !self.closures.active_helpers.is_empty() {
-            return Err(unsupported(
-                span,
-                "actual template instance is absent from the finite dependency plan",
-            ));
-        }
-        let order = plan::order(root, self.closures, self.limits, span)?;
+        let nested_limits;
+        let limits = if self.closures.active_helpers.is_empty() {
+            self.limits
+        } else {
+            self.closures.snapshot(1, span)?;
+            nested_limits = Limits {
+                max_call_depth: self
+                    .limits
+                    .max_call_depth
+                    .saturating_sub(self.closures.active_helpers.len()),
+                ..self.limits.clone()
+            };
+            &nested_limits
+        };
+        let order = plan::order(root, self.closures, limits, span)?;
         for node in order {
             match node {
                 plan::Node::Callable((key, bindings)) => {
@@ -1178,6 +1186,7 @@ fn environment_origins(
     }
     let tables = Rc::clone(&state.helper_tables);
     let mut scoped_bodies = None;
+    let mut concrete_captures = Vec::new();
     for block in &function.blocks {
         state.snapshot(1, span)?;
         for instruction in &block.instructions {
@@ -1190,15 +1199,6 @@ fn environment_origins(
                     plan::tree_work(scoped_bodies.as_ref().unwrap().len()),
                     instruction.span,
                 )?;
-                if !instruction
-                    .result
-                    .is_some_and(|value| scoped_bodies.as_ref().unwrap().contains(&value))
-                {
-                    return Err(unsupported(
-                        instruction.span,
-                        "helper-local nested environments require an additional contract",
-                    ));
-                }
             }
             let Some(result) = instruction.result else {
                 continue;
@@ -1208,7 +1208,15 @@ fn environment_origins(
                 continue;
             }
             values[result.0 as usize] = match &instruction.kind {
-                InstructionKind::MakeClosure { .. } => 16,
+                InstructionKind::MakeClosure { .. } => {
+                    if scoped_bodies.as_ref().unwrap().contains(&result) {
+                        16
+                    } else {
+                        state.snapshot(1, instruction.span)?;
+                        concrete_captures.push(instruction);
+                        32
+                    }
+                }
                 InstructionKind::Load(_)
                 | InstructionKind::TakeLocal { .. }
                 | InstructionKind::BorrowLocal { .. }
@@ -1319,6 +1327,21 @@ fn environment_origins(
             break;
         }
     }
+    for instruction in concrete_captures {
+        let InstructionKind::MakeClosure { captures, .. } = &instruction.kind else {
+            unreachable!()
+        };
+        state.snapshot(captures.len().saturating_add(1), instruction.span)?;
+        if captures
+            .iter()
+            .any(|value| values[value.0 as usize] & 3 != 0)
+        {
+            return Err(unsupported(
+                instruction.span,
+                "local concrete callable cannot capture a supplied callable role",
+            ));
+        }
+    }
     Ok((locals, values))
 }
 
@@ -1326,6 +1349,7 @@ struct Forwarded {
     position: usize,
     /// Child actual parameter position -> current actual parameter position.
     roles: Vec<(u32, u32)>,
+    concrete: BTreeSet<u32>,
 }
 fn forwarded_contract(
     function: &TypedFunction,
@@ -1368,23 +1392,32 @@ fn forwarded_contract(
         role_count.saturating_mul(3).saturating_add(arguments.len()),
         instruction.span,
     )?;
-    let contract = state.helper_functions[position]
-        .callable_contract
-        .as_ref()
-        .unwrap();
     let mut roles = Vec::with_capacity(role_count);
+    let mut concrete = BTreeSet::new();
     for (parameter, value) in arguments.iter().enumerate() {
         if !environment_type(&function.values[value.0 as usize]) {
             continue;
         }
-        let child = contract
+        let child = state.helper_functions[position]
+            .callable_contract
+            .as_ref()
+            .unwrap()
             .roles
             .iter()
             .find(|role| role.parameter as usize == parameter)
+            .map(|role| (role.parameter, role.kind))
             .ok_or_else(|| {
                 unsupported(instruction.span, "nested helper environment role is absent")
             })?;
         let mask = origins[value.0 as usize];
+        if mask == 32 || mask == 16 {
+            state.snapshot(
+                plan::tree_work(concrete.len()).saturating_add(1),
+                instruction.span,
+            )?;
+            concrete.insert(child.0);
+            continue;
+        }
         let caller = if mask == 1 {
             bounds.first()
         } else if mask == 2 {
@@ -1402,19 +1435,23 @@ fn forwarded_contract(
             .callable_return_contract
             .as_ref()
             .is_some_and(|contract| matches!(contract.source, CallableReturnSource::Parameter(_)));
-        if child.kind != caller.kind && !(returns_input && compatible(caller.kind, child.kind)) {
+        if child.1 != caller.kind && !(returns_input && compatible(caller.kind, child.1)) {
             return Err(unsupported(
                 instruction.span,
                 "nested helper role has a different declared callable kind",
             ));
         }
-        roles.push((child.parameter, caller.index));
+        roles.push((child.0, caller.index));
     }
-    if roles.len() != role_count {
+    if roles.len() + concrete.len() != role_count {
         return Err(unsupported(
             instruction.span,
             "nested helper role mapping is incomplete",
         ));
     }
-    Ok(Some(Forwarded { position, roles }))
+    Ok(Some(Forwarded {
+        position,
+        roles,
+        concrete,
+    }))
 }

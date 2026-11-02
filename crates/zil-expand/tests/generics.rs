@@ -263,3 +263,40 @@ fn concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries() 
         }
     }
 }
+
+#[test]
+fn concrete_local_callables_keep_owned_signatures_and_actual_modes() {
+    const DATA: &str = "resource R{n:i32}package Event{manages r:R}package Reply{manages r:R}fn reply(event:Event)->Reply{return Reply{r:give event.r}}fn render(reply:Reply)->i32{return reply.r.n}fn dispatch<H:FnOnce(Event)->Reply>(handler:H,event:Event)->Reply{return handler(event)}";
+    for body in [
+        "let handler=(value:Event)->Reply=>reply(value);return render(dispatch(handler,event))+f(1)",
+        "var n=0;var handler=move(value:Event)->Reply=>{n=n+1;return reply(value)};return render(handler(event))+f(1)",
+        "let handler=move(value:Event)->Reply=>{let held=other;return reply(value)};return render(dispatch(handler,event))+f(1)",
+    ] {
+        let text = format!(
+            "{DATA}fn run<F:FnMut(i32)->i32>(f:&mut F,event:Event,other:Event)->i32{{{body}}}fn main(){{}}"
+        );
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "concrete-local-callable.zil", text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &syntax).unwrap_or_else(|errors| panic!("{body}: {errors:?}"));
+    }
+    for body in [
+        "let handler=(value:Event)->Reply=>{f(1);return reply(value)};return render(dispatch(handler,event))",
+        "let handler=move(value:Event)->Reply=>{let held=other;return reply(value)};dispatch(handler,event);return render(dispatch(handler,last))",
+        "var n=0;let handler=move(value:Event)->Reply=>{n=n+1;return reply(value)};return render(handler(event))",
+        "let handler=(value:F)->i32=>0;return 0",
+        "let handler=(value:Unknown)->i32=>0;return 0",
+        "let handler=(value:R)->i32=>0;return 0",
+    ] {
+        let text = format!(
+            "{DATA}fn run<F:FnMut(i32)->i32>(f:&mut F,event:Event,other:Event,last:Event)->i32{{{body}}}fn main(){{}}"
+        );
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "concrete-local-callable-reject.zil",
+            text,
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        assert!(zil_expand::expand(&source, &syntax).is_err(), "{body}");
+    }
+}

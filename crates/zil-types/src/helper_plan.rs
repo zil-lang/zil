@@ -20,6 +20,8 @@ impl Node {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Shape {
     Unknown,
+    /// A real local closure expression whose identity Builder will allocate.
+    LocalEnvironment,
     Complete {
         ty: Rc<Type>,
         work: usize,
@@ -76,7 +78,9 @@ impl Shape {
                 let id = fields.first()?.1;
                 fields.iter().all(|(_, other)| *other == id).then_some(id)
             }
-            Self::Unknown | Self::Store(_) | Self::ErrorUnion { .. } => None,
+            Self::Unknown | Self::LocalEnvironment | Self::Store(_) | Self::ErrorUnion { .. } => {
+                None
+            }
         }
     }
 }
@@ -639,6 +643,7 @@ impl Walk<'_, '_> {
                             ));
                         }
                         let mut bindings = Bindings::default();
+                        let mut local_environment = false;
                         self.state
                             .snapshot(signature.callable.len(), expression.span)?;
                         if state_origins::replacement_signature(signature) {
@@ -654,6 +659,10 @@ impl Walk<'_, '_> {
                                     )
                                 })?;
                                 self.state.snapshot(shape.work(), expression.span)?;
+                                if matches!(shape, Shape::LocalEnvironment) {
+                                    local_environment = true;
+                                    continue;
+                                }
                                 let selected = if let Some(state) = &signature.state_parameter {
                                     let binding = state
                                         .bindings
@@ -704,6 +713,18 @@ impl Walk<'_, '_> {
                                 "nested helper environment type cannot be established by the finite instance plan"))?;
                                 bindings.bind(bound.generic_index, id, expression.span)?;
                             }
+                        }
+                        if local_environment {
+                            // A local expression is not a concrete type key.
+                            // Finish this child plan only when Builder has its
+                            // actual, normally checked closure identity.
+                            return self.shape(
+                                &signature.result,
+                                &[],
+                                Bindings::default(),
+                                expression.span,
+                                depth + 1,
+                            );
                         }
                         self.state.snapshot(
                             tree_work(self.found.len()).saturating_add(1),
@@ -874,9 +895,8 @@ impl Walk<'_, '_> {
                 // This is dependency scheduling only. No unresolved shape can
                 // supply a concrete helper binding; Builder must finish the
                 // real closure before using its actual identity. The helper
-                // origin kernel separately restricts nonfactory closures to
-                // the actual With body stream.
-                Shape::Unknown
+                // origin kernel separately checks actual captured origins.
+                Shape::LocalEnvironment
             }
             CoreExprKind::Literal(value) if self.full_values => self.shape(
                 &value.ty(),

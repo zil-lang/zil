@@ -77,6 +77,209 @@ impl Check<'_, '_, '_> {
         self.factory_copy(result)
     }
 
+    fn local_signature(&mut self, parameters: &[TypeRef], result: &TypeRef) -> R<()> {
+        let mut owned = false;
+        for ty in parameters.iter().chain(std::iter::once(result)) {
+            if dependent(ty, &self.variables) {
+                return Err(unsupported(
+                    ty.span,
+                    "local concrete callable signatures cannot contain a helper type parameter",
+                ));
+            }
+            // Retain the old Copy/address signature and its exact work. Only
+            // a failed old signature enters the concrete owned-data check.
+            let value = match &group(ty).kind {
+                TypeKind::Reference {
+                    inner,
+                    lifetime: None,
+                    ..
+                } => match &group(inner).kind {
+                    TypeKind::Array {
+                        element,
+                        length: None,
+                    } => element.as_ref(),
+                    _ => inner.as_ref(),
+                },
+                _ => ty,
+            };
+            match self.factory_copy(value) {
+                Ok(()) => {}
+                Err(diagnostic)
+                    if diagnostic.category == zil_base::ResultCategory::ResourceLimit =>
+                {
+                    return Err(diagnostic);
+                }
+                Err(diagnostic) => {
+                    self.budget.ty(ty)?;
+                    let admitted = self.local_owned_signature_type(ty, &mut BTreeSet::new(), 0)?;
+                    if !admitted {
+                        return Err(diagnostic);
+                    }
+                    owned = true;
+                }
+            }
+        }
+        if owned
+            && parameters
+                .iter()
+                .chain(std::iter::once(result))
+                .any(|ty| matches!(group(ty).kind, TypeKind::Reference { .. }))
+        {
+            return Err(unsupported(
+                result.span,
+                "owned local callable signatures cannot mix address inputs or results",
+            ));
+        }
+        Ok(())
+    }
+
+    fn local_owned_signature_type(
+        &mut self,
+        ty: &TypeRef,
+        active: &mut BTreeSet<String>,
+        depth: usize,
+    ) -> R<bool> {
+        self.budget.node(ty.span, depth)?;
+        if dependent(ty, &self.variables) {
+            return Ok(false);
+        }
+        if let TypeKind::Error { error, result } = &group(ty).kind {
+            return Ok(self.local_owned_signature_type(error, active, depth + 1)?
+                && self.local_owned_signature_type(result, active, depth + 1)?);
+        }
+        match self.factory_copy(ty) {
+            Ok(()) => return Ok(true),
+            Err(diagnostic) if diagnostic.category == zil_base::ResultCategory::ResourceLimit => {
+                return Err(diagnostic);
+            }
+            Err(_) => {}
+        }
+        let TypeKind::Named { path, args } = &group(ty).kind else {
+            return Ok(false);
+        };
+        let key = type_key(ty, self.budget)?;
+        self.budget.text(&key, ty.span)?;
+        if !active.insert(key.clone()) {
+            return Err(error(
+                ty.span,
+                "local owned callable signature must have finite layout",
+            ));
+        }
+        let fields = match self.nominals.get(&path.join(".")).copied() {
+            Some(Item {
+                kind: ItemKind::Aggregate(aggregate),
+                ..
+            }) if aggregate.kind == AggregateKind::Package => {
+                if aggregate.generics.len() != args.len() {
+                    return Err(error(ty.span, "local owned signature type arity differs"));
+                }
+                let mut substitutions = BTreeMap::new();
+                for (parameter, argument) in aggregate.generics.iter().zip(args) {
+                    let GenericArg::Type(actual) = argument else {
+                        return Ok(false);
+                    };
+                    self.budget.ty(actual)?;
+                    self.budget.text(&parameter.name, parameter.span)?;
+                    substitutions.insert(parameter.name.clone(), actual.clone());
+                }
+                for field in &aggregate.fields {
+                    self.budget.node(field.span, depth + 1)?;
+                    let actual = substituted_type(&field.ty, &substitutions, self.budget)?;
+                    let valid = if field.manages {
+                        self.local_managed_signature_type(&actual, depth + 1)?
+                    } else {
+                        self.local_owned_signature_type(&actual, active, depth + 1)?
+                    };
+                    if !valid {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            Some(Item {
+                kind: ItemKind::Enum(enumeration),
+                ..
+            }) if enumeration.generics.is_empty() && args.is_empty() => {
+                for variant in &enumeration.variants {
+                    self.budget.node(variant.span, depth + 1)?;
+                    match &variant.fields {
+                        VariantFields::Unit => {}
+                        VariantFields::Tuple(fields) => {
+                            for field in fields {
+                                let valid = if field.manages {
+                                    self.local_managed_signature_type(field, depth + 1)?
+                                } else {
+                                    self.local_owned_signature_type(field, active, depth + 1)?
+                                };
+                                if !valid {
+                                    return Ok(false);
+                                }
+                            }
+                        }
+                        VariantFields::Record(_) => return Ok(false),
+                    }
+                }
+                true
+            }
+            _ => false,
+        };
+        active.remove(&key);
+        Ok(fields)
+    }
+    fn local_managed_signature_type(&mut self, ty: &TypeRef, depth: usize) -> R<bool> {
+        self.budget.node(ty.span, depth)?;
+        if dependent(ty, &self.variables) {
+            return Ok(false);
+        }
+        if let Some(element) = stores::element(ty) {
+            stores::concrete_element(
+                element,
+                self.nominals,
+                self.budget,
+                (
+                    &self.bounds,
+                    &self.variables,
+                    callable::StoreCallbacks::None,
+                ),
+            )?;
+            return Ok(true);
+        }
+        let TypeKind::Named { path, args } = &group(ty).kind else {
+            return Ok(false);
+        };
+        if path.as_slice() == ["ByteBuffer"] && args.is_empty() {
+            return Ok(true);
+        }
+        let Some(Item {
+            kind: ItemKind::Aggregate(resource),
+            ..
+        }) = self.nominals.get(&path.join(".")).copied()
+        else {
+            return Ok(false);
+        };
+        if resource.kind != AggregateKind::Resource || resource.generics.len() != args.len() {
+            return Ok(false);
+        }
+        let mut substitutions = BTreeMap::new();
+        for (parameter, argument) in resource.generics.iter().zip(args) {
+            let GenericArg::Type(actual) = argument else {
+                return Ok(false);
+            };
+            self.budget.ty(actual)?;
+            self.budget.text(&parameter.name, parameter.span)?;
+            substitutions.insert(parameter.name.clone(), actual.clone());
+        }
+        for field in &resource.fields {
+            self.budget.node(field.span, depth + 1)?;
+            if field.manages {
+                return Ok(false);
+            }
+            let actual = substituted_type(&field.ty, &substitutions, self.budget)?;
+            self.factory_copy(&actual)?;
+        }
+        Ok(true)
+    }
+
     pub(super) fn factory_header(&mut self, function: &Function) -> R<()> {
         let bounds = self.callable.as_ref().expect("factory bound");
         let [bound] = bounds.roles.as_slice() else {
@@ -219,7 +422,7 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         state: &mut State,
         span: Span,
-        scoped_body: bool,
+        concrete_local: bool,
     ) -> R<TypeRef> {
         let context = expected.and_then(callable::opaque_signature);
         if context.is_some_and(|(_, parameters_, _)| parameters_.len() != parameters.len()) {
@@ -287,9 +490,13 @@ impl Check<'_, '_, '_> {
         self.result = saved_result;
         self.loops = saved_loops;
         let result = scope.result.unwrap_or_else(|| unit(span));
-        self.factory_signature(&types, &result)?;
+        if concrete_local {
+            self.local_signature(&types, &result)?;
+        } else {
+            self.factory_signature(&types, &result)?;
+        }
         let mut kind = CallableKind::Fn;
-        let mut scoped_copy = scoped_body;
+        let mut scoped_copy = concrete_local;
         for (id, usage) in scope.captures {
             self.tick(span)?;
             for _ in 0..state.locals.len() {
@@ -302,22 +509,22 @@ impl Check<'_, '_, '_> {
                 .ok_or_else(|| error(span, "factory capture lost its lexical position"))?;
             self.budget.ty(&local.ty)?;
             let local = local.clone();
-            if scoped_body && (!move_capture || usage.consumed || !self.known_copy(&local.ty)?) {
+            if concrete_local && (!move_capture || usage.consumed || !self.known_copy(&local.ty)?) {
                 scoped_copy = false;
             }
-            if scoped_body && dependent(&local.ty, &self.variables) {
+            if concrete_local && dependent(&local.ty, &self.variables) {
                 return Err(error(
                     span,
                     "a scoped local body cannot capture a callable parameter",
                 ));
             }
-            if !scoped_body && !move_capture && !usage.consumed && usage.partial.is_empty() {
+            if !concrete_local && !move_capture && !usage.consumed && usage.partial.is_empty() {
                 return Err(unsupported(
                     span,
                     "retained generic factory captures require explicit move or an actual owning use",
                 ));
             }
-            if !scoped_body && matches!(group(&local.ty).kind, TypeKind::Reference { .. }) {
+            if !concrete_local && matches!(group(&local.ty).kind, TypeKind::Reference { .. }) {
                 return Err(unsupported(
                     span,
                     "owning factory cannot retain an external address",

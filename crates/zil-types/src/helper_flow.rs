@@ -172,7 +172,7 @@ fn callback(
         }
         _ => return Ok(None),
     };
-    if origin == 4 && !borrowed {
+    if (origin == 4 && !borrowed) || origin == 16 || origin == 32 {
         return Ok(None);
     }
     let bound = if origin == 1 {
@@ -228,7 +228,9 @@ pub(super) fn contract(
                 scoped_loop = true;
                 let event = |value: ValueId, kind: CallableKind| -> R<Option<CallEvent>> {
                     let origin = values[value.0 as usize];
-                    if origin == 4 || (origin == 16 && kind == CallableKind::FnOnce) {
+                    if origin == 4
+                        || ((origin == 16 || origin == 32) && kind == CallableKind::FnOnce)
+                    {
                         return Ok(None);
                     }
                     let bound = match origin {
@@ -347,7 +349,10 @@ pub(super) fn contract(
                     .unwrap()
                     .traces
                     .clone();
-                let substitute = |events: &mut [CallEvent]| -> R<()> {
+                let substitute = |events: &mut Vec<CallEvent>| -> R<()> {
+                    if !forwarded.concrete.is_empty() {
+                        events.retain(|event| !forwarded.concrete.contains(&event.parameter));
+                    }
                     for event in events {
                         event.parameter = forwarded
                             .roles
