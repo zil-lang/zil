@@ -1064,20 +1064,10 @@ fn infer_with_private(
                         found.insert(Root::Local(*local));
                     }
                     InstructionKind::BorrowPackageField { local, index, .. } => {
-                        // This is a borrow of the actual inline callback field,
-                        // not a borrow of every field in its owning shell.
-                        // The LocalId still exports the parent lifetime Hold.
-                        let root = match &f.locals[local.0 as usize].ty {
-                            Type::Package { fields, .. }
-                                if fields
-                                    .get(*index as usize)
-                                    .is_some_and(|(_, ty)| matches!(ty, Type::Closure(_))) =>
-                            {
-                                Root::Field(*local, *index)
-                            }
-                            _ => Root::Local(*local),
-                        };
-                        found.insert(root);
+                        // The checked instruction borrows this actual inline
+                        // field. Keep sibling fields separate for private
+                        // windows; exporting the Hold still retains the parent.
+                        found.insert(Root::Field(*local, *index));
                     }
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
