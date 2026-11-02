@@ -76,12 +76,7 @@ fn callback_trap()->i32{
 }
 fn body_trap()->model.Fault!i32{
     var f=model.handler(model.prepare(65)?)
-    let event=model.prepare(66)?
-    let body=move()->i32=>{
-        bridge.body()
-        let value=event.mark.code+i32(bytes_len(event.bytes))
-        return value/bridge.zero()
-    }
+    let body=model.trapping_body(model.prepare(66)?)
     let reply=bridge.run(&mut f,body)
     return reply.1
 }

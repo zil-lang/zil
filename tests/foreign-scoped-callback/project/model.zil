@@ -71,3 +71,12 @@ pub fn nested_body(event:Event)->impl Fn()->i32{
         return 73
     }
 }
+
+pub fn trapping_body(event:Event)->impl FnOnce()->i32{
+    return move()->i32=>{
+        let current=event
+        bridge.body()
+        let value=current.mark.code+i32(bytes_len(current.bytes))
+        return value/bridge.zero()
+    }
+}
