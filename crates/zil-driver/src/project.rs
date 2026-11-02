@@ -31,6 +31,8 @@ pub(super) struct ExpandedProject {
     core: Arc<CoreProgram>,
     maps: Vec<SourceMap>,
     selection: super::ct_selection::Receipt,
+    ct_usage: Option<zil_ir::ct_artifact::CtUsageReceipt>,
+    ct_previews: Vec<super::ct_artifact::Preview>,
     pub(super) syntax: Arc<ProjectSyntax>,
 }
 
@@ -457,8 +459,12 @@ impl CompilationSession {
             .iter()
             .zip(&parsed)
             .any(|(source, parsed)| super::ct_selection::needed(source, parsed));
+        let artifact_needed = options.syntax_lock.is_some() || parsed.iter().any(|parsed| {
+            parsed.tokens.iter().any(|token| matches!(token.kind,
+                zil_syntax::token::TokenKind::Symbol(zil_syntax::token::Symbol::Hash)))
+        });
         let (raw, expand_snapshot) = self.query(
-            key(Phase::Expand, selection_needed),
+            key(Phase::Expand, selection_needed || artifact_needed),
             &dependencies,
             options,
             report,
@@ -483,11 +489,60 @@ impl CompilationSession {
                 let materialized = selected
                     .as_ref()
                     .map(|selected| selected.modules.iter().collect::<Vec<_>>());
-                let syntax = materialized.as_deref().unwrap_or(&syntax);
+                let selected_syntax = materialized.as_deref().unwrap_or(&syntax);
+                let mut ct_result = if artifact_needed {
+                    let mut remaining = selected.as_ref().map_or_else(|| Ok(options.limits.clone()),
+                        |selected| selected.receipt.remaining(&options.limits))?;
+                    remaining.max_ct_steps = remaining.max_ct_steps.min(options.limits.max_ct_steps);
+                    Some(super::ct_artifact::materialize(
+                        &project.modules, &parsed, selected_syntax, &project.paths, &imports,
+                        project.root, fingerprint, &options.target, &remaining, locked.as_ref(),
+                    )?)
+                } else { None };
+                let mut runtime_imports = imports.clone();
+                if let Some(result) = &mut ct_result {
+                    for (module, import) in &result.required_imports {
+                        let index = project.modules.iter().position(|source| source.module_id == *module)
+                            .ok_or_else(|| infra("E-CT-IMPORT", "generated caller is outside the frozen project"))?;
+                        if !runtime_imports[index].iter().any(|existing| existing.alias == import.alias && existing.module == import.module) {
+                            runtime_imports[index].push(import.clone());
+                        }
+                    }
+                    let active = result.modules.iter().map(|module| (module.id,
+                        module.items.iter().any(|item| !matches!(item.kind, ast::ItemKind::Import(_)))))
+                        .collect::<BTreeMap<_, _>>();
+                    let mut reachable = BTreeSet::new();
+                    let mut queue = VecDeque::from([project.root]);
+                    while let Some(module) = queue.pop_front() {
+                        if !reachable.insert(module) { continue; }
+                        if let Some(index) = project.modules.iter().position(|source| source.module_id == module) {
+                            for import in &runtime_imports[index] {
+                                if active.get(&import.module).copied().unwrap_or(false) { queue.push_back(import.module); }
+                            }
+                        }
+                    }
+                    for (index, module) in result.modules.iter_mut().enumerate() {
+                        if !reachable.contains(&module.id) {
+                            module.items.clear();
+                            runtime_imports[index].clear();
+                            continue;
+                        }
+                        runtime_imports[index].retain(|import| reachable.contains(&import.module));
+                        module.items.retain(|item| match &item.kind {
+                            ast::ItemKind::Import(import) => {
+                                if import.syntax || matches!(import.path.as_slice(), [a,b] if a == "std" && (b == "meta" || b == "syntax")) { return false; }
+                                project.paths.get(&import.path).is_none_or(|target| reachable.contains(target))
+                            }
+                            _ => true,
+                        });
+                    }
+                }
+                let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
+                let syntax = generated_syntax.as_deref().unwrap_or(selected_syntax);
                 for (module, map) in zil_expand::expand_program_with_limits(
                     &project.modules,
                     syntax,
-                    &imports,
+                    &runtime_imports,
                     &options.limits,
                 )? {
                     modules.push(module);
@@ -504,6 +559,8 @@ impl CompilationSession {
                         .map_or_else(super::ct_selection::Receipt::default, |selected| {
                             selected.receipt
                         }),
+                    ct_usage: ct_result.as_ref().map(|result| result.usage.clone()),
+                    ct_previews: ct_result.map(|result| result.previews).unwrap_or_default(),
                     syntax: Arc::new(ProjectSyntax {
                         root: (root.file_id, root.module_id, root.path.clone()),
                         entries: dependencies
@@ -531,6 +588,10 @@ impl CompilationSession {
                 expanded.selection.to_json()
             })?;
         }
+        if artifact_needed {
+            artifacts.dump_lazy(report, options, "ct-syntax", |_| format!("[{}]",
+                expanded.ct_previews.iter().map(|preview| preview.json()).collect::<Vec<_>>().join(",")))?;
+        }
         if options.stop_after == Stage::Core {
             return Ok(());
         }
@@ -545,6 +606,12 @@ impl CompilationSession {
                     zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?;
                 let inferred = inference.program();
                 let mut remaining = expanded.selection.remaining(&options.limits)?;
+                if let Some(usage) = &expanded.ct_usage {
+                    remaining.max_ct_steps = remaining.max_ct_steps.checked_sub(usage.steps)
+                        .ok_or_else(|| vec![Diagnostic::limit(Phase::Ct, "Type/Syntax CT step budget exceeded", None)])?;
+                    remaining.max_nodes = remaining.max_nodes.checked_sub(usage.generated_nodes as usize)
+                        .ok_or_else(|| vec![Diagnostic::limit(Phase::Ct, "Type/Syntax CT generated node budget exceeded", None)])?;
+                }
                 let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
                 let initial_remaining = remaining.clone();
                 let mut unchanged = true;

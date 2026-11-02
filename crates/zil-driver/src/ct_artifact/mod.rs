@@ -11,5 +11,9 @@ mod render;
 mod input;
 mod execute;
 mod ordinary_type;
+mod materialize;
+mod hygiene;
 
 pub use lock::SyntaxLock;
+pub(super) use materialize::materialize;
+pub(crate) use materialize::Preview;

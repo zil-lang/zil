@@ -48,6 +48,38 @@ impl VerifiedCTArtifactProgram {
     }
 }
 
+/// A single request-owned ledger for independent raw admission. The driver
+/// debits `spent()` from the same CT execution budget even when admission
+/// rejects, so another function or retry cannot reuse analysis work.
+#[derive(Clone, Copy, Debug)]
+pub struct CtVerificationMeter {
+    remaining: u64,
+    spent: u64,
+}
+impl CtVerificationMeter {
+    pub fn new(max_analysis_work: u64) -> Self {
+        Self {
+            remaining: max_analysis_work,
+            spent: 0,
+        }
+    }
+    pub fn spent(&self) -> u64 {
+        self.spent
+    }
+    fn constrain(&mut self, declared: u64) {
+        self.remaining = self.remaining.min(declared);
+    }
+    fn charge(&mut self, work: usize, span: Option<Span>) -> Check<()> {
+        let work = u64::try_from(work).map_err(|_| limit(span, "CT analysis work overflow"))?;
+        if work > self.remaining {
+            return Err(limit(span, "CT verification analysis budget exceeded"));
+        }
+        self.remaining -= work;
+        self.spent += work;
+        Ok(())
+    }
+}
+
 fn reject(span: Option<Span>, reason: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(Phase::Ct, "E-CT-ARTIFACT", span, reason)]
 }
@@ -61,6 +93,40 @@ pub fn verify_ct_artifact(
     limits: &Limits,
     authority: &impl CtArtifactAuthority,
 ) -> CompileResult<VerifiedCTArtifactProgram> {
+    let mut meter = CtVerificationMeter::new(
+        raw.budget
+            .max_analysis_work
+            .min(limits.max_analysis_steps as u64),
+    );
+    verify_ct_artifact_metered(raw, limits, authority, &mut meter)
+}
+
+pub fn verify_ct_artifact_metered(
+    raw: CtArtifactProgram,
+    limits: &Limits,
+    authority: &impl CtArtifactAuthority,
+    meter: &mut CtVerificationMeter,
+) -> CompileResult<VerifiedCTArtifactProgram> {
+    meter.constrain(
+        raw.budget
+            .max_analysis_work
+            .min(limits.max_analysis_steps as u64),
+    );
+    let initial_work = raw.functions.iter().fold(
+        raw.constants
+            .len()
+            .saturating_add(raw.templates.len())
+            .saturating_add(raw.input_tokens.tokens.len())
+            .saturating_add(raw.record_schemas.len())
+            .saturating_add(raw.enum_schemas.len()),
+        |n, f| {
+            n.saturating_add(f.blocks.len())
+                .saturating_add(f.locals.len())
+                .saturating_add(f.values.len())
+                .saturating_add(f.blocks.iter().map(|b| b.instructions.len()).sum::<usize>())
+        },
+    );
+    meter.charge(initial_work.max(1), None)?;
     preflight(&raw, limits)?;
     if !authority.authenticate_artifact(&raw)
         || raw.source_fingerprint != authority.source_fingerprint()
@@ -84,7 +150,7 @@ pub fn verify_ct_artifact(
             ));
         }
         for ty in &schema.fields {
-            check_ty(ty, &raw, limits)?;
+            check_ty(ty, &raw, limits, meter)?;
         }
     }
     for schema in &raw.enum_schemas {
@@ -98,7 +164,7 @@ pub fn verify_ct_artifact(
         }
         for variant in &schema.variants {
             for ty in variant {
-                check_ty(ty, &raw, limits)?;
+                check_ty(ty, &raw, limits, meter)?;
             }
         }
     }
@@ -121,7 +187,7 @@ pub fn verify_ct_artifact(
                 "CT function definition is not in the frozen project",
             ));
         }
-        check_function(&raw, function, limits, authority)?;
+        check_function(&raw, function, limits, authority, meter)?;
     }
     if raw.functions.get(raw.entry.0 as usize).is_none() {
         return Err(reject(None, "CT entry function is missing"));
@@ -343,16 +409,6 @@ fn check_templates(raw: &CtArtifactProgram, authority: &impl CtArtifactAuthority
             return Err(reject(None, "CT quote definition is not authenticated"));
         }
         let tree = &template.syntax;
-        if !matches!(
-            tree.category,
-            CtSyntaxCategory::StmtList | CtSyntaxCategory::ItemList
-        ) && tree.roots.len() != 1
-        {
-            return Err(reject(
-                None,
-                "CT expression/type template needs exactly one root",
-            ));
-        }
         for (index, origin) in tree.origins.iter().enumerate() {
             if let Some(parent) = origin.parent
                 && parent.0 as usize >= index
@@ -406,10 +462,16 @@ fn check_templates(raw: &CtArtifactProgram, authority: &impl CtArtifactAuthority
     Ok(())
 }
 
-fn check_ty(ty: &CtTy, raw: &CtArtifactProgram, limits: &Limits) -> Check<()> {
+fn check_ty(
+    ty: &CtTy,
+    raw: &CtArtifactProgram,
+    limits: &Limits,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
     let mut stack = vec![(ty, 0usize)];
     let mut visited = 0usize;
     while let Some((item, depth)) = stack.pop() {
+        meter.charge(1, None)?;
         visited = visited.saturating_add(1);
         if depth > limits.max_call_depth || visited > limits.max_nodes {
             return Err(limit(None, "CT type shape budget exceeded"));
@@ -503,6 +565,7 @@ fn check_function(
     function: &CtFunction,
     limits: &Limits,
     authority: &impl CtArtifactAuthority,
+    meter: &mut CtVerificationMeter,
 ) -> Check<()> {
     if function.parameters.len() != function.parameter_types.len() {
         return Err(reject(
@@ -519,14 +582,14 @@ fn check_function(
             ));
         }
     }
-    check_ty(&function.result_type, raw, limits)?;
+    check_ty(&function.result_type, raw, limits, meter)?;
     for ty in function
         .parameter_types
         .iter()
         .chain(&function.locals)
         .chain(&function.values)
     {
-        check_ty(ty, raw, limits)?;
+        check_ty(ty, raw, limits, meter)?;
     }
     let preds = predecessors(function)?;
     let blocks = function.blocks.len();
@@ -541,34 +604,14 @@ fn check_function(
                 .map(|b| b.instructions.len())
                 .sum::<usize>(),
         );
-    if static_work
-        > limits
-            .max_analysis_steps
-            .min(raw.budget.max_analysis_work as usize)
-    {
-        return Err(limit(
-            Some(function.span),
-            "CT CFG analysis matrix exceeds work budget",
-        ));
-    }
+    meter.charge(static_work, Some(function.span))?;
     let all: BTreeSet<usize> = (0..blocks).collect();
     let mut dominators = vec![all; blocks];
     dominators[function.entry.0 as usize] = BTreeSet::from([function.entry.0 as usize]);
     let mut changed = true;
-    let mut iterations = 0usize;
     while changed {
         changed = false;
-        iterations = iterations.saturating_add(1);
-        if iterations.saturating_mul(static_work)
-            > limits
-                .max_analysis_steps
-                .min(raw.budget.max_analysis_work as usize)
-        {
-            return Err(limit(
-                Some(function.span),
-                "CT dominance analysis budget exceeded",
-            ));
-        }
+        meter.charge(static_work, Some(function.span))?;
         for block in 0..blocks {
             if block == function.entry.0 as usize {
                 continue;
@@ -679,13 +722,7 @@ fn check_function(
             _ => {}
         }
     }
-    check_locals(
-        function,
-        &preds,
-        limits
-            .max_analysis_steps
-            .min(raw.budget.max_analysis_work as usize),
-    )
+    check_locals(function, &preds, meter)
 }
 
 fn check_use(
@@ -713,7 +750,11 @@ fn check_use(
     Ok(())
 }
 
-fn check_locals(function: &CtFunction, predecessors: &[Vec<usize>], max_work: usize) -> Check<()> {
+fn check_locals(
+    function: &CtFunction,
+    predecessors: &[Vec<usize>],
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
     let n = function.locals.len();
     let entry = function.entry.0 as usize;
     let mut initial = vec![false; n];
@@ -724,16 +765,12 @@ fn check_locals(function: &CtFunction, predecessors: &[Vec<usize>], max_work: us
     let mut outgoing = incoming.clone();
     incoming[entry] = initial.clone();
     let mut changed = true;
-    let mut iterations = 0usize;
     while changed {
         changed = false;
-        iterations = iterations.saturating_add(1);
-        if iterations.saturating_mul(function.blocks.len().saturating_mul(n.max(1))) > max_work {
-            return Err(limit(
-                Some(function.span),
-                "CT local-flow analysis budget exceeded",
-            ));
-        }
+        meter.charge(
+            function.blocks.len().saturating_mul(n.max(1)),
+            Some(function.span),
+        )?;
         for (b, block) in function.blocks.iter().enumerate() {
             let mut state = if b == entry {
                 initial.clone()
@@ -764,6 +801,15 @@ fn check_locals(function: &CtFunction, predecessors: &[Vec<usize>], max_work: us
             }
         }
     }
+    meter.charge(
+        function
+            .blocks
+            .iter()
+            .map(|b| b.instructions.len())
+            .sum::<usize>()
+            .saturating_add(function.blocks.len()),
+        Some(function.span),
+    )?;
     for (b, block) in function.blocks.iter().enumerate() {
         let mut state = incoming[b].clone();
         for instruction in &block.instructions {
@@ -1378,10 +1424,7 @@ fn check_instruction(
                 }
                 CtQueryKind::ImplIndex => CtTy::List(Box::new(CtTy::ImplInfo)),
                 CtQueryKind::Layout => {
-                    expect(
-                        arguments.len() == 1 && raw.snapshot.target_fingerprint.is_some(),
-                        "layout query needs target",
-                    )?;
+                    expect(arguments.len() == 1, "layout query needs Type")?;
                     CtTy::LayoutInfo
                 }
             }
@@ -1451,7 +1494,7 @@ mod tests {
                 .is_none_or(|actual| actual == function)
         }
         fn authorize_symbol(&self, _: &CtSymbolId, symbol: &CtSymbolId, _: CtSymbolUsage) -> bool {
-            symbol.module == ModuleId(0) && symbol.declaration == NodeId(1)
+            symbol.module == ModuleId(0) && matches!(symbol.declaration, NodeId(1) | NodeId(2))
         }
         fn authorize_query(&self, _: &CtSymbolId, _: CtQueryKind) -> bool {
             true
@@ -1567,7 +1610,7 @@ mod tests {
         assert!(check(p).unwrap_err()[0].message.contains("uninitialized"));
     }
     #[test]
-    fn admits_unexecuted_late_query_for_runtime_stage_check() {
+    fn admits_late_query_statically_for_runtime_stage_check() {
         let mut p = raw();
         p.functions[0].values[2] = CtTy::ShapeInfo;
         p.functions[0].result_type = CtTy::ShapeInfo;
@@ -1581,7 +1624,115 @@ mod tests {
         p.snapshot.requested_queries.push(CtQueryKind::Shape);
         // This function may be present but uncalled at a Shape-unready stage.
         // The frozen reader checks stage and grants only when Query executes.
-        assert!(check(p).is_ok());
+        let result = check(p);
+        assert!(result.is_ok(), "{result:?}");
+    }
+    #[test]
+    fn unused_layout_helper_does_not_raise_entry_stage() {
+        let mut p = raw();
+        let span = Span::default();
+        let mut helper = p.functions[0].clone();
+        helper.id = CtFunctionId(1);
+        helper.definition.declaration = NodeId(2);
+        helper.result_type = CtTy::LayoutInfo;
+        helper.values = vec![CtTy::Type, CtTy::LayoutInfo];
+        helper.blocks[0].instructions = vec![
+            CtInstruction {
+                result: Some(CtValueId(0)),
+                kind: CtInstructionKind::TypePrimitive(CtScalarTy::I32),
+                span,
+            },
+            CtInstruction {
+                result: Some(CtValueId(1)),
+                kind: CtInstructionKind::Query {
+                    kind: CtQueryKind::Layout,
+                    arguments: vec![CtValueId(0)],
+                },
+                span,
+            },
+        ];
+        helper.blocks[0].terminator = CtTerminator::Return(Some(CtValueId(1)));
+        p.functions.push(helper);
+        assert_eq!(p.snapshot.ready, CtReadyStage::Tokens);
+        let result = check(p);
+        assert!(result.is_ok(), "{result:?}");
+    }
+    #[test]
+    fn verification_work_is_aggregate_across_functions_and_retries() {
+        let mut p = raw();
+        let mut helper = p.functions[0].clone();
+        helper.id = CtFunctionId(1);
+        helper.definition.declaration = NodeId(2);
+        p.functions.push(helper);
+        p.budget.max_analysis_work = 1000;
+        let authority = Authority {
+            snapshot: p.snapshot.clone(),
+            expected: None,
+            expected_artifact: None,
+        };
+        let mut measured = CtVerificationMeter::new(1000);
+        verify_ct_artifact_metered(p.clone(), &Limits::default(), &authority, &mut measured)
+            .unwrap();
+        let exact = measured.spent();
+        assert!(exact > 1);
+        let mut at_limit = CtVerificationMeter::new(exact);
+        assert!(
+            verify_ct_artifact_metered(p.clone(), &Limits::default(), &authority, &mut at_limit)
+                .is_ok()
+        );
+        assert_eq!(at_limit.spent(), exact);
+        let mut below = CtVerificationMeter::new(exact - 1);
+        assert_eq!(
+            verify_ct_artifact_metered(p.clone(), &Limits::default(), &authority, &mut below)
+                .unwrap_err()[0]
+                .code,
+            "E-RESOURCE-LIMIT"
+        );
+        assert!(below.spent() > 0 && below.spent() < exact);
+        let already_spent = below.spent();
+        assert_eq!(
+            verify_ct_artifact_metered(p, &Limits::default(), &authority, &mut below).unwrap_err()
+                [0]
+            .code,
+            "E-RESOURCE-LIMIT"
+        );
+        assert!(below.spent() >= already_spent);
+    }
+    #[test]
+    fn lexical_roots_of_expression_template_are_not_ast_count() {
+        let mut p = raw();
+        let span = Span::default();
+        p.templates.push(CtTemplate {
+            definition: symbol(),
+            syntax: CtSyntaxTree {
+                category: CtSyntaxCategory::Expr,
+                nodes: ["x", "+", "1"]
+                    .into_iter()
+                    .map(|text| {
+                        CtSyntaxNode::Token(CtToken {
+                            class: CtTokenClass::Punctuation,
+                            text: text.into(),
+                            origin: CtOriginId(0),
+                            name: None,
+                        })
+                    })
+                    .collect(),
+                roots: vec![CtSyntaxNodeId(0), CtSyntaxNodeId(1), CtSyntaxNodeId(2)],
+                origins: vec![CtOrigin {
+                    span,
+                    parent: None,
+                    role: CtOriginRole::QuoteDefinition,
+                }],
+            },
+            holes: vec![],
+        });
+        assert!(check(p.clone()).is_ok());
+        p.templates[0].syntax.roots[2] = CtSyntaxNodeId(3);
+        assert!(
+            check(p).unwrap_err()[0]
+                .message
+                .contains("root is out of range")
+        );
     }
     #[test]
     fn rejects_query_descriptor_forgery_through_record() {

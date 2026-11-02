@@ -150,7 +150,7 @@ impl Parser<'_> {
             self.expect(Symbol::Lt)?;
             let lifetime = self.scoped(true, |p| {
                 p.expect_word("life")?;
-                let lifetime = p.ident()?;
+                let lifetime = p.ident_kind(QuoteNameNamespace::Label, QuoteNameRole::Binding)?;
                 p.close_angle()?;
                 Ok(lifetime)
             })?;
@@ -278,13 +278,16 @@ impl Parser<'_> {
             loop {
                 let start = p.peek().span;
                 let (name, kind) = if p.eat_word("life") {
-                    (p.ident()?, GenericParamKind::Lifetime)
+                    (
+                        p.ident_kind(QuoteNameNamespace::Label, QuoteNameRole::Binding)?,
+                        GenericParamKind::Lifetime,
+                    )
                 } else if p.eat(Symbol::Hash) {
-                    let name = p.ident()?;
+                    let name = p.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
                     p.expect(Symbol::Colon)?;
                     (name, GenericParamKind::Const(p.ty()?))
                 } else {
-                    let name = p.ident()?;
+                    let name = p.ident_kind(QuoteNameNamespace::Type, QuoteNameRole::Binding)?;
                     let bounds = if p.eat(Symbol::Colon) {
                         p.bounds()?
                     } else {

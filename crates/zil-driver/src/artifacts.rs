@@ -11,6 +11,7 @@ const DUMPS: &[(&str, &str, Stage)] = &[
     ("core", "txt", Stage::Core),
     ("source-map", "txt", Stage::Core),
     ("selection", "json", Stage::Core),
+    ("ct-syntax", "json", Stage::Core),
     ("ct-core", "txt", Stage::Types),
     ("typed", "txt", Stage::Types),
     ("interfaces", "txt", Stage::Types),

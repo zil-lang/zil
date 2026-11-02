@@ -1,12 +1,12 @@
 //! One request ledger and frozen source authority for raw CT compilation,
 //! independent admission, and VM execution.
-use super::{authority::FrozenAuthority, compiler::{self, CompileRequest, Entry}, read_view::FrozenReadView, snapshot::{self, ShapeSnapshot}, source_index::SourceIndex};
+use super::{authority::FrozenAuthority, compiler::{self, CompileRequest, Entry}, read_view::FrozenReadView, render::{self, ParsedSyntax}, snapshot::{self, ShapeSnapshot}, source_index::SourceIndex};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Span, TargetProfile};
-use zil_ct::CtExecutionBudget;
+use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{CoreImport, ct_artifact::*};
-use zil_syntax::{ParseResult, ast as s};
+use zil_syntax::ParseResult;
 
 fn error(message: &str, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(Phase::Ct, "E-CT-SOURCE", Some(span), message)]
@@ -21,6 +21,7 @@ pub(super) struct Environment<'a> {
     snapshot: CtSnapshotRequest,
     limits: Limits,
     pub budget: CtExecutionBudget,
+    pub ct_only: Vec<CtSymbolId>,
     source_fingerprint: Fingerprint,
     target: &'a TargetProfile,
 }
@@ -58,7 +59,8 @@ impl<'a> Environment<'a> {
             max_instances: limits.max_functions as u64,
             max_analysis_work: limits.max_analysis_steps as u64,
         };
-        Ok(Self { sources, parsed, index, shape, shape_failure, snapshot, limits: limits.clone(), budget: CtExecutionBudget::new(declared), source_fingerprint: fingerprint, target })
+        Ok(Self { sources, parsed, index, shape, shape_failure, snapshot, limits: limits.clone(), budget: CtExecutionBudget::new(declared),
+            ct_only: Vec::new(), source_fingerprint: fingerprint, target })
     }
 
     fn remaining_limits(&self) -> Limits {
@@ -72,6 +74,44 @@ impl<'a> Environment<'a> {
         limits.max_source_bytes = limits.max_source_bytes.min(remaining.max_temporary_bytes as usize);
         limits.max_values = limits.max_values.min(remaining.max_live_cells as usize);
         limits
+    }
+
+    pub(super) fn remaining_limits_for_input(&self) -> Limits { self.remaining_limits() }
+
+    /// Classify every actual CT-only declaration from the same source artifact
+    /// used by execution. Verify its entire body without calling the VM.
+    pub(super) fn classify_definitions(&mut self) -> CompileResult<()> {
+        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let modules = self.index.modules(self.sources, &syntax);
+        let mut limits = self.remaining_limits();
+        let before = self.budget.remaining();
+        let entry = compiler::definitions_entry(&modules, &mut limits)?;
+        self.budget.reserve_analysis_work(before.max_analysis_work.saturating_sub(limits.max_analysis_steps as u64))?;
+        let Some(entry) = entry else { return Ok(()); };
+        let span = self.index.span(&entry).ok_or_else(|| error("CT-only definition is absent from the frozen source index", Span::default()))?;
+        let input_tokens = self.empty_input(span)?;
+        let selected_limits = self.remaining_limits();
+        let mut expected = compiler::compile(CompileRequest { modules: &modules,
+            source_fingerprint: self.source_fingerprint, entry: Entry::Function(entry),
+            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits })?;
+        let classified = compiler::ct_only_definitions(&mut expected)?;
+        let declared = expected.budget;
+        let before = self.budget.remaining();
+        self.budget.reserve_analysis_work(before.max_analysis_work.saturating_sub(declared.max_analysis_work))?;
+        self.budget.reserve_generated_nodes(before.max_generated_nodes.saturating_sub(declared.max_generated_nodes))?;
+        for _ in 0..before.max_instances.saturating_sub(declared.max_instances) { self.budget.reserve_instance()?; }
+        let authority = FrozenAuthority { source_fingerprint: self.source_fingerprint, snapshot: &self.snapshot,
+            input: &input_tokens, index: &self.index, expected_functions: &expected.functions, expected_artifact: &expected };
+        let clone_charge = expected.functions.len().saturating_mul(128)
+            .saturating_add(expected.templates.len().saturating_mul(128)) as u64;
+        self.budget.reserve_temporary_bytes(clone_charge)?;
+        let mut meter = zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
+        let result = zil_verify::verify_ct_artifact_metered(expected.clone(), &selected_limits, &authority, &mut meter);
+        self.budget.reserve_analysis_work(meter.spent())?;
+        self.budget.release_temporary_bytes(clone_charge);
+        result?;
+        self.ct_only.extend(classified);
+        Ok(())
     }
 
     pub(super) fn evaluate(&mut self, entry: Entry<'_>, input_tokens: &CtInputTable, input: Option<&CtTokenTree>, arguments: &[CtValue], span: Span) -> CompileResult<CtValue> {
@@ -94,7 +134,10 @@ impl<'a> Environment<'a> {
         let raw = expected.clone();
         let authority = FrozenAuthority { source_fingerprint: self.source_fingerprint, snapshot: &self.snapshot,
             input: input_tokens, index: &self.index, expected_functions: &expected.functions, expected_artifact: &expected };
-        let verified = zil_verify::verify_ct_artifact(raw, &selected_limits, &authority)?;
+        let mut meter = zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
+        let result = zil_verify::verify_ct_artifact_metered(raw, &selected_limits, &authority, &mut meter);
+        self.budget.reserve_analysis_work(meter.spent())?;
+        let verified = result?;
         let reader = FrozenReadView { index: &self.index, sources: self.sources, syntax: &syntax,
             shape: self.shape.as_ref(), shape_failure: self.shape_failure.as_deref(), input, limits: &selected_limits, target: self.target, snapshot: &self.snapshot };
         let (value, _usage) = zil_ct::evaluate_ct_artifact(&verified, arguments, &reader, &mut self.budget)
@@ -110,6 +153,21 @@ impl<'a> Environment<'a> {
         bytes.extend_from_slice(&span.start.to_le_bytes());
         bytes.extend_from_slice(&span.end.to_le_bytes());
         Ok(CtInputTable { invocation_fingerprint: Fingerprint::of(&bytes), tokens: Vec::new() })
+    }
+
+    pub(super) fn parse_tree(&mut self, tree: &CtSyntaxTree, span: Span) -> CompileResult<ParsedSyntax> {
+        let module = self.sources.iter().find(|source| source.file_id == span.file)
+            .map_or(ModuleId(0), |source| source.module_id);
+        let aliases = self.index.aliases(module);
+        render::parse(tree, span.file, module, &aliases, &self.limits, &mut self.budget)
+    }
+
+    pub(super) fn type_syntax(&mut self, ty: CtTypeRef) -> CompileResult<CtSyntaxTree> {
+        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &self.index, sources: self.sources, syntax: &syntax,
+            shape: self.shape.as_ref(), shape_failure: self.shape_failure.as_deref(), input: None,
+            limits: &self.limits, target: self.target, snapshot: &self.snapshot };
+        reader.build_syntax(CtSyntaxBuilder::TypeRef, &[CtValue::Type(ty)], &mut self.budget)
     }
 }
 

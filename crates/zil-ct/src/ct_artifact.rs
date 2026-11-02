@@ -637,10 +637,6 @@ fn syntax_tree_valid(tree: &CtSyntaxTree, raw: &CtArtifactProgram) -> bool {
     if tree.nodes.len() as u64 > raw.budget.max_generated_nodes
         || !origins_valid(&tree.origins, raw.budget.max_generated_nodes)
         || tree.roots.iter().any(|r| r.0 as usize >= tree.nodes.len())
-        || (!matches!(
-            tree.category,
-            CtSyntaxCategory::StmtList | CtSyntaxCategory::ItemList
-        ) && tree.roots.len() != 1)
     {
         return false;
     }
@@ -1324,7 +1320,7 @@ mod tests {
             true
         }
         fn authorize_query(&self, _: &CtSymbolId, _: CtQueryKind) -> bool {
-            false
+            true
         }
     }
     struct Reader;
@@ -1483,6 +1479,84 @@ mod tests {
         let (value, usage) = evaluate_ct_artifact(&verified, &[], &Reader, &mut budget).unwrap();
         assert_eq!(value, CtValue::Scalar(Constant::I32(9)));
         assert_eq!(usage.steps, 4);
+    }
+    #[test]
+    fn unselected_late_query_branch_does_not_read_frozen_view() {
+        let mut raw = raw();
+        let span = Span::default();
+        let function = &mut raw.functions[0];
+        function.values = vec![
+            CtTy::Scalar(CtScalarTy::Bool),
+            CtTy::Type,
+            CtTy::ShapeInfo,
+            CtTy::Scalar(CtScalarTy::I32),
+            CtTy::Scalar(CtScalarTy::I32),
+        ];
+        function.blocks = vec![
+            CtBlock {
+                id: CtBlockId(0),
+                instructions: vec![CtInstruction {
+                    result: Some(CtValueId(0)),
+                    kind: CtInstructionKind::Constant(CtConstantId(0)),
+                    span,
+                }],
+                terminator: CtTerminator::Branch {
+                    condition: CtValueId(0),
+                    then_block: CtBlockId(1),
+                    else_block: CtBlockId(2),
+                },
+            },
+            CtBlock {
+                id: CtBlockId(1),
+                instructions: vec![
+                    CtInstruction {
+                        result: Some(CtValueId(1)),
+                        kind: CtInstructionKind::TypePrimitive(CtScalarTy::I32),
+                        span,
+                    },
+                    CtInstruction {
+                        result: Some(CtValueId(2)),
+                        kind: CtInstructionKind::Query {
+                            kind: CtQueryKind::Shape,
+                            arguments: vec![CtValueId(1)],
+                        },
+                        span,
+                    },
+                    CtInstruction {
+                        result: Some(CtValueId(3)),
+                        kind: CtInstructionKind::Constant(CtConstantId(1)),
+                        span,
+                    },
+                ],
+                terminator: CtTerminator::Return(Some(CtValueId(3))),
+            },
+            CtBlock {
+                id: CtBlockId(2),
+                instructions: vec![CtInstruction {
+                    result: Some(CtValueId(4)),
+                    kind: CtInstructionKind::Constant(CtConstantId(1)),
+                    span,
+                }],
+                terminator: CtTerminator::Return(Some(CtValueId(4))),
+            },
+        ];
+        raw.constants = vec![
+            CtConstant::Scalar(Constant::Bool(false)),
+            CtConstant::Scalar(Constant::I32(5)),
+        ];
+        let authority = Authority {
+            snapshot: raw.snapshot.clone(),
+        };
+        let verified = verify_ct_artifact(raw.clone(), &Limits::default(), &authority).unwrap();
+        let (value, receipt) = evaluate_ct_artifact(
+            &verified,
+            &[],
+            &Reader,
+            &mut CtExecutionBudget::new(raw.budget),
+        )
+        .unwrap();
+        assert_eq!(value, CtValue::Scalar(Constant::I32(5)));
+        assert!(receipt.queries.is_empty());
     }
     #[test]
     fn enforces_step_limit_before_instruction() {

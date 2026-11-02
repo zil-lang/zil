@@ -28,16 +28,34 @@ fn build(text: &str, entry: &str) -> CtArtifactProgram {
         .iter()
         .position(|i| matches!(&i.kind,zil_syntax::ast::ItemKind::Function(f) if f.name==entry))
         .unwrap();
-    let imports = [
-        SourceImport {
-            alias: "meta".into(),
-            target: ImportTarget::Meta,
-        },
-        SourceImport {
-            alias: "syntax".into(),
-            target: ImportTarget::Syntax,
-        },
-    ];
+    let imports = syntax
+        .items
+        .iter()
+        .filter_map(|item| {
+            if let zil_syntax::ast::ItemKind::Import(import) = &item.kind {
+                let target = match import
+                    .path
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+                {
+                    ["std", "meta"] => ImportTarget::Meta,
+                    ["std", "syntax"] => ImportTarget::Syntax,
+                    _ => return None,
+                };
+                Some(SourceImport {
+                    alias: import
+                        .alias
+                        .clone()
+                        .unwrap_or_else(|| import.path.last().unwrap().clone()),
+                    target,
+                })
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
     let modules = [SourceModule {
         source: &source,
         syntax: &syntax,
@@ -94,6 +112,9 @@ impl zil_verify::CtArtifactAuthority for Authority<'_> {
     }
     fn authenticate_input_table(&self, input: &CtInputTable) -> bool {
         input == &self.raw.input_tokens
+    }
+    fn authenticate_artifact(&self, artifact: &CtArtifactProgram) -> bool {
+        artifact == self.raw
     }
     fn authenticate_function(&self, function: &CtFunction) -> bool {
         self.raw.functions.iter().any(|f| f == function)
@@ -263,4 +284,55 @@ fn both_returning_branches_are_closed_without_unreachable_ir() {
             })
         );
     }
+}
+
+#[test]
+fn ct_domain_derives_from_actual_types_and_keeps_scalar_bridge_runtime_available() {
+    let mut raw = build(
+        "fn increment(n:i32)->i32{return n+1} fn choose(n:i32)->Type{let x=increment(n);return i32}",
+        "choose",
+    );
+    let before = raw.budget.max_analysis_work;
+    let expected = raw.functions[raw.entry.0 as usize].definition.clone();
+    let actual = ct_only_definitions(&mut raw).unwrap();
+    assert_eq!(actual, vec![expected]);
+    assert!(raw.budget.max_analysis_work < before);
+}
+#[test]
+fn no_invocation_definition_entry_uses_real_source_identity_and_request_remainder() {
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "unused.zil",
+        "fn main()->i32{return 0} fn unused(t:Type)->Type{return t}",
+    );
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let symbols: Vec<_> = syntax
+        .items
+        .iter()
+        .enumerate()
+        .map(|(n, i)| {
+            (
+                i.span,
+                CtSymbolId {
+                    module: ModuleId(0),
+                    declaration: NodeId(n as u32),
+                    generation_path: None,
+                },
+            )
+        })
+        .collect();
+    let modules = [SourceModule {
+        source: &source,
+        syntax: &syntax,
+        imports: &[],
+        symbols: &symbols,
+    }];
+    let mut limits = Limits::default();
+    let old = limits.max_analysis_steps;
+    assert_eq!(
+        definitions_entry(&modules, &mut limits).unwrap(),
+        Some(symbols[1].1.clone())
+    );
+    assert!(limits.max_analysis_steps < old);
 }
