@@ -1,0 +1,30 @@
+{
+  "verdict": "Prepared; native NotRun pending exact common R",
+  "base_commit": "b6a0c9fe986eaf60e3b754bf54b6500382176886",
+  "proposal": "bfbb677ec1ae7c096b62d8136da01d76b4c83eeb",
+  "frozen_before_native": true,
+  "source_compiles": 0,
+  "native_runs": 0,
+  "harness_no_run": {
+    "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 cargo test -p zil-driver --features llvm-api --test impl256_consumer --no-run --offline --locked -j 2",
+    "exit": 0,
+    "source_execution_count": 0
+  },
+  "planned_separate_group": {
+    "normal_modes": 4,
+    "native_O0_O2_runs": 32,
+    "normal_runs": 8,
+    "allocator_runs": 24,
+    "real_allocator_failures": 8
+  },
+  "frozen_core_oracle_sha256": "78af8b1cf33b06744e9bc70c3e965392cf14da1015b99138370465973d26f4b8",
+  "sha256": {
+    "tests/impl256/supplement/ORACLE.json": "53afb4f450d42604e259f4b6247e0dd3e30fbcb3ba5cbe642181c02b57861116",
+    "tests/impl256/supplement/ordinary_main.zil": "94a88e9f04f8ed453a673431340c5cf272e26a04bcd3e759a53348b7e448b858",
+    "tests/impl256/supplement/mixed_main.zil": "a4ad86bf1c7fb844875137f21af6ab0944bf1826ccb2fee4c90b08f70519e26a",
+    "tests/impl256/frozen-prep/project/model.zil": "1b29c235b7840891dc944ead06b110cbe846136ca5b3463f6b2427bbdac63fba",
+    "tests/impl256/frozen-prep/project/relay.zil": "806db69ff6335b85e830a3f13691158def357dad560d82fa769a8c17772a1b80",
+    "tools/research/256/supplement_oracle.py": "d504f2b1b086672c69c2ae46d4b94a2e71c33bc10c84acf66a454f7b85b00751",
+    "tests/impl256/supplement/EXPECTED.md": "67ac89e256e82f8bc0c0a80b1cd1504075983df55e70807298643683b577d68e"
+  }
+}
