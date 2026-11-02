@@ -1,0 +1,81 @@
+{
+  "scope": "Structured development failures, transcribed from actual tool output and separately identified non-author reports. Only final-tests.json/clippy.json claim final-source execution; an uncommitted development tree is not presented as a frozen candidate.",
+  "author_cargo_test_invocations_including_final": 15,
+  "author_nonpassing_test_invocations": 5,
+  "author_failures": [
+    {
+      "source_state": "8d06d0c0c plus first in-progress frontend changes, before 5a7975798",
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_front -- --nocapture",
+      "exit_code": 101,
+      "executed": 3,
+      "passed": 1,
+      "failed": 2,
+      "actual": {"phase": "Types", "category": "Unsupported", "code": "E-UNSUPPORTED", "message": "nested helper role has a different declared callable kind"},
+      "resolution": "Parameter child roles now permit a compatible adaptation and propagate their actual input source into the result. Legacy non-Parameter exact-kind rules remain."
+    },
+    {
+      "source_state": "In-progress helper_flow change before 5a7975798",
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_front -- --nocapture",
+      "executed": 0,
+      "process_exit_code": null,
+      "actual": "Rust E0425: cannot find value function in this scope at helper_flow.rs:485",
+      "resolution": "Passed the forwarding-loop classification into the separate classify function. Compiler diagnostic captured; final process exit was not separately retained. This was not a language SafeReject."
+    },
+    {
+      "source_state": "5a7975798 plus in-progress 256 fixed-source tests/context repair",
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_front -- --nocapture",
+      "occurrences": 2,
+      "each_result": {"exit_code": 101, "executed": 8, "passed": 7, "failed": 1},
+      "input": "tests/impl256/frozen-prep/project/main.zil::union_data",
+      "actual": {"phase": "Expand", "category": "SafeReject", "code": "E-GENERIC-ARGUMENT", "message": "enum constructor has a different nominal type or type arity", "file": 0, "start": 1945, "end": 1955},
+      "resolution_commit": "3623d21db0b354ec7e8665c77d72f58a1424013b",
+      "proposal": "changes/251-256-callable-forward.md; bf7b73da5 pre-registration",
+      "resolution": "When a whole ErrorUnion expectation was erased, do not use its first nominal arm as the hint for a different enum arm. Restore the matching complete arm from the original union. Frozen source/oracle unchanged."
+    },
+    {
+      "relevant_prior_commit": "3623d21db0b354ec7e8665c77d72f58a1424013b",
+      "relevant_prior_path": "crates/zil-types/src/state_origins.rs",
+      "command": "cargo test --offline --locked -p zil-driver --test impl252_front raw_unused -- --nocapture",
+      "exit_code": 101,
+      "executed": 1,
+      "failed": 1,
+      "filtered": 8,
+      "input_base_source": "fn keep<F:FnMut(i32)->i32>(f:F)->F{return f}fn main(){}",
+      "raw_mutation": {"insert_statement_before_return": {"statement_id": 903, "kind": "Expression", "expression_id": 902, "expression": "Call(Name(f)#900, Integer(1)#901)"}, "span": "keep function span", "parameter_f_mutable": false},
+      "actual": "Types incorrectly accepted the unused raw definition; the test assertion failed: unused raw FnMut called through immutable F parameter",
+      "resolution_commit": "05953cd411eebdbd3d4f5b34715e7ef1cdfb2d25",
+      "final_expectation": {"phase": "Types", "category": "SafeReject", "code": "E-CLOSURE-MUTABILITY"},
+      "final_test": "raw_unused_parameter_definition_checks_mutable_position_before_any_instance",
+      "resolution": "Only the new Parameter definition's move walk records actual mutable positions and checks writable FnMut borrows/calls and writeback. No blanket scan of old profiles."
+    }
+  ],
+  "non_author_findings": [
+    {
+      "reporter": "/root/callback_backend_fallback",
+      "source": "tests/impl256/extended/relay.zil::spin",
+      "input_commit": "56cbd4822a4e543114b580929edaf5b7bb7385e9",
+      "frontend_before_fix": "3623d21db0b354ec7e8665c77d72f58a1424013b",
+      "actual": {"phase": "Types", "category": "Unsupported", "message": "nested helper environment is not one actual supplied role", "file": 2, "start": 661, "end": 678},
+      "resolution_commit": "05953cd411eebdbd3d4f5b34715e7ef1cdfb2d25",
+      "resolution": "Track Parameter source and caller declaration through the compiler's real one-element owned Closure slot and loop take/refill. No source-level F container qualification was added."
+    },
+    {
+      "reporter": "/root/callback_consumer",
+      "source": "tests/impl256/frozen-prep/negative/same_closure_id_different_instance.zil and same_closure_id_wrong_branch.zil",
+      "frontend_before_fix": "3623d21db0b354ec7e8665c77d72f58a1424013b",
+      "actual": {"phase": "Expand", "category": "Unsupported", "message": "this generic type argument needs additional type resolution"},
+      "resolution_commit": "05953cd411eebdbd3d4f5b34715e7ef1cdfb2d25",
+      "final_expectation": "Expand SafeReject: callable forwarding must return the actual input instance, not a fresh factory environment",
+      "resolution": "Reject a returned known fresh factory/opaque local as a different source; no new opaque factory signature profile. Both frozen negative sources are asserted as SafeReject by the final author test."
+    },
+    {
+      "reporter": "/root/callback_consumer",
+      "scope": "Admitted FnMut-to-F Parameter profile",
+      "actual": {"phase": "Expand", "category": "Unsupported", "message": "callable bound requires its matching environment passing mode"},
+      "resolution_commit": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
+      "final_expectation": "Expand SafeReject: FnMut forwarding call requires a mutable binding",
+      "resolution": "Classify an immutable current call precisely inside the admitted profile; var current remains valid. The old non-F-returning by-value FnMut outer header remains Unsupported and its recorded B0 gap is not counted as a pass."
+    }
+  ],
+  "original_probe_rejection": "evidence/planning/owned-callback-finalR/f-identity/stdout.json remains untouched; it is not overwritten by the new acceptance."
+}

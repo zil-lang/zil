@@ -1,0 +1,1 @@
+{"case":"forwarding","expand_work":1438,"types_work":1556,"types_locals":18,"types_functions":7,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}

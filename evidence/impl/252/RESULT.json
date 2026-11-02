@@ -1,0 +1,261 @@
+{
+  "task": "252",
+  "author": "/root/callback_frontend",
+  "status": "ReadyForIndependentReview",
+  "contract_base": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "tested_source_commit": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
+  "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+  "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+  "scope_contract": "_zil_design.md §9.4.2; spec/interfaces.json callable_forward_251_256; schema31",
+  "dependencies": {
+    "fixed_consumer_commits": [
+      "698d280c368fc420656740cd436460f5a566355f",
+      "56cbd4822a4e543114b580929edaf5b7bb7385e9"
+    ],
+    "root_proposal_commit": "bf7b73da5",
+    "consumer_sources_oracles_unchanged": true,
+    "analyze_verify_backend_merged_by_this_author": false
+  },
+  "implementation_file_sha256": {
+    "crates/zil-driver/tests/impl252_fixtures/original.zil": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+    "crates/zil-driver/tests/impl252_front.rs": "1d51ef1149c4833014e835e4eb73a57ab04597cfc85451b7e91b23b1349650d6",
+    "crates/zil-expand/src/generic_callable.rs": "915724603dff3fecffc3c6b1905ed4bb3655295fb6cdef46529c2e98629c8d7b",
+    "crates/zil-expand/src/generic_check.rs": "b09281fcae0ce09e934dee3cdf4a91b32f66832346393bdda7dd8595b8bf3c11",
+    "crates/zil-expand/src/generics.rs": "1bf135dd82f02cf2f1fc48d3f4144a843412d80b4681cf3995e12667bf117755",
+    "crates/zil-types/src/addresses.rs": "1d21b514dbdcc7766b35f7e08b5ae9853cebfe845963b9be77ff870c93cdd655",
+    "crates/zil-types/src/closures.rs": "e36834a74df78f7762bdf8c1341eb6322fe64603d34c4e66cab342c9ccec43e0",
+    "crates/zil-types/src/forwarding.rs": "84987c42a61ae1bafef0c9c529d0fe2e7f769a38599cadaccf6bc2b141708b1e",
+    "crates/zil-types/src/helper_flow.rs": "dec05f521835d0c9762e62875625c94ba5f5be025960fd0d8c5d98c4765b725e",
+    "crates/zil-types/src/helper_plan.rs": "1dd6b9341e24dde24457ea95b0899fc76b62f0ef97b665041943e3ed74c51ab0",
+    "crates/zil-types/src/helpers.rs": "abfff2a734103eae4836c66415176039c6824dc28e93ce4f4d539ea664c4dfe6",
+    "crates/zil-types/src/inference.rs": "9eb862baab44031242455bc12e6a44dd43473e84b07a9fc09b944d27b258a286",
+    "crates/zil-types/src/lib.rs": "07dbabe661cc259d7c6ea582fabae691c812326addb648c7f6edf018dbd0e831",
+    "crates/zil-types/src/owning_factory.rs": "ee84f3a12d48343353f0b56c7e063645f17c0486ec71cc57639e7bd4bb399214",
+    "crates/zil-types/src/state_origins.rs": "912894a65248acf8b04a04b273d0e5e49174b6ab8a8a038bdee6575414d5ed69"
+  },
+  "original_probe": {
+    "source": "evidence/planning/owned-callback-finalR/f-identity/source.zil",
+    "fixture": "crates/zil-driver/tests/impl252_fixtures/original.zil",
+    "sha256": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+    "byte_identical": true,
+    "old_rejection_untouched": "evidence/planning/owned-callback-finalR/f-identity/stdout.json",
+    "current_author_stage": "Source-to-Types Success"
+  },
+  "actual_final_commands": {
+    "cargo_test_invocations": 1,
+    "selected_test_binaries": 8,
+    "executed_tests": 86,
+    "passed": 86,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "clippy_invocations": 1,
+    "clippy_packages": [
+      "zil-expand",
+      "zil-types"
+    ],
+    "clippy_all_targets": true
+  },
+  "development_test_invocations_including_final": 15,
+  "development_nonpassing_invocations": 5,
+  "failures": "evidence/impl/252/FAILURES.json",
+  "evidence": {
+    "tests": "evidence/impl/252/final-tests.json",
+    "test_log": "evidence/impl/252/final-tests.log",
+    "clippy": "evidence/impl/252/clippy.json",
+    "prior_tested_source": "evidence/impl/252/pre-final-final-tests.json",
+    "fresh_boundaries": "evidence/impl/252/fresh-budgets"
+  },
+  "budgets": {
+    "original_identity": {
+      "expand": 305,
+      "types": 472,
+      "checks": [
+        "N",
+        "N-1 ResourceLimit",
+        "fresh N exact result"
+      ]
+    },
+    "unchanged_old_controls": {
+      "scalar_copy_helper": {
+        "expand": 489,
+        "types": 420
+      },
+      "copy_enum_plus_t": {
+        "expand": 665,
+        "types": 610
+      },
+      "owned_callback_dispatch": {
+        "expand": 1124,
+        "types": 1497
+      },
+      "flat_product": {
+        "types": 418,
+        "analyze": 8673
+      }
+    },
+    "fresh_profiles": [
+      {
+        "case": "conditional",
+        "source": "tools/language/218/budget-sources/conditional.zil",
+        "source_sha256": "a84a0896036f159411f7bed24db38905718e3b0fe1f747f06469ba028ca9c3d0",
+        "current": {
+          "case": "conditional",
+          "expand_work": 818,
+          "types_work": 978,
+          "types_locals": 14,
+          "types_functions": 5,
+          "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+        },
+        "actual_receipt": "evidence/impl/252/fresh-budgets/conditional.json",
+        "reference": "evidence/impl/218/CHECKPOINT-F.json; final log records original conditional Expand818/Types978"
+      },
+      {
+        "case": "forwarding",
+        "source": "tools/language/218/budget-sources/forwarding.zil",
+        "source_sha256": "52d701a4d3ce4d46baf204b958c2b5613f02f3f3031d197862abf9da37d0b198",
+        "current": {
+          "case": "forwarding",
+          "expand_work": 1438,
+          "types_work": 1556,
+          "types_locals": 18,
+          "types_functions": 7,
+          "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+        },
+        "actual_receipt": "evidence/impl/252/fresh-budgets/forwarding.json",
+        "historical_receipt": "evidence/impl/218/FRONTEND-BUDGETS.json",
+        "same_source_as_registered": true,
+        "logical_work_matches_registered": true
+      },
+      {
+        "case": "helper",
+        "source": "tools/language/218/budget-sources/helper.zil",
+        "source_sha256": "0d39319801dac9d8f6307c420dc2d33dfeccec67fd549760d201e6f5b03ad0c9",
+        "current": {
+          "case": "helper",
+          "expand_work": 586,
+          "types_work": 421,
+          "types_locals": 6,
+          "types_functions": 4,
+          "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+        },
+        "actual_receipt": "evidence/impl/252/fresh-budgets/helper.json",
+        "historical_receipt": "evidence/impl/218/FRONTEND-BUDGETS.json",
+        "same_source_as_registered": true,
+        "logical_work_matches_registered": true
+      },
+      {
+        "case": "opaque",
+        "source": "tools/language/218/budget-sources/opaque.zil",
+        "source_sha256": "f6a8f7a274a0aeea329df1174d5eddd2f0b8280770349336480d281aeb5025f9",
+        "current": {
+          "case": "opaque",
+          "expand_work": 3,
+          "types_work": 462,
+          "types_locals": 7,
+          "types_functions": 3,
+          "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+        },
+        "actual_receipt": "evidence/impl/252/fresh-budgets/opaque.json",
+        "historical_receipt": "evidence/impl/218/FRONTEND-BUDGETS.json",
+        "same_source_as_registered": true,
+        "logical_work_matches_registered": true
+      },
+      {
+        "case": "owning",
+        "source": "tools/language/218/budget-sources/owning.zil",
+        "source_sha256": "9935c0c078fed5fe9c9fe511b06c9e5024d9d9bc73afce5a88024208f1ab238a",
+        "current": {
+          "case": "owning",
+          "expand_work": 724,
+          "types_work": 770,
+          "types_locals": 12,
+          "types_functions": 5,
+          "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+        },
+        "actual_receipt": "evidence/impl/252/fresh-budgets/owning.json",
+        "historical_receipt": "evidence/impl/218/FRONTEND-BUDGETS.json",
+        "same_source_as_registered": true,
+        "logical_work_matches_registered": true
+      },
+      {
+        "case": "state",
+        "source": "tools/language/218/budget-sources/state.zil",
+        "source_sha256": "63784cf122e4e0172b97ed02494fb25dfb093f517aaeeca530fd9a725bd49bfa",
+        "current": {
+          "case": "state",
+          "expand_work": 829,
+          "types_work": 1441,
+          "types_locals": 8,
+          "types_functions": 4,
+          "checks": "default == N == fresh N; N-1 phase-specific ResourceLimit"
+        },
+        "actual_receipt": "evidence/impl/252/fresh-budgets/state.json",
+        "historical_receipt": "evidence/impl/218/FRONTEND-BUDGETS.json",
+        "same_source_as_registered": true,
+        "logical_work_matches_registered": true
+      }
+    ],
+    "defaults": "Unchanged",
+    "public_encoding": "Source Fresh/Parameter and Returned schema31 growth is owned by251; no public schema or encoding change by252"
+  },
+  "implementation_notes": [
+    "Parameter admission is separate from original Fresh factory and old container profiles",
+    "Return source uses actual argument index; role cleanup Returned; kind is this callee bound; caller mode recovered from actual argument declaration",
+    "New forward callers are recorded in the existing prepaid dependency walk; mode maps activate before aliases or lazily in concrete callers",
+    "A copied concrete environment is an independent prepared argument; symbol F moves even when instantiated by a physical Copy environment",
+    "Modes.value_mode uses the same Call emit/Modes.record prepaid tree_work+2 allowance for one insertion; no separate uncharged growth",
+    "The new move walk independently checks all unused Parameter definitions, return source, actual mutable positions and branch/loop availability",
+    "Private one-element owning Closure slots preserve source and declared mode; no new source F container admission",
+    "Owned result cleanup classification inspects qualified captures by reference rather than deep cloning their type"
+  ],
+  "toolchain": {
+    "rustc_vv": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "environment": {
+      "CARGO_TARGET_DIR": "/workspace/.zil-env/target-252",
+      "CARGO_BUILD_JOBS": 2,
+      "CARGO_PROFILE_DEV_DEBUG": 0,
+      "CARGO_PROFILE_TEST_DEBUG": 0,
+      "CARGO_INCREMENTAL": 0,
+      "dependencies": "--offline --locked"
+    }
+  },
+  "evidence_limits": {
+    "author_new_forward_native_executions": 0,
+    "independent_kernels_wire_native": "253–256 separate receipts; not added to the author 86 tests",
+    "formal_full_suite": "NotRun by implementer",
+    "main_merge_push": "Not performed",
+    "old_non_F_returning_by_value_FnMut": "Still Unsupported; original frozen negative/history retained by256/B0, not reported as semantic Pass",
+    "global_handoff": "Not used as new contract authority: main pending PR18/metadata is distinct from fixed8d contract"
+  },
+  "artifact_sha256": {
+    "evidence/impl/252/clippy.log": "82b7aa1f1b99847b187db1c36dfc27f98b1d233d53c488d168b9d8fe4ff9726f",
+    "evidence/impl/252/clippy.json": "20523b1a8491a4fdcf75d9f91fc8a92b1b1b27d43b1fa828b68cb5e2d48441b5",
+    "evidence/impl/252/FAILURES.json": "166531fba0925dde5f39fdb782b6eaf0671008a2aab0f1ee6ab5e55e6502c227",
+    "evidence/impl/252/README.md": "2dab03b20b6492a2193afabd0928f0457b10d953890b628120ea55b117c890a1",
+    "evidence/impl/252/final-tests.log": "e2738603c21fd2e04ed1f48499488507dfd7d7afa643435011ef7be7d74915de",
+    "evidence/impl/252/pre-final-final-tests.log": "6e85e3691e1afe5d4572bbf4f4108e82d31688681e5b76369f01267f49c2d1db",
+    "evidence/impl/252/pre-final-final-tests.json": "e71a64a898bfcfbe46cf0f25f1032741391e7e1123fda457e765d76a0bf15bc1",
+    "evidence/impl/252/final-tests.json": "d975ab92101b84a2ea43afd334fec7d62ee41e40ae6c4b45eab13bf5ccc0ebaa",
+    "evidence/impl/252/fresh-budgets/conditional.core.txt": "ed150dd10f20fadffbd1d1b8efa80f7435202000dbbeca867ce5536af4fa7bf6",
+    "evidence/impl/252/fresh-budgets/owning.core.txt": "43e3447636fd09ef3d47f30873fab09937306eba8902f9c8237f0a8caac07f53",
+    "evidence/impl/252/fresh-budgets/state.json": "ca193e01ed102b12d33a1f7e38f99226128ded0e0c3bbf3e5a123aea7563faa8",
+    "evidence/impl/252/fresh-budgets/opaque.json": "331e177c47bae5e3ae4d3619f32b93ea2a7bb5097d0fc6c2911ad28d47f705e6",
+    "evidence/impl/252/fresh-budgets/opaque.typed.txt": "a57f8de8bae483e8f6cc78f5dc2194232f6cc83762deb8a031145541934da753",
+    "evidence/impl/252/fresh-budgets/owning.typed.txt": "32790038982c91b4a6a057bd3386458f3047949b99e816c8ca9a8497d8e95909",
+    "evidence/impl/252/fresh-budgets/helper.json": "11620bf3b7979b6d87af75c690abbdceacd26aa585dda3ebb17a1dc5c8a96c45",
+    "evidence/impl/252/fresh-budgets/forwarding.json": "4e4ae54d856021fabaf0f3af1e774fe3d547fe0a714ac670a4c09e7753678af5",
+    "evidence/impl/252/fresh-budgets/state.core.txt": "747f351b4ae6e4e69332b67e2caff3a4a35952b34c31786c1fc81e9041584fc7",
+    "evidence/impl/252/fresh-budgets/forwarding.core.txt": "4154469ae4b446a54a22cfdc28c88977d9c9537180db8caf1737d6c29d1834aa",
+    "evidence/impl/252/fresh-budgets/helper.core.txt": "cc3d4704799440cd4f707311672fae22d59a1a5077981982c78531a39709a3e6",
+    "evidence/impl/252/fresh-budgets/forwarding.typed.txt": "969f2793c06287d74d1f9e3fd75bc442a3404b36689964e6bba59a6d91d7fd22",
+    "evidence/impl/252/fresh-budgets/owning.json": "38a2513154a1d9caf1b75c0ecede6e8a40bf458d744e888cb5bfd32e99e20a21",
+    "evidence/impl/252/fresh-budgets/helper.typed.txt": "83569c126bd19c8e8c07aee240ba4e6455a97ec610ece2cd8591fb57ea0866f4",
+    "evidence/impl/252/fresh-budgets/opaque.core.txt": "3111c442490926092fc5277be27ce3ce90cfc05cf37dacc5431b698d744fcd3e",
+    "evidence/impl/252/fresh-budgets/conditional.typed.txt": "0e658b339f227b7e5dc6f2ca5337d2f0876ae5967a92bab15dfba02de39db7ac",
+    "evidence/impl/252/fresh-budgets/conditional.json": "76b004b0cf7acd7cd080d481a926f041163936d1aa012e7e7279bfc655828d58",
+    "evidence/impl/252/fresh-budgets/state.typed.txt": "54cf3ddc4fcee620ea1b4eb7568ef3b20d5eb3218e0246d94ef5f7a589b9fc7f"
+  },
+  "rust_goals": "See README.md; finite safety/expressibility and measured budgets only; no Rust runtime/RSS/compile-speed or full product gate claim"
+}
