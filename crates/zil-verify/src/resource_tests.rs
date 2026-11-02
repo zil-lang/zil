@@ -754,7 +754,7 @@ fn resource_registry_growth_charges_each_type_and_constructor_use() {
             };
             let result = match check {
                 0 => check_function_signature_type(m, &owned(), Some(span()), &mut budget),
-                1 => check_local_type(&owned(), Some(span()), m, &mut budget),
+                1 => check_local_type(&owned(), Some(span()), m, &mut budget).map(|_| ()),
                 _ => check_instruction(
                     m,
                     &m.functions[0],

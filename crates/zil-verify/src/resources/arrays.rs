@@ -69,9 +69,9 @@ pub(crate) fn check_internal_single_slot_type_for(
     ty: &Type,
     span: Option<Span>,
     budget: &mut Budget,
-) -> Check<()> {
+) -> Check<bool> {
     let rejected = match check_type_for(module, ty, span, budget) {
-        Ok(()) => return Ok(()),
+        Ok(()) => return Ok(false),
         Err(rejected) => rejected,
     };
     if rejected.category != zil_base::ResultCategory::Unsupported {
@@ -88,7 +88,8 @@ pub(crate) fn check_internal_single_slot_type_for(
         return Err(rejected);
     }
     budget.spend(1)?;
-    closures::self_contained(module, *id, budget)
+    closures::self_contained(module, *id, budget)?;
+    Ok(true)
 }
 
 fn owning_slot(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<Option<ClosureId>> {
@@ -115,364 +116,199 @@ fn owning_slot(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<Op
     )
 }
 
-fn reaches(edges: &[Vec<usize>], source: usize, target: usize, budget: &mut Budget) -> Check<bool> {
-    budget.spend(edges.len().saturating_mul(2))?;
-    let mut visited = vec![false; edges.len()];
-    let mut pending = vec![source];
-    visited[source] = true;
-    while let Some(node) = pending.pop() {
-        budget.spend(edges[node].len().saturating_add(1))?;
-        if node == target {
-            return Ok(true);
+/// Classify every operation that names a private Array<Closure; 1> local.
+/// A new local opcode cannot borrow the shell or put it in an aggregate by
+/// accident: it must be added here only after its boundary is independently
+/// checked.
+fn private_slot_access(kind: &InstructionKind, slot: LocalId) -> Option<bool> {
+    match kind {
+        InstructionKind::StorageLive(local)
+        | InstructionKind::StorageDead(local)
+        | InstructionKind::Store { local, .. }
+        | InstructionKind::TakeLocal { local }
+        | InstructionKind::TakeOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArrayElement { local, .. }
+        | InstructionKind::StoreOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArray { local }
+        | InstructionKind::BorrowOwnedArrayElement { local, .. }
+            if *local == slot =>
+        {
+            Some(true)
         }
-        for &next in &edges[node] {
-            if !visited[next] {
-                visited[next] = true;
-                pending.push(next);
-            }
+        InstructionKind::RegisterDefer { local, .. }
+        | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::ProjectOwnedArrayField { local, .. }
+        | InstructionKind::BorrowPackageField { local, .. }
+        | InstructionKind::ReadPackageField { local, .. }
+        | InstructionKind::DescribePackageField { local, .. }
+        | InstructionKind::DropPackage { local }
+        | InstructionKind::TakePackageField { local, .. }
+        | InstructionKind::DropPackageField { local, .. }
+        | InstructionKind::StorePackageField { local, .. }
+        | InstructionKind::BindPackageCapture { local, .. }
+        | InstructionKind::EndPackageCapture { local, .. }
+        | InstructionKind::DescribeLocal { local }
+        | InstructionKind::DropManaged { local }
+        | InstructionKind::Load(local)
+        | InstructionKind::BorrowLocal { local }
+        | InstructionKind::BorrowLocalMut { local }
+        | InstructionKind::VariantTagLocal { local, .. }
+        | InstructionKind::ReadVariantLocal { local, .. }
+        | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::DropEnum { local }
+        | InstructionKind::CallClosureShared { callee: local, .. }
+        | InstructionKind::CallClosureMut { callee: local, .. }
+        | InstructionKind::DropClosure { local }
+            if *local == slot =>
+        {
+            Some(false)
         }
+        InstructionKind::UnpackVariant { fields, .. } if fields.contains(&slot) => Some(false),
+        _ => None,
     }
-    Ok(false)
 }
 
-/// A slot qualifier must follow the current value of a local at each CFG
-/// point. A global Store/TakeLocal graph would splice together two distinct
-/// writes to the same local and confuse a discarded instance with a fresh one.
-fn actual_slot_call(
-    module: &TypedModule,
-    f: &TypedFunction,
-    graph: &FunctionGraph,
-    slot: LocalId,
-    budget: &mut Budget,
-) -> Check<bool> {
-    let blocks = f.blocks.len();
-    let width = f
-        .locals
-        .len()
-        .checked_add(f.values.len())
-        .ok_or_else(|| limit("internal slot provenance width overflow"))?;
-    let instructions = f.blocks.iter().try_fold(0usize, |n, b| {
-        n.checked_add(b.instructions.len())
-            .ok_or_else(|| limit("internal slot instruction count overflow"))
-    })?;
-    let edges = graph.successors.iter().try_fold(0usize, |n, row| {
-        n.checked_add(row.len())
-            .ok_or_else(|| limit("internal slot edge count overflow"))
-    })?;
-    // Boolean inputs only grow at a join. At most blocks*width entries can
-    // change, so this prepays every possible worklist scan and merge.
-    let visits = blocks
-        .checked_mul(width)
-        .and_then(|n| n.checked_add(1))
-        .ok_or_else(|| limit("internal slot fixed-point bound overflow"))?;
-    let work = visits
-        .checked_mul(
-            instructions
-                .saturating_add(edges.saturating_mul(width))
-                .saturating_add(width),
-        )
-        .ok_or_else(|| limit("internal slot work bound overflow"))?;
-    budget.spend(work)?;
-    let at = |value: ValueId| f.locals.len() + value.0 as usize;
-    let mut inputs = vec![None::<Vec<bool>>; blocks];
-    let mut pending = std::collections::VecDeque::new();
-    let mut queued = vec![false; blocks];
-    inputs[f.entry.0 as usize] = Some(vec![false; width]);
-    pending.push_back(f.entry.0 as usize);
-    queued[f.entry.0 as usize] = true;
-    while let Some(index) = pending.pop_front() {
-        queued[index] = false;
-        let mut state = inputs[index].as_ref().unwrap().clone();
-        for instruction in &f.blocks[index].instructions {
-            let result = instruction.result.map(at);
-            let mut output = false;
-            match &instruction.kind {
-                InstructionKind::Store { local, value } => {
-                    state[local.0 as usize] = state[at(*value)];
-                    state[at(*value)] = false;
-                }
-                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                    output = state[local.0 as usize];
-                    if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
-                        state[local.0 as usize] = false;
-                    }
-                }
-                InstructionKind::TakeOwnedArrayElement { local, index: 0 } => {
-                    output = *local == slot || state[local.0 as usize];
-                    state[local.0 as usize] = false;
-                }
-                InstructionKind::MakeOwnedArray { elements } if elements.len() == 1 => {
-                    output = state[at(elements[0])];
-                    state[at(elements[0])] = false;
-                }
-                InstructionKind::StoreOwnedArrayElement {
-                    local,
-                    index: 0,
-                    value,
-                } => {
-                    state[local.0 as usize] = state[at(*value)];
-                    state[at(*value)] = false;
-                }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
-                    let target = &module.functions[function.0 as usize];
-                    if let Some(contract) = &target.callable_return_contract
-                        && let CallableReturnSource::Parameter(position) = contract.source
-                        && let Some(actual) = arguments.get(position as usize)
-                    {
-                        if state[at(*actual)] {
-                            return Ok(true);
-                        }
-                        output = state[at(*actual)];
-                    }
-                    for actual in arguments {
-                        state[at(*actual)] = false;
-                    }
-                }
-                InstructionKind::StorageLive(local)
-                | InstructionKind::StorageDead(local)
-                | InstructionKind::DropClosure { local }
-                | InstructionKind::DropOwnedArray { local }
-                | InstructionKind::DropOwnedArrayElement { local, .. } => {
-                    state[local.0 as usize] = false;
-                }
-                _ => {}
-            }
-            if let Some(result) = result {
-                state[result] = output;
-            }
-        }
-        for &next in &graph.successors[index] {
-            if !graph.reachable[next] {
-                continue;
-            }
-            let changed = if let Some(input) = &mut inputs[next] {
-                let mut changed = false;
-                for (existing, incoming) in input.iter_mut().zip(&state) {
-                    if *incoming && !*existing {
-                        *existing = true;
-                        changed = true;
-                    }
-                }
-                changed
-            } else {
-                inputs[next] = Some(state.clone());
-                true
-            };
-            if changed && !queued[next] {
-                queued[next] = true;
-                pending.push_back(next);
-            }
-        }
-    }
-    Ok(false)
-}
-
-/// An ordinary caller may use the already checked single-slot lowering only
-/// when a real Parameter-return call transfers that slot's element out. The
-/// returned instance may move to another local or slot. The per-instruction
-/// resource/borrow passes still prove ownership, live flags and old loans.
-/// A forwarding function instead receives a separate path-sensitive proof in
-/// retained::provenance. No module-level marker can grant this qualification.
+/// The mutable-closure lowering has exactly one private owning cell. This
+/// gate classifies its carrier and allowed operations; it never grants source
+/// identity from a nearby helper call. Responsibility, element liveness and
+/// old borrowed addresses are independently checked by resources and borrows.
+/// In a Parameter-return function retained::provenance additionally proves
+/// the exact F instance on every Return. Public array, capture, State and
+/// Store signatures still use the older callback container gate.
 pub(crate) fn check_internal_slot_uses(
     module: &TypedModule,
     f: &TypedFunction,
-    graph: &FunctionGraph,
+    _graph: &FunctionGraph,
     budget: &mut Budget,
 ) -> Check<()> {
     budget.spend(f.locals.len().saturating_add(f.values.len()))?;
-    let mut slots = Vec::new();
+    let mut slots = vec![false; f.locals.len()];
+    let mut values = vec![false; f.values.len()];
     for local in &f.locals {
-        if let Some(id) = owning_slot(module, &local.ty, budget)? {
-            slots.push((local.id, id));
-        }
+        slots[local.id.0 as usize] = owning_slot(module, &local.ty, budget)?.is_some();
     }
-    let mut array_values = Vec::new();
     for (index, ty) in f.values.iter().enumerate() {
-        if owning_slot(module, ty, budget)?.is_some() {
-            array_values.push(ValueId(index as u32));
-        }
+        values[index] = owning_slot(module, ty, budget)?.is_some();
     }
-    if slots.is_empty() && array_values.is_empty() {
+    if !slots.iter().any(|slot| *slot) && !values.iter().any(|value| *value) {
         return Ok(());
     }
-    if f.foreign.is_some() || f.environment.is_some() {
-        return Err(unsupported(
-            "owning callback internal slot requires an ordinary checked caller",
-            Some(f.span),
+    budget.spend(
+        slots
+            .len()
+            .saturating_mul(3)
+            .saturating_add(values.len().saturating_mul(3))
+            .saturating_add(f.parameters.len()),
+    )?;
+    let bad = |message| unsupported(message, Some(f.span));
+    if f.foreign.is_some()
+        || f.parameters.iter().any(|id| slots[id.0 as usize])
+        || owning_slot(module, &f.return_type, budget)?.is_some()
+    {
+        return Err(bad(
+            "owning callback array cannot cross a function boundary",
         ));
     }
-    let width = f
-        .locals
-        .len()
-        .checked_add(f.values.len())
-        .ok_or_else(|| limit("internal callback slot graph width overflow"))?;
-    let instructions = f.blocks.iter().map(|b| b.instructions.len()).sum::<usize>();
-    budget.spend(width.saturating_add(instructions.saturating_mul(3)))?;
-    let at = |value: ValueId| f.locals.len() + value.0 as usize;
-    let mut edges = vec![Vec::new(); width];
-    let mut calls = Vec::new();
-    let mut refills = Vec::new();
-    let mut takes = Vec::new();
-    let mut stores = Vec::new();
-    let mut constructions = Vec::new();
-    for (index, block) in f.blocks.iter().enumerate() {
-        if !graph.reachable[index] {
-            continue;
+    let instructions = f.blocks.iter().try_fold(0usize, |n, block| {
+        n.checked_add(block.instructions.len())
+            .ok_or_else(|| limit("private callback slot instruction count overflow"))
+    })?;
+    budget.spend(
+        instructions
+            .checked_add(f.blocks.len().saturating_mul(2))
+            .ok_or_else(|| limit("private callback slot preflight overflow"))?,
+    )?;
+    let mut initialized = vec![false; slots.len()];
+    let mut stored = vec![false; values.len()];
+    for block in &f.blocks {
+        if let Terminator::Return(Some(value)) = block.terminator
+            && values[value.0 as usize]
+        {
+            return Err(bad("private callback array cannot be returned"));
         }
         for instruction in &block.instructions {
-            budget.spend(1)?;
-            match &instruction.kind {
-                InstructionKind::Store { local, value } => {
-                    edges[at(*value)].push(local.0 as usize);
-                    stores.push((*local, *value));
-                }
-                InstructionKind::MakeOwnedArray { elements }
-                    if elements.len() == 1 && instruction.result.is_some() =>
-                {
-                    constructions.push((elements[0], instruction.result.unwrap()));
-                }
-                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                    if let Some(value) = instruction.result {
-                        edges[local.0 as usize].push(at(value));
-                    }
-                }
-                InstructionKind::TakeOwnedArrayElement { local, index: 0 } => {
-                    if let Some(value) = instruction.result {
-                        takes.push((*local, value));
-                    }
-                }
-                InstructionKind::StoreOwnedArrayElement {
-                    local,
-                    index: 0,
-                    value,
-                } => {
-                    refills.push((*local, *value));
-                }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
-                    let target = &module.functions[function.0 as usize];
-                    if let Some(contract) = &target.callable_return_contract
-                        && let CallableReturnSource::Parameter(position) = contract.source
-                        && let (Some(actual), Some(result)) =
-                            (arguments.get(position as usize), instruction.result)
-                    {
-                        calls.push((*actual, result));
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    let forwarding = f
-        .callable_return_contract
-        .as_ref()
-        .is_some_and(|contract| matches!(contract.source, CallableReturnSource::Parameter(_)));
-    budget.spend(
-        slots.len().saturating_mul(
-            takes
-                .len()
-                .saturating_add(refills.len())
-                .saturating_add(calls.len())
-                .saturating_add(constructions.len())
-                .saturating_add(1),
-        ),
-    )?;
-    for &(slot, id) in &slots {
-        if forwarding && f.return_type == Type::Closure(id) {
-            let CallableReturnSource::Parameter(position) =
-                f.callable_return_contract.as_ref().unwrap().source
-            else {
-                unreachable!()
+            // The iterator's upper size hint is O(1) from the already
+            // bounded operand vectors. Charge it before traversing values;
+            // the extra field term covers UnpackVariant's local-id scan.
+            let operand_bound = instruction_operands(&instruction.kind)
+                .size_hint()
+                .1
+                .ok_or_else(|| limit("private callback operand bound unavailable"))?;
+            let fields = match &instruction.kind {
+                InstructionKind::UnpackVariant { fields, .. } => fields.len(),
+                _ => 0,
             };
-            let formal = f.parameters.get(position as usize).ok_or_else(|| {
-                reject(
-                    "E-VERIFY-OWNED-ARRAY",
-                    Some(f.span),
-                    "forwarded slot has no actual formal",
+            budget.spend(
+                slots
+                    .len()
+                    .saturating_mul(fields.saturating_add(1))
+                    .saturating_add(operand_bound)
+                    .saturating_add(3),
+            )?;
+            for (index, &slot) in slots.iter().enumerate() {
+                if slot
+                    && let Some(false) =
+                        private_slot_access(&instruction.kind, LocalId(index as u32))
+                {
+                    return Err(bad(
+                        "private callback array uses an unsupported local operation",
+                    ));
+                }
+            }
+            if let Some(result) = instruction.result
+                && values[result.0 as usize]
+                && !matches!(
+                    instruction.kind,
+                    InstructionKind::MakeOwnedArray { .. } | InstructionKind::TakeLocal { .. }
                 )
-            })?;
-            if takes.iter().any(|(local, _)| *local == slot) {
-                let mut actual = false;
-                for &(element, array) in &constructions {
-                    if f.values[array.0 as usize] != f.locals[slot.0 as usize].ty
-                        || !reaches(&edges, formal.0 as usize, at(element), budget)?
-                    {
-                        continue;
-                    }
-                    for &(local, value) in &stores {
-                        if local == slot && reaches(&edges, at(array), at(value), budget)? {
-                            actual = true;
-                            break;
-                        }
-                    }
-                    if actual {
-                        break;
-                    }
-                }
-                if actual {
-                    continue; // retained::provenance checks every path and return.
-                }
-            }
-            let mut direct_refill = false;
-            for &(local, value) in &refills {
-                if local == slot && reaches(&edges, formal.0 as usize, at(value), budget)? {
-                    direct_refill = true;
-                    break;
-                }
-            }
-            if direct_refill && takes.iter().any(|(local, _)| *local == slot) {
-                continue;
-            }
-            if let Err(old_gate) =
-                closures::old_container_signature(module, id, Some(f.span), budget)
             {
-                return Err(old_gate);
+                return Err(bad(
+                    "private callback array has an unsupported SSA producer",
+                ));
             }
-            return Err(unsupported(
-                "forwarded F array is not its actual internal parameter slot",
-                Some(f.span),
-            ));
-        }
-        if !actual_slot_call(module, f, graph, slot, budget)? {
-            if let Err(old_gate) =
-                closures::old_container_signature(module, id, Some(f.span), budget)
-            {
-                return Err(old_gate);
+            for operand in instruction_operands(&instruction.kind) {
+                if !values[operand.0 as usize] {
+                    continue;
+                }
+                let InstructionKind::Store { local, value } = instruction.kind else {
+                    return Err(bad(
+                        "private callback array cannot enter a call, capture or aggregate",
+                    ));
+                };
+                if operand != value || !slots[local.0 as usize] {
+                    return Err(bad(
+                        "private callback array must be stored in a matching local cell",
+                    ));
+                }
+                initialized[local.0 as usize] = true;
+                stored[value.0 as usize] = true;
             }
-            return Err(unsupported(
-                "owning callback array is not an internal slot of an actual Parameter-return call",
-                Some(f.span),
-            ));
         }
     }
-    for value in array_values {
-        let mut stored = false;
-        for &(local, actual) in &stores {
-            if slots.iter().any(|(slot, _)| *slot == local)
-                && reaches(&edges, at(value), at(actual), budget)?
-            {
-                stored = true;
-                break;
-            }
+    if let Some((index, _)) = slots
+        .iter()
+        .enumerate()
+        .find(|(i, slot)| **slot && !initialized[*i])
+    {
+        if let Type::Array { element, .. } = &f.locals[index].ty
+            && let Type::Closure(id) = element.as_ref()
+            && let Err(old_gate) =
+                closures::old_container_signature(module, *id, Some(f.span), budget)
+        {
+            return Err(old_gate);
         }
-        if !stored {
-            if let Type::Array { element, .. } = &f.values[value.0 as usize]
-                && let Type::Closure(id) = element.as_ref()
-                && let Err(old_gate) =
-                    closures::old_container_signature(module, *id, Some(f.span), budget)
-            {
-                return Err(old_gate);
-            }
-            return Err(unsupported(
-                "owning callback array value must enter its checked internal slot",
-                Some(f.span),
-            ));
-        }
+        return Err(bad(
+            "private callback array must have an actual local carrier",
+        ));
+    }
+    if values
+        .iter()
+        .enumerate()
+        .any(|(i, &value)| value && !stored[i])
+    {
+        return Err(bad(
+            "private callback array must have an actual local carrier",
+        ));
     }
     Ok(())
 }
