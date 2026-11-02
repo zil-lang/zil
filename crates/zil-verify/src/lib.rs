@@ -74,6 +74,7 @@ mod resources;
 mod retained;
 #[cfg(test)]
 mod retained_tests;
+mod scoped_callback;
 mod slices;
 mod sums;
 pub use ct_artifact::{
@@ -236,6 +237,7 @@ struct Budget {
     function_count: usize,
     current_function: Option<usize>,
     private_slot_functions: Option<Vec<bool>>,
+    scoped_functions: Option<Vec<bool>>,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -247,6 +249,7 @@ impl Budget {
             function_count: 0,
             current_function: None,
             private_slot_functions: None,
+            scoped_functions: None,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -578,6 +581,14 @@ fn check_module(
                     | InstructionKind::CallClosureBorrowed { arguments, .. }
                     | InstructionKind::CallIndirect { arguments, .. } => {
                         budget.spend(arguments.len().saturating_add(1))?
+                    }
+                    InstructionKind::WithForeignCallback { .. } => {
+                        budget.spend(3)?;
+                        if budget.scoped_functions.is_none() {
+                            budget.spend(budget.function_count)?;
+                            budget.scoped_functions = Some(vec![false; budget.function_count]);
+                        }
+                        budget.scoped_functions.as_mut().unwrap()[index] = true;
                     }
                     InstructionKind::MakeClosure { captures, .. } => {
                         budget.spend(captures.len())?
@@ -1431,6 +1442,9 @@ fn check_instruction(
             } else {
                 (**result).clone()
             })
+        }
+        InstructionKind::WithForeignCallback { .. } => {
+            scoped_callback::instruction(module, function, instruction, budget)?
         }
         InstructionKind::ForeignCall {
             function: callee,
@@ -2517,6 +2531,9 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::ByteBufferNew
         | InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::Unsupported(_) => ([None, None], &[]),
+        InstructionKind::WithForeignCallback { callback, body, .. } => {
+            ([Some(*callback), Some(*body)], &[])
+        }
         InstructionKind::OwnedStoreReserve { store, capacity } => {
             ([Some(*store), Some(*capacity)], &[])
         }

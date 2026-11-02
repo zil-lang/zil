@@ -336,6 +336,7 @@ fn dce_external(module: &mut Module, source: &mut LirModule, trap: bool) {
             symbol: name.into(),
             noescape_parameters: vec![],
             static_callbacks: false,
+            scoped_callback: None,
         });
         source.functions.push(foreign);
     }

@@ -14,6 +14,7 @@ mod callable_fields;
 mod defer_tests;
 mod defers;
 mod dynamic_store;
+mod foreign_scoped;
 mod forward;
 mod helpers;
 mod holds;
@@ -93,6 +94,7 @@ fn analyze_budgeted(
             holds: Vec::new(),
         });
     }
+    foreign_scoped::check(module, &hold_graphs, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }

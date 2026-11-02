@@ -1660,6 +1660,29 @@ impl Transfer<'_> {
                         fresh_result = Some(INPUT);
                     }
                 }
+                InstructionKind::WithForeignCallback { callback, body, .. } => {
+                    // Even registration failure consumes and cleans the prepared body.
+                    for callee in [callback, body] {
+                        if let Some(row) = slots.desc_value[callee.0 as usize] {
+                            let ty = &f.values[callee.0 as usize];
+                            let entry = effect_closure_target(self.module, ty, span)?;
+                            budget.spend(self.effects[entry].len())?;
+                            if self.effects[entry]
+                                .iter()
+                                .any(|root| matches!(root, Root::BorrowedCapture(_)))
+                            {
+                                self.write_roots(
+                                    &state.desc[row],
+                                    written,
+                                    span,
+                                    validate,
+                                    budget,
+                                )?;
+                            }
+                        }
+                    }
+                    self.consume(state, *body, span, validate)?;
+                }
                 InstructionKind::CallClosureBorrowed {
                     callee, arguments, ..
                 } => {
@@ -2041,6 +2064,24 @@ fn effect_dependents(
             }
             for instruction in &block.instructions {
                 budget.spend(1)?;
+                if let InstructionKind::WithForeignCallback { callback, body, .. } =
+                    instruction.kind
+                {
+                    for value in [callback, body] {
+                        let ty = function.values.get(value.0 as usize).ok_or_else(|| {
+                            bad(instruction.span, "scoped callback operand is absent")
+                        })?;
+                        let dependency = effect_closure_target(module, ty, instruction.span)?;
+                        let rows = dependents.get_mut(dependency).ok_or_else(|| {
+                            bad(instruction.span, "scoped callback closure entry is absent")
+                        })?;
+                        if rows.last() != Some(&user) {
+                            budget.spend(2)?;
+                            rows.push(user);
+                        }
+                    }
+                    continue;
+                }
                 let dependency = match &instruction.kind {
                     InstructionKind::Call { function, .. } => {
                         let callee =

@@ -230,6 +230,61 @@ fn actual_call(
     }))
 }
 
+fn scoped_event(
+    origin: u8,
+    wanted: CallableKind,
+    borrowed: bool,
+    roles: &[CallableRole],
+) -> CompileResult<Option<CallEvent>> {
+    let Some(index) = parameter_invocation(origin, borrowed)? else {
+        return Ok(None);
+    };
+    let role = roles
+        .get(index)
+        .ok_or_else(|| bad("scoped call has no actual callable role"))?;
+    if !crate::forward::compatible(role.kind, wanted) {
+        return Err(bad("scoped call upgrades its original callable role"));
+    }
+    Ok(Some(CallEvent {
+        parameter: role.parameter,
+        kind: wanted,
+    }))
+}
+
+fn once_paths(rows: &[Row], roles: &BTreeSet<u32>, budget: &mut Budget) -> CompileResult<()> {
+    for role in roles {
+        budget.product(rows.len(), 2, 1, "scoped once-role path states")?;
+        let mut seen = vec![[false; 2]; rows.len()];
+        let mut pending = VecDeque::from([(0usize, false)]);
+        seen[0][0] = true;
+        while let Some((index, invoked)) = pending.pop_front() {
+            budget.spend(
+                rows[index].calls.len().saturating_add(1),
+                "scoped once-role events",
+            )?;
+            let count = rows[index]
+                .calls
+                .iter()
+                .filter(|event| event.parameter == *role)
+                .count();
+            if count > usize::from(!invoked) {
+                return Err(bad("scoped helper can invoke a consumed body role again"));
+            }
+            let invoked = invoked || count != 0;
+            if let End::Links(next) = &rows[index].end {
+                for target in next {
+                    budget.spend(1, "scoped once-role edge")?;
+                    if !seen[*target][usize::from(invoked)] {
+                        seen[*target][usize::from(invoked)] = true;
+                        pending.push_back((*target, invoked));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn check(
     module: &TypedModule,
@@ -258,6 +313,8 @@ pub(super) fn check(
         (Vec::new(), Vec::new())
     };
     let mut counts = Counts::default();
+    let mut scoped_bodies = BTreeSet::new();
+    let mut has_scoped = false;
     counts.add(function.blocks.len(), 0, 0, budget)?;
     let mut rows: Vec<_> = (0..function.blocks.len())
         .map(|_| Row {
@@ -281,7 +338,53 @@ pub(super) fn check(
             } else {
                 (&locals[..], &values[..])
             };
-            if let Some(child) = forwarded(
+            if let InstructionKind::WithForeignCallback { callback, body, .. } = instruction.kind {
+                has_scoped = true;
+                let f = scoped_event(
+                    values[callback.0 as usize],
+                    CallableKind::FnMut,
+                    true,
+                    &claim.roles,
+                )?;
+                let b = scoped_event(
+                    values[body.0 as usize],
+                    CallableKind::FnOnce,
+                    false,
+                    &claim.roles,
+                )?;
+                if let Some(b) = &b {
+                    budget.lookup(scoped_bodies.len(), "scoped actual body role")?;
+                    scoped_bodies.insert(b.parameter);
+                }
+                counts.add(
+                    4,
+                    usize::from(f.is_some()) * 2 + usize::from(b.is_some()),
+                    10,
+                    budget,
+                )?;
+                let before = rows.len();
+                let body = before + 1;
+                let after = before + 2;
+                let continuation = before + 3;
+                rows[output].end = End::Links(vec![before, body, continuation]);
+                rows.push(Row {
+                    calls: f.into_iter().collect(),
+                    end: End::Links(vec![before, body, continuation]),
+                });
+                rows.push(Row {
+                    calls: b.into_iter().collect(),
+                    end: End::Links(vec![after, continuation]),
+                });
+                rows.push(Row {
+                    calls: f.into_iter().collect(),
+                    end: End::Links(vec![after, continuation]),
+                });
+                rows.push(Row {
+                    calls: vec![],
+                    end: End::Undefined,
+                });
+                output = continuation;
+            } else if let Some(child) = forwarded(
                 module,
                 function,
                 instruction,
@@ -290,6 +393,40 @@ pub(super) fn check(
                 checked,
                 budget,
             )? {
+                if let InstructionKind::Call {
+                    function: callee, ..
+                } = instruction.kind
+                    && !budget.scoped_helper_bodies.is_empty()
+                {
+                    budget.lookup(
+                        budget.scoped_helper_bodies.len(),
+                        "scoped child consumed roles lookup",
+                    )?;
+                    if let Some(n) = budget.scoped_helper_bodies.get(&callee).map(BTreeSet::len) {
+                        has_scoped = true;
+                        budget.product(
+                            n,
+                            child.roles.len().saturating_add(1),
+                            1,
+                            "scoped child consumed role substitution",
+                        )?;
+                        let bodies: Vec<_> = budget.scoped_helper_bodies[&callee]
+                            .iter()
+                            .copied()
+                            .collect();
+                        for body in bodies {
+                            let parent = child
+                                .roles
+                                .iter()
+                                .find_map(|(from, to)| (*from == body).then_some(*to))
+                                .ok_or_else(|| {
+                                    bad("scoped child body has no actual parent role")
+                                })?;
+                            budget.lookup(scoped_bodies.len(), "scoped parent consumed role")?;
+                            scoped_bodies.insert(parent);
+                        }
+                    }
+                }
                 let (entry, continuation) = append_child(&mut rows, &child, &mut counts, budget)?;
                 rows[output].end = End::Links(vec![entry]);
                 output = continuation;
@@ -324,6 +461,23 @@ pub(super) fn check(
         };
     }
     let rows = numbered(rows, function.entry.0 as usize, budget)?;
+    if has_scoped {
+        budget.spend(claim.roles.len(), "scoped original once-role inventory")?;
+        for role in &claim.roles {
+            if role.kind == CallableKind::FnOnce {
+                scoped_bodies.insert(role.parameter);
+            }
+        }
+        once_paths(&rows, &scoped_bodies, budget)?;
+        budget.spend(scoped_bodies.len(), "scoped consumed role publication")?;
+        budget.lookup(
+            budget.scoped_helper_bodies.len(),
+            "scoped helper publication",
+        )?;
+        budget
+            .scoped_helper_bodies
+            .insert(function.id, scoped_bodies);
+    }
     let n = rows.len();
     budget.product(n, 3, 1, "helper cycle frontier")?;
     let mut predecessors = vec![0usize; n];
@@ -356,7 +510,8 @@ pub(super) fn check(
         }
     }
     if ordered.len() != n {
-        if precise.is_none()
+        if !has_scoped
+            && precise.is_none()
             && claim
                 .roles
                 .iter()

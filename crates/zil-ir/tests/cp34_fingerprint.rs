@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/cp34_instruction_cases.rs"]
 mod cases;
-#[path = "support/cp34_legacy_v31.rs"]
+#[path = "support/cp34_reference_v32.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -276,6 +276,7 @@ fn module(flag: bool) -> TypedModule {
                 symbol: "foreign-名".into(),
                 noescape_parameters: vec![2, 5],
                 static_callbacks: i % 2 == 0,
+                scoped_callback: None,
             }),
             environment: flag.then_some(ClosureId(i as u32)),
             parameters: vec![LocalId(0), LocalId(2)],
@@ -465,7 +466,7 @@ fn callable_public_fingerprints_keep_the_original_vec_contracts() {
 fn defer227_domain_rejects_v27_identity_even_with_the_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 27;
-    let mut old_domain = legacy::bytes(&input);
+    let mut old_domain = legacy::bytes_v31(&input);
     let domain = b"ZIL-TYPED-MODULE-V31\0";
     assert!(old_domain.starts_with(domain));
     old_domain[..domain.len()].copy_from_slice(b"ZIL-TYPED-MODULE-V27\0");
@@ -476,7 +477,7 @@ fn defer227_domain_rejects_v27_identity_even_with_the_same_schema_claim() {
 fn product237_domain_rejects_previous_v28_even_with_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 28;
-    let mut previous = legacy::bytes(&input);
+    let mut previous = legacy::bytes_v31(&input);
     previous[..b"ZIL-TYPED-MODULE-V31\0".len()].copy_from_slice(b"ZIL-TYPED-MODULE-V28\0");
     assert_ne!(input.fingerprint(), Fingerprint::of(&previous));
 }
@@ -485,7 +486,7 @@ fn product237_domain_rejects_previous_v28_even_with_same_schema_claim() {
 fn owned_sum239_domain_rejects_previous_v29_with_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 29;
-    let mut previous = legacy::bytes(&input);
+    let mut previous = legacy::bytes_v31(&input);
     previous[..b"ZIL-TYPED-MODULE-V31\0".len()].copy_from_slice(b"ZIL-TYPED-MODULE-V29\0");
     assert_ne!(input.fingerprint(), Fingerprint::of(&previous));
 }
@@ -496,7 +497,7 @@ fn forward251_source_and_returned_debt_are_bound_in_all_public_identities() {
     input.functions[0].callable_return_contract = Some(return_contract(CallableKind::Fn));
     input.functions[0].callable_contract = Some(contract(false));
     let fresh = input.fingerprint();
-    let mut previous = legacy::bytes(&input);
+    let mut previous = legacy::bytes_v31(&input);
     previous[..b"ZIL-TYPED-MODULE-V31\0".len()].copy_from_slice(b"ZIL-TYPED-MODULE-V30\0");
     assert_ne!(fresh, Fingerprint::of(&previous));
     let mut identities = std::collections::BTreeSet::new();
@@ -583,4 +584,77 @@ fn forward251_wire_preserves_actual_parameter_and_rejects_unknown_source() {
         wire::decode_module_candidate(&old, &limits).unwrap_err()[0].code,
         "E-WIRE-VERSION"
     );
+}
+
+#[test]
+fn scoped32_reference_preserves_v31_anchors_and_rejects_new_old_forms() {
+    for (flag, expected) in [
+        (
+            false,
+            "cdba3011a81024ed776635765787f08b5101803bc484b766eb210c25fd7ea01d",
+        ),
+        (
+            true,
+            "df835877526332c329baf8f3f812865b2149c9031455ac4d11eac922af8b0695",
+        ),
+    ] {
+        let mut input = module(flag);
+        input.schema_version = 31;
+        assert_eq!(
+            Fingerprint::of(&legacy::bytes_v31(&input)).to_hex(),
+            expected
+        );
+    }
+    let mut input = module(true);
+    for role in [
+        None,
+        Some(ScopedCallbackRole::Register),
+        Some(ScopedCallbackRole::Close),
+    ] {
+        input.functions[0].foreign.as_mut().unwrap().scoped_callback = role;
+        equal(&input);
+        if role.is_some() {
+            assert!(std::panic::catch_unwind(|| legacy::bytes_v31(&input)).is_err());
+        }
+    }
+    input.functions[0].foreign.as_mut().unwrap().scoped_callback = None;
+    input.functions[0].blocks[0].instructions.push(Instruction {
+        result: Some(ValueId(37)),
+        span: Span::default(),
+        kind: InstructionKind::WithForeignCallback {
+            register: FunctionId(11),
+            close: FunctionId(23),
+            callback: ValueId(41),
+            body: ValueId(59),
+            region: 73,
+        },
+    });
+    equal(&input);
+    assert!(std::panic::catch_unwind(|| legacy::bytes_v31(&input)).is_err());
+    for field in 0..5 {
+        let mut changed = input.clone();
+        let InstructionKind::WithForeignCallback {
+            register,
+            close,
+            callback,
+            body,
+            region,
+        } = &mut changed.functions[0].blocks[0]
+            .instructions
+            .last_mut()
+            .unwrap()
+            .kind
+        else {
+            panic!()
+        };
+        match field {
+            0 => register.0 += 1,
+            1 => close.0 += 1,
+            2 => callback.0 += 1,
+            3 => body.0 += 1,
+            _ => *region += 1,
+        };
+        equal(&changed);
+        assert_ne!(input.fingerprint(), changed.fingerprint(), "field {field}");
+    }
 }

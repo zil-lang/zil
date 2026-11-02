@@ -2842,6 +2842,147 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         span,
                     );
                 }
+                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
+                    self.visit(depth + 1, callee.span)?;
+                    let [register, close, callback, body] = arguments.as_slice() else {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "c_with_callback requires four arguments",
+                        ));
+                    };
+                    for (expression, role) in [
+                        (register, ScopedCallbackRole::Register),
+                        (close, ScopedCallbackRole::Close),
+                    ] {
+                        self.visit(depth + 1, expression.span)?;
+                        let signature = self.callee(expression)?;
+                        self.reserve_signature(signature, expression.span)?;
+                        if signature.scoped_callback != Some(role) {
+                            return Err(error(
+                                "E-FFI-SCOPED-ROLE",
+                                expression.span,
+                                "scoped callback role differs from its actual declaration",
+                            ));
+                        }
+                    }
+                    let value = self.expr(callback, depth + 1)?;
+                    let signature = match value {
+                        LocalType::Nested(index, Some(true)) => {
+                            self.nested_signature(index, span)?
+                        }
+                        LocalType::Closure(id, Some(true), declared) => {
+                            let pending = &self.closures[id.0 as usize];
+                            if declared == Some(CallableKind::FnOnce)
+                                || pending.callable_kind() == CallableKind::FnOnce
+                            {
+                                return Err(error(
+                                    "E-CLOSURE-MODE",
+                                    span,
+                                    "scoped callback cannot consume its environment",
+                                ));
+                            }
+                            Type::FunctionPointer {
+                                parameters: (0..pending.inference.arity())
+                                    .map(|i| {
+                                        pending.inference.parameter(i)?.ok_or_else(|| {
+                                            error(
+                                                "E-CLOSURE-INFERENCE",
+                                                span,
+                                                "scoped callback signature is unresolved",
+                                            )
+                                        })
+                                    })
+                                    .collect::<R<Vec<_>>>()?,
+                                result: Box::new(pending.inference.result()?.ok_or_else(|| {
+                                    error(
+                                        "E-CLOSURE-INFERENCE",
+                                        span,
+                                        "scoped callback result is unresolved",
+                                    )
+                                })?),
+                            }
+                        }
+                        _ => {
+                            return Err(error(
+                                "E-FFI-SCOPED-CALLBACK",
+                                span,
+                                "scoped callback requires a concrete exclusive closure position",
+                            ));
+                        }
+                    };
+                    if signature
+                        != (Type::FunctionPointer {
+                            parameters: vec![Type::I32],
+                            result: Box::new(Type::I32),
+                        })
+                    {
+                        return Err(error(
+                            "E-FFI-SCOPED-CALLBACK",
+                            span,
+                            "scoped callback signature is (i32)->i32",
+                        ));
+                    }
+                    self.mark_address_write(callback, depth + 1)?;
+                    let value = self.expr(body, depth + 1)?;
+                    let signature = match value {
+                        LocalType::Nested(index, None) => self.nested_signature(index, span)?,
+                        LocalType::Closure(id, None, _) => {
+                            let pending = &self.closures[id.0 as usize];
+                            Type::FunctionPointer {
+                                parameters: (0..pending.inference.arity())
+                                    .map(|i| {
+                                        pending.inference.parameter(i)?.ok_or_else(|| {
+                                            error(
+                                                "E-CLOSURE-INFERENCE",
+                                                span,
+                                                "scoped body signature is unresolved",
+                                            )
+                                        })
+                                    })
+                                    .collect::<R<Vec<_>>>()?,
+                                result: Box::new(pending.inference.result()?.ok_or_else(|| {
+                                    error(
+                                        "E-CLOSURE-INFERENCE",
+                                        span,
+                                        "scoped body result is unresolved",
+                                    )
+                                })?),
+                            }
+                        }
+                        _ => {
+                            return Err(error(
+                                "E-FFI-SCOPED-BODY",
+                                span,
+                                "scoped body must be a concrete closure value",
+                            ));
+                        }
+                    };
+                    if signature
+                        != (Type::FunctionPointer {
+                            parameters: vec![],
+                            result: Box::new(Type::I32),
+                        })
+                    {
+                        return Err(error(
+                            "E-FFI-SCOPED-BODY",
+                            span,
+                            "scoped body signature is ()->i32",
+                        ));
+                    }
+                    if let CoreExprKind::Name(name) = &body.kind
+                        && self.lookup(name).is_none()
+                        && let Some(capture) = self
+                            .captures
+                            .iter_mut()
+                            .find(|capture| capture.name == *name)
+                    {
+                        capture.moved = true;
+                        capture.borrowed = false;
+                        capture.consumed = true;
+                    }
+                    return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
+                }
                 if foreign::callback_constructor(callee) {
                     self.visit(depth + 1, callee.span)?;
                     let [target] = arguments.as_slice() else {

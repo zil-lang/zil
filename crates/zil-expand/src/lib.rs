@@ -29,7 +29,10 @@ fn integer_name(name: &str) -> bool {
     matches!(name, "u8" | "u16" | "i32" | "i64")
 }
 fn foreign_constructor_name(name: &str) -> bool {
-    matches!(name, "c_null" | "c_wstr_null" | "c_wstr" | "c_callback")
+    matches!(
+        name,
+        "c_null" | "c_wstr_null" | "c_wstr" | "c_callback" | "c_with_callback"
+    )
 }
 fn byte_buffer_name(name: &str) -> bool {
     matches!(
@@ -67,7 +70,14 @@ fn primitive_name(name: &str) -> bool {
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if owned_store_name(name) {
+    if name == "c_with_callback" {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-FFI-SCOPED-NAME",
+            Some(span),
+            "c_with_callback is a reserved bare structured primitive and cannot be rebound",
+        )
+    } else if owned_store_name(name) {
         Diagnostic::error(
             Phase::Expand,
             "E-OWNED-STORE-NAME",
@@ -727,7 +737,15 @@ impl Expander<'_> {
                     self.item(m, Some(&name), Some(&host), inherited.as_ref())
                 }
             }
-            s::ItemKind::Import(_) if self.imports_resolved => {}
+            s::ItemKind::Import(import) if self.imports_resolved => {
+                if let Some(name) = import
+                    .alias
+                    .as_deref()
+                    .or_else(|| import.path.last().map(String::as_str))
+                {
+                    self.scoped_binding(name, item.span);
+                }
+            }
             s::ItemKind::Import(_) => {
                 self.unsupported("module import loading requires a project input", item.span)
             }
@@ -749,12 +767,18 @@ impl Expander<'_> {
         }
     }
     fn param(&mut self, p: &s::Param) -> CoreParameter {
+        self.scoped_binding(&p.name, p.span);
         self.unexecuted_attributes(&p.attributes, "parameter");
         CoreParameter {
             name: p.name.clone(),
             ty: self.type_ref(&p.ty),
             mode: mode(p),
             span: p.span,
+        }
+    }
+    fn scoped_binding(&mut self, name: &str, span: Span) {
+        if name == "c_with_callback" {
+            self.diagnostics.push(primitive_name_error(name, span));
         }
     }
     fn block(&mut self, b: &s::Block) -> CoreBlock {
@@ -881,6 +905,7 @@ impl Expander<'_> {
                         );
                     }
                 };
+                self.scoped_binding(&name, pattern.span);
                 let ty = ty.as_ref().map(|t| self.type_ref(t));
                 let initializer = Some(self.expr_expected(value, ty.as_ref()));
                 CoreStatementKind::Binding {
@@ -1022,6 +1047,7 @@ impl Expander<'_> {
                         s.span,
                     );
                 };
+                self.scoped_binding(name, pattern.span);
                 CoreStatementKind::ForRange {
                     name: name.clone(),
                     start: self.expr(left),
@@ -1203,11 +1229,14 @@ impl Expander<'_> {
             } => {
                 let parameters = params
                     .iter()
-                    .map(|p| CoreClosureParameter {
-                        name: p.name.clone(),
-                        ty: p.ty.as_ref().map(|t| self.type_ref(t)),
-                        mode: PassingMode::Infer,
-                        span: p.span,
+                    .map(|p| {
+                        self.scoped_binding(&p.name, p.span);
+                        CoreClosureParameter {
+                            name: p.name.clone(),
+                            ty: p.ty.as_ref().map(|t| self.type_ref(t)),
+                            mode: PassingMode::Infer,
+                            span: p.span,
+                        }
                     })
                     .collect();
                 let saved_return = self.return_type.take();

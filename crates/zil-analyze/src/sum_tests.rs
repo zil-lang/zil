@@ -1483,6 +1483,7 @@ fn unused_foreign_signature_cannot_acquire_ordinary_owning_sum_abi() {
             symbol: "foreign_owner".into(),
             noescape_parameters: vec![],
             static_callbacks: false,
+            scoped_callback: None,
         }),
         environment: None,
         parameters: vec![],

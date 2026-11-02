@@ -15,6 +15,367 @@ enum Root {
 type Roots = BTreeSet<Root>;
 type State = BTreeMap<LocalId, Roots>;
 
+fn window_conflict(instruction: &Instruction, message: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        Phase::Analyze,
+        "E-BORROW-CONFLICT",
+        Some(instruction.span),
+        message,
+    )]
+}
+
+// Only ancestors of this actual reborrow may remain live across its child.
+// Equal roots or equal ClosureId alone never establish delegated permission.
+fn delegated(
+    f: &TypedFunction,
+    callback: ValueId,
+    active: resources::Place,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    use resources::Place;
+    let mut pending = vec![callback];
+    let mut seen = BTreeSet::new();
+    while let Some(value) = pending.pop() {
+        budget.lookup(seen.len(), "scoped delegation identity")?;
+        if !seen.insert(value) {
+            continue;
+        }
+        if active == Place::Value(value) {
+            return Ok(true);
+        }
+        for block in &f.blocks {
+            budget.spend(
+                block.instructions.len().saturating_add(1),
+                "scoped actual delegation producer",
+            )?;
+            for instruction in &block.instructions {
+                if instruction.result != Some(value) {
+                    continue;
+                }
+                match instruction.kind {
+                    InstructionKind::ReborrowAddress { address, .. }
+                    | InstructionKind::AddressField { address, .. }
+                    | InstructionKind::AddressIndex { address, .. }
+                    | InstructionKind::AddressSlice { address, .. } => pending.push(address),
+                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
+                        if active == Place::Local(local) =>
+                    {
+                        return Ok(true);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
+fn overlaps(a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
+    budget.product(a.len(), b.len(), 1, "scoped actual storage overlap")?;
+    Ok(a.iter().any(|a| {
+        b.iter().any(|b| {
+            a == b
+                || matches!((a, b),
+        (Root::Local(x), Root::Field(y, _)) | (Root::Field(x, _), Root::Local(y)) if x == y)
+        })
+    }))
+}
+
+fn scoped_captures_address(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    let Type::Closure(id) = ty else {
+        return Ok(false);
+    };
+    let mut pending = vec![*id];
+    let mut seen = BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        budget.spend(1, "scoped nested capture identity")?;
+        if !seen.insert(id) {
+            continue;
+        }
+        let definition = module
+            .closures
+            .get(id.0 as usize)
+            .ok_or_else(|| bad("scoped capture definition is absent"))?;
+        budget.spend(definition.captures.len(), "scoped nested capture fields")?;
+        for capture in &definition.captures {
+            match capture {
+                Type::Address { .. } => return Ok(true),
+                Type::Closure(child) => pending.push(*child),
+                _ => {}
+            }
+        }
+    }
+    Ok(false)
+}
+
+// This uses actual Hold roots, never nominal ClosureId equality. It protects
+// the preparation interval as well as B's complete captured dependency set.
+fn scoped_transition(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    values: &[Roots],
+    state: &State,
+    live: &resources::Live,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    use resources::Place;
+    if let Some(Type::Address { mutable, inner }) =
+        instruction.result.map(|v| &f.values[v.0 as usize])
+        && matches!(inner.as_ref(), Type::Closure(_))
+    {
+        let valid = match instruction.kind {
+            InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
+                inner.as_ref() == &f.locals[local.0 as usize].ty
+                    && *mutable
+                        == matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. })
+                    && (!*mutable || f.locals[local.0 as usize].mutable)
+            }
+            InstructionKind::ReborrowAddress {
+                address,
+                mutable: requested,
+            } => {
+                *mutable == requested
+                    && matches!(&f.values[address.0 as usize], Type::Address { mutable: original, inner: actual } if actual == inner && (!requested || *original))
+            }
+            InstructionKind::Load(local) => {
+                f.locals[local.0 as usize].ty == f.values[instruction.result.unwrap().0 as usize]
+            }
+            InstructionKind::ReadCapture { index } => {
+                f.environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|c| c.captures.get(index as usize))
+                    == instruction.result.map(|v| &f.values[v.0 as usize])
+            }
+            InstructionKind::BorrowCapture {
+                index,
+                mutable: requested,
+            } => f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .is_some_and(|c| {
+                    c.captures.get(index as usize) == Some(inner.as_ref())
+                        && *mutable == requested
+                        && (!requested || c.kind != CallableKind::Fn)
+                }),
+            _ => true,
+        };
+        if !valid {
+            return Err(window_conflict(
+                instruction,
+                "scoped callback address producer upgrades its actual permission",
+            ));
+        }
+    }
+    let accessed_local = match instruction.kind {
+        InstructionKind::Load(local)
+        | InstructionKind::StorageDead(local)
+        | InstructionKind::TakeLocal { local }
+        | InstructionKind::Store { local, .. }
+        | InstructionKind::BorrowLocal { local }
+        | InstructionKind::BorrowLocalMut { local }
+        | InstructionKind::DropClosure { local }
+        | InstructionKind::CallClosureShared { callee: local, .. }
+        | InstructionKind::CallClosureMut { callee: local, .. } => Some(local),
+        InstructionKind::BorrowPackageField { local, .. }
+        | InstructionKind::ReadPackageField { local, .. }
+        | InstructionKind::TakePackageField { local, .. }
+        | InstructionKind::StorePackageField { local, .. }
+        | InstructionKind::DropPackageField { local, .. }
+        | InstructionKind::DropPackage { local }
+        | InstructionKind::TakeOwnedArrayElement { local, .. }
+        | InstructionKind::StoreOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArrayElement { local, .. }
+        | InstructionKind::BorrowOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArray { local } => Some(local),
+        _ => None,
+    };
+    let mut accessed = Roots::new();
+    if let Some(local) = accessed_local {
+        budget.spend(1, "scoped actual local access")?;
+        if matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) {
+            if let Some(roots) = state.get(&local) {
+                extend(&mut accessed, roots, budget)?;
+            }
+        } else {
+            let root = match instruction.kind {
+                InstructionKind::BorrowPackageField { index, .. }
+                | InstructionKind::ReadPackageField { index, .. }
+                | InstructionKind::TakePackageField { index, .. }
+                | InstructionKind::StorePackageField { index, .. }
+                | InstructionKind::DropPackageField { index, .. } => Root::Field(local, index),
+                _ => Root::Local(local),
+            };
+            accessed.insert(root);
+        }
+    }
+    // Reborrowing transports the permission; it does not access the pointee.
+    // With's F access is checked against B separately below.
+    let transported = matches!(
+        instruction.kind,
+        InstructionKind::ReborrowAddress { .. }
+            | InstructionKind::AddressField { .. }
+            | InstructionKind::AddressIndex { .. }
+            | InstructionKind::WithForeignCallback { .. }
+    );
+    let empty = Roots::new();
+    for active in live {
+        budget.spend(1, "scoped live exclusive address")?;
+        let (ty, roots) = match active {
+            Place::Value(value) if instruction.result != Some(*value) => {
+                (&f.values[value.0 as usize], &values[value.0 as usize])
+            }
+            Place::Local(local) if Some(*local) != accessed_local => (
+                &f.locals[local.0 as usize].ty,
+                state.get(local).unwrap_or(&empty),
+            ),
+            _ => continue,
+        };
+        if !matches!(ty, Type::Address { mutable: true, inner } if matches!(inner.as_ref(), Type::Closure(_)))
+        {
+            continue;
+        }
+        if overlaps(&accessed, roots, budget)? {
+            return Err(window_conflict(
+                instruction,
+                "scoped callback preparation accesses an exclusively borrowed position",
+            ));
+        }
+        if !transported {
+            for operand in resources::uses(&instruction.kind) {
+                budget.spend(1, "scoped actual address operand")?;
+                if *active == Place::Value(operand) {
+                    continue;
+                }
+                if overlaps(&values[operand.0 as usize], roots, budget)? {
+                    return Err(window_conflict(
+                        instruction,
+                        "scoped callback preparation accesses a live exclusive alias",
+                    ));
+                }
+            }
+        }
+    }
+    if let InstructionKind::WithForeignCallback { callback, body, .. } = instruction.kind
+        && overlaps(
+            &values[callback.0 as usize],
+            &values[body.0 as usize],
+            budget,
+        )?
+    {
+        return Err(window_conflict(
+            instruction,
+            "scoped body accesses the actual callback position",
+        ));
+    }
+    if let InstructionKind::WithForeignCallback { callback, .. } = instruction.kind {
+        for active in live {
+            budget.spend(1, "scoped retained caller alias")?;
+            let (ty, roots) = match active {
+                Place::Value(value) => (&f.values[value.0 as usize], &values[value.0 as usize]),
+                Place::Local(local) => (
+                    &f.locals[local.0 as usize].ty,
+                    state.get(local).unwrap_or(&empty),
+                ),
+                _ => continue,
+            };
+            if matches!(ty, Type::Address { .. })
+                && overlaps(&values[callback.0 as usize], roots, budget)?
+                && !delegated(f, callback, *active, budget)?
+            {
+                return Err(window_conflict(
+                    instruction,
+                    "scoped callback overlaps an ordinary caller alias that remains live",
+                ));
+            }
+        }
+    }
+    let call = match &instruction.kind {
+        InstructionKind::Call {
+            function,
+            arguments,
+        } => Some((*function, arguments.as_slice())),
+        InstructionKind::MakeClosure { closure, captures } => {
+            let definition = &module.closures[closure.0 as usize];
+            budget.lookup(budget.scoped_functions.len(), "scoped capture entry lookup")?;
+            if budget.scoped_functions.contains(&definition.function) {
+                budget.spend(captures.len(), "scoped actual capture signature")?;
+                if captures.len() != definition.captures.len() {
+                    return Err(bad(
+                        "scoped capture arity differs from the actual environment",
+                    ));
+                }
+                for (value, expected) in captures.iter().zip(&definition.captures) {
+                    budget.type_work(expected, false, "scoped actual capture type comparison")?;
+                    if &f.values[value.0 as usize] != expected {
+                        return Err(bad("scoped capture type differs from its actual operand"));
+                    }
+                }
+            }
+            Some((definition.function, captures.as_slice()))
+        }
+        _ => None,
+    };
+    if let Some((callee, arguments)) = call {
+        budget.lookup(
+            budget.scoped_functions.len(),
+            "scoped call actual window lookup",
+        )?;
+        if budget.scoped_functions.contains(&callee) {
+            for (index, argument) in arguments.iter().enumerate() {
+                budget.spend(1, "scoped call actual mutable window")?;
+                if !matches!(
+                    f.values[argument.0 as usize],
+                    Type::Address { mutable: true, .. }
+                ) {
+                    continue;
+                }
+                for active in live {
+                    budget.spend(1, "scoped call retained alias")?;
+                    let (ty, roots) = match active {
+                        Place::Value(value) if instruction.result != Some(*value) => {
+                            (&f.values[value.0 as usize], &values[value.0 as usize])
+                        }
+                        Place::Local(local) => (
+                            &f.locals[local.0 as usize].ty,
+                            state.get(local).unwrap_or(&empty),
+                        ),
+                        _ => continue,
+                    };
+                    if matches!(ty, Type::Address { .. })
+                        && overlaps(&values[argument.0 as usize], roots, budget)?
+                        && !delegated(f, *argument, *active, budget)?
+                    {
+                        return Err(window_conflict(
+                            instruction,
+                            "scoped call overlaps an ordinary caller alias that remains live",
+                        ));
+                    }
+                }
+                for (other, value) in arguments.iter().enumerate() {
+                    if index != other
+                        && overlaps(
+                            &values[argument.0 as usize],
+                            &values[value.0 as usize],
+                            budget,
+                        )?
+                    {
+                        return Err(window_conflict(
+                            instruction,
+                            "scoped helper body aliases an actual exclusive argument",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 // Storage descriptions supply provenance to derived views; they are not
 // themselves strong address windows. Ordinary resource descriptions are kept
 // by Analyze's separate responsibility facts, not this public address graph.
@@ -263,9 +624,21 @@ fn infer(
     store_windows: bool,
     budget: &mut Budget,
 ) -> CompileResult<Vec<ValueHold>> {
+    let scoped = if budget.scoped_functions.is_empty() {
+        false
+    } else {
+        budget.lookup(
+            budget.scoped_functions.len(),
+            "scoped window function lookup",
+        )?;
+        budget.scoped_functions.contains(&f.id)
+    };
     let v = f.values.len();
     budget.spend(v, "dense Hold candidate")?;
     let captured_address = |ty: &Type, budget: &mut Budget| -> CompileResult<bool> {
+        if scoped {
+            return scoped_captures_address(module, ty, budget);
+        }
         let Type::Closure(id) = ty else {
             return Ok(false);
         };
@@ -296,7 +669,7 @@ fn infer(
         budget.spend(1, "owned callback window function lookup")?;
         budget.owned_callback_window_functions[f.id.0 as usize]
     };
-    let address_afters = if store_windows || callback_windows {
+    let address_afters = if store_windows || callback_windows || scoped {
         resources::address_afters(f, reachable, budget)?
     } else {
         Vec::new()
@@ -344,6 +717,17 @@ fn infer(
             }
             for (position, instruction) in block.instructions.iter().enumerate() {
                 budget.spend(1, "Hold instruction")?;
+                if scoped {
+                    scoped_transition(
+                        module,
+                        f,
+                        instruction,
+                        &values,
+                        &state,
+                        &address_afters[b][position],
+                        budget,
+                    )?;
+                }
                 if !address_afters.is_empty() {
                     store_window_transition(
                         module,
@@ -560,6 +944,38 @@ fn infer(
         }
         if !changed {
             break;
+        }
+    }
+    if scoped {
+        for (block, reachable) in f.blocks.iter().zip(reachable) {
+            if !reachable {
+                continue;
+            }
+            for instruction in &block.instructions {
+                budget.spend(1, "scoped completed address provenance")?;
+                if let InstructionKind::WithForeignCallback { callback, .. } = instruction.kind
+                    && values[callback.0 as usize].is_empty()
+                {
+                    return Err(bad("scoped callback has no actual storage origin"));
+                }
+                if let InstructionKind::Call {
+                    function: callee,
+                    arguments,
+                } = &instruction.kind
+                    && budget.scoped_functions.contains(callee)
+                {
+                    budget.spend(arguments.len(), "scoped completed call origins")?;
+                    for value in arguments {
+                        if matches!(
+                            f.values[value.0 as usize],
+                            Type::Address { mutable: true, .. }
+                        ) && values[value.0 as usize].is_empty()
+                        {
+                            return Err(bad("scoped helper argument has no actual storage origin"));
+                        }
+                    }
+                }
+            }
         }
     }
     let mut exported = Vec::with_capacity(values.len());

@@ -2,8 +2,9 @@
 //! the actual independent verifier. They are not source-language acceptance.
 
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use zil_base::{
@@ -13,6 +14,11 @@ use zil_ir::*;
 use zil_verify::{VerifiedModule, verify_module};
 
 use crate::*;
+
+// The independent Verify fixture also exports its own negative controls.
+#[allow(dead_code)]
+#[path = "../../zil-verify/tests/support/foreign_scoped.rs"]
+mod scoped_fixture;
 
 fn instruction(result: Option<u32>, kind: InstructionKind) -> Instruction {
     Instruction {
@@ -332,6 +338,99 @@ fn lir(verified: &VerifiedModule) -> LirModule {
                 alignment: 8,
             },
         ],
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn scoped_callback_independent_verified_fixture_runs_through_real_c() {
+    for null_registration in [false, true] {
+        let (mut module, mut plan) = scoped_fixture::fixture();
+        if null_registration {
+            // Any accidental body call on the failed-register path aborts.
+            module.functions[3].blocks[0].terminator = Terminator::Trap;
+        }
+        plan.module_fingerprint = module.fingerprint();
+        let target = module.target.clone();
+        let verified = verify_module(module, plan, &target, &Limits::default())
+            .expect("independent scoped fixture must verify");
+        let machine = lir(&verified);
+        let mut llvm = emit(&verified, &machine).expect("lower verified scoped callback");
+        // The fixture returns the ordinary (bool, i32) value. A tiny LLVM harness
+        // checks it without depending on C's aggregate-return ABI.
+        let expected_ok = if null_registration { "false" } else { "true" };
+        let expected_value = if null_registration { 0 } else { 7 };
+        llvm.push_str(&format!("\ndefine i32 @main() {{\nentry:\n  %pair = call {{ i1, i32 }} @zil.fn.4()\n  %ok = extractvalue {{ i1, i32 }} %pair, 0\n  %value = extractvalue {{ i1, i32 }} %pair, 1\n  %right = icmp eq i32 %value, {expected_value}\n  %good = icmp eq i1 %ok, {expected_ok}\n  %valid = and i1 %good, %right\n  %answer = select i1 %valid, i32 0, i32 2\n  ret i32 %answer\n}}\n"));
+        let directory = TestDirectory::new();
+        let driver = directory.0.join("scoped.c");
+        fs::write(
+            &driver,
+            r#"
+#include <stdint.h>
+#include <stdlib.h>
+typedef int64_t (*Callback)(void *, int32_t);
+static Callback saved;
+static void *context;
+static int token;
+void *scoped_register(Callback callback, void *userdata) {
+    if (!callback || !userdata || saved) _Exit(91);
+    saved = callback; context = userdata;
+    if ((uint64_t)saved(context, -11) != UINT64_C(0x00000000fffffff5)) _Exit(92);
+    if ((uint64_t)saved(context, 5) != UINT64_C(5)) _Exit(93);
+#ifdef NULL_REGISTRATION
+    saved = 0; context = 0;
+    return 0;
+#else
+    return &token;
+#endif
+}
+void scoped_close(void *handle) {
+    if (handle != &token || !saved || !context) _Exit(94);
+    if ((uint64_t)saved(context, 4) != (UINT64_C(1) << 32)) _Exit(95);
+    saved = 0; context = 0;
+}
+"#,
+        )
+        .expect("write C driver");
+        let clang = std::env::var_os("ZIL_CLANG")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("clang"));
+        for level in ["-O0", "-O2"] {
+            let executable = directory
+                .0
+                .join(format!("scoped-{null_registration}-{level}"));
+            let mut compiler = Command::new(&clang)
+                .args(["-x", "ir", level, "-"])
+                .args(["-x", "c"])
+                .arg(&driver)
+                .args(if null_registration {
+                    &["-DNULL_REGISTRATION"][..]
+                } else {
+                    &[][..]
+                })
+                .arg("-o")
+                .arg(&executable)
+                .stdin(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("start clang");
+            compiler
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(llvm.as_bytes())
+                .expect("send verified LLVM");
+            let output = compiler.wait_with_output().expect("wait for clang");
+            assert!(
+                output.status.success(),
+                "{level} LLVM/C compile: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let output = Command::new(executable)
+                .output()
+                .expect("run verified native fixture");
+            assert!(output.status.success(), "{level} native status: {output:?}");
+        }
     }
 }
 

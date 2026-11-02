@@ -1,10 +1,11 @@
-//! Exact original223 attack bytes, plus an explicitly migrated schema31 envelope.
+//! Exact original223 attack bytes, plus an explicitly migrated schema32 envelope.
 use std::{fs, path::PathBuf};
 use zil_base::{Fingerprint, Limits, Phase, ResultCategory, TargetProfile};
 
 const ORIGINAL: &[u8] = include_bytes!("review223_fixtures/mutable-product-original.wire");
 const SCHEMA29: &[u8] = include_bytes!("review223_fixtures/mutable-product-schema29.wire");
 const SCHEMA30: &[u8] = include_bytes!("review223_fixtures/schema30-mutable-product.wire");
+const SCHEMA32: &[u8] = include_bytes!("review223_fixtures/schema32-mutable-product.wire");
 
 #[test]
 fn frozen_schema27_29_and30_wire_are_rejected_as_old_transports() {
@@ -38,38 +39,34 @@ fn frozen_schema27_29_and30_wire_are_rejected_as_old_transports() {
     }
 }
 
-// This is a fixture migration, not a production backward-compatible decoder.
-// This original has no return contracts, so schema31 adds no payload fields.
+// The archived attack contains no foreign declarations or return contracts.
+// Decode its separately migrated Wire32 fixture and check every unchanged byte
+// against the original; no legacy decoder is exposed in production.
 fn migrate_original_envelope(limits: &Limits) -> Vec<u8> {
     assert_eq!(&ORIGINAL[..8], b"ZILMODP\0");
     assert_eq!(&ORIGINAL[8..12], &27u32.to_le_bytes());
-    assert_eq!(zil_ir::wire::WIRE_VERSION, 31);
-    assert_eq!(zil_base::SCHEMA_VERSION, 31);
-    let mut transport = ORIGINAL.to_vec();
-    transport[8..12].copy_from_slice(&31u32.to_le_bytes());
-    let (mut module, mut plan) = zil_ir::wire::decode_module_candidate(&transport, limits).unwrap();
-    assert_eq!(module.schema_version, 27);
-    assert_eq!(plan.schema_version, 27);
+    assert_eq!(zil_ir::wire::WIRE_VERSION, 32);
+    assert_eq!(zil_base::SCHEMA_VERSION, 32);
+    let (module, plan) = zil_ir::wire::decode_module_candidate(SCHEMA32, limits).unwrap();
+    assert_eq!(module.schema_version, 32);
+    assert_eq!(plan.schema_version, 32);
     assert_eq!(plan.target_fingerprint, module.target.fingerprint());
+    assert_eq!(plan.module_fingerprint, module.fingerprint());
     assert!(
         module
             .functions
             .iter()
-            .all(|f| f.callable_return_contract.is_none())
+            .all(|f| f.foreign.is_none() && f.callable_return_contract.is_none())
     );
-    module.schema_version = 31;
-    plan.schema_version = 31;
-    plan.module_fingerprint = module.fingerprint();
     let migrated = zil_ir::wire::encode_module_candidate(&module, &plan, limits).unwrap();
-    // Fixed offsets are audited against the original1744-byte envelope.
-    // Every attack byte outside these version/derived-fingerprint fields stays exact.
     let mut expected = ORIGINAL.to_vec();
     for offset in [8, 12, 1538] {
         assert_eq!(&ORIGINAL[offset..offset + 4], &27u32.to_le_bytes());
-        expected[offset..offset + 4].copy_from_slice(&31u32.to_le_bytes());
+        expected[offset..offset + 4].copy_from_slice(&32u32.to_le_bytes());
     }
     expected[1542..1574].copy_from_slice(&plan.module_fingerprint.0);
     assert_eq!(migrated, expected);
+    assert_eq!(migrated, SCHEMA32);
     migrated
 }
 
@@ -93,7 +90,7 @@ fn frozen_mutable_product_raw_and_wire_must_be_rejected() {
         .unwrap_or_else(std::env::temp_dir)
         .join("frozen-mutable-replay");
     fs::create_dir_all(&root).unwrap();
-    fs::write(root.join("schema31-mutable-product.wire"), &current).unwrap();
+    fs::write(root.join("schema32-mutable-product.wire"), &current).unwrap();
     let results = [
         (
             "raw",

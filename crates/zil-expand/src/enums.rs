@@ -84,7 +84,10 @@ impl Expander<'_> {
 
     pub(super) fn pattern(&mut self, pattern: &s::Pattern) -> CorePattern {
         let kind = match &pattern.kind {
-            s::PatternKind::Name(name) => CorePatternKind::Name(name.clone()),
+            s::PatternKind::Name(name) => {
+                self.scoped_binding(name, pattern.span);
+                CorePatternKind::Name(name.clone())
+            }
             s::PatternKind::Wildcard => CorePatternKind::Wildcard,
             s::PatternKind::Literal(s::Literal::Integer(value)) => {
                 CorePatternKind::Integer(value.clone())

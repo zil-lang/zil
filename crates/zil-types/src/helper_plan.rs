@@ -97,7 +97,6 @@ struct Walk<'a, 'b> {
     store_shapes: bool,
     full_values: bool,
     restart_full: bool,
-    owned_factory: bool,
     has_forward: bool,
 }
 
@@ -858,7 +857,7 @@ impl Walk<'_, '_> {
             }
             CoreExprKind::Closure {
                 parameters, body, ..
-            } if self.owned_factory => {
+            } => {
                 self.state
                     .snapshot(parameters.len().saturating_add(1), expression.span)?;
                 self.scopes.push(BTreeMap::new());
@@ -874,14 +873,10 @@ impl Walk<'_, '_> {
                 self.scopes.pop();
                 // This is dependency scheduling only. No unresolved shape can
                 // supply a concrete helper binding; Builder must finish the
-                // real closure before using its actual identity.
+                // real closure before using its actual identity. The helper
+                // origin kernel separately restricts nonfactory closures to
+                // the actual With body stream.
                 Shape::Unknown
-            }
-            CoreExprKind::Closure { .. } => {
-                return Err(unsupported(
-                    expression.span,
-                    "helper-local nested environments require an additional finite instance contract",
-                ));
             }
             CoreExprKind::Literal(value) if self.full_values => self.shape(
                 &value.ty(),
@@ -1052,7 +1047,6 @@ fn dependencies(
         store_shapes: template.store_shapes,
         full_values: false,
         restart_full: false,
-        owned_factory: owning_factory::template(function),
         has_forward: false,
     };
     for parameter in &function.parameters {
@@ -1211,7 +1205,6 @@ mod result_shape_tests {
             store_shapes: false,
             full_values: false,
             restart_full: false,
-            owned_factory: false,
             has_forward: false,
         };
         let span = Span::default();

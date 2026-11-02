@@ -412,6 +412,9 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::WithForeignCallback { callback, body, .. } => {
+            (Some(*callback), Some(*body), &[])
+        }
         InstructionKind::OwnedStoreReserve { store, capacity } => {
             (Some(*store), Some(*capacity), &[])
         }
@@ -2342,6 +2345,55 @@ impl Flow<'_> {
                         });
                     }
                 }
+                InstructionKind::WithForeignCallback { callback, body, .. } => {
+                    for (value, consume) in [(*callback, false), (*body, true)] {
+                        let ty = &f.values[value.0 as usize];
+                        if let Some(shape) = self.shapes.get(&Place::Value(value)) {
+                            let fact = copied(state, Place::Value(value), budget)?;
+                            if check {
+                                if shape.owned && !exact(&fact, Life::Available) {
+                                    return Err(error(
+                                        "scoped callback uses a consumed environment",
+                                    ));
+                                }
+                                if shape.description {
+                                    live_sources(state, &fact, budget)?;
+                                }
+                            }
+                            {
+                                let ty = if let Type::Address { inner, .. } = ty {
+                                    inner.as_ref()
+                                } else {
+                                    ty
+                                };
+                                let Type::Closure(id) = ty else {
+                                    return Err(error("scoped callback operand is not a closure"));
+                                };
+                                let definition = &self.module.closures[id.0 as usize];
+                                if let Some(dependencies) = self.dependencies {
+                                    dependencies.connect(
+                                        definition.function.0 as usize,
+                                        summary_graph::Kind::AnyBorrowed,
+                                        f.id.0 as usize,
+                                        &fact.sources,
+                                        budget,
+                                    )?;
+                                } else {
+                                    let summary = self
+                                        .effects
+                                        .get(definition.function.0 as usize)
+                                        .ok_or_else(|| error("scoped body entry is absent"))?;
+                                    if !summary.borrowed_fields.is_empty() {
+                                        record_write(&fact.sources, effect, shared, check, budget)?;
+                                    }
+                                }
+                            }
+                        }
+                        if consume {
+                            self.consume(state, value, check, budget)?;
+                        }
+                    }
+                }
                 InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
                 | InstructionKind::CallClosureOnce { .. }
@@ -2687,6 +2739,16 @@ fn effect_consumers(
             }
             for instruction in &block.instructions {
                 budget.spend(1, "resource effect frontier instruction")?;
+                if let InstructionKind::WithForeignCallback { callback, .. } = instruction.kind {
+                    let callee = effect_entry(module, &function.values[callback.0 as usize])?;
+                    let users = consumers
+                        .get_mut(callee)
+                        .ok_or_else(|| error("scoped callback entry is absent"))?;
+                    if users.last() != Some(&caller) {
+                        budget.spend(2, "scoped callback effect frontier edge")?;
+                        users.push(caller);
+                    }
+                }
                 let callee = match &instruction.kind {
                     InstructionKind::Call { function, .. } => {
                         let target = module
@@ -2709,7 +2771,8 @@ fn effect_consumers(
                     }
                     InstructionKind::CallClosure { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
-                    | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                    | InstructionKind::CallClosureBorrowed { callee, .. }
+                    | InstructionKind::WithForeignCallback { body: callee, .. } => {
                         let ty = function
                             .values
                             .get(callee.0 as usize)

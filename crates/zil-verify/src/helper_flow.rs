@@ -7,6 +7,11 @@ use zil_ir::{CallableFlow, CallableFlowNext, CallableFlowNode, CallableTraces};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Site {
+    Scoped {
+        block: usize,
+        call: usize,
+        stage: u8,
+    },
     Body {
         block: usize,
         from: usize,
@@ -179,6 +184,10 @@ pub(super) fn reconstruct(
     )?;
     let mut nodes = Vec::new();
     let mut cursor = 0;
+    let mut scoped = budget
+        .scoped_functions
+        .as_ref()
+        .is_some_and(|marks| marks[f.id.0 as usize]);
     while cursor < queue.len() {
         budget.spend(1)?;
         let (calls, destination) = match queue[cursor] {
@@ -188,7 +197,38 @@ pub(super) fn reconstruct(
                 let mut child_destination = None;
                 for (position, instruction) in body.instructions.iter().enumerate().skip(from) {
                     budget.spend(1)?;
-                    if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
+                    if matches!(
+                        instruction.kind,
+                        InstructionKind::WithForeignCallback { .. }
+                    ) {
+                        scoped = true;
+                        allowance.add(4, 3, 10, limits, budget)?;
+                        child_destination = Some(Destination::Sites(vec![
+                            Site::Scoped {
+                                block,
+                                call: position,
+                                stage: 0,
+                            },
+                            Site::Scoped {
+                                block,
+                                call: position,
+                                stage: 1,
+                            },
+                            Site::Body {
+                                block,
+                                from: position + 1,
+                            },
+                        ]));
+                        break;
+                    }
+                    if matches!(instruction.kind, InstructionKind::MakeClosure { .. })
+                        && !instruction.result.is_some_and(|result| {
+                            origins
+                                .local_bodies
+                                .as_ref()
+                                .is_some_and(|bodies| bodies[origins.values_at + result.0 as usize])
+                        })
+                    {
                         return Err(unsupported(
                             "helper-local nested environments require an additional contract",
                             Some(instruction.span),
@@ -257,6 +297,83 @@ pub(super) fn reconstruct(
                     }
                 };
                 (calls, destination)
+            }
+            Site::Scoped { block, call, stage } => {
+                let InstructionKind::WithForeignCallback { callback, body, .. } =
+                    f.blocks[block].instructions[call].kind
+                else {
+                    unreachable!()
+                };
+                let (value, kind) = if stage == 1 {
+                    (body, CallableKind::FnOnce)
+                } else {
+                    (callback, CallableKind::FnMut)
+                };
+                let mark = origins.marks[origins.values_at + value.0 as usize];
+                let parameter = match mark {
+                    1 => origins.parameters.first().copied(),
+                    2 => origins.parameters.get(1).copied(),
+                    16 if stage == 1 => None,
+                    _ => None,
+                };
+                if parameter.is_none() && !(mark == 16 && stage == 1) {
+                    return Err(bad(
+                        f,
+                        "scoped callback operand is not one actual helper role",
+                    ));
+                }
+                budget.spend(roles.len().saturating_add(1))?;
+                if parameter.is_some_and(|parameter| {
+                    !roles.iter().any(|role| {
+                        role.parameter == parameter && closures::supports(role.kind, kind)
+                    })
+                }) {
+                    return Err(bad(
+                        f,
+                        "scoped callback event exceeds the original declared permission",
+                    ));
+                }
+                let continuation = Site::Body {
+                    block,
+                    from: call + 1,
+                };
+                let sites = match stage {
+                    0 => vec![
+                        Site::Scoped {
+                            block,
+                            call,
+                            stage: 0,
+                        },
+                        Site::Scoped {
+                            block,
+                            call,
+                            stage: 1,
+                        },
+                        continuation,
+                    ],
+                    1 => vec![
+                        Site::Scoped {
+                            block,
+                            call,
+                            stage: 2,
+                        },
+                        continuation,
+                    ],
+                    _ => vec![
+                        Site::Scoped {
+                            block,
+                            call,
+                            stage: 2,
+                        },
+                        continuation,
+                    ],
+                };
+                (
+                    parameter
+                        .map(|parameter| vec![CallEvent { parameter, kind }])
+                        .unwrap_or_default(),
+                    Destination::Sites(sites),
+                )
             }
             Site::Child { block, call, node } => {
                 let child = forwarded(
@@ -334,7 +451,57 @@ pub(super) fn reconstruct(
         nodes.push(CallableFlowNode { calls, next });
         cursor += 1;
     }
-    classify(CallableFlow { entry: 0, nodes }, roles, limits, budget, f)
+    classify(
+        CallableFlow { entry: 0, nodes },
+        roles,
+        limits,
+        budget,
+        f,
+        scoped,
+    )
+}
+
+// Each role has at most two reachable permission states. Ordinary shared/mut
+// calls preserve Live; a Once event consumes it even when the role's original
+// bound is Fn/FnMut and this actual concrete environment happens to be Copy.
+fn scoped_consumption(
+    flow: &CallableFlow,
+    roles: &[CallableRole],
+    budget: &mut Budget,
+    f: &TypedFunction,
+) -> Check<()> {
+    budget.spend(roles.len())?;
+    for role in roles {
+        budget.spend(flow.nodes.len().saturating_mul(2))?;
+        let mut reached = vec![0u8; flow.nodes.len()];
+        let mut work = VecDeque::from([(0usize, false)]);
+        reached[0] = 1;
+        while let Some((index, mut consumed)) = work.pop_front() {
+            let node = &flow.nodes[index];
+            budget.spend(node.calls.len().saturating_add(1))?;
+            for event in &node.calls {
+                if event.parameter != role.parameter {
+                    continue;
+                }
+                if consumed {
+                    return Err(bad(f, "helper reuses a role after actual once consumption"));
+                }
+                consumed = role.kind == CallableKind::FnOnce || event.kind == CallableKind::FnOnce;
+            }
+            if let CallableFlowNext::Edges(edges) = &node.next {
+                for &target in edges {
+                    budget.spend(2)?;
+                    let bit = if consumed { 2 } else { 1 };
+                    let target = target as usize;
+                    if reached[target] & bit == 0 {
+                        reached[target] |= bit;
+                        work.push_back((target, consumed));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn classify(
@@ -343,7 +510,11 @@ fn classify(
     limits: &Limits,
     budget: &mut Budget,
     f: &TypedFunction,
+    scoped: bool,
 ) -> Check<CallableTraces> {
+    if scoped {
+        scoped_consumption(&flow, roles, budget, f)?;
+    }
     let n = flow.nodes.len();
     budget.spend(n.saturating_mul(3))?;
     let mut color = vec![0u8; n];
@@ -383,7 +554,8 @@ fn classify(
         // successive local positions. Its actual one-instance lifetime is
         // independently proved by retained::provenance. A cyclic call event
         // still needs a separate finite consumption contract.
-        if roles.iter().any(|role| role.kind == CallableKind::FnOnce)
+        if !scoped
+            && roles.iter().any(|role| role.kind == CallableKind::FnOnce)
             && (!returns_parameter
                 || flow.nodes.iter().any(|node| {
                     node.calls.iter().any(|event| {
