@@ -13,3 +13,5 @@
 CT wire 使用固定schema1字段编码及独立域的有界指纹；失败消费已做工作，循环/临时栈也预付，深层编解码用显式栈。token cursor与query依赖身份消费同请求余额，不使用Debug格式作稳定身份。反射成员以Core Member.owner保留完整名义/泛型约束，类型层核真实receiver且保留原place/权限，不用Ascribed包装冒充。
 
 源码CT编译器对实际(module, alias declaration span)维护活动别名栈；进入、逐项比较和push前分别预付analysis work，错误也弹出活动项，检出重入后按真实阶段依赖拒绝。无alias路径不增加费用，默认预算不变；直接函数编译入口与项目入口都必须阻止别名展开栈溢出。
+
+实际CT Builder展开alias RHS时另预付1次词法域切换费，以无复制的take/restore隔离调用者scopes/loops/yields并进入定义module；错误同样还原。alias自身局部域合法，不能捕获调用者参数或控制流。纯签名ty路径不加此费，无alias原N不变。
