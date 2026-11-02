@@ -1,0 +1,220 @@
+{
+  "verdict": "Blocked; no new positive acceptance",
+  "tested_commit": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "build_command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 CARGO_BUILD_JOBS=2 cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl256_consumer --no-run",
+  "build_exit": 0,
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl256-base cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl256_consumer -- --nocapture",
+  "test_exit": 101,
+  "tests": {
+    "selected": 9,
+    "executed": 9,
+    "passed": 0,
+    "failed": 9
+  },
+  "actual_compile_attempts": 9,
+  "verification_runs": 0,
+  "native_runs": 0,
+  "oracle_sha256": "9e6fefe6b84654de4c39b3eebd290cf1667193705a5c4f569b38e0071985d874",
+  "frozen_manifest_sha256": "1bf86352f3d72143fa4797dd6a1864d6f5009bc110be77c4011f02cb063f7aab",
+  "source_sha256": {
+    "tests/impl256/frozen-prep/frozen-original/source.zil": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+    "tests/impl256/frozen-prep/negative/external_address_environment.zil": "999ceefd10d1e980ecfb0949663394c774962578f66e2ffba6fb51c3015959d5",
+    "tests/impl256/frozen-prep/negative/mut_declared_actual_fn_shared_call.zil": "faa31288a9ff9948f6af919b3556d502ad6bb154bf515c2108032d798cad8e17",
+    "tests/impl256/frozen-prep/negative/once_declared_actual_fn_copy.zil": "22361b10f0acb9b5efc71fd976c04ed41ded11f7fc8c135370ff75e0701b7c0f",
+    "tests/impl256/frozen-prep/negative/once_declared_actual_fn_twice.zil": "a9b18780630b93ccb0e8edd36cfcdb6b9ceed8edf829b2e710e7bce9a94b68c7",
+    "tests/impl256/frozen-prep/negative/same_closure_id_different_instance.zil": "130fa4b1fed0d24e806ba8b14e4e90bb244e88932fd56ad7c9a24884cfe9df33",
+    "tests/impl256/frozen-prep/negative/same_closure_id_wrong_branch.zil": "4f4079d3971acb0df7084a32c68aef39e3526e410f3f82c0bbd2dfdd37bf1ef2",
+    "tests/impl256/frozen-prep/negative/use_after_transfer.zil": "343b09e22b8666809e7b8c667ff50f87bf0a63241cb7c94886c37ff39c7dd45a",
+    "tests/impl256/frozen-prep/probes/fn-copy.zil": "c48be51cc7f89e3e3c6b87ed78d3ef5b484c48ab8deb12a386997c681fa18f20",
+    "tests/impl256/frozen-prep/probes/fn-owned.zil": "601ba197054506f41bd55c142936bcbed08e54480fd43d042ab4dc57010e857a",
+    "tests/impl256/frozen-prep/probes/fnmut-copy.zil": "99278121664127a6ddf8d331576caf8abda0ca4881a381c334cb000eefe5db00",
+    "tests/impl256/frozen-prep/probes/fnmut-owned.zil": "020ddb603fcd8db9c12bc3fd71924f562720ef25440e861369d0d1c3e98135c2",
+    "tests/impl256/frozen-prep/probes/fnonce-copy.zil": "b017bf3162a51a4a4cf8394f0b15bd7e4d1ba4fee6a483d8eb33075c87a9e62f",
+    "tests/impl256/frozen-prep/probes/fnonce-owned.zil": "b6ebd3423e1e01936329d7bdac7a8416b2334d879507975384993e6f99810871",
+    "tests/impl256/frozen-prep/project/main.zil": "5f44149b429bd51d001f0fed680a345548c68a9677c23820793f663ed0566b20",
+    "tests/impl256/frozen-prep/project/model.zil": "1b29c235b7840891dc944ead06b110cbe846136ca5b3463f6b2427bbdac63fba",
+    "tests/impl256/frozen-prep/project/relay.zil": "806db69ff6335b85e830a3f13691158def357dad560d82fa769a8c17772a1b80"
+  },
+  "rows": [
+    {
+      "case": "consumer256-allocator-148300-7",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 2,
+            "start": 71,
+            "end": 188
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fn-copy-148300-1",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 18,
+            "end": 59
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fn-owned-148300-3",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 108,
+            "end": 153
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fnmut-copy-148300-2",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+          "span": {
+            "file": 0,
+            "start": 45,
+            "end": 48
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fnmut-owned-148300-0",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+          "span": {
+            "file": 0,
+            "start": 139,
+            "end": 142
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fnonce-copy-148300-5",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 18,
+            "end": 63
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fnonce-owned-148300-6",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 108,
+            "end": 157
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-matrix-148300-8",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 2,
+            "start": 71,
+            "end": 188
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-original-identity-148300-4",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 45
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    }
+  ]
+}
