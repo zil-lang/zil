@@ -1,0 +1,76 @@
+    Finished `test` profile [unoptimized] target(s) in 0.02s
+     Running tests/impl256_consumer.rs (/workspace/.zil-env/target-256/debug/deps/impl256_consumer-398be91c245795c0)
+
+running 9 tests
+
+thread 'fn_copy_signature' (148301) panicked at crates/zil-driver/tests/impl256_consumer.rs:142:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"escaping callable result is not implemented","span":{"file":0,"start":18,"end":59},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-base/consumer256-fn-copy-148300-1/phases/syntax.txt"},"input_fingerprint":"c48be51cc7f89e3e3c6b87ed78d3ef5b484c48ab8deb12a386997c681fa18f20","seconds":0.003684061,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/probes/fn-copy.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test fn_copy_signature ... FAILED
+
+thread 'fnmut_owned_signature' (148304) panicked at crates/zil-driver/tests/impl256_consumer.rs:142:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice","span":{"file":0,"start":139,"end":142},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-base/consumer256-fnmut-owned-148300-0/phases/syntax.txt"},"input_fingerprint":"020ddb603fcd8db9c12bc3fd71924f562720ef25440e861369d0d1c3e98135c2","seconds":0.013341149,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/probes/fnmut-owned.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test fnmut_owned_signature ... FAILED
+
+thread 'fnmut_copy_signature' (148303) panicked at crates/zil-driver/tests/impl256_consumer.rs:142:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice","span":{"file":0,"start":45,"end":48},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-base/consumer256-fnmut-copy-148300-2/phases/syntax.txt"},"input_fingerprint":"99278121664127a6ddf8d331576caf8abda0ca4881a381c334cb000eefe5db00","seconds":0.00607995,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/probes/fnmut-copy.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test fnmut_copy_signature ... FAILED
+
+thread 'fn_owned_signature' (148302) panicked at crates/zil-driver/tests/impl256_consumer.rs:142:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"escaping callable result is not implemented","span":{"file":0,"start":108,"end":153},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-base/consumer256-fn-owned-148300-3/phases/syntax.txt"},"input_fingerprint":"601ba197054506f41bd55c142936bcbed08e54480fd43d042ab4dc57010e857a","seconds":0.004638196,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/probes/fn-owned.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test fn_owned_signature ... FAILED
+
+thread 'fnonce_copy_signature' (148309) panicked at crates/zil-driver/tests/impl256_consumer.rs:142:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"escaping callable result is not implemented","span":{"file":0,"start":18,"end":63},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-base/consumer256-fnonce-copy-148300-5/phases/syntax.txt"},"input_fingerprint":"b017bf3162a51a4a4cf8394f0b15bd7e4d1ba4fee6a483d8eb33075c87a9e62f","seconds":0.003152822,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/probes/fnonce-copy.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test fnonce_copy_signature ... FAILED
+
+thread 'original_identity_probe' (148313) panicked at crates/zil-driver/tests/impl256_consumer.rs:142:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"escaping callable result is not implemented","span":{"file":0,"start":0,"end":45},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-base/consumer256-original-identity-148300-4/phases/syntax.txt"},"input_fingerprint":"0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266","seconds":0.010968251,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/frozen-original/source.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test original_identity_probe ... 
+thread 'FAILEDfnonce_owned_signature' (
+148311) panicked at crates/zil-driver/tests/impl256_consumer.rs:142:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"escaping callable result is not implemented","span":{"file":0,"start":108,"end":157},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-base/consumer256-fnonce-owned-148300-6/phases/syntax.txt"},"input_fingerprint":"b6ebd3423e1e01936329d7bdac7a8416b2334d879507975384993e6f99810871","seconds":0.004145636,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/probes/fnonce-owned.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test fnonce_owned_signature ... FAILED
+
+thread 'three_module_actual_allocator_failures_follow_the_frozen_source_oracle' (148315) panicked at crates/zil-driver/tests/impl256_consumer.rs:142:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"escaping callable result is not implemented","span":{"file":2,"start":71,"end":188},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-base/consumer256-allocator-148300-7/phases/syntax.txt"},"input_fingerprint":"7bf3bdaa9dea74f1e5c131e2cd6d3543394210a323a9c955d31308b79958c729","seconds":0.08338154,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/project/main.zil","1":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/project/model.zil","2":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/project/relay.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test three_module_actual_allocator_failures_follow_the_frozen_source_oracle ... FAILED
+
+thread 'three_module_predeclared_native_matrix' (148317) panicked at crates/zil-driver/tests/impl256_consumer.rs:142:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"escaping callable result is not implemented","span":{"file":2,"start":71,"end":188},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-base/consumer256-matrix-148300-8/phases/syntax.txt"},"input_fingerprint":"7bf3bdaa9dea74f1e5c131e2cd6d3543394210a323a9c955d31308b79958c729","seconds":0.085488144,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/project/main.zil","1":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/project/model.zil","2":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/project/relay.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test three_module_predeclared_native_matrix ... FAILED
+
+failures:
+
+failures:
+    fn_copy_signature
+    fn_owned_signature
+    fnmut_copy_signature
+    fnmut_owned_signature
+    fnonce_copy_signature
+    fnonce_owned_signature
+    original_identity_probe
+    three_module_actual_allocator_failures_follow_the_frozen_source_oracle
+    three_module_predeclared_native_matrix
+
+test result: FAILED. 0 passed; 9 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+error: test failed, to rerun pass `-p zil-driver --test impl256_consumer`

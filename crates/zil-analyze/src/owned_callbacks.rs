@@ -58,7 +58,9 @@ pub(super) fn signature(
         function
             .callable_return_contract
             .as_ref()
-            .is_some_and(|contract| contract.closure == definition.id)
+            .is_some_and(|contract| {
+                contract.closure == definition.id && contract.source == CallableReturnSource::Fresh
+            })
     }) {
         return Err(bad(
             "owned callback signature does not grant an opaque factory profile",
