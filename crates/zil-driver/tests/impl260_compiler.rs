@@ -6,6 +6,13 @@ use compiler::*;
 use zil_base::{FileId, Fingerprint, Limits, ModuleId, NodeId, SourceUnit};
 use zil_ir::ct_artifact::*;
 fn try_build(text: &str, entry: &str) -> zil_base::CompileResult<CtArtifactProgram> {
+    try_build_with_limits(text, entry, &Limits::default())
+}
+fn try_build_with_limits(
+    text: &str,
+    entry: &str,
+    limits: &Limits,
+) -> zil_base::CompileResult<CtArtifactProgram> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "260.zil", text);
     let syntax = zil_syntax::parse(&source).into_result()?;
     let symbols: Vec<_> = syntax
@@ -78,7 +85,7 @@ fn try_build(text: &str, entry: &str) -> zil_base::CompileResult<CtArtifactProgr
         entry: Entry::Function(symbols[index].1.clone()),
         input_tokens: &input,
         snapshot: &snapshot,
-        limits: &Limits::default(),
+        limits,
     })
 }
 fn build(text: &str, entry: &str) -> CtArtifactProgram {
@@ -438,4 +445,184 @@ fn direct_source_alias_cycles_fail_before_recursive_attribution() {
     assert_eq!(raw.functions[raw.entry.0 as usize].result_type, CtTy::Type);
     assert_eq!(build("type Unused=Unused;fn build()->Type{return i32}", "build").functions[0].result_type, CtTy::Type);
     }).unwrap().join().unwrap();
+}
+
+#[test]
+fn alias_attribution_has_a_request_exact_work_boundary() {
+    for source in [
+        "fn build()->Type{return i64}",
+        "type A=i64;type B=A;fn build()->Type{let first=B;return A}",
+    ] {
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let middle = low + (high - low) / 2;
+            let limits = Limits {
+                max_analysis_steps: middle,
+                ..Limits::default()
+            };
+            match try_build_with_limits(source, "build", &limits) {
+                Ok(_) => high = middle,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|e| e.category == zil_base::ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    low = middle + 1;
+                }
+            }
+        }
+        let limits = Limits {
+            max_analysis_steps: low,
+            ..Limits::default()
+        };
+        let raw = try_build_with_limits(source, "build", &limits).unwrap();
+        assert_eq!(
+            raw,
+            try_build_with_limits(source, "build", &limits).unwrap()
+        );
+        let errors = try_build_with_limits(
+            source,
+            "build",
+            &Limits {
+                max_analysis_steps: low - 1,
+                ..limits
+            },
+        )
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        println!(
+            "source alias control {source}: N={low}; N-1 ResourceLimit; fresh N identical raw"
+        );
+    }
+}
+
+#[test]
+fn cross_module_alias_uses_its_definition_imports_and_distinct_identity() {
+    let sources = [
+        SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "main.zil",
+            "import child as child;type Alias=child.Alias;fn build()->Type{return Alias}",
+        ),
+        SourceUnit::new(
+            FileId(1),
+            ModuleId(1),
+            "child.zil",
+            "import std.meta as meta;pub type Alias=#(meta.array_type(i32,2))",
+        ),
+    ];
+    let syntax = sources
+        .iter()
+        .map(|s| zil_syntax::parse(s).into_result().unwrap())
+        .collect::<Vec<_>>();
+    let symbols = syntax
+        .iter()
+        .enumerate()
+        .map(|(m, s)| {
+            s.items
+                .iter()
+                .enumerate()
+                .map(|(i, item)| {
+                    (
+                        item.span,
+                        CtSymbolId {
+                            module: ModuleId(m as u32),
+                            declaration: NodeId(i as u32),
+                            generation_path: None,
+                        },
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let imports = [
+        vec![SourceImport {
+            alias: "child".into(),
+            target: ImportTarget::Module(ModuleId(1)),
+        }],
+        vec![SourceImport {
+            alias: "meta".into(),
+            target: ImportTarget::Meta,
+        }],
+    ];
+    let modules = (0..2)
+        .map(|i| SourceModule {
+            source: &sources[i],
+            syntax: &syntax[i],
+            imports: &imports[i],
+            symbols: &symbols[i],
+        })
+        .collect::<Vec<_>>();
+    let entry = symbols[0][2].1.clone();
+    let context = build("fn build()->Type{return i32}", "build");
+    let raw = compile(CompileRequest {
+        modules: &modules,
+        source_fingerprint: Fingerprint::of(
+            format!(
+                "{:?}{:?}",
+                sources[0].fingerprint(),
+                sources[1].fingerprint()
+            )
+            .as_bytes(),
+        ),
+        entry: Entry::Function(entry),
+        input_tokens: &context.input_tokens,
+        snapshot: &context.snapshot,
+        limits: &Limits::default(),
+    })
+    .unwrap();
+    let authority = Authority { raw: &raw };
+    let verified =
+        zil_verify::verify_ct_artifact(raw.clone(), &Limits::default(), &authority).unwrap();
+    let mut budget = zil_ct::CtExecutionBudget::new(raw.budget);
+    let (value, _) = zil_ct::evaluate_ct_artifact(&verified, &[], &Reader, &mut budget).unwrap();
+    let CtValue::Type(ty) = value else {
+        panic!("{value:?}")
+    };
+    assert!(matches!(
+        &ty.nodes[ty.root.0 as usize],
+        CtTypeNode::Array { length: 2, .. }
+    ));
+}
+
+#[test]
+fn source_alias_cannot_capture_an_unrelated_caller_parameter() {
+    let errors = try_build("type A=#(t);fn build(t:Type)->Type{return A}", "build").unwrap_err();
+    assert!(errors.iter().any(|e| e.code == "E-CT-SOURCE"), "{errors:?}");
+}
+
+#[test]
+fn source_alias_owns_its_ct_block_locals_and_restores_caller_scopes() {
+    let value = run(
+        "type A=#{let t=i64;yield t;};fn build()->Type{let t=i32;let ignored=A;return t}",
+        "build",
+        &[],
+    );
+    assert_eq!(
+        value,
+        CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+            root: CtTypeNodeId(0)
+        })
+    );
+    let value = run(
+        "type A=#{let t=i64;yield t;};fn build()->Type{return A}",
+        "build",
+        &[],
+    );
+    assert_eq!(
+        value,
+        CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
+            root: CtTypeNodeId(0)
+        })
+    );
 }

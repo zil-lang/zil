@@ -81,6 +81,27 @@ impl<'c, 'a> Builder<'c, 'a> {
         result.current = result.new_block(span)?;
         Ok(result)
     }
+    pub(super) fn source_alias_type_ref(
+        &mut self,
+        module: usize,
+        actual: &s::TypeRef,
+        depth: usize,
+    ) -> R<Value> {
+        self.compiler.budget.work(1, actual.span)?;
+        // A top-level alias has no access to its user's lexical/control scopes.
+        // Move the stacks aside; alias blocks create their own ordinary scopes.
+        let scopes = std::mem::take(&mut self.scopes);
+        let loops = std::mem::take(&mut self.loops);
+        let yields = std::mem::take(&mut self.yields);
+        let previous_module = self.module;
+        self.module = module;
+        let result = self.type_ref(module, actual, depth);
+        self.module = previous_module;
+        self.scopes = scopes;
+        self.loops = loops;
+        self.yields = yields;
+        result
+    }
     pub fn new_block(&mut self, span: Span) -> R<CtBlockId> {
         self.compiler.budget.node(span)?;
         Budget::take(

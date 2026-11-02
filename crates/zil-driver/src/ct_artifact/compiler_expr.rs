@@ -562,10 +562,7 @@ impl Builder<'_, '_> {
                 .as_ref()
                 .ok_or_else(|| error(span, "CT alias has no actual definition"))?;
             self.compiler.enter_alias(owner, item.span, span)?;
-            let previous_module = self.module;
-            self.module = owner;
-            let result = self.type_ref(owner, actual, depth + 1);
-            self.module = previous_module;
+            let result = self.source_alias_type_ref(owner, actual, depth + 1);
             self.compiler.active_aliases.pop();
             return result;
         }
