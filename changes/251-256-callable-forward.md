@@ -11,3 +11,7 @@
 ## 已有错误联合的分支上下文修复
 
 冻结消费者698d280c的 `tests/impl256/frozen-prep/project/main.zil::union_data` 在明确 `Meta!Packet` 期望下，以 `if` 分别产生合法 Meta 和 Packet。现有Expand提前剥掉Union后，把then的Meta错误用作else枚举Packet的期望，产生E-GENERIC-ARGUMENT。252修复保留原Union上下文：仅在两分支名义不同且原Union存在完整匹配侧时，为枚举构造恢复该侧的完整类型提示；真实槽、名义身份/类型实参、活动tag及最终Union资格仍由各阶段核验。同名义及非Union旧路径保持，未匹配者不获得额外资格，不改变冻结源/oracle，不开放E!F或新capture。实际类型复制沿已有预算预付；记录原源拒绝、修复后贯通及旧Copy控制精确N，如确需改变旧费用另行登记。
+
+## schema31来源字段的实际收费
+
+新返回关系在Analyze输入元数据中按Fresh来源tag一个单位、Parameter来源tag加参数索引两个单位计入。既有preflight与fingerprint各实际遍历一次，故每份Fresh返回合同新增2个Analyze单位、每份Parameter新增4个单位；这是新增公开字段的真实费用，旧Fresh证明逻辑不变，默认限额不涨。各具名旧工厂控制的总N按其实际合同数测量并记录N−1/fresh，不把该格式变化报告为全体旧N不变。此处为逻辑元数据单位，Wire另按实际tag一字节与参数索引四字节计长度，不能把两种单位混用；其他内核按自身实际扫描预付并分别报告。
