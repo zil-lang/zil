@@ -2,13 +2,18 @@
 //! declarations whose type spellings do not depend on CT output enter this
 //! batch. Full generated output still runs the ordinary pipeline afterwards.
 use std::collections::{BTreeMap, BTreeSet};
-use zil_base::{CompileResult, Fingerprint, Limits, ModuleId, SourceUnit, TargetProfile};
+use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, TargetProfile};
 use zil_ir::{CoreImport, CoreProgram, ProgramModule, TypedProgram};
 use zil_syntax::ast::{self as s, GenericArg, ItemKind, TypeKind};
 
 pub(super) struct ShapeSnapshot {
     pub checked: TypedProgram,
     pub core: CoreProgram,
+    pub selected: Vec<s::Module>,
+}
+
+pub(super) struct ImplSnapshot {
+    pub entries: Vec<(ModuleId, zil_base::Span, s::TypeRef, s::TypeRef)>,
 }
 
 fn plain_type(ty: &s::TypeRef) -> bool {
@@ -134,13 +139,82 @@ pub(super) fn freeze_shapes(
             plain_item(item)
         }).collect(),
     }).collect::<Vec<_>>();
-    let selected = selected.iter().collect::<Vec<_>>();
-    let expanded = zil_expand::expand_program_with_limits(sources, &selected, imports, limits)?;
+    let selected_refs = selected.iter().collect::<Vec<_>>();
+    let expanded = zil_expand::expand_program_with_limits(sources, &selected_refs, imports, limits)?;
     let modules = expanded.into_iter().map(|(module, _)| ProgramModule { core: module.core, imports: module.imports, exports: module.exports }).collect();
     let core = CoreProgram { root, source_fingerprint: fingerprint, modules };
     // Reuse the language's actual shape resolution and type admission; this
     // batch is never treated as final verification of generated declarations.
     let core = zil_types::resolve_program_shapes(&core, limits)?;
     let checked = zil_types::check_program(&core, target, limits)?;
-    Ok(ShapeSnapshot { checked, core })
+    Ok(ShapeSnapshot { checked, core, selected })
+}
+
+/// Admit only already parsed, ordinary trait/impl declarations against the
+/// completed shape batch. Generated declarations are never fed back here.
+pub(super) fn freeze_impls(
+    sources: &[SourceUnit], syntax: &[&s::Module], imports: &[Vec<CoreImport>],
+    root: ModuleId, fingerprint: Fingerprint, target: &TargetProfile, limits: &Limits,
+    shape: &ShapeSnapshot,
+) -> CompileResult<ImplSnapshot> {
+    if !syntax.iter().any(|module| module.items.iter().any(|item| match &item.kind {
+        ItemKind::Trait(_) => true,
+        ItemKind::Impl(implementation) => implementation.trait_type.is_some(),
+        _ => false,
+    })) {
+        return Ok(ImplSnapshot { entries: Vec::new() });
+    }
+    let mut selected = shape.selected.clone();
+    let mut entries = Vec::new();
+    let mut added = false;
+    for (copy, original) in selected.iter_mut().zip(syntax) {
+        for item in &original.items {
+            match &item.kind {
+                // A generic or conditional implementation denotes a set of
+                // instances, which this finite index cannot enumerate. Do
+                // not publish a partial index as if it were complete.
+                ItemKind::Impl(declaration) if declaration.trait_type.is_some()
+                    && (!declaration.generics.is_empty() || !declaration.where_clause.is_empty()) => {
+                    return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-PHASE-DEPENDENCY", Some(item.span),
+                        "generic or conditional implementation index has not completed")]);
+                }
+                ItemKind::Trait(declaration) if declaration.bounds.iter().all(plain_type)
+                    && declaration.members.iter().all(|member| match &member.kind {
+                        ItemKind::Function(function) => function.params.iter().all(|param| plain_type(&param.ty))
+                            && function.return_type.as_ref().is_none_or(plain_type),
+                        _ => false,
+                    }) => { copy.items.push(item.clone()); added = true; },
+                ItemKind::Impl(declaration) if declaration.trait_type.as_ref().is_some_and(plain_type)
+                    && plain_type(&declaration.target)
+                    && declaration.members.iter().all(|member| match &member.kind {
+                        ItemKind::Function(function) => function.params.iter().all(|param| plain_type(&param.ty))
+                            && function.return_type.as_ref().is_none_or(plain_type),
+                        _ => false,
+                    }) => {
+                    entries.push((original.id, item.span, declaration.trait_type.clone().expect("guarded trait"), declaration.target.clone()));
+                    copy.items.push(item.clone());
+                    added = true;
+                }
+                ItemKind::Trait(_) => {
+                    return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-PHASE-DEPENDENCY", Some(item.span),
+                        "trait implementation index depends on an unfinished declaration")]);
+                }
+                ItemKind::Impl(declaration) if declaration.trait_type.is_some() => {
+                    return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-PHASE-DEPENDENCY", Some(item.span),
+                        "trait implementation index depends on an unfinished declaration")]);
+                }
+                _ => {},
+            }
+        }
+    }
+    if !added { return Ok(ImplSnapshot { entries }); }
+    let refs = selected.iter().collect::<Vec<_>>();
+    let expanded = zil_expand::expand_program_with_limits(sources, &refs, imports, limits)?;
+    let modules = expanded.into_iter().map(|(module, _)| ProgramModule {
+        core: module.core, imports: module.imports, exports: module.exports,
+    }).collect();
+    let core = CoreProgram { root, source_fingerprint: fingerprint, modules };
+    let core = zil_types::resolve_program_shapes(&core, limits)?;
+    zil_types::check_program(&core, target, limits)?;
+    Ok(ImplSnapshot { entries })
 }

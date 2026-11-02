@@ -1,6 +1,6 @@
 //! Closed CT services over the pre-generation source snapshot. Host callbacks
 //! return pure data and never execute a provider or grant ordinary Verify.
-use super::{authority::stage_allows, ordinary_type, render, snapshot::ShapeSnapshot, source_index::SourceIndex, type_ref::from_checked_type};
+use super::{authority::stage_allows, ordinary_type, render, snapshot::{ImplSnapshot, ShapeSnapshot}, source_index::SourceIndex, type_ref::from_checked_type};
 use zil_base::{CompileResult, Diagnostic, FileId, Fingerprint, ModuleId, Phase, SourceUnit, Span};
 use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{Constant, ct_artifact::*};
@@ -16,6 +16,7 @@ pub(super) struct FrozenReadView<'a> {
     pub sources: &'a [SourceUnit],
     pub syntax: &'a [&'a s::Module],
     pub shape: Option<&'a ShapeSnapshot>,
+    pub impl_index: Option<&'a ImplSnapshot>,
     pub shape_failure: Option<&'a [Diagnostic]>,
     pub input: Option<&'a CtTokenTree>,
     pub limits: &'a zil_base::Limits,
@@ -36,10 +37,14 @@ impl FrozenReadView<'_> {
         if depth > 128 { return Err(error("E-CT-TYPE-PHASE", "type syntax nesting exceeds budget")); }
         let actual = ty.nodes.get(node.0 as usize).ok_or_else(|| error("E-CT-TYPE-PHASE", "type node is out of range"))?;
         let punctuation = |out: &mut Vec<_>, text: &str| out.push((text.to_owned(), CtTokenClass::Punctuation, None));
+        let word = |out: &mut Vec<_>, text: &str| out.push((text.to_owned(), CtTokenClass::Identifier, None));
         match actual {
             CtTypeNode::Primitive(scalar) => out.push((match scalar {
                 CtScalarTy::Unit => "Unit", CtScalarTy::Bool => "bool", CtScalarTy::U8 => "u8", CtScalarTy::U16 => "u16", CtScalarTy::I32 => "i32", CtScalarTy::I64 => "i64",
             }.into(), CtTokenClass::Identifier, None)),
+            CtTypeNode::Builtin(builtin) => word(out, match builtin {
+                CtBuiltinType::ByteBuffer => "ByteBuffer", CtBuiltinType::ForeignHandle => "ForeignHandle", CtBuiltinType::CWideString => "CWideString",
+            }),
             CtTypeNode::Nominal { symbol, arguments } => {
                 let (text, namespace) = self.text_name(symbol)?;
                 out.push((text.clone(), CtTokenClass::Identifier, Some(CtIdent { text, namespace, source: CtNameSource::Definition(symbol.clone()), member_owner: None, member_owner_type: None })));
@@ -49,7 +54,19 @@ impl FrozenReadView<'_> {
                         if index != 0 { punctuation(out, ","); }
                         match argument {
                             CtTypeArgument::Type(id) => self.type_spelling(ty, *id, out, depth + 1)?,
-                            CtTypeArgument::Scalar(value) => out.push((format!("{value:?}"), CtTokenClass::Integer, None)),
+                            CtTypeArgument::Scalar(value) => {
+                                let text = match value {
+                                    Constant::Bool(value) => value.to_string(), Constant::U8(value) => value.to_string(),
+                                    Constant::U16(value) => value.to_string(), Constant::I32(value) => value.to_string(),
+                                    Constant::I64(value) => value.to_string(),
+                                    _ => return Err(phase("generic Type constant has no ordinary syntax spelling")),
+                                };
+                                if let Some(digits) = text.strip_prefix('-') {
+                                    punctuation(out, "-"); out.push((digits.into(), CtTokenClass::Integer, None));
+                                } else {
+                                    out.push((text, if matches!(value, Constant::Bool(_)) { CtTokenClass::Keyword } else { CtTokenClass::Integer }, None));
+                                }
+                            },
                         }
                     }
                     punctuation(out, ">");
@@ -62,9 +79,34 @@ impl FrozenReadView<'_> {
             CtTypeNode::Tuple(items) => {
                 punctuation(out, "(");
                 for (index, item) in items.iter().enumerate() { if index != 0 { punctuation(out, ","); } self.type_spelling(ty, *item, out, depth + 1)?; }
+                if items.len() == 1 { punctuation(out, ","); }
                 punctuation(out, ")");
             }
-            _ => return Err(phase("this checked Type constructor has no materializable source spelling")),
+            CtTypeNode::Slice(inner) => { punctuation(out, "["); self.type_spelling(ty, *inner, out, depth + 1)?; punctuation(out, "]"); }
+            CtTypeNode::Address { mutable, inner } => {
+                punctuation(out, "&"); if *mutable { word(out, "mut"); }
+                self.type_spelling(ty, *inner, out, depth + 1)?;
+            }
+            CtTypeNode::Managed(inner) | CtTypeNode::Desc(inner) | CtTypeNode::OwnedStore(inner) => {
+                word(out, match actual { CtTypeNode::Managed(_) => "Managed", CtTypeNode::Desc(_) => "Desc", _ => "Store" });
+                punctuation(out, "<"); self.type_spelling(ty, *inner, out, depth + 1)?; punctuation(out, ">");
+            }
+            CtTypeNode::FunctionPointer { parameters, result } | CtTypeNode::ForeignCallback { parameters, result } => {
+                if matches!(actual, CtTypeNode::ForeignCallback { .. }) {
+                    word(out, "extern"); out.push(("\"C\"".into(), CtTokenClass::String, None));
+                }
+                word(out, "fn"); punctuation(out, "(");
+                for (index, parameter) in parameters.iter().enumerate() {
+                    if index != 0 { punctuation(out, ","); }
+                    self.type_spelling(ty, *parameter, out, depth + 1)?;
+                }
+                punctuation(out, ")"); punctuation(out, "->"); self.type_spelling(ty, *result, out, depth + 1)?;
+            }
+            CtTypeNode::ErrorUnion { error, result } => {
+                self.type_spelling(ty, *error, out, depth + 1)?;
+                punctuation(out, "!"); self.type_spelling(ty, *result, out, depth + 1)?;
+            }
+            CtTypeNode::Opaque { .. } => return Err(phase("opaque Type cannot reveal a source spelling")),
         }
         Ok(())
     }
@@ -270,6 +312,22 @@ impl FrozenReadView<'_> {
             _ => return Err(phase("definition has no CT name")),
         })
     }
+    fn source_nominal(&self, module: ModuleId, ty: &s::TypeRef, trait_name: bool) -> Option<CtSymbolId> {
+        let s::TypeKind::Named { path, .. } = &ty.kind else { return None; };
+        let (owner, name) = match path.as_slice() {
+            [name] => (module, name.as_str()),
+            [alias, name] => (self.index.imported_module(module, alias)?, name.as_str()),
+            _ => return None,
+        };
+        let item = self.syntax.iter().find(|candidate| candidate.id == owner)?.items.iter().find(|item| match &item.kind {
+            ItemKind::Trait(value) if trait_name => value.name == name,
+            ItemKind::Aggregate(value) if !trait_name => value.name == name,
+            ItemKind::Enum(value) if !trait_name => value.name == name,
+            ItemKind::TypeAlias(value) if !trait_name => value.name == name,
+            _ => false,
+        })?;
+        self.index.symbol_at(owner, item.span)
+    }
 }
 
 impl CtReadView for FrozenReadView<'_> {
@@ -289,9 +347,54 @@ impl CtReadView for FrozenReadView<'_> {
         Ok(CtTypeRef { nodes: vec![CtTypeNode::Nominal { symbol: symbol.clone(), arguments: Vec::new() }], root: CtTypeNodeId(0) })
     }
     fn type_apply(&self, requester: &CtSymbolId, nominal: &CtSymbolId, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
-        self.nominal(requester, nominal)?;
-        if !args.is_empty() { return Err(phase("generic type application has no completed shape in this batch")); }
-        self.type_name(requester, nominal, budget)
+        let item = self.nominal(requester, nominal)?;
+        let params = match &item.kind {
+            ItemKind::Aggregate(value) => &value.generics,
+            ItemKind::Enum(value) => &value.generics,
+            ItemKind::TypeAlias(value) => &value.generics,
+            _ => return Err(phase("type application target has no nominal generic declaration")),
+        };
+        if params.len() != args.len() { return Err(error("E-CT-TYPE-ARITY", "generic Type application argument count differs from the frozen declaration")); }
+        let total = args.iter().fold(1u64, |count, arg| count.saturating_add(match arg { CtValue::Type(ty) => ty.nodes.len() as u64, _ => 0 }));
+        if total > u32::MAX as u64 { return Err(error("E-CT-TYPE-LIMIT", "generic Type DAG exceeds identity range")); }
+        budget.reserve_analysis_work(total.saturating_add(params.len() as u64))?;
+        budget.reserve_generated_nodes(total)?;
+        budget.reserve_temporary_bytes(total.saturating_mul(96))?;
+        let mut nodes = Vec::new();
+        let mut arguments = Vec::new();
+        for (param, arg) in params.iter().zip(args) {
+            match (&param.kind, arg) {
+                (s::GenericParamKind::Type(_), CtValue::Type(value)) => {
+                    let base = u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "generic Type node identity overflow"))?;
+                    let shift = |id: CtTypeNodeId| CtTypeNodeId(id.0.saturating_add(base));
+                    for node in &value.nodes {
+                        nodes.push(match node {
+                            CtTypeNode::Primitive(value) => CtTypeNode::Primitive(*value),
+                            CtTypeNode::Builtin(value) => CtTypeNode::Builtin(*value),
+                            CtTypeNode::Nominal { symbol, arguments } => CtTypeNode::Nominal { symbol: symbol.clone(), arguments: arguments.iter().map(|arg| match arg { CtTypeArgument::Type(id) => CtTypeArgument::Type(shift(*id)), CtTypeArgument::Scalar(value) => CtTypeArgument::Scalar(value.clone()) }).collect() },
+                            CtTypeNode::Tuple(parts) => CtTypeNode::Tuple(parts.iter().copied().map(shift).collect()),
+                            CtTypeNode::Array { element, length } => CtTypeNode::Array { element: shift(*element), length: *length },
+                            CtTypeNode::FunctionPointer { parameters, result } => CtTypeNode::FunctionPointer { parameters: parameters.iter().copied().map(shift).collect(), result: shift(*result) },
+                            CtTypeNode::Address { mutable, inner } => CtTypeNode::Address { mutable: *mutable, inner: shift(*inner) },
+                            CtTypeNode::Slice(inner) => CtTypeNode::Slice(shift(*inner)),
+                            CtTypeNode::Managed(inner) => CtTypeNode::Managed(shift(*inner)),
+                            CtTypeNode::Desc(inner) => CtTypeNode::Desc(shift(*inner)),
+                            CtTypeNode::OwnedStore(inner) => CtTypeNode::OwnedStore(shift(*inner)),
+                            CtTypeNode::ForeignCallback { parameters, result } => CtTypeNode::ForeignCallback { parameters: parameters.iter().copied().map(shift).collect(), result: shift(*result) },
+                            CtTypeNode::Opaque { identity } => CtTypeNode::Opaque { identity: identity.clone() },
+                            CtTypeNode::ErrorUnion { error, result } => CtTypeNode::ErrorUnion { error: shift(*error), result: shift(*result) },
+                        });
+                    }
+                    arguments.push(CtTypeArgument::Type(shift(value.root)));
+                }
+                (s::GenericParamKind::Const(_), CtValue::Scalar(value)) if !matches!(value, zil_ir::Constant::Unit) => arguments.push(CtTypeArgument::Scalar(value.clone())),
+                (s::GenericParamKind::Lifetime, _) => return Err(phase("lifetime arguments cannot be reified as CT Type values")),
+                _ => return Err(error("E-CT-TYPE-ARG", "generic Type argument category differs from the frozen parameter")),
+            }
+        }
+        let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "generic Type node identity overflow"))?);
+        nodes.push(CtTypeNode::Nominal { symbol: nominal.clone(), arguments });
+        Ok(CtTypeRef { nodes, root })
     }
     fn definition_ident(&self, requester: &CtSymbolId, symbol: &CtSymbolId, budget: &mut CtExecutionBudget) -> CompileResult<CtIdent> {
         if !self.index.visible(requester, symbol) { return Err(error("E-CT-VISIBILITY", "definition name is private")); }
@@ -367,7 +470,32 @@ impl CtReadView for FrozenReadView<'_> {
                     .ok_or_else(|| error("E-CT-FIELD-NOT-FOUND", "field is not in the completed shape"))?;
                 CtValue::FieldInfo(self.field_info(requester, nominal, ty, field, budget)?)
             }
-            CtQueryKind::ImplIndex => return Err(phase("ImplIndexReady has not completed for this generation batch")),
+            CtQueryKind::ImplIndex => {
+                let index = self.impl_index.ok_or_else(|| self.unready("ImplIndexReady has not completed for this generation batch"))?;
+                let mut results = Vec::new();
+                for argument in args {
+                    budget.reserve_analysis_work(1)?;
+                    let (ty, subject) = self.nominal_root(argument)?;
+                    self.nominal(requester, subject)?;
+                    let Some(CtTypeNode::Nominal { arguments, .. }) = ty.nodes.get(ty.root.0 as usize) else { unreachable!("nominal_root checked") };
+                    for (module, span, trait_type, target_type) in &index.entries {
+                        budget.reserve_analysis_work(1)?;
+                        if self.source_nominal(*module, target_type, false).as_ref() != Some(subject) { continue; }
+                        let s::TypeKind::Named { args: target_args, .. } = &target_type.kind else { continue; };
+                        let s::TypeKind::Named { args: trait_args, .. } = &trait_type.kind else { continue; };
+                        if !target_args.is_empty() || !arguments.is_empty() || !trait_args.is_empty() {
+                            return Err(self.unready("generic trait implementation specialization is not a completed immutable index entry"));
+                        }
+                        let Some(trait_symbol) = self.source_nominal(*module, trait_type, true) else { return Err(self.unready("trait declaration is not in the completed implementation index")); };
+                        if !self.index.visible(requester, &trait_symbol) { continue; }
+                        let implementation = self.index.symbol_at(*module, *span).ok_or_else(|| self.unready("implementation has no frozen declaration identity"))?;
+                        budget.reserve_generated_nodes(1u64.saturating_add(ty.nodes.len() as u64))?;
+                        budget.reserve_temporary_bytes((ty.nodes.len() as u64).saturating_mul(96).saturating_add(256))?;
+                        results.push(CtValue::ImplInfo(CtImplInfo { trait_symbol, implementation, for_type: ty.clone() }));
+                    }
+                }
+                CtValue::List(results)
+            }
             CtQueryKind::Layout => {
                 if self.snapshot.target_fingerprint != Some(self.target.fingerprint()) {
                     return Err(self.unready("LayoutReady target does not match this immutable CT snapshot"));
