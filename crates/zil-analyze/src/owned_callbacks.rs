@@ -3,6 +3,34 @@
 use super::*;
 
 pub(super) fn data(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    // Store's ordinary value profile also admits callback-bearing State. That
+    // independent container permission is not an ordinary callback data slot.
+    budget.type_work(ty, false, "owned callback closed data tree")?;
+    fn closed(ty: &Type) -> bool {
+        match ty {
+            Type::Closure(_) | Type::Opaque { .. } | Type::Address { .. } | Type::Desc(_) => false,
+            Type::Tuple(fields) => fields.iter().all(closed),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.iter().all(|(_, ty)| closed(ty))
+            }
+            Type::Enum { variants, .. } => {
+                variants.iter().all(|(_, fields)| fields.iter().all(closed))
+            }
+            Type::ErrorUnion { error, result } => closed(error) && closed(result),
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::OwnedStore { element }
+            | Type::Managed(element) => closed(element),
+            // Thin function values remain atomic Copy data under their old
+            // signature/FFI checks; they do not carry an environment or F.
+            _ => true,
+        }
+    }
+    if !closed(ty) {
+        return Err(bad(
+            "owned callback data cannot hide an environment, opaque or borrowed dependency",
+        ));
+    }
     match ty {
         Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } => {
             resources::sums::admit(module, ty, budget).map(|_| ())
@@ -38,7 +66,10 @@ pub(super) fn signature(
         false,
         "owned callback entry result comparison",
     )?;
-    if module.closures.get(definition.id.0 as usize) != Some(definition)
+    if !module
+        .closures
+        .get(definition.id.0 as usize)
+        .is_some_and(|actual| std::ptr::eq(actual, definition))
         || definition.kind == CallableKind::FunctionPointer
         || !definition.lending_captures.is_empty()
         || entry.environment != Some(definition.id)
