@@ -15,3 +15,7 @@ CT wire 使用固定schema1字段编码及独立域的有界指纹；失败消�
 源码CT编译器对实际(module, alias declaration span)维护活动别名栈；进入、逐项比较和push前分别预付analysis work，错误也弹出活动项，检出重入后按真实阶段依赖拒绝。无alias路径不增加费用，默认预算不变；直接函数编译入口与项目入口都必须阻止别名展开栈溢出。
 
 实际CT Builder展开alias RHS时另预付1次词法域切换费，以无复制的take/restore隔离调用者scopes/loops/yields并进入定义module；错误同样还原。alias自身局部域合法，不能捕获调用者参数或控制流。纯签名ty路径不加此费，无alias原N不变。
+
+兼容验收区分既有普通CT与新的Type/Syntax域：普通Copy聚合、泛型实例、标量期望类型及既有#if/#for仍由原有已核路径消费；只按真实源定义/静态依赖分流，不能在新路径失败后回退。混合项目继续累计同请求预算，生成声明不得由遍历身份获得新的冻结查询权。
+
+`syntax use`由未实现变为§16.7的锁定能力，因此projects::m017中Core阶段对它的旧Unsupported断言迁移为SafeReject/E-SYNTAX-LOCK-MISSING。Parse停点仍仅解析入口；Core及以后先核显式锁，再解析provider依赖，文件/内存请求一致。此项有明确功能迁移依据，其余旧测试判据保留。
