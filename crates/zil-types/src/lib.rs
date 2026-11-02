@@ -2368,7 +2368,10 @@ impl<'a, 'c> Builder<'a, 'c> {
             if self.closures.pending[id.0 as usize]
                 .captures
                 .iter()
-                .any(|capture| capture.borrowed && matches!(capture.ty, Type::Package { .. }))
+                .any(|capture| {
+                    (capture.borrowed && matches!(capture.ty, Type::Package { .. }))
+                        || capture.ty.is_shared_package_address()
+                })
             {
                 return Err(unsupported(
                     span,
