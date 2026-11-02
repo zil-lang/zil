@@ -60,6 +60,9 @@ fn rows(path: impl AsRef<Path>, selection: &str) -> (bool, Vec<Expected>) {
 import json,sys
 with open(sys.argv[1]) as f: data=json.load(f)
 selection=sys.argv[2]
+if selection.startswith('owned-error:'):
+    data={'cases':data['owned_error']}
+    selection=selection.split(':',1)[1]
 negative=False
 if selection.startswith('frozen:'):
     case=next(c for c in data['frozen'] if c['name']==selection[7:])
@@ -113,8 +116,8 @@ for stdin,e in rows:
         .collect();
     (negative, rows)
 }
-fn project() -> ProjectSources {
-    let names = ["main", "model", "dispatch"];
+fn project(entry: &str) -> ProjectSources {
+    let names = [entry, "model", "dispatch"];
     ProjectSources {
         root: ModuleId(0),
         modules: names
@@ -289,16 +292,29 @@ fn frozen_case(name: &str) {
     }
 }
 #[test]
-fn original_r_event_reply_dispatch() { frozen_case("event-reply") }
+fn original_r_event_reply_dispatch() {
+    frozen_case("event-reply")
+}
 #[test]
-fn original_r_owned_event_copy_result() { frozen_case("event-copy-result") }
+fn original_r_owned_event_copy_result() {
+    frozen_case("event-copy-result")
+}
 #[test]
-fn original_r_owned_reply_from_once_capture() { frozen_case("owned-result") }
+fn original_r_owned_reply_from_once_capture() {
+    frozen_case("owned-result")
+}
 
 #[test]
 fn three_module_predeclared_native_matrix() {
-    let p = project();
-    let (_, expected) = rows(root().join("tests/impl250/ORACLE.json"), "normal");
+    native_matrix("main", "normal");
+}
+#[test]
+fn three_module_owned_error_payload_is_prepared_before_cleanup() {
+    native_matrix("owned_error_main", "owned-error:normal");
+}
+fn native_matrix(entry: &str, selection: &str) {
+    let p = project(entry);
+    let (_, expected) = rows(root().join("tests/impl250/ORACLE.json"), selection);
     for optimization in [Optimization::O0, Optimization::O2] {
         let out = directory("matrix");
         for module in &p.modules {
@@ -335,12 +351,21 @@ fn three_module_predeclared_native_matrix() {
 #[cfg(all(unix, feature = "llvm-api"))]
 #[test]
 fn three_module_actual_allocator_failures_follow_the_frozen_source_oracle() {
+    allocator_matrix("main", "allocator");
+}
+#[cfg(all(unix, feature = "llvm-api"))]
+#[test]
+fn three_module_owned_error_actual_allocator_failures() {
+    allocator_matrix("owned_error_main", "owned-error:allocator");
+}
+#[cfg(all(unix, feature = "llvm-api"))]
+fn allocator_matrix(entry: &str, selection: &str) {
     use std::os::unix::fs::PermissionsExt;
     fn quote(path: &Path) -> String {
         format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
     }
-    let p = project();
-    let (_, expected) = rows(root().join("tests/impl250/ORACLE.json"), "allocator");
+    let p = project(entry);
+    let (_, expected) = rows(root().join("tests/impl250/ORACLE.json"), selection);
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("clang"));
