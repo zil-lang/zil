@@ -24,15 +24,16 @@ pub fn handler(event:Event)->impl FnMut(i32)->i32{
 pub fn body(event:Event,base:i32,result:i32)->impl FnOnce()->i32{
     bridge.factory(75)
     return move()->i32=>{
+        let current=event
         let started=bridge.body()
         if started<1{return 903}
-        if bytes_len(event.bytes)!=1||event.mark.code<65{return 904}
+        if bytes_len(current.bytes)!=1||current.mark.code<65{return 904}
         if bridge.pump(2)!=4+base{return 905}
         if bridge.pump(3)!=6+base{return 906}
         return result
     }
 }
-pub fn nested_body(event:Event)->impl FnOnce()->i32{
+pub fn nested_body(event:Event)->impl Fn()->i32{
     bridge.factory(75)
     return move()->i32=>{
         bridge.body()

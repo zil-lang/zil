@@ -57,3 +57,10 @@ uncovered gap, never counted as a semantic rejection Pass. The current local
 alias control instead keeps an ordinary shared f address live across exclusive
 publication without capturing that address in body; it reaches Analyze. Raw
 same-root rejection and distinct-root acceptance remain independent obligations.
+
+The body factory takes its captured Event into a real body local, so its fresh
+implementation is genuinely FnOnce. The nested-body factory reads its owning
+Event and declares the actual Fn mode; the structured call still consumes that
+body once and cleans its remaining capture before close. These exercise both
+responsibility paths without changing the existing exact-kind factory rule or
+the original observable oracle.
