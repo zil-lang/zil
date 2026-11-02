@@ -34,6 +34,14 @@
 
 本收尾仅增加2项持久测试与说明，无生产接受性、预算或ABI变更。限定命令`cargo test -p zil-analyze concrete_ -j2 --lib -- --nocapture`15项、`scoped_`12项及`forward::tests`14项通过（过滤集合存在交集，不相加作独立总数），Analyze Clippy通过；原不相交普通borrowed body通过，旧预算与factory-only2073保持。本片没有新增机器或Rust性能实证，四目标及产品突破裁决保持上文限制。
 
+### 经合法拥有Package及普通Fresh工厂隐藏角色的最近反例
+
+278独审后续原raw将实际supplied B（声明FnOnce、实际Copy Fn）与真实Managed owner装入合法Package，再经普通Fresh工厂取出B、捕获到新With body，body以Fn调用两次并删除外层B事件。直接用审核者`/tmp/review-278-wrapped-factory/src/main.rs`构造的精确module调用公开Analyze API及Wire解码Analyze，均以Analyze/SafeReject/`E-ANALYZE-IR`/`symbolic F enters an unsupported value operation`拒绝：原私有forward证明已在MakePackage实际操作数处阻止角色被隐去，无需新增Analyze生产规则。
+
+持久raw`wrapped_factory_body_282(false)`保留同型独立Fresh B作为Package的实际字段、真实Managed owner、普通Fresh工厂、完整scope/清理及body两次调用，raw/Wire正前缀通过；`true`只把该字段换成本次supplied B，raw/Wire以上述实际角色错误拒绝。新增持久夹具首跑遗漏caller显式scope，在package scope检查早拒；补齐scope后正前缀通过，遗漏scope的失败不计作角色证据。共用旧With隐藏B构造器，不调用Types/Verify求证，不改变State或Parameter合同。现有State拥有/消费与Sum伴参控制及Parameter来源回归继续单独核验；本补片仅测试/说明，默认额度、ABI、四目标与机器结论保持。
+
+限定复核：Analyze `concrete_`16项、`forward::tests`14项、`independent_once_state_consumes_captures_and_rejects_reuse`1项、`single_state_constructor_does_not_acquire_new_sum_companion_parameters`1项通过；同一Analyze Clippy和文件rustfmt检查通过。本树未叠279的scoped借入精确2352仍保持；集成叠279后真实新增费用由集成方另测，不把单片费用断言覆盖组合费用。
+
 ## 限定验证与分账
 
 工具链 `/workspace/.zil-env/env.sh`，`CARGO_TARGET_DIR=/workspace/.zil-env/target-282`，jobs2：
