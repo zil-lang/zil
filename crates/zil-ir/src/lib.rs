@@ -8,6 +8,7 @@ use zil_base::{
 };
 
 pub mod ct_artifact;
+pub mod ct_wire;
 mod program;
 pub mod wire;
 pub use program::*;
