@@ -49,6 +49,8 @@ Event nor Mark(7), and only the initialized Mark(3) is dropped. Main stores
 run's outcome, invokes the real F(4)==5, checks cleared roots/live=0, and only
 then propagates the outcome with ?. Thus F reuse is observable even on null
 and preparation failure, rather than being skipped by an early main ?.
+On success it additionally checks the full returned i32 value equals 4 before
+returning 0, rather than relying only on the process exit code's low byte.
 
 The independent C driver uses a real register callback and Closing reentry,
 requires actual ByteBuffer live=0 before close, clears roots, and checks the

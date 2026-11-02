@@ -41,5 +41,6 @@ fn main()->Fault!i32{
     if after!=5{return 99}
     unsafe{composition_after(after)}
     let value=outcome?
+    if value!=4{return 103}
     return value-4
 }
