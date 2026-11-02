@@ -309,6 +309,9 @@ fn ordinary_capture_window_budget_is_request_local_exact_and_fresh() {
         let mut budget = Budget::new(&defaults);
         let expected = analyze_budgeted(&module, &defaults, &mut budget, None);
         let exact = defaults.max_analysis_steps - budget.remaining();
+        if matches!(write, Write::AfterLast) {
+            assert_eq!(exact, 1291, "ordinary scalar capture keeps its old work");
+        }
         let limits = Limits {
             max_analysis_steps: exact,
             ..defaults
@@ -563,7 +566,16 @@ fn captured_copy_fields_keep_actual_siblings_and_whole_parent_windows_raw_wire()
         if same && !after_last {
             assert_eq!(expected.as_ref().unwrap_err()[0].code, "E-BORROW-CONFLICT");
         } else {
-            expected.as_ref().unwrap();
+            let plan = expected.as_ref().unwrap();
+            for instruction in &module.functions[0].blocks[0].instructions {
+                if matches!(instruction.kind, InstructionKind::BorrowPackageField { .. }) {
+                    let value = instruction.result.unwrap();
+                    assert_eq!(
+                        plan.functions[0].holds[value.0 as usize].roots,
+                        vec![HoldRoot::Local(LocalId(0))]
+                    );
+                }
+            }
         }
         let bytes = zil_ir::wire::encode_module_candidate(
             &module,
@@ -630,6 +642,14 @@ fn captured_copy_field_work_is_exact_and_fresh_raw_wire() {
             expected.as_ref().unwrap();
         }
         let exact = defaults.max_analysis_steps - budget.remaining();
+        assert_eq!(
+            exact,
+            match (same, after_last) {
+                (false, false) => 2387,
+                (true, false) => 2202,
+                (_, true) => 2560,
+            }
+        );
         let bytes = zil_ir::wire::encode_module_candidate(
             &module,
             &CandidatePlan::empty_for(&module),
