@@ -1,0 +1,38 @@
+{
+  "reviewer": "/root",
+  "implementation_author": "/root/callback_backend_fallback",
+  "verdict": "Pass",
+  "implementation_commit": "4bbc4b6f26d9dfce21bf0ba5ff18514a55e13a2d",
+  "production_commit": "9d3eef9612147caf27785187cbd62a9102aecc57",
+  "scope": "Independent Lower and LLVM boundary code/evidence review; joint full gates and remaining Analyze/Verify findings are separate obligations",
+  "reviewed_files": [
+    {
+      "path": "crates/zil-lower/src/lib.rs",
+      "sha256": "9aa4abdc9950743fe44b153cec82ab6344e507b6125d242572e8e575fcb19d2d",
+      "equals_current_candidate": true
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit.rs",
+      "sha256": "fcdad1bae7d9a54085d6f51825ba671a21a3945d2dc3c2d4b98d82e1024ddf56",
+      "equals_current_candidate": true
+    }
+  ],
+  "findings": [],
+  "reasoning": [
+    "Both Lower and LLVM bind against VerifiedModule and independently inspect Parameter actual index, actual parameter Local Closure type, return Closure identity, unique role, role index/kind, and Returned cleanup. Missing/out-of-range/inconsistent boundaries reject.",
+    "Fresh admission path preserves prior behavior; forwarding does not replace the actual verified CFG/Call/Return or synthesize a new environment. The existing aggregate layout, TakeLocal liveness and drop flags remain the representation.",
+    "New per-function guards inspect fixed fields, bounds-checked indexes and a required singleton role slice; no unbounded new traversal, allocation or codegen cache is introduced.",
+    "Author final-candidate machine receipts separately report final normal replay and historical allocator runs reused only with byte-identical LLVM IR. Those historical runs are not relabeled as final executions.",
+    "Root inspected consumer256 execution harness against frozen source-operation oracle: exact exit/stdout, all six allocator fields and live0, actual linker wrapper and no fallback; future common-candidate full run must also pass."
+  ],
+  "evidence_reviewed": [
+    "evidence/impl/255/final-candidate.json",
+    "evidence/impl/255/final-normal-replay.json",
+    "evidence/impl/255/native-oracle.json",
+    "evidence/impl/255/machine-abi.txt"
+  ],
+  "limitations": [
+    "This review is not whole-language safety acceptance. Analyze253 and Verify254 review failures remain blocking until independently repaired.",
+    "No Rust runtime/RSS performance comparison or Windows native product claim."
+  ]
+}
