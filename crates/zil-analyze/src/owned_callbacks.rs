@@ -346,7 +346,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     budget.owned_callbacks.len(),
                     "owned callback signature lookup",
                 )?;
-                if !budget.owned_callbacks.contains(id) {
+                let forwarding = if budget.forward_closures.is_empty() {
+                    false
+                } else {
+                    budget.lookup(
+                        budget.forward_closures.len(),
+                        "forward actual callback signature lookup",
+                    )?;
+                    budget.forward_closures.contains(id)
+                };
+                if !budget.owned_callbacks.contains(id) && !forwarding {
                     continue;
                 }
                 if let InstructionKind::CallClosureMut { callee, .. } = i.kind
