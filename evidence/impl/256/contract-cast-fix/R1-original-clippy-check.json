@@ -1,0 +1,28 @@
+{
+  "source_commit": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+  "name": "clippy",
+  "command": [
+    "cargo",
+    "clippy",
+    "--offline",
+    "--locked",
+    "--workspace",
+    "--all-targets",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "exit_code": 101,
+  "timeout": false,
+  "elapsed_seconds": 16.001,
+  "log_sha256": "52871a3f9a2f266ca860f108f9f16a8d5a47bd93472f6b6bf781f99a1a80a797",
+  "test_summaries": 0,
+  "totals": {
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "status": "Fail"
+}

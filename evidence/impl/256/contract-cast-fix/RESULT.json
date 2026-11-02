@@ -1,0 +1,61 @@
+{
+  "verdict": "Pass limited contracts test and its Clippy only; original formal R1 Fail retained",
+  "source_parent": "737e22be412dae52d6b4741d62f02afd4d3b03e3",
+  "tested_source": {
+    "path": "crates/zil-driver/tests/impl256_contracts.rs",
+    "sha256": "e0f4b10dfc36be4d57c2a892c0ba935c9d8e02a6e66b50936a5d5954c2f50428"
+  },
+  "source_change": "Remove exactly two redundant usize-to-usize casts from f.span.start/end in the test source-span lookup; no behavior/oracle/production change",
+  "commands": [
+    {
+      "command": "source /workspace/.zil-env/env.sh; ZIL_TEST_REPORT_DIR=/tmp/impl256-contract-cast-fix CARGO_TARGET_DIR=/workspace/.zil-env/target-256 cargo test -p zil-driver --features llvm-api --test impl256_contracts --offline --locked -j 2",
+      "exit": 0,
+      "tests": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log": "contracts.log",
+      "log_sha256": "aef9fe28ff9d8201ba22a168cf805f29a766964ae9b825e7611a5c8a5200e0e3"
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 cargo clippy -p zil-driver --features llvm-api --test impl256_contracts --offline --locked -j 2 -- -D warnings",
+      "exit": 0,
+      "log": "clippy.log",
+      "log_sha256": "ad8a30ee586cfa4f9ed857bd2ae36395dd0fdd8c8e1d1405de782c92765ba6a0"
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; rustfmt --edition 2024 --check crates/zil-driver/tests/impl256_contracts.rs",
+      "exit": 0
+    }
+  ],
+  "new_native_runs": 0,
+  "earlier_R1_native_counts_not_added_or_reexecuted": true,
+  "raw_and_wire_contract_test": "Pass through actual limited Rust test",
+  "artifacts": [
+    {
+      "path": "/tmp/impl256-contract-cast-fix/consumer256-contracts-279554/candidate.wire",
+      "bytes": 81310,
+      "sha256": "ee7cf4f2302a093da366ad9113b4df2b0372a9548824d2d368763cb0ae51b4bf"
+    },
+    {
+      "path": "/tmp/impl256-contract-cast-fix/consumer256-contracts-279554/typed.txt",
+      "bytes": 1403670,
+      "sha256": "cfee94a914437ffb1e2c98d7481ba1d921da3274f37a177d3ee66ac282e9fa9d"
+    }
+  ],
+  "frozen_source_oracle_sha256": {
+    "tests/impl256/ORACLE.json": "78af8b1cf33b06744e9bc70c3e965392cf14da1015b99138370465973d26f4b8",
+    "tests/impl256/supplement/ORACLE.json": "53afb4f450d42604e259f4b6247e0dd3e30fbcb3ba5cbe642181c02b57861116",
+    "tests/impl256/frozen-prep/frozen-original/source.zil": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266"
+  },
+  "original_R1": {
+    "source_commit": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+    "clippy_status": "Fail",
+    "clippy_exit": 101,
+    "clippy_log_sha256": "52871a3f9a2f266ca860f108f9f16a8d5a47bd93472f6b6bf781f99a1a80a797",
+    "subsequent_reference": "NotRun in R1; formal continuation root-owned"
+  },
+  "formal_workspace_or_remote_CI_reacceptance_claimed": false
+}
