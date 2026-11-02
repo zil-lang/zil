@@ -230,6 +230,7 @@ struct Budget {
     sum_functions: Vec<bool>,
     function_count: usize,
     current_function: Option<usize>,
+    private_slot_functions: Option<Vec<bool>>,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -240,6 +241,7 @@ impl Budget {
             sum_functions: Vec::new(),
             function_count: 0,
             current_function: None,
+            private_slot_functions: None,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -247,6 +249,14 @@ impl Budget {
             .remaining
             .checked_sub(amount)
             .ok_or_else(|| limit("independent verification work budget exhausted"))?;
+        Ok(())
+    }
+    fn mark_private_slot(&mut self, function: usize) -> Check<()> {
+        if self.private_slot_functions.is_none() {
+            self.spend(self.function_count)?;
+            self.private_slot_functions = Some(vec![false; self.function_count]);
+        }
+        self.private_slot_functions.as_mut().unwrap()[function] = true;
         Ok(())
     }
     fn mark_sum(&mut self, function: Option<usize>) -> Check<()> {
@@ -460,6 +470,7 @@ fn check_module(
     for (index, function) in module.functions.iter().enumerate() {
         helpers::check_claim_shape(function, limits, &mut budget)?;
         retained::check_claim(module, function, limits, &mut budget)?;
+        let mut private_slot = false;
         budget.spend(function.name.len().saturating_add(1))?;
         if function.id.0 as usize != index {
             return Err(reject(
@@ -493,11 +504,14 @@ fn check_module(
         budget.spend(function.parameters.len())?;
         for local in &function.locals {
             budget.spend(local.name.len().saturating_add(1))?;
-            check_local_type(&local.ty, Some(local.span), module, &mut budget)?;
+            private_slot |= check_local_type(&local.ty, Some(local.span), module, &mut budget)?;
         }
         for ty in &function.values {
             budget.spend(1)?;
-            check_local_type(ty, Some(function.span), module, &mut budget)?;
+            private_slot |= check_local_type(ty, Some(function.span), module, &mut budget)?;
+        }
+        if private_slot {
+            budget.mark_private_slot(index)?;
         }
         for parameter in &function.parameters {
             let ty = local_type(function, *parameter, Some(function.span))?;
@@ -604,7 +618,13 @@ fn check_module(
             ));
         }
         let graph = check_function(module, function, function_plan, &mut budget, limits)?;
-        resources::arrays::check_internal_slot_uses(module, function, &graph, &mut budget)?;
+        if budget
+            .private_slot_functions
+            .as_ref()
+            .is_some_and(|rows| rows[function.id.0 as usize])
+        {
+            resources::arrays::check_internal_slot_uses(module, function, &graph, &mut budget)?;
+        }
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
@@ -863,8 +883,11 @@ fn check_local_type(
     span: Option<Span>,
     module: &TypedModule,
     budget: &mut Budget,
-) -> Check<()> {
-    match ty {
+) -> Check<bool> {
+    if resources::arrays::is_owned_type(ty) {
+        return resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget);
+    }
+    let checked = match ty {
         Type::Closure(id) if (id.0 as usize) < module.closures.len() => Ok(()),
         Type::Closure(_) => Err(reject(
             "E-VERIFY-CLOSURE",
@@ -899,11 +922,9 @@ fn check_local_type(
         Type::Enum { .. } if budget.sums && sums::owned_enum(ty) => {
             sums::check_type_for(module, ty, span, budget)
         }
-        ty if resources::arrays::is_owned_type(ty) => {
-            resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget)
-        }
         _ => check_type(ty, span),
-    }
+    };
+    checked.map(|_| false)
 }
 
 struct FunctionGraph {
