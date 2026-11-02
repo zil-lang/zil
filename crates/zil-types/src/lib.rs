@@ -2180,7 +2180,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         )?;
         if let Some(Type::FunctionPointer { parameters, result }) = expected {
             if !closures::supported_signature(parameters, result) {
-                return Err(unsupported(span, "owned callback data signatures do not qualify for function pointers"));
+                return Err(unsupported(
+                    span,
+                    "owned callback data signatures do not qualify for function pointers",
+                ));
             }
             let pending = &mut self.closures.pending[id.0 as usize];
             if parameters.len() != pending.parameters.len() {
@@ -2362,10 +2365,15 @@ impl<'a, 'c> Builder<'a, 'c> {
             let span = pending.span;
             let captures = pending.captures.len();
             self.closures.snapshot(captures.saturating_add(1), span)?;
-            if self.closures.pending[id.0 as usize].captures.iter().any(|capture| {
-                capture.borrowed && matches!(capture.ty, Type::Package { .. })
-            }) {
-                return Err(unsupported(span, "shared Product capture environments require Copy results"));
+            if self.closures.pending[id.0 as usize]
+                .captures
+                .iter()
+                .any(|capture| capture.borrowed && matches!(capture.ty, Type::Package { .. }))
+            {
+                return Err(unsupported(
+                    span,
+                    "shared Product capture environments require Copy results",
+                ));
             }
         }
         let pending = &self.closures.pending[id.0 as usize];
