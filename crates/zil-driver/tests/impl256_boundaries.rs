@@ -40,6 +40,16 @@ fn nearest_source_rejections_require_the_actual_mode_origin_or_window_reason() {
             );
             fs::write(dir.join("report.json"), report.to_json()).unwrap();
             assert!(!report.artifacts.contains_key("executable"));
+            if name == "mut_declared_actual_fn_shared_call" {
+                fs::write(dir.join("out-of-profile.json"), format!("{{\"classification\":\"historical B0 gap; not a current semantic rejection Pass\",\"original_expected\":\"SafeReject\",\"actual\":\"{:?}\",\"source_and_original_expectation_preserved\":true,\"root_registrations\":[\"5b6b609e5\",\"b113\"]}}\n",report.status)).unwrap();
+                if report.status == ResultCategory::Success {
+                    failed.push(format!(
+                        "historical invalid source unexpectedly accepted: {}",
+                        report.to_json()
+                    ));
+                }
+                continue;
+            }
             let environment = name.starts_with("external_address");
             let accepted_rejection = if environment {
                 report.status == ResultCategory::Unsupported

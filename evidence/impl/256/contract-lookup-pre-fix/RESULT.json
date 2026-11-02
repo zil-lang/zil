@@ -1,0 +1,14 @@
+{
+  "verdict": "Fail preserved: test lookup assumed unmangled helper names",
+  "tested_compiler_commit": "431fc7ce418f7765e5f3786bf86b15268b093da7",
+  "tests": {
+    "selected": 3,
+    "executed": 2,
+    "passed": 1,
+    "failed": 1
+  },
+  "pair_test_executed": false,
+  "native_runs": 0,
+  "finding": "Actual helper names are @module2:helperN:envM. The source contract test now selects original declarations by actual source spans, preserving every Parameter(k), Returned and kind assertion.",
+  "production_or_native_oracle_change": false
+}

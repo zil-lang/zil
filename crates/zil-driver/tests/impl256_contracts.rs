@@ -72,7 +72,13 @@ fn actual_parameter_indices_and_declared_modes_survive_raw_and_wire() {
         let functions = module
             .functions
             .iter()
-            .filter(|f| f.name.contains(name) && f.callable_return_contract.is_some())
+            .filter(|f| {
+                f.callable_return_contract.is_some()
+                    && sources
+                        .get(f.span.file.0 as usize)
+                        .and_then(|s| s.text.get(f.span.start as usize..f.span.end as usize))
+                        .is_some_and(|source| source.contains(&format!("fn {name}<")))
+            })
             .collect::<Vec<_>>();
         assert!(
             !functions.is_empty(),
