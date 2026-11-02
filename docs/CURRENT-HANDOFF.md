@@ -1,15 +1,11 @@
-# 当前接续入口：普通拥有Sum与同步语言组合
+# 当前接续：Type/Syntax 与 ZUI 语言前置
 
-[PR17](https://github.com/zil-lang/zil/pull/17)已把239–244合入实际main `8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad`。共同受测/独审源码R为`15498f14af8f11d3a3bf4b198fe69208be5913ce`，两者整树相同。Rust/Cargo1.99.1、LLVM/Clang23.1.4，schema/Wire30；无需重装环境。
+已验收主线为 `9aeffc113971002fe788dc679c157a332b7dfcef`（[PR19](https://github.com/zil-lang/zil/pull/19)）。此前拥有 Event → 具体闭包/公共 dispatch → 拥有 Reply 已合入；本批再完成已规定范围内的回调原值转交。schema/Wire31；Rust/Cargo1.99.1、LLVM/Clang/LLD23.1.4。
 
-本批普通非泛型拥有Enum、Product内Sum、含Store Product错误载荷，接通构造、参数/返回、消耗式match、嵌套模式、整值替换、defer与真实失败清理。227/235/236/237/238此前已合入的同步defer、嵌套Store、完整泛型Product身份与替换继续保留。新普通资格不自动开放capture、StoreElement、数组、FFI或拥有泛型Enum。
+实际 main 的两组 CI 41461237336/41461237165 均已独立恢复并核对完整归档、4237项源码和提交身份；每组默认3733/0、参考3626/0、文本64/0，重放分别记账。[验收入口](../evidence/integration/callable-forward-20261102/main-replay/ACCEPTANCE.json)；[能力与剩余边界](LANGUAGE-CALLABLE-FORWARD-20261102.md)。GitHub artifact 配额仍满，已核完整日志备用通道，未宣称配额修复。
 
-本地默认3575/0、参考3474/0、文本参考64/0，均零忽略/过滤；严格Clippy、格式、State控制通过。239–243独审138/0，240独立补充61/0；五模块消费者476次native含252次真实分配失败，均live0。root另按源码独立推导预期复跑100次native（26次真实失败）；重放次数不叠加。
+当前施工257–262：完整Type/Syntax、四类quote、typed holes、标准反射、多个锁定provider、卫生作用域与普通代码物化。权威状态在主树 `.task/impl/257.md` 至 `262.md`，公共合同冻结1b8f0963d。首个可编译施工检查点 `fbddcfea5e38f61984bf8e50e0e11dee7516189d` 已推送并精确读回 `task/257`；后续提交仍须独审与正式集成，不是main能力。长期外部回调生命周期接续其后。
 
-PR source CI41363882129、research LLVM CI41363882134均成功，各自默认3575/0、参考3474/0、文本参考64/0。常规artifact上传不可用，两份完整日志恢复归档已取回，root重核全部blob、4092个当前源文件及实际checkout b59b9f1a的整树身份。main自动重放41366807735/41366807646均已成功；root重新核对两份完整归档、4092个当前源文件及实际checkout M，各自测试计数与PR一致。入口为[evidence/integration/owned-sum-20261102/ACCEPTANCE.json](../evidence/integration/owned-sum-20261102/ACCEPTANCE.json)。
+CP清理245已完成，14个旧头可从 `archive/cp-245-20261102` 及已保存bundle恢复；有独有在途成果的 `task/cp25-reactive-session` 保留。已合入且干净的245–256旧任务树按实际提交拓扑清理，251受测源码树暂保留供审计。
 
-P3548/12、Q全仓3575/0但独立合法owner被误拒、所有原输入及修复均保存。Q远端两次取消的可取日志已封存，其native归档无法完整恢复，不能计验收。最终handoff记录检查仍有1144项历史错误、0警告，本批239–244六张工单均0错误；check-plan自测通过。历史记录债务按Fail保留。阶段总结见[本批报告](LANGUAGE-OWNED-SUM-20261102.md)。
-
-下一主线是同步拥有Event/Reply经过具体闭包和公共generic dispatch的责任闭环；最终R检查确认三个拥有callback探针在Types拒绝，F原样转交在Expand拒绝，而已有State/Store对照到Verify通过。详见[下一优先级](LANGUAGE-NEXT-PRIORITIES.md)。完整1.4/ZUI NotSatisfied、B0 Doing、181施工、产品及原生WindowsNotRun保持；没有本轮Rust性能比较。
-
-接续从主树AGENTS.md进入，运行handoff和check-plan。机器摘要、六张实施卡及当前交接已更新到本批身份，旧schema27摘要保存在本批previous-final-summary.json；源码事实仍以Git和精确收据为准。施工枝及原证据保留，没有进行分支清理。
+从主树AGENTS.md进入，先核环境和精确HEAD。当前环境仍 running/connected；不重绑既有托管线程、不发布环境配置。handoff记录完整性仍为Fail：当前规范registry已经如实刷新，历史registry/证据outcome问题不被代码测试通过抵销，也不改写历史提交。完整1.4/ZUI NotSatisfied，B0 Doing，产品和原生Windows NotRun。
