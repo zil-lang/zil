@@ -1,0 +1,26 @@
+{
+  "phase": "workspace",
+  "commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--workspace",
+    "--no-fail-fast"
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-sum-core",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "ZIL_CLANG": "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "ZIL_TEST_REPORT_DIR": "/workspace/.zil-env/formal-owned-sum-R/native/workspace"
+  },
+  "started_utc": "2026-11-01T23:47:16.726780+00:00",
+  "exit": 0,
+  "seconds": 388.17584297400026,
+  "ended_utc": "2026-11-01T23:53:44.903340+00:00"
+}

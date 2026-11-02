@@ -1,0 +1,13 @@
+{
+  "commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "command": [
+    "python3",
+    "/workspace/.zil-env/sum-integration-debug/root-review244.py",
+    "/workspace/zil-core",
+    "/workspace/.zil-env/formal-owned-sum-R/bin/zil",
+    "/workspace/.zil-env/formal-owned-sum-R/root244"
+  ],
+  "started_utc": "2026-11-01T23:55:17.666082+00:00",
+  "exit": 0,
+  "seconds": 1.6951228600082686
+}

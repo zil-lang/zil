@@ -1,0 +1,87 @@
+{
+  "reviewer": "kernel_defer227, 242 implementation author; independent production author of neither 240 nor its repair",
+  "scope": "240 frontend supplemental independent review only. No independent review of own Verify, no native or formal workspace run.",
+  "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+  "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+  "authority_commit": "19111462d25425dc8e75830a758119cc2de78d4e",
+  "environment": {
+    "cwd": "/workspace/zil-core",
+    "target": "/workspace/.zil-env/target-review240",
+    "old_snapshot_target": "/workspace/.zil-env/target-review240-preQ-32d8244",
+    "binding": "Target was created fresh for common core Q, then reused only from the same core worktree for R. All path dependencies point to core. No snapshot/other worktree cache reused.",
+    "jobs": 1,
+    "incremental": false,
+    "offline": true
+  },
+  "original54": {
+    "expected_sha256": "d83d8605d9175ea7fc2d8699a22151ab284d3cc02352f3eb40a5fe4f6d94fe05",
+    "inputs_manifest_sha256": "15a677a8907f8047202f13f5fb2f2896eefb3b00dd89116cd1d10325ac5d20ae"
+  },
+  "candidate": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "status": "Pass_LimitedIndependent240Frontend",
+  "execution_identity": "Both 61-source run and budget run recorded start and end HEAD as R; source-run status before/after is clean. Original54 source/RawCore hashes match the frozen input manifest. No core production or test edits.",
+  "source_run": {
+    "command": "REVIEW240_FINAL=1 cargo run --manifest-path /tmp/review240-boundaries/Cargo.toml --offline --bin review240-boundaries",
+    "actual_inputs": 61,
+    "original54": "54/0",
+    "Desc4": "4/0",
+    "owner3": "3/0",
+    "all": "61/0",
+    "phase_scope": "Positive controls reach Types; negatives check semantic diagnostic codes/reasons, never Parse failures.",
+    "owner_finding": "Exact Q helper source SHA adddd40... now succeeds unchanged. Current owner and post-join new Desc pass; pre-replacement old Desc rejects E-GENERIC-ARGUMENT with outlived reason.",
+    "Analyze_or_Verify": "Neither invoked during these 61 cases; Q qualification controls separately used independent Analyze, not Verify."
+  },
+  "covered_boundaries": [
+    "manages AST/Core fidelity and cross-module declaration/unused-template paths",
+    "Bare resources/Ref cannot acquire owner permissions; give forwarding comes only from an actual producer",
+    "Unused recursive shapes and owning generic Enum remain closed; actual Copy and phantom Copy controls remain legal",
+    "Enum and Product<Sum> capture/shared/array/StoreElement/FFI profiles remain closed",
+    "Source binding and private hidden slot access preserve actual identity/private fields",
+    "Whole owning Enum duplicate/rematch rejects even when the helper is unused",
+    "Original stale Desc direct/alias/give-relay observations reject; valid before-give read survives",
+    "Conditional owner refill preserves current complete owner without reviving old Desc; a post-join description is valid"
+  ],
+  "budget": {
+    "command": "cargo run --manifest-path /tmp/review240-boundaries/Cargo.toml --offline --bin budget",
+    "observations": [
+      {
+        "profile": "desc-live",
+        "expand_work": 530,
+        "expand_nodes": 265,
+        "types_work": 603,
+        "N_minus_one": "ResourceLimit",
+        "warm_and_fresh_N": "identical output"
+      },
+      {
+        "profile": "old-copy-enum",
+        "expand_work": 296,
+        "expand_nodes": 130,
+        "types_work": 219,
+        "N_minus_one": "ResourceLimit",
+        "warm_and_fresh_N": "identical output"
+      },
+      {
+        "profile": "old-give-param",
+        "expand_work": 389,
+        "expand_nodes": 173,
+        "types_work": 544,
+        "N_minus_one": "ResourceLimit",
+        "warm_and_fresh_N": "identical output"
+      },
+      {
+        "profile": "old-package-field",
+        "expand_work": 430,
+        "expand_nodes": 186,
+        "types_work": 711,
+        "N_minus_one": "ResourceLimit",
+        "warm_and_fresh_N": "identical output"
+      }
+    ],
+    "old_reference": "Norm/previous frozen receipts give old Copy Enum266/116, explicit give389, Package430. Only current R independently executed here: Copy296/130, give389, Package430; no old tree rebuilt or cache imported.",
+    "interpretation": "Second approved Copy-helper exception is independently matched at R296/130 with Types219. Give and Package work/Types match their old recorded values. New Desc-live example530/265, Types603 is a separate new-profile measurement, not an old-budget comparison.",
+    "method": "For each profile independently binary-search work, nodes and Types-work from default bounded limits. Exact N succeeds, N-1 is ResourceLimit, repeated/warm and fresh public requests after failure reproduce complete Core/Typed output. Immutable root growth/union/join/scope visits are prepaid; private flags retain legacy fast paths. Default limits are unchanged.",
+    "reuse_disclosure": "Three old control source files reused the frozen author budget examples so exact threshold identity is comparable; reviewer supplied an independent search harness and fresh common-core execution. Desc-live is the original independent review source."
+  },
+  "changes_reviewed": "Only 240 production, including paid finite Copy classification, actual managed-field owner transfer, immutable root facts, activation registry, joins and existing qualification gates. Root-authorized normative exceptions are explicit.",
+  "limitations": "This is bounded independent 240 supplemental Pass, not universal language completeness, own Verify review, machine execution, formal whole-workspace acceptance or product performance claim. New native executions:0. All Q failures and invalid diagnostic fixture probes remain in the separate Q receipt."
+}

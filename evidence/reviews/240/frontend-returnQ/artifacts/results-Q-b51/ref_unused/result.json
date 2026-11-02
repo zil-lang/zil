@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"enum payload requires finite Copy or an ordinary complete owned value\", span: Some(Span { file: FileId(0), start: 17, end: 34 }), notes: [] }]"}

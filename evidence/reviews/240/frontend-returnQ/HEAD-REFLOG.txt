@@ -1,0 +1,6 @@
+15498f14a HEAD@{2026-11-01T23:46:03Z}: merge 1246dd29c: Merge made by the 'ort' strategy.
+39473217b HEAD@{2026-11-01T23:44:51Z}: merge 8f7a4098f: Merge made by the 'ort' strategy.
+b51dc2043 HEAD@{2026-11-01T23:35:35Z}: merge b612507ff: Merge made by the 'ort' strategy.
+c6ea51c25 HEAD@{2026-11-01T23:17:43Z}: commit: Record language progress, actual integration findings and next API priority
+6d9f93b90 HEAD@{2026-11-01T23:12:28Z}: merge 581cb382f: Merge made by the 'ort' strategy.
+e7310dc61 HEAD@{2026-11-01T23:09:30Z}: commit: Preserve first repaired-candidate preflight and exact remaining findings

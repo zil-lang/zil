@@ -1,0 +1,280 @@
+{
+  "status": "Pass",
+  "scope": "Formal local complete-source acceptance; PR and main CI are separate receipts",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "source_clean_before_and_after": true,
+  "schema": 30,
+  "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+  "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+  "checks": [
+    {
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "log_sha256": "3f966059317997951217490de6d513201844671dc0591250266af7c32d2b6cd2",
+      "totals": {
+        "passed": 3575,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "result_groups": 395
+    },
+    {
+      "name": "reference",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-default-features",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "log_sha256": "083661163fb0590c6c6d95842a4f65115ac6df063f4f9d2263dc8e4fc16a0bf4",
+      "totals": {
+        "passed": 3474,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "result_groups": 395
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "79e730ac48ba16b6a8131ef7c754ebd07d46a50dc6b9f2701c1c6fdb2bf31ad2"
+    },
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "text-reference",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "text-reference"
+      ],
+      "exit_code": 0,
+      "log_sha256": "a4bb8f1e99720bea978969fd52bce4526d1c7e02cc52801152db6c0fea77d4b3",
+      "totals": {
+        "passed": 64,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "result_groups": 10
+    },
+    {
+      "name": "release-cli",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli"
+      ],
+      "exit_code": 0,
+      "log_sha256": "42f6f882223459c476b873999961808c37d117e959ea3e91dd0a8ddd3074bea4"
+    },
+    {
+      "name": "consumer209",
+      "command": [
+        "python3",
+        "tools/research/208/validate.py",
+        "--repo",
+        "/workspace/zil-core",
+        "--cli",
+        "/workspace/.zil-env/formal-owned-sum-R/bin/zil",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "--out",
+        "/workspace/.zil-env/formal-owned-sum-R/consumer209"
+      ],
+      "exit_code": 0,
+      "log_sha256": "94491c3fda930c37b535f112cf1899f84e99c525535407364e6fa047cb660b0a"
+    },
+    {
+      "name": "root244",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/sum-integration-debug/root-review244.py",
+        "/workspace/zil-core",
+        "/workspace/.zil-env/formal-owned-sum-R/bin/zil",
+        "/workspace/.zil-env/formal-owned-sum-R/root244"
+      ],
+      "exit_code": 0,
+      "log_sha256": "a38930abdd91d59b6560fbc26b6be233e67e24e877d9bf96497bffafa3c9d20d"
+    },
+    {
+      "name": "migration",
+      "command": [
+        "python3",
+        "tools/llvm/test_validate_migration.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+    },
+    {
+      "name": "evidence-transport",
+      "command": [
+        "python3",
+        "tools/ci/test_evidence_transport.py"
+      ],
+      "exit_code": 0,
+      "log_sha256": "638ef49292e9a2ba7a3bbd9a4d0de6d10903df3ac891adb58737dbb22a7e84fd"
+    },
+    {
+      "name": "plan",
+      "command": [
+        "python3",
+        "tools/check-plan.py",
+        "--self-test"
+      ],
+      "exit_code": 0,
+      "log_sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916"
+    }
+  ],
+  "archives": [
+    {
+      "origin": "local formal execution",
+      "checkout": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+      "roots": [
+        "native",
+        "source",
+        "workspace.command.json",
+        "workspace.result.json",
+        "workspace.log",
+        "fmt.command.json",
+        "fmt.result.json",
+        "fmt.log",
+        "clippy.command.json",
+        "clippy.result.json",
+        "clippy.log",
+        "text-reference.command.json",
+        "text-reference.result.json",
+        "text-reference.log",
+        "toolchain.txt",
+        "llvm-toolchain.json"
+      ],
+      "files": 76280,
+      "bytes": 74202470,
+      "sha256": "a40994b43e05835be67080cc37bcfe91ae049fcdeefd961c5ed1e15ae474a628",
+      "archive": "/workspace/.zil-env/formal-owned-sum-R-workspace.tar.zst",
+      "every_archive_blob_rehashed": true,
+      "original_inventory_rechecked": true,
+      "native_released_after_verified_archive": true,
+      "reproducible_debug_cache_released": true
+    },
+    {
+      "origin": "local formal execution, not a CI run",
+      "checkout": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+      "roots": [
+        "ARCHIVE-workspace.json",
+        "bin",
+        "cli.json",
+        "clippy.command.json",
+        "clippy.log",
+        "clippy.result.json",
+        "consumer209",
+        "consumer209.command.json",
+        "consumer209.log",
+        "consumer209.result.json",
+        "evidence-transport.log",
+        "evidence-transport.result.json",
+        "fmt.command.json",
+        "fmt.log",
+        "fmt.result.json",
+        "llvm-toolchain.json",
+        "migration.log",
+        "migration.result.json",
+        "native",
+        "plan.log",
+        "plan.result.json",
+        "preflight-native",
+        "preflight.exit",
+        "preflight.log",
+        "reference.command.json",
+        "reference.log",
+        "reference.result.json",
+        "release-cli.command.json",
+        "release-cli.log",
+        "release-cli.result.json",
+        "root244",
+        "root244.command.json",
+        "root244.log",
+        "root244.result.json",
+        "source",
+        "source-snapshot.log",
+        "text-reference.command.json",
+        "text-reference.log",
+        "text-reference.result.json",
+        "toolchain.txt",
+        "workspace.command.json",
+        "workspace.log",
+        "workspace.result.json"
+      ],
+      "files": 71982,
+      "bytes": 76908133,
+      "sha256": "593e1111ec43c22f4c0701be5b9b6ddc3fd8afc8c60645d35811c3dd8c4b82d8",
+      "archive": "/workspace/.zil-env/formal-owned-sum-R-reference.tar.zst",
+      "every_archive_blob_rehashed": true,
+      "original_inventory_rechecked": true,
+      "release_native_requested": true,
+      "native_released_after_verified_archive": true
+    }
+  ],
+  "consumer209": {
+    "builds": 16,
+    "observations": 128,
+    "status": "Pass"
+  },
+  "independent244": "evidence/reviews/244/finalR/REVIEW.json",
+  "independent239_243": "evidence/reviews/239/integrationR/COMMON-RESULT.json",
+  "independent240_supplement": "evidence/reviews/240/frontend-finalR/REVIEW.json",
+  "previous_failures_preserved": [
+    "formal-P/RESULT.json",
+    "formal-Q-b51/STATUS.json",
+    "preflight-Q1/RESULT.json"
+  ],
+  "timing": "Concurrent correctness checks; no performance inference",
+  "counts_note": "Author, reviewer, formal, PR and main replays are not added as new coverage",
+  "full_language": "NotSatisfied",
+  "full_ZUI": "NotSatisfied",
+  "product": "NotRun",
+  "native_Windows": "NotRun",
+  "Rust_parity": "NotEstablished"
+}

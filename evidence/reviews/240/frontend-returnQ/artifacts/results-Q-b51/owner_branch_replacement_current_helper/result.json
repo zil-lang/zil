@@ -1,0 +1,1 @@
+{"phase":"Expand","accepted":false,"diagnostics":"[Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"resource description outlived its actual owned local\", span: Some(Span { file: FileId(0), start: 195, end: 200 }), notes: [] }]"}

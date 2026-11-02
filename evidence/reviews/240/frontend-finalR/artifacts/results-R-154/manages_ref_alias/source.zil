@@ -1,0 +1,1 @@
+resource R{n:i32}type B=Ref<R>;enum E{V(manages B)}fn main(){}

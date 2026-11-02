@@ -1,0 +1,14 @@
+{
+  "commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "--release",
+    "-p",
+    "zil-cli"
+  ],
+  "started_utc": "2026-11-01T23:51:29.684442+00:00",
+  "exit": 0,
+  "seconds": 225.4388790919911
+}

@@ -1,0 +1,37 @@
+{
+  "reviewer": "/root",
+  "verdict": "Pass",
+  "scope": "244 independent source-derived CLI/native and selected real allocation failures",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "cli_sha256": "46d834d78ec83b3d17372f73cab7cd24e3a931b02fc322cf8e5734c5ef278793",
+  "api_builds": 2,
+  "normal_invalid_runs": 74,
+  "real_allocation_failure_runs": 26,
+  "total_native_runs": 100,
+  "all_live_zero": true,
+  "test_oracle_imported": false,
+  "predeclared_sha256": "b4d0b2d0bf17c9a095338755bdbe10698e083a3943eafbbc265000605bfd403d",
+  "source_hashes": {
+    "tests/impl244/project/main.zil": "7dfd2262f9a69936ffb95ae1f2058bd5f077659c4231238658c2fb9db3f0f018",
+    "tests/impl244/project/model.zil": "314afdcd4066b37a24c10043eda04449f031a2668f1cd12a6395cdf5ef23bd4b",
+    "tests/impl244/project/portable.zil": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+    "tests/impl244/project/state.zil": "895d1fa3126aee1bd56daa993efb192707a4415b5df3be99fa8b8ce458b4feec",
+    "tests/impl244/project/storage.zil": "6dfcadb8bc885fbefb87179db748ddb4645036abfda677e27dd3a8b4a72c37e3"
+  },
+  "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+  "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+  "schema": 30,
+  "consumer_author": "/root/review_language_contracts",
+  "source_oracle": "evidence/reviews/244/source-oracle.json",
+  "bounded": true,
+  "archive": {
+    "path": "raw.tar.gz",
+    "bytes": 802306,
+    "sha256": "26fcd89731858a523aed8c71c3edde8b759675bd29fdf3adcfe6984d798cba39",
+    "files": 452,
+    "all_members_reverified": true
+  },
+  "full_language": "NotSatisfied",
+  "product": "NotRun",
+  "replays_not_added": true
+}

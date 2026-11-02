@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{V(manages R)}fn good(give r:R)->E{return E.V(give r)}fn main(){}

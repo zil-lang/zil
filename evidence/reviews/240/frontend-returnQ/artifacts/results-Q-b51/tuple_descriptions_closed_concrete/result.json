@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"tuple with non-Copy fields\", span: Some(Span { file: FileId(0), start: 144, end: 149 }), notes: [] }]"}

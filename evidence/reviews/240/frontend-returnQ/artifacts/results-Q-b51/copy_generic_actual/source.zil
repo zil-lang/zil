@@ -1,0 +1,1 @@
+resource R{n:i32}enum Owned{V(manages R)}enum E<T>{V(T),Nil}fn main(){let e=E.V(3)}

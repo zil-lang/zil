@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}enum E{V(manages R)}fn duplicate<F:Fn()->i32>(cb:F,e:E)->i32{match e{E.V(r)=>{let first=P{r:give r};}}match e{E.V(r)=>{let second=P{r:give r};}}return cb()}fn main(){}

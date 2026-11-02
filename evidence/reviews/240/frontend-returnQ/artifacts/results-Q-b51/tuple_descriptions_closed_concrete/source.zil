@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value(e:E,flag:bool)->i32{let cb=()=>0;match e{E.V(a,b)=>{let tuple=(a,b);return cb()+tuple.0.n+tuple.1.n}}}fn main(){}

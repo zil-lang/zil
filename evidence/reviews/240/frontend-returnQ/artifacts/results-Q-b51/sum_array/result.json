@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array\", span: Some(Span { file: FileId(0), start: 75, end: 88 }), notes: [] }]"}

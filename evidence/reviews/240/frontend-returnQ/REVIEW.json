@@ -1,0 +1,68 @@
+{
+  "reviewer": "kernel_defer227, 242 implementation author; independent production author of neither 240 nor its repair",
+  "scope": "240 frontend supplemental independent review only. No independent review of own Verify, no native or formal workspace run.",
+  "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+  "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+  "authority_commit": "19111462d25425dc8e75830a758119cc2de78d4e",
+  "environment": {
+    "cwd": "/workspace/zil-core",
+    "target": "/workspace/.zil-env/target-review240",
+    "old_snapshot_target": "/workspace/.zil-env/target-review240-preQ-32d8244",
+    "binding": "Target was created fresh for common core Q, then reused only from the same core worktree for R. All path dependencies point to core. No snapshot/other worktree cache reused.",
+    "jobs": 1,
+    "incremental": false,
+    "offline": true
+  },
+  "original54": {
+    "expected_sha256": "d83d8605d9175ea7fc2d8699a22151ab284d3cc02352f3eb40a5fe4f6d94fe05",
+    "inputs_manifest_sha256": "15a677a8907f8047202f13f5fb2f2896eefb3b00dd89116cd1d10325ac5d20ae"
+  },
+  "candidate": "b51dc2043ae51ec42c1bec964bec0623df152431",
+  "status": "Return_ConfirmedCurrentOwnerJoinFalseReject",
+  "execution_identity": "Direct clean start read was Q. Logs ended 23:37:16..23:41:35 UTC; core reflog remained Q from 23:35:35 until metadata-only merge 39473217 at 23:44:51. Per-command end HEAD was not directly read; the retained reflog interval establishes the execution identity. Source bytes are archived from Q git objects, never mislabeled from later R working files.",
+  "runs": [
+    {
+      "log": "run-Q-b51.log",
+      "actual_inputs": 68,
+      "original54": "54/0",
+      "Desc4": "4/0",
+      "other": "5 helper/concrete qualification pairs, ten phase observations; not ten asserted passes."
+    },
+    {
+      "log": "run-Q-b51-diagnostic.log",
+      "actual_inputs": 5,
+      "note": "Two move-parameter probes are Parse-invalid, local closure probes hit E-GIVE-TYPE, plain ordinary parameter/give control succeeds. These fixture probes are not compiler defect claims."
+    },
+    {
+      "log": "run-Q-b51-diagnostic-corrected.log",
+      "actual_inputs": 2,
+      "note": "Corrected ordinary branch-owner and address-description controls both Types-success."
+    },
+    {
+      "log": "run-Q-b51-diagnostic-final.log",
+      "actual_inputs": 3,
+      "note": "Two preceding controls additionally Analyze-success, one new minimal unused helper false-rejects. Repeated controls are not extra independent coverage."
+    }
+  ],
+  "confirmed_failure": {
+    "ordinary_control_source_sha256": "1c85e16c630f1a381d95848d629b2d6f0b870fa506d6fb2f504aca4a11935633",
+    "helper_source_sha256": "adddd40f32ddcab732d1ae391c658bff830e97013845f1265533c8c5e7e5b63f",
+    "phase": "Expand",
+    "category": "SafeReject",
+    "code": "E-GENERIC-ARGUMENT",
+    "message": "resource description outlived its actual owned local",
+    "span": [
+      190,
+      195
+    ],
+    "evidence": "Identical body, no callback invocation: concrete ordinary function Types+Analyze succeeds, helper adds only F and cb:F and rejects current saved owner. Root confirmed return; owner-join repair follows.",
+    "cause": "Current complete owner activations were joined with may-invalidated retired root facts, rejecting a valid current owner."
+  },
+  "qualification_notes": [
+    "Shadowed-owner helper rejected; original static concern not a surviving failure.",
+    "Tuple/array Desc helpers reject Unsupported, and concrete Types gates also reject.",
+    "Address-description helper and corrected ordinary concrete control succeed.",
+    "No runtime unsafety or own Verify proof claimed."
+  ],
+  "budget": "No exact Q fee threshold independently measured; final R receipt records current thresholds separately."
+}

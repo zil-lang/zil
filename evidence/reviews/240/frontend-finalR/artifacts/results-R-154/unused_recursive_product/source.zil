@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{V(P)}package P{state:E;manages r:R}fn main(){}

@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"head addresses require a shared finite user-resource head or a supported Store element; byte-storage and other Package heads are not implemented\", span: Some(Span { file: FileId(0), start: 69, end: 73 }), notes: [] }]"}

@@ -1,0 +1,1 @@
+enum E{V(i32)}fn duplicate<F:Fn()->i32>(cb:F,e:E)->i32{let first=e;let second=e;return cb()}fn main(){}

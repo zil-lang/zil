@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: SafeReject, code: \"E-GIVE-TYPE\", message: \"give requires a managed resource carrier\", span: Some(Span { file: FileId(0), start: 187, end: 193 }), notes: [] }]"}
