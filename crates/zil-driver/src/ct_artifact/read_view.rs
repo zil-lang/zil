@@ -574,6 +574,15 @@ impl FrozenReadView<'_> {
     }
     fn alias_value(&self, requester: &CtSymbolId, alias: &CtSymbolId,
         handle: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
+        self.alias_value_inner(requester, alias, handle, budget, 0)
+    }
+    fn alias_value_inner(&self, requester: &CtSymbolId, alias: &CtSymbolId,
+        handle: &CtTypeRef, budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<CtTypeRef> {
+        if depth >= self.limits.max_call_depth.min(128) {
+            return Err(self.unready("type alias chain exceeds CT depth"));
+        }
+        budget.reserve_analysis_work(1)?;
+        self.nominal(requester, alias)?;
         let ItemKind::TypeAlias(declaration) = &self.declaration(alias).ok_or_else(|| phase("type alias declaration is absent"))?.kind else {
             return Err(phase("type alias identity differs from frozen source"));
         };
@@ -602,6 +611,15 @@ impl FrozenReadView<'_> {
         let mut nodes = handle.nodes.clone();
         let root = self.append_source_type(requester, alias.module, rhs, &substitutions, &mut nodes, budget, 0)?;
         let value = Self::compact_type_ref(CtTypeRef { nodes, root }, budget)?;
+        let next_alias = match value.nodes.get(value.root.0 as usize) {
+            Some(CtTypeNode::Nominal { symbol, .. })
+                if matches!(self.declaration(symbol).map(|item| &item.kind), Some(ItemKind::TypeAlias(_)))
+                => Some(symbol.clone()),
+            _ => None,
+        };
+        let value = if let Some(next) = next_alias {
+            self.alias_value_inner(requester, &next, &value, budget, depth + 1)?
+        } else { value };
         let matching = match (checked, value.nodes.get(value.root.0 as usize)) {
             (Type::Unit, Some(CtTypeNode::Primitive(CtScalarTy::Unit)))
             | (Type::Bool, Some(CtTypeNode::Primitive(CtScalarTy::Bool)))

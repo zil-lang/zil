@@ -484,7 +484,7 @@ mod tests {
     #[test]
     fn type_alias_values_normalize_through_ordinary_checked_target() {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "alias.zil",
-            "struct Cell<T>{value:T}type Entry<T>=Cell<T>;type Number=i32;struct Pair<T,U>{left:T,right:U}type Swapped<T,U>=Pair<U,T>;fn main(){}");
+            "struct Cell<T>{value:T}type Entry<T>=Cell<T>;type Number=i32;struct Pair<T,U>{left:T,right:U}type Swapped<T,U>=Pair<U,T>;type Middle=Number;type Top=Middle;type Wrapper<T>=Entry<T>;fn main(){}");
         let parsed = Arc::new(zil_syntax::parse(&source));
         assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
         let sources = vec![source];
@@ -499,7 +499,9 @@ mod tests {
         let number = environment.index.symbol_at(ModuleId(0), items[2].span).unwrap();
         let pair = environment.index.symbol_at(ModuleId(0), items[3].span).unwrap();
         let swapped = environment.index.symbol_at(ModuleId(0), items[4].span).unwrap();
-        let requester = environment.index.symbol_at(ModuleId(0), items[5].span).unwrap();
+        let top = environment.index.symbol_at(ModuleId(0), items[6].span).unwrap();
+        let wrapper = environment.index.symbol_at(ModuleId(0), items[7].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), items[8].span).unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
             shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
@@ -509,10 +511,17 @@ mod tests {
         assert_eq!(reader.type_name(&requester, &number, &mut budget).unwrap(), CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
         });
+        assert_eq!(reader.type_name(&requester, &top, &mut budget).unwrap(), CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
+        });
         let arg = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
         let aliased = reader.type_apply(&requester, &entry, &[arg.clone()], &mut budget).unwrap();
         let direct = reader.type_apply(&requester, &cell, &[arg], &mut budget).unwrap();
         assert_eq!(aliased, direct, "alias and target Type values must share canonical identity");
+        let chained = reader.type_apply(&requester, &wrapper, &[CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
+        })], &mut budget).unwrap();
+        assert_eq!(chained, direct, "generic aliases must normalize through checked alias chains");
         let i32_value = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
         let bool_value = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)], root: CtTypeNodeId(0) });
         let aliased = reader.type_apply(&requester, &swapped, &[i32_value.clone(), bool_value.clone()], &mut budget).unwrap();
