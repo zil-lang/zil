@@ -51,6 +51,12 @@ pub(super) fn check_claim(
     budget: &mut Budget,
 ) -> Check<()> {
     if let Some(c) = &f.callable_return_contract {
+        // This public source is read here and by module fingerprinting. A
+        // Parameter source also carries its checked index in both walks.
+        budget.spend(match c.source {
+            CallableReturnSource::Fresh => 2,
+            CallableReturnSource::Parameter(_) => 4,
+        })?;
         for indices in [&c.hold, &c.call, &c.writes, &c.cleanup, &c.lending_captures] {
             if indices.len() > limits.max_locals {
                 return Err(limit("callable result index vector exceeds local bound"));
