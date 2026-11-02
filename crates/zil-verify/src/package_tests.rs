@@ -968,7 +968,7 @@ fn package_field_description_capture_retains_owner_and_allows_move_after_last_ca
 }
 
 #[test]
-fn package_capture_requires_views_and_closure_package_signatures_remain_closed() {
+fn package_capture_requires_views_and_closure_signatures_match_real_entries() {
     let mut m = description_closure(false);
     m.closures[0].captures = vec![package()];
     rejected(m, "capture operand type differs");
@@ -979,7 +979,7 @@ fn package_capture_requires_views_and_closure_package_signatures_remain_closed()
         } else {
             m.closures[0].parameters.push(package());
         }
-        rejected(m, "non-Copy type");
+        rejected(m, "closure entry signature differs");
     }
 }
 

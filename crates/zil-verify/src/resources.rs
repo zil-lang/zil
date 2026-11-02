@@ -1626,8 +1626,8 @@ impl Transfer<'_> {
                         fresh_result = Some(INPUT);
                     }
                 }
-                InstructionKind::CallClosureShared { callee, .. }
-                | InstructionKind::CallClosureMut { callee, .. } => {
+                InstructionKind::CallClosureShared { callee, arguments }
+                | InstructionKind::CallClosureMut { callee, arguments } => {
                     if validate
                         && let Some(debt) = slots.managed_local[callee.0 as usize]
                         && state.debt[debt] != LIVE
@@ -1653,8 +1653,16 @@ impl Transfer<'_> {
                             self.write_roots(&state.desc[row], written, span, validate, budget)?;
                         }
                     }
+                    for &value in arguments {
+                        self.consume(state, value, span, validate)?;
+                    }
+                    if result.is_some() {
+                        fresh_result = Some(INPUT);
+                    }
                 }
-                InstructionKind::CallClosureBorrowed { callee, .. } => {
+                InstructionKind::CallClosureBorrowed {
+                    callee, arguments, ..
+                } => {
                     if let Some(row) = slots.desc_value[callee.0 as usize] {
                         let Type::Address { inner, .. } = &f.values[callee.0 as usize] else {
                             unreachable!()
@@ -1671,9 +1679,15 @@ impl Transfer<'_> {
                             self.write_roots(&state.desc[row], written, span, validate, budget)?;
                         }
                     }
+                    for &value in arguments {
+                        self.consume(state, value, span, validate)?;
+                    }
+                    if result.is_some() {
+                        fresh_result = Some(INPUT);
+                    }
                 }
-                InstructionKind::CallClosure { callee, .. }
-                | InstructionKind::CallClosureOnce { callee, .. } => {
+                InstructionKind::CallClosure { callee, arguments }
+                | InstructionKind::CallClosureOnce { callee, arguments } => {
                     if let Some(row) = slots.desc_value[callee.0 as usize] {
                         let Type::Closure(id) = f.values[callee.0 as usize] else {
                             unreachable!()
@@ -1689,6 +1703,14 @@ impl Transfer<'_> {
                     }
                     if matches!(instruction.kind, InstructionKind::CallClosureOnce { .. }) {
                         self.consume(state, *callee, span, validate)?;
+                    }
+                    for &value in arguments {
+                        self.consume(state, value, span, validate)?;
+                    }
+                    if result.is_some() {
+                        // Ordinary callback results carry a fresh responsibility,
+                        // never a callee-private Created origin.
+                        fresh_result = Some(INPUT);
                     }
                 }
                 InstructionKind::Call {

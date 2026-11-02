@@ -22,6 +22,32 @@ pub(super) fn definition(
     })
 }
 
+/// State, Store elements, owning arrays and opaque factories keep their
+/// original callback signature profile. Ordinary local concrete callbacks
+/// and the single by-value helper are admitted by their separate checks.
+pub(super) fn old_container_signature(
+    module: &TypedModule,
+    id: ClosureId,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    let entry = definition(module, id, span)?;
+    for ty in entry
+        .parameters
+        .iter()
+        .chain(std::iter::once(&entry.result))
+    {
+        if owned_callbacks::root(ty) {
+            resources::charge_payload(ty, budget)?;
+            return Err(unsupported(
+                "container and opaque callback profiles do not admit owning data signatures",
+                span,
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn check_definitions(
     module: &TypedModule,
     limits: &Limits,
@@ -206,21 +232,46 @@ pub(super) fn check_definitions(
                 "exclusive capture requires an exclusive environment entry",
             ));
         }
-        for ty in &closure.parameters {
-            if let Type::Address { inner, .. } = ty
-                && closure.result.is_copy_value()
-            {
-                // Raw type preflight already bounded this tree. Verify the
-                // actual finite element shape, not a producer signature bit.
-                slices::check_pointee(inner, None)?;
-            } else {
-                check_type(ty, None)?;
+        let owning_signature = owned_callbacks::signature(module, closure, budget)?;
+        if owning_signature {
+            // Store resource definitions were checked before raw closure
+            // signatures had their bounded preflight. Inspect only newly
+            // admitted owning signatures here; legacy Store costs stay fixed.
+            budget.spend(module.resources.len())?;
+            for resource in &module.resources {
+                if let Type::OwnedStore { element } = &resource.payload
+                    && let Type::Package { fields, .. } = element.as_ref()
+                {
+                    budget.spend(fields.len())?;
+                    if fields
+                        .iter()
+                        .any(|(_, ty)| matches!(ty, Type::Closure(id) if *id == closure.id))
+                    {
+                        return Err(unsupported(
+                            "container and opaque callback profiles do not admit owning data signatures",
+                            None,
+                        ));
+                    }
+                }
             }
         }
-        if lending_result(&closure.result) {
-            check_local_type(&closure.result, None, module, budget)?;
-        } else {
-            check_type(&closure.result, None)?;
+        if !owning_signature {
+            for ty in &closure.parameters {
+                if let Type::Address { inner, .. } = ty
+                    && closure.result.is_copy_value()
+                {
+                    // Raw type preflight already bounded this tree. Verify the
+                    // actual finite element shape, not a producer signature bit.
+                    slices::check_pointee(inner, None)?;
+                } else {
+                    check_type(ty, None)?;
+                }
+            }
+            if lending_result(&closure.result) {
+                check_local_type(&closure.result, None, module, budget)?;
+            } else {
+                check_type(&closure.result, None)?;
+            }
         }
         let function = module
             .functions

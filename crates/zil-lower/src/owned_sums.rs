@@ -182,4 +182,50 @@ mod impl243_tests {
             zil_base::ResultCategory::ResourceLimit
         );
     }
+
+    #[test]
+    fn impl249_lower_callback_argument_and_result_share_one_budget() {
+        let event = Type::Package {
+            name: "Event".into(),
+            fields: vec![
+                ("payload".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+                ("tag".into(), Type::I32),
+            ],
+        };
+        let reply = Type::Package {
+            name: "Reply".into(),
+            fields: vec![
+                ("payload".into(), Type::Managed(Box::new(Type::ByteBuffer))),
+                ("tag".into(), Type::I32),
+            ],
+        };
+        let resources = vec![zil_ir::ResourceDefinition {
+            name: zil_ir::BYTE_BUFFER_RESOURCE_NAME.into(),
+            payload: Type::ByteBuffer,
+            teardown: None,
+        }];
+        let mut limits = zil_base::Limits::default();
+        let needed = {
+            let mut budget = Budget::new(&limits);
+            assert!(budget.admits(&reply, &resources, 0).unwrap());
+            assert!(budget.admits(&event, &resources, 0).unwrap());
+            budget.work
+        };
+        eprintln!("impl249 lower signature budget: owning N={needed}");
+        limits.max_analysis_steps = needed;
+        let mut exact = Budget::new(&limits);
+        assert!(exact.admits(&reply, &resources, 0).unwrap());
+        assert!(exact.admits(&event, &resources, 0).unwrap());
+        limits.max_analysis_steps = needed - 1;
+        let mut short = Budget::new(&limits);
+        assert!(short.admits(&reply, &resources, 0).unwrap());
+        assert_eq!(
+            short.admits(&event, &resources, 0).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        limits.max_analysis_steps = needed;
+        let mut fresh = Budget::new(&limits);
+        assert!(fresh.admits(&reply, &resources, 0).unwrap());
+        assert!(fresh.admits(&event, &resources, 0).unwrap());
+    }
 }
