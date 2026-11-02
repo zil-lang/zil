@@ -1,0 +1,209 @@
+{
+  "verdict": "Fail preserved; early frontend plus original other stages",
+  "tested_commit": "e18a7d43f4cce0b5b8318df3e85ce8a516796aa2",
+  "consumer_source_commit": "56cbd4822a4e543114b580929edaf5b7bb7385e9",
+  "frontend_commit": "5a79757982b1cc86d6f3ce8e539850a4ae7bea6c",
+  "tests": {
+    "selected": 11,
+    "executed": 11,
+    "passed": 0,
+    "failed": 11
+  },
+  "native_runs": 0,
+  "verification_runs": 0,
+  "rows": [
+    {
+      "case": "consumer256-allocator-155996-1",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "enum constructor has a different nominal type or type arity",
+          "span": {
+            "file": 0,
+            "start": 1400,
+            "end": 1415
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-allocator-155996-10",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "enum constructor has a different nominal type or type arity",
+          "span": {
+            "file": 0,
+            "start": 1945,
+            "end": 1955
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fn-copy-155996-0",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "parameter callable returns require an independent instance proof",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fn-owned-155996-2",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "owned callback signature does not grant an opaque factory profile",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fnmut-copy-155996-4",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "parameter callable returns require an independent instance proof",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fnmut-owned-155996-5",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "owned callback signature does not grant an opaque factory profile",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fnonce-copy-155996-6",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "parameter callable returns require an independent instance proof",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-fnonce-owned-155996-8",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "owned callback signature does not grant an opaque factory profile",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-matrix-155996-3",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "enum constructor has a different nominal type or type arity",
+          "span": {
+            "file": 0,
+            "start": 1400,
+            "end": 1415
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-matrix-155996-9",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "enum constructor has a different nominal type or type arity",
+          "span": {
+            "file": 0,
+            "start": 1945,
+            "end": 1955
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "consumer256-original-identity-155996-7",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "parameter callable returns require an independent instance proof",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    }
+  ],
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl256-252early cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl256_consumer -- --nocapture"
+}
