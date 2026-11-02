@@ -24,6 +24,8 @@ pub(super) struct Budget {
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
     pub(super) sum_functions: Vec<bool>,
+    pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
+    pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     sum_roots: BTreeSet<usize>,
 }
 
@@ -38,6 +40,8 @@ impl Budget {
             shared_product_capture: false,
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
+            owned_callbacks: BTreeSet::new(),
+            owned_callback_helpers: BTreeSet::new(),
             sum_roots: BTreeSet::new(),
         }
     }
@@ -690,7 +694,25 @@ pub(super) fn preflight(
                 legacy_value(ty, Span::default(), module)?;
             }
         }
+        let mut owned_signature = false;
+        for ty in closure.parameters.iter().chain(std::iter::once(&closure.result)) {
+            if matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. })
+                && !ty.is_copy_value()
+            {
+                super::resources::sums::admit(module, ty, budget)?;
+                owned_signature = true;
+            }
+        }
+        if owned_signature {
+            budget.spend(1, "owned callback signature entry")?;
+            super::owned_callbacks::signature(module, closure, budget)?;
+            budget.owned_callbacks.insert(closure.id);
+        }
         for ty in &closure.parameters {
+            if owned_signature {
+                super::owned_callbacks::data(module, ty, budget)?;
+                continue;
+            }
             if let Type::Address { inner, .. } = ty
                 && closure.result.is_copy_value()
             {
@@ -705,7 +727,9 @@ pub(super) fn preflight(
                 scalar(ty, Span::default())?;
             }
         }
-        if matches!(&closure.result, Type::Address { inner, mutable: false }
+        if owned_signature {
+            super::owned_callbacks::data(module, &closure.result, budget)?;
+        } else if matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
             && matches!(
                 closure.kind,

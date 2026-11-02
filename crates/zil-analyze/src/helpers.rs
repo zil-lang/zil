@@ -596,7 +596,30 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 .closures
                 .get(closure.0 as usize)
                 .ok_or_else(|| bad("helper environment definition missing"))?;
-            if !(function.return_type.is_copy_value()
+            let owned_data = budget.owned_callbacks.contains(&closure)
+                || (!function.return_type.is_copy_value()
+                    && !matches!(function.return_type, Type::Address { .. }));
+            if owned_data {
+                if candidates.len() != 1 || borrowed.is_some() || role.kind != CallableKind::FnOnce
+                    || function.result_mode != PassingMode::Infer
+                {
+                    return Err(bad("owned callback helper requires one by-value FnOnce role"));
+                }
+                budget.lookup(budget.owned_callback_helpers.len(), "owned callback helper inventory")?;
+                budget.owned_callback_helpers.insert(function.id);
+                super::owned_callbacks::data(module, &function.return_type, budget)?;
+                budget.spend(function.parameters.len(), "owned callback helper data positions")?;
+                for parameter in &function.parameters {
+                    if parameter != local {
+                        super::owned_callbacks::data(
+                            module,
+                            &function.locals[parameter.0 as usize].ty,
+                            budget,
+                        )?;
+                    }
+                }
+            }
+            if !(owned_data || function.return_type.is_copy_value()
                 || (candidates.len() == 1
                     && borrowed.is_some()
                     && !definition.lending_captures.is_empty()
