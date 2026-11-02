@@ -1,0 +1,93 @@
+{
+  "status": "Pass",
+  "reviewer": "/root/assess_delivery_process",
+  "expected_head": "aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+  "actual_ci_checkout": "52bb49492eb1638ad77eb399e6cd2820c493dad2",
+  "tree": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+  "scope": "Independent retrieval and completeness/identity audit of the exact two CI deliveries, including every native blob and complete source snapshot. Not a new compiler run or a main merge.",
+  "runs": [
+    {
+      "role": "official",
+      "run_id": "41424125248",
+      "run_attempt": 1,
+      "job_id": 125206484378,
+      "result": "run-41424125248/RESULT.json",
+      "result_sha256": "b07b429f9a2ab38d9e23b65abea30b3d18d687d997a107b9a99790b657e6ee5d",
+      "archive": "run-41424125248/evidence.tar.zst",
+      "archive_bytes": 82266974,
+      "archive_sha256": "fde1e8385c305c16ef1b9288c04dec72783aed96690ad7815b60fa038d25c3cb",
+      "files": 149038,
+      "logical_bytes": 7263105648,
+      "disk_bytes": 446016573,
+      "counts": {
+        "workspace.log": {
+          "passed": 3632,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 403
+        },
+        "reference.log": {
+          "passed": 3529,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 403
+        },
+        "text-reference.log": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 10
+        }
+      }
+    },
+    {
+      "role": "research",
+      "run_id": "41424125171",
+      "run_attempt": 1,
+      "job_id": 125206484655,
+      "result": "run-41424125171/RESULT.json",
+      "result_sha256": "d1e7fd8ac355d794aeeb15f9939be478aff8abb913f8bb85d708c6d712ad6a66",
+      "archive": "run-41424125171/evidence.tar.zst",
+      "archive_bytes": 82453396,
+      "archive_sha256": "ba1f66a037c17dc1cc94b15a305932fbc046393be2b63a1fd444df7587a584ba",
+      "files": 149209,
+      "logical_bytes": 7267203466,
+      "disk_bytes": 450978785,
+      "counts": {
+        "workspace.log": {
+          "passed": 3632,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 403
+        },
+        "reference.log": {
+          "passed": 3529,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 403
+        },
+        "text-reference.log": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 10
+        }
+      }
+    }
+  ],
+  "non_evidence_source_files_each": 4142,
+  "source_archive_sha256": "bcdbbaadf1fe5d6267d8067fe067a5c6df44300a3079815a12aa1ed24a86a384",
+  "native_manifests_each": {
+    "workspace": 77300,
+    "reference": 71219
+  },
+  "consumer_each": {
+    "builds": 16,
+    "observations": 128,
+    "original_commands": 145
+  },
+  "artifact_uploads": "Remain failure due quota; exact-run complete log fallback independently recovered and verified. No quota/billing change or remote deletion.",
+  "storage": "No multi-GiB native restore. Content-addressed archives plus original ZIPs/logs/INDEX and selected small receipts retained; about 897 MB total audit outputs for both runs.",
+  "old_runs": "41417349429 and 41417349326 remain Fail/MissingCompleteTransport; this acceptance does not relabel them.",
+  "time_utc": "2026-11-02T10:29:19.287184+00:00"
+}

@@ -3,7 +3,22 @@
   "source_commit": "288e29628389d83a335783d5488be39f22b2008b",
   "baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
   "scope": "Synchronous owned Event to concrete/public dispatch to owned Reply, including failure cleanup",
-  "main_integration": "Pending remote CI and merge",
+  "main_integration": {
+    "status": "Merged",
+    "commit": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+    "pr": "https://github.com/zil-lang/zil/pull/18",
+    "reviewed_head": "aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+    "exact_tree_equal": true,
+    "tree": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+    "merged_at_utc": "2026-11-02T10:32:31Z",
+    "main_replays": {
+      "status": "Running",
+      "runs": [
+        41429632742,
+        41429632912
+      ]
+    }
+  },
   "formal_gates": "evidence/integration/owned-callback-20261102/R/RESULT.json",
   "consumer": "evidence/impl/250/final-R/ACCEPTANCE.json",
   "reviews": {
@@ -18,7 +33,7 @@
     "247": "78e1f5f8ad09ae0f4eda01ebb52bb8b220db35f9",
     "248": "468e1d1c73b1b3a76afe991c043c1fc1f9b05a48",
     "249": "6be4c3a53deed003ca30566f10ce3c92002a2de6",
-    "250": "c174538a391142b422e0dfc1e8a607465135a149"
+    "250": "ebbee34647b5297ebd7b9ddd10abe8a1d9295381"
   },
   "schema_wire": 30,
   "native_consumer": {
@@ -41,5 +56,21 @@
     "Same-instance bare F to F transfer",
     "Type/Syntax",
     "Long-lived external callback lifecycle"
-  ]
+  ],
+  "remote_ci": {
+    "status": "Pass",
+    "evidence": "remote-pr/E2-REMOTE-ACCEPTANCE.json",
+    "original_failed_runs": [
+      41417349429,
+      41417349326
+    ],
+    "accepted_runs": [
+      41424125248,
+      41424125171
+    ],
+    "artifact_upload": "Failure: storage quota; complete verified log fallback actually retrieved",
+    "head": "aebc4a6006150e2da6be3e544eab67c2dc0c2a75"
+  },
+  "consumer_initial_commit": "c174538a391142b422e0dfc1e8a607465135a149",
+  "consumer_path_repair": "Only filesystem labels changed to input bytes hex; 7 tests/122 native/90 allocator/38 actual failures/906 assertions unchanged; evidence/impl/250/ci-portable-path/RESULT.json"
 }

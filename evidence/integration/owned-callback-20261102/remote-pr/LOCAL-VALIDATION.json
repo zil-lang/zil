@@ -1,0 +1,30 @@
+{
+  "status": "Pass",
+  "scope": "Local focused source/ZIP tests and separate independent consumer evidence review; not live CI acceptance",
+  "script_sha256": "05f3b26bcdd39b5a43f60bcade5bd004618457d319915dcc4de5a49f065da72f",
+  "source_zip_tests": {
+    "file": "test_audit.py",
+    "passed": 6,
+    "failed": 0
+  },
+  "independent_consumer_tests": {
+    "file": "test_consumer_coverage.py",
+    "passed": 15,
+    "failed": 0,
+    "review": "transport-review.json"
+  },
+  "old_run_prechecks": [
+    {
+      "run_id": "41417349429",
+      "status": "Fail",
+      "failure_code": "MissingCompleteTransport",
+      "result": "run-41417349429/RESULT.json"
+    },
+    {
+      "run_id": "41417349326",
+      "status": "Fail",
+      "failure_code": "MissingCompleteTransport",
+      "result": "run-41417349326/RESULT.json"
+    }
+  ]
+}

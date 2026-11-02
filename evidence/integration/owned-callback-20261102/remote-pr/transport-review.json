@@ -1,0 +1,149 @@
+{
+  "status": "Pass",
+  "reviewer": "/root/assess_delivery_process/audit_transport_limits",
+  "scope": "Bounded synthetic verify_coverage consumer fixtures only; no CI download, source audit, compiler or performance execution.",
+  "audit_script_sha256": "05f3b26bcdd39b5a43f60bcade5bd004618457d319915dcc4de5a49f065da72f",
+  "test_script_sha256": "d8c39d024d559115abb3b892862598da3a6ffdf92909a7148dbdd42299ae313f",
+  "cases": 15,
+  "passed": 15,
+  "results": [
+    {
+      "case": "complete_consumer_control",
+      "status": "Pass",
+      "observed": "Accepted",
+      "detail": {
+        "native": {
+          "workspace": {
+            "files": 1,
+            "logical_bytes": 9
+          },
+          "reference": {
+            "files": 1,
+            "logical_bytes": 9
+          }
+        },
+        "counts": {
+          "workspace.log": {
+            "passed": 1,
+            "failed": 0,
+            "ignored": 0,
+            "groups": 1
+          },
+          "reference.log": {
+            "passed": 1,
+            "failed": 0,
+            "ignored": 0,
+            "groups": 1
+          },
+          "text-reference.log": {
+            "passed": 1,
+            "failed": 0,
+            "ignored": 0,
+            "groups": 1
+          }
+        },
+        "consumer_builds": 2,
+        "consumer_observations": 2,
+        "consumer_command_originals": 5
+      }
+    },
+    {
+      "case": "missing_observation_stdout",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer command output missing: consumer209/u1/main/O0/ordinary/sample-fail0",
+      "expected_message": "Consumer command output missing"
+    },
+    {
+      "case": "missing_observation_stderr",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer command output missing: consumer209/u1/main/O0/ordinary/sample-fail0",
+      "expected_message": "Consumer command output missing"
+    },
+    {
+      "case": "missing_observation_record",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer command originals count mismatch",
+      "expected_message": "Consumer command originals count mismatch"
+    },
+    {
+      "case": "missing_prepare_probe_stdout",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer command output missing: consumer209/prepare-probe",
+      "expected_message": "Consumer command output missing"
+    },
+    {
+      "case": "missing_prepare_probe_record",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer command originals count mismatch",
+      "expected_message": "Consumer command originals count mismatch"
+    },
+    {
+      "case": "missing_probe_object",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer probe/wrapper missing or mismatched",
+      "expected_message": "Consumer probe/wrapper missing or mismatched"
+    },
+    {
+      "case": "missing_wrapper",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer probe/wrapper missing or mismatched",
+      "expected_message": "Consumer probe/wrapper missing or mismatched"
+    },
+    {
+      "case": "mismatched_wrapper",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer probe/wrapper missing or mismatched",
+      "expected_message": "Consumer probe/wrapper missing or mismatched"
+    },
+    {
+      "case": "missing_link_invocations",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer link invocation log absent",
+      "expected_message": "Consumer link invocation log absent"
+    },
+    {
+      "case": "wrong_observation_stdout",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer observation stdout differs from summary",
+      "expected_message": "Consumer observation stdout differs from summary"
+    },
+    {
+      "case": "wrong_observation_returncode",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer observation return code mismatch",
+      "expected_message": "Consumer observation return code mismatch"
+    },
+    {
+      "case": "observation_timeout",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer observation return code mismatch",
+      "expected_message": "Consumer observation return code mismatch"
+    },
+    {
+      "case": "wrong_observation_allocation",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer allocation/stderr differs from summary",
+      "expected_message": "Consumer allocation/stderr differs from summary"
+    },
+    {
+      "case": "unexpected_ordinary_stderr",
+      "status": "Pass",
+      "observed": "AuditError",
+      "message": "Consumer allocation/stderr differs from summary",
+      "expected_message": "Consumer allocation/stderr differs from summary"
+    }
+  ]
+}

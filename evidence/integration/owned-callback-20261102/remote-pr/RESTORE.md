@@ -1,0 +1,1 @@
+完整原件保留在对应GitHub Actions run的日志ZIP及当前工作区同名ci-audit/run目录的evidence.tar.zst，不加入Cargo/LLVM缓存。先下载完整run日志ZIP并读过所有成员CRC，选择完整transport step，按该精确源码的tools/ci/evidence_transport.py recover/verify复原；本目录audit_run.py及限定测试保留实际审计方法。RESULT绑定run/attempt/checkout、Git tree、完整源码与native清单及压缩包SHA。此目录保存精简收据；它自身不包含全部原件，原run未成功artifact上传的事实保持。

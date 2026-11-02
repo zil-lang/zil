@@ -1,0 +1,226 @@
+[
+  {
+    "name": "0_workspace.txt",
+    "bytes": 112152255,
+    "crc32": 3940314744,
+    "sha256": "54151c99d45a6716a15823cda9879730ae1df009591c427d1b2b7b388d3f67a0",
+    "begin": 1,
+    "end": 1
+  },
+  {
+    "name": "workspace/system.txt",
+    "bytes": 576,
+    "crc32": 4019102542,
+    "sha256": "e57228423a51f00c5fcde61a1b8e04bc5cba2fb3242df53f3b2e566a81ee47cf",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/1_Set up job.txt",
+    "bytes": 2103,
+    "crc32": 1897739240,
+    "sha256": "a8d2fb16a70b27155f1d3dcf6ae7d36c35995bc6caa1b8a775118a77361c3fa4",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/2_Run actions_checkout@3d3c42e5aac5ba805825da76410c181273ba90b1.txt",
+    "bytes": 23448,
+    "crc32": 3161033008,
+    "sha256": "315fded6001d7243767ae0eeb2047e7d6d959304b53a78802f01eaeb46408df7",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/3_Reclaim unused hosted-runner toolchain space.txt",
+    "bytes": 1082,
+    "crc32": 542871506,
+    "sha256": "76b14ac74294d856622cef432132affbe6bed5ed7890326ec9c6db91e8395525",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/4_Preserve pre-build disk recovery receipt.txt",
+    "bytes": 1559,
+    "crc32": 1172519658,
+    "sha256": "755a389e1ce8ae491953c6f66d57b0735634613347183ca31d7411bd4003af57",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/5_Install the supported LLVM API toolchain.txt",
+    "bytes": 5683,
+    "crc32": 4134226666,
+    "sha256": "b3d0863d2ebe2d4ea342fd55930af6efdd2d968e95d39b6ef811018cfff749d9",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/6_Record exact checkout and current CI input snapshot.txt",
+    "bytes": 2944,
+    "crc32": 4161896989,
+    "sha256": "362fd74b716c93efc4efba7d3610c096c842e8a7f4ca79115d7d872b02ea68fa",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/7_Formatting.txt",
+    "bytes": 1181,
+    "crc32": 437083235,
+    "sha256": "9493710d6a4df3956d4d9cfcf4c6a1cc597136caaee1157412247dfb4de27787",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/8_Record workspace resources before tests.txt",
+    "bytes": 1658,
+    "crc32": 3438196494,
+    "sha256": "0e3941a5dab814d2be138a3182ab4a393bb9fc7afb6d74708b749e0f3b0661fa",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/9_Complete workspace tests.txt",
+    "bytes": 556911,
+    "crc32": 1870520071,
+    "sha256": "1b297bc8747690846ad04603fe3b0e4c18c22cc7ab61c34e53041e2318d11ee7",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/10_Record workspace resources after tests.txt",
+    "bytes": 1879,
+    "crc32": 1806930887,
+    "sha256": "0e079fd74ca12229749eaa3160ff6db347dcc991611e091d5e9210bba8d8f452",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/11_Preserve workspace receipts before releasing its cache.txt",
+    "bytes": 2299,
+    "crc32": 1001618857,
+    "sha256": "ae129f6c22eb7853cadf9c8484043a705380dd19937756db9de4a81f3d93cc47",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/12_Preserve all workspace native evidence before releasing it.txt",
+    "bytes": 1992,
+    "crc32": 857859202,
+    "sha256": "809cd67873affc1fbc186333d67226ef8a80ca4077a4634a87eb1932964cb976",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/15_Record reference resources before tests.txt",
+    "bytes": 1658,
+    "crc32": 1570002051,
+    "sha256": "36edb8abcd6f91aa0ba9978be801542602f7b711aac753bc8322345d883d2fbf",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/16_Reference-only build and explicit unavailable control.txt",
+    "bytes": 552330,
+    "crc32": 1815256820,
+    "sha256": "96d6dbf4a1617e0a3d781aeff5319e0e2894ea4c8110c0b3f2395ef81b9f870c",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/17_Record reference resources after tests.txt",
+    "bytes": 1879,
+    "crc32": 1598815166,
+    "sha256": "b76589064ddfe37c1380d55ae7c11aaa74806f4d12ff0bb8993dd6ccf04a074e",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/18_Preserve reference receipts before releasing its cache.txt",
+    "bytes": 2299,
+    "crc32": 2213579400,
+    "sha256": "62edabdb3a38a0494a160a1d05b62ea1ddb48d38b4f8d2b6bc1bc7ead8e005b8",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/19_Preserve all reference native evidence before releasing it.txt",
+    "bytes": 1992,
+    "crc32": 747304671,
+    "sha256": "f808e418a142674e4c5b538f1b566c1b3939c62ddc2896e915ad3def04d31ab2",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/22_Native API State and allocation-failure controls.txt",
+    "bytes": 4383,
+    "crc32": 3183192103,
+    "sha256": "e9bc519862f6d855ddd21604dee24d0ef22c43052897a903b2020bba5ed0607b",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/23_All-target Clippy.txt",
+    "bytes": 3350,
+    "crc32": 1602051316,
+    "sha256": "e4dffa70c5d2645a6eb05df828d120328a5ca04b978bd65ae3d20a7fbfe1e5bf",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/24_Explicit LLVM text-reference boundary.txt",
+    "bytes": 12584,
+    "crc32": 1061143011,
+    "sha256": "e6f8406e1ed8b7e38a18e828ac6d0b0ea3a32807da6887764bd2d0aeb0549025",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/25_Test CI evidence recovery.txt",
+    "bytes": 1340,
+    "crc32": 1957900720,
+    "sha256": "07b0a653c1c63d48c23d9c66fb28343222cd54c0dd9d05ce5dd3f42948783b2c",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/26_Small recovery artifact, never target caches.txt",
+    "bytes": 2318,
+    "crc32": 3174680146,
+    "sha256": "c7308dbcbbc31cd38fba4adbf4d0e9bd54e50bb366af6763bcd4d02478dff939",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/27_Recover complete evidence through verified log transport.txt",
+    "bytes": 110959830,
+    "crc32": 3274736022,
+    "sha256": "c3c02b64b2920c23babd50fe78961d9ac0dc11d98b19398ac574c57b282320f6",
+    "begin": 1,
+    "end": 1
+  },
+  {
+    "name": "workspace/28_Report every evidence upload outcome.txt",
+    "bytes": 3831,
+    "crc32": 2369685299,
+    "sha256": "d20045102363b307ca6797ba3e288449276b60ee51810df789a0f87e6a46d897",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/56_Post Run actions_checkout@3d3c42e5aac5ba805825da76410c181273ba90b1.txt",
+    "bytes": 1733,
+    "crc32": 2131359609,
+    "sha256": "29e7ad7d695a329461f10cc553afb9bb841e5eefea327ddf0d79ef26e4cdfae7",
+    "begin": 0,
+    "end": 0
+  },
+  {
+    "name": "workspace/57_Complete job.txt",
+    "bytes": 61,
+    "crc32": 2558066906,
+    "sha256": "6761ce13440e3f130d355a93ccf4724511571d81a4e1bb94219fa8e8d7d1b7d0",
+    "begin": 0,
+    "end": 0
+  }
+]

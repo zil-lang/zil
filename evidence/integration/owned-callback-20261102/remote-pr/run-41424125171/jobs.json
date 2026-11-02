@@ -1,0 +1,289 @@
+{
+  "total_count": 1,
+  "jobs": [
+    {
+      "id": 125206484655,
+      "run_id": 41424125171,
+      "workflow_name": "Research LLVM verification",
+      "head_branch": "task/owned-callback-20261102",
+      "run_url": "https://api.github.com/repos/zil-lang/zil/actions/runs/41424125171",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOVXdqJM8AAAAdJuNWrw",
+      "head_sha": "aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+      "url": "https://api.github.com/repos/zil-lang/zil/actions/jobs/125206484655",
+      "html_url": "https://github.com/zil-lang/zil/actions/runs/41424125171/job/125206484655",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-11-02T09:52:04Z",
+      "started_at": "2026-11-02T09:52:13Z",
+      "completed_at": "2026-11-02T10:21:39Z",
+      "name": "workspace",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-11-02T09:52:15Z",
+          "completed_at": "2026-11-02T09:52:15Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-11-02T09:52:15Z",
+          "completed_at": "2026-11-02T09:52:52Z"
+        },
+        {
+          "name": "Reclaim unused hosted-runner toolchain space",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-11-02T09:52:52Z",
+          "completed_at": "2026-11-02T09:54:07Z"
+        },
+        {
+          "name": "Preserve pre-build disk recovery receipt",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-11-02T09:54:07Z",
+          "completed_at": "2026-11-02T09:54:07Z"
+        },
+        {
+          "name": "Build the pinned research LLVM toolchain pair",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-11-02T09:54:07Z",
+          "completed_at": "2026-11-02T09:55:35Z"
+        },
+        {
+          "name": "Record exact checkout and current CI input snapshot",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-11-02T09:55:35Z",
+          "completed_at": "2026-11-02T09:55:48Z"
+        },
+        {
+          "name": "Collect research LLVM source and failure evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-11-02T09:55:48Z",
+          "completed_at": "2026-11-02T09:55:48Z"
+        },
+        {
+          "name": "Preserve research LLVM preparation before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-11-02T09:55:48Z",
+          "completed_at": "2026-11-02T09:55:49Z"
+        },
+        {
+          "name": "Formatting",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-11-02T09:55:49Z",
+          "completed_at": "2026-11-02T09:55:52Z"
+        },
+        {
+          "name": "Record workspace resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-11-02T09:55:52Z",
+          "completed_at": "2026-11-02T09:55:52Z"
+        },
+        {
+          "name": "Complete workspace tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-11-02T09:55:52Z",
+          "completed_at": "2026-11-02T10:05:48Z"
+        },
+        {
+          "name": "Record workspace resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-11-02T10:05:48Z",
+          "completed_at": "2026-11-02T10:06:25Z"
+        },
+        {
+          "name": "Preserve workspace receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-11-02T10:06:25Z",
+          "completed_at": "2026-11-02T10:06:25Z"
+        },
+        {
+          "name": "Preserve all workspace native evidence before releasing it",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-11-02T10:06:25Z",
+          "completed_at": "2026-11-02T10:06:34Z"
+        },
+        {
+          "name": "Release only the archived workspace native evidence",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 15,
+          "started_at": "2026-11-02T10:06:34Z",
+          "completed_at": "2026-11-02T10:06:34Z"
+        },
+        {
+          "name": "Release only the archived workspace compiler cache",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 16,
+          "started_at": "2026-11-02T10:06:34Z",
+          "completed_at": "2026-11-02T10:06:34Z"
+        },
+        {
+          "name": "Record reference resources before tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-11-02T10:06:34Z",
+          "completed_at": "2026-11-02T10:06:34Z"
+        },
+        {
+          "name": "Reference-only build and explicit unavailable control",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 18,
+          "started_at": "2026-11-02T10:06:34Z",
+          "completed_at": "2026-11-02T10:14:23Z"
+        },
+        {
+          "name": "Record reference resources after tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 19,
+          "started_at": "2026-11-02T10:14:23Z",
+          "completed_at": "2026-11-02T10:14:56Z"
+        },
+        {
+          "name": "Preserve reference receipts before releasing its cache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 20,
+          "started_at": "2026-11-02T10:14:56Z",
+          "completed_at": "2026-11-02T10:14:56Z"
+        },
+        {
+          "name": "Preserve all reference native evidence before releasing it",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-11-02T10:14:56Z",
+          "completed_at": "2026-11-02T10:15:04Z"
+        },
+        {
+          "name": "Release only the archived reference native evidence",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 22,
+          "started_at": "2026-11-02T10:15:04Z",
+          "completed_at": "2026-11-02T10:15:04Z"
+        },
+        {
+          "name": "Release only the archived reference compiler cache",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 23,
+          "started_at": "2026-11-02T10:15:04Z",
+          "completed_at": "2026-11-02T10:15:04Z"
+        },
+        {
+          "name": "Native API State and allocation-failure controls",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-11-02T10:15:04Z",
+          "completed_at": "2026-11-02T10:16:38Z"
+        },
+        {
+          "name": "All-target Clippy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-11-02T10:16:38Z",
+          "completed_at": "2026-11-02T10:17:10Z"
+        },
+        {
+          "name": "Explicit LLVM text-reference boundary",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 26,
+          "started_at": "2026-11-02T10:17:10Z",
+          "completed_at": "2026-11-02T10:17:14Z"
+        },
+        {
+          "name": "Test CI evidence recovery",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 27,
+          "started_at": "2026-11-02T10:17:14Z",
+          "completed_at": "2026-11-02T10:17:14Z"
+        },
+        {
+          "name": "Small recovery artifact, never target caches",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 28,
+          "started_at": "2026-11-02T10:17:14Z",
+          "completed_at": "2026-11-02T10:17:15Z"
+        },
+        {
+          "name": "Recover complete evidence through verified log transport",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 29,
+          "started_at": "2026-11-02T10:17:15Z",
+          "completed_at": "2026-11-02T10:21:13Z"
+        },
+        {
+          "name": "Report every evidence upload outcome",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 30,
+          "started_at": "2026-11-02T10:21:13Z",
+          "completed_at": "2026-11-02T10:21:13Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 60,
+          "started_at": "2026-11-02T10:21:13Z",
+          "completed_at": "2026-11-02T10:21:13Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 61,
+          "started_at": "2026-11-02T10:21:13Z",
+          "completed_at": "2026-11-02T10:21:13Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/zil-lang/zil/check-runs/125206484655",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000000156,
+      "runner_name": "GitHub Actions 1000000156",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}
