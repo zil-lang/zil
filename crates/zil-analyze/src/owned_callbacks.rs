@@ -167,6 +167,25 @@ fn container_profile(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 
+fn local_profiles(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
+    let forward_body = budget
+        .forward_functions
+        .get(f.id.0 as usize)
+        .copied()
+        .unwrap_or(false);
+    for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
+        // A checked F body may use the existing one-element replacement
+        // slot. Its per-element origin/liveness was independently proved;
+        // this exemption does not apply to captures or public results.
+        if forward_body && super::forward::internal_slot(ty).is_some() {
+            continue;
+        }
+        container_profile(ty, budget)?;
+    }
+    container_profile(&f.return_type, budget)?;
+    Ok(())
+}
+
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
     if budget.owned_callbacks.is_empty() && budget.owned_callback_helpers.is_empty() {
         return Ok(());
@@ -205,21 +224,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     }
     budget.spend(module.functions.len(), "owned callback call functions")?;
     for f in &module.functions {
-        let forward_body = budget
-            .forward_functions
-            .get(f.id.0 as usize)
-            .copied()
-            .unwrap_or(false);
-        for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
-            // A checked F body may use the existing one-element replacement
-            // slot. Its per-element origin/liveness was independently proved;
-            // this exemption does not apply to captures or public results.
-            if forward_body && super::forward::internal_slot(ty).is_some() {
-                continue;
-            }
-            container_profile(ty, budget)?;
+        if budget.parameter_returns.is_empty() {
+            local_profiles(f, budget)?;
         }
-        container_profile(&f.return_type, budget)?;
         budget.spend(f.blocks.len(), "owned callback call blocks")?;
         for b in &f.blocks {
             budget.spend(b.instructions.len(), "owned callback call instructions")?;
@@ -229,7 +236,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         budget.owned_callbacks.len(),
                         "owned callback construction lookup",
                     )?;
-                    if budget.owned_callbacks.contains(closure) {
+                    let forwarding = if budget.forward_closures.is_empty() {
+                        false
+                    } else {
+                        budget.lookup(
+                            budget.forward_closures.len(),
+                            "forward actual construction lookup",
+                        )?;
+                        budget.forward_closures.contains(closure)
+                    };
+                    if budget.owned_callbacks.contains(closure) || forwarding {
                         let definition = &module.closures[closure.0 as usize];
                         budget.spend(captures.len(), "owned callback actual captures")?;
                         if captures.len() != definition.captures.len()
@@ -366,6 +382,15 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         }
         if !changed {
             break;
+        }
+    }
+    if !budget.parameter_returns.is_empty() {
+        budget.spend(
+            module.functions.len(),
+            "forward concrete caller local profiles",
+        )?;
+        for f in &module.functions {
+            local_profiles(f, budget)?;
         }
     }
     budget.owned_callback_window_functions = windows;
