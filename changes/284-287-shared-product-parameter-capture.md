@@ -25,3 +25,9 @@ raw/Wire、N/N−1/fresh和生产源到两后端O0/O2分别记账。
 已有共享Product功能target中的源码/机器消费者，不增加工单名Cargo目标。
 无需新Types能力，发现前置缺口先给最小实源，不暗改签名或扩大范围。
 原始产物仅临时保留，入库只有有用输入、命令与精简实际结果。
+
+285 分析核先恢复实际 Parameter 根及调用点私有完整 Product/Store 父位置；仅该
+新增路径预付调用 may 摘要。普通 Call 的传递 Store 操作与拥有 Store 或含 Store
+的 Product 参数按整次调用检查。Store 来源未知、或被调用闭包持有 Store 而实际
+父来源尚不能恢复时保守 Unsupported；不以名义闭包类型或不同参数名称证明不相交。
+源、raw/Wire、预算、独立 Verify 和机器验证仍须各自完成，本说明不代表通过。
