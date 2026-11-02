@@ -100,7 +100,8 @@ pub(super) fn validate_parametric<'l>(
     // Mixed Copy-T templates can disappear without a concrete instantiation.
     // Check the new data boundary here rather than relying on a later Core
     // instance. Ordinary single-F and existing State paths keep their fees.
-    if function.generics.len() > 1
+    if function.generics.iter().any(|parameter| matches!(&parameter.kind,
+        GenericParamKind::Type(bounds) if matches!(bounds.as_slice(), [bound] if copy::is_bound(bound))))
         && check
             .callable
             .as_ref()
@@ -124,9 +125,10 @@ pub(super) fn validate_parametric<'l>(
             let TypeKind::Tuple(parameters) = &parameters.kind else {
                 continue;
             };
-            for ty in parameters.iter().chain(std::iter::once(result)) {
+            for ty in parameters.iter().chain(std::iter::once(result)).chain(function.return_type.iter()) {
                 if matches!(group(ty).kind, TypeKind::Reference { .. })
-                    || dependent(ty, &check.variables)
+                    || trait_bounds::plain(ty).is_some_and(|name| check.bounds.get(name)
+                        .is_some_and(|bounds| bounds.iter().any(|bound| bound == copy::BOUND)))
                     || known_copy(ty, &check.variables, check.nominals) == Some(true)
                 {
                     continue;
