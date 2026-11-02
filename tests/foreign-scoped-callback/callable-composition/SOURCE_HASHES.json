@@ -10,5 +10,10 @@
     "body-dispatch-factory": "ed4f5c2c05e0c0f66b3787cf6d97a6ecd49eeca24cabb05159063415fa46b745",
     "nested-helper-propagate": "eb72e9f67e3c42a2df648fcbd34c3da012c6f851f39fa00243bbe8d3849394e9",
     "handler-without-with": "fd3e7a0f367a7517e48e2b17a53df6a4354a29433afec387e3d2bbb782dab893"
+  },
+  "additional_factory_only_probe": {
+    "source": "/tmp/282-factory-only.zil",
+    "file": "factory-only.zil",
+    "sha256": "b8fd9a338477f4bb8caf9c782fd289bfcf92e8c01cfeec80307ab072a2eab2d8"
   }
 }

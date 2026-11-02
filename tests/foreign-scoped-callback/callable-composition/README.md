@@ -98,6 +98,21 @@ exactly: B4/D3/D7 before close on success, D3/D7 without B on null, only D3 on
 preparation failure, and A5 before outcome propagation on every observed path.
 Handler groups remain separate and still require the frontend checkpoint.
 
+The later `frozen/factory-only.zil` is preserved byte-for-byte from root's
+additional `/tmp/282-factory-only.zil` probe; its separate hash is recorded as
+`additional_factory_only_probe` rather than attributing it to the original
+9c source set. It is an ordinary Copy-signature factory/child-helper program
+with no With or foreign declarations. Its source-only expected arithmetic is
+make()(2)=5 plus supplied F(1)=2, so run returns 7 and main returns 0 with empty
+stdout/stderr. Its O0/O2 native test uses the production compiler/linker
+directly, without the C registration driver or allocator shim. These are two
+additional plain runs per backend and no allocator/live-zero claim is inferred
+for that unprobed group.
+At first integration it separately rejected at Types/E-UNSUPPORTED, "nested
+helper environment is not one actual supplied role", span 217..234. It is
+kept in independent source/native tests, so its admission is not folded into
+the earlier thirteen-source result.
+
 After exact frontend `a4608818` plus Verify `fd6b8610`, ten of thirteen source
 obligations reach Verify. The remaining failures advance to the independent
 kernels: frozen/observed outer-handler capture reaches Verify/E-UNSUPPORTED

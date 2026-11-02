@@ -667,3 +667,61 @@ fn scoped_concrete_composition_captured_handler_preserves_remaining_cleanup_and_
 fn scoped_concrete_composition_factory_bodies_preserve_remaining_cleanup_and_callback_access() {
     composition_native_group("observed", &COMPOSITION_FACTORIES, "OBSERVED_ORACLE.json");
 }
+
+#[test]
+fn concrete_factory_only_helper_reaches_independent_verification() {
+    let report = compile_project(
+        &fixture_project("callable-composition", "frozen", "factory-only"),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn concrete_factory_only_helper_runs_without_foreign_callbacks() {
+    // This Copy-only source has no FFI, allocation or input. Keep its native
+    // check independent of the C registration/allocator harness.
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let temporary = Temp::new(&format!("factory-only-{optimization:?}"));
+        let program = temporary.0.join("program");
+        let report = compile_project(
+            &fixture_project("callable-composition", "frozen", "factory-only"),
+            &CompileOptions {
+                backend: backend(),
+                optimization,
+                stop_after: Stage::Build,
+                output: Some(program.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.backend, backend());
+        assert!(codegen.fallback.is_none());
+        if cfg!(feature = "llvm-api") {
+            assert!(!codegen.object_reports.is_empty());
+            assert!(codegen.object_reports.iter().all(|r| {
+                r.contains("\"input_kind\":\"builder\"")
+                    && r.contains("\"parse_ns\":0,")
+                    && r.contains("\"verify_before_after\":true")
+            }));
+        }
+        let output = Command::new(program).output().unwrap();
+        // make()(2)=5, caller F(1)=2, run returns 7 and main returns 0.
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        assert!(output.stdout.is_empty(), "{output:?}");
+        assert!(output.stderr.is_empty(), "{output:?}");
+    }
+}
