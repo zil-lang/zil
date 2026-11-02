@@ -15,7 +15,9 @@ impl InferBuilder<'_, '_> {
     ) -> R<Option<LocalType>> {
         let variable = match base {
             LocalType::Scalar(v) | LocalType::Address(v, _) | LocalType::Resource(v, _) => v,
-            LocalType::SliceLength | LocalType::Closure(..) => return Ok(None),
+            LocalType::SliceLength | LocalType::Closure(..) | LocalType::Nested(..) => {
+                return Ok(None);
+            }
         };
         self.graph.solve()?;
         let Some(actual) = self.graph.ty(variable)? else {

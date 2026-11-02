@@ -1,0 +1,31 @@
+   Compiling zil-types v0.1.0 (/workspace/zil-252/crates/zil-types)
+   Compiling zil-driver v0.1.0 (/workspace/zil-252/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 20.03s
+     Running tests/impl252_front.rs (/workspace/.zil-env/target-252/debug/deps/impl252_front-170e4df80e31926f)
+
+running 14 tests
+test caller_declared_once_or_mutable_position_cannot_upgrade_after_forwarding ... ok
+test frozen_same_type_fresh_factory_returns_are_real_safe_rejections ... ok
+test in_scope_forward_fnmut_let_call_is_safe_rejected_and_var_call_preserves_state ... ok
+test mutable_owned_environment_can_be_called_then_forwarded ... ok
+test nested_forwarding_accepts_a_stronger_fn_through_mutable_adaptation ... ok
+test address_signature_and_independent_store_and_union_companions_are_closed_data ... ok
+test nonzero_parameter_and_loop_moves_keep_the_actual_role ... ok
+test original_concrete_copy_and_generic_declared_modes_remain_distinct ... ok
+test original_forward_source_reaches_types_without_changes ... ok
+test raw_unused_parameter_definition_checks_mutable_position_before_any_instance ... ok
+test unused_declarations_cannot_copy_consume_then_return_or_change_the_instance ... ok
+252 original forward Expand N=305, Types N=472; N-1 ResourceLimit/fresh N identity
+test original_forward_has_exact_fresh_types_and_expand_work_boundaries ... ok
+test owning_environment_loop_uses_a_real_slot_and_keeps_parameter_origin ... ok
+test frozen_three_module_consumer_reaches_types ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/impl252_nested.rs (/workspace/.zil-env/target-252/debug/deps/impl252_nested-71a7836cc5681d16)
+
+running 1 test
+test original_nested_owned_callback_creates_moves_refills_and_calls ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -990,3 +990,50 @@ fn reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges() {
         }
     }
 }
+
+#[test]
+fn reviewed_ordinary_arguments_and_symbolic_copy_authority_raw_wire() {
+    for (valid, bytes) in [
+        (
+            false,
+            include_bytes!("../tests/impl253_fixtures/escape_byvalue_symbolic_fn_call.wire")
+                .as_slice(),
+        ),
+        (
+            false,
+            include_bytes!("../tests/impl253_fixtures/escape_callback_argument.wire").as_slice(),
+        ),
+        (
+            true,
+            include_bytes!("../tests/impl253_fixtures/control_shared_callback_i32_argument.wire")
+                .as_slice(),
+        ),
+        (
+            true,
+            include_bytes!("../tests/impl253_fixtures/control_concrete_copy_byvalue_call.wire")
+                .as_slice(),
+        ),
+        (
+            false,
+            include_bytes!("../tests/impl253_fixtures/escape_shared_callback_f_argument.wire")
+                .as_slice(),
+        ),
+        (
+            false,
+            include_bytes!("../tests/impl253_fixtures/escape_two_element_array.wire").as_slice(),
+        ),
+        (
+            false,
+            include_bytes!("../tests/impl253_fixtures/escape_thin_store.wire").as_slice(),
+        ),
+    ] {
+        let module = zil_ir::wire::decode_module_candidate(bytes, &Limits::default())
+            .unwrap()
+            .0;
+        if valid {
+            accepted(&module);
+        } else {
+            rejected(&module);
+        }
+    }
+}

@@ -1,0 +1,226 @@
+{
+  "status": "Pass",
+  "command": [
+    "cargo",
+    "+1.99.1",
+    "run",
+    "--offline",
+    "--locked",
+    "--manifest-path",
+    "Cargo.toml"
+  ],
+  "returncode": 0,
+  "binding": {
+    "head": "883f55c640f8c5674ef73149f43e52702a64a091",
+    "full_git_tree": "9253a681636b31fe11805598fae0a10a80fbeea4",
+    "analyze_git_tree": "fe125d2328f16e2d57cd136b3d682e828eae908f",
+    "source_checkout": "/workspace/.zil-env/forward-review-253/snapshot-883f55c64",
+    "sources": {
+      "crates/zil-base/src/lib.rs": "1a554f90a14e879d09a1329e94ad85aee16d29967d2eccea9bcd5a6ac9a609ed",
+      "crates/zil-base/src/sha256.rs": "9b8034f60c93b5cf76ebed3a68b96362ee1209f0bfc0cda59117f1cc6fc08138",
+      "crates/zil-base/src/sha256_scalar_reference.rs": "722ba20d7403374f52d914a4380155d9bf5d7402536125b02c33627feeea7464",
+      "crates/zil-base/src/source_map.rs": "7447480de4b4d829a50ea5cbc50d55471275fc3b4d0d5fc34a07d6c2e1a20b6f",
+      "crates/zil-base/tests/streaming_fingerprint.rs": "9b4d07dfb05726d612c9bcb6bc3b2fb893d016abf69192e92d6c74257bf42904",
+      "crates/zil-ir/src/lib.rs": "2b1fcd0f77c9543b8c40d198a594353c1601d2d3f3864d4025afe76bd93169df",
+      "crates/zil-ir/src/program.rs": "faf6d430a202892500079a03048269c46370a63b54ec81309a50a2f732f9c0d2",
+      "crates/zil-ir/src/wire/flow_tests.rs": "93432ed562948159ea84dc34374ab7f6a0f785eb432b4f92649c4cdd61f2cc34",
+      "crates/zil-ir/src/wire/owned_carrier_tests.rs": "cc3384c0138cefce52f4d5d626e79a83203a41feb70f2c265e29c30c813d51e1",
+      "crates/zil-ir/src/wire/owned_sum_tests.rs": "96b5e4da5721fe4cd476d27698a18a6b920039ccb6bb3800c2254e2c8aceadb0",
+      "crates/zil-ir/src/wire/state_field_tests.rs": "67bb3d36c5ca975d7876ff27ba91daf233ad03f1e09532a8170f1d3ab0867d1f",
+      "crates/zil-ir/src/wire/store_tests.rs": "d82e8acbdcce909de0045873a83699af643c7563c5ddf9b150e7eb68044d9680",
+      "crates/zil-ir/src/wire/tests.rs": "134abc7b61a22c08e6bed4bef919bdc0df4a4229c62ee9952926d18a11324126",
+      "crates/zil-ir/src/wire/type_stack_tests.rs": "3cd4df6ac4e3e0df707663f6cbddd3586c19a4c0ee91c80c4c92efd14fd00af6",
+      "crates/zil-ir/src/wire.rs": "ac3f90b7a5bc203a1ff0cf07e633d4788ab0540747e191599f82f8b68e9b9922",
+      "crates/zil-ir/tests/cp34_fingerprint.rs": "5009665c2185e64b4e74eb854fe82c4771379c7dd87e4ff5d86b23242e3ba166",
+      "crates/zil-ir/tests/impl092_slice_wire.rs": "b8e40724c00b8f1faca93ae271c8642a6379fe8ea08571c2b4cf3fb48e34d9bb",
+      "crates/zil-ir/tests/impl096_byte_buffer_wire.rs": "05aab90c03b02a8834f932eac21eeb6cdd68e4d0bfbc96788419c032d7154493",
+      "crates/zil-ir/tests/review092_slice_transport.rs": "57d5e4755fc641304ec1dc13af399bbd877c1c9f6fe0ff1adff42c105b5aa4ed",
+      "crates/zil-ir/tests/support/cp34_instruction_cases.rs": "108ea3979c96a7b6b97c2f21ca371fe68e739421e4e9b372ce26d62de915a172",
+      "crates/zil-ir/tests/support/cp34_legacy_v27.rs": "71e0b62e6770042c91e0d6ef7e207bced51df2b46022a5a304d7ad306a7d370e",
+      "crates/zil-ir/tests/support/cp34_legacy_v28.rs": "b2d0d54a6a36a6bbf1d6840e58b7772c1e6fa83e334153c8b60358ce47628fbe",
+      "crates/zil-ir/tests/support/cp34_legacy_v29.rs": "9016b82fce966e519c0ea6f8901aef78bea34f0b672c6e14e39cdac0ac5c0aca",
+      "crates/zil-ir/tests/support/cp34_legacy_v30.rs": "ac61b15d9b8d05f118f822998e84605ddc229a348071870c4b9754769e175820",
+      "crates/zil-ir/tests/support/cp34_legacy_v31.rs": "9a6616ebc4dbce3f88dce1324d9226b053a9747eeb65af010b890bbb9f074232",
+      "crates/zil-analyze/src/budget.rs": "6d95f2984297425800151f8e6b3dd6abcb2069bda0ffb8477171ff8e5fb9c81d",
+      "crates/zil-analyze/src/callable_fields.rs": "17a3e8f8e2580d8548b424ba47eee5f1fdcf8f22e145c6029b0594efcb65a4f4",
+      "crates/zil-analyze/src/defer_tests.rs": "3a6bc200eae9251d523458f2e87c956982763ea7ab7be5093be77620e3b3ee31",
+      "crates/zil-analyze/src/defers.rs": "88436fa89eaa19e406b9f6693b840e8129e6458e7baac72f6e0f3571abb38b11",
+      "crates/zil-analyze/src/dynamic_store.rs": "5e3128ae66e0e8a1727dc9d90b6eb8f16f0d2c0ea9d55a9f31252508db01596e",
+      "crates/zil-analyze/src/forward.rs": "3369b79f3c487723138e5bb0be8371c0e50cc334c15dabe53c4bb833d2b826a1",
+      "crates/zil-analyze/src/forward_tests.rs": "b018fd626a8e82826fab21d8f6518ce882cc525abe1f2ca1e34d954576a509c9",
+      "crates/zil-analyze/src/helper_flow.rs": "9f9f807f940e2b67d9f8c92c98521084497f924cd4dd7bdac3d9958dcc1e7b8c",
+      "crates/zil-analyze/src/helpers.rs": "aa45b6a99a5d5d5097c39e804a2bce039f4b4aa766a5b429e160480cfc5e159d",
+      "crates/zil-analyze/src/holds.rs": "1641dc1dc7c2f31637f08eb9733c653ab07e00fffb9363ce82bbcfada533fa4d",
+      "crates/zil-analyze/src/incremental.rs": "414080978a4774e0438e34b60efddce9de866e8621950165817a7e04d145b3fd",
+      "crates/zil-analyze/src/lib.rs": "4383195e109685f117457e803533bd981453947a199d2767a9d2fb4acc3e4148",
+      "crates/zil-analyze/src/owned_callbacks.rs": "3d5eea39bddb3cbbc64c3c360e3dedcf6302be901834f57d34f953821e52c9f4",
+      "crates/zil-analyze/src/owning_factory.rs": "cd86aef5a35a43059237346d90a243f3793a274f9de1efc732ef35e8d3c79082",
+      "crates/zil-analyze/src/resource_tests.rs": "afd0a4ba96d962c6f5acfb5ca8cfa458c0a72dd7f4c8b291a85e10fbeb21b117",
+      "crates/zil-analyze/src/resources/frontier_tests.rs": "ddec14c63dde99eba4bdcfaa4d73e89251539ac180fe8f58aeab9f56df9eb7d7",
+      "crates/zil-analyze/src/resources/product.rs": "b56db82efcb9c1b3f59957333205344bbf577550c883b471b0b17aedfd0b8f84",
+      "crates/zil-analyze/src/resources/summary_graph.rs": "97cb60c86c69f627a5b4e397ad39310d2568d4b970ba5b302b7f715640bec98a",
+      "crates/zil-analyze/src/resources/sums.rs": "166039aa956e7b4737379c5da85a21836ad078604768b6fe4df212172e78b65c",
+      "crates/zil-analyze/src/resources.rs": "3bc792354571f1acef27fc2e3b3945e6d4a14b7968ec5e4a5e9797073a57ec65",
+      "crates/zil-analyze/src/retained.rs": "858eebf9f00190338b038d4bfc4a285740e762d497de16e4a4c82b7cb44db279",
+      "crates/zil-analyze/src/scopes.rs": "d2be72f009cad7d3cc83900cd9a8c7971608b1fc095d09e75b2900e89add9ad0",
+      "crates/zil-analyze/src/sum_tests.rs": "63d47ef98f1f5214c998002d0e440858ea4caf31946277c46cab1d780733e8b3",
+      "crates/zil-analyze/tests/budgets.rs": "4edb77e0f80dda8ee65d27b844f09ad31d5fe998e6c137bdf921b5091776f9ea",
+      "crates/zil-analyze/tests/impl196_roles.rs": "c1bf86378a5d7804fa5863fff889a66aed3190d465d71de8143ced817c11418f",
+      "crates/zil-analyze/tests/impl200_constructor.rs": "391689ed2dba96e3061fcb8e87a336618ccad2db1ae8b5d6faa4be281cb30a40",
+      "crates/zil-analyze/tests/impl201_store.rs": "d4cf0082f81fba86f87620018947bcb2520629c744be19b48c257d0f0b734a86",
+      "crates/zil-analyze/tests/impl204_capture.rs": "2420e46a313bd6fe2ce83c0a1c4a9bac0951f8b2e3062eb8e2ea320a67c19745",
+      "crates/zil-analyze/tests/impl220_factory.rs": "677ea01ebe4a4cc50dac4788c5a18d629e7a989245094ba766a6b3b486bbbca6",
+      "crates/zil-analyze/tests/package_budgets.rs": "ec6c3ce3927c43531e07da9c5eb65f247a5e99c41673ffa307f036d3affbc9c9"
+    },
+    "probe_sha256": "11cbb6b24420c36cbb04fbaab9f66b5e861a7958b343a918f40a223197afc8ee"
+  },
+  "checks": {
+    "parent_valid_no_call_edge/raw": true,
+    "parent_valid_no_call_edge/wire": true,
+    "parent_stale_no_call_edge/raw": true,
+    "parent_stale_no_call_edge/wire": true,
+    "parent_valid_with_call_edge/raw": true,
+    "parent_valid_with_call_edge/wire": true,
+    "parent_stale_with_call_edge/raw": true,
+    "parent_stale_with_call_edge/wire": true,
+    "escape_byvalue_symbolic_fn_call/raw": true,
+    "escape_byvalue_symbolic_fn_call/wire": true,
+    "escape_callback_argument/raw": true,
+    "escape_callback_argument/wire": true,
+    "control_shared_callback_i32_argument/raw": true,
+    "control_shared_callback_i32_argument/wire": true,
+    "control_concrete_copy_byvalue_call/raw": true,
+    "control_concrete_copy_byvalue_call/wire": true,
+    "escape_shared_callback_f_argument/raw": true,
+    "escape_shared_callback_f_argument/wire": true,
+    "escape_two_element_array/raw": true,
+    "escape_two_element_array/wire": true,
+    "escape_thin_store/raw": true,
+    "escape_thin_store/wire": true,
+    "parent_stale_no_call_edge/raw/window_diagnostic": true,
+    "parent_stale_no_call_edge/wire/window_diagnostic": true,
+    "parent_stale_with_call_edge/raw/window_diagnostic": true,
+    "parent_stale_with_call_edge/wire/window_diagnostic": true,
+    "independent_exact_budget_and_incremental": true
+  },
+  "observations": {
+    "parent_valid_no_call_edge/raw": {
+      "outcome": "ACCEPT",
+      "detail": ""
+    },
+    "parent_valid_no_call_edge/wire": {
+      "outcome": "ACCEPT",
+      "detail": ""
+    },
+    "parent_stale_no_call_edge/raw": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }]"
+    },
+    "parent_stale_no_call_edge/wire": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }]"
+    },
+    "parent_valid_with_call_edge/raw": {
+      "outcome": "ACCEPT",
+      "detail": ""
+    },
+    "parent_valid_with_call_edge/wire": {
+      "outcome": "ACCEPT",
+      "detail": ""
+    },
+    "parent_stale_with_call_edge/raw": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }]"
+    },
+    "parent_stale_with_call_edge/wire": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }]"
+    },
+    "escape_byvalue_symbolic_fn_call/raw": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"by-value symbolic Fn call would require a Copy permission\", span: None, notes: [] }]"
+    },
+    "escape_byvalue_symbolic_fn_call/wire": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"by-value symbolic Fn call would require a Copy permission\", span: None, notes: [] }]"
+    },
+    "escape_callback_argument/raw": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"symbolic F cannot enter an ordinary callback data argument\", span: None, notes: [] }]"
+    },
+    "escape_callback_argument/wire": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"symbolic F cannot enter an ordinary callback data argument\", span: None, notes: [] }]"
+    },
+    "control_shared_callback_i32_argument/raw": {
+      "outcome": "ACCEPT",
+      "detail": ""
+    },
+    "control_shared_callback_i32_argument/wire": {
+      "outcome": "ACCEPT",
+      "detail": ""
+    },
+    "control_concrete_copy_byvalue_call/raw": {
+      "outcome": "ACCEPT",
+      "detail": ""
+    },
+    "control_concrete_copy_byvalue_call/wire": {
+      "outcome": "ACCEPT",
+      "detail": ""
+    },
+    "escape_shared_callback_f_argument/raw": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"symbolic F cannot enter an ordinary callback data argument\", span: None, notes: [] }]"
+    },
+    "escape_shared_callback_f_argument/wire": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"symbolic F cannot enter an ordinary callback data argument\", span: None, notes: [] }]"
+    },
+    "escape_two_element_array/raw": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"symbolic F enters an unsupported value operation\", span: None, notes: [] }]"
+    },
+    "escape_two_element_array/wire": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"symbolic F enters an unsupported value operation\", span: None, notes: [] }]"
+    },
+    "escape_thin_store/raw": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"symbolic F enters an unsupported value operation\", span: None, notes: [] }]"
+    },
+    "escape_thin_store/wire": {
+      "outcome": "REJECT",
+      "detail": "[Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"symbolic F enters an unsupported value operation\", span: None, notes: [] }]"
+    }
+  },
+  "original_fail_preserved": "/workspace/.zil-env/forward-review-253/ANALYZE253-REVIEW.json",
+  "artifacts": {
+    "SOURCE-BINDING.json": "f23d55f1c688eb71b883d529e9a315b46c883e71faab2b58c2c444561e271459",
+    "escape_thin_store.wire": "5139a4a0e2aa4a215d72bdbb4855e0e1857cbbfacb94ebf8d36184c38d7d1228",
+    "control_concrete_copy_byvalue_call.typed.txt": "cb1868b9e156d045a90db6512394666e3782c20ea3def0b0d5a3d495d94b0a6e",
+    "escape_two_element_array.wire": "699ca3e22e7364d2f190bdbd0a7b62f8d56d330f03211436ef9fba04bef17bc1",
+    "escape_shared_callback_f_argument.wire": "e093c6e1e968cbbeb3208c7924404727102fbb9b3732778e0870e10a6cac5da5",
+    "parent_valid_with_call_edge.typed.txt": "21f38131db3db03fa09fa2563d3c23b1f4ea0fdfa224ff880871cafc467d41c5",
+    "control_shared_callback_i32_argument.wire": "a9853c8569777b827554a7d4ee0aefc0cdf47701b55fc76456e1b0c73cc2706b",
+    "escape_two_element_array.typed.txt": "e2287461ee8800ef99e29f89e396190ece5f946f5eec46acc4ef2881968d9524",
+    "escape_callback_argument.wire": "e7f0029fa25a960ce6deebbacb21fa0a12a983e7abe63019354e394de8045378",
+    "escape_byvalue_symbolic_fn_call.typed.txt": "f46a227ecfb990ee9aeaeb918e9de70fdebe7f90c8c7c263938ff9fabb4ad388",
+    "parent_stale_with_call_edge.wire": "f4377cd4c8fbaefd468ac2a207af92b04de10c53b8c8998d1a3be89352f7c478",
+    "escape_byvalue_symbolic_fn_call.wire": "976c23c431d312603b46960302b604add7d64ea61444c98a64999406db1b110c",
+    "parent_stale_no_call_edge.wire": "36dcf257c36d36870eb37347c6c81d46b145dd69c7a35502eb9aa286b6085457",
+    "parent_stale_no_call_edge.typed.txt": "8ba4c569a9237335c11a07324a4da317c03f0e49e52cd148eab69dc76f81ec99",
+    "escape_callback_argument.typed.txt": "97ad8b43a1c99e162db45f3a8b9cf01a02cf90f447b51036273c491f57eb7864",
+    "parent_valid_with_call_edge.wire": "adce2fce89a5b7a71612f9e51e22926e02013b49824a50430201c5716c759e4b",
+    "control_shared_callback_i32_argument.typed.txt": "aac8c63bd2179a65c86ea0f5224d240dbb999def63dd5277fdd40377d79b50d4",
+    "escape_thin_store.typed.txt": "26b17036631a90171b7eed653af3d1eba0b298c05466d1287175876620f15dae",
+    "parent_valid_no_call_edge.wire": "382fb81192134ff6c451368f7be076b9a25595aaa51a72d4f9d827c500b5e942",
+    "control_concrete_copy_byvalue_call.wire": "8316f141ed909a9e668665847e8268b3b65a3efb8d27bf9e824bf68cfd1a4e4d",
+    "escape_shared_callback_f_argument.typed.txt": "3a7f1a18a3dfa08cb2e704e1c5d27b08f6865c0b30bef3df1a82c1e082215fd6",
+    "probe.log": "ef9c85b8004877fac3ec2a057d2d2c0af4c68c095881cc8f610b79c78ac397b7",
+    "parent_stale_with_call_edge.typed.txt": "5a0845cedc542c1c921fd7dd68398308fe9cc7f52e8db0943e4a6043f6960ce7",
+    "parent_valid_no_call_edge.typed.txt": "8512d7b34970102f37212e44f1ac9a2a8c5826bb05bf42b842380c0a61407edb",
+    "probe/Cargo.toml": "6995ea81f37622be47d23c9f1846864dcd3cb7e6f7f230cf6cfec02af20e194e",
+    "probe/Cargo.lock": "988787e471c8ce1fd43c2cfa831a8f4d11f791b12cc22161c92c0044e736f6f5",
+    "probe/src/main.rs": "11cbb6b24420c36cbb04fbaab9f66b5e861a7958b343a918f40a223197afc8ee"
+  }
+}

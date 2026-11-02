@@ -1,0 +1,37 @@
+{
+  "reviewer": "/root/assess_delivery_process",
+  "independent_non_author": true,
+  "reviewed_head": "6c1cf564ca22ba22efc5cb62d30b432d1635d514",
+  "status": "changes_requested",
+  "prior_fail": "ANALYZE253-REVIEW.json (original b5 bytes preserved)",
+  "AN253-R1": {
+    "status": "fixed in exact 6c",
+    "evidence": "reruns/capture-6c1cf564c/RESULT.json",
+    "result": "Original 4 modules x raw/Wire now match expectations; stale cases reject at old-address window check with/without consumer edge; valid controls accept."
+  },
+  "findings": [
+    {
+      "id": "AN253-R2",
+      "severity": "blocking",
+      "title": "Handled CallClosure operations omit ordinary-argument symbolic F escape/signature checking",
+      "location": "crates/zil-analyze/src/forward.rs:611-675; fallback only at 677-689; owned_callbacks.rs concrete signature checking gated by owned_callbacks, excluding ordinary Copy-signature forwarded closures",
+      "reproduction": "F:Fn(i32)->i32 is taken to v0, then CallClosure(callee=v0, arguments=[v0]), then v0 is returned as Parameter(1). This passes raw and Wire Analyze even though ordinary argument expects i32 and receives symbolic F. Replacing the argument with a genuine i32 is the matched accepted control.",
+      "expected": "Reject F/Address<F> escape through ordinary callback parameters and check each actual callback argument/result against its declared signature independently of Verify.",
+      "actual": "Both invalid and valid modules accepted raw+Wire on exact 6c snapshot.",
+      "minimal_fix": "Audit argument operands for all handled CallClosure variants (local/shared/mut/value/once/borrowed); enforce actual argument/result types and reject symbolic callable provenance in ordinary callback argument slots. Prepay argument/type scans. Keep callee observation separate from ordinary arguments.",
+      "evidence": "reruns/operands-6c1cf564c/RESULT.json; probe.log; escape_callback_argument.wire; control_callback_i32_argument.wire",
+      "scope_limit": "Untrusted raw/Wire producer-kernel boundary, not a claim that source Types accepts f(f) or native execution is possible."
+    }
+  ],
+  "additional_controls": {
+    "escape_two_element_array": "rejected raw/Wire by new unsupported symbolic operation guard",
+    "escape_thin_store": "rejected raw/Wire by new unsupported symbolic operation guard"
+  },
+  "budget_review": {
+    "new_forward_body_roots": "budget.spend(forward_closures.len()) precedes iteration/flag writes",
+    "operand_enumerator": "resources::uses returns a lazy iterator, no allocation; each operand is charged before bounds/table checks or unsupported-escape check",
+    "limitation": "No exhaustive cost proof or performance benchmark claimed"
+  },
+  "production_modified": false,
+  "final_common_source_binding": "pending"
+}

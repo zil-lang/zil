@@ -1,0 +1,32 @@
+    Finished `test` profile [unoptimized] target(s) in 0.02s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-253/debug/deps/zil_analyze-aa0422b5c4d89887)
+
+running 14 tests
+test resource_tests::impl247_callback_data_cannot_smuggle_a_callback_state_through_store ... ok
+test resource_tests::impl247_owned_callback_definition_and_actual_call_are_checked_independently ... ok
+impl247 owned callback Analyze N=4531; N-1 ResourceLimit; fresh equality
+test resource_tests::impl247_owned_callback_arguments_and_results_have_one_responsibility ... ok
+test resource_tests::impl247_owned_callback_result_cannot_export_created_freshness ... ok
+test resource_tests::impl247_owned_callbacks_consume_fresh_arguments_and_return_incoming_owners ... ok
+
+thread 'resource_tests::impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles' (237620) panicked at crates/zil-analyze/src/resource_tests.rs:571:54:
+called `Result::unwrap_err()` on an `Ok` value: CandidatePlan { schema_version: 31, module_fingerprint: Fingerprint([126, 156, 75, 157, 168, 23, 118, 227, 39, 58, 191, 202, 243, 225, 210, 131, 173, 69, 19, 62, 255, 243, 103, 122, 130, 14, 251, 238, 103, 154, 155, 120]), target_fingerprint: Fingerprint([205, 49, 11, 211, 61, 158, 160, 206, 0, 177, 155, 124, 142, 36, 127, 255, 149, 121, 131, 121, 165, 196, 116, 61, 206, 130, 190, 234, 40, 5, 28, 15]), functions: [FunctionPlan { function: FunctionId(0), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }, ValueHold { value: ValueId(1), roots: [] }, ValueHold { value: ValueId(2), roots: [] }, ValueHold { value: ValueId(3), roots: [] }, ValueHold { value: ValueId(4), roots: [] }, ValueHold { value: ValueId(5), roots: [] }, ValueHold { value: ValueId(6), roots: [] }] }, FunctionPlan { function: FunctionId(1), blocks: [BlockPlan { block: BlockId(0), initialized_in: [LocalId(0)], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }] }], origins: [], responsibilities: [], unsupported: [] }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test resource_tests::impl247_owned_callback_budget_is_module_scoped_and_recovers_fresh ... ok
+test resource_tests::independent_effects_distinguish_borrowed_target_and_owned_environment_writes ... ok
+test resource_tests::impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles ... FAILED
+test resource_tests::independent_once_state_consumes_captures_and_rejects_reuse ... ok
+test resource_tests::independent_resource_closure_flow_accepts_repeatable_and_consuming_environments ... ok
+test resource_tests::independent_resource_diagnostics_reject_copy_leaks_and_repeated_cleanup ... ok
+test resource_tests::independent_effect_fixed_point_follows_direct_and_forwarding_calls ... ok
+test resource_tests::independent_sources_reject_stale_borrowed_capture_and_repeated_consuming_ssa ... ok
+test resource_tests::initialization_reuse_does_not_cache_callee_effect_safety ... ok
+
+failures:
+
+failures:
+    resource_tests::impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles
+
+test result: FAILED. 13 passed; 1 failed; 0 ignored; 0 measured; 73 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-analyze --lib`

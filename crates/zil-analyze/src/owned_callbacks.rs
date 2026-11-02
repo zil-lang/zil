@@ -167,23 +167,185 @@ fn container_profile(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 
-fn local_profiles(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
-    let forward_body = budget
-        .forward_functions
-        .get(f.id.0 as usize)
-        .copied()
-        .unwrap_or(false);
-    for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
-        // A checked F body may use the existing one-element replacement
-        // slot. Its per-element origin/liveness was independently proved;
-        // this exemption does not apply to captures or public results.
-        if forward_body && super::forward::internal_slot(ty).is_some() {
-            continue;
+// A compiler replacement slot has no public container permission. Reconstruct
+// its complete operation boundary before exempting its root type from the
+// general container exclusion; a call edge to a helper grants nothing here.
+fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
+    fn candidate(ty: &Type, budget: &Budget) -> bool {
+        super::forward::internal_slot(ty).is_some_and(|id| {
+            budget.owned_callbacks.contains(&id) || budget.forward_closures.contains(&id)
+        })
+    }
+    budget.spend(f.parameters.len(), "private callable slot public boundary")?;
+    if f.parameters
+        .iter()
+        .any(|l| candidate(&f.locals[l.0 as usize].ty, budget))
+        || candidate(&f.return_type, budget)
+    {
+        return Err(bad(
+            "private callable slot cannot be a public parameter or result",
+        ));
+    }
+    budget.spend(f.blocks.len(), "private callable slot blocks")?;
+    for block in &f.blocks {
+        for i in &block.instructions {
+            budget.spend(1, "private callable slot instruction")?;
+            let output = i.result.and_then(|v| f.values.get(v.0 as usize));
+            let local = match &i.kind {
+                InstructionKind::Load(l)
+                | InstructionKind::StorageLive(l)
+                | InstructionKind::StorageDead(l) => Some(*l),
+                InstructionKind::TakeLocal { local }
+                | InstructionKind::Store { local, .. }
+                | InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
+                | InstructionKind::DescribeLocal { local }
+                | InstructionKind::DropManaged { local }
+                | InstructionKind::DropPackage { local }
+                | InstructionKind::DropErrorUnion { local }
+                | InstructionKind::DropClosure { local }
+                | InstructionKind::RegisterDefer { local, .. }
+                | InstructionKind::DropOwnedArray { local }
+                | InstructionKind::ProjectOwnedArrayField { local, .. }
+                | InstructionKind::TakeOwnedArrayElement { local, .. }
+                | InstructionKind::StoreOwnedArrayElement { local, .. }
+                | InstructionKind::DropOwnedArrayElement { local, .. }
+                | InstructionKind::BorrowOwnedArrayElement { local, .. }
+                | InstructionKind::BorrowPackageField { local, .. }
+                | InstructionKind::ReadPackageField { local, .. }
+                | InstructionKind::DescribePackageField { local, .. }
+                | InstructionKind::TakePackageField { local, .. }
+                | InstructionKind::StorePackageField { local, .. }
+                | InstructionKind::DropPackageField { local, .. }
+                | InstructionKind::BindPackageCapture { local, .. }
+                | InstructionKind::EndPackageCapture { local, .. }
+                | InstructionKind::VariantTagLocal { local, .. }
+                | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::UnpackVariant { local, .. }
+                | InstructionKind::DropEnum { local } => Some(*local),
+                InstructionKind::CallClosureShared { callee, .. }
+                | InstructionKind::CallClosureMut { callee, .. } => Some(*callee),
+                _ => None,
+            };
+            if let InstructionKind::UnpackVariant { fields, .. } = &i.kind {
+                budget.spend(fields.len(), "private callable slot unpack targets")?;
+                if fields
+                    .iter()
+                    .any(|l| candidate(&f.locals[l.0 as usize].ty, budget))
+                {
+                    return Err(bad("private callable slot cannot be an unpack target"));
+                }
+            }
+            if let Some(local) = local
+                && candidate(&f.locals[local.0 as usize].ty, budget)
+                && let Some(id) = super::forward::internal_slot(&f.locals[local.0 as usize].ty)
+            {
+                let ty = &f.locals[local.0 as usize].ty;
+                let element = Type::Closure(id);
+                budget.type_work(ty, false, "private callable slot exact operation")?;
+                let valid = match &i.kind {
+                    InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::DropOwnedArray { .. } => i.result.is_none(),
+                    InstructionKind::TakeLocal { .. } => output == Some(ty),
+                    InstructionKind::Store { value, .. } => {
+                        i.result.is_none() && f.values.get(value.0 as usize) == Some(ty)
+                    }
+                    InstructionKind::TakeOwnedArrayElement { index: 0, .. } => {
+                        output == Some(&element)
+                    }
+                    InstructionKind::DropOwnedArrayElement { index: 0, .. } => i.result.is_none(),
+                    InstructionKind::StoreOwnedArrayElement {
+                        index: 0, value, ..
+                    } => {
+                        i.result.is_none()
+                            && f.locals[local.0 as usize].mutable
+                            && f.values.get(value.0 as usize) == Some(&element)
+                    }
+                    InstructionKind::BorrowOwnedArrayElement {
+                        index: 0, mutable, ..
+                    } => {
+                        (!*mutable || f.locals[local.0 as usize].mutable)
+                            && matches!(output, Some(Type::Address { mutable: write, inner })
+                                if write == mutable && inner.as_ref() == &element)
+                    }
+                    _ => false,
+                };
+                if !valid {
+                    return Err(bad(
+                        "private callable slot uses an unsupported or inexact local operation",
+                    ));
+                }
+            }
+            if output.is_some_and(|ty| candidate(ty, budget)) {
+                let valid = match &i.kind {
+                    InstructionKind::MakeOwnedArray { elements } if elements.len() == 1 => {
+                        let Some(Type::Array { element, .. }) = output else {
+                            unreachable!()
+                        };
+                        f.values.get(elements[0].0 as usize) == Some(element.as_ref())
+                    }
+                    InstructionKind::TakeLocal { local } => {
+                        output == Some(&f.locals[local.0 as usize].ty)
+                    }
+                    _ => false,
+                };
+                if !valid {
+                    return Err(bad(
+                        "private callable slot has an unsupported value producer",
+                    ));
+                }
+            }
+            for value in super::resources::uses(&i.kind) {
+                budget.spend(1, "private callable slot operand boundary")?;
+                let ty = f
+                    .values
+                    .get(value.0 as usize)
+                    .ok_or_else(|| bad("private slot operand is absent"))?;
+                if candidate(ty, budget)
+                    && !matches!(&i.kind, InstructionKind::Store { local, value: stored }
+                    if *stored == value && &f.locals[local.0 as usize].ty == ty)
+                {
+                    return Err(bad(
+                        "private callable slot escapes its local replacement boundary",
+                    ));
+                }
+            }
         }
-        container_profile(ty, budget)?;
+        let terminal = match block.terminator {
+            Terminator::Return(value) => value,
+            Terminator::Branch { condition, .. } => Some(condition),
+            _ => None,
+        };
+        if let Some(value) = terminal {
+            budget.spend(1, "private callable slot terminator boundary")?;
+            if candidate(&f.values[value.0 as usize], budget) {
+                return Err(bad("private callable slot cannot escape through return"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn local_profiles(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
+    let mut private = false;
+    for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
+        let slot = super::forward::internal_slot(ty).is_some_and(|id| {
+            budget.owned_callbacks.contains(&id) || budget.forward_closures.contains(&id)
+        });
+        if slot {
+            // Same charged type traversal as the general container exclusion.
+            budget.type_work(ty, false, "private callable slot root type")?;
+            private = true;
+        } else {
+            container_profile(ty, budget)?;
+        }
     }
     container_profile(&f.return_type, budget)?;
-    Ok(())
+    if private {
+        private_slots(f, budget)?;
+    }
+    Ok(private)
 }
 
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
@@ -216,8 +378,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .saturating_add(budget.owned_callback_helpers.len()),
         "owned callback window roots",
     )?;
+    if budget.forward_functions.is_empty() && !budget.owned_callbacks.is_empty() {
+        budget.spend(module.functions.len(), "owned callable strong window flags")?;
+        budget.forward_functions = vec![false; module.functions.len()];
+    }
     for id in &budget.owned_callbacks {
-        windows[module.closures[id.0 as usize].function.0 as usize] = true;
+        let function = module.closures[id.0 as usize].function.0 as usize;
+        windows[function] = true;
+        // A real owned-signature environment's position moves invalidate its
+        // loans even in an ordinary caller with no Parameter-return relation.
+        budget.forward_functions[function] = true;
     }
     for id in &budget.owned_callback_helpers {
         windows[id.0 as usize] = true;
@@ -236,8 +406,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     }
     budget.spend(module.functions.len(), "owned callback call functions")?;
     for f in &module.functions {
-        if budget.parameter_returns.is_empty() {
-            local_profiles(f, budget)?;
+        // Admission is structural even for ordinary bodies without a keep
+        // edge. The flag only selects additional independent window checks.
+        if local_profiles(f, budget)? {
+            budget.spend(1, "private callable slot actual body root")?;
+            windows[f.id.0 as usize] = true;
+            if budget.forward_functions.is_empty() {
+                budget.spend(module.functions.len(), "private callable slot window flags")?;
+                budget.forward_functions = vec![false; module.functions.len()];
+            }
+            budget.forward_functions[f.id.0 as usize] = true;
         }
         budget.spend(f.blocks.len(), "owned callback call blocks")?;
         for b in &f.blocks {
@@ -403,15 +581,6 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         }
         if !changed {
             break;
-        }
-    }
-    if !budget.parameter_returns.is_empty() {
-        budget.spend(
-            module.functions.len(),
-            "forward concrete caller local profiles",
-        )?;
-        for f in &module.functions {
-            local_profiles(f, budget)?;
         }
     }
     budget.owned_callback_window_functions = windows;

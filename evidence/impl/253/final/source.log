@@ -1,0 +1,18 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-253/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.14s
+     Running tests/impl253_source.rs (/workspace/.zil-env/target-253/debug/deps/impl253_source-523c899956394cd0)
+
+running 9 tests
+test fn_parent_can_forward_through_a_called_fnmut_child_and_recover_fn ... ok
+test concrete_caller_can_replace_an_owning_event_callback_through_keep_in_a_loop ... ok
+test original_and_copy_and_mutable_sources_reach_analyze ... ok
+test six_frozen_callback_signatures_reach_analyze ... ok
+test source_derived_cleanup_and_return_metadata_cannot_discharge_or_replace_the_input ... ok
+test private_replacement_slots_need_no_helper_edge_even_in_a_closure_body ... ok
+253 original source Analyze N=995; Parameter contracts=1; N-1 ResourceLimit only; fresh N identical
+test source_forward_has_an_exact_fresh_request_budget ... ok
+test frozen_cross_module_source_reaches_analyze_without_verify ... ok
+test extended_store_address_and_owning_loop_source_reaches_analyze_without_verify ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+

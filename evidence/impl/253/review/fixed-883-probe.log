@@ -1,0 +1,29 @@
+   Compiling zil-base v0.1.0 (/workspace/.zil-env/forward-review-253/snapshot-883f55c64/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/.zil-env/forward-review-253/snapshot-883f55c64/crates/zil-ir)
+   Compiling zil-analyze v0.1.0 (/workspace/.zil-env/forward-review-253/snapshot-883f55c64/crates/zil-analyze)
+   Compiling independent-forward-253-review v0.0.0 (/workspace/.zil-env/forward-review-253/reruns/fixed-883f55c64/probe)
+    Finished `dev` profile [unoptimized] target(s) in 7.57s
+     Running `/workspace/.zil-env/forward-review-253/target/debug/independent-forward-253-review`
+parent_valid_no_call_edge raw: ACCEPT
+parent_valid_no_call_edge wire: ACCEPT
+parent_stale_no_call_edge raw: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }]
+parent_stale_no_call_edge wire: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }]
+parent_valid_with_call_edge raw: ACCEPT
+parent_valid_with_call_edge wire: ACCEPT
+parent_stale_with_call_edge raw: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }]
+parent_stale_with_call_edge wire: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }]
+escape_byvalue_symbolic_fn_call raw: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "by-value symbolic Fn call would require a Copy permission", span: None, notes: [] }]
+escape_byvalue_symbolic_fn_call wire: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "by-value symbolic Fn call would require a Copy permission", span: None, notes: [] }]
+escape_callback_argument raw: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "symbolic F cannot enter an ordinary callback data argument", span: None, notes: [] }]
+escape_callback_argument wire: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "symbolic F cannot enter an ordinary callback data argument", span: None, notes: [] }]
+control_shared_callback_i32_argument raw: ACCEPT
+control_shared_callback_i32_argument wire: ACCEPT
+control_concrete_copy_byvalue_call raw: ACCEPT
+control_concrete_copy_byvalue_call wire: ACCEPT
+escape_shared_callback_f_argument raw: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "symbolic F cannot enter an ordinary callback data argument", span: None, notes: [] }]
+escape_shared_callback_f_argument wire: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "symbolic F cannot enter an ordinary callback data argument", span: None, notes: [] }]
+escape_two_element_array raw: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "symbolic F enters an unsupported value operation", span: None, notes: [] }]
+escape_two_element_array wire: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "symbolic F enters an unsupported value operation", span: None, notes: [] }]
+escape_thin_store raw: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "symbolic F enters an unsupported value operation", span: None, notes: [] }]
+escape_thin_store wire: REJECT [Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "symbolic F enters an unsupported value operation", span: None, notes: [] }]
+BUDGET PASS: N=1670; N-1 ResourceLimit only; fresh N same candidate; incremental stale and symbolic argument rejected

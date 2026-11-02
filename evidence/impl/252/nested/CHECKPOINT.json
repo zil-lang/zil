@@ -1,0 +1,32 @@
+{
+  "status": "Types_checkpoint",
+  "baseline": "95790321e469b1588f5e1a1972d1543616e05a6b",
+  "proposal": "fb6fae38def804d83fee1125271f1c796e228a6a",
+  "source_sha256": "36b9029e66295a477de85574489ea13f1f28ca6c459cfc53a073ccffe04e2236",
+  "source_unchanged_from_probe": true,
+  "tests": {
+    "impl252_front": 14,
+    "impl252_nested": 1,
+    "passed": 15,
+    "failed": 0,
+    "log": "types-checkpoint.log"
+  },
+  "check": "cargo check --offline --locked -p zil-types Pass",
+  "pipeline_followup": {
+    "phase": "Analyze",
+    "code": "E-ANALYZE-IR",
+    "message": "owned callback signature does not grant a State, array or container profile",
+    "log": "pre-fix/analyze-after-types.log",
+    "reported_to": "root and Analyze253"
+  },
+  "prior_format_attempt": {
+    "command": "rustfmt --edition 2021 ...",
+    "result": "Fail: project requires Rust2024 let chains; dependent cargo tests not executed; corrected with edition2024"
+  },
+  "private_representation": "Nested source callable has private local signature identity; not a public FunctionPointer or a Copy capability. Builder emits real Closure and move/slot operations.",
+  "remaining": [
+    "nearest negative checks and new combinations",
+    "N/N-minus-one/fresh and old controls",
+    "Analyze advancement and independent native replays"
+  ]
+}
