@@ -1,0 +1,26 @@
+{
+  "reviewer": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "c174538a391142b422e0dfc1e8a607465135a149",
+  "tested_commit": "288e29628389d83a335783d5488be39f22b2008b",
+  "consumer_inputs_identical": true,
+  "checks": [
+    "Independently traced source evaluation, argument preparation stack, environment and result destruction order",
+    "Checked expected allocation counts and error payload ownership before matching native observations",
+    "Original three failing sources retained byte-for-byte and now execute through O0/O2",
+    "Ordinary result, body error, owning error payload, ENV ByteBuffer-to-Reply, repeated Fn/FnMut and later-argument failure covered",
+    "Final LLVM API path uses builder verification without fallback; actual allocator failures and live=0 observed"
+  ],
+  "counts": {
+    "native": 122,
+    "allocator_runs": 90,
+    "actual_allocation_failures": 38,
+    "native_assertions": 906
+  },
+  "evidence": [
+    "evidence/impl/250/final-R/RESULT.json",
+    "evidence/impl/250/final-R/ACCEPTANCE.json",
+    "evidence/integration/owned-callback-20261102/R/RESULT.json"
+  ],
+  "scope": "Source/model/stage/native grades separate; no Rust performance, full-language, product or native Windows claim"
+}

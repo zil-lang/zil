@@ -1,0 +1,35 @@
+{
+  "task": "250",
+  "implementation_author": "/root/callback_consumer",
+  "tested_commit": "288e29628389d83a335783d5488be39f22b2008b",
+  "verdict": "Pass",
+  "consumer_code_commit": "df4139b17cf14922a62681ab170f6cc81f0f90f0",
+  "strict_review_test_commit": "e63012d7afb6f728dcb67633c9431d846f33890d",
+  "acceptance_record": "evidence/impl/250/final-R/RESULT.json",
+  "review246": "evidence/reviews/246/final-R/review.json",
+  "review249": "evidence/reviews/249/final-R/review.json",
+  "rust_goals": {
+    "safety": "Observed exact owning transfer, cleanup, rejection boundaries and no live allocations after all tested failures; full language safety remains incomplete.",
+    "runtime_memory": "Actual Linux O0/O2 and real realloc/free accounting; no Rust runtime/RSS/latency comparison performed.",
+    "expression_maintenance": "A real three-module API carries Event through concrete closure and single-F by-value public dispatch into owning Reply and owning error payload; ZUI framework completeness is not claimed.",
+    "compile_cost": "Fresh phase budgets and historical controls pass, with the registered Copy Enum Expand +16 explicitly retained; no speedup claim.",
+    "concrete_progress": "Public owning callback data composition and result-before-environment-cleanup are now exercised from source to native bytes; product-level conjunction remains unestablished."
+  },
+  "scope_limits": {
+    "formal_workspace": "root-owned",
+    "full_language": "NotSatisfied",
+    "product": "NotRun",
+    "native_windows": "NotRun"
+  },
+  "counts": {
+    "consumer_tests": 7,
+    "consumer_native": 122,
+    "allocator_runs": 90,
+    "actual_allocation_failures": 38,
+    "consumer_native_assertions": 906,
+    "review246_tests": 16,
+    "review249_tests": 3,
+    "review249_additional_clang_native": 6,
+    "counts_are_not_combined_with_author_or_earlier_replays": true
+  }
+}

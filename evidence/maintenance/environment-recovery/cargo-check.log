@@ -1,0 +1,23 @@
+    Checking typenum v1.20.1
+    Checking cpufeatures v0.3.1
+    Checking cfg-if v1.0.5
+   Compiling zil-llvm-api v0.1.0 (/workspace/zil/crates/zil-llvm-api)
+    Checking hybrid-array v0.4.15
+    Checking block-buffer v0.12.1
+    Checking crypto-common v0.2.2
+    Checking digest v0.11.3
+    Checking sha2 v0.11.1
+    Checking zil-base v0.1.0 (/workspace/zil/crates/zil-base)
+    Checking zil-ir v0.1.0 (/workspace/zil/crates/zil-ir)
+    Checking zil-syntax v0.1.0 (/workspace/zil/crates/zil-syntax)
+    Checking zil-verify v0.1.0 (/workspace/zil/crates/zil-verify)
+    Checking zil-expand v0.1.0 (/workspace/zil/crates/zil-expand)
+    Checking zil-backend-llvm v0.1.0 (/workspace/zil/crates/zil-backend-llvm)
+    Checking zil-ct v0.1.0 (/workspace/zil/crates/zil-ct)
+    Checking zil-lower v0.1.0 (/workspace/zil/crates/zil-lower)
+    Checking zil-types v0.1.0 (/workspace/zil/crates/zil-types)
+    Checking zil-analyze v0.1.0 (/workspace/zil/crates/zil-analyze)
+    Checking zil-db v0.1.0 (/workspace/zil/crates/zil-db)
+    Checking zil-driver v0.1.0 (/workspace/zil/crates/zil-driver)
+    Checking zil-cli v0.1.0 (/workspace/zil/crates/zil-cli)
+    Finished `dev` profile [unoptimized] target(s) in 17.75s

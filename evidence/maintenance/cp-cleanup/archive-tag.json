@@ -1,0 +1,23 @@
+{
+  "tag": "archive/cp-245-20261102",
+  "tag_oid": "3f072a39549a80bf0d5df27de1197f3402bb154b",
+  "archive_commit": "27ccb6d23652dba6cc3461434f5d5c48aced37de",
+  "tree": "8762daab7439a54d867b8fc9b88c1172989719f6",
+  "parents": [
+    "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+    "a894f8476cd043314113ba40b4a492deaf281895",
+    "8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+    "74142bc822c57b1246c9bf328c019fd364ee150a",
+    "1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+    "7e7f8083af9361de17793c602bfaa7117e6f47b9",
+    "79bb5348fe426a62aecaae808321f70966cbc24c",
+    "11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+    "df13bc96536c7f775d7227256e45db7fc9e178b2",
+    "b9ccf36aac5720886c9e68b3a812b4f61f841626",
+    "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17",
+    "9fe23d7180b41830f599128324c769deac37211d",
+    "de0eefdc38e1a25129f219d2a7c7933922790e13",
+    "e739f583b63ba8fa44fa26a937d36afb9cbaea2a"
+  ],
+  "status": "pushed_and_independently_restored_from_remote"
+}

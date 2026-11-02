@@ -1,0 +1,15 @@
+{
+  "reviewer": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "10b4337b869d6515325d53c3ff49304e3243fbfa",
+  "scope": "CP reference maintenance; no compiler acceptance",
+  "checks": [
+    "fresh GitHub heads: retired research refs absent; CP25 exact retained",
+    "fresh GitHub archive tag exact",
+    "14 archive parents and local trees available",
+    "reviewed independent remote full restore/fsck receipt",
+    "write set limited to maintenance evidence"
+  ],
+  "changed_files": 14,
+  "head_snapshot_sha256": "1936442b7d2fbf09150cb4a6f28937472d958b0dcb445b6a87a1362d447bc647"
+}

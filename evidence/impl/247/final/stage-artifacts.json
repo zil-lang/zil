@@ -1,0 +1,56 @@
+[
+  {
+    "case": "event-reply",
+    "original_source": "evidence/planning/owned-callback-finalR/event-reply/source.zil",
+    "source_sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+    "wire_sha256": "ffb42ad7273476fa98ceb293ce8ca0bfe302ecea5c607432a776cef2ccc1da36",
+    "artifacts": {
+      "typed.txt": {
+        "uncompressed_sha256": "1af37b401f56c51c2902f97375f46865a51779c39fcd5dab928fed304fabd4e7",
+        "uncompressed_bytes": 89973,
+        "gzip_sha256": "d8df14f37addc7893c57e8cd66dbfef3d6a280a410c2fe386abe5cbeb14026d8"
+      },
+      "candidate.txt": {
+        "uncompressed_sha256": "d5732347615dd4fd1e2510c164aa3778b2e43cb953817701b815e5a03bc28d3a",
+        "uncompressed_bytes": 9441,
+        "gzip_sha256": "4c860d6e0baf1c700731689a9e0fe0fa4ec50143b004e03f4a3c9516a4341bf8"
+      }
+    }
+  },
+  {
+    "case": "event-copy-result",
+    "original_source": "evidence/planning/owned-callback-finalR/event-copy-result/source.zil",
+    "source_sha256": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+    "wire_sha256": "5dba872284a68c37c9db162b9664692114959070757d5d3ae7caddfc052837f9",
+    "artifacts": {
+      "typed.txt": {
+        "uncompressed_sha256": "a944983a5f583e0c1e49305e633bb221a864c579babd09a5b7a27bfc0f8a60cc",
+        "uncompressed_bytes": 54416,
+        "gzip_sha256": "30fefa961f64ccb54e32c60c3d713eed465d50d80c17a89fbb0003ac1cb7f5f7"
+      },
+      "candidate.txt": {
+        "uncompressed_sha256": "7ff7dc2a1c59f13eefbee6bf161dceb84947a7def00406990ef070df1ec5309d",
+        "uncompressed_bytes": 6884,
+        "gzip_sha256": "a9ee8da9d4ddf4a8da8ea248c7d0eb0808cf9ea3433c8bd2fcd426cb0265d0c4"
+      }
+    }
+  },
+  {
+    "case": "owned-result",
+    "original_source": "evidence/planning/owned-callback-finalR/owned-result/source.zil",
+    "source_sha256": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+    "wire_sha256": "7361f8ee943d1ec6abe7cd7ea500a3986ac5faa93a281ea1fbff2aae75c22f5c",
+    "artifacts": {
+      "typed.txt": {
+        "uncompressed_sha256": "0e83e11891985e569ec050a0c8e18f975a2b8e99df3ebb85d4ce7cf970644d1a",
+        "uncompressed_bytes": 57101,
+        "gzip_sha256": "5737398386fcb328faa7511b4c0a02e75d53faf6e863c94dcab75b6572abeb02"
+      },
+      "candidate.txt": {
+        "uncompressed_sha256": "432a91ddbe1855ee8509e8d2f7cf89c0def50dc8400cd0cb6586299c4a4b5a1e",
+        "uncompressed_bytes": 7045,
+        "gzip_sha256": "f35175cdd1ba6d68e935a231541f14a021a9346cb8e21b1e80c51036d92fa050"
+      }
+    }
+  }
+]

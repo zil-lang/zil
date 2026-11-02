@@ -1,0 +1,53 @@
+{
+  "task": "248",
+  "status": "ReadyForIndependentReview",
+  "implementation_author": "/root/callback_verify_fallback",
+  "implementation_code_commit": "e532a7fbdc6b9dc230bdbe1af798ec1ce40297a5",
+  "baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+  "contract_commit": "0140a356cdb6cc46375c890a710daaf0fa6557d9",
+  "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+  "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+  "toolchain": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "1.99.1 (5f94df478 2026-08-27)"
+  },
+  "profile": "Linux x64 host LLVM; Limits::default(); offline locked Cargo; CARGO_BUILD_JOBS=2; isolated CARGO_TARGET_DIR=/workspace/.zil-env/target-248",
+  "checks": [
+    {
+      "command": "cargo test -p zil-verify --lib --offline --locked --quiet",
+      "selected": 302,
+      "executed": 302,
+      "passed": 302,
+      "failed": 0
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl248_source --offline --locked --quiet",
+      "selected": 7,
+      "executed": 7,
+      "passed": 7,
+      "failed": 0
+    }
+  ],
+  "evidence_grades": {
+    "raw_and_wire": "Independent Verify candidate tests cover owning Event to FnOnce dispatch to Reply; duplicate consumption; forged role and data signature; unused hidden callback Store value; shared Product, direct and nested Store capture result gates; State, array, Store element, unused sealed Store definition and opaque factory gates; callee Created result cannot become caller create permission; old loan revival candidate rejects E-BORROW-CONFLICT.",
+    "source_through_verify": "Three original source fixtures from impl246, independent helper Copy input/result, Copy callback to owned helper result, repeated Fn/FnMut with fresh owning arguments, same-type sibling roots, and actual later-argument failure cleanup all reached Verify. Removing later-argument DropPackage from source-derived raw CFG rejects on raw and Wire at E-VERIFY-RESOURCE.",
+    "native_execution": "Not claimed by this slice; backend and consumer slices carry native O0/O2 and allocation-failure evidence."
+  },
+  "loan_revival_wire": {
+    "path": "evidence/impl/248/loan_revival.wire",
+    "sha256": "9c32b0267f43de2037bc1579264f114386a0ecc9c9d7cfe9471c964280ca7b9f",
+    "origin": "Source-derived TypedModule and candidate plan from the original Analyze checkpoint before its independent loan fix; Verify tests decode and recheck these fixed bytes without calling Analyze."
+  },
+  "original_source_sha256": {
+    "event_reply": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+    "event_copy_result": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+    "owned_result": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd"
+  },
+  "rust_goals": {
+    "safety": "Finite synchronous owning callback responsibility, source and loan edges are independently checked at raw and Wire boundaries; complete language safety remains unproven.",
+    "runtime_and_memory": "No runtime or memory parity claim from this slice; native O0/O2 and allocation failures are delegated to the shared consumer evidence.",
+    "expression_and_maintenance": "Original Event to dispatch to Reply source now passes Verify, with independent helper data inputs and results; long-term maintenance cost is unmeasured.",
+    "compile_cost": "Default limits are unchanged and new traversals prepay bounded work; no paired Rust compilation comparison was run.",
+    "breakthrough": "An originally unsupported owning callback source reaches independent Verify without lifting State, Store, array or factory permissions; product-level net breakthrough remains unmeasured."
+  }
+}

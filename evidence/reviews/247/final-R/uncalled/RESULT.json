@@ -1,0 +1,41 @@
+{
+  "status": "Pass",
+  "reviewer": "/root",
+  "source_sha256": "7c1690ec9357ad92e1af416cff63455862a32487149f2466120c8080b17bafa5",
+  "code_commit": "fa8638df7e9fc30e717e23191252bb1600d1e42f",
+  "source_scope": "conditional public FnOnce helper forwards the owning argument without invocation or invokes once; both paths clean remaining environment exactly once",
+  "checks": [
+    {
+      "opt": "O0",
+      "input": "0",
+      "expected_stdout": "HhRAQ",
+      "actual_stdout": "HhRAQ",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "opt": "O0",
+      "input": "1",
+      "expected_stdout": "CHhRAQ",
+      "actual_stdout": "CHhRAQ",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "opt": "O2",
+      "input": "0",
+      "expected_stdout": "HhRAQ",
+      "actual_stdout": "HhRAQ",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "opt": "O2",
+      "input": "1",
+      "expected_stdout": "CHhRAQ",
+      "actual_stdout": "CHhRAQ",
+      "exit": 0,
+      "stderr": ""
+    }
+  ]
+}

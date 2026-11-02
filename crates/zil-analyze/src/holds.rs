@@ -77,6 +77,7 @@ fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
 
 /// Validate against this invocation's private precise roots. The exported
 /// candidate coarsens Field into Local and is deliberately not read here.
+#[allow(clippy::too_many_arguments)]
 fn store_window_transition(
     module: &TypedModule,
     f: &TypedFunction,
@@ -84,6 +85,7 @@ fn store_window_transition(
     values: &[Roots],
     state: &State,
     live: &resources::Live,
+    callback_windows: bool,
     budget: &mut Budget,
 ) -> CompileResult<()> {
     budget.spend(1, "captured Store window transition scan")?;
@@ -92,7 +94,11 @@ fn store_window_transition(
             if f.environment
                 .and_then(|id| module.closures.get(id.0 as usize))
                 .and_then(|c| c.captures.get(index as usize))
-                .is_some_and(dynamic_store::is_owned_carrier) =>
+                .is_some_and(|ty| {
+                    dynamic_store::is_owned_carrier(ty)
+                        || (callback_windows
+                            && matches!(ty, Type::Managed(_) | Type::Package { .. }))
+                }) =>
         {
             Some(Root::Capture(index))
         }
@@ -101,7 +107,13 @@ fn store_window_transition(
         | InstructionKind::TakeLocal { local }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropPackage { local }
-            if contains_owned_store(&f.locals[local.0 as usize].ty, budget)? =>
+            if boundary_owner(&f.locals[local.0 as usize].ty, callback_windows, budget)? =>
+        {
+            Some(Root::Local(local))
+        }
+        InstructionKind::Store { local, .. } | InstructionKind::DropErrorUnion { local }
+            if callback_windows
+                && boundary_owner(&f.locals[local.0 as usize].ty, true, budget)? =>
         {
             Some(Root::Local(local))
         }
@@ -111,7 +123,8 @@ fn store_window_transition(
             if match &f.locals[local.0 as usize].ty {
                 Type::Package { fields, .. } => match fields.get(index as usize) {
                     Some((_, ty)) => {
-                        dynamic_store::is_owned_carrier(ty)
+                        (callback_windows && boundary_owner(ty, true, budget)?)
+                            || dynamic_store::is_owned_carrier(ty)
                             || (matches!(ty, Type::Package { .. })
                                 && contains_owned_store(ty, budget)?)
                     }
@@ -145,6 +158,24 @@ fn store_window_transition(
             .ok_or_else(|| bad("captured Store transition operand is absent"))?;
         extend(&mut changed, roots, budget)?;
     }
+    if callback_windows {
+        let buffer = match instruction.kind {
+            InstructionKind::ByteBufferReserve { buffer, .. }
+            | InstructionKind::ByteBufferPush { buffer, .. }
+            | InstructionKind::ByteBufferTruncate { buffer, .. }
+            | InstructionKind::ByteBufferBorrow {
+                buffer,
+                mutable: true,
+            } => Some(buffer),
+            _ => None,
+        };
+        if let Some(buffer) = buffer {
+            let roots = values
+                .get(buffer.0 as usize)
+                .ok_or_else(|| bad("owned callback buffer transition operand is absent"))?;
+            extend(&mut changed, roots, budget)?;
+        }
+    }
     if changed.is_empty() {
         return Ok(());
     }
@@ -173,12 +204,24 @@ fn store_window_transition(
                     || matches!((changed, root), (Root::Local(a), Root::Field(b, _)) if a == b)
             })
         }) {
-            return Err(bad(
-                "captured Store transition invalidates a live element window",
-            ));
+            return Err(bad(if callback_windows {
+                "owned storage transition invalidates a live address window"
+            } else {
+                "captured Store transition invalidates a live element window"
+            }));
         }
     }
     Ok(())
+}
+
+fn boundary_owner(ty: &Type, callback_windows: bool, budget: &mut Budget) -> CompileResult<bool> {
+    if callback_windows {
+        budget.type_work(ty, false, "owned callback address boundary classification")?;
+        if resources::sums::owned(ty) {
+            return Ok(true);
+        }
+    }
+    contains_owned_store(ty, budget)
 }
 
 fn infer(
@@ -217,7 +260,13 @@ fn infer(
             }
         }
     }
-    let address_afters = if store_windows {
+    let callback_windows = if budget.owned_callback_window_functions.is_empty() {
+        false
+    } else {
+        budget.spend(1, "owned callback window function lookup")?;
+        budget.owned_callback_window_functions[f.id.0 as usize]
+    };
+    let address_afters = if store_windows || callback_windows {
         resources::address_afters(f, reachable, budget)?
     } else {
         Vec::new()
@@ -273,6 +322,7 @@ fn infer(
                         &values,
                         &state,
                         &address_afters[b][position],
+                        callback_windows,
                         budget,
                     )?;
                 }

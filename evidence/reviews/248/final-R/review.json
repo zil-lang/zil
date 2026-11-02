@@ -1,0 +1,22 @@
+{
+  "reviewer": "/root",
+  "verdict": "Pass",
+  "implementation_commit": "468e1d1c73b1b3a76afe991c043c1fc1f9b05a48",
+  "production_commit": "e532a7fbdc6b9dc230bdbe1af798ec1ce40297a5",
+  "tested_commit": "288e29628389d83a335783d5488be39f22b2008b",
+  "production_exact_match": true,
+  "checks": [
+    "Actual owning arguments transfer once; ordinary callback result is Incoming, not callee-private Created",
+    "Actual helper parameters/results checked independently, not forced into exact relay form",
+    "Address liveness/root transitions prevent a moved input window from reviving; equal-typed siblings remain distinct",
+    "State, arrays, Store callback elements, shared Product/Store capture results and fresh opaque factories keep their existing profile",
+    "Production Verify depends only on zil-base/zil-ir; it reconstructs raw and Wire claims independently"
+  ],
+  "evidence": [
+    "evidence/integration/owned-callback-20261102/R/RESULT.json",
+    "evidence/integration/owned-callback-20261102/R/workspace.log",
+    "evidence/integration/owned-callback-20261102/R/architecture-actual.json"
+  ],
+  "inspection": "Root read the production delta and independent source/raw/Wire attacks, and required the helper false-rejection correction before candidate freeze. Whole-suite success supplements this review.",
+  "scope": "Finite synchronous owned callback data; not full language or product proof"
+}

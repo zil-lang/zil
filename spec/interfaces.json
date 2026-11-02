@@ -166,6 +166,14 @@
       "source_generation": "Existing finite nongeneric Unit/Tuple enum generation admits the same independently checked ordinary owned shapes under §16.6. Clone/materialize/hygiene/substitution preserve explicit manages markers. No new declaration kind, generic enum, Type/Syntax authority or implicit Desc-to-Managed conversion.",
       "generic_enum_budget_exception": "While true generic template identity is present, Expand prepays one actual substituted-field finite Copy qualification check. This preserves the existing Copy-only generic enum boundary despite ordinary owned Enum admission. Corresponding old exact Expand N may rise by the measured real extra work; default limits and product gates remain unchanged and all old profile charges outside the named qualification exceptions remain. Frozen scalar payload sample: Q-equivalent dependencies work331/nodes124, current work336/nodes126; full receipts required.",
       "helper_enum_copy_budget_exception": "Generic helper definition checking must prove Copy from the actual Enum fields (including Enum in ErrorUnion), not assume a concrete name is Copy. Unused definitions reject duplicate whole-value moves and repeated consuming matches. Real additional Expand qualification work is prepaid; corresponding old Copy Enum helper exact N may increase, with default limits and all unrelated old charges unchanged. Same-byte control Q-equivalent Expand work266/nodes116 and Types219 becomes Expand work296/nodes130 and Types219 (+30 work/+14 nodes); retain N-minus-one/fresh and same-output receipts. No owning generic Enum or owning callback signature authority is added."
+    },
+    "owned_callback_values_246_250": {
+      "authority": "_zil_design.md §9.3.1",
+      "state": "ContractToImplement",
+      "representation": "Existing concrete ClosureDefinition parameters/result, TypedFunction and CallClosure operations; schema/Wire30 unchanged unless a separately recorded representation change is needed.",
+      "scope": "Concrete Fn/FnMut/FnOnce ordinary owning Product/Enum/ErrorUnion data signatures; one by-value F:FnOnce closed public helper. Existing capture/State/factory/lending/FFI profiles remain independently bounded.",
+      "responsibility": "Arguments prepared once in source order; actual ownership transferred once; complete result prepared before local and remaining Once-environment cleanup. No callee-private Created export; actual roots and active loans preserved.",
+      "independence": "Types, Analyze and Verify independently reconstruct definition/call validity and actual budgets. No producer permission bit or cross-kernel proof reuse."
     }
   },
   "schemas": [

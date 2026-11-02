@@ -1,0 +1,198 @@
+{
+  "source_commit": "feb7e5b29f5837b928de773d8d6fe4231883702d",
+  "target_dir": "/workspace/.zil-env/target-247",
+  "build_jobs": 2,
+  "artifact_root": "/tmp/impl247-final-artifacts",
+  "commands": [
+    {
+      "label": "resources",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--offline",
+        "--locked",
+        "--lib",
+        "resource_tests",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "test_counts": [
+        [
+          "13",
+          "0",
+          "0"
+        ]
+      ],
+      "log_sha256": "832255fdce42841d14ae81ff9f537b89e11b592fa134831a148c82d56bc99523"
+    },
+    {
+      "label": "store-profile",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--offline",
+        "--locked",
+        "--lib",
+        "dynamic_store::tests",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "test_counts": [
+        [
+          "2",
+          "0",
+          "0"
+        ]
+      ],
+      "log_sha256": "54c792f6f5233973d80d736b5599838a18085435c97e8f8f346e2088224ce5cf"
+    },
+    {
+      "label": "capture-boundary",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-analyze",
+        "--offline",
+        "--locked",
+        "--lib",
+        "unused_owned_enum_capture_does_not_acquire_ordinary_value_qualification",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "test_counts": [
+        [
+          "1",
+          "0",
+          "0"
+        ]
+      ],
+      "log_sha256": "1f52d5fb1a4cdcc0d96bdde78725c0025f105b5b4ba89d00744a29dd246bd4ce"
+    },
+    {
+      "label": "source",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--offline",
+        "--locked",
+        "--test",
+        "impl247_source",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "test_counts": [
+        [
+          "7",
+          "0",
+          "0"
+        ]
+      ],
+      "log_sha256": "48bafb1884130fd6f72c451815df003d771b11c63dc473f7d3660430cd612e08"
+    },
+    {
+      "label": "old-flat-budget",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--offline",
+        "--locked",
+        "--test",
+        "impl206_budget",
+        "old_flat_package_records_exact_phase_boundaries",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "test_counts": [
+        [
+          "1",
+          "0",
+          "0"
+        ]
+      ],
+      "log_sha256": "28fe7efa90cfa86e261324e8690f5f013cf6685ad2a105eec462064f5e119582"
+    },
+    {
+      "label": "old-capture-budget",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-driver",
+        "--offline",
+        "--locked",
+        "--test",
+        "impl226_budget",
+        "legacy_flat_capture_boundaries",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "test_counts": [
+        [
+          "1",
+          "0",
+          "0"
+        ]
+      ],
+      "log_sha256": "703deb345f6e59e92c20d94e2d2a50503f060c58872d40850e1c4d12e5a19991"
+    },
+    {
+      "label": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "-p",
+        "zil-analyze",
+        "--check"
+      ],
+      "exit_code": 0,
+      "test_counts": [],
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "driver-fmt",
+      "command": [
+        "rustfmt",
+        "--edition",
+        "2024",
+        "--check",
+        "crates/zil-driver/tests/impl247_source.rs"
+      ],
+      "exit_code": 0,
+      "test_counts": [],
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "-p",
+        "zil-analyze",
+        "--offline",
+        "--locked",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 101,
+      "test_counts": [],
+      "log_sha256": "6fb081219709d882c0d10e00b98e64289d1e1ce035a47a10b5fb58a82e4da6c0"
+    }
+  ]
+}

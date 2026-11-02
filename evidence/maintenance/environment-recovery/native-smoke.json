@@ -1,0 +1,47 @@
+{
+  "status": "Pass",
+  "checks": [
+    {
+      "command": [
+        "/workspace/.zil-env/target/debug/zil",
+        "build",
+        "/workspace/.zil-env/owned-callback/environment/smoke.zil",
+        "-o",
+        "/workspace/.zil-env/owned-callback/environment/smoke-O0",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/workspace/.zil-env/owned-callback/environment/stages-O0",
+        "--json"
+      ],
+      "build_exit": 0,
+      "native_exit": 42,
+      "expected_exit": 42,
+      "stdout": "",
+      "stderr": "",
+      "executable_sha256": "36c80867a15c5800c95a4f0416befc00e8b21838287b86c853e6fe46734b93de",
+      "pass": true
+    },
+    {
+      "command": [
+        "/workspace/.zil-env/target/debug/zil",
+        "build",
+        "/workspace/.zil-env/owned-callback/environment/smoke.zil",
+        "-o",
+        "/workspace/.zil-env/owned-callback/environment/smoke-O2",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "/workspace/.zil-env/owned-callback/environment/stages-O2",
+        "--json"
+      ],
+      "build_exit": 0,
+      "native_exit": 42,
+      "expected_exit": 42,
+      "stdout": "",
+      "stderr": "",
+      "executable_sha256": "39b8c7af463ff529289aa41e7bd232359f06ad1bf5906cae1cdfc575b993df2b",
+      "pass": true
+    }
+  ]
+}

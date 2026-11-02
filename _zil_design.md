@@ -637,6 +637,22 @@ Address 的捕获在首次地址解引用处截断，包括 `move`；例如 `sel
 
 对外部 Desc 修改目标可不修改环境，但仍需要当前目标写资格；共享闭包环境不能让两个线程复制相交写资格。Cleanup、Resume、allocator 与借入依赖共同决定 Transfer/Share。
 
+### 9.3.1 同步拥有值回调签名（246–250）
+
+具体闭包允许以Value接收和返回§8.1.5已经准入的完整、封闭、有限普通拥有Product、Enum和ErrorUnion；其中Managed及Store叶仍按实际定义与原槽资格核验。参数可同列既有有限Copy值，不新增裸资源R/ByteBuffer的拥有解释或give形参语法；裸资源仍为Desc，拥有字段的manages/create/give不变。新拥有签名不混入显式地址/Desc参数或借入结果，既有Copy及同步Copy-address签名保持原能力。已有直接Managed成功侧错误联合例外不扩大，其它非Copy错误联合槽仍只能为完整Product/Enum。
+
+普通自由函数允许唯一F、按值FnOnce的封闭签名入口，例如`fn dispatch<F:FnOnce(Event)->Reply>(handler:F,event:Event)->Reply{return handler(event)}`。普通数据参数、结果和callback签名必须分别核实真实完整类型；未调用模板也检查。首片不新增普通T组合、借入F/FnMut公共入口、多F/State、opaque工厂、callback容器/数组、thin/FFI、lending、CT或异步资格；既有各profile不回退。具体Fn/FnMut/FnOnce调用同批支持新的数据签名，消费每次新Event不改变环境的调用模式：模式只由真实捕获访问与剩余责任决定，Fn/FnMut的可重复性和声明FnOnce的消费适配保持。
+
+参数按callee先求值、实参从左到右完整准备，各拥有值只转交一次。后项准备失败时逆成功准备序清理已有临时，未进入body不得伪造捕获消费。返回值先完整准备再清局部、defer及FnOnce剩余捕获，已经转入结果的责任不得再次清理。所有正常、错误、提前退出与未调用销毁必须结清真实剩余责任；FnOnce仍是至多一次，不新增必须调用义务。公共helper的实际调用次数、顺序和清理由真实CFG及原roles/traces合同核验，不以bound名称或候选摘要授信。
+
+调用边界重建当前实参、捕获、实际字段/活动分支、Store根与借用窗口。拥有结果按普通Incoming/Unknown边界建立责任，不能导出callee私有Created或凭同型合并来源、恢复失效窗口。只有既有具名create合同保留其原权限；普通拥有结果不承诺就是原输入，不得夹带F或新借入依赖。裸F原样返回另行实施。
+
+新数据签名不扩capture资格。直接拥有Enum/含Sum Product捕获仍沿原边界；§9.1.1/§9.1.3拥有Store环境及其实际Closure父环境、§9.1.4共享Product捕获的Copy/Unit结果限制继续独立核验。不能用普通拥有类型predicate替代这些环境、State、容器或FFI的资格核。
+
+复用现有ClosureDefinition参数/结果、TypedFunction及CallClosure族表示，schema/Wire30保持；若实际需要新增公共字段，由集成方另记影响与版本。Types、Analyze、Verify分别检查全部定义和实际调用，Verify不调用前两核求证。资格、类型复制、来源、布局与清理计划在增长前使用本次请求额度预付，不重置额度、不提高默认限额；旧profile费用保持，必要新增旧路径检查须先登记真实费用变化。
+
+验收须含原三个callback红源原字节晋升、跨模块Event→dispatch→Reply、Fn/FnMut处理两个新Event、FnOnce剩余环境、后项失败准备、Product/Sum/ErrorUnion/Store数据变体、未用定义与raw/Wire近邻、真实O0/O2及逐分配点失败清理。非法例不native；模型、阶段检查与机器执行分账。登记不等于实现完成，不晋升完整1.4、ZUI或产品门。
+
 ### 9.4 函数值、返回与擦除
 
 函数类型的 `->` 右侧取得完整返回 Type：`fn(i32) -> E!i32` 返回错误联合，`fn() -> i32?` 返回 Option。对函数指针整体应用 `?`、`!`、`|` 或地址前缀时先用括号，如 `(fn() -> i32)?`；不依类型期望改换箭头结合。

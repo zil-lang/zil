@@ -1,0 +1,5770 @@
+{
+  "verdict": "Pass",
+  "evidence_level": "production source-to-native and real allocator wrapper; no simulated machine output",
+  "tested_commit": "288e29628389d83a335783d5488be39f22b2008b",
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-250 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl250-final-R/consumer cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl250_consumer -- --nocapture",
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+  },
+  "test_counts": {
+    "selected": 7,
+    "executed": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "compile_attempts": 14,
+  "verification_runs": 14,
+  "native_runs": 122,
+  "native_field_assertions": 784,
+  "native_harness_assertions": 906,
+  "assertion_scope": "Native harness assertions only: exit/stdout plus empty stderr, or JSON shape plus six allocator counters. Compile/oracle-reader infrastructure assertions excluded.",
+  "allocator_runs": 90,
+  "actual_allocation_failures": 38,
+  "oracle_sha256": "aeb42d2f727ce2001c644ebe66665b8ed69ce752af5e93499f46c5abef73433a",
+  "compiles": [
+    {
+      "id": "consumer250-allocator-63972-1",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "module0.zil": "be4a8044d9f537f3e25e413d4fc1dbb4c8dcf1378856815848d0c20c89c4a231",
+        "module1.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
+        "module2.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "ca5fcd10630162ce3f53d29255c72ae6cc4e20b856150e53f2594289998e414b",
+          "bytes": 217144
+        },
+        "core": {
+          "sha256": "a26590a05411fdd97dbce9bb19672e15ee19f532f5e81ae29ee50950a263c030",
+          "bytes": 1157681
+        },
+        "ct-core": {
+          "sha256": "615d89dccee28498c8b373bf08156ba182d9b0f9c4e2b56906aa1750312fced2",
+          "bytes": 1372284
+        },
+        "executable": {
+          "sha256": "92461e2848659c5829093402f0c95d91e1eb80e2b04c4c0c48bceb8174593ab7",
+          "bytes": 60392
+        },
+        "interfaces": {
+          "sha256": "620d728aeb978237b6f1c2bf00bd3ca2dd03a8506b25f57b15186731f0699488",
+          "bytes": 51539
+        },
+        "lir": {
+          "sha256": "fd9767f107d64985713540757af0e30525d4fbded0a4a38170e2e7352bbb523e",
+          "bytes": 2083692
+        },
+        "llvm": {
+          "sha256": "3a8a7283d5059f49cc00735c64baa3e0043c2bd0f6fbb02d0bf3a84a0f39d785",
+          "bytes": 231555
+        },
+        "source-map": {
+          "sha256": "312595d1d70516b96f8edfd5926332583583564b4c3aa779a66bb30a39c81f60",
+          "bytes": 641163
+        },
+        "syntax": {
+          "sha256": "e3710de061c4f46037a3f2f178bd3d201f5edb6d3d3cc2892e6c8eb6607ae012",
+          "bytes": 2219337
+        },
+        "typed": {
+          "sha256": "ac0e5596949cc68101331a4c7f088597cd1d45b8b6595a76f7807641215d87c6",
+          "bytes": 2082848
+        },
+        "verified": {
+          "sha256": "cc868be752c035e7479777abe6fa27350f2338777a48bbd903f8d9880457e12d",
+          "bytes": 2082925
+        },
+        "verified-interfaces": {
+          "sha256": "6a7db02799429f5eab73fe42240e3dc0a5c3d6913c118779ff5b256d28b1957c",
+          "bytes": 62975
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 51840,
+            "input_kind": "builder",
+            "preflight_ns": 22551025,
+            "builder_ns": 13477412,
+            "parse_ns": 0,
+            "optimize_ns": 366547,
+            "emit_ns": 132311743,
+            "total_ns": 171349381
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-allocator-63972-10",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "module0.zil": "16e13952029ac1e44868f8455605f57dd22d518a1afa47c4f28cd16bcd3b83ba",
+        "module1.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
+        "module2.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "b45b7f59859c98e6e7af12ea51d0fd14327177551e86e3e9064e0f0c1f5d9069",
+          "bytes": 91316
+        },
+        "core": {
+          "sha256": "e19ace35ef385cdefd515f72727304a9d67df417a609038af3a3b5da143a6bf3",
+          "bytes": 493942
+        },
+        "ct-core": {
+          "sha256": "742352b3c4970c41343e95e93c6e0fac91f527fffe96213f229f6d20da17c6fc",
+          "bytes": 628912
+        },
+        "executable": {
+          "sha256": "eb19d9f10a7342d07117b5b4eb277668aa6257ccbbe0c1eb7d5320b67a36197c",
+          "bytes": 16544
+        },
+        "interfaces": {
+          "sha256": "88cebf756835f83915e1ea9c5e461e5f5dd980934a9d13e6e3b262c8b78a0a99",
+          "bytes": 35668
+        },
+        "lir": {
+          "sha256": "7fdc978423191dc13a5955d21178b94ca9634762b4415dfbcfa5836545108e21",
+          "bytes": 829658
+        },
+        "llvm": {
+          "sha256": "e46775e14bb8c29dd64c23fb98ac79790d981dbe2a8783765910ebc26b3e4094",
+          "bytes": 99628
+        },
+        "source-map": {
+          "sha256": "82445f75334e8c722bdf1a5eff60fe209010562c2821d2e560e9918b22d28d81",
+          "bytes": 281808
+        },
+        "syntax": {
+          "sha256": "d437b672681e3c00dd6c09b0a51b57df6da57366e494424054c427863dfc1197",
+          "bytes": 1015305
+        },
+        "typed": {
+          "sha256": "a995a98beedb46fd0c8a1c0adb5bbd2261a4e465d7680545fba127fffdc62a75",
+          "bytes": 828821
+        },
+        "verified": {
+          "sha256": "3eceea3d774d441946cd9a7ddcfc6e5e88a32829e385bc4762ea2588274774fb",
+          "bytes": 828898
+        },
+        "verified-interfaces": {
+          "sha256": "a21330732744932846b4339c5395c70b01c4c249deacfd1b1817e40b55de8cb8",
+          "bytes": 41456
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 5224,
+            "input_kind": "builder",
+            "preflight_ns": 38627237,
+            "builder_ns": 11219048,
+            "parse_ns": 0,
+            "optimize_ns": 51348407,
+            "emit_ns": 64007238,
+            "total_ns": 166012632
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-allocator-63972-12",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "module0.zil": "be4a8044d9f537f3e25e413d4fc1dbb4c8dcf1378856815848d0c20c89c4a231",
+        "module1.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
+        "module2.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "ca5fcd10630162ce3f53d29255c72ae6cc4e20b856150e53f2594289998e414b",
+          "bytes": 217144
+        },
+        "core": {
+          "sha256": "a26590a05411fdd97dbce9bb19672e15ee19f532f5e81ae29ee50950a263c030",
+          "bytes": 1157681
+        },
+        "ct-core": {
+          "sha256": "615d89dccee28498c8b373bf08156ba182d9b0f9c4e2b56906aa1750312fced2",
+          "bytes": 1372284
+        },
+        "executable": {
+          "sha256": "4c342a21b06742828b7e404b791c17f3d5c8a88f3ed9cbd946a9e9c5314818f0",
+          "bytes": 21560
+        },
+        "interfaces": {
+          "sha256": "620d728aeb978237b6f1c2bf00bd3ca2dd03a8506b25f57b15186731f0699488",
+          "bytes": 51539
+        },
+        "lir": {
+          "sha256": "fd9767f107d64985713540757af0e30525d4fbded0a4a38170e2e7352bbb523e",
+          "bytes": 2083692
+        },
+        "llvm": {
+          "sha256": "3a8a7283d5059f49cc00735c64baa3e0043c2bd0f6fbb02d0bf3a84a0f39d785",
+          "bytes": 231555
+        },
+        "source-map": {
+          "sha256": "312595d1d70516b96f8edfd5926332583583564b4c3aa779a66bb30a39c81f60",
+          "bytes": 641163
+        },
+        "syntax": {
+          "sha256": "e3710de061c4f46037a3f2f178bd3d201f5edb6d3d3cc2892e6c8eb6607ae012",
+          "bytes": 2219337
+        },
+        "typed": {
+          "sha256": "ac0e5596949cc68101331a4c7f088597cd1d45b8b6595a76f7807641215d87c6",
+          "bytes": 2082848
+        },
+        "verified": {
+          "sha256": "cc868be752c035e7479777abe6fa27350f2338777a48bbd903f8d9880457e12d",
+          "bytes": 2082925
+        },
+        "verified-interfaces": {
+          "sha256": "6a7db02799429f5eab73fe42240e3dc0a5c3d6913c118779ff5b256d28b1957c",
+          "bytes": 62975
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 14808,
+            "input_kind": "builder",
+            "preflight_ns": 43929911,
+            "builder_ns": 13395389,
+            "parse_ns": 0,
+            "optimize_ns": 60590371,
+            "emit_ns": 69528929,
+            "total_ns": 189116841
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-allocator-63972-7",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "module0.zil": "16e13952029ac1e44868f8455605f57dd22d518a1afa47c4f28cd16bcd3b83ba",
+        "module1.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
+        "module2.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "b45b7f59859c98e6e7af12ea51d0fd14327177551e86e3e9064e0f0c1f5d9069",
+          "bytes": 91316
+        },
+        "core": {
+          "sha256": "e19ace35ef385cdefd515f72727304a9d67df417a609038af3a3b5da143a6bf3",
+          "bytes": 493942
+        },
+        "ct-core": {
+          "sha256": "742352b3c4970c41343e95e93c6e0fac91f527fffe96213f229f6d20da17c6fc",
+          "bytes": 628912
+        },
+        "executable": {
+          "sha256": "7cd169703ec5688e9506aa41ca3a47b8d0bb8fd277490ed09891fac34a9d0d1b",
+          "bytes": 30048
+        },
+        "interfaces": {
+          "sha256": "88cebf756835f83915e1ea9c5e461e5f5dd980934a9d13e6e3b262c8b78a0a99",
+          "bytes": 35668
+        },
+        "lir": {
+          "sha256": "7fdc978423191dc13a5955d21178b94ca9634762b4415dfbcfa5836545108e21",
+          "bytes": 829658
+        },
+        "llvm": {
+          "sha256": "e46775e14bb8c29dd64c23fb98ac79790d981dbe2a8783765910ebc26b3e4094",
+          "bytes": 99628
+        },
+        "source-map": {
+          "sha256": "82445f75334e8c722bdf1a5eff60fe209010562c2821d2e560e9918b22d28d81",
+          "bytes": 281808
+        },
+        "syntax": {
+          "sha256": "d437b672681e3c00dd6c09b0a51b57df6da57366e494424054c427863dfc1197",
+          "bytes": 1015305
+        },
+        "typed": {
+          "sha256": "a995a98beedb46fd0c8a1c0adb5bbd2261a4e465d7680545fba127fffdc62a75",
+          "bytes": 828821
+        },
+        "verified": {
+          "sha256": "3eceea3d774d441946cd9a7ddcfc6e5e88a32829e385bc4762ea2588274774fb",
+          "bytes": 828898
+        },
+        "verified-interfaces": {
+          "sha256": "a21330732744932846b4339c5395c70b01c4c249deacfd1b1817e40b55de8cb8",
+          "bytes": 41456
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 22208,
+            "input_kind": "builder",
+            "preflight_ns": 14115405,
+            "builder_ns": 13995632,
+            "parse_ns": 0,
+            "optimize_ns": 266036,
+            "emit_ns": 35422492,
+            "total_ns": 84597901
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-event-copy-result-63972-0",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "source.zil": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "7ff7dc2a1c59f13eefbee6bf161dceb84947a7def00406990ef070df1ec5309d",
+          "bytes": 6884
+        },
+        "core": {
+          "sha256": "ee944aefc32325253878b5655190a7ce5c3a371880317d793b2cb0460bbf8e15",
+          "bytes": 32302
+        },
+        "ct-core": {
+          "sha256": "ffbdb9f0b6c57b29684eef7d355a6740ac5cadad80e29e7ce36b64cbb8853066",
+          "bytes": 34289
+        },
+        "executable": {
+          "sha256": "341d47a46faac8fd78cd7d23d686e5b74afc1ad4ac8041381efa5fa1242d9808",
+          "bytes": 16384
+        },
+        "lir": {
+          "sha256": "bf31ed14aa68c2420b5c6b384811db58c9d86a5451d13febdbec7a27aced0ccb",
+          "bytes": 55251
+        },
+        "llvm": {
+          "sha256": "1b8c8d3951808560d8102980b126eba9563f4fbff710d77a60ec4932fd4102ba",
+          "bytes": 8713
+        },
+        "source-map": {
+          "sha256": "a4db71c4ae5f8fe80d8c2a5931fa23b85e587e4fa3e903119cff7307e2372e2f",
+          "bytes": 18225
+        },
+        "syntax": {
+          "sha256": "909fdc7dc999e9fde6a4526ee8c03fc885256c8b2e3f2b9f8470524c7a8eee73",
+          "bytes": 64710
+        },
+        "typed": {
+          "sha256": "a944983a5f583e0c1e49305e633bb221a864c579babd09a5b7a27bfc0f8a60cc",
+          "bytes": 54416
+        },
+        "verified": {
+          "sha256": "5e9c39af5caf46ac2e0a5211f245ebf0fef944c8c790abe67e04f34fe20b2258",
+          "bytes": 54493
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2952,
+            "input_kind": "builder",
+            "preflight_ns": 913055,
+            "builder_ns": 820899,
+            "parse_ns": 0,
+            "optimize_ns": 206971,
+            "emit_ns": 6701768,
+            "total_ns": 9245601
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-event-copy-result-63972-4",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "source.zil": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "7ff7dc2a1c59f13eefbee6bf161dceb84947a7def00406990ef070df1ec5309d",
+          "bytes": 6884
+        },
+        "core": {
+          "sha256": "ee944aefc32325253878b5655190a7ce5c3a371880317d793b2cb0460bbf8e15",
+          "bytes": 32302
+        },
+        "ct-core": {
+          "sha256": "ffbdb9f0b6c57b29684eef7d355a6740ac5cadad80e29e7ce36b64cbb8853066",
+          "bytes": 34289
+        },
+        "executable": {
+          "sha256": "991dfe3f766a5b871c23e1bdd97367603e5af063bb770def186515c46fe3df60",
+          "bytes": 15992
+        },
+        "lir": {
+          "sha256": "bf31ed14aa68c2420b5c6b384811db58c9d86a5451d13febdbec7a27aced0ccb",
+          "bytes": 55251
+        },
+        "llvm": {
+          "sha256": "1b8c8d3951808560d8102980b126eba9563f4fbff710d77a60ec4932fd4102ba",
+          "bytes": 8713
+        },
+        "source-map": {
+          "sha256": "a4db71c4ae5f8fe80d8c2a5931fa23b85e587e4fa3e903119cff7307e2372e2f",
+          "bytes": 18225
+        },
+        "syntax": {
+          "sha256": "909fdc7dc999e9fde6a4526ee8c03fc885256c8b2e3f2b9f8470524c7a8eee73",
+          "bytes": 64710
+        },
+        "typed": {
+          "sha256": "a944983a5f583e0c1e49305e633bb221a864c579babd09a5b7a27bfc0f8a60cc",
+          "bytes": 54416
+        },
+        "verified": {
+          "sha256": "5e9c39af5caf46ac2e0a5211f245ebf0fef944c8c790abe67e04f34fe20b2258",
+          "bytes": 54493
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 944,
+            "input_kind": "builder",
+            "preflight_ns": 659349,
+            "builder_ns": 669626,
+            "parse_ns": 0,
+            "optimize_ns": 20534739,
+            "emit_ns": 11850634,
+            "total_ns": 34841898
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-event-reply-63972-2",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "source.zil": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "d5732347615dd4fd1e2510c164aa3778b2e43cb953817701b815e5a03bc28d3a",
+          "bytes": 9441
+        },
+        "core": {
+          "sha256": "c76d67d3da32732e15b4d6120d1a6adee85fd4a697f02fca67e92faf23a54976",
+          "bytes": 55225
+        },
+        "ct-core": {
+          "sha256": "91a9717fa2e109dd26197807ab911db13e8b0b47d31d0846e04d517944276a5f",
+          "bytes": 61461
+        },
+        "executable": {
+          "sha256": "847ef861b50c7149872bf91a6e91c873492ee25a09f423173617d86483e6b8b7",
+          "bytes": 16520
+        },
+        "lir": {
+          "sha256": "8f6a65e0f1e797a2d6f2ed292930313d762c694d1d7404e909c58a7f173fc8b7",
+          "bytes": 90810
+        },
+        "llvm": {
+          "sha256": "b1f549148c5cb67f9a8b61e7d02eb3815c903a75d2270e9ff4e8f0f4ad32570d",
+          "bytes": 14405
+        },
+        "source-map": {
+          "sha256": "31b6f1e20ff78416ec39ae2743b24df8de3e984ca243d0382acae280d85b7eaa",
+          "bytes": 29493
+        },
+        "syntax": {
+          "sha256": "65afabe476fc948dd6cfae695f0fec31d54069a6224355761cfcbf8097ca1fbf",
+          "bytes": 113011
+        },
+        "typed": {
+          "sha256": "1af37b401f56c51c2902f97375f46865a51779c39fcd5dab928fed304fabd4e7",
+          "bytes": 89973
+        },
+        "verified": {
+          "sha256": "b2a2387a3d245f9be8eaf65bbe2b4d1a0afeae47c65bc85b228a33257e02e2d0",
+          "bytes": 90050
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 4152,
+            "input_kind": "builder",
+            "preflight_ns": 2086892,
+            "builder_ns": 4422781,
+            "parse_ns": 0,
+            "optimize_ns": 133406,
+            "emit_ns": 12874401,
+            "total_ns": 19801610
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-event-reply-63972-6",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "source.zil": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "d5732347615dd4fd1e2510c164aa3778b2e43cb953817701b815e5a03bc28d3a",
+          "bytes": 9441
+        },
+        "core": {
+          "sha256": "c76d67d3da32732e15b4d6120d1a6adee85fd4a697f02fca67e92faf23a54976",
+          "bytes": 55225
+        },
+        "ct-core": {
+          "sha256": "91a9717fa2e109dd26197807ab911db13e8b0b47d31d0846e04d517944276a5f",
+          "bytes": 61461
+        },
+        "executable": {
+          "sha256": "d12e6006196a429e068572cd4b5c867f18fa9bf3333caaa9f3c266babdf7ce11",
+          "bytes": 16024
+        },
+        "lir": {
+          "sha256": "8f6a65e0f1e797a2d6f2ed292930313d762c694d1d7404e909c58a7f173fc8b7",
+          "bytes": 90810
+        },
+        "llvm": {
+          "sha256": "b1f549148c5cb67f9a8b61e7d02eb3815c903a75d2270e9ff4e8f0f4ad32570d",
+          "bytes": 14405
+        },
+        "source-map": {
+          "sha256": "31b6f1e20ff78416ec39ae2743b24df8de3e984ca243d0382acae280d85b7eaa",
+          "bytes": 29493
+        },
+        "syntax": {
+          "sha256": "65afabe476fc948dd6cfae695f0fec31d54069a6224355761cfcbf8097ca1fbf",
+          "bytes": 113011
+        },
+        "typed": {
+          "sha256": "1af37b401f56c51c2902f97375f46865a51779c39fcd5dab928fed304fabd4e7",
+          "bytes": 89973
+        },
+        "verified": {
+          "sha256": "b2a2387a3d245f9be8eaf65bbe2b4d1a0afeae47c65bc85b228a33257e02e2d0",
+          "bytes": 90050
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1000,
+            "input_kind": "builder",
+            "preflight_ns": 1229063,
+            "builder_ns": 1109013,
+            "parse_ns": 0,
+            "optimize_ns": 13910628,
+            "emit_ns": 14200515,
+            "total_ns": 30757882
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-matrix-63972-11",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "module0.zil": "16e13952029ac1e44868f8455605f57dd22d518a1afa47c4f28cd16bcd3b83ba",
+        "module1.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
+        "module2.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "b45b7f59859c98e6e7af12ea51d0fd14327177551e86e3e9064e0f0c1f5d9069",
+          "bytes": 91316
+        },
+        "core": {
+          "sha256": "e19ace35ef385cdefd515f72727304a9d67df417a609038af3a3b5da143a6bf3",
+          "bytes": 493942
+        },
+        "ct-core": {
+          "sha256": "742352b3c4970c41343e95e93c6e0fac91f527fffe96213f229f6d20da17c6fc",
+          "bytes": 628912
+        },
+        "executable": {
+          "sha256": "eb19d9f10a7342d07117b5b4eb277668aa6257ccbbe0c1eb7d5320b67a36197c",
+          "bytes": 16544
+        },
+        "interfaces": {
+          "sha256": "88cebf756835f83915e1ea9c5e461e5f5dd980934a9d13e6e3b262c8b78a0a99",
+          "bytes": 35668
+        },
+        "lir": {
+          "sha256": "7fdc978423191dc13a5955d21178b94ca9634762b4415dfbcfa5836545108e21",
+          "bytes": 829658
+        },
+        "llvm": {
+          "sha256": "e46775e14bb8c29dd64c23fb98ac79790d981dbe2a8783765910ebc26b3e4094",
+          "bytes": 99628
+        },
+        "source-map": {
+          "sha256": "82445f75334e8c722bdf1a5eff60fe209010562c2821d2e560e9918b22d28d81",
+          "bytes": 281808
+        },
+        "syntax": {
+          "sha256": "d437b672681e3c00dd6c09b0a51b57df6da57366e494424054c427863dfc1197",
+          "bytes": 1015305
+        },
+        "typed": {
+          "sha256": "a995a98beedb46fd0c8a1c0adb5bbd2261a4e465d7680545fba127fffdc62a75",
+          "bytes": 828821
+        },
+        "verified": {
+          "sha256": "3eceea3d774d441946cd9a7ddcfc6e5e88a32829e385bc4762ea2588274774fb",
+          "bytes": 828898
+        },
+        "verified-interfaces": {
+          "sha256": "a21330732744932846b4339c5395c70b01c4c249deacfd1b1817e40b55de8cb8",
+          "bytes": 41456
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 5224,
+            "input_kind": "builder",
+            "preflight_ns": 16972234,
+            "builder_ns": 28499393,
+            "parse_ns": 0,
+            "optimize_ns": 55829398,
+            "emit_ns": 89576493,
+            "total_ns": 191705370
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-matrix-63972-13",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "module0.zil": "be4a8044d9f537f3e25e413d4fc1dbb4c8dcf1378856815848d0c20c89c4a231",
+        "module1.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
+        "module2.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "ca5fcd10630162ce3f53d29255c72ae6cc4e20b856150e53f2594289998e414b",
+          "bytes": 217144
+        },
+        "core": {
+          "sha256": "a26590a05411fdd97dbce9bb19672e15ee19f532f5e81ae29ee50950a263c030",
+          "bytes": 1157681
+        },
+        "ct-core": {
+          "sha256": "615d89dccee28498c8b373bf08156ba182d9b0f9c4e2b56906aa1750312fced2",
+          "bytes": 1372284
+        },
+        "executable": {
+          "sha256": "4c342a21b06742828b7e404b791c17f3d5c8a88f3ed9cbd946a9e9c5314818f0",
+          "bytes": 21560
+        },
+        "interfaces": {
+          "sha256": "620d728aeb978237b6f1c2bf00bd3ca2dd03a8506b25f57b15186731f0699488",
+          "bytes": 51539
+        },
+        "lir": {
+          "sha256": "fd9767f107d64985713540757af0e30525d4fbded0a4a38170e2e7352bbb523e",
+          "bytes": 2083692
+        },
+        "llvm": {
+          "sha256": "3a8a7283d5059f49cc00735c64baa3e0043c2bd0f6fbb02d0bf3a84a0f39d785",
+          "bytes": 231555
+        },
+        "source-map": {
+          "sha256": "312595d1d70516b96f8edfd5926332583583564b4c3aa779a66bb30a39c81f60",
+          "bytes": 641163
+        },
+        "syntax": {
+          "sha256": "e3710de061c4f46037a3f2f178bd3d201f5edb6d3d3cc2892e6c8eb6607ae012",
+          "bytes": 2219337
+        },
+        "typed": {
+          "sha256": "ac0e5596949cc68101331a4c7f088597cd1d45b8b6595a76f7807641215d87c6",
+          "bytes": 2082848
+        },
+        "verified": {
+          "sha256": "cc868be752c035e7479777abe6fa27350f2338777a48bbd903f8d9880457e12d",
+          "bytes": 2082925
+        },
+        "verified-interfaces": {
+          "sha256": "6a7db02799429f5eab73fe42240e3dc0a5c3d6913c118779ff5b256d28b1957c",
+          "bytes": 62975
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 14808,
+            "input_kind": "builder",
+            "preflight_ns": 31320606,
+            "builder_ns": 16248016,
+            "parse_ns": 0,
+            "optimize_ns": 95332001,
+            "emit_ns": 79478758,
+            "total_ns": 228064913
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-matrix-63972-8",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "module0.zil": "be4a8044d9f537f3e25e413d4fc1dbb4c8dcf1378856815848d0c20c89c4a231",
+        "module1.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
+        "module2.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "ca5fcd10630162ce3f53d29255c72ae6cc4e20b856150e53f2594289998e414b",
+          "bytes": 217144
+        },
+        "core": {
+          "sha256": "a26590a05411fdd97dbce9bb19672e15ee19f532f5e81ae29ee50950a263c030",
+          "bytes": 1157681
+        },
+        "ct-core": {
+          "sha256": "615d89dccee28498c8b373bf08156ba182d9b0f9c4e2b56906aa1750312fced2",
+          "bytes": 1372284
+        },
+        "executable": {
+          "sha256": "92461e2848659c5829093402f0c95d91e1eb80e2b04c4c0c48bceb8174593ab7",
+          "bytes": 60392
+        },
+        "interfaces": {
+          "sha256": "620d728aeb978237b6f1c2bf00bd3ca2dd03a8506b25f57b15186731f0699488",
+          "bytes": 51539
+        },
+        "lir": {
+          "sha256": "fd9767f107d64985713540757af0e30525d4fbded0a4a38170e2e7352bbb523e",
+          "bytes": 2083692
+        },
+        "llvm": {
+          "sha256": "3a8a7283d5059f49cc00735c64baa3e0043c2bd0f6fbb02d0bf3a84a0f39d785",
+          "bytes": 231555
+        },
+        "source-map": {
+          "sha256": "312595d1d70516b96f8edfd5926332583583564b4c3aa779a66bb30a39c81f60",
+          "bytes": 641163
+        },
+        "syntax": {
+          "sha256": "e3710de061c4f46037a3f2f178bd3d201f5edb6d3d3cc2892e6c8eb6607ae012",
+          "bytes": 2219337
+        },
+        "typed": {
+          "sha256": "ac0e5596949cc68101331a4c7f088597cd1d45b8b6595a76f7807641215d87c6",
+          "bytes": 2082848
+        },
+        "verified": {
+          "sha256": "cc868be752c035e7479777abe6fa27350f2338777a48bbd903f8d9880457e12d",
+          "bytes": 2082925
+        },
+        "verified-interfaces": {
+          "sha256": "6a7db02799429f5eab73fe42240e3dc0a5c3d6913c118779ff5b256d28b1957c",
+          "bytes": 62975
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 51840,
+            "input_kind": "builder",
+            "preflight_ns": 31092294,
+            "builder_ns": 45225889,
+            "parse_ns": 0,
+            "optimize_ns": 679219,
+            "emit_ns": 138671101,
+            "total_ns": 219202218
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-matrix-63972-9",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "module0.zil": "16e13952029ac1e44868f8455605f57dd22d518a1afa47c4f28cd16bcd3b83ba",
+        "module1.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
+        "module2.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "b45b7f59859c98e6e7af12ea51d0fd14327177551e86e3e9064e0f0c1f5d9069",
+          "bytes": 91316
+        },
+        "core": {
+          "sha256": "e19ace35ef385cdefd515f72727304a9d67df417a609038af3a3b5da143a6bf3",
+          "bytes": 493942
+        },
+        "ct-core": {
+          "sha256": "742352b3c4970c41343e95e93c6e0fac91f527fffe96213f229f6d20da17c6fc",
+          "bytes": 628912
+        },
+        "executable": {
+          "sha256": "7cd169703ec5688e9506aa41ca3a47b8d0bb8fd277490ed09891fac34a9d0d1b",
+          "bytes": 30048
+        },
+        "interfaces": {
+          "sha256": "88cebf756835f83915e1ea9c5e461e5f5dd980934a9d13e6e3b262c8b78a0a99",
+          "bytes": 35668
+        },
+        "lir": {
+          "sha256": "7fdc978423191dc13a5955d21178b94ca9634762b4415dfbcfa5836545108e21",
+          "bytes": 829658
+        },
+        "llvm": {
+          "sha256": "e46775e14bb8c29dd64c23fb98ac79790d981dbe2a8783765910ebc26b3e4094",
+          "bytes": 99628
+        },
+        "source-map": {
+          "sha256": "82445f75334e8c722bdf1a5eff60fe209010562c2821d2e560e9918b22d28d81",
+          "bytes": 281808
+        },
+        "syntax": {
+          "sha256": "d437b672681e3c00dd6c09b0a51b57df6da57366e494424054c427863dfc1197",
+          "bytes": 1015305
+        },
+        "typed": {
+          "sha256": "a995a98beedb46fd0c8a1c0adb5bbd2261a4e465d7680545fba127fffdc62a75",
+          "bytes": 828821
+        },
+        "verified": {
+          "sha256": "3eceea3d774d441946cd9a7ddcfc6e5e88a32829e385bc4762ea2588274774fb",
+          "bytes": 828898
+        },
+        "verified-interfaces": {
+          "sha256": "a21330732744932846b4339c5395c70b01c4c249deacfd1b1817e40b55de8cb8",
+          "bytes": 41456
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 22208,
+            "input_kind": "builder",
+            "preflight_ns": 6197205,
+            "builder_ns": 4587317,
+            "parse_ns": 0,
+            "optimize_ns": 183589,
+            "emit_ns": 23290464,
+            "total_ns": 35326499
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-owned-result-63972-3",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "source.zil": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "432a91ddbe1855ee8509e8d2f7cf89c0def50dc8400cd0cb6586299c4a4b5a1e",
+          "bytes": 7045
+        },
+        "core": {
+          "sha256": "c80ed17c584a7fe973484bb89ef22d56de51f1dbf90d495b32f0d263373b3dec",
+          "bytes": 31931
+        },
+        "ct-core": {
+          "sha256": "a85586ee3f6f233c16084a120d171a7581a00a0c24e27a840739869f90bce48d",
+          "bytes": 34684
+        },
+        "executable": {
+          "sha256": "4e842a99f5d449cba542214a7e37f80a2159c1f7844d53c5a14e14346c6aa3e8",
+          "bytes": 16384
+        },
+        "lir": {
+          "sha256": "0e6adf094004d68e280e60f5d45a4bea75af082f1919e74fa9ec18b5ea8be95f",
+          "bytes": 57939
+        },
+        "llvm": {
+          "sha256": "e25041c1d968fd8d0460c60f206f7a4dd38427ac603d0a145b506ff1617694aa",
+          "bytes": 10047
+        },
+        "source-map": {
+          "sha256": "5aac07500ea9766608a7c6dd3ebe36d443bd532a79f630fbd00893682c7a2ef5",
+          "bytes": 17686
+        },
+        "syntax": {
+          "sha256": "0d5d27b1982f70e92adf41f61262e248696b5546b4ddf7e2007933cd1daf47ed",
+          "bytes": 61264
+        },
+        "typed": {
+          "sha256": "0e83e11891985e569ec050a0c8e18f975a2b8e99df3ebb85d4ce7cf970644d1a",
+          "bytes": 57101
+        },
+        "verified": {
+          "sha256": "e854b7477ef58324a971960de797204c3a33adee6257ec5b2374c70350651d2c",
+          "bytes": 57178
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 3352,
+            "input_kind": "builder",
+            "preflight_ns": 1554216,
+            "builder_ns": 6295791,
+            "parse_ns": 0,
+            "optimize_ns": 95026,
+            "emit_ns": 12299061,
+            "total_ns": 20522388
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    },
+    {
+      "id": "consumer250-owned-result-63972-5",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": {
+        "source.zil": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd"
+      },
+      "artifacts": {
+        "candidate": {
+          "sha256": "432a91ddbe1855ee8509e8d2f7cf89c0def50dc8400cd0cb6586299c4a4b5a1e",
+          "bytes": 7045
+        },
+        "core": {
+          "sha256": "c80ed17c584a7fe973484bb89ef22d56de51f1dbf90d495b32f0d263373b3dec",
+          "bytes": 31931
+        },
+        "ct-core": {
+          "sha256": "a85586ee3f6f233c16084a120d171a7581a00a0c24e27a840739869f90bce48d",
+          "bytes": 34684
+        },
+        "executable": {
+          "sha256": "f48e2fdecd58fa33350a58104686fd66f232d9dd68fe56ac4f3688f55e4a0788",
+          "bytes": 15992
+        },
+        "lir": {
+          "sha256": "0e6adf094004d68e280e60f5d45a4bea75af082f1919e74fa9ec18b5ea8be95f",
+          "bytes": 57939
+        },
+        "llvm": {
+          "sha256": "e25041c1d968fd8d0460c60f206f7a4dd38427ac603d0a145b506ff1617694aa",
+          "bytes": 10047
+        },
+        "source-map": {
+          "sha256": "5aac07500ea9766608a7c6dd3ebe36d443bd532a79f630fbd00893682c7a2ef5",
+          "bytes": 17686
+        },
+        "syntax": {
+          "sha256": "0d5d27b1982f70e92adf41f61262e248696b5546b4ddf7e2007933cd1daf47ed",
+          "bytes": 61264
+        },
+        "typed": {
+          "sha256": "0e83e11891985e569ec050a0c8e18f975a2b8e99df3ebb85d4ce7cf970644d1a",
+          "bytes": 57101
+        },
+        "verified": {
+          "sha256": "e854b7477ef58324a971960de797204c3a33adee6257ec5b2374c70350651d2c",
+          "bytes": 57178
+        }
+      },
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 936,
+            "input_kind": "builder",
+            "preflight_ns": 1528537,
+            "builder_ns": 9377662,
+            "parse_ns": 0,
+            "optimize_ns": 9220920,
+            "emit_ns": 17595491,
+            "total_ns": 38620443
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      }
+    }
+  ],
+  "executions": [
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-0-fail-0",
+      "stdin_hex": "30",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-0-fail-1",
+      "stdin_hex": "30",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-0-fail-2",
+      "stdin_hex": "30",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-1-fail-0",
+      "stdin_hex": "31",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-1-fail-1",
+      "stdin_hex": "31",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-1-fail-2",
+      "stdin_hex": "31",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-2-fail-0",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 1,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-2-fail-1",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-2-fail-2",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-2-fail-3",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 1,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-3-fail-0",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRACRBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-3-fail-1",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-3-fail-2",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRABQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCRABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-3-fail-3",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRACRBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-4-fail-0",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "S1RA2RBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-4-fail-1",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-4-fail-2",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "S1RABQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "S1RABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-4-fail-3",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "S1RA2RBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-5-fail-0",
+      "stdin_hex": "35",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-5-fail-1",
+      "stdin_hex": "35",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-5-fail-2",
+      "stdin_hex": "35",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-6-fail-0",
+      "stdin_hex": "36",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-6-fail-1",
+      "stdin_hex": "36",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-6-fail-2",
+      "stdin_hex": "36",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-7-fail-0",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 3,
+        "live": 0,
+        "peak_live": 3,
+        "stdout": "SCRABQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 82
+      },
+      "stderr": "{\"alloc_calls\":3,\"allocated\":3,\"frees\":3,\"failures\":0,\"live\":0,\"peak_live\":3,\"peak_bytes\":82}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-7-fail-1",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-7-fail-2",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":80}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-7-fail-3",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "exit": 1,
+        "fail_at": 3,
+        "failures": 1,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SBAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAQ",
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 81
+      },
+      "stderr": "{\"alloc_calls\":3,\"allocated\":2,\"frees\":2,\"failures\":1,\"live\":0,\"peak_live\":2,\"peak_bytes\":81}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-7-fail-4",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "exit": 0,
+        "fail_at": 4,
+        "failures": 0,
+        "frees": 3,
+        "live": 0,
+        "peak_live": 3,
+        "stdout": "SCRABQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 82
+      },
+      "stderr": "{\"alloc_calls\":3,\"allocated\":3,\"frees\":3,\"failures\":0,\"live\":0,\"peak_live\":3,\"peak_bytes\":82}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-8-fail-0",
+      "stdin_hex": "38",
+      "expected": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SCEQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":0,\"allocated\":0,\"frees\":0,\"failures\":0,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-8-fail-1",
+      "stdin_hex": "38",
+      "expected": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "exit": 0,
+        "fail_at": 1,
+        "failures": 0,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SCEQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":0,\"allocated\":0,\"frees\":0,\"failures\":0,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-9-fail-0",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHBhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-9-fail-1",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-9-fail-2",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-9-fail-3",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHBhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-:-fail-0",
+      "stdin_hex": "3a",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHAhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-:-fail-1",
+      "stdin_hex": "3a",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-:-fail-2",
+      "stdin_hex": "3a",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHAhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-;-fail-0",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-;-fail-1",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "ShHQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-;-fail-2",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-1",
+      "id": "input-;-fail-3",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-10",
+      "id": "input--fail-0",
+      "stdin_hex": "",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhQA"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHhQA",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-10",
+      "id": "input--fail-1",
+      "stdin_hex": "",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-10",
+      "id": "input--fail-2",
+      "stdin_hex": "",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhQA"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHhQA",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-0-fail-0",
+      "stdin_hex": "30",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-0-fail-1",
+      "stdin_hex": "30",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-0-fail-2",
+      "stdin_hex": "30",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-1-fail-0",
+      "stdin_hex": "31",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-1-fail-1",
+      "stdin_hex": "31",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-1-fail-2",
+      "stdin_hex": "31",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-2-fail-0",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 1,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-2-fail-1",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-2-fail-2",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-2-fail-3",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 1,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-3-fail-0",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRACRBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-3-fail-1",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-3-fail-2",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRABQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCRABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-3-fail-3",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRACRBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-4-fail-0",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "S1RA2RBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-4-fail-1",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-4-fail-2",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "S1RABQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "S1RABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-4-fail-3",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "S1RA2RBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-5-fail-0",
+      "stdin_hex": "35",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-5-fail-1",
+      "stdin_hex": "35",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-5-fail-2",
+      "stdin_hex": "35",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-6-fail-0",
+      "stdin_hex": "36",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-6-fail-1",
+      "stdin_hex": "36",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-6-fail-2",
+      "stdin_hex": "36",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-7-fail-0",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 3,
+        "live": 0,
+        "peak_live": 3,
+        "stdout": "SCRABQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 82
+      },
+      "stderr": "{\"alloc_calls\":3,\"allocated\":3,\"frees\":3,\"failures\":0,\"live\":0,\"peak_live\":3,\"peak_bytes\":82}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-7-fail-1",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-7-fail-2",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":80}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-7-fail-3",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 3,
+        "allocated": 2,
+        "exit": 1,
+        "fail_at": 3,
+        "failures": 1,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SBAQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAQ",
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 81
+      },
+      "stderr": "{\"alloc_calls\":3,\"allocated\":2,\"frees\":2,\"failures\":1,\"live\":0,\"peak_live\":2,\"peak_bytes\":81}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-7-fail-4",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "exit": 0,
+        "fail_at": 4,
+        "failures": 0,
+        "frees": 3,
+        "live": 0,
+        "peak_live": 3,
+        "stdout": "SCRABQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 82
+      },
+      "stderr": "{\"alloc_calls\":3,\"allocated\":3,\"frees\":3,\"failures\":0,\"live\":0,\"peak_live\":3,\"peak_bytes\":82}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-8-fail-0",
+      "stdin_hex": "38",
+      "expected": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SCEQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":0,\"allocated\":0,\"frees\":0,\"failures\":0,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-8-fail-1",
+      "stdin_hex": "38",
+      "expected": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "exit": 0,
+        "fail_at": 1,
+        "failures": 0,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SCEQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":0,\"allocated\":0,\"frees\":0,\"failures\":0,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-9-fail-0",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHBhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-9-fail-1",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-9-fail-2",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-9-fail-3",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHBhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-:-fail-0",
+      "stdin_hex": "3a",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHAhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-:-fail-1",
+      "stdin_hex": "3a",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-:-fail-2",
+      "stdin_hex": "3a",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHAhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-;-fail-0",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-;-fail-1",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "ShHQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-;-fail-2",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 1,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-12",
+      "id": "input-;-fail-3",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "fail_at": 3,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":2}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-7",
+      "id": "input--fail-0",
+      "stdin_hex": "",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhQA"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHhQA",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-7",
+      "id": "input--fail-1",
+      "stdin_hex": "",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 0,
+        "exit": 1,
+        "fail_at": 1,
+        "failures": 1,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-allocator-63972-7",
+      "id": "input--fail-2",
+      "stdin_hex": "",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "fail_at": 2,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhQA"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHhQA",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":1}\n",
+      "asserted_fields": [
+        "exit",
+        "stdout",
+        "alloc_calls",
+        "allocated",
+        "frees",
+        "failures",
+        "live",
+        "peak_live"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-event-copy-result-63972-0",
+      "id": "case-0",
+      "stdin_hex": "",
+      "expected": {
+        "exit": 0,
+        "input": "",
+        "stdout": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": ""
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-event-copy-result-63972-4",
+      "id": "case-0",
+      "stdin_hex": "",
+      "expected": {
+        "exit": 0,
+        "input": "",
+        "stdout": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": ""
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-event-reply-63972-2",
+      "id": "case-0",
+      "stdin_hex": "",
+      "expected": {
+        "exit": 0,
+        "input": "",
+        "stdout": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": ""
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-event-reply-63972-6",
+      "id": "case-0",
+      "stdin_hex": "",
+      "expected": {
+        "exit": 0,
+        "input": "",
+        "stdout": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": ""
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-11",
+      "id": "case-0",
+      "stdin_hex": "",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhQA"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHhQA"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-0",
+      "stdin_hex": "30",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-1",
+      "stdin_hex": "31",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-10",
+      "stdin_hex": "3a",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHAhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-11",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-2",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 1,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-3",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRACRBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-4",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "S1RA2RBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-5",
+      "stdin_hex": "35",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-6",
+      "stdin_hex": "36",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-7",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "exit": 0,
+        "failures": 0,
+        "frees": 3,
+        "live": 0,
+        "peak_live": 3,
+        "stdout": "SCRABQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-8",
+      "stdin_hex": "38",
+      "expected": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "exit": 0,
+        "failures": 0,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SCEQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-13",
+      "id": "case-9",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHBhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-0",
+      "stdin_hex": "30",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-1",
+      "stdin_hex": "31",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-10",
+      "stdin_hex": "3a",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHAhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-11",
+      "stdin_hex": "3b",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-2",
+      "stdin_hex": "32",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 1,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SBAHhQ"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-3",
+      "stdin_hex": "33",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRACRBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-4",
+      "stdin_hex": "34",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "S1RA2RBQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-5",
+      "stdin_hex": "35",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-6",
+      "stdin_hex": "36",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 0,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-7",
+      "stdin_hex": "37",
+      "expected": {
+        "alloc_calls": 3,
+        "allocated": 3,
+        "exit": 0,
+        "failures": 0,
+        "frees": 3,
+        "live": 0,
+        "peak_live": 3,
+        "stdout": "SCRABQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-8",
+      "stdin_hex": "38",
+      "expected": {
+        "alloc_calls": 0,
+        "allocated": 0,
+        "exit": 0,
+        "failures": 0,
+        "frees": 0,
+        "live": 0,
+        "peak_live": 0,
+        "stdout": "SCEQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-8",
+      "id": "case-9",
+      "stdin_hex": "39",
+      "expected": {
+        "alloc_calls": 2,
+        "allocated": 2,
+        "exit": 0,
+        "failures": 0,
+        "frees": 2,
+        "live": 0,
+        "peak_live": 2,
+        "stdout": "SCHBhRAQ"
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-matrix-63972-9",
+      "id": "case-0",
+      "stdin_hex": "",
+      "expected": {
+        "alloc_calls": 1,
+        "allocated": 1,
+        "exit": 1,
+        "failures": 0,
+        "frees": 1,
+        "live": 0,
+        "peak_live": 1,
+        "stdout": "SCHhQA"
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHhQA"
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-owned-result-63972-3",
+      "id": "case-0",
+      "stdin_hex": "",
+      "expected": {
+        "exit": 0,
+        "input": "",
+        "stdout": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": ""
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    },
+    {
+      "compile": "consumer250-owned-result-63972-5",
+      "id": "case-0",
+      "stdin_hex": "",
+      "expected": {
+        "exit": 0,
+        "input": "",
+        "stdout": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": ""
+      },
+      "stderr": "",
+      "asserted_fields": [
+        "exit",
+        "stdout"
+      ],
+      "verdict": "Pass"
+    }
+  ],
+  "archived_actual_stages": [
+    {
+      "root": "main",
+      "kind": "verified",
+      "path": "evidence/impl/250/final-R/stages/main/verified.gz",
+      "sha256": "cc868be752c035e7479777abe6fa27350f2338777a48bbd903f8d9880457e12d",
+      "bytes": 2082925,
+      "compressed_bytes": 59276
+    },
+    {
+      "root": "main",
+      "kind": "verified-interfaces",
+      "path": "evidence/impl/250/final-R/stages/main/verified-interfaces.gz",
+      "sha256": "6a7db02799429f5eab73fe42240e3dc0a5c3d6913c118779ff5b256d28b1957c",
+      "bytes": 62975,
+      "compressed_bytes": 3139
+    },
+    {
+      "root": "main",
+      "kind": "llvm",
+      "path": "evidence/impl/250/final-R/stages/main/llvm.gz",
+      "sha256": "3a8a7283d5059f49cc00735c64baa3e0043c2bd0f6fbb02d0bf3a84a0f39d785",
+      "bytes": 231555,
+      "compressed_bytes": 19468
+    },
+    {
+      "root": "owned_error_main",
+      "kind": "verified",
+      "path": "evidence/impl/250/final-R/stages/owned_error_main/verified.gz",
+      "sha256": "3eceea3d774d441946cd9a7ddcfc6e5e88a32829e385bc4762ea2588274774fb",
+      "bytes": 828898,
+      "compressed_bytes": 25921
+    },
+    {
+      "root": "owned_error_main",
+      "kind": "verified-interfaces",
+      "path": "evidence/impl/250/final-R/stages/owned_error_main/verified-interfaces.gz",
+      "sha256": "a21330732744932846b4339c5395c70b01c4c249deacfd1b1817e40b55de8cb8",
+      "bytes": 41456,
+      "compressed_bytes": 2533
+    },
+    {
+      "root": "owned_error_main",
+      "kind": "llvm",
+      "path": "evidence/impl/250/final-R/stages/owned_error_main/llvm.gz",
+      "sha256": "e46775e14bb8c29dd64c23fb98ac79790d981dbe2a8783765910ebc26b3e4094",
+      "bytes": 99628,
+      "compressed_bytes": 9738
+    }
+  ],
+  "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+  "normative_registry": {
+    "schema_version": 1,
+    "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
+    "files": {
+      "_zil_design.md": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "spec/grammar.ebnf": "592e1df1e1a06987e2b81288fe3d08f712d78a697d2b3160d981b42c2730a6dd",
+      "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+      "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+      "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
+      "spec/interfaces.json": "b7a3a98d3f373b6e6cfdcbfeb2a5a0597c0e453747d6d49e73bc791b7c539583",
+      "spec/diagnostics.json": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8"
+    },
+    "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+  }
+}

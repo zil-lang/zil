@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.02s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-247/debug/deps/zil_analyze-aa0422b5c4d89887)
+
+running 1 test
+test sum_tests::unused_owned_enum_capture_does_not_acquire_ordinary_value_qualification ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 73 filtered out; finished in 0.00s
+

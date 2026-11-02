@@ -1,0 +1,30 @@
+    Checking typenum v1.20.1
+    Checking cfg-if v1.0.5
+    Checking cpufeatures v0.3.1
+    Checking hybrid-array v0.4.15
+    Checking crypto-common v0.2.2
+    Checking block-buffer v0.12.1
+    Checking digest v0.11.3
+    Checking sha2 v0.11.1
+    Checking zil-base v0.1.0 (/workspace/zil-247/crates/zil-base)
+    Checking zil-ir v0.1.0 (/workspace/zil-247/crates/zil-ir)
+    Checking zil-analyze v0.1.0 (/workspace/zil-247/crates/zil-analyze)
+error: this function has too many arguments (8/7)
+  --> crates/zil-analyze/src/holds.rs:80:1
+   |
+80 | / fn store_window_transition(
+81 | |     module: &TypedModule,
+82 | |     f: &TypedFunction,
+83 | |     instruction: &Instruction,
+...  |
+88 | |     budget: &mut Budget,
+89 | | ) -> CompileResult<()> {
+   | |______________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#too_many_arguments
+   = note: `-D clippy::too-many-arguments` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::too_many_arguments)]`
+
+error: could not compile `zil-analyze` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `zil-analyze` (lib test) due to 1 previous error

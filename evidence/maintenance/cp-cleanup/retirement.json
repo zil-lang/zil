@@ -1,0 +1,175 @@
+{
+  "status": "Pass",
+  "remote_before": {
+    "refs/heads/main": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+    "refs/heads/research/compile-performance": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+    "refs/heads/research/compile7-20261031": "a894f8476cd043314113ba40b4a492deaf281895",
+    "refs/heads/research/cp21-invalidate": "8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+    "refs/heads/research/cp22-parse-cache": "74142bc822c57b1246c9bf328c019fd364ee150a",
+    "refs/heads/research/cp23-query-read": "1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+    "refs/heads/research/cp26-parse-publication": "7e7f8083af9361de17793c602bfaa7117e6f47b9",
+    "refs/heads/research/cp27-temp-ownership": "79bb5348fe426a62aecaae808321f70966cbc24c",
+    "refs/heads/research/cp29-types-memo": "11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+    "refs/heads/research/cp30-published-read": "df13bc96536c7f775d7227256e45db7fc9e178b2",
+    "refs/heads/research/cp32-bounded-type-retention": "b9ccf36aac5720886c9e68b3a812b4f61f841626",
+    "refs/heads/research/cp33-parse-budget-receipts": "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17",
+    "refs/heads/research/cp34-streaming-fingerprint": "9fe23d7180b41830f599128324c769deac37211d",
+    "refs/heads/research/cp35-shared-verify-input": "de0eefdc38e1a25129f219d2a7c7933922790e13",
+    "refs/heads/task/227": "192b45c051a4c938659eb8ff5c0029a24a671900",
+    "refs/heads/task/235": "edb044089592ff73832040ed52057f78eb9b419b",
+    "refs/heads/task/236": "566396accaa3b1df90ee4c3ff478615df518b073",
+    "refs/heads/task/237": "33b1514c9b8c7adbd1a547f57b5bbcea3f040661",
+    "refs/heads/task/238": "1b7572807d8948ac255312b035f8fc063d314995",
+    "refs/heads/task/238-privacy": "0b6b9e99632191283d67f6ee78292fddbe634ef1",
+    "refs/heads/task/238-regression": "541f21bbe8cff775cb7341aae3652759a0a65c8d",
+    "refs/heads/task/240": "47840ac983746590c7d754a0fb41b9aa144f12b9",
+    "refs/heads/task/241": "027847a2ca4fc8c04a65240be20fe4fe5ce5b27a",
+    "refs/heads/task/243": "2f73305a502c9450141f9598b901d01bb099866f",
+    "refs/heads/task/cp25-reactive-session": "e739f583b63ba8fa44fa26a937d36afb9cbaea2a",
+    "refs/heads/task/owned-sum-20261102": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+    "refs/heads/task/owned-sum-evidence-20261102": "7e515d3d526ee6900882fcd181103ef82fd3efb8",
+    "refs/heads/task/zui-core-20261102": "e92508be996a190fa188d08319d37cc8b522bae6",
+    "refs/tags/archive/cp-245-20261102": "3f072a39549a80bf0d5df27de1197f3402bb154b"
+  },
+  "remote_after": {
+    "refs/heads/main": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+    "refs/heads/task/227": "192b45c051a4c938659eb8ff5c0029a24a671900",
+    "refs/heads/task/235": "edb044089592ff73832040ed52057f78eb9b419b",
+    "refs/heads/task/236": "566396accaa3b1df90ee4c3ff478615df518b073",
+    "refs/heads/task/237": "33b1514c9b8c7adbd1a547f57b5bbcea3f040661",
+    "refs/heads/task/238": "1b7572807d8948ac255312b035f8fc063d314995",
+    "refs/heads/task/238-privacy": "0b6b9e99632191283d67f6ee78292fddbe634ef1",
+    "refs/heads/task/238-regression": "541f21bbe8cff775cb7341aae3652759a0a65c8d",
+    "refs/heads/task/240": "47840ac983746590c7d754a0fb41b9aa144f12b9",
+    "refs/heads/task/241": "027847a2ca4fc8c04a65240be20fe4fe5ce5b27a",
+    "refs/heads/task/243": "2f73305a502c9450141f9598b901d01bb099866f",
+    "refs/heads/task/cp25-reactive-session": "e739f583b63ba8fa44fa26a937d36afb9cbaea2a",
+    "refs/heads/task/owned-sum-20261102": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+    "refs/heads/task/owned-sum-evidence-20261102": "7e515d3d526ee6900882fcd181103ef82fd3efb8",
+    "refs/heads/task/zui-core-20261102": "e92508be996a190fa188d08319d37cc8b522bae6",
+    "refs/tags/archive/cp-245-20261102": "3f072a39549a80bf0d5df27de1197f3402bb154b"
+  },
+  "atomic_push_command": [
+    "git",
+    "push",
+    "--atomic",
+    "--force-with-lease=refs/heads/research/compile-performance:e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+    "--force-with-lease=refs/heads/research/compile7-20261031:a894f8476cd043314113ba40b4a492deaf281895",
+    "--force-with-lease=refs/heads/research/cp21-invalidate:8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+    "--force-with-lease=refs/heads/research/cp22-parse-cache:74142bc822c57b1246c9bf328c019fd364ee150a",
+    "--force-with-lease=refs/heads/research/cp23-query-read:1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+    "--force-with-lease=refs/heads/research/cp26-parse-publication:7e7f8083af9361de17793c602bfaa7117e6f47b9",
+    "--force-with-lease=refs/heads/research/cp27-temp-ownership:79bb5348fe426a62aecaae808321f70966cbc24c",
+    "--force-with-lease=refs/heads/research/cp29-types-memo:11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+    "--force-with-lease=refs/heads/research/cp30-published-read:df13bc96536c7f775d7227256e45db7fc9e178b2",
+    "--force-with-lease=refs/heads/research/cp32-bounded-type-retention:b9ccf36aac5720886c9e68b3a812b4f61f841626",
+    "--force-with-lease=refs/heads/research/cp33-parse-budget-receipts:675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17",
+    "--force-with-lease=refs/heads/research/cp34-streaming-fingerprint:9fe23d7180b41830f599128324c769deac37211d",
+    "--force-with-lease=refs/heads/research/cp35-shared-verify-input:de0eefdc38e1a25129f219d2a7c7933922790e13",
+    "origin",
+    ":refs/heads/research/compile-performance",
+    ":refs/heads/research/compile7-20261031",
+    ":refs/heads/research/cp21-invalidate",
+    ":refs/heads/research/cp22-parse-cache",
+    ":refs/heads/research/cp23-query-read",
+    ":refs/heads/research/cp26-parse-publication",
+    ":refs/heads/research/cp27-temp-ownership",
+    ":refs/heads/research/cp29-types-memo",
+    ":refs/heads/research/cp30-published-read",
+    ":refs/heads/research/cp32-bounded-type-retention",
+    ":refs/heads/research/cp33-parse-budget-receipts",
+    ":refs/heads/research/cp34-streaming-fingerprint",
+    ":refs/heads/research/cp35-shared-verify-input"
+  ],
+  "push_stdout": "",
+  "push_stderr": "To https://github.com/zil-lang/zil.git\n - [deleted]             research/compile-performance\n - [deleted]             research/compile7-20261031\n - [deleted]             research/cp21-invalidate\n - [deleted]             research/cp22-parse-cache\n - [deleted]             research/cp23-query-read\n - [deleted]             research/cp26-parse-publication\n - [deleted]             research/cp27-temp-ownership\n - [deleted]             research/cp29-types-memo\n - [deleted]             research/cp30-published-read\n - [deleted]             research/cp32-bounded-type-retention\n - [deleted]             research/cp33-parse-budget-receipts\n - [deleted]             research/cp34-streaming-fingerprint\n - [deleted]             research/cp35-shared-verify-input\n",
+  "deleted_remote": [
+    {
+      "remote_ref": "refs/heads/research/compile-performance",
+      "tracking_ref": "refs/remotes/origin/research/compile-performance",
+      "oid": "e7b492c6e04128e6106bbf29c0d6c7b381556d77"
+    },
+    {
+      "remote_ref": "refs/heads/research/compile7-20261031",
+      "tracking_ref": "refs/remotes/origin/research/compile7-20261031",
+      "oid": "a894f8476cd043314113ba40b4a492deaf281895"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp21-invalidate",
+      "tracking_ref": "refs/remotes/origin/research/cp21-invalidate",
+      "oid": "8c4fa27f677b992e6d5590493a4ea530b95ae46d"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp22-parse-cache",
+      "tracking_ref": "refs/remotes/origin/research/cp22-parse-cache",
+      "oid": "74142bc822c57b1246c9bf328c019fd364ee150a"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp23-query-read",
+      "tracking_ref": "refs/remotes/origin/research/cp23-query-read",
+      "oid": "1cb27ac6b907aeef28b8a472d15ee1859b9959c1"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp26-parse-publication",
+      "tracking_ref": "refs/remotes/origin/research/cp26-parse-publication",
+      "oid": "7e7f8083af9361de17793c602bfaa7117e6f47b9"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp27-temp-ownership",
+      "tracking_ref": "refs/remotes/origin/research/cp27-temp-ownership",
+      "oid": "79bb5348fe426a62aecaae808321f70966cbc24c"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp29-types-memo",
+      "tracking_ref": "refs/remotes/origin/research/cp29-types-memo",
+      "oid": "11d88c78037a77d2c188a6684cdaa0300f60b7b9"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp30-published-read",
+      "tracking_ref": "refs/remotes/origin/research/cp30-published-read",
+      "oid": "df13bc96536c7f775d7227256e45db7fc9e178b2"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp32-bounded-type-retention",
+      "tracking_ref": "refs/remotes/origin/research/cp32-bounded-type-retention",
+      "oid": "b9ccf36aac5720886c9e68b3a812b4f61f841626"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp33-parse-budget-receipts",
+      "tracking_ref": "refs/remotes/origin/research/cp33-parse-budget-receipts",
+      "oid": "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp34-streaming-fingerprint",
+      "tracking_ref": "refs/remotes/origin/research/cp34-streaming-fingerprint",
+      "oid": "9fe23d7180b41830f599128324c769deac37211d"
+    },
+    {
+      "remote_ref": "refs/heads/research/cp35-shared-verify-input",
+      "tracking_ref": "refs/remotes/origin/research/cp35-shared-verify-input",
+      "oid": "de0eefdc38e1a25129f219d2a7c7933922790e13"
+    }
+  ],
+  "deleted_local": [
+    {
+      "ref": "refs/heads/research/incremental-compilation",
+      "oid": "5d7c1eeb2b74052eb239e19529dc5a943c6622a3",
+      "tree": "2465812dd60d04571cbdbc4c9f36a5f579970c7e",
+      "ancestor_of_baseline": true,
+      "patch_equivalence": {
+        "command": "git cherry 81b7ae0c9ce5e7245613ed536b4702c419fe99bd 5d7c1eeb2b74052eb239e19529dc5a943c6622a3",
+        "counts": {}
+      },
+      "contains_other_audited_tips": [],
+      "checked_out": false,
+      "commits_outside_baseline_count": 0,
+      "changed_paths_since_merge_base_count": 0
+    }
+  ],
+  "kept": {
+    "refs/heads/task/cp25-reactive-session": "e739f583b63ba8fa44fa26a937d36afb9cbaea2a"
+  },
+  "unrelated_remote_changes_during_cleanup": {},
+  "archive_tag": "archive/cp-245-20261102",
+  "archive_commit": "27ccb6d23652dba6cc3461434f5d5c48aced37de"
+}

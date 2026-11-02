@@ -1,0 +1,11 @@
+{
+  "command": "node tools/handoff.mjs --check --main-tree /workspace/zil",
+  "head": "77b1c8209cc80257e38933535a7694517d7684c2",
+  "status": "Fail",
+  "historical_error_count": 1144,
+  "warnings": [],
+  "task245_errors": [],
+  "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+  "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+  "note": "1144 historical integrity errors retained; task245 snapshot matches after root77b1c8209."
+}

@@ -1,0 +1,109 @@
+{
+  "status": "Pass",
+  "independent_object_database": true,
+  "baseline_fetched_locally": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+  "bundle_unbundle": "e7b492c6e04128e6106bbf29c0d6c7b381556d77 refs/remotes/origin/research/compile-performance\na894f8476cd043314113ba40b4a492deaf281895 refs/remotes/origin/research/compile7-20261031\n8c4fa27f677b992e6d5590493a4ea530b95ae46d refs/remotes/origin/research/cp21-invalidate\n74142bc822c57b1246c9bf328c019fd364ee150a refs/remotes/origin/research/cp22-parse-cache\n1cb27ac6b907aeef28b8a472d15ee1859b9959c1 refs/remotes/origin/research/cp23-query-read\n7e7f8083af9361de17793c602bfaa7117e6f47b9 refs/remotes/origin/research/cp26-parse-publication\n79bb5348fe426a62aecaae808321f70966cbc24c refs/remotes/origin/research/cp27-temp-ownership\n11d88c78037a77d2c188a6684cdaa0300f60b7b9 refs/remotes/origin/research/cp29-types-memo\ndf13bc96536c7f775d7227256e45db7fc9e178b2 refs/remotes/origin/research/cp30-published-read\nb9ccf36aac5720886c9e68b3a812b4f61f841626 refs/remotes/origin/research/cp32-bounded-type-retention\n675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17 refs/remotes/origin/research/cp33-parse-budget-receipts\n9fe23d7180b41830f599128324c769deac37211d refs/remotes/origin/research/cp34-streaming-fingerprint\nde0eefdc38e1a25129f219d2a7c7933922790e13 refs/remotes/origin/research/cp35-shared-verify-input\ne739f583b63ba8fa44fa26a937d36afb9cbaea2a refs/remotes/origin/task/cp25-reactive-session\n",
+  "fsck_exit": 0,
+  "fsck_stdout": "",
+  "fsck_stderr": "notice: HEAD points to an unborn branch (master)\n",
+  "restored_heads": [
+    {
+      "ref": "refs/remotes/origin/research/compile-performance",
+      "oid": "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "tree": "156f35b43b990608104bce607206671b16140ab2",
+      "reachable_objects_checked": 68615,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/compile7-20261031",
+      "oid": "a894f8476cd043314113ba40b4a492deaf281895",
+      "tree": "1cf3a5bc25e24e988f55bd30971255e88239b077",
+      "reachable_objects_checked": 68893,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp21-invalidate",
+      "oid": "8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+      "tree": "e9ebdaec814c8f873e1b2ef2dce70a6812779c36",
+      "reachable_objects_checked": 68441,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp22-parse-cache",
+      "oid": "74142bc822c57b1246c9bf328c019fd364ee150a",
+      "tree": "e0004eb56b60b70e63e6ccc8cdd40b69b75f6db5",
+      "reachable_objects_checked": 68509,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp23-query-read",
+      "oid": "1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+      "tree": "b611b5d3aa4e8d29c4f3b3b1960915f4ca8fb37f",
+      "reachable_objects_checked": 68442,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp26-parse-publication",
+      "oid": "7e7f8083af9361de17793c602bfaa7117e6f47b9",
+      "tree": "c2784d318233c1f72544997f27d90b3bf56ebb60",
+      "reachable_objects_checked": 68550,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp27-temp-ownership",
+      "oid": "79bb5348fe426a62aecaae808321f70966cbc24c",
+      "tree": "11edd2a4fcef0f8b14b383e603136a1fb0a5eb04",
+      "reachable_objects_checked": 68605,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp29-types-memo",
+      "oid": "11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+      "tree": "7f92a9945a8058fd746ccfa486da76e5b3bcc55d",
+      "reachable_objects_checked": 68643,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp30-published-read",
+      "oid": "df13bc96536c7f775d7227256e45db7fc9e178b2",
+      "tree": "22a5b6768c3d4a521237fda2e29a5a517e5d2ea2",
+      "reachable_objects_checked": 68634,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp32-bounded-type-retention",
+      "oid": "b9ccf36aac5720886c9e68b3a812b4f61f841626",
+      "tree": "d6a3cfe548530a0de31dcf7999218b177f9aa06b",
+      "reachable_objects_checked": 68655,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp33-parse-budget-receipts",
+      "oid": "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17",
+      "tree": "b66bb18605ea411d648217adaf89f79257d50310",
+      "reachable_objects_checked": 68644,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp34-streaming-fingerprint",
+      "oid": "9fe23d7180b41830f599128324c769deac37211d",
+      "tree": "76949432738bce4d5d458281e80e4695de15799f",
+      "reachable_objects_checked": 68640,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/research/cp35-shared-verify-input",
+      "oid": "de0eefdc38e1a25129f219d2a7c7933922790e13",
+      "tree": "777af7b666e279c6bf4f5ff93aab76eb03ab0c32",
+      "reachable_objects_checked": 68638,
+      "status": "Pass"
+    },
+    {
+      "ref": "refs/remotes/origin/task/cp25-reactive-session",
+      "oid": "e739f583b63ba8fa44fa26a937d36afb9cbaea2a",
+      "tree": "4345dea12635a81c27cf0d6c8231053fcf182866",
+      "reachable_objects_checked": 68675,
+      "status": "Pass"
+    }
+  ]
+}

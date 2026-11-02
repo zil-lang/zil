@@ -1,0 +1,148 @@
+{
+  "verdict": "Fail preserved before the directory-label fix",
+  "checkout": "e3ddaafee77f9a1becc814e390a51de06bcdcb8e",
+  "ci_run_id": "41417349429",
+  "ci_original_pr_merge_commit": "53b79181dc8547a3b0883e9c60255b701f9ef09b",
+  "ci_failure_log_sha256": "7bb658878b78d6267271128e5d60132c01ad1d6e38df0ff5141bd77f324064eb",
+  "ci_full_log_sha256": "83219558300a22aa89ad8e9e9616f7dfe92886e724e116388db4b6994c2c8fcf",
+  "ci_full_log_bytes": 1858780,
+  "ci_full_log_excerpts": [
+    {
+      "line": 267,
+      "text": "workspace\tRun actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\t2026-11-02T09:02:47.8050147Z HEAD is now at 53b79181d Merge e3ddaafee77f9a1becc814e390a51de06bcdcb8e into 81b7ae0c9ce5e7245613ed536b4702c419fe99bd"
+    },
+    {
+      "line": 334,
+      "text": "workspace\tPreserve pre-build disk recovery receipt\t2026-11-02T09:03:43.5417714Z ##[error]Failed to CreateArtifact: Artifact storage quota has been hit. Unable to upload any new artifacts."
+    },
+    {
+      "line": 6644,
+      "text": "workspace\tPreserve workspace receipts before releasing its cache\t2026-11-02T09:16:40.1758457Z ##[error]Failed to CreateArtifact: Artifact storage quota has been hit. Unable to upload any new artifacts."
+    },
+    {
+      "line": 12782,
+      "text": "workspace\tPreserve reference receipts before releasing its cache\t2026-11-02T09:26:15.9496397Z ##[error]Failed to CreateArtifact: Artifact storage quota has been hit. Unable to upload any new artifacts."
+    },
+    {
+      "line": 12810,
+      "text": "workspace\tPreserve all reference native evidence before releasing it\t2026-11-02T09:26:26.7593540Z ##[error]Failed to CreateArtifact: Artifact storage quota has been hit. Unable to upload any new artifacts."
+    },
+    {
+      "line": 13109,
+      "text": "workspace\tSmall recovery artifact, never target caches\t2026-11-02T09:29:13.3960749Z ##[error]Failed to CreateArtifact: Artifact storage quota has been hit. Unable to upload any new artifacts."
+    },
+    {
+      "line": 13151,
+      "text": "workspace\tRecover complete evidence through verified log transport\t2026-11-02T09:29:58.3676734Z ValueError: unsafe evidence path"
+    }
+  ],
+  "local_original_actual_evidence": "/tmp/impl250-final-R/consumer/consumer250-allocator-63972-1/input-:-fail-0",
+  "local_original_evidence_source_commit": "288e29628389d83a335783d5488be39f22b2008b",
+  "local_unsafe_case_name": "input-:-fail-0",
+  "stdin_hex": "3a",
+  "command": [
+    "python3",
+    "tools/ci/evidence_transport.py",
+    "pack",
+    "/tmp/impl250-ci-path/original-runner",
+    "/tmp/impl250-ci-path/original.tar.zst"
+  ],
+  "exit_code": 1,
+  "original_test_source_sha256": "48fb40bccc45ef795709cd79bf02794170e49768b581d5613ba48da8d3769669",
+  "transport_source_sha256": "d42d485328fc094cb637ecf4e268cc6d16f4cf926c31dfb288970518bc814f74",
+  "artifact_upload_original_failure": [
+    {
+      "log": "/tmp/zil-ci-41417349326-full.log",
+      "line": 6702,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t2026-11-02T09:18:19.0933589Z ##[error]The path for one of the files in artifact is not valid: /consumer250-allocator-40693-5/input-:-fail-0/exit.txt. Contains the following character:  Colon :"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349326-full.log",
+      "line": 6704,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\tInvalid characters include:  Double quote \", Colon :, Less than <, Greater than >, Vertical bar |, Asterisk *, Question mark ?, Carriage return \\r, Line feed \\n"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349326-full.log",
+      "line": 6706,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\tThe following characters are not allowed in files that are uploaded due to limitations with certain file systems such as NTFS. To maintain file system agnostic behavior, these characters are intentionally not allowed to prevent potential problems with downloads on different file systems."
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6672,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t2026-11-02T09:16:51.8381459Z ##[error]The path for one of the files in artifact is not valid: /consumer250-allocator-40576-5/input-:-fail-0/exit.txt. Contains the following character:  Colon :"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6674,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\tInvalid characters include:  Double quote \", Colon :, Less than <, Greater than >, Vertical bar |, Asterisk *, Question mark ?, Carriage return \\r, Line feed \\n"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6676,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\tThe following characters are not allowed in files that are uploaded due to limitations with certain file systems such as NTFS. To maintain file system agnostic behavior, these characters are intentionally not allowed to prevent potential problems with downloads on different file systems."
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6666,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t2026-11-02T09:16:40.1932190Z   CARGO_TARGET_DIR: /home/runner/work/_temp/target"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6667,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t2026-11-02T09:16:40.1932601Z   ZIL_TEST_REPORT_DIR: /home/runner/work/_temp/native-evidence"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6668,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t2026-11-02T09:16:40.1932966Z ##[endgroup]"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6669,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t2026-11-02T09:16:51.8371654Z With the provided path, there will be 77300 files uploaded"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6670,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t2026-11-02T09:16:51.8372547Z Artifact name is valid!"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6671,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t2026-11-02T09:16:51.8372946Z Root directory input is valid!"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6672,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t2026-11-02T09:16:51.8381459Z ##[error]The path for one of the files in artifact is not valid: /consumer250-allocator-40576-5/input-:-fail-0/exit.txt. Contains the following character:  Colon :"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6673,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t          "
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6674,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\tInvalid characters include:  Double quote \", Colon :, Less than <, Greater than >, Vertical bar |, Asterisk *, Question mark ?, Carriage return \\r, Line feed \\n"
+    },
+    {
+      "log": "/tmp/zil-ci-41417349429-full.log",
+      "line": 6675,
+      "text": "workspace\tPreserve all workspace native evidence before releasing it\t          "
+    }
+  ],
+  "remote_acceptance": "Fail: the failed remote native outputs were not published and cannot be recovered. This local replay does not replace remote acceptance; CI must rerun after the fix.",
+  "all_original_ci_full_logs": [
+    {
+      "path": "/tmp/zil-ci-41417349326-full.log",
+      "sha256": "2f442239ef5af4c506e1cf4318d6bcd98a911082063433e0d951c69ca529b0a6",
+      "bytes": 1864150
+    },
+    {
+      "path": "/tmp/zil-ci-41417349429-full.log",
+      "sha256": "83219558300a22aa89ad8e9e9616f7dfe92886e724e116388db4b6994c2c8fcf",
+      "bytes": 1858780
+    }
+  ]
+}
