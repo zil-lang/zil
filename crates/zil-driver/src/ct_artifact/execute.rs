@@ -1,12 +1,12 @@
 //! One request ledger and frozen source authority for raw CT compilation,
 //! independent admission, and VM execution.
-use super::{authority::FrozenAuthority, compiler::{self, CompileRequest, Entry}, read_view::FrozenReadView, snapshot::{self, ShapeSnapshot}, source_index::SourceIndex};
+use super::{authority::FrozenAuthority, compiler::{self, CompileRequest, Entry}, read_view::FrozenReadView, render::{self, ParsedSyntax}, snapshot::{self, ShapeSnapshot}, source_index::SourceIndex};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Span, TargetProfile};
-use zil_ct::CtExecutionBudget;
+use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{CoreImport, ct_artifact::*};
-use zil_syntax::{ParseResult, ast as s};
+use zil_syntax::ParseResult;
 
 fn error(message: &str, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(Phase::Ct, "E-CT-SOURCE", Some(span), message)]
@@ -74,6 +74,8 @@ impl<'a> Environment<'a> {
         limits
     }
 
+    pub(super) fn remaining_limits_for_input(&self) -> Limits { self.remaining_limits() }
+
     pub(super) fn evaluate(&mut self, entry: Entry<'_>, input_tokens: &CtInputTable, input: Option<&CtTokenTree>, arguments: &[CtValue], span: Span) -> CompileResult<CtValue> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
@@ -110,6 +112,19 @@ impl<'a> Environment<'a> {
         bytes.extend_from_slice(&span.start.to_le_bytes());
         bytes.extend_from_slice(&span.end.to_le_bytes());
         Ok(CtInputTable { invocation_fingerprint: Fingerprint::of(&bytes), tokens: Vec::new() })
+    }
+
+    pub(super) fn parse_tree(&mut self, tree: &CtSyntaxTree, span: Span) -> CompileResult<ParsedSyntax> {
+        render::parse(tree, span.file, self.sources.iter().find(|source| source.file_id == span.file)
+            .map_or(ModuleId(0), |source| source.module_id), &self.limits, &mut self.budget)
+    }
+
+    pub(super) fn type_syntax(&mut self, ty: CtTypeRef) -> CompileResult<CtSyntaxTree> {
+        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &self.index, sources: self.sources, syntax: &syntax,
+            shape: self.shape.as_ref(), shape_failure: self.shape_failure.as_deref(), input: None,
+            limits: &self.limits, target: self.target, snapshot: &self.snapshot };
+        reader.build_syntax(CtSyntaxBuilder::TypeRef, &[CtValue::Type(ty)], &mut self.budget)
     }
 }
 
