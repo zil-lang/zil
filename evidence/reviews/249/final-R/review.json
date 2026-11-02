@@ -1,0 +1,505 @@
+{
+  "reviewer": "/root/callback_consumer",
+  "implementation_author": "/root/callback_backend_fallback",
+  "implementation_commit": "6be4c3a53deed003ca30566f10ce3c92002a2de6",
+  "tested_commit": "288e29628389d83a335783d5488be39f22b2008b",
+  "verdict": "Pass",
+  "review_scope": "Non-author review of 249 Lower/machine admission, actual aggregate ABI, result-before-cleanup, real allocator failures, private production recipe budgets.",
+  "production_paths": [
+    "crates/zil-lower/src",
+    "crates/zil-backend-llvm/src"
+  ],
+  "production_exact_match": true,
+  "production_match_command": "git diff --quiet 6be4c3a53 288e29628389d83a335783d5488be39f22b2008b -- crates/zil-lower/src crates/zil-backend-llvm/src",
+  "commands": [
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-250 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl250-final-R/backend-source cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl249_machine -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-250 CARGO_BUILD_JOBS=2 cargo test -p zil-lower --offline --locked -j2 --lib impl249_lower_callback_argument_and_result_share_one_budget -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-250 CARGO_BUILD_JOBS=2 cargo test -p zil-backend-llvm --offline --locked -j2 --features llvm-api --lib impl249_callback_signature_prepays_the_shared_machine_budget -- --nocapture"
+  ],
+  "test_counts": {
+    "selected": 3,
+    "executed": 3,
+    "passed": 3,
+    "failed": 0
+  },
+  "additional_native_executions": 6,
+  "native_assertions": 18,
+  "actual_native": [
+    {
+      "case": "event-copy-result-O0",
+      "source_sha256": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "actual_exit": "Some(0)",
+      "actual_stdout": "",
+      "actual_stderr": "",
+      "artifacts": {
+        "candidate": {
+          "sha256": "7ff7dc2a1c59f13eefbee6bf161dceb84947a7def00406990ef070df1ec5309d",
+          "bytes": 6884
+        },
+        "core": {
+          "sha256": "ee944aefc32325253878b5655190a7ce5c3a371880317d793b2cb0460bbf8e15",
+          "bytes": 32302
+        },
+        "ct-core": {
+          "sha256": "ffbdb9f0b6c57b29684eef7d355a6740ac5cadad80e29e7ce36b64cbb8853066",
+          "bytes": 34289
+        },
+        "executable": {
+          "sha256": "a3a6cf89ebbc4f01071953282c874eed00b47ad17f47b6ca3fd6748308a8c8bc",
+          "bytes": 16384
+        },
+        "lir": {
+          "sha256": "bf31ed14aa68c2420b5c6b384811db58c9d86a5451d13febdbec7a27aced0ccb",
+          "bytes": 55251
+        },
+        "llvm": {
+          "sha256": "1b8c8d3951808560d8102980b126eba9563f4fbff710d77a60ec4932fd4102ba",
+          "bytes": 8713
+        },
+        "source-map": {
+          "sha256": "a4db71c4ae5f8fe80d8c2a5931fa23b85e587e4fa3e903119cff7307e2372e2f",
+          "bytes": 18225
+        },
+        "syntax": {
+          "sha256": "909fdc7dc999e9fde6a4526ee8c03fc885256c8b2e3f2b9f8470524c7a8eee73",
+          "bytes": 64710
+        },
+        "typed": {
+          "sha256": "a944983a5f583e0c1e49305e633bb221a864c579babd09a5b7a27bfc0f8a60cc",
+          "bytes": 54416
+        },
+        "verified": {
+          "sha256": "5e9c39af5caf46ac2e0a5211f245ebf0fef944c8c790abe67e04f34fe20b2258",
+          "bytes": 54493
+        }
+      }
+    },
+    {
+      "case": "event-copy-result-O2",
+      "source_sha256": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "actual_exit": "Some(0)",
+      "actual_stdout": "",
+      "actual_stderr": "",
+      "artifacts": {
+        "candidate": {
+          "sha256": "7ff7dc2a1c59f13eefbee6bf161dceb84947a7def00406990ef070df1ec5309d",
+          "bytes": 6884
+        },
+        "core": {
+          "sha256": "ee944aefc32325253878b5655190a7ce5c3a371880317d793b2cb0460bbf8e15",
+          "bytes": 32302
+        },
+        "ct-core": {
+          "sha256": "ffbdb9f0b6c57b29684eef7d355a6740ac5cadad80e29e7ce36b64cbb8853066",
+          "bytes": 34289
+        },
+        "executable": {
+          "sha256": "1c1872fb1b69dd43538e6fb6b46f2e558844f597dd21caf687e161b83e6c0785",
+          "bytes": 15992
+        },
+        "lir": {
+          "sha256": "bf31ed14aa68c2420b5c6b384811db58c9d86a5451d13febdbec7a27aced0ccb",
+          "bytes": 55251
+        },
+        "llvm": {
+          "sha256": "1b8c8d3951808560d8102980b126eba9563f4fbff710d77a60ec4932fd4102ba",
+          "bytes": 8713
+        },
+        "source-map": {
+          "sha256": "a4db71c4ae5f8fe80d8c2a5931fa23b85e587e4fa3e903119cff7307e2372e2f",
+          "bytes": 18225
+        },
+        "syntax": {
+          "sha256": "909fdc7dc999e9fde6a4526ee8c03fc885256c8b2e3f2b9f8470524c7a8eee73",
+          "bytes": 64710
+        },
+        "typed": {
+          "sha256": "a944983a5f583e0c1e49305e633bb221a864c579babd09a5b7a27bfc0f8a60cc",
+          "bytes": 54416
+        },
+        "verified": {
+          "sha256": "5e9c39af5caf46ac2e0a5211f245ebf0fef944c8c790abe67e04f34fe20b2258",
+          "bytes": 54493
+        }
+      }
+    },
+    {
+      "case": "event-reply-O0",
+      "source_sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "actual_exit": "Some(0)",
+      "actual_stdout": "",
+      "actual_stderr": "",
+      "artifacts": {
+        "candidate": {
+          "sha256": "d5732347615dd4fd1e2510c164aa3778b2e43cb953817701b815e5a03bc28d3a",
+          "bytes": 9441
+        },
+        "core": {
+          "sha256": "c76d67d3da32732e15b4d6120d1a6adee85fd4a697f02fca67e92faf23a54976",
+          "bytes": 55225
+        },
+        "ct-core": {
+          "sha256": "91a9717fa2e109dd26197807ab911db13e8b0b47d31d0846e04d517944276a5f",
+          "bytes": 61461
+        },
+        "executable": {
+          "sha256": "de39b59ebacf40db069de8aeaf2e00b80ed5eaa7efc7508374b18642801a7454",
+          "bytes": 16520
+        },
+        "lir": {
+          "sha256": "8f6a65e0f1e797a2d6f2ed292930313d762c694d1d7404e909c58a7f173fc8b7",
+          "bytes": 90810
+        },
+        "llvm": {
+          "sha256": "b1f549148c5cb67f9a8b61e7d02eb3815c903a75d2270e9ff4e8f0f4ad32570d",
+          "bytes": 14405
+        },
+        "source-map": {
+          "sha256": "31b6f1e20ff78416ec39ae2743b24df8de3e984ca243d0382acae280d85b7eaa",
+          "bytes": 29493
+        },
+        "syntax": {
+          "sha256": "65afabe476fc948dd6cfae695f0fec31d54069a6224355761cfcbf8097ca1fbf",
+          "bytes": 113011
+        },
+        "typed": {
+          "sha256": "1af37b401f56c51c2902f97375f46865a51779c39fcd5dab928fed304fabd4e7",
+          "bytes": 89973
+        },
+        "verified": {
+          "sha256": "b2a2387a3d245f9be8eaf65bbe2b4d1a0afeae47c65bc85b228a33257e02e2d0",
+          "bytes": 90050
+        }
+      }
+    },
+    {
+      "case": "event-reply-O2",
+      "source_sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "actual_exit": "Some(0)",
+      "actual_stdout": "",
+      "actual_stderr": "",
+      "artifacts": {
+        "candidate": {
+          "sha256": "d5732347615dd4fd1e2510c164aa3778b2e43cb953817701b815e5a03bc28d3a",
+          "bytes": 9441
+        },
+        "core": {
+          "sha256": "c76d67d3da32732e15b4d6120d1a6adee85fd4a697f02fca67e92faf23a54976",
+          "bytes": 55225
+        },
+        "ct-core": {
+          "sha256": "91a9717fa2e109dd26197807ab911db13e8b0b47d31d0846e04d517944276a5f",
+          "bytes": 61461
+        },
+        "executable": {
+          "sha256": "fa5dec0b77d03297b84d9c7e3867395aab0746db7f9156478cce5cce05a3719b",
+          "bytes": 16024
+        },
+        "lir": {
+          "sha256": "8f6a65e0f1e797a2d6f2ed292930313d762c694d1d7404e909c58a7f173fc8b7",
+          "bytes": 90810
+        },
+        "llvm": {
+          "sha256": "b1f549148c5cb67f9a8b61e7d02eb3815c903a75d2270e9ff4e8f0f4ad32570d",
+          "bytes": 14405
+        },
+        "source-map": {
+          "sha256": "31b6f1e20ff78416ec39ae2743b24df8de3e984ca243d0382acae280d85b7eaa",
+          "bytes": 29493
+        },
+        "syntax": {
+          "sha256": "65afabe476fc948dd6cfae695f0fec31d54069a6224355761cfcbf8097ca1fbf",
+          "bytes": 113011
+        },
+        "typed": {
+          "sha256": "1af37b401f56c51c2902f97375f46865a51779c39fcd5dab928fed304fabd4e7",
+          "bytes": 89973
+        },
+        "verified": {
+          "sha256": "b2a2387a3d245f9be8eaf65bbe2b4d1a0afeae47c65bc85b228a33257e02e2d0",
+          "bytes": 90050
+        }
+      }
+    },
+    {
+      "case": "owned-result-O0",
+      "source_sha256": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "actual_exit": "Some(0)",
+      "actual_stdout": "",
+      "actual_stderr": "",
+      "artifacts": {
+        "candidate": {
+          "sha256": "432a91ddbe1855ee8509e8d2f7cf89c0def50dc8400cd0cb6586299c4a4b5a1e",
+          "bytes": 7045
+        },
+        "core": {
+          "sha256": "c80ed17c584a7fe973484bb89ef22d56de51f1dbf90d495b32f0d263373b3dec",
+          "bytes": 31931
+        },
+        "ct-core": {
+          "sha256": "a85586ee3f6f233c16084a120d171a7581a00a0c24e27a840739869f90bce48d",
+          "bytes": 34684
+        },
+        "executable": {
+          "sha256": "b3213e6951e99c97b0b779a5b2e1448a4acb3a6e34325f532aaaf7c62ddcf3f3",
+          "bytes": 16384
+        },
+        "lir": {
+          "sha256": "0e6adf094004d68e280e60f5d45a4bea75af082f1919e74fa9ec18b5ea8be95f",
+          "bytes": 57939
+        },
+        "llvm": {
+          "sha256": "e25041c1d968fd8d0460c60f206f7a4dd38427ac603d0a145b506ff1617694aa",
+          "bytes": 10047
+        },
+        "source-map": {
+          "sha256": "5aac07500ea9766608a7c6dd3ebe36d443bd532a79f630fbd00893682c7a2ef5",
+          "bytes": 17686
+        },
+        "syntax": {
+          "sha256": "0d5d27b1982f70e92adf41f61262e248696b5546b4ddf7e2007933cd1daf47ed",
+          "bytes": 61264
+        },
+        "typed": {
+          "sha256": "0e83e11891985e569ec050a0c8e18f975a2b8e99df3ebb85d4ce7cf970644d1a",
+          "bytes": 57101
+        },
+        "verified": {
+          "sha256": "e854b7477ef58324a971960de797204c3a33adee6257ec5b2374c70350651d2c",
+          "bytes": 57178
+        }
+      }
+    },
+    {
+      "case": "owned-result-O2",
+      "source_sha256": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "actual_exit": "Some(0)",
+      "actual_stdout": "",
+      "actual_stderr": "",
+      "artifacts": {
+        "candidate": {
+          "sha256": "432a91ddbe1855ee8509e8d2f7cf89c0def50dc8400cd0cb6586299c4a4b5a1e",
+          "bytes": 7045
+        },
+        "core": {
+          "sha256": "c80ed17c584a7fe973484bb89ef22d56de51f1dbf90d495b32f0d263373b3dec",
+          "bytes": 31931
+        },
+        "ct-core": {
+          "sha256": "a85586ee3f6f233c16084a120d171a7581a00a0c24e27a840739869f90bce48d",
+          "bytes": 34684
+        },
+        "executable": {
+          "sha256": "0fe8be6e4fb2b0d9fd532fa17c84196824d1ec1704d0385171a91486b15c1828",
+          "bytes": 15992
+        },
+        "lir": {
+          "sha256": "0e6adf094004d68e280e60f5d45a4bea75af082f1919e74fa9ec18b5ea8be95f",
+          "bytes": 57939
+        },
+        "llvm": {
+          "sha256": "e25041c1d968fd8d0460c60f206f7a4dd38427ac603d0a145b506ff1617694aa",
+          "bytes": 10047
+        },
+        "source-map": {
+          "sha256": "5aac07500ea9766608a7c6dd3ebe36d443bd532a79f630fbd00893682c7a2ef5",
+          "bytes": 17686
+        },
+        "syntax": {
+          "sha256": "0d5d27b1982f70e92adf41f61262e248696b5546b4ddf7e2007933cd1daf47ed",
+          "bytes": 61264
+        },
+        "typed": {
+          "sha256": "0e83e11891985e569ec050a0c8e18f975a2b8e99df3ebb85d4ce7cf970644d1a",
+          "bytes": 57101
+        },
+        "verified": {
+          "sha256": "e854b7477ef58324a971960de797204c3a33adee6257ec5b2374c70350651d2c",
+          "bytes": 57178
+        }
+      }
+    }
+  ],
+  "budget": {
+    "evidence_level": "Private production recipe inputs; not source-to-native total compiler budget measurements",
+    "lower_owning_signature_n": 38,
+    "machine_old_copy_n": 2826,
+    "machine_without_callback_n": 2826,
+    "machine_owning_signature_n": 4006,
+    "n_minus_one": "ResourceLimit",
+    "fresh_n": "Pass",
+    "shared_request_budget": true
+  },
+  "excluded_zero_selection": {
+    "verdict": "NotRun",
+    "command": "cargo test -p zil-lower --offline --locked -j2 --lib impl249_lower_callback_argument_and_result_share_one_budget -- --exact --nocapture",
+    "selected": 0,
+    "executed": 0,
+    "why": "The unqualified substring does not match the full unit-test path under --exact. Corrected command above selects and executes one test; zero selection is excluded from Pass counts."
+  },
+  "code_review_findings": [
+    "Owning data signature gate remains independent of capture eligibility and prior Copy/address profile.",
+    "Actual closure argument/result complete type trees use the same Lower sum budget and machine drop-plan budget as the current request.",
+    "Ordinary aggregate ABI and existing real flags are reused; no new implicit Box, RC, lock, permission bit, schema or runtime global table added.",
+    "Active Sum/ErrorUnion cleanup and result lifetime remain observable in real native source cases; final allocator failures settle every allocation."
+  ],
+  "unresolved_production_findings": [],
+  "consumer_evidence": "evidence/impl/250/final-R/RESULT.json",
+  "consumer_reuse": {
+    "tested_commit": "288e29628389d83a335783d5488be39f22b2008b",
+    "native_runs": 122,
+    "allocator_runs": 90,
+    "actual_allocation_failures": 38,
+    "all_allocator_live_zero": true,
+    "backend": "llvm-api builder; no fallback",
+    "reuse_does_not_add_to_consumer_count": true
+  },
+  "limitations": [
+    "No full-workspace, performance, Win64 or product-gate claim.",
+    "Private budget tests and actual source/native execution are separate evidence levels."
+  ]
+}

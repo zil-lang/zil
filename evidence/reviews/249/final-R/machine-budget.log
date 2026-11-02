@@ -1,0 +1,10 @@
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-250/crates/zil-backend-llvm)
+    Finished `test` profile [unoptimized] target(s) in 20.70s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-250/debug/deps/zil_backend_llvm-801641aa7db5eb21)
+
+running 1 test
+impl249 machine budget: old Copy N=2826, owning N=4006
+test emit::drop_plan::impl243_plan_tests::impl249_callback_signature_prepays_the_shared_machine_budget ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 131 filtered out; finished in 0.01s
+
