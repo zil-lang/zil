@@ -30,7 +30,7 @@ impl FrozenReadView<'_> {
             }.into(), CtTokenClass::Identifier, None)),
             CtTypeNode::Nominal { symbol, arguments } => {
                 let (text, namespace) = self.text_name(symbol)?;
-                out.push((text.clone(), CtTokenClass::Identifier, Some(CtIdent { text, namespace, source: CtNameSource::Definition(symbol.clone()), member_owner: None })));
+                out.push((text.clone(), CtTokenClass::Identifier, Some(CtIdent { text, namespace, source: CtNameSource::Definition(symbol.clone()), member_owner: None, member_owner_type: None })));
                 if !arguments.is_empty() {
                     punctuation(out, "<");
                     for (index, argument) in arguments.iter().enumerate() {
@@ -204,22 +204,22 @@ impl FrozenReadView<'_> {
             .and_then(|module| module.core.aggregates.iter().find(|aggregate| aggregate.span == span))
             .ok_or_else(|| phase("nominal has no completed aggregate shape"))
     }
-    fn field_info(&self, requester: &CtSymbolId, owner: &CtSymbolId, field: &zil_ir::CoreField, budget: &mut CtExecutionBudget) -> CompileResult<CtFieldInfo> {
+    fn field_info(&self, requester: &CtSymbolId, owner: &CtSymbolId, owner_type: &CtTypeRef, field: &zil_ir::CoreField, budget: &mut CtExecutionBudget) -> CompileResult<CtFieldInfo> {
         if requester.module != owner.module && !field.public { return Err(error("E-CT-VISIBILITY", "field is private at this CT definition site")); }
         let field_symbol = self.index.symbol_at(owner.module, field.span).ok_or_else(|| phase("field identity is absent from frozen source"))?;
         let ready = self.shape.ok_or_else(|| phase("ShapeReady has not completed"))?;
         budget.reserve_analysis_work(1)?;
-        budget.reserve_generated_nodes(2)?;
+        budget.reserve_generated_nodes(2u64.saturating_add(owner_type.nodes.len() as u64).saturating_mul(2))?;
         budget.reserve_temporary_bytes(field.name.len() as u64)?;
         let ty = from_checked_type(&field.ty, ready, self.index, budget.remaining().max_generated_nodes as usize)?;
         Ok(CtFieldInfo {
-            owner: owner.clone(), field: field_symbol.clone(),
+            owner: owner.clone(), owner_type: owner_type.clone(), field: field_symbol.clone(),
             name: CtIdent { text: field.name.clone(), namespace: CtNameNamespace::Member,
-                source: CtNameSource::Definition(field_symbol), member_owner: Some(owner.clone()) },
+                source: CtNameSource::Definition(field_symbol), member_owner: Some(owner.clone()), member_owner_type: Some(owner_type.clone()) },
             ty, managed: field.manages,
         })
     }
-    fn shape_info(&self, requester: &CtSymbolId, owner: &CtSymbolId, budget: &mut CtExecutionBudget) -> CompileResult<CtShapeInfo> {
+    fn shape_info(&self, requester: &CtSymbolId, owner: &CtSymbolId, owner_type: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtShapeInfo> {
         self.nominal(requester, owner)?;
         let aggregate = self.aggregate(owner)?;
         let mut fields = Vec::new();
@@ -227,7 +227,7 @@ impl FrozenReadView<'_> {
         for field in &aggregate.fields {
             budget.reserve_analysis_work(1)?;
             if requester.module == owner.module || field.public {
-                fields.push(self.field_info(requester, owner, field, budget)?);
+                fields.push(self.field_info(requester, owner, owner_type, field, budget)?);
             } else { complete = false; }
         }
         budget.reserve_generated_nodes(1)?;
@@ -278,7 +278,7 @@ impl CtReadView for FrozenReadView<'_> {
         budget.reserve_analysis_work(1)?;
         budget.reserve_generated_nodes(1)?;
         budget.reserve_temporary_bytes(text.len() as u64)?;
-        Ok(CtIdent { text, namespace, source: CtNameSource::Definition(symbol.clone()), member_owner: None })
+        Ok(CtIdent { text, namespace, source: CtNameSource::Definition(symbol.clone()), member_owner: None, member_owner_type: None })
     }
     fn parse(&self, _category: CtSyntaxCategory, _input: &CtTokenTree, _budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
         Err(phase("generated syntax parser is not connected to the frozen input view"))
@@ -286,16 +286,16 @@ impl CtReadView for FrozenReadView<'_> {
     fn query(&self, requester: &CtSymbolId, kind: CtQueryKind, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<(CtValue, CtQueryDependency)> {
         let value = match kind {
             CtQueryKind::Shape => {
-                let (_, nominal) = self.nominal_root(args.first().ok_or_else(|| error("E-CT-QUERY-ARG", "shape query needs a type"))?)?;
-                CtValue::ShapeInfo(self.shape_info(requester, nominal, budget)?)
+                let (ty, nominal) = self.nominal_root(args.first().ok_or_else(|| error("E-CT-QUERY-ARG", "shape query needs a type"))?)?;
+                CtValue::ShapeInfo(self.shape_info(requester, nominal, ty, budget)?)
             }
             CtQueryKind::Field => {
-                let (_, nominal) = self.nominal_root(args.first().ok_or_else(|| error("E-CT-QUERY-ARG", "field query needs a type"))?)?;
+                let (ty, nominal) = self.nominal_root(args.first().ok_or_else(|| error("E-CT-QUERY-ARG", "field query needs a type"))?)?;
                 self.nominal(requester, nominal)?;
                 let name = match args.get(1) { Some(CtValue::Text(name)) => name.as_str(), _ => return Err(error("E-CT-QUERY-ARG", "field query needs a text name")) };
                 let field = self.aggregate(nominal)?.fields.iter().find(|field| field.name == name)
                     .ok_or_else(|| error("E-CT-FIELD-NOT-FOUND", "field is not in the completed shape"))?;
-                CtValue::FieldInfo(self.field_info(requester, nominal, field, budget)?)
+                CtValue::FieldInfo(self.field_info(requester, nominal, ty, field, budget)?)
             }
             CtQueryKind::ImplIndex => return Err(phase("ImplIndexReady has not completed for this generation batch")),
             CtQueryKind::Layout => return Err(phase("LayoutReady has not completed for this generation batch")),
