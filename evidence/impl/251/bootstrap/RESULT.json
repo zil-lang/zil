@@ -1,0 +1,32 @@
+{
+  "status": "Pass public representation bootstrap only; F-forward implementation remains pending",
+  "implementation_author": "/root",
+  "source_commit": "d7d52dea8121dd462dc419f4cd555b3d849dccc5",
+  "normative": {
+    "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+    "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93"
+  },
+  "checks": [
+    {
+      "command": "cargo test --offline --locked -p zil-ir --no-fail-fast",
+      "exit_code": 0,
+      "passed": 57,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log": "ir.log"
+    },
+    {
+      "command": "cargo check --offline --locked --workspace --all-targets",
+      "exit_code": 0,
+      "log": "check-final.log"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0
+    }
+  ],
+  "guards": "New Parameter return claims remain rejected by Analyze/Verify pending independent implementations; old producers explicitly Fresh. No source acceptance advertised.",
+  "history": "check.log is a partial in-progress snapshot committed before check finished; check-final.log is the completed successful run. Initial mechanical migration failures preserved.",
+  "format_change": "Source tag adds one byte to an existing Fresh return contract; Parameter adds tag plus u32 index. Earlier archived Vec encoders and Wire fixtures unchanged; new reference separate v31."
+}
