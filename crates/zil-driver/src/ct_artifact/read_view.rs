@@ -727,6 +727,21 @@ impl FrozenReadView<'_> {
         Ok(value)
     }
     fn compact_type_ref(ty: CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
+        fn comparison_work(node: &CtTypeNode) -> u64 {
+            match node {
+                CtTypeNode::Nominal { arguments, .. } => 1u64.saturating_add(arguments.iter().fold(0u64, |sum, argument| {
+                    sum.saturating_add(match argument {
+                        CtTypeArgument::Type(_) => 1,
+                        CtTypeArgument::Scalar(zil_ir::Constant::WideString(value)) => 1u64.saturating_add(value.len() as u64),
+                        CtTypeArgument::Scalar(_) => 1,
+                    })
+                })),
+                CtTypeNode::Tuple(parts) => 1u64.saturating_add(parts.len() as u64),
+                CtTypeNode::FunctionPointer { parameters, .. } | CtTypeNode::ForeignCallback { parameters, .. } =>
+                    2u64.saturating_add(parameters.len() as u64),
+                _ => 1,
+            }
+        }
         let count = ty.nodes.len();
         budget.reserve_analysis_work(count as u64)?;
         let edges = ty.nodes.iter().fold(0u64, |sum, node| sum.saturating_add(match node {
@@ -805,8 +820,17 @@ impl FrozenReadView<'_> {
                 CtTypeNode::ErrorUnion { error, result } => CtTypeNode::ErrorUnion { error: mapped(error), result: mapped(result) },
                 other => other,
             };
-            remap[index] = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "type DAG exceeds identity range"))?);
-            nodes.push(node);
+            let mut existing = None;
+            for (candidate_id, candidate) in nodes.iter().enumerate() {
+                budget.reserve_analysis_work(comparison_work(&node).saturating_add(comparison_work(candidate)))?;
+                if candidate == &node { existing = Some(candidate_id); break; }
+            }
+            if let Some(existing) = existing {
+                remap[index] = CtTypeNodeId(u32::try_from(existing).map_err(|_| error("E-CT-TYPE-LIMIT", "type DAG exceeds identity range"))?);
+            } else {
+                remap[index] = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "type DAG exceeds identity range"))?);
+                nodes.push(node);
+            }
         }
         budget.release_temporary_bytes(scratch);
         Ok(CtTypeRef { root: remap[ty.root.0 as usize], nodes })
@@ -957,7 +981,7 @@ impl CtReadView for FrozenReadView<'_> {
         }
         let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "generic Type node identity overflow"))?);
         nodes.push(CtTypeNode::Nominal { symbol: nominal.clone(), arguments });
-        let applied = CtTypeRef { nodes, root };
+        let applied = Self::compact_type_ref(CtTypeRef { nodes, root }, budget)?;
         if matches!(&item.kind, ItemKind::TypeAlias(_)) {
             return self.alias_value(requester, nominal, &applied, budget);
         }

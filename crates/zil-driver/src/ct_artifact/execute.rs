@@ -579,4 +579,34 @@ mod tests {
             root: CtTypeNodeId(2),
         });
     }
+
+    #[test]
+    fn repeated_generic_arguments_have_one_canonical_type_value() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "duplicate_type.zil",
+            "struct Pair<T,U>{left:T,right:U}type Duplicate<T>=Pair<T,T>;fn main(){}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        let pair = environment.index.symbol_at(ModuleId(0), parsed[0].module.items[0].span).unwrap();
+        let duplicate = environment.index.symbol_at(ModuleId(0), parsed[0].module.items[1].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), parsed[0].module.items[2].span).unwrap();
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        let i32_type = CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0),
+        });
+        let aliased = reader.type_apply(&requester, &duplicate, &[i32_type.clone()], &mut budget).unwrap();
+        let direct = reader.type_apply(&requester, &pair, &[i32_type.clone(), i32_type], &mut budget).unwrap();
+        assert_eq!(aliased, direct, "sharing and copying the same Type argument must agree");
+        assert_eq!(direct.nodes.len(), 2, "equal child nodes must share one canonical DAG identity");
+    }
 }
