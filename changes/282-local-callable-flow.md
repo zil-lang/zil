@@ -26,6 +26,14 @@
 
 277前端补片`8087e344`（本树依赖cherry `76b57102`）消费后，实际命令`cargo run -p zil-cli -j2 -- check /tmp/282-factory-only.zil --stop-after analyze --json --emit-dir /tmp/282-factory-only-analyze`返回Success/phase analyze、diagnostics空、verification_runs=0；Typed/Candidate由CLI实际产生。原字节由280冻结于`tests/foreign-scoped-callback/callable-composition/frozen/factory-only.zil`。其普通generic `run`仅`make()->impl Fn(i32)->i32`再`dispatch`，F调用及返回后使用仍保留；本片不声称该邻例达到Verify或机器执行，280继续消费。
 
+## 独审近邻补齐：有效Parameter与旧With-body角色捕获
+
+独审指出前项`Parameter(0)`变异没有真实形参，只证明非法合同早拒；不把它计作有效原值返回的实际来源证据。追加独立raw正前缀`parameter_forwarded_local_282()`：callee实际拥有形参、`Parameter(0)`返回、精确`Returned`角色、空调用trace及`TakeLocal`返回均有效。相同ClosureId的符号FnOnce F与公共Fresh具体Fn并存；具体local经keep返回后调用、实际F经keep返回并保留唯一FnOnce事件均raw/Wire通过。抹去F事件在Analyze以`E-ANALYZE-IR`/`public helper trace claim differs from its CFG`拒绝；把已消费F替代同型Fresh实参以同码/`callable instance is moved, absent or cleaned on a reachable path`拒绝。这两项错误均发生在有效callee合同已核之后。
+
+278独审发现旧With-body16路径可把声明FnOnce、实际Copy Fn的supplied B捕获到新body，再以Fn调用1/2次并抹掉外层B事件；该原Verify接受属于278独立核的失败，由278修复，不重标为Analyze接受。Analyze持久raw从合法`scoped_helper(Fn)`正前缀建立相同结构，1/2次变体均raw/Wire在实际MakeClosure处以Analyze/SafeReject/`E-ANALYZE-IR`/`forwarded symbolic F cannot be hidden in a new local environment`拒绝。另用审核者原`hidden_b(twice)`及其原fixture构造的精确module，直接调公开Analyze API与Wire解码Analyze，得到同一拒绝；未调用Verify求证函数。
+
+本收尾仅增加2项持久测试与说明，无生产接受性、预算或ABI变更。限定命令`cargo test -p zil-analyze concrete_ -j2 --lib -- --nocapture`15项、`scoped_`12项及`forward::tests`14项通过（过滤集合存在交集，不相加作独立总数），Analyze Clippy通过；原不相交普通borrowed body通过，旧预算与factory-only2073保持。本片没有新增机器或Rust性能实证，四目标及产品突破裁决保持上文限制。
+
 ## 限定验证与分账
 
 工具链 `/workspace/.zil-env/env.sh`，`CARGO_TARGET_DIR=/workspace/.zil-env/target-282`，jobs2：

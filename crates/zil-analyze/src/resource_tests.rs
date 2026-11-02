@@ -2925,3 +2925,192 @@ fn concrete_factory_only_282_shared_allowance_n_minus_one_fresh_raw_wire() {
     }
     println!("282 factory-only raw=Wire N={exact}; N-1 ResourceLimit; fresh equality");
 }
+
+fn parameter_forwarded_local_282() -> TypedModule {
+    let mut module = same_closure_distinct_roots_282();
+    let mut factory = factory_only_composition_282().functions[6].clone();
+    factory.id = FunctionId(5);
+    factory.callable_return_contract.as_mut().unwrap().kind = CallableKind::Fn;
+    module.functions.push(factory);
+    let mut keep = Body::new(6);
+    keep.0.locals.push(module.functions[0].locals[0].clone());
+    keep.0.parameters.push(LocalId(0));
+    keep.0.return_type = Type::Closure(ClosureId(1));
+    keep.0.callable_return_contract = Some(CallableReturnContract {
+        source: CallableReturnSource::Parameter(0),
+        closure: ClosureId(1),
+        kind: CallableKind::FnOnce,
+        hold: vec![],
+        call: vec![],
+        writes: vec![],
+        cleanup: vec![],
+        lending_captures: vec![],
+    });
+    keep.0.callable_contract = Some(CallableParameterContract {
+        roles: vec![CallableRole {
+            parameter: 0,
+            closure: ClosureId(1),
+            kind: CallableKind::FnOnce,
+            hold: vec![],
+            call: vec![],
+            writes: vec![],
+            cleanup: CallableCleanup::Returned,
+        }],
+        traces: CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![],
+            exit: CallableExit::Return,
+        }]),
+    });
+    let returned = keep.value(
+        Type::Closure(ClosureId(1)),
+        InstructionKind::TakeLocal { local: LocalId(0) },
+    );
+    let mut keep = keep.finish(returned);
+    keep.return_type = Type::Closure(ClosureId(1));
+    module.functions.push(keep);
+    let f = &mut module.functions[0];
+    f.blocks[0].instructions[2].kind = InstructionKind::Call {
+        function: FunctionId(5),
+        arguments: vec![],
+    };
+    f.values.push(Type::Closure(ClosureId(1)));
+    f.blocks[0].instructions.insert(
+        3,
+        inst(
+            Some(ValueId(4)),
+            InstructionKind::Call {
+                function: FunctionId(6),
+                arguments: vec![ValueId(2)],
+            },
+        ),
+    );
+    f.blocks[0].instructions[4].kind = InstructionKind::CallClosureOnce {
+        callee: ValueId(4),
+        arguments: vec![],
+    };
+    module
+}
+
+#[test]
+fn concrete_factory_only_282_valid_parameter_result_keeps_actual_source_raw_wire() {
+    let module = parameter_forwarded_local_282();
+    result_wire_282(&module, true);
+    let mut symbolic = module.clone();
+    symbolic.functions[0].blocks[0].instructions.remove(1);
+    let InstructionKind::Call { arguments, .. } =
+        &mut symbolic.functions[0].blocks[0].instructions[2].kind
+    else {
+        unreachable!()
+    };
+    arguments[0] = ValueId(0);
+    // A valid Parameter result of the actual F is still F, even though an
+    // independent public Fresh result has the identical ClosureId.
+    result_wire_282(&symbolic, true);
+    let mut erased_event = symbolic;
+    let CallableTraces::Finite(paths) = &mut erased_event.functions[0]
+        .callable_contract
+        .as_mut()
+        .unwrap()
+        .traces
+    else {
+        unreachable!()
+    };
+    paths[0].calls.clear();
+    let error = analyze(&erased_event, &Limits::default()).unwrap_err();
+    println!("282 valid Parameter erased F event: {:?}", error[0]);
+    assert_eq!(error[0].phase, Phase::Analyze);
+    assert_eq!(error[0].code, "E-ANALYZE-IR");
+    assert_eq!(
+        error[0].message,
+        "public helper trace claim differs from its CFG"
+    );
+    result_wire_282(&erased_event, false);
+
+    let mut consumed = module;
+    let InstructionKind::Call { arguments, .. } =
+        &mut consumed.functions[0].blocks[0].instructions[3].kind
+    else {
+        unreachable!()
+    };
+    arguments[0] = ValueId(0);
+    let error = analyze(&consumed, &Limits::default()).unwrap_err();
+    println!("282 valid Parameter consumed F argument: {:?}", error[0]);
+    assert_eq!(error[0].phase, Phase::Analyze);
+    assert_eq!(error[0].code, "E-ANALYZE-IR");
+    assert_eq!(
+        error[0].message,
+        "callable instance is moved, absent or cleaned on a reachable path"
+    );
+    result_wire_282(&consumed, false);
+}
+
+#[test]
+fn concrete_local_282_with_body_cannot_hide_actual_supplied_role_raw_wire() {
+    let prefix = scoped_helper(CallableKind::Fn);
+    result_wire_282(&prefix, true);
+    for twice in [false, true] {
+        let mut module = prefix.clone();
+        let mut entry = Body::new(5);
+        entry.0.environment = Some(ClosureId(2));
+        let hidden = entry.value(
+            Type::Closure(ClosureId(1)),
+            InstructionKind::TakeCapture { index: 0 },
+        );
+        let mut result = entry.value(
+            Type::I32,
+            InstructionKind::CallClosure {
+                callee: hidden,
+                arguments: vec![],
+            },
+        );
+        if twice {
+            result = entry.value(
+                Type::I32,
+                InstructionKind::CallClosure {
+                    callee: hidden,
+                    arguments: vec![],
+                },
+            );
+        }
+        module.functions.push(entry.finish(result));
+        module.closures.push(ClosureDefinition {
+            id: ClosureId(2),
+            function: FunctionId(5),
+            kind: CallableKind::FnOnce,
+            captures: vec![Type::Closure(ClosureId(1))],
+            parameters: vec![],
+            result: Type::I32,
+            lending_captures: vec![],
+        });
+        let f = &mut module.functions[0];
+        let made = ValueId(f.values.len() as u32);
+        f.values.push(Type::Closure(ClosureId(2)));
+        f.blocks[0].instructions.insert(
+            2,
+            inst(
+                Some(made),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(2),
+                    captures: vec![ValueId(1)],
+                },
+            ),
+        );
+        for instruction in &mut f.blocks[0].instructions {
+            if let InstructionKind::WithForeignCallback { body, .. } = &mut instruction.kind {
+                *body = made;
+            }
+        }
+        let CallableTraces::Flow(flow) = &mut f.callable_contract.as_mut().unwrap().traces else {
+            unreachable!()
+        };
+        flow.nodes[2].calls.clear();
+        let error = analyze(&module, &Limits::default()).unwrap_err();
+        assert_eq!(error[0].phase, Phase::Analyze);
+        assert_eq!(error[0].code, "E-ANALYZE-IR");
+        assert_eq!(
+            error[0].message,
+            "forwarded symbolic F cannot be hidden in a new local environment"
+        );
+        result_wire_282(&module, false);
+    }
+}
