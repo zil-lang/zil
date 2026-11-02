@@ -1129,7 +1129,9 @@ fn environment_origins(
                 | InstructionKind::TakeLocal { .. }
                 | InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
-                | InstructionKind::ReborrowAddress { .. } => 0,
+                | InstructionKind::ReborrowAddress { .. }
+                | InstructionKind::TakeOwnedArrayElement { index: 0, .. }
+                | InstructionKind::BorrowOwnedArrayElement { index: 0, .. } => 0,
                 InstructionKind::Call {
                     function: callee, ..
                 } => {
@@ -1179,6 +1181,23 @@ fn environment_origins(
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => locals[local.0 as usize],
                     InstructionKind::ReborrowAddress { address, .. } => values[address.0 as usize],
+                    InstructionKind::MakeOwnedArray { ref elements } if elements.len() == 1 => {
+                        values[elements[0].0 as usize]
+                    }
+                    InstructionKind::TakeOwnedArrayElement { local, index: 0 }
+                    | InstructionKind::BorrowOwnedArrayElement {
+                        local, index: 0, ..
+                    } => locals[local.0 as usize],
+                    InstructionKind::StoreOwnedArrayElement {
+                        local,
+                        index: 0,
+                        value,
+                    } => {
+                        let prior = locals[local.0 as usize];
+                        locals[local.0 as usize] |= values[value.0 as usize];
+                        changed |= prior != locals[local.0 as usize];
+                        0
+                    }
                     InstructionKind::Call {
                         function: callee,
                         ref arguments,
