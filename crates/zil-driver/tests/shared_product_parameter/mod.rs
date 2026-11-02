@@ -22,6 +22,7 @@ struct Case {
     name: &'static str,
     source: &'static str,
     success: bool,
+    phase: Phase,
     exit: Option<i32>,
 }
 
@@ -41,7 +42,7 @@ fn cases() -> Vec<Case> {
         .filter(|line| !line.starts_with('#') && !line.is_empty())
         .map(|line| {
             let fields: Vec<_> = line.split('\t').collect();
-            assert_eq!(fields.len(), 5);
+            assert_eq!(fields.len(), 6);
             let source = match fields[0] {
                 "original-local" => source!("original-local"),
                 "local-last-use" => source!("local-last-use"),
@@ -51,6 +52,16 @@ fn cases() -> Vec<Case> {
                 "different-store" => source!("different-store"),
                 "different-store-pop" => source!("different-store-pop"),
                 "different-store-after-read" => source!("different-store-after-read"),
+                "different-store-fields" => source!("different-store-fields"),
+                "same-store-field" => source!("same-store-field"),
+                "give-different-store" => source!("give-different-store"),
+                "give-different-store-direct" => source!("give-different-store-direct"),
+                "give-same-store" => source!("give-same-store"),
+                "give-same-store-direct" => source!("give-same-store-direct"),
+                "different-owner-db" => source!("different-owner-db"),
+                "different-owner-db-direct" => source!("different-owner-db-direct"),
+                "move-owner-db" => source!("move-owner-db"),
+                "move-owner-db-direct" => source!("move-owner-db-direct"),
                 "different-store-direct" => source!("different-store-direct"),
                 "same-store-reserve" => source!("same-store-reserve"),
                 "same-store-reserve-direct" => source!("same-store-reserve-direct"),
@@ -66,16 +77,25 @@ fn cases() -> Vec<Case> {
                 "borrow-conflict" => false,
                 other => panic!("unknown oracle outcome {other}"),
             };
-            let exit = if fields[3] == "-" {
+            let phase = match fields[3] {
+                "analyze" => Phase::Analyze,
+                "verify" => Phase::Verify,
+                other => panic!("unknown exact source phase {other}"),
+            };
+            if success {
+                assert_eq!(phase, Phase::Verify);
+            }
+            let exit = if fields[4] == "-" {
                 None
             } else {
-                Some(fields[3].parse().unwrap())
+                Some(fields[4].parse().unwrap())
             };
             assert_eq!(success, exit.is_some());
             Case {
                 name: fields[0],
                 source,
                 success,
+                phase,
                 exit,
             }
         })
@@ -105,8 +125,8 @@ fn record(case: &Case, route: &str, result: &str) {
 #[test]
 fn source_oracles_are_frozen() {
     let cases = cases();
-    assert_eq!(cases.len(), 15);
-    assert_eq!(cases.iter().filter(|case| case.success).count(), 9);
+    assert_eq!(cases.len(), 25);
+    assert_eq!(cases.iter().filter(|case| case.success).count(), 14);
 }
 
 #[test]
@@ -146,12 +166,12 @@ fn same_store_invalidation_reaches_the_borrow_conflict_boundary() {
         );
         record(&case, "source-negative", &result);
         if report.status != ResultCategory::SafeReject
-            || report.phase != Phase::Verify
-            || report.verification_runs != 1
+            || report.phase != case.phase
+            || report.verification_runs != usize::from(case.phase == Phase::Verify)
             || !report
                 .diagnostics
                 .iter()
-                .any(|d| d.phase == Phase::Verify && d.code == "E-BORROW-CONFLICT")
+                .any(|d| d.phase == case.phase && d.code == "E-BORROW-CONFLICT")
         {
             failures.push(format!("{}: {}", case.name, report.to_json()));
         }
@@ -306,6 +326,54 @@ fn same_store_raw_and_wire_conflicts_bypass_the_analyze_rejection() {
                 case.name
             );
             record(&case, route, "SafeReject/Verify E-BORROW-CONFLICT");
+        }
+    }
+}
+
+#[test]
+fn field_and_owner_raw_wire_boundaries_are_independent_of_analyze() {
+    let cases = cases();
+    for (positive, negative) in [
+        ("different-store-fields", "same-store-field"),
+        ("give-different-store", "give-same-store"),
+        ("different-owner-db", "move-owner-db"),
+    ] {
+        for (name, expected_success) in [(positive, true), (negative, false)] {
+            let case = cases.iter().find(|case| case.name == name).unwrap();
+            let source = SourceUnit::new(FileId(0), ModuleId(0), case.name, case.source);
+            let syntax = zil_syntax::parse(&source).into_result().unwrap();
+            let core = zil_expand::expand(&source, &syntax).unwrap();
+            let target = zil_base::TargetProfile::host_llvm();
+            let limits = Limits::default();
+            let module = zil_types::check(&core, &target, &limits).unwrap();
+            let plan = raw_prefix::straight_line_claims(&module);
+            let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+            // Both the lawful source prefix and its closest alias/owner
+            // counterexample go directly to Verify. Analyze is never invoked.
+            for (route, result) in [
+                (
+                    "owner-field-raw",
+                    zil_verify::verify_module(module, plan, &target, &limits),
+                ),
+                (
+                    "owner-field-wire",
+                    zil_verify::verify_module_bytes(&wire, &target, &limits),
+                ),
+            ] {
+                if expected_success {
+                    result.unwrap_or_else(|errors| panic!("{name} {route}: {errors:?}"));
+                    record(case, route, "Success/Verify");
+                } else {
+                    let errors = result.unwrap_err();
+                    assert!(
+                        errors.iter().any(|d| d.phase == Phase::Verify
+                            && d.category == ResultCategory::SafeReject
+                            && d.code == "E-BORROW-CONFLICT"),
+                        "{name} {route}: {errors:?}"
+                    );
+                    record(case, route, "SafeReject/Verify E-BORROW-CONFLICT");
+                }
+            }
         }
     }
 }
