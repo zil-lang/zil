@@ -82,7 +82,10 @@ fn block(b: &mut CoreBlock, member: &str, owner: &Type) -> usize {
     let mut n = 0;
     for statement in &mut b.statements {
         match &mut statement.kind {
-            CoreStatementKind::Binding { initializer: Some(e), .. } => n += expression(e, member, owner),
+            CoreStatementKind::Binding {
+                initializer: Some(e),
+                ..
+            } => n += expression(e, member, owner),
             CoreStatementKind::Assign { target, value } => {
                 n += expression(target, member, owner);
                 n += expression(value, member, owner);

@@ -2,7 +2,10 @@
 //! The raw artifact's copied table and snapshot are compared to these values.
 use super::source_index::SourceIndex;
 use zil_base::Fingerprint;
-use zil_ir::ct_artifact::{CtArtifactProgram, CtFunction, CtInputTable, CtQueryKind, CtReadyStage, CtSnapshotRequest, CtSymbolId};
+use zil_ir::ct_artifact::{
+    CtArtifactProgram, CtFunction, CtInputTable, CtQueryKind, CtReadyStage, CtSnapshotRequest,
+    CtSymbolId,
+};
 use zil_verify::{CtArtifactAuthority, CtSymbolUsage};
 
 pub(super) struct FrozenAuthority<'a> {
@@ -35,17 +38,31 @@ pub(super) fn stage_allows(stage: CtReadyStage, kind: CtQueryKind) -> bool {
 }
 
 impl CtArtifactAuthority for FrozenAuthority<'_> {
-    fn source_fingerprint(&self) -> Fingerprint { self.source_fingerprint }
-    fn snapshot(&self) -> &CtSnapshotRequest { self.snapshot }
-    fn authenticate_input_table(&self, input: &CtInputTable) -> bool { input == self.input }
+    fn source_fingerprint(&self) -> Fingerprint {
+        self.source_fingerprint
+    }
+    fn snapshot(&self) -> &CtSnapshotRequest {
+        self.snapshot
+    }
+    fn authenticate_input_table(&self, input: &CtInputTable) -> bool {
+        input == self.input
+    }
     fn authenticate_artifact(&self, raw: &CtArtifactProgram) -> bool {
         raw == self.expected_artifact
     }
     fn authenticate_function(&self, function: &CtFunction) -> bool {
         self.index.contains(&function.definition)
-            && self.expected_functions.iter().any(|expected| expected == function)
+            && self
+                .expected_functions
+                .iter()
+                .any(|expected| expected == function)
     }
-    fn authorize_symbol(&self, requester: &CtSymbolId, symbol: &CtSymbolId, _usage: CtSymbolUsage) -> bool {
+    fn authorize_symbol(
+        &self,
+        requester: &CtSymbolId,
+        symbol: &CtSymbolId,
+        _usage: CtSymbolUsage,
+    ) -> bool {
         self.index.visible(requester, symbol)
     }
     fn authorize_query(&self, requester: &CtSymbolId, kind: CtQueryKind) -> bool {

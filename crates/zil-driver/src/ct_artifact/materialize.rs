@@ -1,20 +1,40 @@
 //! Category-directed, transactional project materialization. The caller owns
 //! the cloned AST until every generated list has passed its preflight.
-use super::{compiler::Entry, execute::Environment, input, lock::provider_entry, render::ParsedSyntax};
+use super::{
+    compiler::Entry, execute::Environment, input, lock::provider_entry, render::ParsedSyntax,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
-use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, Span, TargetProfile};
+use zil_base::{
+    CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, Span,
+    TargetProfile,
+};
 use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::{GeneratedSyntax, ParseResult, ast as s};
 
 fn category(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(Phase::Ct, "E-CT-CATEGORY", Some(span), message)]
+    vec![Diagnostic::error(
+        Phase::Ct,
+        "E-CT-CATEGORY",
+        Some(span),
+        message,
+    )]
 }
 fn runtime(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(Phase::Ct, "E-CT-RUNTIME", Some(span), message)]
+    vec![Diagnostic::error(
+        Phase::Ct,
+        "E-CT-RUNTIME",
+        Some(span),
+        message,
+    )]
 }
 fn late_import(span: Span) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(Phase::Expand, "E-CT-LATE-IMPORT", Some(span), "generated import would change the sealed module/provider graph")]
+    vec![Diagnostic::error(
+        Phase::Expand,
+        "E-CT-LATE-IMPORT",
+        Some(span),
+        "generated import would change the sealed module/provider graph",
+    )]
 }
 
 pub(crate) struct Materialized {
@@ -35,21 +55,56 @@ pub(crate) struct Preview {
 impl Preview {
     pub(crate) fn json(&self) -> String {
         use zil_base::json_string;
-        let span = |span: Span| format!("{{\"file\":{},\"start\":{},\"end\":{}}}", span.file.0, span.start, span.end);
-        let tokens = self.tokens.iter().map(|token| format!(
-            "{{\"span\":{},\"origin\":{},\"name\":{}}}", span(token.span), token.origin.0,
-            token.name.as_ref().map_or_else(|| "null".into(), |name| format!(
-                "{{\"text\":{},\"namespace\":{},\"source\":{}}}",
-                json_string(&name.text), json_string(&format!("{:?}", name.namespace)), json_string(&format!("{:?}", name.source))
-            ))
-        )).collect::<Vec<_>>().join(",");
-        let origins = self.origins.iter().map(|origin| format!(
-            "{{\"span\":{},\"parent\":{},\"role\":{}}}", span(origin.span),
-            origin.parent.map_or_else(|| "null".into(), |parent| parent.0.to_string()),
-            json_string(&format!("{:?}", origin.role))
-        )).collect::<Vec<_>>().join(",");
-        format!("{{\"invocation\":{},\"category\":{},\"text\":{},\"tokens\":[{}],\"origins\":[{}]}}",
-            span(self.invocation), json_string(&format!("{:?}", self.category)), json_string(&self.text), tokens, origins)
+        let span = |span: Span| {
+            format!(
+                "{{\"file\":{},\"start\":{},\"end\":{}}}",
+                span.file.0, span.start, span.end
+            )
+        };
+        let tokens = self
+            .tokens
+            .iter()
+            .map(|token| {
+                format!(
+                    "{{\"span\":{},\"origin\":{},\"name\":{}}}",
+                    span(token.span),
+                    token.origin.0,
+                    token.name.as_ref().map_or_else(
+                        || "null".into(),
+                        |name| format!(
+                            "{{\"text\":{},\"namespace\":{},\"source\":{}}}",
+                            json_string(&name.text),
+                            json_string(&format!("{:?}", name.namespace)),
+                            json_string(&format!("{:?}", name.source))
+                        )
+                    )
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let origins = self
+            .origins
+            .iter()
+            .map(|origin| {
+                format!(
+                    "{{\"span\":{},\"parent\":{},\"role\":{}}}",
+                    span(origin.span),
+                    origin
+                        .parent
+                        .map_or_else(|| "null".into(), |parent| parent.0.to_string()),
+                    json_string(&format!("{:?}", origin.role))
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            "{{\"invocation\":{},\"category\":{},\"text\":{},\"tokens\":[{}],\"origins\":[{}]}}",
+            span(self.invocation),
+            json_string(&format!("{:?}", self.category)),
+            json_string(&self.text),
+            tokens,
+            origins
+        )
     }
 }
 
@@ -67,28 +122,66 @@ struct Materializer<'a, 'b> {
 
 impl Materializer<'_, '_> {
     fn depth(&self, depth: usize, span: Span) -> CompileResult<()> {
-        if depth > self.max_depth { return Err(vec![Diagnostic::limit(Phase::Ct, "generated syntax recursion budget exceeded", Some(span))]); }
+        if depth > self.max_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Ct,
+                "generated syntax recursion budget exceeded",
+                Some(span),
+            )]);
+        }
         Ok(())
     }
     fn parsed_source(&self, module: ModuleId) -> CompileResult<(&SourceUnit, &ParseResult)> {
-        self.sources.iter().zip(self.parsed).find(|(source, _)| source.module_id == module)
+        self.sources
+            .iter()
+            .zip(self.parsed)
+            .find(|(source, _)| source.module_id == module)
             .map(|(source, parsed)| (source, parsed.as_ref()))
             .ok_or_else(|| category("CT source module is absent", Span::default()))
     }
-    fn owner(&self, module: ModuleId, span: Span, inherited: Option<&CtSymbolId>) -> CompileResult<CtSymbolId> {
-        self.environment.index.symbol_at(module, span).or_else(|| inherited.cloned())
+    fn owner(
+        &self,
+        module: ModuleId,
+        span: Span,
+        inherited: Option<&CtSymbolId>,
+    ) -> CompileResult<CtSymbolId> {
+        self.environment
+            .index
+            .symbol_at(module, span)
+            .or_else(|| inherited.cloned())
             .ok_or_else(|| category("CT expression has no frozen declaration owner", span))
     }
     fn reject_alias_cycle(&self, owner: &CtSymbolId, expression: &s::Expr) -> CompileResult<()> {
-        let Some(index) = self.sources.iter().position(|source| source.module_id == owner.module) else { return Ok(()); };
-        let Some(s::Item { kind: s::ItemKind::TypeAlias(alias), .. }) = self.parsed[index].module.items.get(owner.declaration.0 as usize) else { return Ok(()); };
+        let Some(index) = self
+            .sources
+            .iter()
+            .position(|source| source.module_id == owner.module)
+        else {
+            return Ok(());
+        };
+        let Some(s::Item {
+            kind: s::ItemKind::TypeAlias(alias),
+            ..
+        }) = self.parsed[index]
+            .module
+            .items
+            .get(owner.declaration.0 as usize)
+        else {
+            return Ok(());
+        };
         let source = &self.sources[index];
-        if self.parsed[index].tokens.iter().any(|token| token.span.start >= expression.span.start
-            && token.span.end <= expression.span.end
-            && token.kind == zil_syntax::token::TokenKind::Identifier
-            && token.text(&source.text) == alias.name) {
-            return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-PHASE-CYCLE", Some(expression.span),
-                "a generated type alias reads its own unfinished type or layout")]);
+        if self.parsed[index].tokens.iter().any(|token| {
+            token.span.start >= expression.span.start
+                && token.span.end <= expression.span.end
+                && token.kind == zil_syntax::token::TokenKind::Identifier
+                && token.text(&source.text) == alias.name
+        }) {
+            return Err(vec![Diagnostic::error(
+                Phase::Ct,
+                "E-CT-PHASE-CYCLE",
+                Some(expression.span),
+                "a generated type alias reads its own unfinished type or layout",
+            )]);
         }
         Ok(())
     }
@@ -96,123 +189,387 @@ impl Materializer<'_, '_> {
         let mut pending = vec![expression];
         while let Some(current) = pending.pop() {
             match &current.kind {
-                s::ExprKind::Name(name) if self.runtime_scopes.iter().rev().any(|scope| scope.contains(name)) => {
-                    return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-SOURCE", Some(current.span),
-                        format!("runtime local `{name}` cannot be read by a compile-time expression"))]);
+                s::ExprKind::Name(name)
+                    if self
+                        .runtime_scopes
+                        .iter()
+                        .rev()
+                        .any(|scope| scope.contains(name)) =>
+                {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-SOURCE",
+                        Some(current.span),
+                        format!(
+                            "runtime local `{name}` cannot be read by a compile-time expression"
+                        ),
+                    )]);
                 }
-                s::ExprKind::Group(value) | s::ExprKind::Try(value) | s::ExprKind::MetaEval(value)
-                | s::ExprKind::MetaSplice(value) | s::ExprKind::Unary { operand: value, .. } => pending.push(value),
+                s::ExprKind::Group(value)
+                | s::ExprKind::Try(value)
+                | s::ExprKind::MetaEval(value)
+                | s::ExprKind::MetaSplice(value)
+                | s::ExprKind::Unary { operand: value, .. } => pending.push(value),
                 s::ExprKind::Tuple(values) | s::ExprKind::Array(values) => pending.extend(values),
-                s::ExprKind::Binary { left, right, .. } | s::ExprKind::Pipeline { input: left, target: right } => { pending.push(left); pending.push(right); }
+                s::ExprKind::Binary { left, right, .. }
+                | s::ExprKind::Pipeline {
+                    input: left,
+                    target: right,
+                } => {
+                    pending.push(left);
+                    pending.push(right);
+                }
                 s::ExprKind::Member { object, .. } => pending.push(object),
-                s::ExprKind::TypeApply { callee, arguments } => { pending.push(callee); for arg in arguments { if let s::GenericArg::Const(value) = arg { pending.push(value); } } }
-                s::ExprKind::Call { callee, arguments } => { pending.push(callee); pending.extend(arguments.iter().map(|arg| &arg.value)); }
-                s::ExprKind::Index { object, index } => { pending.push(object); pending.push(index); }
-                s::ExprKind::Slice { object, start, end } => { pending.push(object); pending.extend(start.iter().map(Box::as_ref)); pending.extend(end.iter().map(Box::as_ref)); }
-                s::ExprKind::Record { ty, base, fields } => { pending.extend(ty.iter().map(Box::as_ref)); pending.extend(base.iter().map(Box::as_ref)); pending.extend(fields.iter().filter_map(|field| field.value.as_ref())); }
-                s::ExprKind::If { condition, then_value, else_value } => { pending.push(condition); pending.push(then_value); pending.push(else_value); }
-                s::ExprKind::Quote { template, .. } => pending.extend(template.holes.iter().map(|hole| hole.value.as_ref())),
-                _ => {},
+                s::ExprKind::TypeApply { callee, arguments } => {
+                    pending.push(callee);
+                    for arg in arguments {
+                        if let s::GenericArg::Const(value) = arg {
+                            pending.push(value);
+                        }
+                    }
+                }
+                s::ExprKind::Call { callee, arguments } => {
+                    pending.push(callee);
+                    pending.extend(arguments.iter().map(|arg| &arg.value));
+                }
+                s::ExprKind::Index { object, index } => {
+                    pending.push(object);
+                    pending.push(index);
+                }
+                s::ExprKind::Slice { object, start, end } => {
+                    pending.push(object);
+                    pending.extend(start.iter().map(Box::as_ref));
+                    pending.extend(end.iter().map(Box::as_ref));
+                }
+                s::ExprKind::Record { ty, base, fields } => {
+                    pending.extend(ty.iter().map(Box::as_ref));
+                    pending.extend(base.iter().map(Box::as_ref));
+                    pending.extend(fields.iter().filter_map(|field| field.value.as_ref()));
+                }
+                s::ExprKind::If {
+                    condition,
+                    then_value,
+                    else_value,
+                } => {
+                    pending.push(condition);
+                    pending.push(then_value);
+                    pending.push(else_value);
+                }
+                s::ExprKind::Quote { template, .. } => {
+                    pending.extend(template.holes.iter().map(|hole| hole.value.as_ref()))
+                }
+                _ => {}
             }
         }
         Ok(())
     }
     fn bind_runtime_pattern(&mut self, pattern: &s::Pattern) {
-        let Some(scope) = self.runtime_scopes.last_mut() else { return; };
+        let Some(scope) = self.runtime_scopes.last_mut() else {
+            return;
+        };
         let mut pending = vec![pattern];
         while let Some(pattern) = pending.pop() {
             match &pattern.kind {
-                s::PatternKind::Name(name) => { scope.insert(name.clone()); }
+                s::PatternKind::Name(name) => {
+                    scope.insert(name.clone());
+                }
                 s::PatternKind::Reference { pattern, .. } => pending.push(pattern),
                 s::PatternKind::Tuple(parts) => pending.extend(parts),
                 s::PatternKind::Constructor { arguments, .. } => pending.extend(arguments),
-                _ => {},
+                _ => {}
             }
         }
     }
-    fn owner_alias(&mut self, caller: ModuleId, target: ModuleId, span: Span) -> CompileResult<String> {
-        if let Some(alias) = self.environment.index.aliases(caller).get(&target) { return Ok(alias.clone()); }
-        if let Some((_, import)) = self.required_imports.iter().find(|(module, import)| *module == caller && import.module == target) {
+    fn owner_alias(
+        &mut self,
+        caller: ModuleId,
+        target: ModuleId,
+        span: Span,
+    ) -> CompileResult<String> {
+        if let Some(alias) = self.environment.index.aliases(caller).get(&target) {
+            return Ok(alias.clone());
+        }
+        if let Some((_, import)) = self
+            .required_imports
+            .iter()
+            .find(|(module, import)| *module == caller && import.module == target)
+        {
             return Ok(import.alias.clone());
         }
         if !self.sources.iter().any(|source| source.module_id == target) {
-            return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-MEMBER-OWNER", Some(span), "reflected owner module is outside the sealed project")]);
+            return Err(vec![Diagnostic::error(
+                Phase::Ct,
+                "E-CT-MEMBER-OWNER",
+                Some(span),
+                "reflected owner module is outside the sealed project",
+            )]);
         }
         let stem = format!("__zil_ct_owner{}_{}_{}", caller.0, target.0, span.start);
         let mut suffix = 0u32;
         let alias = loop {
             self.environment.budget.reserve_analysis_work(1)?;
-            let candidate = if suffix == 0 { stem.clone() } else { format!("{stem}_{suffix}") };
+            let candidate = if suffix == 0 {
+                stem.clone()
+            } else {
+                format!("{stem}_{suffix}")
+            };
             if !self.environment.index.alias_taken(caller, &candidate)
-                && !self.required_imports.iter().any(|(module, import)| *module == caller && import.alias == candidate) {
+                && !self
+                    .required_imports
+                    .iter()
+                    .any(|(module, import)| *module == caller && import.alias == candidate)
+            {
                 break candidate;
             }
-            suffix = suffix.checked_add(1).ok_or_else(|| vec![Diagnostic::limit(Phase::Ct,
-                "reflected owner alias count exceeds identity range", Some(span))])?;
+            suffix = suffix.checked_add(1).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Ct,
+                    "reflected owner alias count exceeds identity range",
+                    Some(span),
+                )]
+            })?;
         };
         self.environment.budget.reserve_generated_nodes(1)?;
-        self.environment.budget.reserve_temporary_bytes((alias.len() as u64).saturating_mul(2))?;
-        self.required_imports.push((caller, CoreImport { alias: alias.clone(), module: target, span }));
+        self.environment
+            .budget
+            .reserve_temporary_bytes((alias.len() as u64).saturating_mul(2))?;
+        self.required_imports.push((
+            caller,
+            CoreImport {
+                alias: alias.clone(),
+                module: target,
+                span,
+            },
+        ));
         Ok(alias)
     }
-    fn owner_node(&mut self, ty: &CtTypeRef, id: CtTypeNodeId, caller: ModuleId, span: Span, depth: usize) -> CompileResult<s::TypeRef> {
-        if depth > self.max_depth { return Err(vec![Diagnostic::limit(Phase::Ct, "reflected owner Type nesting exceeds budget", Some(span))]); }
+    fn owner_node(
+        &mut self,
+        ty: &CtTypeRef,
+        id: CtTypeNodeId,
+        caller: ModuleId,
+        span: Span,
+        depth: usize,
+    ) -> CompileResult<s::TypeRef> {
+        if depth > self.max_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Ct,
+                "reflected owner Type nesting exceeds budget",
+                Some(span),
+            )]);
+        }
         self.environment.budget.reserve_analysis_work(1)?;
         self.environment.budget.reserve_generated_nodes(1)?;
-        let node = ty.nodes.get(id.0 as usize).ok_or_else(|| category("reflected owner Type DAG node is absent", span))?;
-        let named = |name: &str, args: Vec<s::GenericArg>| s::TypeKind::Named { path: vec![name.into()], args };
+        let node = ty
+            .nodes
+            .get(id.0 as usize)
+            .ok_or_else(|| category("reflected owner Type DAG node is absent", span))?;
+        let named = |name: &str, args: Vec<s::GenericArg>| s::TypeKind::Named {
+            path: vec![name.into()],
+            args,
+        };
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
-            CtTypeNode::Primitive(primitive) => named(match primitive { CtScalarTy::Unit => "Unit", CtScalarTy::Bool => "bool", CtScalarTy::U8 => "u8", CtScalarTy::U16 => "u16", CtScalarTy::I32 => "i32", CtScalarTy::I64 => "i64" }, Vec::new()),
-            CtTypeNode::Builtin(builtin) => named(match builtin { CtBuiltinType::ByteBuffer => "ByteBuffer", CtBuiltinType::ForeignHandle => "ForeignHandle", CtBuiltinType::CWideString => "CWideString" }, Vec::new()),
+            CtTypeNode::Primitive(primitive) => named(
+                match primitive {
+                    CtScalarTy::Unit => "Unit",
+                    CtScalarTy::Bool => "bool",
+                    CtScalarTy::U8 => "u8",
+                    CtScalarTy::U16 => "u16",
+                    CtScalarTy::I32 => "i32",
+                    CtScalarTy::I64 => "i64",
+                },
+                Vec::new(),
+            ),
+            CtTypeNode::Builtin(builtin) => named(
+                match builtin {
+                    CtBuiltinType::ByteBuffer => "ByteBuffer",
+                    CtBuiltinType::ForeignHandle => "ForeignHandle",
+                    CtBuiltinType::CWideString => "CWideString",
+                },
+                Vec::new(),
+            ),
             CtTypeNode::Nominal { symbol, arguments } => {
-                if symbol.generation_path.is_some() { return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-MEMBER-OWNER", Some(span), "current generated batch has no frozen nominal owner")]); }
+                if symbol.generation_path.is_some() {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-MEMBER-OWNER",
+                        Some(span),
+                        "current generated batch has no frozen nominal owner",
+                    )]);
+                }
                 let (_, parsed) = self.parsed_source(symbol.module)?;
-                let item = parsed.module.items.get(symbol.declaration.0 as usize).ok_or_else(|| category("reflected owner declaration is absent", span))?;
-                let name = match &item.kind { s::ItemKind::Aggregate(value) => value.name.clone(), s::ItemKind::Enum(value) => value.name.clone(), s::ItemKind::TypeAlias(value) => value.name.clone(), _ => return Err(category("reflected owner is not a nominal type", span)) };
-                let path = if symbol.module == caller { vec![name] } else { vec![self.owner_alias(caller, symbol.module, span)?, name] };
+                let item = parsed
+                    .module
+                    .items
+                    .get(symbol.declaration.0 as usize)
+                    .ok_or_else(|| category("reflected owner declaration is absent", span))?;
+                let name = match &item.kind {
+                    s::ItemKind::Aggregate(value) => value.name.clone(),
+                    s::ItemKind::Enum(value) => value.name.clone(),
+                    s::ItemKind::TypeAlias(value) => value.name.clone(),
+                    _ => return Err(category("reflected owner is not a nominal type", span)),
+                };
+                let path = if symbol.module == caller {
+                    vec![name]
+                } else {
+                    vec![self.owner_alias(caller, symbol.module, span)?, name]
+                };
                 let mut args = Vec::new();
                 for argument in arguments {
                     match argument {
-                        CtTypeArgument::Type(id) => args.push(type_arg(self.owner_node(ty, *id, caller, span, depth + 1)?)),
+                        CtTypeArgument::Type(id) => args.push(type_arg(self.owner_node(
+                            ty,
+                            *id,
+                            caller,
+                            span,
+                            depth + 1,
+                        )?)),
                         CtTypeArgument::Scalar(value) => {
                             let literal = match value {
                                 zil_ir::Constant::Bool(value) => s::Literal::Bool(*value),
-                                zil_ir::Constant::U8(value) => s::Literal::Integer(value.to_string()),
-                                zil_ir::Constant::U16(value) => s::Literal::Integer(value.to_string()),
-                                zil_ir::Constant::I32(value) => s::Literal::Integer(value.to_string()),
-                                zil_ir::Constant::I64(value) => s::Literal::Integer(value.to_string()),
-                                _ => return Err(category("reflected owner const argument has no ordinary spelling", span)),
+                                zil_ir::Constant::U8(value) => {
+                                    s::Literal::Integer(value.to_string())
+                                }
+                                zil_ir::Constant::U16(value) => {
+                                    s::Literal::Integer(value.to_string())
+                                }
+                                zil_ir::Constant::I32(value) => {
+                                    s::Literal::Integer(value.to_string())
+                                }
+                                zil_ir::Constant::I64(value) => {
+                                    s::Literal::Integer(value.to_string())
+                                }
+                                _ => {
+                                    return Err(category(
+                                        "reflected owner const argument has no ordinary spelling",
+                                        span,
+                                    ));
+                                }
                             };
-                            args.push(s::GenericArg::Const(s::Expr { span, kind: s::ExprKind::Literal(literal) }));
+                            args.push(s::GenericArg::Const(s::Expr {
+                                span,
+                                kind: s::ExprKind::Literal(literal),
+                            }));
                         }
                     }
                 }
                 s::TypeKind::Named { path, args }
             }
-            CtTypeNode::Tuple(parts) => s::TypeKind::Tuple(parts.iter().map(|id| self.owner_node(ty, *id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?),
-            CtTypeNode::Array { element, length } => s::TypeKind::Array { element: Box::new(self.owner_node(ty, *element, caller, span, depth + 1)?), length: Some(Box::new(s::Expr { span, kind: s::ExprKind::Literal(s::Literal::Integer(length.to_string())) })) },
-            CtTypeNode::Slice(element) => s::TypeKind::Array { element: Box::new(self.owner_node(ty, *element, caller, span, depth + 1)?), length: None },
-            CtTypeNode::Address { mutable, inner } => s::TypeKind::Reference { lifetime: None, mutable: *mutable, inner: Box::new(self.owner_node(ty, *inner, caller, span, depth + 1)?) },
-            CtTypeNode::Managed(inner) => named("Managed", vec![type_arg(self.owner_node(ty, *inner, caller, span, depth + 1)?)]),
-            CtTypeNode::Desc(inner) => named("Desc", vec![type_arg(self.owner_node(ty, *inner, caller, span, depth + 1)?)]),
-            CtTypeNode::OwnedStore(inner) => named("Store", vec![type_arg(self.owner_node(ty, *inner, caller, span, depth + 1)?)]),
-            CtTypeNode::FunctionPointer { parameters, result } => s::TypeKind::Function { params: parameters.iter().map(|id| self.owner_node(ty, *id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?, result: Box::new(self.owner_node(ty, *result, caller, span, depth + 1)?) },
-            CtTypeNode::ForeignCallback { parameters, result } => s::TypeKind::ForeignFunction { abi: "C".into(), params: parameters.iter().map(|id| self.owner_node(ty, *id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?, result: Box::new(self.owner_node(ty, *result, caller, span, depth + 1)?) },
-            CtTypeNode::ErrorUnion { error, result } => s::TypeKind::Error { error: Box::new(self.owner_node(ty, *error, caller, span, depth + 1)?), result: Box::new(self.owner_node(ty, *result, caller, span, depth + 1)?) },
-            CtTypeNode::Opaque { .. } => return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-MEMBER-OWNER", Some(span), "opaque reflected owner cannot authorize member access")]),
+            CtTypeNode::Tuple(parts) => s::TypeKind::Tuple(
+                parts
+                    .iter()
+                    .map(|id| self.owner_node(ty, *id, caller, span, depth + 1))
+                    .collect::<CompileResult<Vec<_>>>()?,
+            ),
+            CtTypeNode::Array { element, length } => s::TypeKind::Array {
+                element: Box::new(self.owner_node(ty, *element, caller, span, depth + 1)?),
+                length: Some(Box::new(s::Expr {
+                    span,
+                    kind: s::ExprKind::Literal(s::Literal::Integer(length.to_string())),
+                })),
+            },
+            CtTypeNode::Slice(element) => s::TypeKind::Array {
+                element: Box::new(self.owner_node(ty, *element, caller, span, depth + 1)?),
+                length: None,
+            },
+            CtTypeNode::Address { mutable, inner } => s::TypeKind::Reference {
+                lifetime: None,
+                mutable: *mutable,
+                inner: Box::new(self.owner_node(ty, *inner, caller, span, depth + 1)?),
+            },
+            CtTypeNode::Managed(inner) => named(
+                "Managed",
+                vec![type_arg(self.owner_node(
+                    ty,
+                    *inner,
+                    caller,
+                    span,
+                    depth + 1,
+                )?)],
+            ),
+            CtTypeNode::Desc(inner) => named(
+                "Desc",
+                vec![type_arg(self.owner_node(
+                    ty,
+                    *inner,
+                    caller,
+                    span,
+                    depth + 1,
+                )?)],
+            ),
+            CtTypeNode::OwnedStore(inner) => named(
+                "Store",
+                vec![type_arg(self.owner_node(
+                    ty,
+                    *inner,
+                    caller,
+                    span,
+                    depth + 1,
+                )?)],
+            ),
+            CtTypeNode::FunctionPointer { parameters, result } => s::TypeKind::Function {
+                params: parameters
+                    .iter()
+                    .map(|id| self.owner_node(ty, *id, caller, span, depth + 1))
+                    .collect::<CompileResult<Vec<_>>>()?,
+                result: Box::new(self.owner_node(ty, *result, caller, span, depth + 1)?),
+            },
+            CtTypeNode::ForeignCallback { parameters, result } => s::TypeKind::ForeignFunction {
+                abi: "C".into(),
+                params: parameters
+                    .iter()
+                    .map(|id| self.owner_node(ty, *id, caller, span, depth + 1))
+                    .collect::<CompileResult<Vec<_>>>()?,
+                result: Box::new(self.owner_node(ty, *result, caller, span, depth + 1)?),
+            },
+            CtTypeNode::ErrorUnion { error, result } => s::TypeKind::Error {
+                error: Box::new(self.owner_node(ty, *error, caller, span, depth + 1)?),
+                result: Box::new(self.owner_node(ty, *result, caller, span, depth + 1)?),
+            },
+            CtTypeNode::Opaque { .. } => {
+                return Err(vec![Diagnostic::error(
+                    Phase::Ct,
+                    "E-CT-MEMBER-OWNER",
+                    Some(span),
+                    "opaque reflected owner cannot authorize member access",
+                )]);
+            }
         };
         Ok(s::TypeRef { kind, span })
     }
     fn member_owner_type(&mut self, ident: &CtIdent, span: Span) -> CompileResult<s::TypeRef> {
-        let Some(ty) = &ident.member_owner_type else { return Err(category("reflected member lacks a full owner Type", span)); };
-        let caller = self.sources.iter().find(|source| source.file_id == span.file)
-            .map(|source| source.module_id).ok_or_else(|| category("reflected member caller is absent", span))?;
+        let Some(ty) = &ident.member_owner_type else {
+            return Err(category("reflected member lacks a full owner Type", span));
+        };
+        let caller = self
+            .sources
+            .iter()
+            .find(|source| source.file_id == span.file)
+            .map(|source| source.module_id)
+            .ok_or_else(|| category("reflected member caller is absent", span))?;
         self.owner_node(ty, ty.root, caller, span, 0)
     }
-    fn expression_value(&mut self, module: ModuleId, owner: &CtSymbolId, expression: &s::Expr, expected: Option<CtTy>) -> CompileResult<CtValue> {
+    fn expression_value(
+        &mut self,
+        module: ModuleId,
+        owner: &CtSymbolId,
+        expression: &s::Expr,
+        expected: Option<CtTy>,
+    ) -> CompileResult<CtValue> {
         if let s::ExprKind::SyntaxIsland { path, tree } = &expression.kind {
-            return self.provider(module, path, tree, expression.span, expected.as_ref().ok_or_else(|| category("provider output needs a Syntax receiving category", expression.span))?);
+            return self.provider(
+                module,
+                path,
+                tree,
+                expression.span,
+                expected.as_ref().ok_or_else(|| {
+                    category(
+                        "provider output needs a Syntax receiving category",
+                        expression.span,
+                    )
+                })?,
+            );
         }
         let input = self.environment.empty_input(expression.span)?;
         self.reject_runtime_capture(expression)?;
@@ -230,129 +587,359 @@ impl Materializer<'_, '_> {
                 errors
             })
     }
-    fn provider(&mut self, module: ModuleId, path: &[String], tree: &s::TokenTree, span: Span, expected: &CtTy) -> CompileResult<CtValue> {
-        let ([alias] | [alias, _]) = path else { return Err(category("provider path needs alias or alias.entry", span)); };
+    fn provider(
+        &mut self,
+        module: ModuleId,
+        path: &[String],
+        tree: &s::TokenTree,
+        span: Span,
+        expected: &CtTy,
+    ) -> CompileResult<CtValue> {
+        let ([alias] | [alias, _]) = path else {
+            return Err(category("provider path needs alias or alias.entry", span));
+        };
         let export = path.get(1).map_or("default", String::as_str);
         let (source, parsed) = self.parsed_source(module)?;
-        let import_path = parsed.module.items.iter().find_map(|item| match &item.kind {
-            s::ItemKind::Import(import) if import.syntax && import.alias.as_deref().or_else(|| import.path.last().map(String::as_str)) == Some(alias) => Some(import.path.clone()),
-            _ => None,
-        }).ok_or_else(|| category("provider alias has no syntax use binding", span))?;
-        let registry = self.registry.ok_or_else(|| category("syntax provider request has no lock", span))?;
-        let delimiter = match tree.delimiter { s::Delimiter::Parenthesis => CtDelimiter::Parenthesis, s::Delimiter::Bracket => CtDelimiter::Bracket, s::Delimiter::Brace => CtDelimiter::Brace };
+        let import_path = parsed
+            .module
+            .items
+            .iter()
+            .find_map(|item| match &item.kind {
+                s::ItemKind::Import(import)
+                    if import.syntax
+                        && import
+                            .alias
+                            .as_deref()
+                            .or_else(|| import.path.last().map(String::as_str))
+                            == Some(alias) =>
+                {
+                    Some(import.path.clone())
+                }
+                _ => None,
+            })
+            .ok_or_else(|| category("provider alias has no syntax use binding", span))?;
+        let registry = self
+            .registry
+            .ok_or_else(|| category("syntax provider request has no lock", span))?;
+        let delimiter = match tree.delimiter {
+            s::Delimiter::Parenthesis => CtDelimiter::Parenthesis,
+            s::Delimiter::Bracket => CtDelimiter::Bracket,
+            s::Delimiter::Brace => CtDelimiter::Brace,
+        };
         let entry = provider_entry(registry, &import_path.join("."), export, delimiter, span)?;
-        if *expected != CtTy::Syntax(entry.output) { return Err(category("provider output category differs from its receiving slot", span)); }
-        let (input_tree, tokens) = input::from_source(source, &parsed.tokens, tree, path, &self.environment.remaining_limits_for_input())?;
-        self.environment.evaluate(Entry::Function(entry.symbol.clone()), &tokens, Some(&input_tree), &[CtValue::TokenTree(input_tree.clone())], span)
+        if *expected != CtTy::Syntax(entry.output) {
+            return Err(category(
+                "provider output category differs from its receiving slot",
+                span,
+            ));
+        }
+        let (input_tree, tokens) = input::from_source(
+            source,
+            &parsed.tokens,
+            tree,
+            path,
+            &self.environment.remaining_limits_for_input(),
+        )?;
+        self.environment.evaluate(
+            Entry::Function(entry.symbol.clone()),
+            &tokens,
+            Some(&input_tree),
+            &[CtValue::TokenTree(input_tree.clone())],
+            span,
+        )
     }
-    fn parsed(&mut self, value: CtValue, expected: CtSyntaxCategory, span: Span) -> CompileResult<GeneratedSyntax> {
-        let CtValue::Syntax(mut tree) = value else { return Err(category("compile-time result is not Syntax", span)); };
-        if tree.category != expected { return Err(category("Syntax category differs from the receiving slot", span)); }
-        let retained_bytes = 16u64.saturating_add((tree.nodes.len() as u64).saturating_mul(80))
+    fn parsed(
+        &mut self,
+        value: CtValue,
+        expected: CtSyntaxCategory,
+        span: Span,
+    ) -> CompileResult<GeneratedSyntax> {
+        let CtValue::Syntax(mut tree) = value else {
+            return Err(category("compile-time result is not Syntax", span));
+        };
+        if tree.category != expected {
+            return Err(category(
+                "Syntax category differs from the receiving slot",
+                span,
+            ));
+        }
+        let retained_bytes = 16u64
+            .saturating_add((tree.nodes.len() as u64).saturating_mul(80))
             .saturating_add((tree.origins.len() as u64).saturating_mul(32))
             .saturating_add(tree.nodes.iter().fold(0u64, |total, node| match node {
                 CtSyntaxNode::Token(token) => total.saturating_add(token.text.len() as u64),
                 _ => total,
             }));
         let mut renamed_bytes = 0u64;
-        let caller = self.sources.iter().find(|source| source.file_id == span.file)
-            .map(|source| source.module_id).ok_or_else(|| category("generated caller module is absent", span))?;
-        let sequence_nodes = tree.roots.len().saturating_add(tree.nodes.iter().map(|node| match node {
-            CtSyntaxNode::Group { children, .. } => children.len(), _ => 0,
-        }).sum::<usize>());
+        let caller = self
+            .sources
+            .iter()
+            .find(|source| source.file_id == span.file)
+            .map(|source| source.module_id)
+            .ok_or_else(|| category("generated caller module is absent", span))?;
+        let sequence_nodes = tree.roots.len().saturating_add(
+            tree.nodes
+                .iter()
+                .map(|node| match node {
+                    CtSyntaxNode::Group { children, .. } => children.len(),
+                    _ => 0,
+                })
+                .sum::<usize>(),
+        );
         let sequence_bytes = (sequence_nodes as u64).saturating_mul(16);
-        self.environment.budget.reserve_analysis_work(tree.nodes.len() as u64)?;
-        self.environment.budget.reserve_temporary_bytes(sequence_bytes)?;
+        self.environment
+            .budget
+            .reserve_analysis_work(tree.nodes.len() as u64)?;
+        self.environment
+            .budget
+            .reserve_temporary_bytes(sequence_bytes)?;
         let mut sequences = vec![tree.roots.clone()];
-        for node in &tree.nodes { if let CtSyntaxNode::Group { children, .. } = node { sequences.push(children.clone()); } }
+        for node in &tree.nodes {
+            if let CtSyntaxNode::Group { children, .. } = node {
+                sequences.push(children.clone());
+            }
+        }
         let mut alias_sites = Vec::new();
         for sequence in &sequences {
             for pair in sequence.windows(2) {
-                if matches!(tree.nodes.get(pair[1].0 as usize), Some(CtSyntaxNode::Token(token)) if token.text == ".") {
+                if matches!(tree.nodes.get(pair[1].0 as usize), Some(CtSyntaxNode::Token(token)) if token.text == ".")
+                {
                     alias_sites.push(pair[0]);
                 }
             }
         }
         for site in alias_sites {
-            let Some(CtSyntaxNode::Token(token)) = tree.nodes.get(site.0 as usize) else { continue; };
-            if token.name.is_some() { continue; }
-            let Some(origin) = tree.origins.get(token.origin.0 as usize) else { return Err(category("generated origin is absent", span)); };
-            if origin.role != CtOriginRole::QuoteDefinition { continue; }
-            let Some(provider_index) = self.sources.iter().position(|source| source.file_id == origin.span.file) else { continue; };
-            let source_import = self.parsed[provider_index].module.items.iter().find_map(|item| match &item.kind {
-                s::ItemKind::Import(import) if !import.syntax && import.alias.as_deref().or_else(|| import.path.last().map(String::as_str)) == Some(token.text.as_str()) => Some((item.span, import)),
-                _ => None,
-            });
-            let Some((import_span, source_import)) = source_import else { continue; };
-            let Some(target) = self.paths.get(&source_import.path) else { continue; };
+            let Some(CtSyntaxNode::Token(token)) = tree.nodes.get(site.0 as usize) else {
+                continue;
+            };
+            if token.name.is_some() {
+                continue;
+            }
+            let Some(origin) = tree.origins.get(token.origin.0 as usize) else {
+                return Err(category("generated origin is absent", span));
+            };
+            if origin.role != CtOriginRole::QuoteDefinition {
+                continue;
+            }
+            let Some(provider_index) = self
+                .sources
+                .iter()
+                .position(|source| source.file_id == origin.span.file)
+            else {
+                continue;
+            };
+            let source_import = self.parsed[provider_index]
+                .module
+                .items
+                .iter()
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Import(import)
+                        if !import.syntax
+                            && import
+                                .alias
+                                .as_deref()
+                                .or_else(|| import.path.last().map(String::as_str))
+                                == Some(token.text.as_str()) =>
+                    {
+                        Some((item.span, import))
+                    }
+                    _ => None,
+                });
+            let Some((import_span, source_import)) = source_import else {
+                continue;
+            };
+            let Some(target) = self.paths.get(&source_import.path) else {
+                continue;
+            };
             let alias = format!("__zil_ct_mod{}_{}_{}", provider_index, target.0, span.start);
-            let symbol = self.environment.index.symbol_at(self.sources[provider_index].module_id, import_span)
-                .ok_or_else(|| category("definition-site module import has no frozen symbol", span))?;
-            self.environment.budget.reserve_temporary_bytes(alias.len() as u64)?;
+            let symbol = self
+                .environment
+                .index
+                .symbol_at(self.sources[provider_index].module_id, import_span)
+                .ok_or_else(|| {
+                    category("definition-site module import has no frozen symbol", span)
+                })?;
+            self.environment
+                .budget
+                .reserve_temporary_bytes(alias.len() as u64)?;
             renamed_bytes = renamed_bytes.saturating_add(alias.len() as u64);
             if let Some(CtSyntaxNode::Token(token)) = tree.nodes.get_mut(site.0 as usize) {
                 token.text = alias.clone();
-                token.name = Some(CtIdent { text: alias.clone(), namespace: CtNameNamespace::Module,
-                    source: CtNameSource::Definition(symbol), member_owner: None, member_owner_type: None });
+                token.name = Some(CtIdent {
+                    text: alias.clone(),
+                    namespace: CtNameNamespace::Module,
+                    source: CtNameSource::Definition(symbol),
+                    member_owner: None,
+                    member_owner_type: None,
+                });
             }
-            if !self.required_imports.iter().any(|(module, import)| *module == caller && import.alias == alias && import.module == *target) {
+            if !self.required_imports.iter().any(|(module, import)| {
+                *module == caller && import.alias == alias && import.module == *target
+            }) {
                 self.environment.budget.reserve_generated_nodes(1)?;
-                self.required_imports.push((caller, CoreImport { alias, module: *target, span }));
+                self.required_imports.push((
+                    caller,
+                    CoreImport {
+                        alias,
+                        module: *target,
+                        span,
+                    },
+                ));
             }
         }
         drop(sequences);
-        self.environment.budget.release_temporary_bytes(sequence_bytes);
+        self.environment
+            .budget
+            .release_temporary_bytes(sequence_bytes);
         for node in &tree.nodes {
-            let CtSyntaxNode::Token(token) = node else { continue; };
-            let Some(CtIdent { source: CtNameSource::Definition(symbol), namespace: CtNameNamespace::Type | CtNameNamespace::Value, .. }) = &token.name else { continue; };
-            if symbol.module == caller || self.environment.index.aliases(caller).contains_key(&symbol.module)
-                || self.required_imports.iter().any(|(module, import)| *module == caller && import.module == symbol.module) { continue; }
-            if !self.sources.iter().any(|source| source.module_id == symbol.module) {
-                return Err(category("definition-site name refers outside the sealed project", span));
+            let CtSyntaxNode::Token(token) = node else {
+                continue;
+            };
+            let Some(CtIdent {
+                source: CtNameSource::Definition(symbol),
+                namespace: CtNameNamespace::Type | CtNameNamespace::Value,
+                ..
+            }) = &token.name
+            else {
+                continue;
+            };
+            if symbol.module == caller
+                || self
+                    .environment
+                    .index
+                    .aliases(caller)
+                    .contains_key(&symbol.module)
+                || self
+                    .required_imports
+                    .iter()
+                    .any(|(module, import)| *module == caller && import.module == symbol.module)
+            {
+                continue;
             }
-            let alias = format!("__zil_ct_def{}_{}_{}", caller.0, symbol.module.0, span.start);
+            if !self
+                .sources
+                .iter()
+                .any(|source| source.module_id == symbol.module)
+            {
+                return Err(category(
+                    "definition-site name refers outside the sealed project",
+                    span,
+                ));
+            }
+            let alias = format!(
+                "__zil_ct_def{}_{}_{}",
+                caller.0, symbol.module.0, span.start
+            );
             self.environment.budget.reserve_generated_nodes(1)?;
-            self.environment.budget.reserve_temporary_bytes(alias.len() as u64)?;
-            self.required_imports.push((caller, CoreImport { alias, module: symbol.module, span }));
+            self.environment
+                .budget
+                .reserve_temporary_bytes(alias.len() as u64)?;
+            self.required_imports.push((
+                caller,
+                CoreImport {
+                    alias,
+                    module: symbol.module,
+                    span,
+                },
+            ));
         }
-        let extra_aliases = self.required_imports.iter().filter(|(module, _)| *module == caller)
-            .map(|(_, import)| (import.module, import.alias.clone())).collect::<Vec<_>>();
-        let ParsedSyntax { rendered, parsed } = self.environment.parse_tree(&tree, span, &extra_aliases)?;
-        let mut syntax = parsed.syntax.ok_or_else(|| category("generated parser returned no category", span))?;
-        let longest = rendered.tokens.iter().map(|token| token.span.end.saturating_sub(token.span.start)).max().unwrap_or(0);
-        let hygiene_bytes = (rendered.tokens.len() as u64).saturating_mul((longest as u64).saturating_add(64));
-        self.environment.budget.reserve_analysis_work((rendered.tokens.len() as u64).saturating_mul(8))?;
-        self.environment.budget.reserve_temporary_bytes(hygiene_bytes)?;
-        super::hygiene::rename(&mut syntax, &rendered, &tree.origins, span,
-            &mut |ident, member_span| self.member_owner_type(ident, member_span))?;
+        let extra_aliases = self
+            .required_imports
+            .iter()
+            .filter(|(module, _)| *module == caller)
+            .map(|(_, import)| (import.module, import.alias.clone()))
+            .collect::<Vec<_>>();
+        let ParsedSyntax { rendered, parsed } =
+            self.environment.parse_tree(&tree, span, &extra_aliases)?;
+        let mut syntax = parsed
+            .syntax
+            .ok_or_else(|| category("generated parser returned no category", span))?;
+        let longest = rendered
+            .tokens
+            .iter()
+            .map(|token| token.span.end.saturating_sub(token.span.start))
+            .max()
+            .unwrap_or(0);
+        let hygiene_bytes =
+            (rendered.tokens.len() as u64).saturating_mul((longest as u64).saturating_add(64));
+        self.environment
+            .budget
+            .reserve_analysis_work((rendered.tokens.len() as u64).saturating_mul(8))?;
+        self.environment
+            .budget
+            .reserve_temporary_bytes(hygiene_bytes)?;
+        super::hygiene::rename(
+            &mut syntax,
+            &rendered,
+            &tree.origins,
+            span,
+            &mut |ident, member_span| self.member_owner_type(ident, member_span),
+        )?;
         let limits = self.environment.remaining_limits_for_input();
         let work = zil_expand::remap_generated_spans(&mut syntax, span, &limits)?;
         self.environment.budget.reserve_analysis_work(work as u64)?;
-        self.environment.budget.release_temporary_bytes(retained_bytes.saturating_add(renamed_bytes));
-        self.previews.push(Preview { invocation: span, category: expected, text: rendered.source.text,
-            tokens: rendered.tokens, origins: tree.origins });
+        self.environment
+            .budget
+            .release_temporary_bytes(retained_bytes.saturating_add(renamed_bytes));
+        self.previews.push(Preview {
+            invocation: span,
+            category: expected,
+            text: rendered.source.text,
+            tokens: rendered.tokens,
+            origins: tree.origins,
+        });
         Ok(syntax)
     }
-    fn items(&mut self, module: ModuleId, items: &mut Vec<s::Item>, inherited: Option<&CtSymbolId>, depth: usize, generated: bool) -> CompileResult<()> {
-        self.depth(depth, items.first().map_or(Span::default(), |item| item.span))?;
+    fn items(
+        &mut self,
+        module: ModuleId,
+        items: &mut Vec<s::Item>,
+        inherited: Option<&CtSymbolId>,
+        depth: usize,
+        generated: bool,
+    ) -> CompileResult<()> {
+        self.depth(
+            depth,
+            items.first().map_or(Span::default(), |item| item.span),
+        )?;
         let mut output = Vec::new();
         for mut item in std::mem::take(items) {
-            if generated && matches!(item.kind, s::ItemKind::Import(_)) { return Err(late_import(item.span)); }
+            if generated && matches!(item.kind, s::ItemKind::Import(_)) {
+                return Err(late_import(item.span));
+            }
             let owner = self.owner(module, item.span, inherited)?;
             if self.environment.ct_only.contains(&owner)
-                && matches!(item.kind, s::ItemKind::Function(_) | s::ItemKind::Extern { .. }) {
+                && matches!(
+                    item.kind,
+                    s::ItemKind::Function(_) | s::ItemKind::Extern { .. }
+                )
+            {
                 continue;
             }
             match &mut item.kind {
                 s::ItemKind::Meta(s::MetaItem::Emit(expression)) => {
-                    let value = self.expression_value(module, &owner, expression, Some(CtTy::Syntax(CtSyntaxCategory::ItemList)))?;
-                    let GeneratedSyntax::ItemList(mut generated_items) = self.parsed(value, CtSyntaxCategory::ItemList, item.span)? else {
-                        return Err(category("#emit must yield ItemList in item position", item.span));
+                    let value = self.expression_value(
+                        module,
+                        &owner,
+                        expression,
+                        Some(CtTy::Syntax(CtSyntaxCategory::ItemList)),
+                    )?;
+                    let GeneratedSyntax::ItemList(mut generated_items) =
+                        self.parsed(value, CtSyntaxCategory::ItemList, item.span)?
+                    else {
+                        return Err(category(
+                            "#emit must yield ItemList in item position",
+                            item.span,
+                        ));
                     };
                     self.items(module, &mut generated_items, Some(&owner), depth + 1, true)?;
                     output.extend(generated_items);
                 }
-                s::ItemKind::Meta(s::MetaItem::If { then_items, else_items, .. }) => {
+                s::ItemKind::Meta(s::MetaItem::If {
+                    then_items,
+                    else_items,
+                    ..
+                }) => {
                     self.items(module, then_items, Some(&owner), depth + 1, generated)?;
                     self.items(module, else_items, Some(&owner), depth + 1, generated)?;
                     output.push(item);
@@ -361,174 +948,498 @@ impl Materializer<'_, '_> {
                     self.items(module, items, Some(&owner), depth + 1, generated)?;
                     output.push(item);
                 }
-                _ => { self.item(module, &mut item, &owner, depth + 1)?; output.push(item); }
+                _ => {
+                    self.item(module, &mut item, &owner, depth + 1)?;
+                    output.push(item);
+                }
             }
         }
         *items = output;
         Ok(())
     }
-    fn item(&mut self, module: ModuleId, item: &mut s::Item, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
+    fn item(
+        &mut self,
+        module: ModuleId,
+        item: &mut s::Item,
+        owner: &CtSymbolId,
+        depth: usize,
+    ) -> CompileResult<()> {
         self.depth(depth, item.span)?;
         match &mut item.kind {
             s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } => {
-                for param in &mut f.params { self.ty(module, &mut param.ty, owner, depth + 1)?; }
-                if let Some(ty) = &mut f.return_type { self.ty(module, ty, owner, depth + 1)?; }
-                self.runtime_scopes.push(f.params.iter().map(|param| param.name.clone()).collect());
-                let result = match &mut f.body { s::FunctionBody::Block(block) => self.block(module, block, owner, depth + 1),
-                    s::FunctionBody::Expression(e) => self.expr(module, e, owner, depth + 1), s::FunctionBody::Declaration => Ok(()) };
+                for param in &mut f.params {
+                    self.ty(module, &mut param.ty, owner, depth + 1)?;
+                }
+                if let Some(ty) = &mut f.return_type {
+                    self.ty(module, ty, owner, depth + 1)?;
+                }
+                self.runtime_scopes
+                    .push(f.params.iter().map(|param| param.name.clone()).collect());
+                let result = match &mut f.body {
+                    s::FunctionBody::Block(block) => self.block(module, block, owner, depth + 1),
+                    s::FunctionBody::Expression(e) => self.expr(module, e, owner, depth + 1),
+                    s::FunctionBody::Declaration => Ok(()),
+                };
                 self.runtime_scopes.pop();
                 result?;
             }
             s::ItemKind::Aggregate(a) => {
-                for field in &mut a.fields { self.ty(module, &mut field.ty, owner, depth + 1)?;
-                    if let Some(e) = &mut field.default { self.expr(module, e, owner, depth + 1)?; } }
+                for field in &mut a.fields {
+                    self.ty(module, &mut field.ty, owner, depth + 1)?;
+                    if let Some(e) = &mut field.default {
+                        self.expr(module, e, owner, depth + 1)?;
+                    }
+                }
                 self.items(module, &mut a.methods, Some(owner), depth + 1, false)?;
             }
-            s::ItemKind::Enum(e) => for variant in &mut e.variants { match &mut variant.fields {
-                s::VariantFields::Unit => {}, s::VariantFields::Tuple(fields) => for field in fields { self.ty(module, &mut field.ty, owner, depth + 1)?; },
-                s::VariantFields::Record(fields) => for field in fields { self.ty(module, &mut field.ty, owner, depth + 1)?;
-                    if let Some(e) = &mut field.default { self.expr(module, e, owner, depth + 1)?; } },
-            } },
-            s::ItemKind::TypeAlias(alias) => if let Some(ty) = &mut alias.value { self.ty(module, ty, owner, depth + 1)?; },
-            s::ItemKind::Const(c) => if let Some(e) = &mut c.value { self.expr(module, e, owner, depth + 1)?; },
-            s::ItemKind::Trait(t) => self.items(module, &mut t.members, Some(owner), depth + 1, false)?,
-            s::ItemKind::Impl(i) => self.items(module, &mut i.members, Some(owner), depth + 1, false)?,
-            s::ItemKind::Import(_) | s::ItemKind::Meta(_) => {},
+            s::ItemKind::Enum(e) => {
+                for variant in &mut e.variants {
+                    match &mut variant.fields {
+                        s::VariantFields::Unit => {}
+                        s::VariantFields::Tuple(fields) => {
+                            for field in fields {
+                                self.ty(module, &mut field.ty, owner, depth + 1)?;
+                            }
+                        }
+                        s::VariantFields::Record(fields) => {
+                            for field in fields {
+                                self.ty(module, &mut field.ty, owner, depth + 1)?;
+                                if let Some(e) = &mut field.default {
+                                    self.expr(module, e, owner, depth + 1)?;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            s::ItemKind::TypeAlias(alias) => {
+                if let Some(ty) = &mut alias.value {
+                    self.ty(module, ty, owner, depth + 1)?;
+                }
+            }
+            s::ItemKind::Const(c) => {
+                if let Some(e) = &mut c.value {
+                    self.expr(module, e, owner, depth + 1)?;
+                }
+            }
+            s::ItemKind::Trait(t) => {
+                self.items(module, &mut t.members, Some(owner), depth + 1, false)?
+            }
+            s::ItemKind::Impl(i) => {
+                self.items(module, &mut i.members, Some(owner), depth + 1, false)?
+            }
+            s::ItemKind::Import(_) | s::ItemKind::Meta(_) => {}
         }
         Ok(())
     }
-    fn block(&mut self, module: ModuleId, block: &mut s::Block, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
+    fn block(
+        &mut self,
+        module: ModuleId,
+        block: &mut s::Block,
+        owner: &CtSymbolId,
+        depth: usize,
+    ) -> CompileResult<()> {
         self.runtime_scopes.push(BTreeSet::new());
         let result = self.statements(module, &mut block.statements, owner, depth + 1);
         self.runtime_scopes.pop();
         result
     }
-    fn statements(&mut self, module: ModuleId, statements: &mut Vec<s::Stmt>, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
-        self.depth(depth, statements.first().map_or(Span::default(), |stmt| stmt.span))?;
+    fn statements(
+        &mut self,
+        module: ModuleId,
+        statements: &mut Vec<s::Stmt>,
+        owner: &CtSymbolId,
+        depth: usize,
+    ) -> CompileResult<()> {
+        self.depth(
+            depth,
+            statements.first().map_or(Span::default(), |stmt| stmt.span),
+        )?;
         let mut output = Vec::new();
         for mut stmt in std::mem::take(statements) {
             match &mut stmt.kind {
                 s::StmtKind::Meta(s::MetaStatement::Emit(expression)) => {
-                    let value = self.expression_value(module, owner, expression, Some(CtTy::Syntax(CtSyntaxCategory::StmtList)))?;
-                    let GeneratedSyntax::StmtList(mut generated) = self.parsed(value, CtSyntaxCategory::StmtList, stmt.span)? else {
-                        return Err(category("#emit must yield StmtList in statement position", stmt.span));
+                    let value = self.expression_value(
+                        module,
+                        owner,
+                        expression,
+                        Some(CtTy::Syntax(CtSyntaxCategory::StmtList)),
+                    )?;
+                    let GeneratedSyntax::StmtList(mut generated) =
+                        self.parsed(value, CtSyntaxCategory::StmtList, stmt.span)?
+                    else {
+                        return Err(category(
+                            "#emit must yield StmtList in statement position",
+                            stmt.span,
+                        ));
                     };
                     self.statements(module, &mut generated, owner, depth + 1)?;
                     output.extend(generated);
                 }
-                s::StmtKind::Meta(s::MetaStatement::If { then_body, else_body, .. }) => {
+                s::StmtKind::Meta(s::MetaStatement::If {
+                    then_body,
+                    else_body,
+                    ..
+                }) => {
                     self.block(module, then_body, owner, depth + 1)?;
-                    if let Some(body) = else_body { self.block(module, body, owner, depth + 1)?; }
+                    if let Some(body) = else_body {
+                        self.block(module, body, owner, depth + 1)?;
+                    }
                     output.push(stmt);
                 }
-                s::StmtKind::Meta(s::MetaStatement::For { body, .. }) => { self.block(module, body, owner, depth + 1)?; output.push(stmt); }
-                _ => { self.statement(module, &mut stmt, owner, depth + 1)?; output.push(stmt); }
+                s::StmtKind::Meta(s::MetaStatement::For { body, .. }) => {
+                    self.block(module, body, owner, depth + 1)?;
+                    output.push(stmt);
+                }
+                _ => {
+                    self.statement(module, &mut stmt, owner, depth + 1)?;
+                    output.push(stmt);
+                }
             }
         }
         *statements = output;
         Ok(())
     }
-    fn statement(&mut self, module: ModuleId, stmt: &mut s::Stmt, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
+    fn statement(
+        &mut self,
+        module: ModuleId,
+        stmt: &mut s::Stmt,
+        owner: &CtSymbolId,
+        depth: usize,
+    ) -> CompileResult<()> {
         self.depth(depth, stmt.span)?;
         match &mut stmt.kind {
-            s::StmtKind::Binding { pattern, ty, value, .. } => { if let Some(ty) = ty { self.ty(module, ty, owner, depth + 1)?; } self.expr(module, value, owner, depth + 1)?; self.bind_runtime_pattern(pattern); },
-            s::StmtKind::Return(Some(e)) | s::StmtKind::Yield(e) | s::StmtKind::Expression(e) => self.expr(module, e, owner, depth + 1)?,
-            s::StmtKind::Return(None) | s::StmtKind::Break | s::StmtKind::Continue => {},
-            s::StmtKind::Defer(block) | s::StmtKind::Loop(block) | s::StmtKind::Unsafe(block) => self.block(module, block, owner, depth + 1)?,
-            s::StmtKind::If { condition, then_body, else_body } => {
-                self.condition(module, condition, owner, depth + 1)?; self.block(module, then_body, owner, depth + 1)?;
-                if let Some(branch) = else_body { match branch { s::ElseBranch::Block(block) => self.block(module, block, owner, depth + 1)?,
-                    s::ElseBranch::If(stmt) => self.statement(module, stmt, owner, depth + 1)? } }
+            s::StmtKind::Binding {
+                pattern, ty, value, ..
+            } => {
+                if let Some(ty) = ty {
+                    self.ty(module, ty, owner, depth + 1)?;
+                }
+                self.expr(module, value, owner, depth + 1)?;
+                self.bind_runtime_pattern(pattern);
             }
-            s::StmtKind::While { condition, body } => { self.condition(module, condition, owner, depth + 1)?; self.block(module, body, owner, depth + 1)?; }
-            s::StmtKind::For { iterable, body, .. } => { self.expr(module, iterable, owner, depth + 1)?; self.block(module, body, owner, depth + 1)?; }
-            s::StmtKind::Match { value, arms } => { self.expr(module, value, owner, depth + 1)?;
-                for arm in arms { self.arrow(module, &mut arm.body, owner, depth + 1)?; } }
-            s::StmtKind::With { value, body, .. } => { self.expr(module, value, owner, depth + 1)?; self.block(module, body, owner, depth + 1)?; }
-            s::StmtKind::Assign { target, value, .. } => { self.expr(module, target, owner, depth + 1)?; self.expr(module, value, owner, depth + 1)?; }
-            s::StmtKind::Meta(_) => {},
+            s::StmtKind::Return(Some(e)) | s::StmtKind::Yield(e) | s::StmtKind::Expression(e) => {
+                self.expr(module, e, owner, depth + 1)?
+            }
+            s::StmtKind::Return(None) | s::StmtKind::Break | s::StmtKind::Continue => {}
+            s::StmtKind::Defer(block) | s::StmtKind::Loop(block) | s::StmtKind::Unsafe(block) => {
+                self.block(module, block, owner, depth + 1)?
+            }
+            s::StmtKind::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                self.condition(module, condition, owner, depth + 1)?;
+                self.block(module, then_body, owner, depth + 1)?;
+                if let Some(branch) = else_body {
+                    match branch {
+                        s::ElseBranch::Block(block) => {
+                            self.block(module, block, owner, depth + 1)?
+                        }
+                        s::ElseBranch::If(stmt) => {
+                            self.statement(module, stmt, owner, depth + 1)?
+                        }
+                    }
+                }
+            }
+            s::StmtKind::While { condition, body } => {
+                self.condition(module, condition, owner, depth + 1)?;
+                self.block(module, body, owner, depth + 1)?;
+            }
+            s::StmtKind::For { iterable, body, .. } => {
+                self.expr(module, iterable, owner, depth + 1)?;
+                self.block(module, body, owner, depth + 1)?;
+            }
+            s::StmtKind::Match { value, arms } => {
+                self.expr(module, value, owner, depth + 1)?;
+                for arm in arms {
+                    self.arrow(module, &mut arm.body, owner, depth + 1)?;
+                }
+            }
+            s::StmtKind::With { value, body, .. } => {
+                self.expr(module, value, owner, depth + 1)?;
+                self.block(module, body, owner, depth + 1)?;
+            }
+            s::StmtKind::Assign { target, value, .. } => {
+                self.expr(module, target, owner, depth + 1)?;
+                self.expr(module, value, owner, depth + 1)?;
+            }
+            s::StmtKind::Meta(_) => {}
         }
         Ok(())
     }
-    fn condition(&mut self, module: ModuleId, condition: &mut s::Condition, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
-        match condition { s::Condition::Expression(e) | s::Condition::Let { value: e, .. } => self.expr(module, e, owner, depth) }
+    fn condition(
+        &mut self,
+        module: ModuleId,
+        condition: &mut s::Condition,
+        owner: &CtSymbolId,
+        depth: usize,
+    ) -> CompileResult<()> {
+        match condition {
+            s::Condition::Expression(e) | s::Condition::Let { value: e, .. } => {
+                self.expr(module, e, owner, depth)
+            }
+        }
     }
-    fn arrow(&mut self, module: ModuleId, arrow: &mut s::ArrowBody, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
-        match arrow { s::ArrowBody::Expression(e) => self.expr(module, e, owner, depth), s::ArrowBody::Block(block) => self.block(module, block, owner, depth) }
+    fn arrow(
+        &mut self,
+        module: ModuleId,
+        arrow: &mut s::ArrowBody,
+        owner: &CtSymbolId,
+        depth: usize,
+    ) -> CompileResult<()> {
+        match arrow {
+            s::ArrowBody::Expression(e) => self.expr(module, e, owner, depth),
+            s::ArrowBody::Block(block) => self.block(module, block, owner, depth),
+        }
     }
-    fn ty(&mut self, module: ModuleId, ty: &mut s::TypeRef, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
+    fn ty(
+        &mut self,
+        module: ModuleId,
+        ty: &mut s::TypeRef,
+        owner: &CtSymbolId,
+        depth: usize,
+    ) -> CompileResult<()> {
         self.depth(depth, ty.span)?;
         match &mut ty.kind {
             s::TypeKind::MetaSplice(expression) => {
                 self.reject_alias_cycle(owner, expression)?;
-                let value = self.expression_value(module, owner, expression, Some(CtTy::Syntax(CtSyntaxCategory::Type)))?;
-                let GeneratedSyntax::Type(replacement) = self.parsed(value, CtSyntaxCategory::Type, ty.span)? else { return Err(category("type #splice needs Syntax<Type>", ty.span)); };
+                let value = self.expression_value(
+                    module,
+                    owner,
+                    expression,
+                    Some(CtTy::Syntax(CtSyntaxCategory::Type)),
+                )?;
+                let GeneratedSyntax::Type(replacement) =
+                    self.parsed(value, CtSyntaxCategory::Type, ty.span)?
+                else {
+                    return Err(category("type #splice needs Syntax<Type>", ty.span));
+                };
                 *ty = replacement;
             }
             s::TypeKind::MetaEval(expression) => {
                 self.reject_alias_cycle(owner, expression)?;
                 let value = self.expression_value(module, owner, expression, Some(CtTy::Type))?;
-                let CtValue::Type(value) = value else { return Err(category("type #(...) needs Type value", ty.span)); };
+                let CtValue::Type(value) = value else {
+                    return Err(category("type #(...) needs Type value", ty.span));
+                };
                 let syntax = self.environment.type_syntax(&value)?;
                 self.environment.budget.release_value(&CtValue::Type(value));
-                let GeneratedSyntax::Type(replacement) = self.parsed(CtValue::Syntax(syntax), CtSyntaxCategory::Type, ty.span)? else { return Err(category("Type value did not reify to Type syntax", ty.span)); };
+                let GeneratedSyntax::Type(replacement) =
+                    self.parsed(CtValue::Syntax(syntax), CtSyntaxCategory::Type, ty.span)?
+                else {
+                    return Err(category("Type value did not reify to Type syntax", ty.span));
+                };
                 *ty = replacement;
             }
-            s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => for arg in args { match arg { s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?, s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)? } },
-            s::TypeKind::Reference { inner, .. } | s::TypeKind::Group(inner) | s::TypeKind::Optional(inner) | s::TypeKind::ForLifetime { inner, .. } => self.ty(module, inner, owner, depth + 1)?,
-            s::TypeKind::Tuple(types) | s::TypeKind::Union(types) | s::TypeKind::Impl(types) => for ty in types { self.ty(module, ty, owner, depth + 1)?; },
-            s::TypeKind::Array { element, length } => { self.ty(module, element, owner, depth + 1)?; if let Some(e) = length { self.expr(module, e, owner, depth + 1)?; } },
-            s::TypeKind::Function { params, result } | s::TypeKind::ForeignFunction { params, result, .. } => { for ty in params { self.ty(module, ty, owner, depth + 1)?; } self.ty(module, result, owner, depth + 1)?; },
-            s::TypeKind::Error { error, result } => { self.ty(module, error, owner, depth + 1)?; self.ty(module, result, owner, depth + 1)?; },
-            s::TypeKind::MetaBlock(_) => return Err(runtime("compile-time Type block must be materialized explicitly", ty.span)),
+            s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
+                for arg in args {
+                    match arg {
+                        s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
+                        s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,
+                    }
+                }
+            }
+            s::TypeKind::Reference { inner, .. }
+            | s::TypeKind::Group(inner)
+            | s::TypeKind::Optional(inner)
+            | s::TypeKind::ForLifetime { inner, .. } => self.ty(module, inner, owner, depth + 1)?,
+            s::TypeKind::Tuple(types) | s::TypeKind::Union(types) | s::TypeKind::Impl(types) => {
+                for ty in types {
+                    self.ty(module, ty, owner, depth + 1)?;
+                }
+            }
+            s::TypeKind::Array { element, length } => {
+                self.ty(module, element, owner, depth + 1)?;
+                if let Some(e) = length {
+                    self.expr(module, e, owner, depth + 1)?;
+                }
+            }
+            s::TypeKind::Function { params, result }
+            | s::TypeKind::ForeignFunction { params, result, .. } => {
+                for ty in params {
+                    self.ty(module, ty, owner, depth + 1)?;
+                }
+                self.ty(module, result, owner, depth + 1)?;
+            }
+            s::TypeKind::Error { error, result } => {
+                self.ty(module, error, owner, depth + 1)?;
+                self.ty(module, result, owner, depth + 1)?;
+            }
+            s::TypeKind::MetaBlock(_) => {
+                return Err(runtime(
+                    "compile-time Type block must be materialized explicitly",
+                    ty.span,
+                ));
+            }
         }
         Ok(())
     }
-    fn expr(&mut self, module: ModuleId, expression: &mut s::Expr, owner: &CtSymbolId, depth: usize) -> CompileResult<()> {
+    fn expr(
+        &mut self,
+        module: ModuleId,
+        expression: &mut s::Expr,
+        owner: &CtSymbolId,
+        depth: usize,
+    ) -> CompileResult<()> {
         self.depth(depth, expression.span)?;
         match &mut expression.kind {
             s::ExprKind::MetaSplice(inner) => {
-                let value = self.expression_value(module, owner, inner, Some(CtTy::Syntax(CtSyntaxCategory::Expr)))?;
-                let GeneratedSyntax::Expr(replacement) = self.parsed(value, CtSyntaxCategory::Expr, expression.span)? else { return Err(category("expression #splice needs Syntax<Expr>", expression.span)); };
+                let value = self.expression_value(
+                    module,
+                    owner,
+                    inner,
+                    Some(CtTy::Syntax(CtSyntaxCategory::Expr)),
+                )?;
+                let GeneratedSyntax::Expr(replacement) =
+                    self.parsed(value, CtSyntaxCategory::Expr, expression.span)?
+                else {
+                    return Err(category(
+                        "expression #splice needs Syntax<Expr>",
+                        expression.span,
+                    ));
+                };
                 *expression = replacement;
             }
             s::ExprKind::SyntaxIsland { path, tree } => {
-                let value = self.provider(module, path, tree, expression.span, &CtTy::Syntax(CtSyntaxCategory::Expr))?;
-                let GeneratedSyntax::Expr(replacement) = self.parsed(value, CtSyntaxCategory::Expr, expression.span)? else { return Err(category("expression provider needs Syntax<Expr>", expression.span)); };
+                let value = self.provider(
+                    module,
+                    path,
+                    tree,
+                    expression.span,
+                    &CtTy::Syntax(CtSyntaxCategory::Expr),
+                )?;
+                let GeneratedSyntax::Expr(replacement) =
+                    self.parsed(value, CtSyntaxCategory::Expr, expression.span)?
+                else {
+                    return Err(category(
+                        "expression provider needs Syntax<Expr>",
+                        expression.span,
+                    ));
+                };
                 *expression = replacement;
             }
-            s::ExprKind::Quote { .. } => return Err(runtime("Syntax value cannot enter a runtime expression", expression.span)),
+            s::ExprKind::Quote { .. } => {
+                return Err(runtime(
+                    "Syntax value cannot enter a runtime expression",
+                    expression.span,
+                ));
+            }
             s::ExprKind::MetaEval(inner) => {
                 let value = self.expression_value(module, owner, inner, None)?;
-                let CtValue::Scalar(scalar) = value else { return Err(runtime("Type, Syntax, Ident and CT views cannot enter runtime expressions", expression.span)); };
+                let CtValue::Scalar(scalar) = value else {
+                    return Err(runtime(
+                        "Type, Syntax, Ident and CT views cannot enter runtime expressions",
+                        expression.span,
+                    ));
+                };
                 expression.kind = match scalar {
                     zil_ir::Constant::Bool(value) => s::ExprKind::Literal(s::Literal::Bool(value)),
-                    zil_ir::Constant::U8(value) => s::ExprKind::Literal(s::Literal::Integer(value.to_string())),
-                    zil_ir::Constant::U16(value) => s::ExprKind::Literal(s::Literal::Integer(value.to_string())),
-                    zil_ir::Constant::I32(value) => s::ExprKind::Literal(s::Literal::Integer(value.to_string())),
-                    zil_ir::Constant::I64(value) => s::ExprKind::Literal(s::Literal::Integer(value.to_string())),
+                    zil_ir::Constant::U8(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                    }
+                    zil_ir::Constant::U16(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                    }
+                    zil_ir::Constant::I32(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                    }
+                    zil_ir::Constant::I64(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                    }
                     zil_ir::Constant::Unit => s::ExprKind::Tuple(Vec::new()),
-                    _ => return Err(runtime("CT result has no ordinary scalar literal", expression.span)),
+                    _ => {
+                        return Err(runtime(
+                            "CT result has no ordinary scalar literal",
+                            expression.span,
+                        ));
+                    }
                 };
                 self.environment.budget.release_temporary_bytes(16);
             }
-            s::ExprKind::MetaBlock(_) => {},
-            s::ExprKind::Group(e) | s::ExprKind::Try(e) | s::ExprKind::Unary { operand: e, .. } => self.expr(module, e, owner, depth + 1)?,
-            s::ExprKind::Tuple(values) | s::ExprKind::Array(values) => for e in values { self.expr(module, e, owner, depth + 1)?; },
-            s::ExprKind::Binary { left, right, .. } | s::ExprKind::Pipeline { input: left, target: right } => { self.expr(module, left, owner, depth + 1)?; self.expr(module, right, owner, depth + 1)?; },
+            s::ExprKind::MetaBlock(_) => {}
+            s::ExprKind::Group(e) | s::ExprKind::Try(e) | s::ExprKind::Unary { operand: e, .. } => {
+                self.expr(module, e, owner, depth + 1)?
+            }
+            s::ExprKind::Tuple(values) | s::ExprKind::Array(values) => {
+                for e in values {
+                    self.expr(module, e, owner, depth + 1)?;
+                }
+            }
+            s::ExprKind::Binary { left, right, .. }
+            | s::ExprKind::Pipeline {
+                input: left,
+                target: right,
+            } => {
+                self.expr(module, left, owner, depth + 1)?;
+                self.expr(module, right, owner, depth + 1)?;
+            }
             s::ExprKind::Member { object, .. } => self.expr(module, object, owner, depth + 1)?,
-            s::ExprKind::TypeApply { callee, arguments } => { self.expr(module, callee, owner, depth + 1)?; for arg in arguments { match arg { s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?, s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?, } } },
-            s::ExprKind::Call { callee, arguments } => { self.expr(module, callee, owner, depth + 1)?; for arg in arguments { self.expr(module, &mut arg.value, owner, depth + 1)?; } },
-            s::ExprKind::Index { object, index } => { self.expr(module, object, owner, depth + 1)?; self.expr(module, index, owner, depth + 1)?; },
-            s::ExprKind::Slice { object, start, end } => { self.expr(module, object, owner, depth + 1)?; for e in [start, end].into_iter().flatten() { self.expr(module, e, owner, depth + 1)?; } },
+            s::ExprKind::TypeApply { callee, arguments } => {
+                self.expr(module, callee, owner, depth + 1)?;
+                for arg in arguments {
+                    match arg {
+                        s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
+                        s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,
+                    }
+                }
+            }
+            s::ExprKind::Call { callee, arguments } => {
+                self.expr(module, callee, owner, depth + 1)?;
+                for arg in arguments {
+                    self.expr(module, &mut arg.value, owner, depth + 1)?;
+                }
+            }
+            s::ExprKind::Index { object, index } => {
+                self.expr(module, object, owner, depth + 1)?;
+                self.expr(module, index, owner, depth + 1)?;
+            }
+            s::ExprKind::Slice { object, start, end } => {
+                self.expr(module, object, owner, depth + 1)?;
+                for e in [start, end].into_iter().flatten() {
+                    self.expr(module, e, owner, depth + 1)?;
+                }
+            }
             s::ExprKind::Record { ty, base, fields } => {
-                if let Some(ty) = ty { self.expr(module, ty, owner, depth + 1)?; }
-                if let Some(base) = base { self.expr(module, base, owner, depth + 1)?; }
-                for field in fields { if let Some(e) = &mut field.value { self.expr(module, e, owner, depth + 1)?; } } },
-            s::ExprKind::Closure { params, return_type, body, .. } => { for param in params { if let Some(ty) = &mut param.ty { self.ty(module, ty, owner, depth + 1)?; } }
-                if let Some(ty) = return_type { self.ty(module, ty, owner, depth + 1)?; } self.arrow(module, body, owner, depth + 1)?; },
-            s::ExprKind::If { condition, then_value, else_value } => { self.expr(module, condition, owner, depth + 1)?; self.expr(module, then_value, owner, depth + 1)?; self.expr(module, else_value, owner, depth + 1)?; },
-            s::ExprKind::Literal(_) | s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_) => {},
+                if let Some(ty) = ty {
+                    self.expr(module, ty, owner, depth + 1)?;
+                }
+                if let Some(base) = base {
+                    self.expr(module, base, owner, depth + 1)?;
+                }
+                for field in fields {
+                    if let Some(e) = &mut field.value {
+                        self.expr(module, e, owner, depth + 1)?;
+                    }
+                }
+            }
+            s::ExprKind::Closure {
+                params,
+                return_type,
+                body,
+                ..
+            } => {
+                for param in params {
+                    if let Some(ty) = &mut param.ty {
+                        self.ty(module, ty, owner, depth + 1)?;
+                    }
+                }
+                if let Some(ty) = return_type {
+                    self.ty(module, ty, owner, depth + 1)?;
+                }
+                self.arrow(module, body, owner, depth + 1)?;
+            }
+            s::ExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                self.expr(module, condition, owner, depth + 1)?;
+                self.expr(module, then_value, owner, depth + 1)?;
+                self.expr(module, else_value, owner, depth + 1)?;
+            }
+            s::ExprKind::Literal(_) | s::ExprKind::Name(_) | s::ExprKind::ReceiverMember(_) => {}
         }
         Ok(())
     }
@@ -538,16 +1449,50 @@ impl Materializer<'_, '_> {
 // target, limits and frozen provider registry are all independent inputs.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn materialize(
-    sources: &[SourceUnit], parsed: &[Arc<ParseResult>], modules: &[&s::Module], paths: &BTreeMap<Vec<String>, ModuleId>,
-    imports: &[Vec<CoreImport>], root: ModuleId, fingerprint: Fingerprint,
-    target: &TargetProfile, limits: &Limits, registry: Option<&CtLockedProviderRegistry>,
+    sources: &[SourceUnit],
+    parsed: &[Arc<ParseResult>],
+    modules: &[&s::Module],
+    paths: &BTreeMap<Vec<String>, ModuleId>,
+    imports: &[Vec<CoreImport>],
+    root: ModuleId,
+    fingerprint: Fingerprint,
+    target: &TargetProfile,
+    limits: &Limits,
+    registry: Option<&CtLockedProviderRegistry>,
 ) -> CompileResult<Materialized> {
-    let mut environment = Environment::new(sources, parsed, paths, imports, root, fingerprint, target, limits)?;
+    let mut environment = Environment::new(
+        sources,
+        parsed,
+        paths,
+        imports,
+        root,
+        fingerprint,
+        target,
+        limits,
+    )?;
     environment.classify_definitions()?;
-    let mut output = modules.iter().map(|module| (*module).clone()).collect::<Vec<_>>();
-    let mut materializer = Materializer { environment: &mut environment, sources, parsed, registry, paths,
-        previews: Vec::new(), required_imports: Vec::new(), runtime_scopes: Vec::new(), max_depth: limits.max_call_depth };
-    for module in &mut output { materializer.items(module.id, &mut module.items, None, 0, false)?; }
-    Ok(Materialized { modules: output, previews: materializer.previews, required_imports: materializer.required_imports,
-        usage: environment.budget.usage().clone() })
+    let mut output = modules
+        .iter()
+        .map(|module| (*module).clone())
+        .collect::<Vec<_>>();
+    let mut materializer = Materializer {
+        environment: &mut environment,
+        sources,
+        parsed,
+        registry,
+        paths,
+        previews: Vec::new(),
+        required_imports: Vec::new(),
+        runtime_scopes: Vec::new(),
+        max_depth: limits.max_call_depth,
+    };
+    for module in &mut output {
+        materializer.items(module.id, &mut module.items, None, 0, false)?;
+    }
+    Ok(Materialized {
+        modules: output,
+        previews: materializer.previews,
+        required_imports: materializer.required_imports,
+        usage: environment.budget.usage().clone(),
+    })
 }

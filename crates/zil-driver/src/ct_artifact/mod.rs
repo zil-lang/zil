@@ -1,19 +1,19 @@
 //! Project-owned compile-time artifact inputs. None of these values grants
 //! verification authority; the verifier checks them against frozen source.
-pub mod lock;
-mod compiler;
-mod source_index;
 mod authority;
-mod snapshot;
-mod type_ref;
+mod compiler;
+mod execute;
+mod hygiene;
+mod input;
+pub mod lock;
+mod materialize;
+mod ordinary_type;
 mod read_view;
 mod render;
-mod input;
-mod execute;
-mod ordinary_type;
-mod materialize;
-mod hygiene;
+mod snapshot;
+mod source_index;
+mod type_ref;
 
 pub use lock::SyntaxLock;
-pub(super) use materialize::materialize;
 pub(crate) use materialize::Preview;
+pub(super) use materialize::materialize;

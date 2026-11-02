@@ -1,9 +1,9 @@
 //! Non-author source, namespace and cumulative-budget review of slice 229.
 use std::{collections::BTreeMap, fs, path::PathBuf};
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
-use zil_driver::{CompilationSession, CompileOptions, CompileReport, ProjectSources};
 #[cfg(feature = "llvm-api")]
 use zil_driver::Stage;
+use zil_driver::{CompilationSession, CompileOptions, CompileReport, ProjectSources};
 
 fn input(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "review229.zil", text)

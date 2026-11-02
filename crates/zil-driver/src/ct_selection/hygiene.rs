@@ -121,7 +121,9 @@ impl<'a> Renamer<'a> {
                 self.ty(error, depth + 1)?;
                 self.ty(result, depth + 1)?;
             }
-            s::TypeKind::MetaEval(value) | s::TypeKind::MetaSplice(value) => self.expression(value, depth + 1)?,
+            s::TypeKind::MetaEval(value) | s::TypeKind::MetaSplice(value) => {
+                self.expression(value, depth + 1)?
+            }
             s::TypeKind::MetaBlock(_) => return Err(self.unsupported(ty.span)),
         }
         Ok(())
@@ -327,7 +329,9 @@ impl<'a> Renamer<'a> {
             | s::ExprKind::MetaSplice(value)
             | s::ExprKind::Unary { operand: value, .. } => self.expression(value, depth + 1)?,
             s::ExprKind::Quote { template, .. } => {
-                for hole in &mut template.holes { self.expression(&mut hole.value, depth + 1)?; }
+                for hole in &mut template.holes {
+                    self.expression(&mut hole.value, depth + 1)?;
+                }
             }
             s::ExprKind::Tuple(values) | s::ExprKind::Array(values) => {
                 for value in values {

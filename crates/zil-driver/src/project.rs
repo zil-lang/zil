@@ -452,17 +452,26 @@ impl CompilationSession {
             return Ok(());
         }
         let syntax_modules = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
-        let locked = options.syntax_lock.as_ref().map(|lock| lock.resolve(&project.modules, &syntax_modules, &project.paths)).transpose()?;
+        let locked = options
+            .syntax_lock
+            .as_ref()
+            .map(|lock| lock.resolve(&project.modules, &syntax_modules, &project.paths))
+            .transpose()?;
         let imports = resolve_imports(project, &parsed, &options.limits, locked.as_ref())?;
         let selection_needed = project
             .modules
             .iter()
             .zip(&parsed)
             .any(|(source, parsed)| super::ct_selection::needed(source, parsed));
-        let artifact_needed = options.syntax_lock.is_some() || parsed.iter().any(|parsed| {
-            parsed.tokens.iter().any(|token| matches!(token.kind,
-                zil_syntax::token::TokenKind::Symbol(zil_syntax::token::Symbol::Hash)))
-        });
+        let artifact_needed = options.syntax_lock.is_some()
+            || parsed.iter().any(|parsed| {
+                parsed.tokens.iter().any(|token| {
+                    matches!(
+                        token.kind,
+                        zil_syntax::token::TokenKind::Symbol(zil_syntax::token::Symbol::Hash)
+                    )
+                })
+            });
         let (raw, expand_snapshot) = self.query(
             key(Phase::Expand, selection_needed || artifact_needed),
             &dependencies,
@@ -589,8 +598,17 @@ impl CompilationSession {
             })?;
         }
         if artifact_needed {
-            artifacts.dump_lazy(report, options, "ct-syntax", |_| format!("[{}]",
-                expanded.ct_previews.iter().map(|preview| preview.json()).collect::<Vec<_>>().join(",")))?;
+            artifacts.dump_lazy(report, options, "ct-syntax", |_| {
+                format!(
+                    "[{}]",
+                    expanded
+                        .ct_previews
+                        .iter()
+                        .map(|preview| preview.json())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            })?;
         }
         if options.stop_after == Stage::Core {
             return Ok(());
@@ -607,10 +625,26 @@ impl CompilationSession {
                 let inferred = inference.program();
                 let mut remaining = expanded.selection.remaining(&options.limits)?;
                 if let Some(usage) = &expanded.ct_usage {
-                    remaining.max_ct_steps = remaining.max_ct_steps.checked_sub(usage.steps)
-                        .ok_or_else(|| vec![Diagnostic::limit(Phase::Ct, "Type/Syntax CT step budget exceeded", None)])?;
-                    remaining.max_nodes = remaining.max_nodes.checked_sub(usage.generated_nodes as usize)
-                        .ok_or_else(|| vec![Diagnostic::limit(Phase::Ct, "Type/Syntax CT generated node budget exceeded", None)])?;
+                    remaining.max_ct_steps = remaining
+                        .max_ct_steps
+                        .checked_sub(usage.steps)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::limit(
+                                Phase::Ct,
+                                "Type/Syntax CT step budget exceeded",
+                                None,
+                            )]
+                        })?;
+                    remaining.max_nodes = remaining
+                        .max_nodes
+                        .checked_sub(usage.generated_nodes as usize)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::limit(
+                                Phase::Ct,
+                                "Type/Syntax CT generated node budget exceeded",
+                                None,
+                            )]
+                        })?;
                 }
                 let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
                 let initial_remaining = remaining.clone();
@@ -807,7 +841,11 @@ fn validate_sources<'a>(
     }
     for (path, id) in &project.paths {
         if path.first().is_some_and(|segment| segment == "std") {
-            return Err(reject("E-STD-RESERVED", None, "std modules are reserved for the compiler's closed CT interface"));
+            return Err(reject(
+                "E-STD-RESERVED",
+                None,
+                "std modules are reserved for the compiler's closed CT interface",
+            ));
         }
         take(
             &mut work,
@@ -896,8 +934,14 @@ fn resolve_imports(
             )?;
             unsupported_import(item, import)?;
             if import.path.first().is_some_and(|part| part == "std") {
-                if import.syntax || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax")) {
-                    return Err(reject("E-STD-IMPORT", Some(item.span), "only ordinary imports of std.meta and std.syntax are available"));
+                if import.syntax
+                    || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax"))
+                {
+                    return Err(reject(
+                        "E-STD-IMPORT",
+                        Some(item.span),
+                        "only ordinary imports of std.meta and std.syntax are available",
+                    ));
                 }
                 continue;
             }
@@ -915,11 +959,24 @@ fn resolve_imports(
                 .ok_or_else(|| reject("E-MODULE-PATH", Some(item.span), "empty import path"))?;
             if import.syntax {
                 if !syntax_aliases.insert(alias) {
-                    return Err(reject("E-SYNTAX-ALIAS", Some(item.span), "duplicate syntax provider alias"));
+                    return Err(reject(
+                        "E-SYNTAX-ALIAS",
+                        Some(item.span),
+                        "duplicate syntax provider alias",
+                    ));
                 }
                 let path = import.path.join(".");
-                if !locked.is_some_and(|registry| registry.entries.iter().any(|entry| entry.path == path && entry.export == "default")) {
-                    return Err(reject("E-SYNTAX-LOCK-MISSING", Some(item.span), format!("syntax provider {path} needs a locked default entry")));
+                if !locked.is_some_and(|registry| {
+                    registry
+                        .entries
+                        .iter()
+                        .any(|entry| entry.path == path && entry.export == "default")
+                }) {
+                    return Err(reject(
+                        "E-SYNTAX-LOCK-MISSING",
+                        Some(item.span),
+                        format!("syntax provider {path} needs a locked default entry"),
+                    ));
                 }
                 continue;
             }
@@ -1263,8 +1320,14 @@ fn load_sources(
                 ));
             }
             if import.path.first().is_some_and(|part| part == "std") {
-                if import.syntax || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax")) {
-                    return Err(reject("E-STD-IMPORT", Some(item.span), "only ordinary imports of std.meta and std.syntax are available"));
+                if import.syntax
+                    || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax"))
+                {
+                    return Err(reject(
+                        "E-STD-IMPORT",
+                        Some(item.span),
+                        "only ordinary imports of std.meta and std.syntax are available",
+                    ));
                 }
                 continue;
             }

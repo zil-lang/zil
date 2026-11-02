@@ -113,7 +113,9 @@ fn main() -> ExitCode {
                     "--syntax-lock" => {
                         let contents = match std::fs::read_to_string(value) {
                             Ok(contents) => contents,
-                            Err(error) => return usage(&format!("cannot read syntax lock: {error}"), json),
+                            Err(error) => {
+                                return usage(&format!("cannot read syntax lock: {error}"), json);
+                            }
                         };
                         options.syntax_lock = match SyntaxLock::parse(&contents) {
                             Ok(lock) => Some(lock),
