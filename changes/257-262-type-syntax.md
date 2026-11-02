@@ -11,3 +11,5 @@
 布局桥接复用真实LLVM值布局，先预付类型遍历/名字/offset存储费用；现有递归实现完整支持默认max_call_depth=256，调用者调高额度时仍在256处明确ResourceLimit，不能绕过后端栈界。查询只返回数据，不授名义/私有字段/拥有资格；源字段offset不把Enum不同备选载荷平铺。实际来源与可见性由已核冻结视图另核。
 
 CT wire 使用固定schema1字段编码及独立域的有界指纹；失败消费已做工作，循环/临时栈也预付，深层编解码用显式栈。token cursor与query依赖身份消费同请求余额，不使用Debug格式作稳定身份。反射成员以Core Member.owner保留完整名义/泛型约束，类型层核真实receiver且保留原place/权限，不用Ascribed包装冒充。
+
+源码CT编译器对实际(module, alias declaration span)维护活动别名栈；进入、逐项比较和push前分别预付analysis work，错误也弹出活动项，检出重入后按真实阶段依赖拒绝。无alias路径不增加费用，默认预算不变；直接函数编译入口与项目入口都必须阻止别名展开栈溢出。
