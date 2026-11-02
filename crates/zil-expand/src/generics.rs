@@ -1279,6 +1279,8 @@ impl<'a> Engine<'a> {
         // A surrounding E!T admits either exact payload or the whole union.
         // It therefore cannot constrain a generic result variable to E!T
         // before argument inference determines the expression's own type.
+        let error_context =
+            expected.filter(|ty| matches!(grouped(ty).kind, TypeKind::Error { .. }));
         let store_success_context = expected.filter(|ty| stores::success(ty).is_some());
         let expected = expected.filter(|ty| !matches!(grouped(ty).kind, TypeKind::Error { .. }));
         if let Some(ty) = self.enum_expression(e, env, expected, depth)? {
@@ -1825,7 +1827,26 @@ impl<'a> Engine<'a> {
             } => {
                 self.expr(condition, env, depth + 1)?;
                 let ty = self.expr_expected(then_value, env, expected, depth + 1)?;
-                self.expr_expected(else_value, env, expected.or(ty.as_ref()), depth + 1)?;
+                // The erased E!R expectation does not make its first payload
+                // the expected nominal type of a distinct enum alternative.
+                // Preserve the old same-nominal/context-free path exactly.
+                let else_constructor = match &else_value.kind {
+                    ExprKind::Call { callee, .. } => callee.as_ref(),
+                    _ => else_value.as_ref(),
+                };
+                let alternative = if let (Some(union), Some(first), Some((name, _, _))) = (
+                    error_context,
+                    ty.as_ref(),
+                    enums::constructor(else_constructor),
+                ) && matches!(&grouped(first).kind,TypeKind::Named{path,..} if path.as_slice()!=[name])
+                    && let TypeKind::Error { error, result } = &grouped(union).kind
+                {
+                    [error.as_ref(),result.as_ref()].into_iter().find(|payload|
+                        matches!(&grouped(payload).kind,TypeKind::Named{path,..} if path.as_slice()==[name]))
+                } else {
+                    expected.or(ty.as_ref())
+                };
+                self.expr_expected(else_value, env, alternative, depth + 1)?;
                 ty
             }
             ExprKind::Record { ty, base, fields } => {
