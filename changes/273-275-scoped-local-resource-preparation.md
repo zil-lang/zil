@@ -11,3 +11,5 @@
 必须通过原字节generic-local及两个既有控制的源码、默认/参考O0/O2和真实失败准备：登记成功、null未调用body、reserve失败退出均只清实际取得责任，返回后live0，调用者F仍可用。拒绝重复give、give后使用、Desc伪造owner、同owner重复capture、漏清理、消费后复用及F实际别名；独立raw保留准确plan/Flow正前缀，错误结构不能替代责任核验。
 
 273仅Expand生产及既有测试，必要Types缺口先报root；274独立Analyze/Verify组合测试和审查，先不放宽生产；275复用foreign_scoped_callbacks功能入口及按功能命名的小源/C/oracle输入，不新建工单号Cargo target，不改旧ORACLE预期。机器与源码结果分别记录，原失败保留小文本，无永久raw归档。
+
+正式全量9c6a64ee出现一项旧177预期失败（其余3918项通过）：`let d=R{code:65};let a=give d;return state`此前列为Unsupported，但该d来自实际资源构造，按本片合同应建立owner。保留原源字节并单列Verify成功；原描述值拒绝义务改由`let owner=R{code:65};let d=owner;let a=give d;return state`准确验证，Copy字段及callback字段两个原反例不变。独立重放确认真正Desc仍Expand/E-UNSUPPORTED且未进入Verify。本次仅迁移该测试预期，不改生产代码。
