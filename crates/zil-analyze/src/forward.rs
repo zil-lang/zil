@@ -270,6 +270,20 @@ fn closure(ty: &Type) -> Option<(ClosureId, bool)> {
         _ => None,
     }
 }
+/// Existing lowering stores a replaceable owning F in one real array slot.
+/// This is a local carrier, never an additional public parameter/result form.
+pub(super) fn internal_slot(ty: &Type) -> Option<ClosureId> {
+    match ty {
+        Type::Array { element, length: 1 } => match element.as_ref() {
+            Type::Closure(id) => Some(*id),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+fn carrier(ty: &Type) -> bool {
+    closure(ty).is_some() || internal_slot(ty).is_some()
+}
 fn role(origin: u8) -> CompileResult<Option<usize>> {
     match origin {
         1 => Ok(Some(0)),
@@ -341,7 +355,7 @@ fn consume(
     let slot = state.values[value.0 as usize];
     live(slot, check)?;
     let ty = &f.values[value.0 as usize];
-    if check && slot.alias && matches!(ty, Type::Closure(_)) {
+    if check && slot.alias && (matches!(ty, Type::Closure(_)) || internal_slot(ty).is_some()) {
         return Err(bad(
             "a symbolic F observation cannot be copied into a transferred value",
         ));
@@ -392,7 +406,7 @@ fn transfer(
             | InstructionKind::TakeLocal { local }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::BorrowLocalMut { local }
-                if closure(&f.locals[local.0 as usize].ty).is_some() =>
+                if carrier(&f.locals[local.0 as usize].ty) =>
             {
                 let slot = state.locals[local.0 as usize];
                 live(slot, check)?;
@@ -420,10 +434,10 @@ fn transfer(
                 slot.alias = true;
                 output = Some(slot);
             }
-            InstructionKind::Store { local, value }
-                if closure(&f.locals[local.0 as usize].ty).is_some() =>
-            {
-                let slot = if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
+            InstructionKind::Store { local, value } if carrier(&f.locals[local.0 as usize].ty) => {
+                let slot = if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                    || internal_slot(&f.locals[local.0 as usize].ty).is_some()
+                {
                     consume(module, f, state, *value, check, budget)?
                 } else {
                     let slot = state.values[value.0 as usize];
@@ -435,9 +449,59 @@ fn transfer(
             InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
                 state.locals[local.0 as usize] = Slot::EMPTY;
             }
-            InstructionKind::DropClosure { local } => {
+            InstructionKind::MakeOwnedArray { elements }
+                if i.result
+                    .is_some_and(|v| internal_slot(&f.values[v.0 as usize]).is_some()) =>
+            {
+                if elements.len() != 1 {
+                    return Err(bad("forward internal slot must have exactly one element"));
+                }
+                output = Some(consume(module, f, state, elements[0], check, budget)?);
+            }
+            InstructionKind::TakeOwnedArrayElement { local, index }
+            | InstructionKind::BorrowOwnedArrayElement { local, index, .. }
+            | InstructionKind::StoreOwnedArrayElement { local, index, .. }
+            | InstructionKind::DropOwnedArrayElement { local, index }
+                if internal_slot(&f.locals[local.0 as usize].ty).is_some() =>
+            {
+                if *index != 0 {
+                    return Err(bad(
+                        "forward internal slot index is outside its actual element",
+                    ));
+                }
+                match &i.kind {
+                    InstructionKind::StoreOwnedArrayElement { value, .. } => {
+                        state.locals[local.0 as usize] =
+                            consume(module, f, state, *value, check, budget)?;
+                    }
+                    InstructionKind::TakeOwnedArrayElement { .. } => {
+                        let slot = state.locals[local.0 as usize];
+                        live(slot, check)?;
+                        state.locals[local.0 as usize].life = MOVED;
+                        output = Some(slot);
+                    }
+                    InstructionKind::BorrowOwnedArrayElement { .. } => {
+                        let mut slot = state.locals[local.0 as usize];
+                        live(slot, check)?;
+                        slot.alias = true;
+                        output = Some(slot);
+                    }
+                    InstructionKind::DropOwnedArrayElement { .. } => {
+                        let slot = &mut state.locals[local.0 as usize];
+                        if slot.life & LIVE != 0 {
+                            slot.life = (slot.life & !LIVE) | CLEANED;
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            InstructionKind::DropClosure { local } | InstructionKind::DropOwnedArray { local }
+                if carrier(&f.locals[local.0 as usize].ty) =>
+            {
                 let slot = &mut state.locals[local.0 as usize];
-                if check && slot.alias { return Err(bad("a borrowed callable observation cannot be destroyed")); }
+                if check && slot.alias {
+                    return Err(bad("a borrowed callable observation cannot be destroyed"));
+                }
                 if check && slot.life == CLEANED {
                     return Err(bad("callable instance is cleaned twice"));
                 }
@@ -447,7 +511,7 @@ fn transfer(
             }
             InstructionKind::MakeClosure { captures, .. } => {
                 for value in captures {
-                    if closure(&f.values[value.0 as usize]).is_some() {
+                    if carrier(&f.values[value.0 as usize]) {
                         let slot = consume(module, f, state, *value, check, budget)?;
                         if check && slot.origin & 3 != 0 {
                             return Err(bad(
@@ -471,7 +535,7 @@ fn transfer(
                 }
                 let mut result = None;
                 for (index, value) in arguments.iter().enumerate() {
-                    if closure(&f.values[value.0 as usize]).is_none() {
+                    if !carrier(&f.values[value.0 as usize]) {
                         continue;
                     }
                     let slot = state.values[value.0 as usize];
@@ -491,7 +555,9 @@ fn transfer(
                             }
                         }
                     }
-                    let slot = if matches!(f.values[value.0 as usize], Type::Closure(_)) {
+                    let slot = if matches!(f.values[value.0 as usize], Type::Closure(_))
+                        || internal_slot(&f.values[value.0 as usize]).is_some()
+                    {
                         consume(module, f, state, *value, check, budget)?
                     } else {
                         slot
@@ -596,7 +662,7 @@ fn transfer(
             _ => {}
         }
         if let Some(value) = i.result
-            && closure(&f.values[value.0 as usize]).is_some()
+            && carrier(&f.values[value.0 as usize])
         {
             state.values[value.0 as usize] = output.unwrap_or(Slot {
                 origin: UNKNOWN,
@@ -610,6 +676,10 @@ fn transfer(
         && let Terminator::Return(value) = f.blocks[block].terminator
     {
         let value = value.ok_or_else(|| bad("callable parameter return has no value"))?;
+        budget.spend(1, "forward normal return exact type")?;
+        if f.values.get(value.0 as usize) != Some(&f.return_type) {
+            return Err(bad("forward return does not have the actual bare F type"));
+        }
         let slot = state.values[value.0 as usize];
         live(slot, true)?;
         let index = claim
@@ -640,6 +710,7 @@ pub(super) fn prove(
         locals: vec![Slot::EMPTY; f.locals.len()],
         values: vec![Slot::EMPTY; f.values.len()],
     };
+    budget.spend(parameters.len(), "forward incoming role instances")?;
     for (index, (_, local)) in parameters.iter().enumerate() {
         entry.locals[local.0 as usize] = Slot {
             origin: 1 << index,
