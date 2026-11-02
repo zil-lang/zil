@@ -88,7 +88,7 @@ fn raw_wire_with_code(
             result.unwrap_or_else(|e| panic!("{label}/{route}: {e:#?}"));
         } else {
             if let Some(code) = expected_code {
-                let errors = result.as_ref().err().expect("invalid raw accepted");
+                let errors = result.as_ref().expect_err("invalid raw accepted");
                 assert!(
                     errors
                         .iter()
