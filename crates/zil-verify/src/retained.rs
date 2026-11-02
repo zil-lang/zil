@@ -272,6 +272,18 @@ fn check_parameter_claim(
         ));
     }
     closures::self_contained(module, id, budget)?;
+    budget.spend(f.locals.len().saturating_add(f.values.len()))?;
+    for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
+        if let Type::Array { element, length } = ty
+            && element.as_ref() == &Type::Closure(id)
+            && *length != 1
+        {
+            return Err(unsupported(
+                "forwarded F only uses the existing internal single-element owning slot",
+                Some(f.span),
+            ));
+        }
+    }
     budget.spend(f.parameters.len())?;
     for (position, parameter_local) in f.parameters.iter().enumerate() {
         if position == index {
