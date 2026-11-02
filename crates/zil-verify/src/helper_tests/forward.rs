@@ -92,6 +92,29 @@ fn forged_index_cleanup_and_permission_are_rejected() {
 }
 
 #[test]
+fn raw_companion_cannot_hide_f_or_an_external_address() {
+    for ty in [
+        Type::Package {
+            name: "Hidden".into(),
+            fields: vec![("callback".into(), env())],
+        },
+        address(Type::I32, false),
+    ] {
+        let mut raw = keep(CallableKind::Fn, CallableKind::Fn);
+        let function = &mut raw.module.functions[0];
+        function.locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "data".into(),
+            ty,
+            mutable: false,
+            span: span(),
+        });
+        function.parameters.push(LocalId(1));
+        raw.reject("E-UNSUPPORTED");
+    }
+}
+
+#[test]
 fn fnmut_call_preserves_instance_but_fnonce_call_consumes_it() {
     let mut permitted = keep(CallableKind::FnMut, CallableKind::FnMut);
     let function = &mut permitted.module.functions[0];
@@ -226,6 +249,25 @@ fn each_branch_returns_this_instances_parameter() {
         },
     ];
     raw.accept();
+
+    let mut mixed = raw.clone();
+    let function = &mut mixed.module.functions[0];
+    function.values = vec![Type::Bool, env(), Type::I32, env()];
+    function.blocks[2].instructions = vec![
+        op(
+            Some(ValueId(2)),
+            InstructionKind::Constant(Constant::I32(9)),
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(0),
+                captures: vec![ValueId(2)],
+            },
+        ),
+    ];
+    function.blocks[2].terminator = Terminator::Return(Some(ValueId(3)));
+    mixed.reject("instance");
 }
 
 #[test]
