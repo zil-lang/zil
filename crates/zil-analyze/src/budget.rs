@@ -21,6 +21,8 @@ pub(super) struct Budget {
     pub(super) helper_edges: usize,
     pub(super) helper_depth: usize,
     pub(super) shared_product_capture: bool,
+    pub(super) address_capture: bool,
+    pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
     pub(super) sum_functions: Vec<bool>,
@@ -45,6 +47,8 @@ impl Budget {
             helper_edges: limits.max_analysis_steps,
             helper_depth: limits.max_call_depth,
             shared_product_capture: false,
+            address_capture: false,
+            address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
             owned_callbacks: BTreeSet::new(),
@@ -669,6 +673,7 @@ pub(super) fn preflight(
             "closure signature preflight",
         )?;
         for ty in &closure.captures {
+            budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
                 budget.shared_product_capture = true;
                 let Type::Address {

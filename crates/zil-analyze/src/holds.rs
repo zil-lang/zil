@@ -10,6 +10,33 @@ enum Root {
     Field(LocalId, u32),
     Capture(u32),
     Parameter(u32),
+    // A borrowed environment keeps these positions alive, but its pointer
+    // addresses the environment itself. They are not additional pointees.
+    RetainedLocal(LocalId),
+    RetainedField(LocalId, u32),
+    RetainedCapture(u32),
+    RetainedParameter(u32),
+}
+
+impl Root {
+    fn position(self) -> Self {
+        match self {
+            Self::RetainedLocal(local) => Self::Local(local),
+            Self::RetainedField(local, index) => Self::Field(local, index),
+            Self::RetainedCapture(index) => Self::Capture(index),
+            Self::RetainedParameter(index) => Self::Parameter(index),
+            root => root,
+        }
+    }
+    fn retained(self) -> Self {
+        match self.position() {
+            Self::Local(local) => Self::RetainedLocal(local),
+            Self::Field(local, index) => Self::RetainedField(local, index),
+            Self::Capture(index) => Self::RetainedCapture(index),
+            Self::Parameter(index) => Self::RetainedParameter(index),
+            _ => unreachable!(),
+        }
+    }
 }
 
 type Roots = BTreeSet<Root>;
@@ -74,8 +101,8 @@ fn overlaps(a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
     budget.product(a.len(), b.len(), 1, "scoped actual storage overlap")?;
     Ok(a.iter().any(|a| {
         b.iter().any(|b| {
-            a == b
-                || matches!((a, b),
+            a.position() == b.position()
+                || matches!((a.position(), b.position()),
         (Root::Local(x), Root::Field(y, _)) | (Root::Field(x, _), Root::Local(y)) if x == y)
         })
     }))
@@ -110,6 +137,207 @@ fn scoped_captures_address(
         }
     }
     Ok(false)
+}
+
+fn capture_inventory(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
+    if !budget.address_capture {
+        return Ok(());
+    }
+    // A child environment transports actual dependencies, just as a direct
+    // Address field does. Type membership selects work; it never proves roots.
+    loop {
+        let mut changed = false;
+        for (index, definition) in module.closures.iter().enumerate() {
+            budget.spend(
+                definition.captures.len().saturating_add(1),
+                "address capture dependency scan",
+            )?;
+            let mut borrowed = false;
+            for ty in &definition.captures {
+                borrowed |= match ty {
+                    Type::Address { .. } => true,
+                    Type::Closure(id) => {
+                        budget.lookup(
+                            budget.address_capture_closures.len(),
+                            "address capture child lookup",
+                        )?;
+                        budget.address_capture_closures.contains(id)
+                    }
+                    _ => false,
+                };
+            }
+            if borrowed {
+                budget.lookup(
+                    budget.address_capture_closures.len(),
+                    "address capture closure insertion",
+                )?;
+                changed |= budget
+                    .address_capture_closures
+                    .insert(ClosureId(index as u32));
+            }
+        }
+        if !changed {
+            return Ok(());
+        }
+    }
+}
+
+fn capture_transition(
+    f: &TypedFunction,
+    instruction: &Instruction,
+    values: &[Roots],
+    state: &State,
+    live: &resources::Live,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(1, "captured address caller transition")?;
+    let root = match instruction.kind {
+        InstructionKind::Store { local, .. }
+        | InstructionKind::StorageLive(local)
+        | InstructionKind::StorageDead(local)
+        | InstructionKind::EndPackageCapture { local, .. }
+        | InstructionKind::DropClosure { local }
+        | InstructionKind::DropManaged { local }
+        | InstructionKind::DropPackage { local }
+        | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropEnum { local }
+        | InstructionKind::DropOwnedArray { local }
+        | InstructionKind::TakeOwnedArrayElement { local, .. }
+        | InstructionKind::DropOwnedArrayElement { local, .. }
+        | InstructionKind::StoreOwnedArrayElement { local, .. }
+        | InstructionKind::BorrowLocalMut { local }
+        | InstructionKind::BorrowOwnedArrayElement {
+            local,
+            mutable: true,
+            ..
+        } => Some(Root::Local(local)),
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: true,
+        }
+        | InstructionKind::WriteCapture { index, .. } => Some(Root::Capture(index)),
+        InstructionKind::TakeLocal { local }
+            if matches!(
+                f.locals[local.0 as usize].ty,
+                Type::Closure(_) | Type::Package { .. } | Type::Managed(_)
+            ) || resources::owned_error(&f.locals[local.0 as usize].ty)
+                || resources::sums::owned(&f.locals[local.0 as usize].ty) =>
+        {
+            Some(Root::Local(local))
+        }
+        InstructionKind::TakePackageField { local, index }
+        | InstructionKind::DropPackageField { local, index }
+        | InstructionKind::StorePackageField { local, index, .. }
+        | InstructionKind::BorrowPackageField {
+            local,
+            index,
+            mutable: true,
+        } => Some(Root::Field(local, index)),
+        _ => None,
+    };
+    let mut accesses = Vec::new();
+    if let Some(root) = root {
+        budget.spend(2, "captured address storage access")?;
+        accesses.push((Roots::from([root]), None));
+    }
+    let address = match instruction.kind {
+        InstructionKind::WriteAddress { address, .. }
+        | InstructionKind::ReborrowAddress {
+            address,
+            mutable: true,
+        } => Some(address),
+        InstructionKind::AddressField { address, .. }
+        | InstructionKind::AddressIndex { address, .. }
+        | InstructionKind::AddressSlice { address, .. }
+            if instruction.result.is_some_and(|v| {
+                matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })
+            }) =>
+        {
+            Some(address)
+        }
+        _ => None,
+    };
+    let arguments = match &instruction.kind {
+        InstructionKind::Call { arguments, .. }
+        | InstructionKind::ForeignCall { arguments, .. }
+        | InstructionKind::CallIndirect { arguments, .. }
+        | InstructionKind::CallClosure { arguments, .. }
+        | InstructionKind::CallClosureShared { arguments, .. }
+        | InstructionKind::CallClosureMut { arguments, .. }
+        | InstructionKind::CallClosureOnce { arguments, .. }
+        | InstructionKind::CallClosureBorrowed { arguments, .. } => arguments.as_slice(),
+        _ => &[],
+    };
+    budget.spend(arguments.len(), "captured address mutable call arguments")?;
+    for address in address.into_iter().chain(
+        arguments
+            .iter()
+            .copied()
+            .filter(|v| matches!(f.values[v.0 as usize], Type::Address { mutable: true, .. })),
+    ) {
+        budget.spend(1, "captured address access entry")?;
+        let mut changed = Roots::new();
+        for root in &values[address.0 as usize] {
+            budget.lookup(changed.len(), "captured address pointee root")?;
+            // Borrowing an environment retains its captured dependencies,
+            // but exclusive access to that environment does not write them.
+            if root.position() == *root {
+                changed.insert(*root);
+            }
+        }
+        accesses.push((changed, Some(address)));
+    }
+    if accesses.is_empty() {
+        return Ok(());
+    }
+    let mut current = Vec::new();
+    if !arguments.is_empty() {
+        for operand in resources::uses(&instruction.kind) {
+            budget.spend(1, "captured address current call operand")?;
+            if resources::capture_carrier(&f.values[operand.0 as usize], budget)? {
+                current.push(resources::Place::Value(operand));
+            }
+        }
+        if let InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. } = instruction.kind
+        {
+            budget.spend(1, "captured address current call position")?;
+            current.push(resources::Place::Local(callee));
+        }
+    }
+    for (changed, permission) in accesses {
+        for place in live.iter().chain(&current) {
+            budget.spend(1, "captured address live carrier")?;
+            let (ty, held) = match place {
+                resources::Place::Value(value) if instruction.result == Some(*value) => continue,
+                resources::Place::Value(value) => {
+                    (&f.values[value.0 as usize], values.get(value.0 as usize))
+                }
+                resources::Place::Local(local) => {
+                    budget.lookup(state.len(), "captured address local roots")?;
+                    (&f.locals[local.0 as usize].ty, state.get(local))
+                }
+                _ => continue,
+            };
+            if !resources::capture_carrier(ty, budget)? {
+                continue;
+            }
+            if let Some(held) = held
+                && overlaps(&changed, held, budget)?
+            {
+                if let Some(address) = permission
+                    && delegated(f, address, *place, budget)?
+                {
+                    continue;
+                }
+                return Err(window_conflict(
+                    instruction,
+                    "caller write or storage change overlaps a captured address required by a later use",
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 // This uses actual Hold roots, never nominal ClosureId equality. It protects
@@ -591,8 +819,8 @@ fn store_window_transition(
         )?;
         if changed.iter().any(|changed| {
             held.iter().any(|root| {
-                changed == root
-                    || matches!((changed, root), (Root::Local(a), Root::Field(b, _)) if a == b)
+                changed.position() == root.position()
+                    || matches!((changed.position(), root.position()), (Root::Local(a), Root::Field(b, _)) if a == b)
             })
         }) {
             return Err(bad(if callback_windows {
@@ -642,6 +870,13 @@ fn infer(
         let Type::Closure(id) = ty else {
             return Ok(false);
         };
+        if budget.address_capture {
+            budget.lookup(
+                budget.address_capture_closures.len(),
+                "ordinary capture dependency lookup",
+            )?;
+            return Ok(budget.address_capture_closures.contains(id));
+        }
         let Some(closure) = module.closures.get(id.0 as usize) else {
             return Ok(false);
         };
@@ -671,6 +906,11 @@ fn infer(
     };
     let address_afters = if store_windows || callback_windows || scoped {
         resources::address_afters(f, reachable, budget)?
+    } else {
+        Vec::new()
+    };
+    let capture_afters = if budget.address_capture {
+        resources::capture_afters(f, reachable, budget)?
     } else {
         Vec::new()
     };
@@ -717,6 +957,16 @@ fn infer(
             }
             for (position, instruction) in block.instructions.iter().enumerate() {
                 budget.spend(1, "Hold instruction")?;
+                if !capture_afters.is_empty() {
+                    capture_transition(
+                        f,
+                        instruction,
+                        &values,
+                        &state,
+                        &capture_afters[b][position],
+                        budget,
+                    )?;
+                }
                 if scoped {
                     scoped_transition(
                         module,
@@ -808,7 +1058,17 @@ fn infer(
                         if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                             && let Some(held) = state.get(local)
                         {
-                            extend(&mut found, held, budget)?;
+                            if budget.address_capture {
+                                for root in held {
+                                    budget.lookup(
+                                        found.len(),
+                                        "captured environment retained dependency",
+                                    )?;
+                                    found.insert(root.retained());
+                                }
+                            } else {
+                                extend(&mut found, held, budget)?;
+                            }
                         }
                     }
                     InstructionKind::ReborrowAddress { address, .. }
@@ -984,9 +1244,14 @@ fn infer(
         for root in roots {
             budget.lookup(coarse.len(), "public Hold projection")?;
             coarse.insert(match root {
-                Root::Local(local) | Root::Field(local, _) => HoldRoot::Local(local),
-                Root::Capture(index) => HoldRoot::Capture(index),
-                Root::Parameter(index) => HoldRoot::Parameter(index),
+                Root::Local(local)
+                | Root::Field(local, _)
+                | Root::RetainedLocal(local)
+                | Root::RetainedField(local, _) => HoldRoot::Local(local),
+                Root::Capture(index) | Root::RetainedCapture(index) => HoldRoot::Capture(index),
+                Root::Parameter(index) | Root::RetainedParameter(index) => {
+                    HoldRoot::Parameter(index)
+                }
             });
         }
         exported.push(ValueHold {
@@ -1090,6 +1355,7 @@ fn infer_module_inner(
     store_profiles: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
+    capture_inventory(module, budget)?;
     if !module
         .functions
         .iter()

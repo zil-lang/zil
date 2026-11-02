@@ -26,6 +26,9 @@ fn inst(result: Option<ValueId>, kind: InstructionKind) -> Instruction {
 }
 struct Body(TypedFunction);
 
+#[path = "capture_tests.rs"]
+mod capture_tests;
+
 // Raw runtime input: two nominally equal F values can be independent actual
 // storage positions. The body dependency is selected before or after borrowing.
 fn scoped_fixture(mode: u8) -> TypedModule {
