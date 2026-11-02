@@ -1,0 +1,40 @@
+{
+  "task": "255",
+  "compiler_checkpoint": "23ad3e582e62869d2e7074b4ff17c7bce9c4ca8e",
+  "production_dependencies": {
+    "frontend": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
+    "analyze": "b5e44e3cd",
+    "verify": "2d3805197466324298b54a8eebe2750c26ebde14",
+    "lower_backend": "9d3eef9612147caf27785187cbd62a9102aecc57"
+  },
+  "commands": [
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo run -q -p zil-cli --offline --locked -j 2 -- build crates/zil-driver/tests/impl253_fixtures/owned_event_caller.zil --backend llvm-api --opt O0 -o /tmp/impl255-owned-event/program-O0 --emit-dir /tmp/impl255-owned-event/emit-O0 --json",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo run -q -p zil-cli --offline --locked -j 2 -- build crates/zil-driver/tests/impl253_fixtures/owned_event_caller.zil --backend llvm-api --opt O2 -o /tmp/impl255-owned-event/program-O2 --emit-dir /tmp/impl255-owned-event/emit-O2 --json",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 ZIL_TEST_REPORT_DIR=/tmp/impl255-final-combined cargo test -p zil-driver --features llvm-api --test impl256_consumer --offline --locked -j 2 native_matrix -- --nocapture",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 ZIL_TEST_REPORT_DIR=/tmp/impl255-final-combined-signatures cargo test -p zil-driver --features llvm-api --test impl256_consumer --offline --locked -j 2 signature -- --nocapture"
+  ],
+  "new_source": {
+    "path": "crates/zil-driver/tests/impl253_fixtures/owned_event_caller.zil",
+    "sha256": "108cfa59aea911649e80a1032b205b4af1221d1ed4c1824ff1a514400ab7f0cc",
+    "scenario": "ordinary caller loops through a returned FnOnce owning Event/Reply callback with a Managed R capture",
+    "results": [
+      {"optimization": "O0", "status": "Success", "phase": "link", "exit": 0, "stdout": "", "stderr": "", "verification_runs": 1, "backend": "llvm-api", "input_kind": "builder", "fallback": null, "llvm_sha256": "3b0648e708d1eb74f26519ef417905c865d8150172d3596ba44f53d20d8c7ae5"},
+      {"optimization": "O2", "status": "Success", "phase": "link", "exit": 0, "stdout": "", "stderr": "", "verification_runs": 1, "backend": "llvm-api", "input_kind": "builder", "fallback": null, "llvm_sha256": "3b0648e708d1eb74f26519ef417905c865d8150172d3596ba44f53d20d8c7ae5"}
+    ],
+    "prior_diagnostic": "Before verify checkpoint 2d3805197, this source was rejected as Unsupported at Verify by the old container signature gate; the final candidate above passes."
+  },
+  "final_replay": {
+    "frozen_project_normal_machine_runs": 50,
+    "standalone_signature_machine_runs": 12,
+    "new_source_machine_runs": 2,
+    "mismatches": 0,
+    "llvm_sha256": {
+      "legacy_O0_and_O2": "24b5a20623eb819b9e6548f7cc122b29e34f0963b6329a859f521ea935a6fdee",
+      "extended_O0_and_O2": "8f672b7befdf3aaa6bcedcfc9e5d0eca068df91d0735ce8fb6efd0a8ffb18284"
+    },
+    "same_project_llvm_ir_as_allocator_probe_checkpoint": true,
+    "historical_allocator_machine_runs": 190,
+    "allocator_reuse_basis": "The frozen legacy and extended project source, oracle, compiler target, LLVM API builder options and allocator shim are unchanged. Both final LLVM IR hashes exactly equal the IR from the 190 fault-injected executions recorded in native-oracle.json. Those executions are historical observations, not final-checkpoint re-executions."
+  },
+  "limits": "The new standalone source proves normal O0/O2 execution, not allocator-failure cleanup for that exact source. Fault cleanup evidence comes from the frozen project oracle and its 190 recorded allocator runs. LLVM IR hash equality binds the final project code generation to that historical machine evidence; it does not imply all source or Verify behaviors are unchanged."
+}
