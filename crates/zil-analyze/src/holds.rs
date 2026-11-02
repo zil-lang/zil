@@ -1625,14 +1625,17 @@ fn parameter_product_windows(
         budget.spend(
             f.locals
                 .len()
-                .saturating_mul(3)
-                .saturating_add(f.values.len()),
+                .saturating_mul(5)
+                .saturating_add(f.values.len().saturating_mul(2)),
             "Product owned Store provenance tables",
         )?;
         let mut owned = vec![Roots::new(); f.locals.len()];
         let mut local_known = vec![false; f.locals.len()];
         let mut value_known = vec![false; f.values.len()];
         let mut stores = vec![Vec::<ValueId>::new(); f.locals.len()];
+        let mut field_stores = vec![BTreeMap::<u32, Vec<ValueId>>::new(); f.locals.len()];
+        let mut value_fields = vec![BTreeMap::<u32, Roots>::new(); f.values.len()];
+        let mut local_fields = vec![BTreeMap::<u32, Roots>::new(); f.locals.len()];
         let mut formal = vec![false; f.locals.len()];
         for (position, local) in f.parameters.iter().enumerate() {
             budget.spend(1, "Product owned Store parameter scan")?;
@@ -1654,6 +1657,18 @@ fn parameter_product_windows(
                 "Product owned Store assignment scan",
             )?;
             for instruction in &block.instructions {
+                if let InstructionKind::StorePackageField {
+                    local,
+                    index,
+                    value,
+                } = instruction.kind
+                {
+                    budget.spend(1, "Product field assignment entry")?;
+                    field_stores[local.0 as usize]
+                        .entry(index)
+                        .or_default()
+                        .push(value);
+                }
                 if let InstructionKind::Store { local, value } = instruction.kind
                     && product_owned_store_dependency(
                         &f.locals[local.0 as usize].ty,
@@ -1682,6 +1697,41 @@ fn parameter_product_windows(
                 {
                     local_known[local] = true;
                     changed = true;
+                }
+                let fields = match &f.locals[local].ty {
+                    Type::Package { fields, .. } => fields,
+                    _ => continue,
+                };
+                for (field, _) in fields.iter().enumerate() {
+                    budget.spend(
+                        stores[local].len().saturating_add(1),
+                        "Product field source scan",
+                    )?;
+                    let field = field as u32;
+                    let assignments = field_stores[local]
+                        .get(&field)
+                        .map(Vec::as_slice)
+                        .unwrap_or(&[]);
+                    budget.spend(assignments.len(), "Product field replacement scan")?;
+                    let complete =
+                        (formal[local] || !stores[local].is_empty() || !assignments.is_empty())
+                            && stores[local]
+                                .iter()
+                                .all(|value| value_fields[value.0 as usize].contains_key(&field))
+                            && assignments
+                                .iter()
+                                .all(|value| value_known[value.0 as usize]);
+                    if complete {
+                        changed |= !local_fields[local].contains_key(&field);
+                        let entry = local_fields[local].entry(field).or_default();
+                        for value in &stores[local] {
+                            changed |=
+                                extend(entry, &value_fields[value.0 as usize][&field], budget)?;
+                        }
+                        for value in assignments {
+                            changed |= extend(entry, &values[value.0 as usize], budget)?;
+                        }
+                    }
                 }
             }
             for (block, live) in f.blocks.iter().zip(reachable) {
@@ -1715,6 +1765,34 @@ fn parameter_product_windows(
                     let Some(result) = instruction.result else {
                         continue;
                     };
+                    match &instruction.kind {
+                        InstructionKind::MakePackage { fields } => {
+                            budget.spend(fields.len(), "Product value field source scan")?;
+                            for (field, value) in fields.iter().enumerate() {
+                                if value_known[value.0 as usize] {
+                                    changed |= !value_fields[result.0 as usize]
+                                        .contains_key(&(field as u32));
+                                    let entry = value_fields[result.0 as usize]
+                                        .entry(field as u32)
+                                        .or_default();
+                                    changed |= extend(entry, &values[value.0 as usize], budget)?;
+                                }
+                            }
+                        }
+                        InstructionKind::TakeLocal { local } => {
+                            budget.spend(
+                                local_fields[local.0 as usize].len(),
+                                "Product moved field source scan",
+                            )?;
+                            for (field, roots) in &local_fields[local.0 as usize] {
+                                changed |= !value_fields[result.0 as usize].contains_key(field);
+                                let entry =
+                                    value_fields[result.0 as usize].entry(*field).or_default();
+                                changed |= extend(entry, roots, budget)?;
+                            }
+                        }
+                        _ => {}
+                    }
                     if !product_owned_store_dependency(
                         &f.values[result.0 as usize],
                         &store_closures,
@@ -1733,10 +1811,12 @@ fn parameter_product_windows(
                             true
                         }
                         InstructionKind::TakePackageField { local, index }
-                            if local_known[local.0 as usize] =>
+                            if local_known[local.0 as usize]
+                                && local_fields[local.0 as usize].contains_key(index) =>
                         {
                             budget.spend(1, "Product Store field move origin")?;
                             source.insert(Root::Field(*local, *index));
+                            extend(&mut source, &local_fields[local.0 as usize][index], budget)?;
                             true
                         }
                         InstructionKind::MakePackage { fields }

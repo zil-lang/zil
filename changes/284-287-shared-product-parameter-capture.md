@@ -39,11 +39,16 @@ may 写入图在当前请求内预付收敛：只读 Store 不被误记为写，
 移动位置保留当前槽及原始父来源；不把 Parameter 改写成 Local。
 
 Analyze 本地测量（target-285/jobs1，TypedModule raw/Wire；N−1 为
-ResourceLimit，重新请求 N 与首次结果相同）：原参数普通 Local 源 N=8158，
-参数来自 Store 的最后使用源 N=12136；不同 Store N=12498、同父不同 Store
-字段 N=20889、不同 owner Product N=36563、give 不同 Store N=13166。旧普通
+ResourceLimit，重新请求 N 与首次结果相同）：原参数普通 Local 源 N=8203，
+参数来自 Store 的最后使用源 N=12201；不同 Store N=12562、同父不同 Store
+字段 N=21090、不同 owner Product N=37137、give 不同 Store N=13232。旧普通
 Local 捕获 `examples/mainline/shared_product_capture226/local.zil` 的冻结基线
 与新路径均 N=17355。独立source-derived raw/Wire 复核同Store reserve/pop、
 调用内部先读后失效、同父同字段、普通嵌套调用和先move再give/整Product
 move及inline构造等9个反例均 E-BORROW-CONFLICT；伪造空参数来源与断裂Store父来源均拒绝。
 这是 Analyze 限定证据，不替代 Verify、native 或整合验收。
+
+独立审查另发现组装 Product 后提取字段丢失原 Store 父来源；逐字段传播
+构造、整体移动及字段替换来源，未知来源保守拒绝。同字段两个反例 raw/Wire
+拒绝，不同 Store 和同一 Product 不同字段正控通过（N=31829/23666，
+N−1 ResourceLimit，fresh N 一致）。后续仍须独立审查及替换近邻验证。
