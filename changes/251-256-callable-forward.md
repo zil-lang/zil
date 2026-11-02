@@ -15,3 +15,7 @@
 ## schema31来源字段的实际收费
 
 新返回关系在Analyze输入元数据中按Fresh来源tag一个单位、Parameter来源tag加参数索引两个单位计入。既有preflight与fingerprint各实际遍历一次，故每份Fresh返回合同新增2个Analyze单位、每份Parameter新增4个单位；这是新增公开字段的真实费用，旧Fresh证明逻辑不变，默认限额不涨。各具名旧工厂控制的总N按其实际合同数测量并记录N−1/fresh，不把该格式变化报告为全体旧N不变。此处为逻辑元数据单位，Wire另按实际tag一字节与参数索引四字节计长度，不能把两种单位混用；其他内核按自身实际扫描预付并分别报告。
+
+## 草案负例范围纠正
+
+原冻结 `mut_declared_actual_fn_shared_call.zil` 的 outer 按值接收FnMut并返回i32，超出本片裸F返回且落在既有Unsupported helper profile；不能为了草案预期SafeReject改诊断类别或悄悄扩大准入。原源、原预期与实际Unsupported历史Fail均保留，不计本片语义拒绝通过。以同一声明FnMut、outer直接返回F的合法范围正反对照承担模式保持义务：`let current=keep(f)`后共享调用应拒绝，`var current`后合法调用再返必须真实通过且保持后态。该调整纠正草案的前置假设，不改变原native oracle；按值FnMut普通数据结果helper仍记B0未完成能力，不因本片完成而删除。
