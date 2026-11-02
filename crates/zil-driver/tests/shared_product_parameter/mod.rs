@@ -11,6 +11,8 @@ use zil_base::{FileId, Fingerprint, Limits, ModuleId, Phase, ResultCategory, Sou
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 use zil_ir::{CallableKind, HoldRoot, InstructionKind, Type};
 
+#[path = "assembly_windows.rs"]
+mod assembly_windows;
 #[path = "raw_prefix.rs"]
 mod raw_prefix;
 
@@ -66,6 +68,22 @@ fn cases() -> Vec<Case> {
                 "inline-db-give-direct" => source!("inline-db-give-direct"),
                 "inline-db-disjoint" => source!("inline-db-disjoint"),
                 "inline-db-disjoint-direct" => source!("inline-db-disjoint-direct"),
+                "assembled-then-take-field" => source!("assembled-then-take-field"),
+                "assembled-then-take-field-direct" => source!("assembled-then-take-field-direct"),
+                "assembled-other-field-after-borrow" => {
+                    source!("assembled-other-field-after-borrow")
+                }
+                "assembled-extract-then-move" => source!("assembled-extract-then-move"),
+                "assembled-take-field-disjoint" => source!("assembled-take-field-disjoint"),
+                "field-borrow-after-assemble" => source!("field-borrow-after-assemble"),
+                "refill-same-store" => source!("refill-same-store"),
+                "refill-disjoint-store" => source!("refill-disjoint-store"),
+                "swap-fields-left-view" => source!("swap-fields-left-view"),
+                "swap-fields-right-view" => source!("swap-fields-right-view"),
+                "swap-fields-same-store" => source!("swap-fields-same-store"),
+                "swap-crosses-live-window" => source!("swap-crosses-live-window"),
+                "swap-identity-left-view" => source!("swap-identity-left-view"),
+                "swap-identity-right-view" => source!("swap-identity-right-view"),
                 "different-store-direct" => source!("different-store-direct"),
                 "same-store-reserve" => source!("same-store-reserve"),
                 "same-store-reserve-direct" => source!("same-store-reserve-direct"),
@@ -129,8 +147,8 @@ fn record(case: &Case, route: &str, result: &str) {
 #[test]
 fn source_oracles_are_frozen() {
     let cases = cases();
-    assert_eq!(cases.len(), 29);
-    assert_eq!(cases.iter().filter(|case| case.success).count(), 16);
+    assert_eq!(cases.len(), 43);
+    assert_eq!(cases.iter().filter(|case| case.success).count(), 23);
 }
 
 #[test]
