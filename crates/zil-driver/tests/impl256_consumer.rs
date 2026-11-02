@@ -60,6 +60,9 @@ fn rows(path: impl AsRef<Path>, selection: &str) -> (bool, Vec<Expected>) {
 import json,sys
 with open(sys.argv[1]) as f: data=json.load(f)
 selection=sys.argv[2]
+if selection.startswith('extended:'):
+    data={'cases':data['extensions']}
+    selection=selection.split(':',1)[1]
 negative=False
 if selection.startswith('frozen:'):
     case=next(c for c in data['frozen'] if c['name']==selection[7:])
@@ -113,15 +116,20 @@ for stdin,e in rows:
         .collect();
     (negative, rows)
 }
-fn project(entry: &str) -> ProjectSources {
+fn project(entry: &str, extended: bool) -> ProjectSources {
     let names = [entry, "model", "relay"];
+    let directory = if extended {
+        "extended"
+    } else {
+        "frozen-prep/project"
+    };
     ProjectSources {
         root: ModuleId(0),
         modules: names
             .iter()
             .enumerate()
             .map(|(i, name)| {
-                let path = root().join(format!("tests/impl256/frozen-prep/project/{name}.zil"));
+                let path = root().join(format!("tests/impl256/{directory}/{name}.zil"));
                 SourceUnit::new(
                     FileId(i as u32),
                     ModuleId(i as u32),
@@ -324,8 +332,12 @@ fn fnonce_owned_signature() {
 fn three_module_predeclared_native_matrix() {
     native_matrix("main", "normal");
 }
+#[test]
+fn extended_store_address_loop_native_matrix() {
+    native_matrix("main", "extended:normal");
+}
 fn native_matrix(entry: &str, selection: &str) {
-    let p = project(entry);
+    let p = project(entry, selection.starts_with("extended:"));
     let (_, expected) = rows(root().join("tests/impl256/ORACLE.json"), selection);
     for optimization in [Optimization::O0, Optimization::O2] {
         let out = directory("matrix");
@@ -366,12 +378,17 @@ fn three_module_actual_allocator_failures_follow_the_frozen_source_oracle() {
     allocator_matrix("main", "allocator");
 }
 #[cfg(all(unix, feature = "llvm-api"))]
+#[test]
+fn extended_store_address_loop_actual_allocator_failures() {
+    allocator_matrix("main", "extended:allocator");
+}
+#[cfg(all(unix, feature = "llvm-api"))]
 fn allocator_matrix(entry: &str, selection: &str) {
     use std::os::unix::fs::PermissionsExt;
     fn quote(path: &Path) -> String {
         format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
     }
-    let p = project(entry);
+    let p = project(entry, selection.starts_with("extended:"));
     let (_, expected) = rows(root().join("tests/impl256/ORACLE.json"), selection);
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
