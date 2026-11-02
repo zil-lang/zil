@@ -123,15 +123,15 @@ fn environment_origins(
             } = instruction.kind
             {
                 let producer = &module.functions[function.0 as usize];
-                if let Some(contract) = &producer.callable_return_contract {
-                    if let CallableReturnSource::Parameter(position) = contract.source {
-                        let value = arguments.get(position as usize).ok_or_else(|| {
-                            bad(f, "nested callable result names an absent actual parameter")
-                        })?;
-                        budget.spend(1)?;
-                        edges[values_at + value.0 as usize].push(destination);
-                        continue;
-                    }
+                if let Some(contract) = &producer.callable_return_contract
+                    && let CallableReturnSource::Parameter(position) = contract.source
+                {
+                    let value = arguments.get(position as usize).ok_or_else(|| {
+                        bad(f, "nested callable result names an absent actual parameter")
+                    })?;
+                    budget.spend(1)?;
+                    edges[values_at + value.0 as usize].push(destination);
+                    continue;
                 }
             }
             // All return claims and bodies were independently checked by
