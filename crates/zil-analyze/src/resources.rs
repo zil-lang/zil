@@ -410,7 +410,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
     }
     Ok(result)
 }
-fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
+pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
         InstructionKind::OwnedStoreReserve { store, capacity } => {
             (Some(*store), Some(*capacity), &[])
