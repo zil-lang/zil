@@ -84,3 +84,14 @@ and observed handler/factory bodies under `scoped_concrete_composition_`.
 The separate observed groups allow each producer/kernel checkpoint to be
 tested before the other one is ready. Existing functional tests share the
 same target and preserve their original oracles and assertions.
+
+After exact independent Verify `fd6b8610`, both frozen factory sources and
+their two observed variants pass the two factory functional tests on clang
+and LLVM API independently (2/0 per backend). Each backend executes 24 frozen
+and 24 observed rows at O0/O2, including 16 actual reserve failures and 16
+beyond controls, with live=0 on all 48 returns. API reports identify builder
+input, parse_ns=0, verification before/after optimization and no fallback.
+The source-operation oracle was frozen before these native runs and matches
+exactly: B4/D3/D7 before close on success, D3/D7 without B on null, only D3 on
+preparation failure, and A5 before outcome propagation on every observed path.
+Handler groups remain separate and still require the frontend checkpoint.
