@@ -1,8 +1,9 @@
 {
   "reviewer": "/root/callback_backend_fallback",
-  "verdict": "Pass for public representation bootstrap; no forwarding language acceptance claimed",
-  "reviewed_implementation_commit": "d7d52dea8121dd462dc419f4cd555b3d849dccc5",
-  "reviewed_baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "verdict": "Pass",
+  "implementation_commit": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "source_commit": "d7d52dea8121dd462dc419f4cd555b3d849dccc5",
+  "scope": "Public schema 31 representation and mechanical migration only; this is not F-forwarding language acceptance.",
   "authority": "_zil_design.md §9.4.2 and changes/251-256-callable-forward.md",
   "checks": [
     "CallableReturnSource::Fresh and Parameter(u32) are separate untrusted relations; Parameter carries an actual parameter index, with no new permission bit.",
