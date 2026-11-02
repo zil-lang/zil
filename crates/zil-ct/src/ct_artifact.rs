@@ -42,6 +42,38 @@ impl CtExecutionBudget {
     pub fn usage(&self) -> &CtUsageReceipt {
         &self.usage
     }
+    pub fn live_temporary_bytes(&self) -> u64 {
+        self.live_temporary_bytes
+    }
+    /// Call after the driver has materialized and discarded a returned value.
+    /// Dependency receipts and other request-owned allocations remain charged.
+    pub fn release_value(&mut self, value: &CtValue) {
+        self.release_temporary_bytes(value_bytes(value));
+    }
+    fn constrain_to_program(&mut self, declared: CtDeclaredBudget) -> CompileResult<()> {
+        self.remaining.max_steps = self.remaining.max_steps.min(declared.max_steps);
+        self.remaining.max_call_depth = self.remaining.max_call_depth.min(declared.max_call_depth);
+        self.remaining.max_live_cells = self.remaining.max_live_cells.min(declared.max_live_cells);
+        self.remaining.max_temporary_bytes = self
+            .remaining
+            .max_temporary_bytes
+            .min(declared.max_temporary_bytes);
+        self.remaining.max_generated_nodes = self
+            .remaining
+            .max_generated_nodes
+            .min(declared.max_generated_nodes);
+        self.remaining.max_instances = self.remaining.max_instances.min(declared.max_instances);
+        self.remaining.max_analysis_work = self
+            .remaining
+            .max_analysis_work
+            .min(declared.max_analysis_work);
+        if self.live_temporary_bytes > self.remaining.max_temporary_bytes {
+            return Err(limit(
+                "CT program declared temporary-byte budget is below current live bytes",
+            ));
+        }
+        Ok(())
+    }
     pub fn reserve_steps(&mut self, count: u64) -> CompileResult<()> {
         self.remaining.max_steps = self
             .remaining
@@ -347,6 +379,7 @@ pub fn evaluate_ct_artifact(
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<(CtValue, CtUsageReceipt)> {
     let raw = program.program();
+    budget.constrain_to_program(raw.budget)?;
     let entry = &raw.functions[raw.entry.0 as usize];
     if arguments.len() != entry.parameter_types.len() {
         return Err(error("CT invocation argument count differs"));
@@ -1281,6 +1314,9 @@ mod tests {
         fn authenticate_input_table(&self, input: &CtInputTable) -> bool {
             input.tokens.is_empty()
         }
+        fn authenticate_artifact(&self, _: &CtArtifactProgram) -> bool {
+            true
+        }
         fn authenticate_function(&self, _: &CtFunction) -> bool {
             true
         }
@@ -1288,7 +1324,7 @@ mod tests {
             true
         }
         fn authorize_query(&self, _: &CtSymbolId, _: CtQueryKind) -> bool {
-            false
+            true
         }
     }
     struct Reader;
@@ -1447,6 +1483,84 @@ mod tests {
         let (value, usage) = evaluate_ct_artifact(&verified, &[], &Reader, &mut budget).unwrap();
         assert_eq!(value, CtValue::Scalar(Constant::I32(9)));
         assert_eq!(usage.steps, 4);
+    }
+    #[test]
+    fn unselected_late_query_branch_does_not_read_frozen_view() {
+        let mut raw = raw();
+        let span = Span::default();
+        let function = &mut raw.functions[0];
+        function.values = vec![
+            CtTy::Scalar(CtScalarTy::Bool),
+            CtTy::Type,
+            CtTy::ShapeInfo,
+            CtTy::Scalar(CtScalarTy::I32),
+            CtTy::Scalar(CtScalarTy::I32),
+        ];
+        function.blocks = vec![
+            CtBlock {
+                id: CtBlockId(0),
+                instructions: vec![CtInstruction {
+                    result: Some(CtValueId(0)),
+                    kind: CtInstructionKind::Constant(CtConstantId(0)),
+                    span,
+                }],
+                terminator: CtTerminator::Branch {
+                    condition: CtValueId(0),
+                    then_block: CtBlockId(1),
+                    else_block: CtBlockId(2),
+                },
+            },
+            CtBlock {
+                id: CtBlockId(1),
+                instructions: vec![
+                    CtInstruction {
+                        result: Some(CtValueId(1)),
+                        kind: CtInstructionKind::TypePrimitive(CtScalarTy::I32),
+                        span,
+                    },
+                    CtInstruction {
+                        result: Some(CtValueId(2)),
+                        kind: CtInstructionKind::Query {
+                            kind: CtQueryKind::Shape,
+                            arguments: vec![CtValueId(1)],
+                        },
+                        span,
+                    },
+                    CtInstruction {
+                        result: Some(CtValueId(3)),
+                        kind: CtInstructionKind::Constant(CtConstantId(1)),
+                        span,
+                    },
+                ],
+                terminator: CtTerminator::Return(Some(CtValueId(3))),
+            },
+            CtBlock {
+                id: CtBlockId(2),
+                instructions: vec![CtInstruction {
+                    result: Some(CtValueId(4)),
+                    kind: CtInstructionKind::Constant(CtConstantId(1)),
+                    span,
+                }],
+                terminator: CtTerminator::Return(Some(CtValueId(4))),
+            },
+        ];
+        raw.constants = vec![
+            CtConstant::Scalar(Constant::Bool(false)),
+            CtConstant::Scalar(Constant::I32(5)),
+        ];
+        let authority = Authority {
+            snapshot: raw.snapshot.clone(),
+        };
+        let verified = verify_ct_artifact(raw.clone(), &Limits::default(), &authority).unwrap();
+        let (value, receipt) = evaluate_ct_artifact(
+            &verified,
+            &[],
+            &Reader,
+            &mut CtExecutionBudget::new(raw.budget),
+        )
+        .unwrap();
+        assert_eq!(value, CtValue::Scalar(Constant::I32(5)));
+        assert!(receipt.queries.is_empty());
     }
     #[test]
     fn enforces_step_limit_before_instruction() {
@@ -1618,5 +1732,56 @@ mod tests {
         )
         .unwrap();
         assert_eq!(value, CtValue::Scalar(Constant::I32(3)));
+    }
+    #[test]
+    fn constructs_array_type_value_with_element_identity() {
+        let mut program = raw();
+        let s = Span::default();
+        let f = &mut program.functions[0];
+        f.result_type = CtTy::Type;
+        f.values = vec![CtTy::Type, CtTy::Scalar(CtScalarTy::I32), CtTy::Type];
+        f.blocks[0].instructions = vec![
+            CtInstruction {
+                result: Some(CtValueId(0)),
+                kind: CtInstructionKind::TypePrimitive(CtScalarTy::I32),
+                span: s,
+            },
+            CtInstruction {
+                result: Some(CtValueId(1)),
+                kind: CtInstructionKind::Constant(CtConstantId(0)),
+                span: s,
+            },
+            CtInstruction {
+                result: Some(CtValueId(2)),
+                kind: CtInstructionKind::TypeConstruct {
+                    constructor: CtTypeConstructor::Array,
+                    arguments: vec![CtValueId(0), CtValueId(1)],
+                },
+                span: s,
+            },
+        ];
+        f.blocks[0].terminator = CtTerminator::Return(Some(CtValueId(2)));
+        let authority = Authority {
+            snapshot: program.snapshot.clone(),
+        };
+        let verified = verify_ct_artifact(program.clone(), &Limits::default(), &authority).unwrap();
+        let (answer, _) = evaluate_ct_artifact(
+            &verified,
+            &[],
+            &Reader,
+            &mut CtExecutionBudget::new(program.budget),
+        )
+        .unwrap();
+        let CtValue::Type(result) = answer else {
+            panic!("expected CT Type")
+        };
+        assert_eq!(result.root, CtTypeNodeId(1));
+        assert_eq!(
+            result.nodes[1],
+            CtTypeNode::Array {
+                element: CtTypeNodeId(0),
+                length: 4
+            }
+        );
     }
 }
