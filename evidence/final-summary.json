@@ -10,20 +10,21 @@
   "full_zui_gate": "NotSatisfied",
   "product_gate": "NotRun",
   "schema_version": 30,
-  "main_ci_gate": "Running",
+  "main_ci_gate": "Pass",
   "main_ci_runs": [
     41366807735,
     41366807646
   ],
-  "main_ci_receipt": null,
-  "note": "239–244 finite ordinary owned Sum accepted after independent reviews, local complete tests and exact PR CI recovery; actual main merge has the same tree as R. Main replay is recorded separately. Compiler-performance and product gates are not promoted.",
+  "main_ci_receipt": "evidence/integration/owned-sum-20261102/main-ci/RESULT.json",
+  "note": "239–244 finite ordinary owned Sum accepted after independent reviews, complete local tests and exact PR/main CI recovery; actual main merge has the same tree as R. Replays are recorded separately. Historical handoff record errors remain; compiler-performance and product gates are not promoted.",
   "previous_summary": {
     "path": "evidence/integration/owned-sum-20261102/previous-final-summary.json",
     "source_commit": "75d08022213a5da96e1968d7fe7d1d1e341b5907",
     "schema_version": 27
   },
   "previous_language_batch": "evidence/integration/language-core-20261102/ACCEPTANCE.json",
-  "handoff_record_integrity": "PendingRecheck",
+  "handoff_record_integrity": "Fail",
   "handoff_historical_errors_baseline": 1144,
-  "current_six_task_record_errors": null
+  "current_six_task_record_errors": 0,
+  "handoff_receipt": "evidence/integration/owned-sum-20261102/handoff/RESULT.json"
 }

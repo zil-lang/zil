@@ -1,0 +1,55 @@
+{
+  "status": "Pass",
+  "scope": "Root verified completed main CI source, all archived blobs and exact complete test counts",
+  "run_id": 41366807735,
+  "url": "https://github.com/zil-lang/zil/actions/runs/41366807735",
+  "workflow": "Main source verification",
+  "head": "8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "actual_checkout": "8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad",
+  "tree": "e07b048aa5495c06e007e9fb6a118caaade66b0a",
+  "tree_identical_to_candidate": true,
+  "source_files_rehashed_against_Git": 4092,
+  "tests": {
+    "workspace": {
+      "passed": 3575,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "passed": 3474,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "text-reference": {
+      "passed": 64,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    }
+  },
+  "consumer209_status": "Pass",
+  "archive": {
+    "path": "/tmp/owned-sum-main-ci/8b2ae1fd/41366807735/evidence-recovery.tar.zst",
+    "bytes": 81639518,
+    "sha256": "a59f1c3fc47744a6007df50a7a3d0654fb549f2db84c402b38e1cbf01345e7bb",
+    "files": 147498,
+    "all_indexed_blobs_reverified_by_root": true
+  },
+  "artifact_api_total_count": 0,
+  "upload_outcomes": {
+    "disk_checkpoint": "failure",
+    "recovery_final": "failure",
+    "reference_native": "failure",
+    "reference_receipts": "failure",
+    "workspace_native": "failure",
+    "workspace_receipts": "failure"
+  },
+  "recovery_note": "Artifact uploads were unavailable; full log transport was downloaded and every indexed blob verified. Action success alone was not acceptance.",
+  "replays_not_added": true
+}

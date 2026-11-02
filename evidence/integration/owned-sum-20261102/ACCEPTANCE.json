@@ -19,12 +19,12 @@
   "frontend_supplement": "evidence/reviews/240/frontend-finalR/VERDICT.json",
   "consumer244": "evidence/reviews/239/integrationR/COMMON-RESULT.json",
   "main_replay": {
-    "status": "Running",
+    "status": "Pass",
     "run_ids": [
       41366807735,
       41366807646
     ],
-    "evidence": null,
+    "evidence": "evidence/integration/owned-sum-20261102/main-ci/RESULT.json",
     "counts_not_added": true
   },
   "history": [

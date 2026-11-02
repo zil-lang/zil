@@ -2,7 +2,7 @@
 
 ## 2026-11-02：普通拥有Sum已合入
 
-239–244共同源码`15498f14af8f11d3a3bf4b198fe69208be5913ce`通过独审、默认3575/0、参考3474/0与两条PR CI完整核回，经PR17合入实际main`8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad`，整树相同。schema/Wire30；普通非泛型拥有Enum、Product内Sum、含Store Product错误载荷，以及构造、消耗式match、完整替换、defer和失败清理形成五模块同步API闭环。P3548/12及Q3575/0仍误拒合法owner的历史分别保留。main自动重放仍在运行，结果另录。
+239–244共同源码`15498f14af8f11d3a3bf4b198fe69208be5913ce`通过独审、默认3575/0、参考3474/0与两条PR CI完整核回，经PR17合入实际main`8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad`，整树相同。schema/Wire30；普通非泛型拥有Enum、Product内Sum、含Store Product错误载荷，以及构造、消耗式match、完整替换、defer和失败清理形成五模块同步API闭环。P3548/12及Q3575/0仍误拒合法owner的历史分别保留。main两条自动重放已成功，完整归档与4092项源码逐项复核，成绩分列。
 
 下一单一主目标为同步拥有Event/Reply穿过具体闭包和公共generic dispatch，之后接F原样转交、Type/Syntax及长期外部生命周期；最终R原源探针已确认这些真实缺口，并保留State/Store已可用对照。B0 Doing、完整1.4/ZUI NotSatisfied、产品及原生WindowsNotRun保持；没有新的Rust性能比较。见docs/LANGUAGE-OWNED-SUM-20261102.md及evidence/integration/owned-sum-20261102/ACCEPTANCE.json。
 

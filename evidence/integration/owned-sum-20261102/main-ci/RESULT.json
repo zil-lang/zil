@@ -1,0 +1,20 @@
+{
+  "status": "Pass",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "integration_commit": "8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad",
+  "actual_checkout": "8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad",
+  "tree": "e07b048aa5495c06e007e9fb6a118caaade66b0a",
+  "tree_identical_to_candidate": true,
+  "run_ids": [
+    41366807735,
+    41366807646
+  ],
+  "receipts": [
+    "41366807735/RESULT.json",
+    "41366807646/RESULT.json"
+  ],
+  "all_native_blobs_reverified_by_root": true,
+  "all_current_source_files_rehashed_against_Git": 4092,
+  "replays_not_added": true,
+  "artifact_uploads": "Unavailable; complete verified log recovery used"
+}
