@@ -399,3 +399,117 @@ pub fn borrowed_scalar_body() -> (TypedModule, CandidatePlan) {
     p.functions[4].blocks[0].initialized_out.push(LocalId(1));
     (m, p)
 }
+/// Public two-role wrapper, constructed independently of all source producers.
+pub fn wrapper() -> (TypedModule, CandidatePlan) {
+    let (mut m, mut p) = fixture();
+    let address = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Closure(ClosureId(0))),
+    };
+    let f = &mut m.functions[4];
+    f.parameters = vec![LocalId(0), LocalId(1)];
+    f.locals = vec![
+        LocalDecl {
+            id: LocalId(0),
+            name: "f".into(),
+            ty: address.clone(),
+            mutable: false,
+            span: span(),
+        },
+        LocalDecl {
+            id: LocalId(1),
+            name: "body".into(),
+            ty: Type::Closure(ClosureId(1)),
+            mutable: false,
+            span: span(),
+        },
+    ];
+    f.values = vec![
+        address,
+        Type::Closure(ClosureId(1)),
+        Type::Tuple(vec![Type::Bool, Type::I32]),
+    ];
+    f.blocks[0].instructions = vec![
+        instruction(Some(0), InstructionKind::Load(LocalId(0))),
+        instruction(Some(1), InstructionKind::TakeLocal { local: LocalId(1) }),
+        instruction(None, InstructionKind::UnsafeEnter { region: 7 }),
+        instruction(
+            Some(2),
+            InstructionKind::WithForeignCallback {
+                register: FunctionId(0),
+                close: FunctionId(1),
+                callback: ValueId(0),
+                body: ValueId(1),
+                region: 7,
+            },
+        ),
+        instruction(None, InstructionKind::UnsafeExit { region: 7 }),
+    ];
+    f.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+    let event = |parameter, kind| vec![CallEvent { parameter, kind }];
+    let edges = |next| CallableFlowNext::Edges(next);
+    f.callable_contract = Some(CallableParameterContract {
+        roles: vec![
+            CallableRole {
+                parameter: 0,
+                closure: ClosureId(0),
+                kind: CallableKind::FnMut,
+                hold: vec![],
+                call: vec![],
+                writes: vec![],
+                cleanup: CallableCleanup::Borrowed,
+            },
+            CallableRole {
+                parameter: 1,
+                closure: ClosureId(1),
+                kind: CallableKind::FnOnce,
+                hold: vec![],
+                call: vec![],
+                writes: vec![],
+                cleanup: CallableCleanup::Owned,
+            },
+        ],
+        traces: CallableTraces::Flow(CallableFlow {
+            entry: 0,
+            nodes: vec![
+                CallableFlowNode {
+                    calls: vec![],
+                    next: edges(vec![1, 2, 3]),
+                },
+                CallableFlowNode {
+                    calls: event(0, CallableKind::FnMut),
+                    next: edges(vec![1, 2, 3]),
+                },
+                CallableFlowNode {
+                    calls: event(1, CallableKind::FnOnce),
+                    next: edges(vec![4, 3]),
+                },
+                CallableFlowNode {
+                    calls: vec![],
+                    next: CallableFlowNext::Exit(CallableExit::Return),
+                },
+                CallableFlowNode {
+                    calls: event(0, CallableKind::FnMut),
+                    next: edges(vec![4, 3]),
+                },
+            ],
+        }),
+    });
+    p.functions[4].blocks[0].initialized_in = vec![LocalId(0), LocalId(1)];
+    p.functions[4].blocks[0].initialized_out = vec![LocalId(0)];
+    p.functions[4].holds = vec![
+        ValueHold {
+            value: ValueId(0),
+            roots: vec![HoldRoot::Parameter(0)],
+        },
+        ValueHold {
+            value: ValueId(1),
+            roots: vec![],
+        },
+        ValueHold {
+            value: ValueId(2),
+            roots: vec![],
+        },
+    ];
+    (m, p)
+}

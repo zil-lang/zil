@@ -237,6 +237,7 @@ struct Budget {
     function_count: usize,
     current_function: Option<usize>,
     private_slot_functions: Option<Vec<bool>>,
+    scoped_functions: Option<Vec<bool>>,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -248,6 +249,7 @@ impl Budget {
             function_count: 0,
             current_function: None,
             private_slot_functions: None,
+            scoped_functions: None,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -580,7 +582,14 @@ fn check_module(
                     | InstructionKind::CallIndirect { arguments, .. } => {
                         budget.spend(arguments.len().saturating_add(1))?
                     }
-                    InstructionKind::WithForeignCallback { .. } => budget.spend(2)?,
+                    InstructionKind::WithForeignCallback { .. } => {
+                        budget.spend(3)?;
+                        if budget.scoped_functions.is_none() {
+                            budget.spend(budget.function_count)?;
+                            budget.scoped_functions = Some(vec![false; budget.function_count]);
+                        }
+                        budget.scoped_functions.as_mut().unwrap()[index] = true;
+                    }
                     InstructionKind::MakeClosure { captures, .. } => {
                         budget.spend(captures.len())?
                     }

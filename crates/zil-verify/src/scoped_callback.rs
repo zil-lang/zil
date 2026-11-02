@@ -67,12 +67,6 @@ pub(super) fn instruction(
         unreachable!()
     };
     let span = Some(instruction.span);
-    if caller.callable_contract.is_some() {
-        return Err(unsupported(
-            "scoped helper callable traces await independent reconstruction",
-            span,
-        ));
-    }
     budget.spend(5)?;
     for (id, role) in [
         (register, ScopedCallbackRole::Register),

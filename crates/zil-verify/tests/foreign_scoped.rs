@@ -103,3 +103,157 @@ fn body_cannot_capture_a_reborrow_of_the_actual_callback_position() {
     let (m, p) = fixture::borrowed_closure_body(true);
     check(m, p, Some("E-BORROW-CONFLICT"));
 }
+#[test]
+fn independent_two_role_wrapper_reconstructs_optional_once_and_repeated_mut_calls() {
+    let (m, p) = fixture::wrapper();
+    check(m, p, None);
+}
+#[test]
+fn wrapper_keeps_original_kind_and_rejects_forged_trace() {
+    let (mut m, p) = fixture::wrapper();
+    m.functions[4].callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::FnOnce;
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+    let (mut m, p) = fixture::wrapper();
+    let CallableTraces::Flow(flow) = &mut m.functions[4].callable_contract.as_mut().unwrap().traces
+    else {
+        unreachable!()
+    };
+    flow.nodes[2].calls.clear();
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+}
+#[test]
+fn declared_fn_and_fnmut_body_keep_actual_once_consumption() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut] {
+        let (mut m, p) = fixture::wrapper();
+        m.closures[1].kind = kind;
+        m.functions[4].callable_contract.as_mut().unwrap().roles[1].kind = kind;
+        check(m, p, None);
+    }
+    let (mut m, p) = fixture::wrapper();
+    m.closures[0].kind = CallableKind::Fn;
+    m.functions[4].callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::Fn;
+    check(m, p, None);
+}
+#[test]
+fn preparation_cannot_read_or_move_the_exclusively_held_callback() {
+    for moving in [false, true] {
+        let (mut m, mut p) = fixture::fixture();
+        m.functions[4].values.push(Type::Closure(ClosureId(0)));
+        m.functions[4].blocks[0].instructions.insert(
+            4,
+            fixture::instruction(
+                Some(4),
+                if moving {
+                    InstructionKind::TakeLocal { local: LocalId(0) }
+                } else {
+                    InstructionKind::Load(LocalId(0))
+                },
+            ),
+        );
+        p.functions[4].holds.push(ValueHold {
+            value: ValueId(4),
+            roots: vec![],
+        });
+        if moving {
+            p.functions[4].blocks[0].initialized_out.clear();
+        }
+        check(m, p, Some("E-BORROW-CONFLICT"));
+    }
+    let (mut m, mut p) = fixture::fixture();
+    m.functions[4].values.push(Type::Closure(ClosureId(0)));
+    m.functions[4].blocks[0].instructions.insert(
+        3,
+        fixture::instruction(Some(4), InstructionKind::Load(LocalId(0))),
+    );
+    p.functions[4].holds.push(ValueHold {
+        value: ValueId(4),
+        roots: vec![],
+    });
+    check(m, p, None);
+}
+#[test]
+fn scoped_raw_and_wire_work_have_exact_fresh_boundaries() {
+    for (name, (m, mut p)) in [
+        ("direct", fixture::fixture()),
+        ("borrowed", fixture::borrowed_scalar_body()),
+        ("wrapper", fixture::wrapper()),
+    ] {
+        p.module_fingerprint = m.fingerprint();
+        let bytes = wire::encode_module_candidate(&m, &p, &Limits::default()).unwrap();
+        for wire in [false, true] {
+            let run = |steps| {
+                let limits = Limits {
+                    max_analysis_steps: steps,
+                    ..Limits::default()
+                };
+                if wire {
+                    zil_verify::verify_module_bytes(&bytes, &m.target, &limits)
+                } else {
+                    zil_verify::verify_module(m.clone(), p.clone(), &m.target, &limits)
+                }
+            };
+            let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+            let expected = run(high).unwrap().fingerprint();
+            while low + 1 < high {
+                let mid = low + (high - low) / 2;
+                match run(mid) {
+                    Ok(v) => {
+                        assert_eq!(v.fingerprint(), expected);
+                        high = mid
+                    }
+                    Err(e) => {
+                        assert!(
+                            e.iter()
+                                .all(|d| d.category == ResultCategory::ResourceLimit),
+                            "{e:?}"
+                        );
+                        low = mid
+                    }
+                }
+            }
+            assert_eq!(run(high).unwrap().fingerprint(), expected);
+            assert!(
+                run(high - 1)
+                    .unwrap_err()
+                    .iter()
+                    .all(|d| d.category == ResultCategory::ResourceLimit)
+            );
+            assert_eq!(run(high).unwrap().fingerprint(), expected);
+            println!("scoped {name} wire={wire} N={high}; N-1=ResourceLimit; fresh N=Pass");
+        }
+    }
+}
+#[test]
+fn copy_actual_body_cannot_repeat_or_cycle_its_symbolic_consumption() {
+    for cycle in [false, true] {
+        let (mut m, mut p) = fixture::wrapper();
+        m.closures[1].kind = CallableKind::Fn;
+        m.functions[4].callable_contract.as_mut().unwrap().roles[1].kind = CallableKind::Fn;
+        if cycle {
+            let tail = m.functions[4].blocks[0].instructions.split_off(2);
+            m.functions[4].blocks[0].terminator = Terminator::Jump(BlockId(1));
+            m.functions[4].blocks.push(BasicBlock {
+                id: BlockId(1),
+                instructions: tail,
+                terminator: Terminator::Jump(BlockId(1)),
+            });
+            p.functions[4].blocks.push(BlockPlan {
+                block: BlockId(1),
+                initialized_in: vec![LocalId(0)],
+                initialized_out: vec![LocalId(0)],
+            });
+        } else {
+            m.functions[4]
+                .values
+                .push(Type::Tuple(vec![Type::Bool, Type::I32]));
+            let mut second = m.functions[4].blocks[0].instructions[3].clone();
+            second.result = Some(ValueId(3));
+            m.functions[4].blocks[0].instructions.insert(4, second);
+            p.functions[4].holds.push(ValueHold {
+                value: ValueId(3),
+                roots: vec![],
+            });
+        }
+        check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+    }
+}

@@ -761,6 +761,27 @@ pub(super) fn check_module(
                 "callback role table does not exactly cover actual parameters",
             ));
         }
+        let mut scoped = budget
+            .scoped_functions
+            .as_ref()
+            .is_some_and(|marks| marks[index]);
+        if budget.scoped_functions.is_some() && !scoped {
+            // Callees are already checked in dependency order. Propagate only
+            // from actual Call edges, never a producer contract classification.
+            for block in &f.blocks {
+                budget.spend(1)?;
+                for instruction in &block.instructions {
+                    budget.spend(1)?;
+                    if let InstructionKind::Call { function, .. } = instruction.kind {
+                        scoped |= budget.scoped_functions.as_ref().unwrap()[function.0 as usize];
+                    }
+                }
+            }
+            if scoped {
+                budget.spend(1)?;
+                budget.scoped_functions.as_mut().unwrap()[index] = true;
+            }
+        }
         let forwarding = f
             .callable_return_contract
             .as_ref()
@@ -827,7 +848,7 @@ pub(super) fn check_module(
                     "requested callback bound is not supported by the concrete entry",
                 ));
             }
-            if !borrowed && proposed.kind == CallableKind::FnMut && !forwarding {
+            if !borrowed && proposed.kind == CallableKind::FnMut && !forwarding && !scoped {
                 return Err(unsupported(
                     "this helper slice takes FnMut through an exclusive environment address",
                     Some(f.span),
@@ -835,7 +856,8 @@ pub(super) fn check_module(
             }
             if let Type::Address { mutable, .. } = ty
                 && !(proposed.kind == CallableKind::Fn && !mutable
-                    || proposed.kind == CallableKind::FnMut && *mutable)
+                    || proposed.kind == CallableKind::FnMut && *mutable
+                    || scoped && proposed.kind == CallableKind::Fn && *mutable)
             {
                 return Err(bad(
                     f,
