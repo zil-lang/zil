@@ -1,7 +1,7 @@
 //! Non-author source review of signature admission, environment modes and
 //! separately closed profiles. This does not stand in for native execution.
 use std::{fs, path::PathBuf};
-use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
+use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{CallableKind, TypedModule};
 
@@ -58,7 +58,9 @@ fn unused_public_single_once_definitions_check_the_complete_owned_signature() {
         "{DATA}fn dispatch<F:FnOnce(Event)->Event>(f:F,event:Event)->Event{{return f(event)}}fn main(){{}}"
     );
     typed(&source);
-    typed("resource F{n:i32}package Event{manages leaf:F}fn dispatch<F:FnOnce(Event)->Event>(f:F,event:Event)->Event{return f(event)}fn main(){let f=(event:Event)->Event=>{return event};let result=dispatch(f,Event{leaf:F{n:7}})}");
+    typed(
+        "resource F{n:i32}package Event{manages leaf:F}fn dispatch<F:FnOnce(Event)->Event>(f:F,event:Event)->Event{return f(event)}fn main(){let f=(event:Event)->Event=>{return event};let result=dispatch(f,Event{leaf:F{n:7}})}",
+    );
 }
 
 #[test]
@@ -108,6 +110,25 @@ fn owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 0);
+        let (phase, reason) = match label {
+            "address-mixed" => (Phase::Types, "address arguments require a Copy result"),
+            "borrowed-public" => (Phase::Types, "finite nonescaping callable roles"),
+            "two-public-roles" => (Phase::Expand, "one callable type"),
+            "enum-capture" => (Phase::Types, "capture requires a finite Copy value"),
+            "store-capture-owning-result" => (
+                Phase::Types,
+                "Store capture environments require Copy results",
+            ),
+            "shared-product-owning-result" => (Phase::Types, "shared Product capture"),
+            _ => unreachable!(),
+        };
+        assert!(
+            report.diagnostics.iter().any(|d| d.phase == phase
+                && d.code == "E-UNSUPPORTED"
+                && d.message.contains(reason)),
+            "{label}: {}",
+            report.to_json()
+        );
         assert!(!report.artifacts.contains_key("executable"));
     }
 }

@@ -31,6 +31,25 @@ fn rejects(label: &str, source: String) {
         "{label}: {}",
         report.to_json()
     );
+    let (code, reason) = match label {
+        "argument-twice" | "field-after-call" | "once-twice" => {
+            ("E-UNINITIALIZED", "not initialized")
+        }
+        "concrete-identity" | "concrete-factory" | "public-identity" => (
+            "E-ANALYZE-IR",
+            "create result forwards an incoming responsibility",
+        ),
+        "loan-in-callee" => ("E-ANALYZE-IR", "invalidates a description"),
+        _ => unreachable!(),
+    };
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == code && d.message.contains(reason)),
+        "{label}: {}",
+        report.to_json()
+    );
     assert!(!report.artifacts.contains_key("executable"));
 }
 
