@@ -22,12 +22,34 @@ pub(crate) struct Materialized {
     pub previews: Vec<Preview>,
     pub usage: CtUsageReceipt,
 }
-#[derive(Clone)]
-pub(super) struct Preview {
-    pub invocation: Span,
-    pub category: CtSyntaxCategory,
-    pub text: String,
-    pub tokens: Vec<super::render::RenderedToken>,
+#[derive(Clone, Debug)]
+pub(crate) struct Preview {
+    invocation: Span,
+    category: CtSyntaxCategory,
+    text: String,
+    tokens: Vec<super::render::RenderedToken>,
+    origins: Vec<CtOrigin>,
+}
+
+impl Preview {
+    pub(crate) fn json(&self) -> String {
+        use zil_base::json_string;
+        let span = |span: Span| format!("{{\"file\":{},\"start\":{},\"end\":{}}}", span.file.0, span.start, span.end);
+        let tokens = self.tokens.iter().map(|token| format!(
+            "{{\"span\":{},\"origin\":{},\"name\":{}}}", span(token.span), token.origin.0,
+            token.name.as_ref().map_or_else(|| "null".into(), |name| format!(
+                "{{\"text\":{},\"namespace\":{},\"source\":{}}}",
+                json_string(&name.text), json_string(&format!("{:?}", name.namespace)), json_string(&format!("{:?}", name.source))
+            ))
+        )).collect::<Vec<_>>().join(",");
+        let origins = self.origins.iter().map(|origin| format!(
+            "{{\"span\":{},\"parent\":{},\"role\":{}}}", span(origin.span),
+            origin.parent.map_or_else(|| "null".into(), |parent| parent.0.to_string()),
+            json_string(&format!("{:?}", origin.role))
+        )).collect::<Vec<_>>().join(",");
+        format!("{{\"invocation\":{},\"category\":{},\"text\":{},\"tokens\":[{}],\"origins\":[{}]}}",
+            span(self.invocation), json_string(&format!("{:?}", self.category)), json_string(&self.text), tokens, origins)
+    }
 }
 
 struct Materializer<'a, 'b> {
@@ -84,7 +106,8 @@ impl Materializer<'_, '_> {
         let limits = self.environment.remaining_limits_for_input();
         let work = zil_expand::remap_generated_spans(&mut syntax, span, &limits)?;
         self.environment.budget.reserve_analysis_work(work as u64)?;
-        self.previews.push(Preview { invocation: span, category: expected, text: rendered.source.text, tokens: rendered.tokens });
+        self.previews.push(Preview { invocation: span, category: expected, text: rendered.source.text,
+            tokens: rendered.tokens, origins: tree.origins });
         Ok(syntax)
     }
     fn items(&mut self, module: ModuleId, items: &mut Vec<s::Item>, inherited: Option<&CtSymbolId>, depth: usize, generated: bool) -> CompileResult<()> {

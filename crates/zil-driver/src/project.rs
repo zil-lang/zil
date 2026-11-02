@@ -32,6 +32,7 @@ pub(super) struct ExpandedProject {
     maps: Vec<SourceMap>,
     selection: super::ct_selection::Receipt,
     ct_usage: Option<zil_ir::ct_artifact::CtUsageReceipt>,
+    ct_previews: Vec<super::ct_artifact::Preview>,
     pub(super) syntax: Arc<ProjectSyntax>,
 }
 
@@ -520,7 +521,8 @@ impl CompilationSession {
                         .map_or_else(super::ct_selection::Receipt::default, |selected| {
                             selected.receipt
                         }),
-                    ct_usage: ct_result.map(|result| result.usage),
+                    ct_usage: ct_result.as_ref().map(|result| result.usage.clone()),
+                    ct_previews: ct_result.map(|result| result.previews).unwrap_or_default(),
                     syntax: Arc::new(ProjectSyntax {
                         root: (root.file_id, root.module_id, root.path.clone()),
                         entries: dependencies
@@ -547,6 +549,10 @@ impl CompilationSession {
             artifacts.dump_lazy(report, options, "selection", |_| {
                 expanded.selection.to_json()
             })?;
+        }
+        if artifact_needed {
+            artifacts.dump_lazy(report, options, "ct-syntax", |_| format!("[{}]",
+                expanded.ct_previews.iter().map(|preview| preview.json()).collect::<Vec<_>>().join(",")))?;
         }
         if options.stop_after == Stage::Core {
             return Ok(());

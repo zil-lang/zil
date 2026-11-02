@@ -15,3 +15,4 @@ mod materialize;
 
 pub use lock::SyntaxLock;
 pub(super) use materialize::materialize;
+pub(crate) use materialize::Preview;
