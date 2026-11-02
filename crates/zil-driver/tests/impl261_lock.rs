@@ -13,7 +13,7 @@ fn lock_for(source: &SourceUnit) -> String {
 
 #[test]
 fn lock_resolves_two_exports_against_actual_source_and_symbol() {
-    let source = SourceUnit::new(FileId(1), ModuleId(1), "lib/syntax.zil", "pub fn expand(input:TokenTree)->Syntax<Expr>{return syntax.parse_expr(input)}\npub fn expand_items(input:TokenTree)->Syntax<ItemList>{return syntax.parse_items(input)}");
+    let source = SourceUnit::new(FileId(1), ModuleId(1), "lib/syntax.zil", "pub fn expand(input:TokenTree)->Syntax<Expr>{return input}\npub fn expand_items(input:TokenTree)->Syntax<ItemList>{return input}");
     let parsed = zil_syntax::parse(&source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
     let mut paths = BTreeMap::new();
@@ -30,7 +30,7 @@ fn lock_resolves_two_exports_against_actual_source_and_symbol() {
 
 #[test]
 fn lock_rejects_duplicate_stale_rule_and_grammar() {
-    let source = SourceUnit::new(FileId(1), ModuleId(1), "lib/syntax.zil", "pub fn expand(input:TokenTree)->Syntax<Expr>{return syntax.parse_expr(input)}");
+    let source = SourceUnit::new(FileId(1), ModuleId(1), "lib/syntax.zil", "pub fn expand(input:TokenTree)->Syntax<Expr>{return input}");
     let valid = lock_for(&source);
     assert!(SyntaxLock::parse(&valid).is_ok());
     assert!(SyntaxLock::parse(&valid.replace(RULE_VERSION, "old-rules")).is_err());
