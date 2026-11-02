@@ -289,9 +289,53 @@ impl CtReadView for FrozenReadView<'_> {
         Ok(CtTypeRef { nodes: vec![CtTypeNode::Nominal { symbol: symbol.clone(), arguments: Vec::new() }], root: CtTypeNodeId(0) })
     }
     fn type_apply(&self, requester: &CtSymbolId, nominal: &CtSymbolId, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
-        self.nominal(requester, nominal)?;
-        if !args.is_empty() { return Err(phase("generic type application has no completed shape in this batch")); }
-        self.type_name(requester, nominal, budget)
+        let item = self.nominal(requester, nominal)?;
+        let params = match &item.kind {
+            ItemKind::Aggregate(value) => &value.generics,
+            ItemKind::Enum(value) => &value.generics,
+            ItemKind::TypeAlias(value) => &value.generics,
+            _ => return Err(phase("type application target has no nominal generic declaration")),
+        };
+        if params.len() != args.len() { return Err(error("E-CT-TYPE-ARITY", "generic Type application argument count differs from the frozen declaration")); }
+        let total = args.iter().fold(1u64, |count, arg| count.saturating_add(match arg { CtValue::Type(ty) => ty.nodes.len() as u64, _ => 0 }));
+        budget.reserve_analysis_work(total.saturating_add(params.len() as u64))?;
+        budget.reserve_generated_nodes(total)?;
+        budget.reserve_temporary_bytes(total.saturating_mul(96))?;
+        let mut nodes = Vec::new();
+        let mut arguments = Vec::new();
+        for (param, arg) in params.iter().zip(args) {
+            match (&param.kind, arg) {
+                (s::GenericParamKind::Type(_), CtValue::Type(value)) => {
+                    let base = u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "generic Type node identity overflow"))?;
+                    let shift = |id: CtTypeNodeId| CtTypeNodeId(id.0.saturating_add(base));
+                    for node in &value.nodes {
+                        nodes.push(match node {
+                            CtTypeNode::Primitive(value) => CtTypeNode::Primitive(*value),
+                            CtTypeNode::Builtin(value) => CtTypeNode::Builtin(*value),
+                            CtTypeNode::Nominal { symbol, arguments } => CtTypeNode::Nominal { symbol: symbol.clone(), arguments: arguments.iter().map(|arg| match arg { CtTypeArgument::Type(id) => CtTypeArgument::Type(shift(*id)), CtTypeArgument::Scalar(value) => CtTypeArgument::Scalar(value.clone()) }).collect() },
+                            CtTypeNode::Tuple(parts) => CtTypeNode::Tuple(parts.iter().copied().map(shift).collect()),
+                            CtTypeNode::Array { element, length } => CtTypeNode::Array { element: shift(*element), length: *length },
+                            CtTypeNode::FunctionPointer { parameters, result } => CtTypeNode::FunctionPointer { parameters: parameters.iter().copied().map(shift).collect(), result: shift(*result) },
+                            CtTypeNode::Address { mutable, inner } => CtTypeNode::Address { mutable: *mutable, inner: shift(*inner) },
+                            CtTypeNode::Slice(inner) => CtTypeNode::Slice(shift(*inner)),
+                            CtTypeNode::Managed(inner) => CtTypeNode::Managed(shift(*inner)),
+                            CtTypeNode::Desc(inner) => CtTypeNode::Desc(shift(*inner)),
+                            CtTypeNode::OwnedStore(inner) => CtTypeNode::OwnedStore(shift(*inner)),
+                            CtTypeNode::ForeignCallback { parameters, result } => CtTypeNode::ForeignCallback { parameters: parameters.iter().copied().map(shift).collect(), result: shift(*result) },
+                            CtTypeNode::Opaque { identity } => CtTypeNode::Opaque { identity: identity.clone() },
+                            CtTypeNode::ErrorUnion { error, result } => CtTypeNode::ErrorUnion { error: shift(*error), result: shift(*result) },
+                        });
+                    }
+                    arguments.push(CtTypeArgument::Type(shift(value.root)));
+                }
+                (s::GenericParamKind::Const(_), CtValue::Scalar(value)) if !matches!(value, zil_ir::Constant::Unit) => arguments.push(CtTypeArgument::Scalar(value.clone())),
+                (s::GenericParamKind::Lifetime, _) => return Err(phase("lifetime arguments cannot be reified as CT Type values")),
+                _ => return Err(error("E-CT-TYPE-ARG", "generic Type argument category differs from the frozen parameter")),
+            }
+        }
+        let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "generic Type node identity overflow"))?);
+        nodes.push(CtTypeNode::Nominal { symbol: nominal.clone(), arguments });
+        Ok(CtTypeRef { nodes, root })
     }
     fn definition_ident(&self, requester: &CtSymbolId, symbol: &CtSymbolId, budget: &mut CtExecutionBudget) -> CompileResult<CtIdent> {
         if !self.index.visible(requester, symbol) { return Err(error("E-CT-VISIBILITY", "definition name is private")); }

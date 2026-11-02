@@ -246,9 +246,14 @@ impl Materializer<'_, '_> {
         let mut renamed_bytes = 0u64;
         let caller = self.sources.iter().find(|source| source.file_id == span.file)
             .map(|source| source.module_id).ok_or_else(|| category("generated caller module is absent", span))?;
+        let sequence_nodes = tree.roots.len().saturating_add(tree.nodes.iter().map(|node| match node {
+            CtSyntaxNode::Group { children, .. } => children.len(), _ => 0,
+        }).sum::<usize>());
+        let sequence_bytes = (sequence_nodes as u64).saturating_mul(16);
+        self.environment.budget.reserve_analysis_work(tree.nodes.len() as u64)?;
+        self.environment.budget.reserve_temporary_bytes(sequence_bytes)?;
         let mut sequences = vec![tree.roots.clone()];
         for node in &tree.nodes { if let CtSyntaxNode::Group { children, .. } = node { sequences.push(children.clone()); } }
-        self.environment.budget.reserve_analysis_work(tree.nodes.len() as u64)?;
         let mut alias_sites = Vec::new();
         for sequence in &sequences {
             for pair in sequence.windows(2) {
@@ -284,8 +289,15 @@ impl Materializer<'_, '_> {
                 self.required_imports.push((caller, CoreImport { alias, module: *target, span }));
             }
         }
+        drop(alias_sites);
+        drop(sequences);
+        self.environment.budget.release_temporary_bytes(sequence_bytes);
         let ParsedSyntax { rendered, parsed, names: _ } = self.environment.parse_tree(&tree, span)?;
         let mut syntax = parsed.syntax.ok_or_else(|| category("generated parser returned no category", span))?;
+        let longest = rendered.tokens.iter().map(|token| token.span.end.saturating_sub(token.span.start)).max().unwrap_or(0);
+        let hygiene_bytes = (rendered.tokens.len() as u64).saturating_mul((longest as u64).saturating_add(64));
+        self.environment.budget.reserve_analysis_work((rendered.tokens.len() as u64).saturating_mul(8))?;
+        self.environment.budget.reserve_temporary_bytes(hygiene_bytes)?;
         super::hygiene::rename(&mut syntax, &rendered, &tree.origins, span,
             &mut |ident, member_span| self.member_owner_type(ident, member_span))?;
         let limits = self.environment.remaining_limits_for_input();
