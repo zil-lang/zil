@@ -1,7 +1,9 @@
 //! Non-author source, namespace and cumulative-budget review of slice 229.
 use std::{collections::BTreeMap, fs, path::PathBuf};
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
-use zil_driver::{CompilationSession, CompileOptions, CompileReport, ProjectSources, Stage};
+#[cfg(feature = "llvm-api")]
+use zil_driver::Stage;
+use zil_driver::{CompilationSession, CompileOptions, CompileReport, ProjectSources};
 
 fn input(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "review229.zil", text)
@@ -247,6 +249,7 @@ fn uncalled_imported_helpers_keep_symbolic_scope() {
     }
 }
 
+#[cfg(feature = "llvm-api")]
 const PLAIN: &str = "type Word=i32;type Alias=Word;struct Pair{x:Alias,y:Alias}fn duplicate<T:Copy>(x:T)->(T,T)=>(x,x);fn keep<U:Copy>(x:U)->U=>duplicate(x).0;fn main()->i32{let p=keep(Pair{x:7,y:9});let q=duplicate((true,p));if q.1.0{return q.0.1.x+q.1.1.y-16}return 1}";
 const WHERE: &str = "type Word=i32;type Alias=Word;struct Pair{x:Alias,y:Alias}fn duplicate<T>(x:T)->(T,T) where T:Copy=>(x,x);fn keep<U>(x:U)->U where U:Copy=>duplicate(x).0;fn main()->i32{let p=keep(Pair{x:7,y:9});let q=duplicate((true,p));if q.1.0{return q.0.1.x+q.1.1.y-16}return 1}";
 

@@ -24,6 +24,7 @@ mod inference;
 pub use incremental::{FunctionSession, FunctionStats};
 mod lending;
 mod managed_slots;
+mod member_owner;
 mod names;
 mod owned_enums;
 mod owned_shapes;
@@ -598,7 +599,18 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )
                 })
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
+                if owner.is_some() {
+                    return Err(error(
+                        "E-MEMBER-OWNER",
+                        callee.span,
+                        "a constrained member needs an actual value receiver, not a static namespace",
+                    ));
+                }
                 let CoreExprKind::Name(alias) = &object.kind else {
                     return Err(unsupported(callee.span, "indirect callable dispatch"));
                 };
@@ -1672,7 +1684,11 @@ impl<'a, 'c> Builder<'a, 'c> {
                 if let Some(name) = byte_buffer::primitive(callee) {
                     return self.byte_buffer_call(name, arguments, expected, e.span);
                 }
-                if let CoreExprKind::Member { object, member } = &callee.kind
+                if let CoreExprKind::Member {
+                    object,
+                    member,
+                    owner,
+                } = &callee.kind
                     && member == "len"
                     && self
                         .known_type(object)
@@ -1693,6 +1709,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                             "slice len requires a borrowed slice",
                         ));
                     }
+                    self.member_owner(&ty, owner.as_ref(), callee.span)?;
                     let value =
                         self.value(InstructionKind::SliceLength { address }, Type::I64, e.span)?;
                     if let Some(expected) = expected {
@@ -1706,10 +1723,21 @@ impl<'a, 'c> Builder<'a, 'c> {
                 if let Some((ty, variant)) = self.enum_constructor(callee)? {
                     return self.make_variant(&ty, variant, arguments, expected, e.span);
                 }
-                if let CoreExprKind::Member { object, member } = &callee.kind
+                if let CoreExprKind::Member {
+                    object,
+                    member,
+                    owner,
+                } = &callee.kind
                     && let Some(signature) = self.method_signature(object, member).cloned()
                 {
-                    return self.method_call(object, arguments, &signature, expected, e.span);
+                    return self.method_call(
+                        object,
+                        arguments,
+                        &signature,
+                        owner.as_ref(),
+                        expected,
+                        e.span,
+                    );
                 }
                 let direct = match &callee.kind {
                     CoreExprKind::Name(name) => self.lookup(name).is_none(),
@@ -1894,7 +1922,12 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<Option<(ValueId, Type)>> {
         let mut root = expression;
         let mut path = Vec::new();
-        while let CoreExprKind::Member { object, member } = &root.kind {
+        while let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &root.kind
+        {
             if path.len() >= self.limits.max_call_depth {
                 return Err(Diagnostic::limit(
                     Phase::Types,
@@ -1904,7 +1937,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             self.closures
                 .snapshot(member.len().saturating_add(1), root.span)?;
-            path.push((member.as_str(), root.span));
+            path.push((member.as_str(), owner.as_ref(), root.span));
             root = object;
         }
         let CoreExprKind::Name(name) = &root.kind else {
@@ -1915,6 +1948,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         };
         if !self.package_captures.contains_key(&local) {
             return Ok(None);
+        }
+        for (_, owner, span) in &path {
+            self.member_owner_work(*owner, *span)?;
         }
         let ty = &self.function.locals[local.0 as usize].ty;
         let work = inference::type_snapshot_work(ty, expression.span, self.limits)?;
@@ -1933,10 +1969,11 @@ impl<'a, 'c> Builder<'a, 'c> {
         // Its first projection must use the existing field-window operation;
         // BorrowLocal would invent an independent addressable owner.
         let mut path = path.into_iter().rev();
-        let (first, span) = path.next().expect("member path");
+        let (first, owner, span) = path.next().expect("member path");
+        member_owner::check_member_owner(ty, owner, span)?;
         let (index, field) = aggregates::field(ty, first, span)?;
         let (mut address, mut ty) = self.borrow_package_field(local, index, field, false, span)?;
-        for (member, span) in path {
+        for (member, owner, span) in path {
             let Type::Address {
                 inner,
                 mutable: false,
@@ -1944,6 +1981,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             else {
                 unreachable!()
             };
+            self.member_owner(&inner, owner, span)?;
             let (index, field) = aggregates::field(&inner, member, span)?;
             ty = Type::Address {
                 mutable: false,
@@ -2034,7 +2072,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     _ => None,
                 }
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none()) {
                     return self
                         .resolve_callee(e)
@@ -2100,14 +2138,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                 op: UnaryOp::Give,
                 operand,
             } => self
-                .package_place(operand)
+                .package_place_hint(operand)
                 .ok()
                 .flatten()
                 .map(|(_, _, ty)| ty)
                 .or_else(|| self.known_type(operand)),
             CoreExprKind::Unary { operand, .. } => self.known_type(operand),
             CoreExprKind::Call { callee, .. } => {
-                if let CoreExprKind::Member { object, member } = &callee.kind
+                if let CoreExprKind::Member { object, member, .. } = &callee.kind
                     && member == "len"
                     && self
                         .known_type(object)
@@ -2115,7 +2153,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 {
                     return Some(Type::I64);
                 }
-                if let CoreExprKind::Member { object, member } = &callee.kind
+                if let CoreExprKind::Member { object, member, .. } = &callee.kind
                     && let Some(signature) = self.method_signature(object, member)
                 {
                     return Some(signature.result.clone());
@@ -2837,6 +2875,17 @@ impl<'a, 'c> Builder<'a, 'c> {
         ))
     }
 }
+/// Parse a target integer literal using the ordinary language's exact rules.
+/// This function provides no type, ownership, or verification authority.
+pub fn parse_integer_literal(
+    text: &str,
+    expected: Option<&Type>,
+    negative: bool,
+    span: Span,
+) -> CompileResult<Constant> {
+    integer(text, expected, negative, span).map_err(|error| vec![error])
+}
+
 fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R<Constant> {
     let clean = text.replace('_', "");
     let (mut digits, mut ty) = (clean.as_str(), None);

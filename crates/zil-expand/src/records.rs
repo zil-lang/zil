@@ -123,6 +123,7 @@ impl Expander<'_> {
                             CoreExprKind::Member {
                                 object: Box::new(object),
                                 member: helper,
+                                owner: None,
                             },
                             origin,
                         )

@@ -164,7 +164,9 @@ impl<'a> Budget<'a> {
                 self.ty_context(error, depth + 1, substitutions, slice_element)?;
                 self.ty_context(result, depth + 1, substitutions, slice_element)?;
             }
-            TypeKind::MetaEval(e) => self.expr(e, depth + 1, substitutions)?,
+            TypeKind::MetaEval(e) | TypeKind::MetaSplice(e) => {
+                self.expr(e, depth + 1, substitutions)?
+            }
             TypeKind::MetaBlock(b) => self.block(b, depth + 1, substitutions)?,
         }
         // Each classified subtree has consumed the existing type budget. Preserve
@@ -606,6 +608,7 @@ impl<'a> Budget<'a> {
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)
+            | ExprKind::MetaSplice(x)
             | ExprKind::Unary { operand: x, .. } => self.expr(x, depth + 1, subs)?,
             ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
                 for x in xs {
@@ -622,8 +625,13 @@ impl<'a> Budget<'a> {
             }
             ExprKind::Member { object, member } => {
                 self.expr(object, depth + 1, subs)?;
-                if let MemberName::Name(s) = member {
-                    self.text(s, e.span)?;
+                match member {
+                    MemberName::Name(name) => self.text(name, e.span)?,
+                    MemberName::Constrained { name, owner } => {
+                        self.text(name, e.span)?;
+                        self.ty_at(owner, depth + 1, subs)?;
+                    }
+                    MemberName::TupleIndex(_) => {}
                 }
             }
             ExprKind::TypeApply { callee, arguments } => {
@@ -687,7 +695,7 @@ impl<'a> Budget<'a> {
                 self.expr(else_value, depth + 1, subs)?;
             }
             ExprKind::MetaBlock(b) => self.block(b, depth + 1, subs)?,
-            ExprKind::SyntaxIsland { .. } => {
+            ExprKind::SyntaxIsland { .. } | ExprKind::Quote { .. } => {
                 return Err(unsupported(
                     e.span,
                     "generic expansion of unexecuted syntax island",

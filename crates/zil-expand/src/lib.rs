@@ -5,7 +5,9 @@
 pub mod ct_selection;
 mod enums;
 mod foreign;
+mod generated_spans;
 mod generics;
+pub use generated_spans::remap_generated_spans;
 mod mapping;
 mod modules;
 mod project_traits;
@@ -134,6 +136,8 @@ pub struct ExpandedModule {
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
     project_trait_work: usize,
+    member_owner_work: usize,
+    member_owner_nodes: usize,
 }
 
 type ProjectDefaults = BTreeMap<(String, String), (zil_base::ModuleId, String)>;
@@ -153,7 +157,7 @@ pub fn expand_with_map_limits(
 ) -> CompileResult<ExpandedModule> {
     let mut products = generics::products::Products::default();
     let specialized = generics::specialize_products(module, limits, &mut products)?;
-    let mut expanded = expand_inner(source, &specialized, false)?;
+    let mut expanded = expand_inner(source, &specialized, false, limits)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -179,7 +183,7 @@ pub fn expand_program_module_with_limits(
     let mut products = generics::products::Products::default();
     let specialized = generics::specialize_products(module, limits, &mut products)?;
     let module = &specialized;
-    let mut expanded = expand_inner(source, module, true)?;
+    let mut expanded = expand_inner(source, module, true, limits)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -349,9 +353,30 @@ pub fn expand_program_with_limits(
             true,
             sources,
             (&declarations, &project_modules, source_imports),
-            &remaining,
+            (&remaining, &remaining),
             Some(&defaults),
         )?;
+        // New member constraints share the project's actual remaining allowance.
+        remaining.max_analysis_steps = remaining
+            .max_analysis_steps
+            .checked_sub(expanded.member_owner_work)
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Expand,
+                    "project member owner work budget exceeded",
+                    Some(module.span),
+                )]
+            })?;
+        remaining.max_nodes = remaining
+            .max_nodes
+            .checked_sub(expanded.member_owner_nodes)
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Expand,
+                    "project member owner node budget exceeded",
+                    Some(module.span),
+                )]
+            })?;
         // New project trait work shares the project's remaining allowance; a
         // later implementation module does not receive those steps again.
         remaining.max_analysis_steps = remaining
@@ -415,6 +440,7 @@ fn expand_inner(
     source: &SourceUnit,
     module: &s::Module,
     imports_resolved: bool,
+    owner_limits: &Limits,
 ) -> CompileResult<ExpandedModule> {
     let declarations = declaration_index(std::iter::once(module));
     expand_inner_project(
@@ -423,7 +449,7 @@ fn expand_inner(
         imports_resolved,
         std::slice::from_ref(source),
         (&declarations, &[module], &[]),
-        &Limits::default(),
+        (&Limits::default(), owner_limits),
         None,
     )
 }
@@ -448,9 +474,10 @@ fn expand_inner_project(
     imports_resolved: bool,
     sources: &[SourceUnit],
     project: (&Declarations<'_>, &[&s::Module], &[CoreImport]),
-    limits: &Limits,
+    budgets: (&Limits, &Limits),
     project_defaults: Option<&ProjectDefaults>,
 ) -> CompileResult<ExpandedModule> {
+    let (limits, owner_limits) = budgets;
     let (declarations, project_modules, imports) = project;
     let mut e = Expander::new(
         module.id,
@@ -459,6 +486,11 @@ fn expand_inner_project(
         project_defaults,
         declarations,
     );
+    // Preserve the legacy single-module lowering allowance while binding the
+    // newly introduced owner work to the caller's actual remaining budget.
+    e.member_owner_limit = owner_limits.max_analysis_steps;
+    e.member_owner_nodes = owner_limits.max_nodes;
+    e.member_owner_depth = owner_limits.max_call_depth;
     for item in &module.items {
         if let s::ItemKind::Trait(t) = &item.kind {
             e.traits.entry(t.name.clone()).or_insert(t);
@@ -505,10 +537,17 @@ fn expand_inner_project(
         generated_exports: e.generated_exports,
         imported_public_traits: e.imported_public_traits,
         project_trait_work: e.project_trait_work,
+        member_owner_work: e.member_owner_work,
+        member_owner_nodes: owner_limits.max_nodes - e.member_owner_nodes,
     })
 }
 struct Expander<'a> {
     callable_work: usize,
+    callable_initial_work: usize,
+    member_owner_limit: usize,
+    member_owner_work: usize,
+    member_owner_nodes: usize,
+    member_owner_depth: usize,
     module_id: zil_base::ModuleId,
     project_defaults: Option<&'a ProjectDefaults>,
     generated_imports: BTreeMap<zil_base::ModuleId, CoreImport>,
@@ -550,6 +589,11 @@ impl<'a> Expander<'a> {
             imports_resolved,
             module_id,
             callable_work: limits.max_analysis_steps,
+            callable_initial_work: limits.max_analysis_steps,
+            member_owner_limit: limits.max_analysis_steps,
+            member_owner_work: 0,
+            member_owner_nodes: limits.max_nodes,
+            member_owner_depth: limits.max_call_depth,
             project_defaults,
             generated_imports: BTreeMap::new(),
             generated_exports: Vec::new(),
@@ -767,16 +811,22 @@ impl Expander<'_> {
                     },
                 )
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
                 let (object, read_object) = self.compound_place(*object, bindings)?;
                 (
                     CoreExprKind::Member {
                         object: Box::new(object),
                         member: member.clone(),
+                        owner: owner.clone(),
                     },
                     CoreExprKind::Member {
                         object: Box::new(read_object),
                         member,
+                        owner,
                     },
                 )
             }
@@ -1103,13 +1153,45 @@ impl Expander<'_> {
                 }
             }
             s::ExprKind::Pipeline { input, target } => return self.pipeline(e.span, input, target),
-            s::ExprKind::Member { object, member } => CoreExprKind::Member {
-                object: Box::new(self.expr(object)),
-                member: match member {
-                    s::MemberName::Name(n) => n.clone(),
-                    s::MemberName::TupleIndex(n) => n.to_string(),
-                },
-            },
+            s::ExprKind::Member { object, member } => {
+                let (name, owner) = match member {
+                    s::MemberName::Name(name) => (name.clone(), None),
+                    s::MemberName::TupleIndex(index) => (index.to_string(), None),
+                    s::MemberName::Constrained { name, owner } => {
+                        let limits = Limits {
+                            max_analysis_steps: self
+                                .member_owner_limit
+                                .saturating_sub(self.callable_initial_work - self.callable_work)
+                                .min(self.callable_work)
+                                / 3,
+                            max_nodes: self.member_owner_nodes,
+                            max_call_depth: self.member_owner_depth,
+                            ..Limits::default()
+                        };
+                        let cost = match ct_selection::member_owner_type_cost(
+                            owner,
+                            self.self_type.as_ref(),
+                            &limits,
+                        ) {
+                            Ok(cost) => cost,
+                            Err(errors) => {
+                                self.diagnostics.extend(errors);
+                                return self.expr_node(CoreExprKind::Unit, e.span);
+                            }
+                        };
+                        // Prepay traversal, lowering and possible compound-place clone.
+                        self.callable_work -= cost.work * 3;
+                        self.member_owner_work += cost.work * 3;
+                        self.member_owner_nodes -= cost.nodes;
+                        (name.clone(), Some(self.type_ref(owner)))
+                    }
+                };
+                CoreExprKind::Member {
+                    object: Box::new(self.expr(object)),
+                    member: name,
+                    owner,
+                }
+            }
             s::ExprKind::Record { ty, base, fields } => {
                 return self.record(e.span, ty.as_deref(), base.as_deref(), fields, expected);
             }

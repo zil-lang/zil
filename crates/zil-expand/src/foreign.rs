@@ -195,7 +195,7 @@ pub(super) fn callback_type_tree(
             callback_type_tree(error, variables, budget, depth + 1)?;
             callback_type_tree(result, variables, budget, depth + 1)?;
         }
-        s::TypeKind::MetaEval(_) | s::TypeKind::MetaBlock(_) => {}
+        s::TypeKind::MetaEval(_) | s::TypeKind::MetaSplice(_) | s::TypeKind::MetaBlock(_) => {}
     }
     // Children have passed the depth/work bound before grouped scalar checks.
     callback_type_formation(ty, Some(variables))

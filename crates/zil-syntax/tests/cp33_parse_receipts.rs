@@ -8,6 +8,7 @@ fn same_syntax(a: &ParseResult, b: &ParseResult) {
     assert_eq!(a.deferred_attributes, b.deferred_attributes);
     assert_eq!(a.cfg_removed, b.cfg_removed);
     assert_eq!(a.usage, b.usage);
+    assert_eq!(a.type_meta_candidate, b.type_meta_candidate);
 }
 
 #[test]
@@ -17,6 +18,10 @@ fn successful_receipts_cover_parser_and_attribute_node_boundaries() {
         "// 中文\n/* outer /* inner */ */\nfn answer()->i32=>1+2*3\n",
         "#[doc=\"a\"]\n#[doc=\"b\"]\n#[doc=\"c\"]\nfn f(){}",
         "struct S{x:i32;y:i32;z:i32}",
+        "type Word=#(i64)",
+        "type Word=#splice(make_type())",
+        "type Word=#{yield i64}",
+        "fn f(){let x=#(old())}",
         "#[cfg(false)]\n#[unknown]\nfn removed(){}\n#[cfg(feature)]\n#[unknown]\nfn pending(){}",
     ] {
         let source = SourceUnit::new(FileId(7), ModuleId(9), "receipt.zil", text);

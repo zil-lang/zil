@@ -102,6 +102,9 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Member { object, member } => {
                 let (base, mutable) = self.projected_place(object, state)?;
+                if let MemberName::Constrained { owner, .. } = member {
+                    same(group(&base), group(owner), span, self.budget)?;
+                }
                 match (member, &group(&base).kind) {
                     (MemberName::TupleIndex(index), TypeKind::Tuple(fields)) => {
                         let ty = fields
@@ -110,7 +113,10 @@ impl Check<'_, '_, '_> {
                         self.budget.ty(ty)?;
                         Ok((ty.clone(), mutable))
                     }
-                    (MemberName::Name(name), TypeKind::Named { path, args }) => {
+                    (
+                        MemberName::Name(name) | MemberName::Constrained { name, .. },
+                        TypeKind::Named { path, args },
+                    ) => {
                         let Some(Item {
                             kind: ItemKind::Aggregate(aggregate),
                             ..

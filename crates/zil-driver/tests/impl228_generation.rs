@@ -1,7 +1,9 @@
 //! Finite generated declarations remain ordinary untrusted source programs.
 use std::{fs, path::PathBuf};
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
-use zil_driver::{CompilationSession, CompileOptions, CompileReport, Stage};
+#[cfg(feature = "llvm-api")]
+use zil_driver::Stage;
+use zil_driver::{CompilationSession, CompileOptions, CompileReport};
 
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "generated-types228.zil", text)

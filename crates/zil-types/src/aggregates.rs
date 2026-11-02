@@ -1308,7 +1308,12 @@ impl Resolver<'_> {
                     self.expr(e, depth + 1)?;
                 }
             }
-            CoreExprKind::Member { object, .. } => self.expr(object, depth + 1)?,
+            CoreExprKind::Member { object, owner, .. } => {
+                if let Some(ty) = owner {
+                    *ty = self.ty(ty, depth + 1, e.span)?;
+                }
+                self.expr(object, depth + 1)?;
+            }
             CoreExprKind::Sequence { bindings, value } => {
                 for (_, e) in bindings {
                     self.expr(e, depth + 1)?;
@@ -1441,6 +1446,7 @@ impl Builder<'_, '_> {
         object: &CoreExpr,
         args: &[CoreExpr],
         signature: &Signature,
+        owner: Option<&Type>,
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
@@ -1463,6 +1469,7 @@ impl Builder<'_, '_> {
         } else {
             self.argument_expr(object, receiver)?
         };
+        self.member_owner(&actual, owner, span)?;
         self.same(&actual, receiver, object.span)?;
         let mut arguments = vec![self.stage_argument(first, receiver, object.span)?];
         for (arg, ty) in args.iter().zip(&signature.parameters[1..]) {
@@ -1732,12 +1739,16 @@ impl Builder<'_, '_> {
                 }
                 Ok((current, actual))
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
                 if matches!(self.known_type(object), Some(Type::Package { .. }))
                     && !self.indirect_place(e)
                     && self.method_signature(object, member).is_none()
                 {
-                    return self.package_field(object, member, e.span);
+                    return self.package_field(object, member, owner.as_ref(), e.span);
                 }
                 if matches!(
                     self.known_type(object),
@@ -1745,7 +1756,7 @@ impl Builder<'_, '_> {
                 ) && !self.indirect_place(e)
                     && self.method_signature(object, member).is_none()
                 {
-                    return self.resource_field(object, member, e.span);
+                    return self.resource_field(object, member, owner.as_ref(), e.span);
                 }
                 if self.method_signature(object, member).is_some() {
                     return Err(error(
@@ -1775,6 +1786,7 @@ impl Builder<'_, '_> {
                     ));
                 }
                 let (aggregate, ty) = self.expr(object, None)?;
+                self.member_owner(&ty, owner.as_ref(), e.span)?;
                 let (index, field_ty) = field(&ty, member, e.span)?;
                 Ok((
                     self.value(
@@ -1790,7 +1802,7 @@ impl Builder<'_, '_> {
     }
     pub(super) fn assign_field(&mut self, target: &CoreExpr, rhs: &CoreExpr) -> R<()> {
         enum Written<'a> {
-            Field(&'a str),
+            Field(&'a str, Option<&'a Type>, Span),
             Index(&'a CoreExpr),
         }
         enum Project {
@@ -1801,8 +1813,12 @@ impl Builder<'_, '_> {
         let mut root = target;
         loop {
             match &root.kind {
-                CoreExprKind::Member { object, member } => {
-                    members.push(Written::Field(member));
+                CoreExprKind::Member {
+                    object,
+                    member,
+                    owner,
+                } => {
+                    members.push(Written::Field(member, owner.as_ref(), root.span));
                     root = object;
                 }
                 CoreExprKind::Index { object, index } => {
@@ -1839,8 +1855,9 @@ impl Builder<'_, '_> {
         let mut path = Vec::new();
         for member in members.into_iter().rev() {
             match member {
-                Written::Field(name) => {
-                    let (index, field_ty) = field(&ty, name, target.span)?;
+                Written::Field(name, owner, span) => {
+                    self.member_owner(&ty, owner, span)?;
+                    let (index, field_ty) = field(&ty, name, span)?;
                     path.push((ty, Project::Field(index)));
                     ty = field_ty;
                 }

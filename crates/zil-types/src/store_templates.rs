@@ -710,10 +710,13 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
             }
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Try(operand)
-            | CoreExprKind::CompileTime(operand)
-            | CoreExprKind::Member {
-                object: operand, ..
-            } => self.expr(operand, depth + 1)?,
+            | CoreExprKind::CompileTime(operand) => self.expr(operand, depth + 1)?,
+            CoreExprKind::Member { object, owner, .. } => {
+                if let Some(ty) = owner {
+                    self.ty(ty, depth + 1)?;
+                }
+                self.expr(object, depth + 1)?;
+            }
             CoreExprKind::Binary { left, right, .. }
             | CoreExprKind::Index {
                 object: left,

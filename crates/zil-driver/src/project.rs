@@ -31,6 +31,8 @@ pub(super) struct ExpandedProject {
     core: Arc<CoreProgram>,
     maps: Vec<SourceMap>,
     selection: super::ct_selection::Receipt,
+    ct_usage: Option<zil_ir::ct_artifact::CtUsageReceipt>,
+    ct_previews: Vec<super::ct_artifact::Preview>,
     pub(super) syntax: Arc<ProjectSyntax>,
 }
 
@@ -49,6 +51,7 @@ pub(super) struct ProjectSyntax {
 struct LoadedSyntax {
     parsed: Arc<ParseResult>,
     reused: bool,
+    snapshot: Option<Arc<QuerySnapshot>>,
     // Present only when filesystem discovery supplied a lossless canonical
     // identity for the explicit closed-executable trial.
     stable_module_key: Option<Arc<str>>,
@@ -56,8 +59,11 @@ struct LoadedSyntax {
 
 /// An exact import-free source may restore its already decoded raw frontend.
 /// Ordinary discovery still owns syntax; neither variant carries Verify authority.
+// Move the request's existing report once without another per-request heap allocation.
+#[allow(clippy::large_enum_variant)]
 enum LoadedProject {
     Parsed(Vec<LoadedSyntax>),
+    Prepared(Vec<LoadedSyntax>, CompileReport),
     Semantic(Box<(TypedProgram, CandidatePlan)>),
 }
 
@@ -65,7 +71,53 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
     CompilationSession::default().compile_project(project, options)
 }
 
+pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> bool {
+    let standard = parsed.module.items.iter().any(|item| {
+        matches!(&item.kind,
+        ast::ItemKind::Import(import) if matches!(import.path.as_slice(),
+            [a, b] if a == "std" && (b == "meta" || b == "syntax")))
+    });
+    standard
+        || parsed.type_meta_candidate
+        || parsed.tokens.iter().any(|token| {
+            token.kind == zil_syntax::token::TokenKind::Identifier
+                && matches!(
+                    token.text(&source.text),
+                    "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit"
+                )
+        })
+}
+
 impl CompilationSession {
+    pub(super) fn compile_source_artifact_project(
+        &mut self,
+        source: &SourceUnit,
+        parsed: Arc<ParseResult>,
+        snapshot: Arc<QuerySnapshot>,
+        options: &CompileOptions,
+        observer: &mut dyn FnMut(&QueryEvent),
+        report: CompileReport,
+    ) -> CompileReport {
+        let project = ProjectSources {
+            root: source.module_id,
+            modules: vec![source.clone()],
+            paths: BTreeMap::new(),
+        };
+        self.compile_project_request(
+            &project,
+            options,
+            observer,
+            Some(LoadedProject::Prepared(
+                vec![LoadedSyntax {
+                    parsed,
+                    reused: true,
+                    snapshot: Some(snapshot),
+                    stable_module_key: None,
+                }],
+                report,
+            )),
+        )
+    }
     pub fn compile_project(
         &mut self,
         project: &ProjectSources,
@@ -94,18 +146,27 @@ impl CompilationSession {
         loaded: Option<LoadedProject>,
     ) -> CompileReport {
         let start = Instant::now();
+        let mut effective_options = options.clone();
+        if let Some(lock) = &options.syntax_lock {
+            let mut input = b"zil/syntax-lock-build-input/v1\0".to_vec();
+            input.extend_from_slice(&options.build_inputs.0);
+            input.extend_from_slice(&lock.fingerprint.0);
+            effective_options.build_inputs = Fingerprint::of(&input);
+        }
+        let options = &effective_options;
         let fallback = SourceUnit::new(FileId(0), project.root, "<project>", "");
         let root = project
             .modules
             .iter()
             .find(|m| m.module_id == project.root)
             .unwrap_or(&fallback);
-        let mut report = CompileReport::new(root);
-        let (loaded_syntax, preloaded_semantic) = match loaded {
-            Some(LoadedProject::Parsed(syntax)) => (Some(syntax), None),
-            Some(LoadedProject::Semantic(pair)) => (None, Some(*pair)),
-            None => (None, None),
+        let (loaded_syntax, preloaded_semantic, prepared_report) = match loaded {
+            Some(LoadedProject::Parsed(syntax)) => (Some(syntax), None, None),
+            Some(LoadedProject::Prepared(syntax, report)) => (Some(syntax), None, Some(report)),
+            Some(LoadedProject::Semantic(pair)) => (None, Some(*pair), None),
+            None => (None, None, None),
         };
+        let mut report = prepared_report.unwrap_or_else(|| CompileReport::new(root));
         let function_checkpoint = self.function_types.clone();
         if let Err(errors) = self.project_pipeline(
             project,
@@ -154,7 +215,7 @@ impl CompilationSession {
             }
         }
         self.trim_history();
-        report.seconds = start.elapsed().as_secs_f64();
+        report.seconds += start.elapsed().as_secs_f64();
         report
     }
 
@@ -390,6 +451,17 @@ impl CompilationSession {
             // conservative project quota, including trivia and EOF tokens.
             parse_options.limits.max_tokens = remaining.max_tokens.min(remaining.max_nodes);
             let loaded = loaded_syntax.map(|syntax| &syntax[index]);
+            if let Some(loaded) = loaded
+                && let Some(snapshot) = &loaded.snapshot
+            {
+                // The single-source bridge has already executed this exact
+                // Parse query and recorded its observer event. Reuse the real
+                // published dependency without a second query or event.
+                charge_frontend(&mut remaining, &loaded.parsed)?;
+                parsed.push(loaded.parsed.clone());
+                dependencies.push(snapshot.clone());
+                continue;
+            }
             let (parse_key, borrowed) = if loaded.is_none() {
                 self.project_parse_input(source, &parse_options, retained_syntax.as_deref())?
             } else {
@@ -441,14 +513,33 @@ impl CompilationSession {
         if options.stop_after == Stage::Parse {
             return Ok(());
         }
-        let imports = resolve_imports(project, &parsed, &options.limits)?;
+        let syntax_modules = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let locked = options
+            .syntax_lock
+            .as_ref()
+            .map(|lock| lock.resolve(&project.modules, &syntax_modules, &project.paths))
+            .transpose()?;
+        let imports = resolve_imports(project, &parsed, &options.limits, locked.as_ref())?;
+        // Finite #if/#for declaration selection is part of Expand even for a
+        // Core stop. Ordinary value #(...) remains a Core CT expression and
+        // is only executed in the later Ct stage.
         let selection_needed = project
             .modules
             .iter()
             .zip(&parsed)
             .any(|(source, parsed)| super::ct_selection::needed(source, parsed));
+        // This is only a cheap candidate filter, never a CT authority or a
+        // classification result. A plain `#` belongs to the existing CT
+        // producer. The artifact materializer uses the source compiler's
+        // bounded domain classifier at each mixed-project expression.
+        let artifact_needed = options.syntax_lock.is_some()
+            || project
+                .modules
+                .iter()
+                .zip(&parsed)
+                .any(|(source, parsed)| artifact_candidate(source, parsed));
         let (raw, expand_snapshot) = self.query(
-            key(Phase::Expand, selection_needed),
+            key(Phase::Expand, selection_needed || artifact_needed),
             &dependencies,
             options,
             report,
@@ -473,11 +564,60 @@ impl CompilationSession {
                 let materialized = selected
                     .as_ref()
                     .map(|selected| selected.modules.iter().collect::<Vec<_>>());
-                let syntax = materialized.as_deref().unwrap_or(&syntax);
+                let selected_syntax = materialized.as_deref().unwrap_or(&syntax);
+                let mut ct_result = if artifact_needed {
+                    let mut remaining = selected.as_ref().map_or_else(|| Ok(options.limits.clone()),
+                        |selected| selected.receipt.remaining(&options.limits))?;
+                    remaining.max_ct_steps = remaining.max_ct_steps.min(options.limits.max_ct_steps);
+                    Some(super::ct_artifact::materialize(
+                        &project.modules, &parsed, selected_syntax, &project.paths, &imports,
+                        project.root, fingerprint, &options.target, &remaining, locked.as_ref(),
+                    )?)
+                } else { None };
+                let mut runtime_imports = imports.clone();
+                if let Some(result) = &mut ct_result {
+                    for (module, import) in &result.required_imports {
+                        let index = project.modules.iter().position(|source| source.module_id == *module)
+                            .ok_or_else(|| infra("E-CT-IMPORT", "generated caller is outside the frozen project"))?;
+                        if !runtime_imports[index].iter().any(|existing| existing.alias == import.alias && existing.module == import.module) {
+                            runtime_imports[index].push(import.clone());
+                        }
+                    }
+                    let active = result.modules.iter().map(|module| (module.id,
+                        module.items.iter().any(|item| !matches!(item.kind, ast::ItemKind::Import(_)))))
+                        .collect::<BTreeMap<_, _>>();
+                    let mut reachable = BTreeSet::new();
+                    let mut queue = VecDeque::from([project.root]);
+                    while let Some(module) = queue.pop_front() {
+                        if !reachable.insert(module) { continue; }
+                        if let Some(index) = project.modules.iter().position(|source| source.module_id == module) {
+                            for import in &runtime_imports[index] {
+                                if active.get(&import.module).copied().unwrap_or(false) { queue.push_back(import.module); }
+                            }
+                        }
+                    }
+                    for (index, module) in result.modules.iter_mut().enumerate() {
+                        if !reachable.contains(&module.id) {
+                            module.items.clear();
+                            runtime_imports[index].clear();
+                            continue;
+                        }
+                        runtime_imports[index].retain(|import| reachable.contains(&import.module));
+                        module.items.retain(|item| match &item.kind {
+                            ast::ItemKind::Import(import) => {
+                                if import.syntax || matches!(import.path.as_slice(), [a,b] if a == "std" && (b == "meta" || b == "syntax")) { return false; }
+                                project.paths.get(&import.path).is_none_or(|target| reachable.contains(target))
+                            }
+                            _ => true,
+                        });
+                    }
+                }
+                let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
+                let syntax = generated_syntax.as_deref().unwrap_or(selected_syntax);
                 for (module, map) in zil_expand::expand_program_with_limits(
                     &project.modules,
                     syntax,
-                    &imports,
+                    &runtime_imports,
                     &options.limits,
                 )? {
                     modules.push(module);
@@ -494,6 +634,8 @@ impl CompilationSession {
                         .map_or_else(super::ct_selection::Receipt::default, |selected| {
                             selected.receipt
                         }),
+                    ct_usage: ct_result.as_ref().map(|result| result.usage.clone()),
+                    ct_previews: ct_result.map(|result| result.previews).unwrap_or_default(),
                     syntax: Arc::new(ProjectSyntax {
                         root: (root.file_id, root.module_id, root.path.clone()),
                         entries: dependencies
@@ -521,6 +663,19 @@ impl CompilationSession {
                 expanded.selection.to_json()
             })?;
         }
+        if artifact_needed {
+            artifacts.dump_lazy(report, options, "ct-syntax", |_| {
+                format!(
+                    "[{}]",
+                    expanded
+                        .ct_previews
+                        .iter()
+                        .map(|preview| preview.json())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            })?;
+        }
         if options.stop_after == Stage::Core {
             return Ok(());
         }
@@ -535,6 +690,28 @@ impl CompilationSession {
                     zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?;
                 let inferred = inference.program();
                 let mut remaining = expanded.selection.remaining(&options.limits)?;
+                if let Some(usage) = &expanded.ct_usage {
+                    remaining.max_ct_steps = remaining
+                        .max_ct_steps
+                        .checked_sub(usage.steps)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::limit(
+                                Phase::Ct,
+                                "Type/Syntax CT step budget exceeded",
+                                None,
+                            )]
+                        })?;
+                    remaining.max_nodes = remaining
+                        .max_nodes
+                        .checked_sub(usage.generated_nodes as usize)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::limit(
+                                Phase::Ct,
+                                "Type/Syntax CT generated node budget exceeded",
+                                None,
+                            )]
+                        })?;
+                }
                 let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
                 let initial_remaining = remaining.clone();
                 let mut unchanged = true;
@@ -729,6 +906,13 @@ fn validate_sources<'a>(
         }
     }
     for (path, id) in &project.paths {
+        if path.first().is_some_and(|segment| segment == "std") {
+            return Err(reject(
+                "E-STD-RESERVED",
+                None,
+                "std modules are reserved for the compiler's closed CT interface",
+            ));
+        }
         take(
             &mut work,
             path.len(),
@@ -797,11 +981,13 @@ fn resolve_imports(
     project: &ProjectSources,
     parsed: &[Arc<ParseResult>],
     limits: &Limits,
+    locked: Option<&zil_ir::ct_artifact::CtLockedProviderRegistry>,
 ) -> CompileResult<Vec<Vec<CoreImport>>> {
     let mut remaining = limits.max_nodes;
     let mut graph = Vec::new();
     for module in parsed {
         let mut imports = Vec::new();
+        let mut syntax_aliases = BTreeSet::new();
         for item in &module.module.items {
             let ast::ItemKind::Import(import) = &item.kind else {
                 continue;
@@ -813,6 +999,25 @@ fn resolve_imports(
                 "project import edge budget exceeded",
             )?;
             unsupported_import(item, import)?;
+            if import.path.first().is_some_and(|part| part == "std") {
+                if import.syntax
+                    || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax"))
+                {
+                    return Err(reject(
+                        "E-STD-IMPORT",
+                        Some(item.span),
+                        "only ordinary imports of std.meta and std.syntax are available",
+                    ));
+                }
+                continue;
+            }
+            if import.syntax && locked.is_none() {
+                return Err(reject(
+                    "E-SYNTAX-LOCK-MISSING",
+                    Some(item.span),
+                    "syntax provider use needs an explicit lock",
+                ));
+            }
             let id = project.paths.get(&import.path).copied().ok_or_else(|| {
                 reject(
                     "E-MODULE-NOT-FOUND",
@@ -825,6 +1030,29 @@ fn resolve_imports(
                 .clone()
                 .or_else(|| import.path.last().cloned())
                 .ok_or_else(|| reject("E-MODULE-PATH", Some(item.span), "empty import path"))?;
+            if import.syntax {
+                if !syntax_aliases.insert(alias) {
+                    return Err(reject(
+                        "E-SYNTAX-ALIAS",
+                        Some(item.span),
+                        "duplicate syntax provider alias",
+                    ));
+                }
+                let path = import.path.join(".");
+                if !locked.is_some_and(|registry| {
+                    registry
+                        .entries
+                        .iter()
+                        .any(|entry| entry.path == path && entry.export == "default")
+                }) {
+                    return Err(reject(
+                        "E-SYNTAX-LOCK-MISSING",
+                        Some(item.span),
+                        format!("syntax provider {path} needs a locked default entry"),
+                    ));
+                }
+                continue;
+            }
             imports.push(CoreImport {
                 alias,
                 module: id,
@@ -837,11 +1065,11 @@ fn resolve_imports(
     Ok(graph)
 }
 
-fn unsupported_import(item: &ast::Item, import: &ast::Import) -> CompileResult<()> {
-    if item.public || import.syntax {
+fn unsupported_import(item: &ast::Item, _import: &ast::Import) -> CompileResult<()> {
+    if item.public {
         return Err(vec![Diagnostic::unsupported(
             Phase::Expand,
-            "public reexports and syntax imports require a later module interface",
+            "public reexports require a later module interface",
             Some(item.span),
         )]);
     }
@@ -1151,6 +1379,13 @@ fn load_sources(
                 continue;
             };
             unsupported_import(item, import)?;
+            if import.syntax && options.syntax_lock.is_none() {
+                return Err(reject(
+                    "E-SYNTAX-LOCK-MISSING",
+                    Some(item.span),
+                    "syntax provider use needs an explicit lock",
+                ));
+            }
             if import.path.is_empty() || import.path.iter().any(|s| !valid_segment(s)) {
                 return Err(reject(
                     "E-MODULE-PATH",
@@ -1163,6 +1398,18 @@ fn load_sources(
                     Phase::Expand,
                     "project import path depth budget exceeded",
                 ));
+            }
+            if import.path.first().is_some_and(|part| part == "std") {
+                if import.syntax
+                    || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax"))
+                {
+                    return Err(reject(
+                        "E-STD-IMPORT",
+                        Some(item.span),
+                        "only ordinary imports of std.meta and std.syntax are available",
+                    ));
+                }
+                continue;
             }
             // Resolve even an already registered path: the root is preseeded
             // in `paths`, but that must not hide a second directory entry.
@@ -1222,6 +1469,7 @@ fn load_sources(
         syntax.push(LoadedSyntax {
             parsed,
             reused,
+            snapshot: None,
             stable_module_key,
         });
         index += 1;
@@ -1295,7 +1543,9 @@ mod discovery158_tests {
         };
         match load_sources(&mut p, path, options, session)? {
             LoadedProject::Parsed(syntax) => Ok(syntax),
-            LoadedProject::Semantic(_) => panic!("this control expects ordinary syntax discovery"),
+            LoadedProject::Prepared(_, _) | LoadedProject::Semantic(_) => {
+                panic!("this control expects ordinary syntax discovery")
+            }
         }
     }
     fn discover_candidate(

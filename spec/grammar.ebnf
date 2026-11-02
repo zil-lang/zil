@@ -54,7 +54,7 @@ TypePrimary = CallableType | Qualified, [TypeArgs]
             | TupleType
             | "dyn", (CallableType | Qualified, [TypeArgs])
             | "for", "<", "life", IDENT, ">", TypePrimary
-            | MetaEval | MetaBlock ;
+            | MetaEval | MetaBlock | MetaSplice ;
 TupleType = "(", ")" | "(", Type, ")" | "(", Type, ",", [TypeList], ")" ;
 TypeArgs = "<", GenericArg, {",", GenericArg}, [","], ">" ;
 GenericArg = Type | NUMBER | "true" | "false" ;
@@ -105,7 +105,7 @@ Member = IDENT | TUPLEINDEX ;
 SliceIndex = BitOr, ["..", [BitOr]] | "..", [BitOr] ;
 Arguments = Argument, {",", Argument}, [","] ;
 Argument = ["..."], Expr ;
-Primary = Literal | IDENT | GroupOrTuple | ArrayValue | Construct | ContextRecord | ReceiverMember | IfExpr | MetaEval | MetaBlock | SyntaxIsland ;
+Primary = Literal | IDENT | GroupOrTuple | ArrayValue | Construct | ContextRecord | ReceiverMember | IfExpr | MetaEval | MetaBlock | MetaSplice | Quote | SyntaxIsland ;
 Literal = NUMBER | STRING | CHAR | "true" | "false" ;
 GroupOrTuple = "(", ")" | "(", Expr, ")" | "(", Expr, ",", [ExprList], ")" ;
 ExprList = Expr, {",", Expr}, [","] ;
@@ -122,6 +122,11 @@ IfExpr = "if", Expr, "{", Expr, "}", "else", "{", Expr, "}" ;
 Attribute = "#", "[", Qualified, [("(", [AttrArguments], ")") | ("=", STRING)], "]" ;
 AttrArguments = Expr, {",", Expr}, [","] ;
 MetaEval = "#", "(", Expr, ")" ;
+MetaSplice = "#", "splice", "(", Expr, ")" ;
+Quote = "quote", "<", SyntaxCategory, ">", "{", QuoteBody, "}" ;
+SyntaxCategory = "Expr" | "Type" | "StmtList" | "ItemList" ;
+QuoteBody = (* the selected ordinary category with typed QuoteHole slots; nested quotes own their holes *) ;
+QuoteHole = "$", "(", Expr, ")" ;
 MetaBlock = "#", Block ;
 MetaItem = MetaIfItems | MetaForItems | MetaEmit ;
 MetaStatement = MetaIfStatements | MetaForStatements | MetaEmit ;

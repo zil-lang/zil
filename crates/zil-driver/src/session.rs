@@ -42,6 +42,12 @@ pub(super) struct ProjectFrontend {
     pub typed: Arc<TypedProgram>,
     pub snapshot: Arc<QuerySnapshot>,
 }
+struct SourceParse {
+    parsed: Arc<ParseResult>,
+    snapshot: Arc<QuerySnapshot>,
+    artifacts: ArtifactPlan,
+    identity: QueryKey,
+}
 impl TypedInput {
     fn module(&self) -> &TypedModule {
         match self {
@@ -249,7 +255,33 @@ impl CompilationSession {
     ) -> CompileReport {
         let start = Instant::now();
         let mut report = CompileReport::new(source);
-        if let Err(errors) = self.pipeline(source, options, &mut report, observer) {
+        // Every source request already needs Parse. Make the domain decision
+        // from that published syntax, so whitespace and comments around a
+        // type-level # cannot change which pipeline owns the request.
+        let prepared = match self.source_parse_stage(source, options, &mut report, observer) {
+            Ok(prepared) => prepared,
+            Err(errors) => {
+                report.fail(errors);
+                self.trim_history();
+                report.seconds = start.elapsed().as_secs_f64();
+                return report;
+            }
+        };
+        if options.stop_after != Stage::Parse
+            && (options.syntax_lock.is_some()
+                || super::project::artifact_candidate(source, &prepared.parsed))
+        {
+            report.seconds = start.elapsed().as_secs_f64();
+            return self.compile_source_artifact_project(
+                source,
+                prepared.parsed.clone(),
+                prepared.snapshot.clone(),
+                options,
+                observer,
+                report,
+            );
+        }
+        if let Err(errors) = self.pipeline(source, options, &mut report, observer, Some(prepared)) {
             report.fail(errors);
         }
         self.trim_history();
@@ -497,13 +529,13 @@ impl CompilationSession {
         Ok(Some(ProjectFrontend { typed, snapshot }))
     }
 
-    fn pipeline(
+    fn source_parse_stage(
         &mut self,
         source: &SourceUnit,
         options: &CompileOptions,
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
-    ) -> CompileResult<()> {
+    ) -> CompileResult<SourceParse> {
         options
             .cancellation
             .check(Phase::Driver)
@@ -525,20 +557,15 @@ impl CompilationSession {
         let artifacts = ArtifactPlan::new(source, options)?;
         let identity = query_key(source, options, Phase::Parse, false);
         disk_source(source, options, report, &identity)?;
-        // These immutable identities describe this request, not a proof. Reuse
-        // them vertically instead of rehashing source bytes for every phase.
-        let target = options.target.fingerprint();
-        let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
         let parse_key = self.parse_key(source, options);
-        let (parsed, parse_snapshot) =
-            self.query(parse_key.clone(), &[], options, report, observer, || {
-                let parsed = zil_syntax::parse_with_limits(source, &options.limits);
-                if !parsed.diagnostics.is_empty() {
-                    return Err(parsed.diagnostics);
-                }
-                Ok(RawSnapshot::Parse(Arc::new(parsed)))
-            })?;
-        let RawSnapshot::Parse(parsed) = parsed else {
+        let (raw, snapshot) = self.query(parse_key, &[], options, report, observer, || {
+            let parsed = zil_syntax::parse_with_limits(source, &options.limits);
+            if !parsed.diagnostics.is_empty() {
+                return Err(parsed.diagnostics);
+            }
+            Ok(RawSnapshot::Parse(Arc::new(parsed)))
+        })?;
+        let RawSnapshot::Parse(parsed) = raw else {
             return Err(infra(
                 "E-QUERY-KIND",
                 "parse query returned another snapshot kind",
@@ -546,8 +573,49 @@ impl CompilationSession {
         };
         report.phase = Phase::Parse;
         artifacts.dump_lazy(report, options, "syntax", |_| format!("{parsed:#?}"))?;
+        Ok(SourceParse {
+            parsed,
+            snapshot,
+            artifacts,
+            identity,
+        })
+    }
+
+    fn pipeline(
+        &mut self,
+        source: &SourceUnit,
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+        prepared: Option<SourceParse>,
+    ) -> CompileResult<()> {
+        let SourceParse {
+            parsed,
+            snapshot: parse_snapshot,
+            artifacts,
+            identity,
+        } = match prepared {
+            Some(prepared) => prepared,
+            None => self.source_parse_stage(source, options, report, observer)?,
+        };
+        // These immutable identities describe this request, not a proof. Reuse
+        // them vertically instead of rehashing source bytes for every phase.
+        let target = options.target.fingerprint();
+        let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
         if options.stop_after == Stage::Parse {
             return Ok(());
+        }
+
+        if options.syntax_lock.is_none()
+            && let Some(item) = parsed.module.items.iter().find(|item| {
+                matches!(&item.kind, zil_syntax::ast::ItemKind::Import(import) if import.syntax)
+            }) {
+            return Err(vec![Diagnostic::error(
+                Phase::Expand,
+                "E-SYNTAX-LOCK-MISSING",
+                Some(item.span),
+                "syntax provider use needs an explicit lock",
+            )]);
         }
 
         let selection_needed = super::ct_selection::needed(source, &parsed);

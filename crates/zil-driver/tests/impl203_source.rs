@@ -375,6 +375,7 @@ fn raw_field_alias_invalidation_survives_refill_and_keeps_independent_fields() {
         expression(E::Member {
             object: Box::new(object),
             member: "first".into(),
+            owner: None,
         })
     };
     let statement_id = std::cell::Cell::new(961_000u32);
@@ -441,6 +442,7 @@ fn raw_field_alias_invalidation_survives_refill_and_keeps_independent_fields() {
         expression(E::Member {
             object: Box::new(object),
             member: "first".into(),
+            owner: None,
         })
     };
     let fresh_borrow = expression(E::Unary {
@@ -453,6 +455,7 @@ fn raw_field_alias_invalidation_survives_refill_and_keeps_independent_fields() {
         expression(E::Member {
             object: Box::new(object),
             member: "second".into(),
+            owner: None,
         })
     };
     let other = bind("other", second);

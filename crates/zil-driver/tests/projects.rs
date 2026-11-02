@@ -748,10 +748,25 @@ fn m017_file_parse_stop_only_checks_entry_syntax() {
         "main.zil",
         "syntax use absent as macro\nfn main() -> i32 => 0",
     );
+    // Syntax providers are now implemented and require a lock before file
+    // discovery, so the old Unsupported expectation becomes a missing lock.
     code(
         &compile_path(&input, &options),
-        ResultCategory::Unsupported,
-        "E-UNSUPPORTED",
+        ResultCategory::SafeReject,
+        "E-SYNTAX-LOCK-MISSING",
+    );
+    code(
+        &compile_source(
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                input.to_string_lossy(),
+                "syntax use absent as macro\nfn main() -> i32 => 0",
+            ),
+            &options,
+        ),
+        ResultCategory::SafeReject,
+        "E-SYNTAX-LOCK-MISSING",
     );
     directory.put("main.zil", "import math\nfn main() -> i32 => 0");
     code(
@@ -820,6 +835,41 @@ fn m019_file_core_stop_resolves_graph_without_executing_ct() {
     );
     code(&report, ResultCategory::SafeReject, "E-CT-ARITHMETIC");
     assert_eq!(report.phase, Phase::Ct);
+}
+
+#[test]
+fn m019_core_stop_still_performs_declaration_selection_and_syntax_materialization() {
+    for (text, expected) in [
+        (
+            "#if(true){fn selected()->i32=>7}else{fn selected()->i32=>0}fn main()->i32=>selected()",
+            "selected",
+        ),
+        ("fn main()->i32{return #splice(quote<Expr>{42})}", "42"),
+    ] {
+        let directory = Directory::new();
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "core.zil", text);
+        let project = ProjectSources {
+            root: ModuleId(0),
+            modules: vec![source],
+            paths: BTreeMap::new(),
+        };
+        let report = compile_project(
+            &project,
+            &CompileOptions {
+                stop_after: Stage::Core,
+                emit_dir: Some(directory.0.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        success(&report);
+        assert_eq!(report.phase, Phase::Expand);
+        assert_eq!(report.verification_runs, 0);
+        let core = fs::read_to_string(&report.artifacts["core"]).unwrap();
+        assert!(
+            core.contains(expected) && !core.contains("Unsupported"),
+            "{core}"
+        );
+    }
 }
 
 #[test]

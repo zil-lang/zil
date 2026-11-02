@@ -322,7 +322,7 @@ pub fn walk_type<V: Visitor + ?Sized>(
             v.text(lifetime, t.span)?;
             v.ty(inner, depth + 1)?;
         }
-        s::TypeKind::MetaEval(e) => v.expression(e, depth + 1)?,
+        s::TypeKind::MetaEval(e) | s::TypeKind::MetaSplice(e) => v.expression(e, depth + 1)?,
         s::TypeKind::MetaBlock(b) => v.block(b, depth + 1)?,
     }
     Ok(())
@@ -504,6 +504,7 @@ pub fn walk_expression<V: Visitor + ?Sized>(
         s::ExprKind::Group(e)
         | s::ExprKind::Try(e)
         | s::ExprKind::MetaEval(e)
+        | s::ExprKind::MetaSplice(e)
         | s::ExprKind::Unary { operand: e, .. } => v.expression(e, depth + 1)?,
         s::ExprKind::Tuple(es) | s::ExprKind::Array(es) => {
             for e in es {
@@ -520,8 +521,13 @@ pub fn walk_expression<V: Visitor + ?Sized>(
         }
         s::ExprKind::Member { object, member } => {
             v.expression(object, depth + 1)?;
-            if let s::MemberName::Name(n) = member {
-                v.text(n, e.span)?;
+            match member {
+                s::MemberName::Name(n) => v.text(n, e.span)?,
+                s::MemberName::Constrained { name, owner } => {
+                    v.text(name, e.span)?;
+                    v.ty(owner, depth + 1)?;
+                }
+                s::MemberName::TupleIndex(_) => {}
             }
         }
         s::ExprKind::TypeApply { callee, arguments } => {
@@ -587,6 +593,16 @@ pub fn walk_expression<V: Visitor + ?Sized>(
             v.expression(else_value, depth + 1)?;
         }
         s::ExprKind::MetaBlock(b) => v.block(b, depth + 1)?,
+        s::ExprKind::Quote { template, .. } => {
+            quote_tree(v, &template.tree, depth + 1)?;
+            for site in &template.name_sites {
+                v.node(site.span, depth + 1)?;
+            }
+            for hole in &template.holes {
+                v.node(hole.span, depth + 1)?;
+                v.expression(&hole.value, depth + 2)?;
+            }
+        }
         s::ExprKind::SyntaxIsland {
             path: names,
             tree: t,
@@ -664,6 +680,101 @@ pub fn item_cost(item: &s::Item, limits: &Limits) -> CompileResult<SyntaxCost> {
     c.item(item, 0)?;
     Ok(c.cost)
 }
+// Self substitution can clone the actual host rather than the short source
+// spelling. Account for that complete borrowed shape before lowering it.
+pub(crate) fn member_owner_type_cost(
+    ty: &s::TypeRef,
+    host: Option<&Type>,
+    limits: &Limits,
+) -> CompileResult<SyntaxCost> {
+    struct OwnerCounter<'a> {
+        counter: Counter<'a>,
+        host: Option<&'a Type>,
+    }
+    impl Visitor for OwnerCounter<'_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.counter.node(span, depth)
+        }
+        fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
+            self.counter.text(value, span)
+        }
+        fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+            walk_type(self, ty, depth)?;
+            if matches!(&ty.kind, s::TypeKind::Named { path, args } if args.is_empty() && path.as_slice() == ["Self"])
+                && let Some(host) = self.host
+            {
+                core_shape(self, host, ty.span, depth + 1)?;
+            }
+            Ok(())
+        }
+    }
+    fn core_shape(v: &mut dyn Visitor, ty: &Type, span: Span, depth: usize) -> CompileResult<()> {
+        v.node(span, depth)?;
+        match ty {
+            Type::Named(name) | Type::Unsupported(name) => v.text(name, span)?,
+            Type::Record { name, fields } | Type::Package { name, fields } => {
+                v.text(name, span)?;
+                for (name, ty) in fields {
+                    v.text(name, span)?;
+                    core_shape(v, ty, span, depth + 1)?;
+                }
+            }
+            Type::Enum { name, variants } => {
+                v.text(name, span)?;
+                for (name, fields) in variants {
+                    v.node(span, depth + 1)?;
+                    v.text(name, span)?;
+                    for ty in fields {
+                        core_shape(v, ty, span, depth + 2)?;
+                    }
+                }
+            }
+            Type::Tuple(types) => {
+                for ty in types {
+                    core_shape(v, ty, span, depth + 1)?;
+                }
+            }
+            Type::Managed(inner)
+            | Type::Desc(inner)
+            | Type::Address { inner, .. }
+            | Type::Opaque { hidden: inner, .. }
+            | Type::OwnedStore { element: inner }
+            | Type::Array { element: inner, .. }
+            | Type::Slice { element: inner } => core_shape(v, inner, span, depth + 1)?,
+            Type::ErrorUnion { error, result } => {
+                core_shape(v, error, span, depth + 1)?;
+                core_shape(v, result, span, depth + 1)?;
+            }
+            Type::ForeignCallback { parameters, result }
+            | Type::FunctionPointer { parameters, result } => {
+                for ty in parameters {
+                    core_shape(v, ty, span, depth + 1)?;
+                }
+                core_shape(v, result, span, depth + 1)?;
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::ByteBuffer
+            | Type::ForeignHandle
+            | Type::CWideString
+            | Type::Closure(_) => {}
+        }
+        Ok(())
+    }
+    let mut counter = OwnerCounter {
+        counter: Counter {
+            limits,
+            cost: SyntaxCost::default(),
+        },
+        host,
+    };
+    counter.ty(ty, 0)?;
+    Ok(counter.counter.cost)
+}
 pub fn expression_cost(expression: &s::Expr, limits: &Limits) -> CompileResult<SyntaxCost> {
     let mut c = Counter {
         limits,
@@ -726,4 +837,23 @@ pub fn expression_with_next_id(
     } else {
         Err(expander.diagnostics)
     }
+}
+
+fn quote_tree<V: Visitor + ?Sized>(
+    v: &mut V,
+    t: &s::QuoteTokenTree,
+    depth: usize,
+) -> CompileResult<()> {
+    v.node(t.span, depth)?;
+    for entry in &t.children {
+        match entry {
+            s::QuoteTokenTreeEntry::Token { text, span } => {
+                v.node(*span, depth + 1)?;
+                v.text(text, *span)?;
+            }
+            s::QuoteTokenTreeEntry::Tree(child) => quote_tree(v, child, depth + 1)?,
+            s::QuoteTokenTreeEntry::Hole { span, .. } => v.node(*span, depth + 1)?,
+        }
+    }
+    Ok(())
 }

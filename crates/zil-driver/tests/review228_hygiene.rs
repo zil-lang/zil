@@ -1,7 +1,9 @@
 //! Independent generated-type scope, nominal and machine controls.
 use std::{fs, path::PathBuf};
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
-use zil_driver::{CompilationSession, CompileOptions, CompileReport, ProjectSources, Stage};
+#[cfg(feature = "llvm-api")]
+use zil_driver::Stage;
+use zil_driver::{CompilationSession, CompileOptions, CompileReport, ProjectSources};
 
 fn directory(label: &str) -> PathBuf {
     let path = std::env::var_os("ZIL_TEST_REPORT_DIR")

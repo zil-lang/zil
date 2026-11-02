@@ -376,7 +376,12 @@ impl Builder<'_, '_> {
         )?)
     }
     pub(super) fn enum_constructor(&self, expression: &CoreExpr) -> R<Option<(Type, u32)>> {
-        let CoreExprKind::Member { object, member } = &expression.kind else {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &expression.kind
+        else {
             return Ok(None);
         };
         let CoreExprKind::Name(name) = &object.kind else {
@@ -393,6 +398,13 @@ impl Builder<'_, '_> {
         else {
             return Ok(None);
         };
+        if owner.is_some() {
+            return Err(error(
+                "E-MEMBER-OWNER",
+                expression.span,
+                "a constrained member cannot denote an enum constructor namespace",
+            ));
+        }
         let index = variants
             .iter()
             .position(|(name, _)| name == member)

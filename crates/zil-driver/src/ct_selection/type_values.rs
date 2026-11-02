@@ -52,7 +52,9 @@ impl materialize::Materializer<'_, '_> {
                 self.generation_type(error, depth + 1)?;
                 self.generation_type(result, depth + 1)?;
             }
-            s::TypeKind::MetaEval(value) => self.expression(value, depth + 1)?,
+            s::TypeKind::MetaEval(value) | s::TypeKind::MetaSplice(value) => {
+                self.expression(value, depth + 1)?
+            }
             // The ordinary Type/Syntax boundary remains responsible for this
             // generator; a scalar iteration cannot grant its execution.
             s::TypeKind::MetaBlock(_) => {}

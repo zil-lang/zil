@@ -290,7 +290,7 @@ impl Scan<'_> {
         self.expr(state, value, depth + 1)?;
         if let Some(package) = self.named(target)? {
             self.whole(state, package, LIVE, target.span)?;
-        } else if let CoreExprKind::Member { object, member } = &target.kind
+        } else if let CoreExprKind::Member { object, member, .. } = &target.kind
             && let Some(package) = self.named(object)?
             && let Some((slot, _)) = self.field(package, member, target.span)?
         {
@@ -304,7 +304,7 @@ impl Scan<'_> {
         // type scans are charged before allocation/traversal.
         let mut path = Vec::new();
         let mut root = expression;
-        while let CoreExprKind::Member { object, member } = &root.kind {
+        while let CoreExprKind::Member { object, member, .. } = &root.kind {
             self.visit(depth.saturating_add(path.len()), root.span)?;
             self.spend(member.len().saturating_add(1), root.span)?;
             path.push(member.as_str());
@@ -379,7 +379,7 @@ impl Scan<'_> {
                     self.whole(state, package, EMPTY, span)?;
                 }
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 if self.borrow_depth == 0
                     && matches!(object.kind, CoreExprKind::Member { .. })
                     && self.copy_projection(expression, depth + 1)?
@@ -405,7 +405,7 @@ impl Scan<'_> {
                 op: UnaryOp::Give,
                 operand,
             } => {
-                if let CoreExprKind::Member { object, member } = &operand.kind
+                if let CoreExprKind::Member { object, member, .. } = &operand.kind
                     && let Some(package) = self.named(object)?
                     && let Some((slot, _)) = self.field(package, member, span)?
                 {
@@ -452,7 +452,7 @@ impl Scan<'_> {
             }
             CoreExprKind::Call { callee, arguments } => {
                 self.expr(state, callee, depth + 1)?;
-                if let CoreExprKind::Member { object, member } = &callee.kind
+                if let CoreExprKind::Member { object, member, .. } = &callee.kind
                     && let Some(package) = self.named(object)?
                 {
                     let size = self.packages[package].copy_fields.len();

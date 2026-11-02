@@ -303,6 +303,7 @@ impl Expander<'_> {
             CoreExprKind::Member {
                 object: Box::new(object),
                 member: name.to_owned(),
+                owner: None,
             },
             span,
         );

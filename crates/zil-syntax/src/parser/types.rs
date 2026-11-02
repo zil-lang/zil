@@ -85,6 +85,16 @@ impl Parser<'_> {
     }
     fn type_primary_inner(&mut self) -> P<TypeRef> {
         let start = self.peek().span;
+        if self.at(Symbol::Dollar) && self.in_quote() {
+            self.quote_hole(QuoteHoleKind::Type)?;
+            return Ok(TypeRef {
+                kind: TypeKind::Named {
+                    path: Vec::new(),
+                    args: Vec::new(),
+                },
+                span: self.span_from(start),
+            });
+        }
         let kind = if self.eat(Symbol::Amp) {
             self.newlines();
             let lifetime = if self.peek().kind == TokenKind::Lifetime {
@@ -133,21 +143,30 @@ impl Parser<'_> {
                 Ok(TypeKind::Array { element, length })
             })?
         } else if self.eat_word("dyn") {
-            let path = self.qualified()?;
+            let path = self.qualified_kind(QuoteNameNamespace::Type)?;
             let args = self.nominal_type_args(&path)?;
             TypeKind::Dyn { path, args }
         } else if self.eat_word("for") {
             self.expect(Symbol::Lt)?;
             let lifetime = self.scoped(true, |p| {
                 p.expect_word("life")?;
-                let lifetime = p.ident()?;
+                let lifetime = p.ident_kind(QuoteNameNamespace::Label, QuoteNameRole::Binding)?;
                 p.close_angle()?;
                 Ok(lifetime)
             })?;
             let inner = Box::new(self.type_primary()?);
             TypeKind::ForLifetime { lifetime, inner }
         } else if self.eat(Symbol::Hash) {
-            if self.eat(Symbol::LParen) {
+            let kind = if self.splice_ahead() {
+                self.bump();
+                self.expect(Symbol::LParen)?;
+                let value = self.scoped(true, |p| {
+                    let value = p.expr(true)?;
+                    p.expect(Symbol::RParen)?;
+                    Ok(value)
+                })?;
+                TypeKind::MetaSplice(Box::new(value))
+            } else if self.eat(Symbol::LParen) {
                 let value = self.scoped(true, |p| {
                     let value = p.expr(true)?;
                     p.expect(Symbol::RParen)?;
@@ -161,9 +180,11 @@ impl Parser<'_> {
                     "E-PARSE-HASH-DISPATCH",
                     "type `#` must be immediately followed by `(` or `{`",
                 );
-            }
+            };
+            self.type_meta_candidate = true;
+            kind
         } else {
-            let path = self.qualified()?;
+            let path = self.qualified_kind(QuoteNameNamespace::Type)?;
             let args = self.nominal_type_args(&path)?;
             TypeKind::Named { path, args }
         };
@@ -259,13 +280,16 @@ impl Parser<'_> {
             loop {
                 let start = p.peek().span;
                 let (name, kind) = if p.eat_word("life") {
-                    (p.ident()?, GenericParamKind::Lifetime)
+                    (
+                        p.ident_kind(QuoteNameNamespace::Label, QuoteNameRole::Binding)?,
+                        GenericParamKind::Lifetime,
+                    )
                 } else if p.eat(Symbol::Hash) {
-                    let name = p.ident()?;
+                    let name = p.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
                     p.expect(Symbol::Colon)?;
                     (name, GenericParamKind::Const(p.ty()?))
                 } else {
-                    let name = p.ident()?;
+                    let name = p.ident_kind(QuoteNameNamespace::Type, QuoteNameRole::Binding)?;
                     let bounds = if p.eat(Symbol::Colon) {
                         p.bounds()?
                     } else {

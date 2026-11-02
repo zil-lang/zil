@@ -66,7 +66,8 @@ impl Parser<'_> {
                 if !p.at(Symbol::RParen) {
                     loop {
                         let start = p.peek().span;
-                        let name = p.ident()?;
+                        let name =
+                            p.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
                         let ty = if p.eat(Symbol::Colon) {
                             Some(p.ty()?)
                         } else {
@@ -87,7 +88,7 @@ impl Parser<'_> {
             })?
         } else {
             let param_start = self.peek().span;
-            let name = self.ident()?;
+            let name = self.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
             vec![ClosureParam {
                 name,
                 ty: None,
@@ -245,6 +246,13 @@ impl Parser<'_> {
                 span: self.span_from(start),
             });
         }
+        if self.quote_ahead() {
+            return self.quote();
+        }
+        if self.at(Symbol::Dollar) {
+            self.quote_hole(QuoteHoleKind::Expr)?;
+            return Ok(self.quote_dummy(self.span_from(start)));
+        }
         let kind = if self.eat(Symbol::LParen) {
             self.scoped(true, |p| {
                 if p.eat(Symbol::RParen) {
@@ -288,7 +296,9 @@ impl Parser<'_> {
                 value.span = self.span_from(start);
                 return Ok(value);
             }
-            ExprKind::ReceiverMember(self.ident()?)
+            ExprKind::ReceiverMember(
+                self.ident_kind(QuoteNameNamespace::Member, QuoteNameRole::Reference)?,
+            )
         } else if self.eat_word("if") {
             let condition = self.expr(false)?;
             self.newlines();
@@ -316,6 +326,15 @@ impl Parser<'_> {
                     "E-PARSE-ATTRIBUTE-ATTACHMENT",
                     "attributes cannot attach to a value expression",
                 );
+            } else if self.splice_ahead() {
+                self.bump();
+                self.expect(Symbol::LParen)?;
+                let value = self.scoped(true, |p| {
+                    let value = p.expr(true)?;
+                    p.expect(Symbol::RParen)?;
+                    Ok(value)
+                })?;
+                ExprKind::MetaSplice(Box::new(value))
             } else if self.eat(Symbol::LParen) {
                 let value = self.scoped(true, |p| {
                     let e = p.expr(true)?;
@@ -361,7 +380,9 @@ impl Parser<'_> {
                     };
                     MemberName::TupleIndex(index)
                 } else {
-                    MemberName::Name(self.ident()?)
+                    MemberName::Name(
+                        self.ident_kind(QuoteNameNamespace::Member, QuoteNameRole::Reference)?,
+                    )
                 };
                 ExprKind::Member {
                     object: Box::new(object),
@@ -466,7 +487,7 @@ impl Parser<'_> {
                     );
                 }
                 let start = p.peek().span;
-                let name = p.ident()?;
+                let name = p.ident_kind(QuoteNameNamespace::Member, QuoteNameRole::Reference)?;
                 let value = if p.eat(Symbol::Colon) {
                     Some(p.expr(true)?)
                 } else {
