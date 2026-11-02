@@ -1,44 +1,51 @@
 {
   "task": "249",
   "evidence_level": "supplementary cross-branch actual three-module source machine probe; 250 oracle is independent and separately owned",
-  "compiler_checkpoint": "bf8af8035fe2c98b9c8843459e33dfb704f5a24d",
+  "compiler_checkpoint": "931a34afaf59a02af3b023e3b87f759c54938da4",
   "project_source_sha256": {
     "dispatch.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c",
-    "main.zil": "245c9cb628fb02ead7da999334d8eeccd3e08a17f3057a7692b0089b4c39abc0",
-    "model.zil": "31d71d518b9be8597564821de76f57d2a2cd617b385ad11f05b89a36bc9bc144",
+    "main.zil": "be4a8044d9f537f3e25e413d4fc1dbb4c8dcf1378856815848d0c20c89c4a231",
+    "model.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
     "owned_error_main.zil": "16e13952029ac1e44868f8455605f57dd22d518a1afa47c4f28cd16bcd3b83ba"
   },
-  "oracle_sha256": "646b26b4b8ba9030719bf09c25a94723538531c0897d7f6caf991166a77a0f47",
+  "oracle_sha256": "aeb42d2f727ce2001c644ebe66665b8ed69ce752af5e93499f46c5abef73433a",
   "commands": [
-    "cargo run -q -p zil-cli --offline --locked -j 2 -- build /workspace/zil-250/tests/impl250/project/main.zil --backend clang --opt O0|O2 -o /tmp/impl249-project-o0|o2 --emit-dir /tmp/impl249-project-phases-o0|o2 --json",
-    "cargo run -q -p zil-cli --offline --locked -j 2 -- build /workspace/zil-250/tests/impl250/project/main.zil --backend llvm-api --clang /tmp/impl249-capture-object.sh --opt O0|O2 -o /tmp/impl249-project-api-o0|o2 --emit-dir /tmp/impl249-project-api-phases-o0|o2 --json",
-    "/workspace/.zil-env/llvm-23.1.4/bin/clang /tmp/impl249-project-api-o0|o2.o tools/language/173/allocator_probe.c -Wl,--wrap=realloc -Wl,--wrap=free -o /tmp/impl249-project-probe-o0|o2"
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-249 cargo run -q -p zil-cli --offline --locked -j 2 -- build /workspace/zil-250/tests/impl250/project/main.zil --backend llvm-api --opt O0|O2 -o /tmp/impl249-final-project-o0|o2 --json",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-249 ZIL_CAPTURE_OBJECT=/tmp/impl249-final-api-o0|o2.o cargo run -q -p zil-cli --offline --locked -j 2 -- build /workspace/zil-250/tests/impl250/project/main.zil --backend llvm-api --clang /tmp/impl249-capture-object.sh --opt O0|O2 -o /tmp/impl249-final-api-o0|o2 --json",
+    "/workspace/.zil-env/llvm-23.1.4/bin/clang /tmp/impl249-final-api-o0|o2.o tools/language/173/allocator_probe.c -Wl,--wrap=realloc -Wl,--wrap=free -o /tmp/impl249-final-probe-o0|o2"
   ],
   "machine_artifacts": {
     "o0": {
-      "llvm_ir_sha256": "ae549124382830224177f94506237fdf7fc9d5e53dc641fe93136a5edbfc57dc",
-      "llvm_api_object_sha256": "886c65fe9b5ba150f65f0451ec008a3fd79bf0230330cec410f73735781409ca",
-      "native_probe_sha256": "f41dfb6c438cc9d5882bef0afafc76e18f74fde135f1078feaea59f47e01529a"
+      "llvm_ir_sha256": "9b701d17385cbee6829623a20a6b44c867d7e8ea4dbcc258aab28a5bf32fa169",
+      "llvm_api_object_sha256": "fc5f9b1ba3b78248805fba0b2f4ac4376f817d097fde35b7b1256a78a3e3563c",
+      "native_probe_sha256": "12b30f14fbb33ad29e80f48ceaf21082d1d9f19d0a6a21c93f047c91d8c37bd5"
     },
     "o2": {
-      "llvm_ir_sha256": "ae549124382830224177f94506237fdf7fc9d5e53dc641fe93136a5edbfc57dc",
-      "llvm_api_object_sha256": "405cfa850385cdd5bacb74e53e4b09407815e9f50dbf3de95f13c6e7e5f9e515",
-      "native_probe_sha256": "6329646f828d050eafb546863becd5960be693ee5b19e9462d18233bec66e5c7"
+      "llvm_ir_sha256": "9b701d17385cbee6829623a20a6b44c867d7e8ea4dbcc258aab28a5bf32fa169",
+      "llvm_api_object_sha256": "9295dba12cea8b1cebe905b3ea8a6e88c1cfb27de3d33e19d87ee048df1ea2bd",
+      "native_probe_sha256": "cf124a81045708db24ce42d86824029b0d4ce58df1ce4f23e1f2d12da3a929fd"
     }
   },
   "builds": {
-    "clang_o0": "Success",
-    "clang_o2": "Success",
-    "llvm_api_o0": "Success",
-    "llvm_api_o2": "Success",
-    "llvm_api_input_kind": "builder",
-    "llvm_api_verify_before_after": true,
-    "fallback": null
+    "o0": {
+      "status": "Success",
+      "backend": "llvm-api",
+      "input_kind": "builder",
+      "verify_before_after": true,
+      "fallback": null
+    },
+    "o2": {
+      "status": "Success",
+      "backend": "llvm-api",
+      "input_kind": "builder",
+      "verify_before_after": true,
+      "fallback": null
+    }
   },
   "counts": {
-    "normal_executions": 22,
-    "allocator_executions": 76,
-    "assertions": 674,
+    "normal_executions": 24,
+    "allocator_executions": 84,
+    "assertions": 744,
     "mismatches": 0
   },
   "rows": [
@@ -231,6 +238,23 @@
     },
     {
       "optimization": "O0",
+      "mode": "normal",
+      "input": ";",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
       "mode": "allocator",
       "input": "0",
       "fail_at": 0,
@@ -1294,6 +1318,118 @@
       "pass": true
     },
     {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
       "optimization": "O2",
       "mode": "normal",
       "input": "0",
@@ -1476,6 +1612,23 @@
       "expected": {
         "exit": 1,
         "stdout": "SCHAhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": ";",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
         "stderr": ""
       },
       "pass": true
@@ -2541,6 +2694,118 @@
         "failures": 0,
         "live": 0,
         "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
       },
       "pass": true
     }

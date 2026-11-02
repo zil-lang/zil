@@ -1,66 +1,66 @@
-LLVM API O0, /tmp/impl249-project-api-o0.ll, SHA256 ae549124382830224177f94506237fdf7fc9d5e53dc641fe93136a5edbfc57dc
-Selected actual IR lines, source project hashes in consumer_probe.json
+LLVM API O0 actual IR SHA256 9b701d17385cbee6829623a20a6b44c867d7e8ea4dbcc258aab28a5bf32fa169
+Three-module source identities in consumer_probe.json
 
-Lines 847-854:
-847:   store i1 false, ptr %resource.live.9, align 1
-848:   %v.33 = load %zil_env_3, ptr %local.7, align 4
-849:   store i1 false, ptr %resource.live.7, align 1
-850:   store %zil_env_3 %v.33, ptr %closure.once.33, align 4
-851:   %v.34 = call { { i32 }, { ptr, i64, i64 }, i32 } @zil.fn.24(ptr %closure.once.33, { { i32 }, { ptr, i64, i64 }, i32 } %v.31, { { i32 }, { ptr, i64, i64 }, i32 } %v.32)
-852:   call void @zil.closure.drop.3(ptr %closure.once.33)
-853:   %tmp.24 = load i1, ptr %resource.live.9, align 1
-854:   br i1 %tmp.24, label %package.drop.13, label %package.done.13
+Lines 884-891:
+884:   store i1 false, ptr %resource.live.9, align 1
+885:   %v.33 = load %zil_env_3, ptr %local.7, align 4
+886:   store i1 false, ptr %resource.live.7, align 1
+887:   store %zil_env_3 %v.33, ptr %closure.once.33, align 4
+888:   %v.34 = call { { i32 }, { ptr, i64, i64 }, i32 } @zil.fn.27(ptr %closure.once.33, { { i32 }, { ptr, i64, i64 }, i32 } %v.31, { { i32 }, { ptr, i64, i64 }, i32 } %v.32)
+889:   call void @zil.closure.drop.3(ptr %closure.once.33)
+890:   %tmp.24 = load i1, ptr %resource.live.9, align 1
+891:   br i1 %tmp.24, label %package.drop.13, label %package.done.13
 
-Lines 3812-3862:
-3812: define { { i32 }, { ptr, i64, i64 }, i32 } @zil.fn.24(ptr %env, { { i32 }, { ptr, i64, i64 }, i32 } %arg.0, { { i32 }, { ptr, i64, i64 }, i32 } %arg.1) {
-3813: entry:
-3814:   %resource.live.0 = alloca i1, align 1
-3815:   store i1 true, ptr %resource.live.0, align 1
-3816:   %local.0 = alloca { { i32 }, { ptr, i64, i64 }, i32 }, align 8
-3817:   %resource.live.1 = alloca i1, align 1
-3818:   store i1 true, ptr %resource.live.1, align 1
-3819:   %local.1 = alloca { { i32 }, { ptr, i64, i64 }, i32 }, align 8
-3820:   %local.2 = alloca ptr, align 8
-3821:   %local.3 = alloca ptr, align 8
-3822:   %resource.live.4 = alloca i1, align 1
-3823:   store i1 false, ptr %resource.live.4, align 1
-3824:   %local.4 = alloca { i32 }, align 4
-3825:   %local.5 = alloca i32, align 4
-3826:   %resource.live.6 = alloca i1, align 1
-3827:   store i1 false, ptr %resource.live.6, align 1
-3828:   %local.6 = alloca { { i32 }, { ptr, i64, i64 }, i32 }, align 8
-3829:   store { { i32 }, { ptr, i64, i64 }, i32 } %arg.0, ptr %local.0, align 8
-3830:   store { { i32 }, { ptr, i64, i64 }, i32 } %arg.1, ptr %local.1, align 8
-3831:   br label %bb.0
-3832: bb.0:
-3833:   %v.0 = getelementptr %zil_env_3, ptr %env, i32 0, i32 0
-3834:   store ptr %v.0, ptr %local.2, align 8
-3835:   %v.1 = getelementptr %zil_env_3, ptr %env, i32 0, i32 1
-3836:   store ptr %v.1, ptr %local.3, align 8
-3837:   store i1 false, ptr %resource.live.6, align 1
-3838:   %v.2 = add i32 0, 67
-3839:   call void @zil.fn.11(i32 %v.2)
-3840:   %tmp.0 = getelementptr %zil_env_3, ptr %env, i32 0, i32 2
-3841:   store i1 false, ptr %tmp.0, align 1
-3842:   %tmp.1 = getelementptr %zil_env_3, ptr %env, i32 0, i32 0
-3843:   %v.4 = load { i32 }, ptr %tmp.1, align 4
-3844:   store i1 false, ptr %resource.live.4, align 1
-3845:   store { i32 } %v.4, ptr %local.4, align 4
-3846:   store i1 true, ptr %resource.live.4, align 1
-3847:   %v.5 = load ptr, ptr %local.3, align 8
-3848:   %tmp.2 = getelementptr { i32 }, ptr %v.5, i32 0, i32 0
-3849:   %v.6 = load i32, ptr %tmp.2, align 4
-3850:   store i32 %v.6, ptr %local.5, align 4
-3851:   %v.7 = load { { i32 }, { ptr, i64, i64 }, i32 }, ptr %local.0, align 8
-3852:   store i1 false, ptr %resource.live.0, align 1
-3853:   store { { i32 }, { ptr, i64, i64 }, i32 } %v.7, ptr %local.6, align 8
-3854:   store i1 true, ptr %resource.live.6, align 1
-3855:   %v.8 = add i32 0, 1
-3856:   %v.9 = load { { i32 }, { ptr, i64, i64 }, i32 }, ptr %local.6, align 8
-3857:   store i1 false, ptr %resource.live.6, align 1
-3858:   %v.10 = call { { i32 }, { ptr, i64, i64 }, i32 } @zil.fn.15({ { i32 }, { ptr, i64, i64 }, i32 } %v.9, i32 %v.8)
-3859:   %tmp.3 = load i1, ptr %resource.live.6, align 1
-3860:   br i1 %tmp.3, label %package.drop.0, label %package.done.0
-3861: package.drop.0:
-3862:   store i1 false, ptr %resource.live.6, align 1
+Lines 4397-4447:
+4397: define { { i32 }, { ptr, i64, i64 }, i32 } @zil.fn.27(ptr %env, { { i32 }, { ptr, i64, i64 }, i32 } %arg.0, { { i32 }, { ptr, i64, i64 }, i32 } %arg.1) {
+4398: entry:
+4399:   %resource.live.0 = alloca i1, align 1
+4400:   store i1 true, ptr %resource.live.0, align 1
+4401:   %local.0 = alloca { { i32 }, { ptr, i64, i64 }, i32 }, align 8
+4402:   %resource.live.1 = alloca i1, align 1
+4403:   store i1 true, ptr %resource.live.1, align 1
+4404:   %local.1 = alloca { { i32 }, { ptr, i64, i64 }, i32 }, align 8
+4405:   %local.2 = alloca ptr, align 8
+4406:   %local.3 = alloca ptr, align 8
+4407:   %resource.live.4 = alloca i1, align 1
+4408:   store i1 false, ptr %resource.live.4, align 1
+4409:   %local.4 = alloca { i32 }, align 4
+4410:   %local.5 = alloca i32, align 4
+4411:   %resource.live.6 = alloca i1, align 1
+4412:   store i1 false, ptr %resource.live.6, align 1
+4413:   %local.6 = alloca { { i32 }, { ptr, i64, i64 }, i32 }, align 8
+4414:   store { { i32 }, { ptr, i64, i64 }, i32 } %arg.0, ptr %local.0, align 8
+4415:   store { { i32 }, { ptr, i64, i64 }, i32 } %arg.1, ptr %local.1, align 8
+4416:   br label %bb.0
+4417: bb.0:
+4418:   %v.0 = getelementptr %zil_env_3, ptr %env, i32 0, i32 0
+4419:   store ptr %v.0, ptr %local.2, align 8
+4420:   %v.1 = getelementptr %zil_env_3, ptr %env, i32 0, i32 1
+4421:   store ptr %v.1, ptr %local.3, align 8
+4422:   store i1 false, ptr %resource.live.6, align 1
+4423:   %v.2 = add i32 0, 67
+4424:   call void @zil.fn.12(i32 %v.2)
+4425:   %tmp.0 = getelementptr %zil_env_3, ptr %env, i32 0, i32 2
+4426:   store i1 false, ptr %tmp.0, align 1
+4427:   %tmp.1 = getelementptr %zil_env_3, ptr %env, i32 0, i32 0
+4428:   %v.4 = load { i32 }, ptr %tmp.1, align 4
+4429:   store i1 false, ptr %resource.live.4, align 1
+4430:   store { i32 } %v.4, ptr %local.4, align 4
+4431:   store i1 true, ptr %resource.live.4, align 1
+4432:   %v.5 = load ptr, ptr %local.3, align 8
+4433:   %tmp.2 = getelementptr { i32 }, ptr %v.5, i32 0, i32 0
+4434:   %v.6 = load i32, ptr %tmp.2, align 4
+4435:   store i32 %v.6, ptr %local.5, align 4
+4436:   %v.7 = load { { i32 }, { ptr, i64, i64 }, i32 }, ptr %local.0, align 8
+4437:   store i1 false, ptr %resource.live.0, align 1
+4438:   store { { i32 }, { ptr, i64, i64 }, i32 } %v.7, ptr %local.6, align 8
+4439:   store i1 true, ptr %resource.live.6, align 1
+4440:   %v.8 = add i32 0, 1
+4441:   %v.9 = load { { i32 }, { ptr, i64, i64 }, i32 }, ptr %local.6, align 8
+4442:   store i1 false, ptr %resource.live.6, align 1
+4443:   %v.10 = call { { i32 }, { ptr, i64, i64 }, i32 } @zil.fn.16({ { i32 }, { ptr, i64, i64 }, i32 } %v.9, i32 %v.8)
+4444:   %tmp.3 = load i1, ptr %resource.live.6, align 1
+4445:   br i1 %tmp.3, label %package.drop.0, label %package.done.0
+4446: package.drop.0:
+4447:   store i1 false, ptr %resource.live.6, align 1
 
