@@ -15,6 +15,8 @@ use zil_verify::{VerifiedModule, verify_module};
 
 use crate::*;
 
+// The independent Verify fixture also exports its own negative controls.
+#[allow(dead_code)]
 #[path = "../../zil-verify/tests/support/foreign_scoped.rs"]
 mod scoped_fixture;
 
