@@ -117,7 +117,6 @@ pub struct CtTypeRef {
 pub enum CtTypeNode {
     Primitive(CtScalarTy),
     Builtin(CtBuiltinType),
-    Builtin(CtBuiltinType),
     Nominal {
         symbol: CtSymbolId,
         arguments: Vec<CtTypeArgument>,
@@ -152,12 +151,6 @@ pub enum CtTypeNode {
         error: CtTypeNodeId,
         result: CtTypeNodeId,
     },
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CtBuiltinType {
-    ByteBuffer,
-    ForeignHandle,
-    CWideString,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeArgument {
@@ -509,9 +502,18 @@ pub enum CtInstructionKind {
         aggregate: CtValueId,
         index: CtValueId,
     },
+    ExtractField {
+        aggregate: CtValueId,
+        index: u32,
+    },
     Replace {
         aggregate: CtValueId,
         index: CtValueId,
+        value: CtValueId,
+    },
+    ReplaceField {
+        aggregate: CtValueId,
+        index: u32,
         value: CtValueId,
     },
     Call {
@@ -519,6 +521,7 @@ pub enum CtInstructionKind {
         arguments: Vec<CtValueId>,
     },
     TypePrimitive(CtScalarTy),
+    TypeBuiltin(CtBuiltinType),
     TypeName(CtSymbolId),
     TypeApply {
         nominal: CtSymbolId,
