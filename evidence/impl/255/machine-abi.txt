@@ -42,3 +42,70 @@ Scalar environment is transferred inline after the first call, then called again
 78:   %v.2 = call i32 @zil.fn.1(ptr %local.1, i32 %v.1)
 79:   %v.3 = load %zil_env_0, ptr %local.1, align 4
 80:   ret %zil_env_0 %v.3
+
+Frozen 256 extended LLVM API O0 IR SHA256 8f672b7befdf3aaa6bcedcfc9e5d0eca068df91d0735ce8fb6efd0a8ffb18284
+Actual F parameter at index 1 between two owned companions; prepared result clears only its live slot before remaining cleanup.
+3264: define %zil_env_11 @zil.fn.35({ { ptr, i64, i64 } } %arg.0, %zil_env_11 %arg.1, { { ptr, i64, i64 } } %arg.2) {
+3265: entry:
+3266:   %resource.live.0 = alloca i1, align 1
+3267:   store i1 true, ptr %resource.live.0, align 1
+3268:   %local.0 = alloca { { ptr, i64, i64 } }, align 8
+3269:   %resource.live.1 = alloca i1, align 1
+3270:   store i1 true, ptr %resource.live.1, align 1
+3271:   %local.1 = alloca %zil_env_11, align 4
+3272:   %resource.live.2 = alloca i1, align 1
+3273:   store i1 true, ptr %resource.live.2, align 1
+3274:   %local.2 = alloca { { ptr, i64, i64 } }, align 8
+3275:   store { { ptr, i64, i64 } } %arg.0, ptr %local.0, align 8
+3276:   store %zil_env_11 %arg.1, ptr %local.1, align 4
+3277:   store { { ptr, i64, i64 } } %arg.2, ptr %local.2, align 8
+3278:   br label %bb.0
+3279: bb.0:
+3280:   %v.0 = load %zil_env_11, ptr %local.1, align 4
+3281:   store i1 false, ptr %resource.live.1, align 1
+3282:   %tmp.0 = load i1, ptr %resource.live.2, align 1
+3283:   br i1 %tmp.0, label %package.drop.0, label %package.done.0
+3284: package.drop.0:
+3285:   store i1 false, ptr %resource.live.2, align 1
+3286:   %tmp.1 = getelementptr { { ptr, i64, i64 } }, ptr %local.2, i32 0, i32 0
+3287:   call void @zil.store.2.drop(ptr %tmp.1)
+3288:   br label %package.done.0
+3289: package.done.0:
+3290:   store i1 false, ptr %resource.live.2, align 1
+3291:   %tmp.2 = load i1, ptr %resource.live.1, align 1
+3292:   br i1 %tmp.2, label %closure.drop.1, label %closure.done.1
+3293: closure.drop.1:
+3294:   store i1 false, ptr %resource.live.1, align 1
+3295:   call void @zil.closure.drop.11(ptr %local.1)
+3296:   br label %closure.done.1
+
+Actual F parameter at index 2 after owned ErrorUnion companion; branch local transfers retain explicit live flags.
+2854: define %zil_env_0 @zil.fn.27(i32 %arg.0, { i1, { { i32, [3 x i64] } }, { i32, [3 x i64] } } %arg.1, %zil_env_0 %arg.2, i1 %arg.3) {
+2855: entry:
+2856:   %local.0 = alloca i32, align 4
+2857:   %resource.live.1 = alloca i1, align 1
+2858:   store i1 true, ptr %resource.live.1, align 1
+2859:   %local.1 = alloca { i1, { { i32, [3 x i64] } }, { i32, [3 x i64] } }, align 8
+2860:   %resource.live.2 = alloca i1, align 1
+2861:   store i1 true, ptr %resource.live.2, align 1
+2862:   %local.2 = alloca %zil_env_0, align 4
+2863:   %local.3 = alloca i1, align 1
+2864:   %resource.live.4 = alloca i1, align 1
+2865:   store i1 false, ptr %resource.live.4, align 1
+2866:   %local.4 = alloca %zil_env_0, align 4
+2867:   store i32 %arg.0, ptr %local.0, align 4
+2868:   store { i1, { { i32, [3 x i64] } }, { i32, [3 x i64] } } %arg.1, ptr %local.1, align 8
+2869:   store %zil_env_0 %arg.2, ptr %local.2, align 4
+2870:   store i1 %arg.3, ptr %local.3, align 1
+2871:   br label %bb.0
+2872: bb.0:
+2873:   %v.0 = load i1, ptr %local.3, align 1
+2874:   br i1 %v.0, label %bb.1, label %bb.2
+2875: bb.1:
+2876:   store i1 false, ptr %resource.live.4, align 1
+2877:   %v.1 = load %zil_env_0, ptr %local.2, align 4
+2878:   store i1 false, ptr %resource.live.2, align 1
+2879:   store %zil_env_0 %v.1, ptr %local.4, align 4
+2880:   store i1 true, ptr %resource.live.4, align 1
+2881:   %v.2 = load %zil_env_0, ptr %local.4, align 4
+2882:   store i1 false, ptr %resource.live.4, align 1

@@ -266,11 +266,17 @@
       }
     ]
   },
-  "scope_limit": "The frozen extended 12-mode project is awaiting a Types loop-origin repair; no extended machine result is claimed here.",
   "compiler_checkpoints": {
     "original_identity": "8a872cfc0e6d2b58df7e3c02a21732ebd4d376a6",
     "fnmut_after_state": "a1297fb486e554014ef350375906ff99700bf35c",
     "standalone_signatures": "a1297fb486e554014ef350375906ff99700bf35c",
     "frozen_project_normal_and_allocator": "4e21284ca8243b5108b606fef6c164733b6e9e5a"
+  },
+  "extended_project": {
+    "compiler_checkpoint": "c415d7af6f75cafbed2863538578453cafb5b8ff",
+    "normal_native_runs": 24,
+    "allocator_native_runs": 108,
+    "oracle_mismatches": 0,
+    "detail": "native-oracle.json"
   }
 }
