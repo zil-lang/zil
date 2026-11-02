@@ -619,6 +619,10 @@ pub enum CoreExprKind {
     Member {
         object: Box<CoreExpr>,
         member: String,
+        /// A reflected field binds its complete nominal owner, including all
+        /// generic arguments. This constrains selection without changing the
+        /// receiver's value, place, ownership or address permissions.
+        owner: Option<Type>,
     },
     ReceiverMember(String),
     Record {
