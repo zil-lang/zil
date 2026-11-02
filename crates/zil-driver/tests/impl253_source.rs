@@ -241,3 +241,25 @@ fn checked_project(relative: &str) {
     );
     assert_eq!(report.verification_runs, 0);
 }
+
+#[test]
+fn private_replacement_slots_need_no_helper_edge_even_in_a_closure_body() {
+    let source = include_str!("impl252_fixtures/nested_original.zil");
+    checked(source);
+    // Keep the actual inner instance self-contained while exercising direct
+    // storage rather than an Array1. Moving it must invalidate the old loan.
+    let stale = source
+        .replace("f=f;", "let view=&f;let moved=f;")
+        .replace("let p=f(Event", "let p=view(Event");
+    assert_ne!(source, stale);
+    let module = typed(&stale);
+    let error = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        format!("{error:?}").contains("invalidates a live address window"),
+        "{error:?}"
+    );
+    let valid = source
+        .replace("f=f;", "let view=&f;")
+        .replace("let p=f(Event", "let p=view(Event");
+    checked(&valid);
+}
