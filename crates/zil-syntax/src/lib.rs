@@ -102,7 +102,11 @@ pub fn parse_generated(
         .len()
         .checked_ilog2()
         .map_or(1, |n| n as usize + 2);
-    let context_work = context.tokens.len().checked_mul(lookup.saturating_add(2));
+    let context_work = context
+        .tokens
+        .len()
+        .checked_mul(lookup.saturating_add(2))
+        .and_then(|n| n.checked_add(lexed.tokens.len()));
     let mut valid = context.tokens.len() <= limits.max_tokens
         && context_work.is_some_and(|n| n <= limits.max_nodes);
     if !valid {
@@ -137,6 +141,36 @@ pub fn parse_generated(
             valid = false;
         }
         previous = Some(entry.span.end);
+    }
+    if valid {
+        let mut entry = 0;
+        for token in &lexed.tokens {
+            if token.kind == token::TokenKind::Eof || token.is_trivia() {
+                continue;
+            }
+            while context
+                .tokens
+                .get(entry)
+                .is_some_and(|c| c.span.start < token.span.start)
+            {
+                entry += 1;
+            }
+            if context
+                .tokens
+                .get(entry)
+                .is_none_or(|c| c.span != token.span)
+            {
+                diagnostics.push(Diagnostic::error(
+                    zil_base::Phase::Parse,
+                    "E-PARSE-GENERATED-CONTEXT",
+                    Some(token.span),
+                    "every generated source token requires its exact provenance",
+                ));
+                valid = false;
+                break;
+            }
+            entry += 1;
+        }
     }
     let (syntax, mut errors, nodes) = if diagnostics.is_empty() {
         let remaining = Limits {
