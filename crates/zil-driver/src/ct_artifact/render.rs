@@ -52,7 +52,12 @@ impl Renderer<'_> {
         self.text.push_str(text);
         let end = self.text.len();
         self.text.push(' ');
-        if !text.is_empty() { self.tokens.push(RenderedToken { span: Span::new(self.file, start, end), origin, name }); }
+        // The renderer inserts separating spaces. Adjacent source whitespace
+        // then lexes as one trivia token, so it has no independent token span.
+        // Newlines remain semantic tokens and retain their exact provenance.
+        if !text.is_empty() && (!text.trim().is_empty() || text.contains('\n')) {
+            self.tokens.push(RenderedToken { span: Span::new(self.file, start, end), origin, name });
+        }
         Ok(())
     }
     fn node(&mut self, id: CtSyntaxNodeId, depth: usize) -> CompileResult<()> {

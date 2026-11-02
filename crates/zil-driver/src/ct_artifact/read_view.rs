@@ -139,12 +139,15 @@ impl FrozenReadView<'_> {
                     let value = holes.get(*index as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote hole index is out of range"))?;
                     let expected = template.holes.get(*index as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote hole kind is missing"))?;
                     match (expected, value) {
-                        (CtHoleKind::Ident(namespace), CtValue::Ident(ident)) if namespace == &ident.namespace => {
+                        (CtHoleKind::Ident(namespace), CtValue::Ident(ident))
+                            if namespace == &ident.namespace || ident.namespace == CtNameNamespace::Unbound => {
+                            let mut ident = ident.clone();
+                            ident.namespace = *namespace;
                             let new_origin = CtOriginId(u32::try_from(out.origins.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote origin identity overflow"))?);
                             let span = out.origins.get(origin.0 as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote hole origin is missing"))?.span;
                             out.origins.push(CtOrigin { span, parent: Some(*origin), role: CtOriginRole::Splice });
                             let id = CtSyntaxNodeId(u32::try_from(out.nodes.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote node identity overflow"))?);
-                            out.nodes.push(CtSyntaxNode::Token(CtToken { class: CtTokenClass::Identifier, text: ident.text.clone(), origin: new_origin, name: Some(ident.clone()) }));
+                            out.nodes.push(CtSyntaxNode::Token(CtToken { class: CtTokenClass::Identifier, text: ident.text.clone(), origin: new_origin, name: Some(ident) }));
                             vec![id]
                         }
                         (CtHoleKind::Expr, CtValue::Syntax(tree)) if tree.category == CtSyntaxCategory::Expr => Self::graft(&mut out, tree, *origin)?,
