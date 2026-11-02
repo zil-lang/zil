@@ -1,8 +1,8 @@
 # 普通拥有 Sum：阶段结果与下一主线
 
-本批239–244已在共同源码 R `15498f14af8f11d3a3bf4b198fe69208be5913ce` 完成本地正式验收和限定独立审核。普通有限拥有 Sum 已接通源码、独立责任核、机器表示与真实失败清理。PR17两条CI仍在运行，尚未合入main；本地成绩与CI、main成绩分开记录。
+本批239–244已在共同源码 R `15498f14af8f11d3a3bf4b198fe69208be5913ce` 完成本地正式验收和限定独立审核。普通有限拥有 Sum 已接通源码、独立责任核、机器表示与真实失败清理。已通过[PR17](https://github.com/zil-lang/zil/pull/17)合入main `8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad`，R与实际合并整树相同。两条PR CI已完成并核回全部归档和4092个当前源文件；main自动重放正在运行。
 
-环境已核对为 Rust/Cargo 1.99.1、LLVM/Clang 23.1.4，目前无需重装或升级。当前发布义务为两条PR CI完整核回、实际main合入及main自动重放；完成后按真实回执更新此处。
+环境已核对为 Rust/Cargo 1.99.1、LLVM/Clang 23.1.4，目前无需重装或升级。PR两条CI分别为41363882129、41363882134，均3575/0默认、3474/0参考及64/0文本参考；常规上传不可用，完整日志归档已取回并逐blob复验。main两条重放完成后另录。
 
 ## 本批闭合了什么
 
@@ -10,7 +10,7 @@
 
 schema、Wire与Typed指纹为30；四条局部枚举指令提供tag观察、Copy末端读取、完整解包和条件清理。路径、实际字段、名义类型、资源定义与局部责任均需核验，不能从同名、同布局或当前Empty分支推导Copy权限。Unpack使用真实新局部初始化顺序，不继承父清理年龄；清理只访问当前活动载荷，并先清实际drop flag。机器层沿既有Enum ABI和LLVM API构建，不新增隐式Box、RC、锁或旁置权限表。
 
-本批没有把普通拥有资格推广为capture、StoreElement、数组、FFI或任意ErrorUnion槽资格，也没有开放拥有泛型Enum、callback拥有签名或长期外部回调生命周期。直接Enum捕获等最近反例和未用定义仍需拒绝。同步callback拥有参数/结果是下一主线，不能以普通helper另带一个拥有数据参数代替。
+本批没有把普通拥有资格推广为capture、StoreElement、数组、FFI或任意ErrorUnion槽资格，也没有开放拥有泛型Enum、callback拥有签名或长期外部回调生命周期。直接拥有Enum捕获等最近反例和未用定义仍需拒绝。同步callback拥有参数/结果是下一主线，不能以普通helper另带一个拥有数据参数代替。
 
 ## 最终R的实际结果
 
@@ -28,7 +28,7 @@ schema、Wire与Typed指纹为30；四条局部枚举指令提供tag观察、Cop
 
 这些集合分别记账，作者、独审、整仓、PR和main的重放不相加为新增覆盖。R受测源码前后clean；规范摘要为spec `a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8`、norm `74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e`。正常路径、错误路径、替换、提前退出和实际分配失败均保留源与产物，原始产物归档逐成员核hash后才释放可重建临时文件。
 
-主要回执位于`evidence/integration/owned-sum-20261102/formal-R/RESULT.json`、`evidence/reviews/239/integrationR/COMMON-RESULT.json`、`evidence/reviews/240/frontend-finalR/REVIEW.json`和`evidence/reviews/244/finalR/REVIEW.json`。本地最终验收与非作者证据已提交独立交付分支，正在执行CI的PR源码保持R身份。
+主要回执位于`evidence/integration/owned-sum-20261102/formal-R/RESULT.json`、`evidence/reviews/239/integrationR/COMMON-RESULT.json`、`evidence/reviews/240/frontend-finalR/REVIEW.json`和`evidence/reviews/244/finalR/REVIEW.json`。本地最终验收、独立审核与PR CI证据已收录。不同执行身份与重复次数分别记账。
 
 ## 原失败、返修与费用边界
 
@@ -52,7 +52,7 @@ schema、Wire与Typed指纹为30；四条局部枚举指令提供tag观察、Cop
 
 R源码快照记录了91311个`evidence/`条目、1,489,515,861字节历史证据，当前非evidence源码输入4092项、26,587,437字节。依据是`evidence/integration/owned-sum-20261102/formal-R/source-inputs.json.gz`所对应的实际快照（本地原件在`/workspace/.zil-env/formal-owned-sum-R/source/source-inputs.json`）。这些量说明交付、核验和恢复已有维护负担；本轮没有测量它们与编译耗时的因果关系。后续宜优先采用已校验归档与紧凑索引，保持可恢复和精确身份，避免继续散开重复产物，也不凭体积数字宣称编译变慢。
 
-实际状态入口仍需纠正：`evidence/final-summary.json`停在历史schema27及旧source commit，而本批生产协议已经是30。发布时应更新或明确标记该入口的历史范围，并把当前精确源码、规范及验收回执接上；报告本身不替代状态入口和主树工单更新。
+机器可读总摘要曾停在历史schema27和旧source。本次已更新为schema30、精确R及实际main，旧摘要单独保存；主树六张实施卡、当前交接和下一优先级同步更新。历史handoff记录债务仍按最终复查单独报告。
 
 实施继续采用`gpt-6.1-sol/high`，复杂责任核和非作者审核使用xhigh，按阶段不相交写集并行；root统一合同、共同候选、正式验收与发布。模型降档和并行只是施工安排，不能代替原源正控与独立责任证明。
 

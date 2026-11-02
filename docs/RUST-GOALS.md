@@ -1,5 +1,17 @@
 # 每轮交付的 Rust 对照
 
+## 2026-11-02：239–244普通拥有Sum
+
+| 目标 | 本批实际结论 |
+| --- | --- |
+| Rust同类安全 | 有限Sum责任、tag、来源/作用域、未用定义及raw/Wire经独立核验；P/Q原遗漏和修复保留，完整语言安全未完成。 |
+| 运行与内存同级 | O0/O2、活动载荷和实际分配失败live0有证；沿旧内联ABI，无新增隐式Box/RC/锁，没有Rust运行/RSS配对结论。 |
+| 表达与维护 | 自然Session状态分支、Product/Sum和拥有错误载荷可组合；完整框架维护优势未测。 |
+| 编译成本 | 实际消费者在默认额度内通过；两项具名Copy证明费用增加明确留证，旧控制保持。未做本轮Rust编译速度比较。 |
+| 至少一项突破 | 原先Unsupported的拥有Sum及含Store错误载荷原源原样到达原生；四目标产品合取和可重复净突破仍未建立。 |
+
+精确R、实际main与分账验收见docs/LANGUAGE-OWNED-SUM-20261102.md及evidence/integration/owned-sum-20261102/ACCEPTANCE.json。默认3575/0、参考3474/0与PR两CI已核；main重放当前运行中。完整1.4/ZUI NotSatisfied、B0 Doing、产品及原生WindowsNotRun保持，唯一量化合同仍为validation/product-gates.json。
+
 ## 2026-11-02：227/235/236/237/238同步核心组合
 
 | 目标 | 本批实际结论 |
