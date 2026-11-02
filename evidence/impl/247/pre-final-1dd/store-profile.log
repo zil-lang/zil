@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-247/debug/deps/zil_analyze-aa0422b5c4d89887)
+
+running 2 tests
+impl203 producer two-root qualification work=66
+test dynamic_store::tests203::impl203_producer_two_root_work_has_exact_and_fresh_boundaries ... ok
+test dynamic_store::tests203::impl203_producer_qualifies_each_actual_root_and_each_result ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.00s
+

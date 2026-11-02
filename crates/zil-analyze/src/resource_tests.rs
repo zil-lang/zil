@@ -234,6 +234,376 @@ fn independent_resource_closure_flow_accepts_repeatable_and_consuming_environmen
         analyze(&fixture(kind, borrowed, count), &Limits::default()).unwrap();
     }
 }
+
+fn owned_callback_fixture(kind: CallableKind, count: usize) -> TypedModule {
+    let event = Type::Package {
+        name: "Event".into(),
+        fields: vec![("token".into(), managed())],
+    };
+    let mut main = Body::new(0);
+    main.op(InstructionKind::ScopeEnter { scope: ScopeId(0) });
+    let environment = main.local(Type::Closure(ClosureId(0)));
+    let closure = main.value(
+        Type::Closure(ClosureId(0)),
+        InstructionKind::MakeClosure {
+            closure: ClosureId(0),
+            captures: vec![],
+        },
+    );
+    main.op(InstructionKind::Store {
+        local: environment,
+        value: closure,
+    });
+    for n in 0..count {
+        let local = main.local(event.clone());
+        let n = main.constant(n as i32);
+        let token = main.value(managed(), InstructionKind::MakeManaged { fields: vec![n] });
+        let argument = main.value(
+            event.clone(),
+            InstructionKind::MakePackage {
+                fields: vec![token],
+            },
+        );
+        let call = match kind {
+            CallableKind::Fn => InstructionKind::CallClosureShared {
+                callee: environment,
+                arguments: vec![argument],
+            },
+            CallableKind::FnMut => InstructionKind::CallClosureMut {
+                callee: environment,
+                arguments: vec![argument],
+            },
+            CallableKind::FnOnce => {
+                let callee = main.value(
+                    Type::Closure(ClosureId(0)),
+                    InstructionKind::TakeLocal { local: environment },
+                );
+                InstructionKind::CallClosureOnce {
+                    callee,
+                    arguments: vec![argument],
+                }
+            }
+            _ => unreachable!(),
+        };
+        let result = main.value(event.clone(), call);
+        main.op(InstructionKind::Store {
+            local,
+            value: result,
+        });
+        main.op(InstructionKind::DropPackage { local });
+        main.op(InstructionKind::StorageDead(local));
+    }
+    if kind == CallableKind::FnOnce {
+        main.op(InstructionKind::DropClosure { local: environment });
+    }
+    main.op(InstructionKind::StorageDead(environment));
+    let zero = main.constant(0);
+    main.op(InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Return,
+    });
+    let mut entry = Body::new(1);
+    entry.0.environment = Some(ClosureId(0));
+    entry.0.return_type = event.clone();
+    entry.0.locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "event".into(),
+        ty: event.clone(),
+        mutable: false,
+        span: s(),
+    });
+    entry.0.parameters.push(LocalId(0));
+    entry.op(InstructionKind::ScopeEnter { scope: ScopeId(0) });
+    let result = entry.value(
+        event.clone(),
+        InstructionKind::TakeLocal { local: LocalId(0) },
+    );
+    entry.op(InstructionKind::DropPackage { local: LocalId(0) });
+    entry.op(InstructionKind::StorageDead(LocalId(0)));
+    entry.op(InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Return,
+    });
+    let mut m = fixture(kind, false, 0);
+    m.functions = vec![main.finish(zero), entry.finish(result)];
+    m.closures[0].parameters = vec![event.clone()];
+    m.closures[0].result = event;
+    m
+}
+
+#[test]
+fn impl247_owned_callbacks_consume_fresh_arguments_and_return_incoming_owners() {
+    for (kind, count) in [
+        (CallableKind::Fn, 2),
+        (CallableKind::FnMut, 2),
+        (CallableKind::FnOnce, 1),
+        (CallableKind::FnOnce, 0),
+    ] {
+        analyze(&owned_callback_fixture(kind, count), &Limits::default()).unwrap();
+    }
+}
+
+#[test]
+fn impl247_owned_callback_arguments_and_results_have_one_responsibility() {
+    let m = owned_callback_fixture(CallableKind::Fn, 2);
+    let mut duplicate = m.clone();
+    let arguments: Vec<_> = duplicate.functions[0].blocks[0]
+        .instructions
+        .iter_mut()
+        .filter_map(|i| {
+            if let InstructionKind::CallClosureShared { arguments, .. } = &mut i.kind {
+                Some(arguments)
+            } else {
+                None
+            }
+        })
+        .collect();
+    let first = arguments[0][0];
+    arguments.into_iter().nth(1).unwrap()[0] = first;
+    assert!(analyze(&duplicate, &Limits::default()).is_err());
+    let mut leak = m;
+    leak.functions[0].blocks[0]
+        .instructions
+        .retain(|i| !matches!(i.kind, InstructionKind::DropPackage { .. }));
+    assert!(analyze(&leak, &Limits::default()).is_err());
+}
+
+#[test]
+fn impl247_owned_callback_definition_and_actual_call_are_checked_independently() {
+    let m = owned_callback_fixture(CallableKind::FnOnce, 1);
+    let mut malformed = m.clone();
+    malformed.closures[0].parameters[0] = Type::I32;
+    assert!(analyze(&malformed, &Limits::default()).is_err());
+    let mut malformed = m.clone();
+    for i in &mut malformed.functions[0].blocks[0].instructions {
+        if let InstructionKind::CallClosureOnce { arguments, .. } = &mut i.kind {
+            arguments.clear();
+        }
+    }
+    assert!(analyze(&malformed, &Limits::default()).is_err());
+    let mut malformed = m;
+    malformed.closures[0].parameters.push(Type::Address {
+        mutable: false,
+        inner: Box::new(Type::I32),
+    });
+    assert!(analyze(&malformed, &Limits::default()).is_err());
+    let mut immutable = owned_callback_fixture(CallableKind::FnMut, 1);
+    immutable.functions[0].locals[0].mutable = false;
+    assert!(analyze(&immutable, &Limits::default()).is_err());
+}
+
+#[test]
+fn impl247_owned_callback_result_cannot_export_created_freshness() {
+    let mut m = owned_callback_fixture(CallableKind::FnOnce, 1);
+    // The callee really creates the returned leaf, rather than merely passing
+    // an incoming parameter through. Its private Created fact stays private.
+    let event = m.closures[0].result.clone();
+    let mut entry = Body::new(1);
+    entry.0.environment = Some(ClosureId(0));
+    entry.0.return_type = event.clone();
+    entry.0.locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "event".into(),
+        ty: event.clone(),
+        mutable: false,
+        span: s(),
+    });
+    entry.0.parameters.push(LocalId(0));
+    entry.op(InstructionKind::ScopeEnter { scope: ScopeId(0) });
+    entry.op(InstructionKind::DropPackage { local: LocalId(0) });
+    entry.op(InstructionKind::StorageDead(LocalId(0)));
+    let n = entry.constant(7);
+    let fresh = entry.value(managed(), InstructionKind::MakeManaged { fields: vec![n] });
+    let result = entry.value(
+        event,
+        InstructionKind::MakePackage {
+            fields: vec![fresh],
+        },
+    );
+    entry.op(InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Return,
+    });
+    m.functions[1] = entry.finish(result);
+    let f = &mut m.functions[0];
+    let value = ValueId(f.values.len() as u32);
+    f.values.push(managed());
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::DropPackage { .. }))
+        .unwrap();
+    f.blocks[0].instructions.insert(
+        at,
+        inst(
+            Some(value),
+            InstructionKind::TakePackageField {
+                local: LocalId(1),
+                index: 0,
+            },
+        ),
+    );
+    f.return_type = managed();
+    f.blocks[0].terminator = Terminator::Return(Some(value));
+    analyze(&m, &Limits::default()).unwrap();
+    // Even if the input/callee internally constructed a resource, an ordinary
+    // callback result is Incoming at this boundary, never a create promise.
+    m.functions[0].result_mode = PassingMode::Create;
+    assert!(analyze(&m, &Limits::default()).is_err());
+}
+
+#[test]
+fn impl247_owned_callback_budget_is_module_scoped_and_recovers_fresh() {
+    let m = owned_callback_fixture(CallableKind::FnMut, 2);
+    let mut budget = Budget::new(&Limits::default());
+    let expected = analyze_budgeted(&m, &Limits::default(), &mut budget, None).unwrap();
+    let exact = Limits::default().max_analysis_steps - budget.remaining();
+    println!("impl247 owned callback Analyze N={exact}; N-1 ResourceLimit; fresh equality");
+    let mut limits = Limits {
+        max_analysis_steps: exact,
+        ..Limits::default()
+    };
+    assert_eq!(analyze(&m, &limits).unwrap(), expected);
+    limits.max_analysis_steps -= 1;
+    assert!(
+        analyze(&m, &limits)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+    );
+    assert_eq!(analyze(&m, &Limits::default()).unwrap(), expected);
+}
+
+#[test]
+fn impl247_callback_data_cannot_smuggle_a_callback_state_through_store() {
+    let mut m = owned_callback_fixture(CallableKind::FnOnce, 1);
+    let state = Type::Package {
+        name: "State".into(),
+        fields: vec![
+            ("token".into(), managed()),
+            ("callback".into(), Type::Closure(ClosureId(1))),
+        ],
+    };
+    let store = Type::OwnedStore {
+        element: Box::new(state),
+    };
+    let data = Type::Package {
+        name: "Event".into(),
+        fields: vec![("items".into(), Type::Managed(Box::new(store.clone())))],
+    };
+    for f in &mut m.functions {
+        for local in &mut f.locals {
+            if matches!(local.ty, Type::Package { .. }) {
+                local.ty = data.clone();
+            }
+        }
+        for ty in &mut f.values {
+            if matches!(ty, Type::Package { .. }) {
+                *ty = data.clone();
+            }
+        }
+        if matches!(f.return_type, Type::Package { .. }) {
+            f.return_type = data.clone();
+        }
+    }
+    m.closures[0].parameters = vec![data.clone()];
+    m.closures[0].result = data;
+    let mut child = Body::new(2);
+    child.0.environment = Some(ClosureId(1));
+    let n = child.constant(0);
+    m.functions.push(child.finish(n));
+    m.closures.push(ClosureDefinition {
+        id: ClosureId(1),
+        function: FunctionId(2),
+        captures: vec![],
+        parameters: vec![],
+        result: Type::I32,
+        kind: CallableKind::Fn,
+        lending_captures: vec![],
+    });
+    m.resources.push(ResourceDefinition {
+        name: "@builtin:OwnedStore<State>".into(),
+        payload: store,
+        teardown: None,
+    });
+    let limits = Limits::default();
+    let bytes =
+        zil_ir::wire::encode_module_candidate(&m, &CandidatePlan::empty_for(&m), &limits).unwrap();
+    let decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+        .unwrap()
+        .0;
+    for raw in [&m, &decoded] {
+        let errors = analyze(raw, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("cannot hide an environment")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles() {
+    let base = owned_callback_fixture(CallableKind::FnOnce, 1);
+    for ty in [
+        Type::Package {
+            name: "State".into(),
+            fields: vec![
+                ("token".into(), managed()),
+                ("callback".into(), Type::Closure(ClosureId(0))),
+            ],
+        },
+        Type::Array {
+            element: Box::new(Type::Closure(ClosureId(0))),
+            length: 1,
+        },
+    ] {
+        let mut m = base.clone();
+        let local = LocalId(m.functions[0].locals.len() as u32);
+        m.functions[0].locals.push(LocalDecl {
+            id: local,
+            name: "unused_container".into(),
+            ty,
+            mutable: false,
+            span: s(),
+        });
+        let errors = analyze(&m, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("does not grant a State")),
+            "{errors:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &m,
+            &CandidatePlan::empty_for(&m),
+            &Limits::default(),
+        )
+        .unwrap();
+        let raw = zil_ir::wire::decode_module_candidate(&bytes, &Limits::default())
+            .unwrap()
+            .0;
+        assert!(analyze(&raw, &Limits::default()).is_err());
+    }
+    let mut m = base;
+    m.functions[0].callable_return_contract = Some(CallableReturnContract {
+        closure: ClosureId(0),
+        kind: CallableKind::FnOnce,
+        hold: vec![],
+        call: vec![],
+        writes: vec![],
+        cleanup: vec![],
+        lending_captures: vec![],
+    });
+    let errors = analyze(&m, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("does not grant an opaque factory")),
+        "{errors:?}"
+    );
+}
 #[test]
 fn independent_resource_diagnostics_reject_copy_leaks_and_repeated_cleanup() {
     let mut m = fixture(CallableKind::Fn, false, 1);

@@ -1,0 +1,81 @@
+{
+  "verdict": "Pass local regression and unchanged transport round trip",
+  "tested_source_commit": "2802674468ac33d5f177cd9a9760ed05768d6019",
+  "base_commit": "e3ddaafee77f9a1becc814e390a51de06bcdcb8e",
+  "source_change": "Only allocator evidence directory labels now encode the original input bytes as lowercase hex.",
+  "consumer_test_report": "evidence/impl/250/ci-portable-path/consumer/RESULT.json",
+  "test_counts": {
+    "selected": 7,
+    "executed": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "native_runs": 122,
+  "allocator_runs": 90,
+  "actual_allocation_failures": 38,
+  "all_allocator_live_zero": true,
+  "native_harness_assertions": 906,
+  "original_native_harness_assertions": 906,
+  "oracle_and_case_input_bytes_unchanged": true,
+  "portable_actual_files": 844,
+  "colon_input_hex_labels": 6,
+  "semicolon_input_hex_labels": 8,
+  "transport": {
+    "source_unchanged_from_base": true,
+    "source_sha256": "d42d485328fc094cb637ecf4e268cc6d16f4cf926c31dfb288970518bc814f74",
+    "pack": {
+      "archive": "/tmp/impl250-ci-path/evidence-recovery.tar.zst",
+      "sha256": "ba876f6ebe3c83ed92386a9f3c907cfa25150c6551bf8b3656724c2480108eb4",
+      "bytes": 296204,
+      "files": 846
+    },
+    "recover": {
+      "bytes": 296204,
+      "checkout": null,
+      "chunks": 73,
+      "files": 846,
+      "run_id": null,
+      "sha256": "ba876f6ebe3c83ed92386a9f3c907cfa25150c6551bf8b3656724c2480108eb4"
+    },
+    "verify": {
+      "sha256": "ba876f6ebe3c83ed92386a9f3c907cfa25150c6551bf8b3656724c2480108eb4",
+      "files": 846,
+      "run_id": null,
+      "checkout": null
+    },
+    "local_round_trip": true,
+    "inventory_files": 846,
+    "original_and_restored_paths_bytes_sha256_modes_exact": true,
+    "preserved_executable_files": 22,
+    "logical_bytes": 74077369,
+    "missing_optional_roots": [
+      "consumer209",
+      "llvm-23.1.4/install-receipt.json",
+      "llvm-23.1.4/installation-logs"
+    ],
+    "archive": "evidence/impl/250/ci-portable-path/native-evidence.tar.zst",
+    "archive_contains": "Only actual limited consumer native-evidence and its two local receipts; no Cargo/LLVM cache.",
+    "transport_log_sha256": "99118a5684c1e71365fe7bb22e726c4d4084c08b3cabb0864e2628dc167164f0",
+    "transport_log_bytes": 397510,
+    "transport_log_archived": false,
+    "transport_log_recreatable_from_archive": true,
+    "local_index_run_id": null,
+    "local_index_checkout": null
+  },
+  "commands": [
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-250 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl250-ci-path/runner/native-evidence cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl250_consumer -- --nocapture",
+    "source /workspace/.zil-env/env.sh; rustfmt --edition 2024 --check crates/zil-driver/tests/impl250_consumer.rs",
+    "python3 tools/ci/evidence_transport.py pack /tmp/impl250-ci-path/runner /tmp/impl250-ci-path/evidence-recovery.tar.zst",
+    "python3 tools/ci/evidence_transport.py emit /tmp/impl250-ci-path/evidence-recovery.tar.zst > /tmp/impl250-ci-path/transport.log",
+    "python3 tools/ci/evidence_transport.py recover /tmp/impl250-ci-path/transport.log /tmp/impl250-ci-path/recovered.tar.zst",
+    "python3 tools/ci/evidence_transport.py verify /tmp/impl250-ci-path/recovered.tar.zst --restore /tmp/impl250-ci-path/restored",
+    "evidence_transport.inventory(original) == evidence_transport.inventory(restored), including path/bytes/SHA256/mode and missing roots"
+  ],
+  "original_failure": "evidence/impl/250/ci-portable-path/ORIGINAL-FAILURE.json",
+  "remote_ci_status": "Original two runs remain Fail; unavailable remote evidence is not replaced by this local replay. New CI and integrator review required.",
+  "forward_preparation_untouched": true,
+  "scope_limits": [
+    "No production compiler, public schema, specification, CI validator or oracle change.",
+    "No full workspace rerun, push or main-tree mutation."
+  ]
+}

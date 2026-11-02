@@ -1,0 +1,37 @@
+   Compiling zil-verify v0.1.0 (/workspace/zil-250/crates/zil-verify)
+   Compiling zil-lower v0.1.0 (/workspace/zil-250/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/zil-250/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-250/crates/zil-backend-llvm)
+   Compiling zil-driver v0.1.0 (/workspace/zil-250/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 11.28s
+     Running tests/impl250_consumer.rs (/workspace/.zil-env/target-250/debug/deps/impl250_consumer-d1298073dd3dbc11)
+
+running 7 tests
+test original_r_owned_event_copy_result ... ok
+test original_r_owned_reply_from_once_capture ... ok
+test original_r_event_reply_dispatch ... ok
+
+thread 'three_module_owned_error_actual_allocator_failures' (39585) panicked at crates/zil-driver/tests/impl250_consumer.rs:145:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"non-scalar function result in closure inference","span":{"file":0,"start":29,"end":510},"notes":[]}],"artifacts":{"core":"/tmp/impl250-combined-early/consumer250-allocator-39556-7/phases/core.txt","source-map":"/tmp/impl250-combined-early/consumer250-allocator-39556-7/phases/source-map.txt","syntax":"/tmp/impl250-combined-early/consumer250-allocator-39556-7/phases/syntax.txt"},"input_fingerprint":"a134e83e57c23b1ba6929c88d9cc0644c7feeb0a2b862429e0ada489bdf92431","seconds":0.073728483,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-250/crates/zil-driver/../../tests/impl250/project/owned_error_main.zil","1":"/workspace/zil-250/crates/zil-driver/../../tests/impl250/project/model.zil","2":"/workspace/zil-250/crates/zil-driver/../../tests/impl250/project/dispatch.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test three_module_owned_error_actual_allocator_failures ... FAILED
+
+thread 'three_module_owned_error_payload_is_prepared_before_cleanup' (39589) panicked at crates/zil-driver/tests/impl250_consumer.rs:145:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"types","diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"non-scalar function result in closure inference","span":{"file":0,"start":29,"end":510},"notes":[]}],"artifacts":{"core":"/tmp/impl250-combined-early/consumer250-matrix-39556-8/phases/core.txt","source-map":"/tmp/impl250-combined-early/consumer250-matrix-39556-8/phases/source-map.txt","syntax":"/tmp/impl250-combined-early/consumer250-matrix-39556-8/phases/syntax.txt"},"input_fingerprint":"a134e83e57c23b1ba6929c88d9cc0644c7feeb0a2b862429e0ada489bdf92431","seconds":0.102224603,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-250/crates/zil-driver/../../tests/impl250/project/owned_error_main.zil","1":"/workspace/zil-250/crates/zil-driver/../../tests/impl250/project/model.zil","2":"/workspace/zil-250/crates/zil-driver/../../tests/impl250/project/dispatch.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test three_module_owned_error_payload_is_prepared_before_cleanup ... FAILED
+test three_module_actual_allocator_failures_follow_the_frozen_source_oracle ... ok
+test three_module_predeclared_native_matrix ... ok
+
+failures:
+
+failures:
+    three_module_owned_error_actual_allocator_failures
+    three_module_owned_error_payload_is_prepared_before_cleanup
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.94s
+
+error: test failed, to rerun pass `-p zil-driver --test impl250_consumer`

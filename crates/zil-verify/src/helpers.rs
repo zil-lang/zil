@@ -497,6 +497,56 @@ fn two_type_state_constructor(
     Ok(true)
 }
 
+// The public by-value FnOnce boundary admits independently checked ordinary
+// data inputs and results. Actual invocation operands are checked against the
+// concrete entry by the instruction checker, while roles/traces come from CFG.
+fn owned_dispatch(
+    module: &TypedModule,
+    function: &TypedFunction,
+    parameters: &[(u32, ClosureId, bool, &Type)],
+    claim: &CallableParameterContract,
+    budget: &mut Budget,
+) -> Check<bool> {
+    let [(_, id, false, _)] = parameters else {
+        return Ok(false);
+    };
+    let definition = closures::definition(module, *id, Some(function.span))?;
+    if !definition.parameters.iter().any(owned_callbacks::root)
+        && !owned_callbacks::root(&definition.result)
+        && !owned_callbacks::root(&function.return_type)
+    {
+        return Ok(false);
+    }
+    if claim.roles.len() != 1
+        || claim.roles[0].kind != CallableKind::FnOnce
+        || !definition.lending_captures.is_empty()
+    {
+        return Err(bad(
+            function,
+            "owning dispatch requires one by-value FnOnce role with a closed data signature",
+        ));
+    }
+    budget.spend(function.parameters.len().saturating_mul(2))?;
+    for (index, local) in function.parameters.iter().enumerate() {
+        if index == parameters[0].0 as usize {
+            continue;
+        }
+        let actual = &function.locals[local.0 as usize].ty;
+        if owned_callbacks::root(actual) {
+            owned_callbacks::value(module, actual, Some(function.span), budget)?;
+        } else {
+            check_function_signature_type(module, actual, Some(function.span), budget)?;
+        }
+    }
+    if owned_callbacks::root(&function.return_type) {
+        owned_callbacks::value(module, &function.return_type, Some(function.span), budget)?;
+    } else {
+        resources::charge_payload(&function.return_type, budget)?;
+        check_type(&function.return_type, Some(function.span))?;
+    }
+    Ok(true)
+}
+
 pub(super) fn check_module(
     module: &TypedModule,
     graphs: &[FunctionGraph],
@@ -658,7 +708,11 @@ pub(super) fn check_module(
                 "callback role table does not exactly cover actual parameters",
             ));
         }
+        let owning_dispatch = owned_dispatch(module, f, &parameters, claim, budget)?;
         for (position, local) in f.parameters.iter().enumerate() {
+            if owning_dispatch {
+                break;
+            }
             if parameters.iter().any(|(p, ..)| *p as usize == position) {
                 continue;
             }
@@ -690,7 +744,8 @@ pub(super) fn check_module(
                 ));
             }
             let definition = closures::definition(module, *closure, Some(f.span))?;
-            if !f.return_type.is_copy_value()
+            if !owning_dispatch
+                && !f.return_type.is_copy_value()
                 && !(parameters.len() == 1
                     && *borrowed
                     && closures::lending_result(&f.return_type)

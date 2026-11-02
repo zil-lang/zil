@@ -1,0 +1,2813 @@
+{
+  "task": "249",
+  "evidence_level": "supplementary cross-branch actual three-module source machine probe; 250 oracle is independent and separately owned",
+  "compiler_checkpoint": "931a34afaf59a02af3b023e3b87f759c54938da4",
+  "project_source_sha256": {
+    "dispatch.zil": "f7547f76547ced76dd41c1c1a5566ddd01d9595d1f061f6776409b7eb9d8363c",
+    "main.zil": "be4a8044d9f537f3e25e413d4fc1dbb4c8dcf1378856815848d0c20c89c4a231",
+    "model.zil": "1a4a341b1e3064e28779e2158ecf7b9079874f7dfa278d68da586d8921a6d374",
+    "owned_error_main.zil": "16e13952029ac1e44868f8455605f57dd22d518a1afa47c4f28cd16bcd3b83ba"
+  },
+  "oracle_sha256": "aeb42d2f727ce2001c644ebe66665b8ed69ce752af5e93499f46c5abef73433a",
+  "commands": [
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-249 cargo run -q -p zil-cli --offline --locked -j 2 -- build /workspace/zil-250/tests/impl250/project/main.zil --backend llvm-api --opt O0|O2 -o /tmp/impl249-final-project-o0|o2 --json",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-249 ZIL_CAPTURE_OBJECT=/tmp/impl249-final-api-o0|o2.o cargo run -q -p zil-cli --offline --locked -j 2 -- build /workspace/zil-250/tests/impl250/project/main.zil --backend llvm-api --clang /tmp/impl249-capture-object.sh --opt O0|O2 -o /tmp/impl249-final-api-o0|o2 --json",
+    "/workspace/.zil-env/llvm-23.1.4/bin/clang /tmp/impl249-final-api-o0|o2.o tools/language/173/allocator_probe.c -Wl,--wrap=realloc -Wl,--wrap=free -o /tmp/impl249-final-probe-o0|o2"
+  ],
+  "machine_artifacts": {
+    "o0": {
+      "llvm_ir_sha256": "9b701d17385cbee6829623a20a6b44c867d7e8ea4dbcc258aab28a5bf32fa169",
+      "llvm_api_object_sha256": "fc5f9b1ba3b78248805fba0b2f4ac4376f817d097fde35b7b1256a78a3e3563c",
+      "native_probe_sha256": "12b30f14fbb33ad29e80f48ceaf21082d1d9f19d0a6a21c93f047c91d8c37bd5"
+    },
+    "o2": {
+      "llvm_ir_sha256": "9b701d17385cbee6829623a20a6b44c867d7e8ea4dbcc258aab28a5bf32fa169",
+      "llvm_api_object_sha256": "9295dba12cea8b1cebe905b3ea8a6e88c1cfb27de3d33e19d87ee048df1ea2bd",
+      "native_probe_sha256": "cf124a81045708db24ce42d86824029b0d4ce58df1ce4f23e1f2d12da3a929fd"
+    }
+  },
+  "builds": {
+    "o0": {
+      "status": "Success",
+      "backend": "llvm-api",
+      "input_kind": "builder",
+      "verify_before_after": true,
+      "fallback": null
+    },
+    "o2": {
+      "status": "Success",
+      "backend": "llvm-api",
+      "input_kind": "builder",
+      "verify_before_after": true,
+      "fallback": null
+    }
+  },
+  "counts": {
+    "normal_executions": 24,
+    "allocator_executions": 84,
+    "assertions": 744,
+    "mismatches": 0
+  },
+  "rows": [
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "0",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "1",
+      "fail_at": null,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "2",
+      "fail_at": null,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "3",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "4",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "5",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "6",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "7",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "8",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": "9",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": ":",
+      "fail_at": null,
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "normal",
+      "input": ";",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "0",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "0",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "0",
+      "fail_at": 2,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "1",
+      "fail_at": 0,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "1",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "1",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "2",
+      "fail_at": 0,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "2",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "2",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "2",
+      "fail_at": 3,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "3",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "3",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "3",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SCRABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SCRABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "3",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "4",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "4",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "4",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "S1RABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "S1RABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "4",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "5",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "5",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "5",
+      "fail_at": 2,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "6",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "6",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "6",
+      "fail_at": 2,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 82
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 3,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAQ",
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 81
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAQ",
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 4,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 82
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "8",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "8",
+      "fail_at": 1,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "9",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "9",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "9",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": "9",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ":",
+      "fail_at": 0,
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ":",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ":",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O0",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "0",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "1",
+      "fail_at": null,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "2",
+      "fail_at": null,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "3",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "4",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "5",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "6",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "7",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "8",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": "9",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": ":",
+      "fail_at": null,
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "normal",
+      "input": ";",
+      "fail_at": null,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "0",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "0",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "0",
+      "fail_at": 2,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "1",
+      "fail_at": 0,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "1",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "1",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "2",
+      "fail_at": 0,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "2",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "2",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "2",
+      "fail_at": 3,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "3",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "3",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "3",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SCRABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SCRABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "3",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "4",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "4",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "4",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "S1RABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "S1RABQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "4",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "5",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "5",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "5",
+      "fail_at": 2,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "6",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "6",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "6",
+      "fail_at": 2,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 82
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 80
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 3,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAQ",
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 81
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAQ",
+        "alloc_calls": 3,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "7",
+      "fail_at": 4,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3,
+        "peak_bytes": 82
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "8",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "8",
+      "fail_at": 1,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "9",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "9",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "9",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": "9",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ":",
+      "fail_at": 0,
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ":",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ":",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 0,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 1,
+      "actual": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0,
+        "peak_bytes": 0
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "ShHQ",
+        "alloc_calls": 1,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 0
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 2,
+      "actual": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1,
+        "peak_bytes": 1
+      },
+      "expected": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 2,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 1,
+        "live": 0,
+        "peak_live": 1
+      },
+      "pass": true
+    },
+    {
+      "optimization": "O2",
+      "mode": "allocator",
+      "input": ";",
+      "fail_at": 3,
+      "actual": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "peak_bytes": 2
+      },
+      "expected": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "pass": true
+    }
+  ]
+}

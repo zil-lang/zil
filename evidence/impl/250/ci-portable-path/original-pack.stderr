@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/workspace/zil-250/tools/ci/evidence_transport.py", line 337, in <module>
+    main()
+  File "/workspace/zil-250/tools/ci/evidence_transport.py", line 323, in main
+    index = pack(args.root, args.archive)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/zil-250/tools/ci/evidence_transport.py", line 90, in pack
+    files, missing = inventory(root)
+                     ^^^^^^^^^^^^^^^
+  File "/workspace/zil-250/tools/ci/evidence_transport.py", line 81, in inventory
+    safe_path(relative)
+  File "/workspace/zil-250/tools/ci/evidence_transport.py", line 43, in safe_path
+    require(path.parts and not path.is_absolute() and path.as_posix() == name
+  File "/workspace/zil-250/tools/ci/evidence_transport.py", line 36, in require
+    raise ValueError(message)
+ValueError: unsafe evidence path

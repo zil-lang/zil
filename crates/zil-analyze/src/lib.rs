@@ -17,6 +17,7 @@ mod dynamic_store;
 mod helpers;
 mod holds;
 mod incremental;
+mod owned_callbacks;
 #[cfg(test)]
 mod resource_tests;
 mod resources;
@@ -96,6 +97,7 @@ fn analyze_budgeted(
     }
     callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
+    owned_callbacks::check(module, budget)?;
     resources::check_module(module, &hold_graphs, budget)?;
     for (function, holds) in plan.functions.iter_mut().zip(holds::infer_module(
         module,

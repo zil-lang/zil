@@ -46,6 +46,7 @@ pub(crate) fn check_type_for(
         }
         Type::Closure(id) => {
             closures::definition(module, *id, span)?;
+            closures::old_container_signature(module, *id, span, budget)?;
             budget.spend(*length as usize)?;
             // The global independent closure-layout pass also charges the
             // length multiplied by fully expanded inline child work.

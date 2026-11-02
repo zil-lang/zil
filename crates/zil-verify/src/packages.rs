@@ -396,6 +396,7 @@ fn check_package_type(
                 ));
             }
             closures::definition(module, *id, span)?;
+            closures::old_container_signature(module, *id, span, budget)?;
             closures::self_contained(module, *id, budget)?;
         } else if let Type::Array { element, length } = field
             && matches!(element.as_ref(), Type::Package { .. })
@@ -496,6 +497,7 @@ pub(super) fn check_instruction(
             match &instruction.kind {
                 InstructionKind::BorrowPackageField { mutable, .. } => {
                     if let Type::Closure(id) = ty {
+                        closures::old_container_signature(module, *id, span, budget)?;
                         closures::self_contained(module, *id, budget)?;
                     } else if !*mutable && matches!(ty, Type::Package { .. }) {
                         check_shared_product_type(module, ty, span, budget)?;

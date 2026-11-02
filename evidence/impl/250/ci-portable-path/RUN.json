@@ -1,0 +1,78 @@
+{
+  "tested_source_commit": "2802674468ac33d5f177cd9a9760ed05768d6019",
+  "base_commit": "e3ddaafee77f9a1becc814e390a51de06bcdcb8e",
+  "status": "Pass local consumer; remote CI rerun still required",
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-250 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl250-ci-path/runner/native-evidence cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl250_consumer -- --nocapture",
+  "tests": {
+    "selected": 7,
+    "executed": 7,
+    "passed": 7,
+    "failed": 0
+  },
+  "native_runs": 122,
+  "allocator_runs": 90,
+  "actual_allocation_failures": 38,
+  "native_assertions": 906,
+  "special_hex_directory_cases": [
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-13/input-3b-fail-3",
+      "stdin_hex": "3b"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-13/input-3b-fail-2",
+      "stdin_hex": "3b"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-13/input-3b-fail-1",
+      "stdin_hex": "3b"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-13/input-3b-fail-0",
+      "stdin_hex": "3b"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-13/input-3a-fail-2",
+      "stdin_hex": "3a"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-13/input-3a-fail-1",
+      "stdin_hex": "3a"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-13/input-3a-fail-0",
+      "stdin_hex": "3a"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-3/input-3b-fail-3",
+      "stdin_hex": "3b"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-3/input-3b-fail-2",
+      "stdin_hex": "3b"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-3/input-3b-fail-1",
+      "stdin_hex": "3b"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-3/input-3b-fail-0",
+      "stdin_hex": "3b"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-3/input-3a-fail-2",
+      "stdin_hex": "3a"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-3/input-3a-fail-1",
+      "stdin_hex": "3a"
+    },
+    {
+      "directory": "native-evidence/consumer250-allocator-132895-3/input-3a-fail-0",
+      "stdin_hex": "3a"
+    }
+  ],
+  "portable_path_files_checked": 844,
+  "oracle_sha256": "aeb42d2f727ce2001c644ebe66665b8ed69ce752af5e93499f46c5abef73433a",
+  "transport_source_sha256": "d42d485328fc094cb637ecf4e268cc6d16f4cf926c31dfb288970518bc814f74",
+  "test_source_sha256": "196632722c971adb4f0b25647d3704027cab0ed6badaa9bb78349c496f2840b0"
+}

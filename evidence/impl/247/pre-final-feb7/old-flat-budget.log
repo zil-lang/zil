@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-247/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 2.05s
+     Running tests/impl206_budget.rs (/workspace/.zil-env/target-247/debug/deps/impl206_budget-ab91312425692280)
+
+running 1 test
+old-flat: Types=418, Analyze=8673
+test old_flat_package_records_exact_phase_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.32s
+
