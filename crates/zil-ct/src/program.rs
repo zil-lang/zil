@@ -4,6 +4,7 @@ use zil_ir::{Constant, InstructionKind, Terminator, Type, TypedFunction, ValueId
 use zil_verify::VerifiedCTProgram;
 
 #[cfg(test)]
+#[allow(dead_code)] // Shared runtime fixture also supplies borrow/helper variants to Verify tests.
 #[path = "../../zil-verify/tests/support/foreign_scoped.rs"]
 mod scoped_callback_fixture;
 
