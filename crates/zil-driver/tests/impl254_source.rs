@@ -74,7 +74,7 @@ fn owning_event_callback_can_leave_mutable_slot_for_new_local() {
 }
 
 #[test]
-fn unrelated_same_type_owning_slot_cannot_borrow_a_module_wide_permission() {
+fn unused_uninitialized_same_type_private_slot_is_allowed() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     let source = SourceUnit::new(
@@ -114,18 +114,8 @@ fn unrelated_same_type_owning_slot_cannot_borrow_a_module_wide_permission() {
     });
     plan.module_fingerprint = typed.fingerprint();
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
-    for errors in [
-        zil_verify::verify_module(typed, plan, &target, &limits).unwrap_err(),
-        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
-    ] {
-        assert_eq!(errors[0].code, "E-UNSUPPORTED", "{errors:?}");
-        assert!(
-            errors[0]
-                .message
-                .contains("container and opaque callback profiles"),
-            "{errors:?}"
-        );
-    }
+    zil_verify::verify_module(typed, plan, &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
 }
 
 #[test]
