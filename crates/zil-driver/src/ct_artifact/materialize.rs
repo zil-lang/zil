@@ -130,6 +130,75 @@ impl Materializer<'_, '_> {
             }
         }
     }
+    fn owner_alias(&mut self, caller: ModuleId, target: ModuleId, span: Span) -> CompileResult<String> {
+        if let Some(alias) = self.environment.index.aliases(caller).get(&target) { return Ok(alias.clone()); }
+        if let Some((_, import)) = self.required_imports.iter().find(|(module, import)| *module == caller && import.module == target) {
+            return Ok(import.alias.clone());
+        }
+        if !self.sources.iter().any(|source| source.module_id == target) {
+            return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-MEMBER-OWNER", Some(span), "reflected owner module is outside the sealed project")]);
+        }
+        let alias = format!("__zil_ct_owner{}_{}_{}", caller.0, target.0, span.start);
+        self.environment.budget.reserve_generated_nodes(1)?;
+        self.environment.budget.reserve_temporary_bytes(alias.len() as u64)?;
+        self.required_imports.push((caller, CoreImport { alias: alias.clone(), module: target, span }));
+        Ok(alias)
+    }
+    fn owner_node(&mut self, ty: &CtTypeRef, id: CtTypeNodeId, caller: ModuleId, span: Span, depth: usize) -> CompileResult<s::TypeRef> {
+        if depth > self.max_depth { return Err(vec![Diagnostic::limit(Phase::Ct, "reflected owner Type nesting exceeds budget", Some(span))]); }
+        self.environment.budget.reserve_analysis_work(1)?;
+        self.environment.budget.reserve_generated_nodes(1)?;
+        let node = ty.nodes.get(id.0 as usize).ok_or_else(|| category("reflected owner Type DAG node is absent", span))?.clone();
+        let named = |name: &str, args: Vec<s::GenericArg>| s::TypeKind::Named { path: vec![name.into()], args };
+        let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
+        let kind = match node {
+            CtTypeNode::Primitive(primitive) => named(match primitive { CtScalarTy::Unit => "Unit", CtScalarTy::Bool => "bool", CtScalarTy::U8 => "u8", CtScalarTy::U16 => "u16", CtScalarTy::I32 => "i32", CtScalarTy::I64 => "i64" }, Vec::new()),
+            CtTypeNode::Builtin(builtin) => named(match builtin { CtBuiltinType::ByteBuffer => "ByteBuffer", CtBuiltinType::ForeignHandle => "ForeignHandle", CtBuiltinType::CWideString => "CWideString" }, Vec::new()),
+            CtTypeNode::Nominal { symbol, arguments } => {
+                if symbol.generation_path.is_some() { return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-MEMBER-OWNER", Some(span), "current generated batch has no frozen nominal owner")]); }
+                let (_, parsed) = self.parsed_source(symbol.module)?;
+                let item = parsed.module.items.get(symbol.declaration.0 as usize).ok_or_else(|| category("reflected owner declaration is absent", span))?;
+                let name = match &item.kind { s::ItemKind::Aggregate(value) => value.name.clone(), s::ItemKind::Enum(value) => value.name.clone(), s::ItemKind::TypeAlias(value) => value.name.clone(), _ => return Err(category("reflected owner is not a nominal type", span)) };
+                let path = if symbol.module == caller { vec![name] } else { vec![self.owner_alias(caller, symbol.module, span)?, name] };
+                let mut args = Vec::new();
+                for argument in arguments {
+                    match argument {
+                        CtTypeArgument::Type(id) => args.push(type_arg(self.owner_node(ty, id, caller, span, depth + 1)?)),
+                        CtTypeArgument::Scalar(value) => {
+                            let literal = match value {
+                                zil_ir::Constant::Bool(value) => s::Literal::Bool(value),
+                                zil_ir::Constant::U8(value) => s::Literal::Integer(value.to_string()),
+                                zil_ir::Constant::U16(value) => s::Literal::Integer(value.to_string()),
+                                zil_ir::Constant::I32(value) => s::Literal::Integer(value.to_string()),
+                                zil_ir::Constant::I64(value) => s::Literal::Integer(value.to_string()),
+                                _ => return Err(category("reflected owner const argument has no ordinary spelling", span)),
+                            };
+                            args.push(s::GenericArg::Const(s::Expr { span, kind: s::ExprKind::Literal(literal) }));
+                        }
+                    }
+                }
+                s::TypeKind::Named { path, args }
+            }
+            CtTypeNode::Tuple(parts) => s::TypeKind::Tuple(parts.into_iter().map(|id| self.owner_node(ty, id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?),
+            CtTypeNode::Array { element, length } => s::TypeKind::Array { element: Box::new(self.owner_node(ty, element, caller, span, depth + 1)?), length: Some(Box::new(s::Expr { span, kind: s::ExprKind::Literal(s::Literal::Integer(length.to_string())) })) },
+            CtTypeNode::Slice(element) => s::TypeKind::Array { element: Box::new(self.owner_node(ty, element, caller, span, depth + 1)?), length: None },
+            CtTypeNode::Address { mutable, inner } => s::TypeKind::Reference { lifetime: None, mutable, inner: Box::new(self.owner_node(ty, inner, caller, span, depth + 1)?) },
+            CtTypeNode::Managed(inner) => named("Managed", vec![type_arg(self.owner_node(ty, inner, caller, span, depth + 1)?)]),
+            CtTypeNode::Desc(inner) => named("Desc", vec![type_arg(self.owner_node(ty, inner, caller, span, depth + 1)?)]),
+            CtTypeNode::OwnedStore(inner) => named("Store", vec![type_arg(self.owner_node(ty, inner, caller, span, depth + 1)?)]),
+            CtTypeNode::FunctionPointer { parameters, result } => s::TypeKind::Function { params: parameters.into_iter().map(|id| self.owner_node(ty, id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?, result: Box::new(self.owner_node(ty, result, caller, span, depth + 1)?) },
+            CtTypeNode::ForeignCallback { parameters, result } => s::TypeKind::ForeignFunction { abi: "C".into(), params: parameters.into_iter().map(|id| self.owner_node(ty, id, caller, span, depth + 1)).collect::<CompileResult<Vec<_>>>()?, result: Box::new(self.owner_node(ty, result, caller, span, depth + 1)?) },
+            CtTypeNode::ErrorUnion { error, result } => s::TypeKind::Error { error: Box::new(self.owner_node(ty, error, caller, span, depth + 1)?), result: Box::new(self.owner_node(ty, result, caller, span, depth + 1)?) },
+            CtTypeNode::Opaque { .. } => return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-MEMBER-OWNER", Some(span), "opaque reflected owner cannot authorize member access")]),
+        };
+        Ok(s::TypeRef { kind, span })
+    }
+    fn member_owner_type(&mut self, ident: &CtIdent, span: Span) -> CompileResult<s::TypeRef> {
+        let Some(ty) = &ident.member_owner_type else { return Err(category("reflected member lacks a full owner Type", span)); };
+        let caller = self.sources.iter().find(|source| source.file_id == span.file)
+            .map(|source| source.module_id).ok_or_else(|| category("reflected member caller is absent", span))?;
+        self.owner_node(ty, ty.root, caller, span, 0)
+    }
     fn expression_value(&mut self, module: ModuleId, owner: &CtSymbolId, expression: &s::Expr, expected: Option<CtTy>) -> CompileResult<CtValue> {
         if let s::ExprKind::SyntaxIsland { path, tree } = &expression.kind {
             return self.provider(module, path, tree, expression.span, expected.as_ref().ok_or_else(|| category("provider output needs a Syntax receiving category", expression.span))?);
@@ -217,7 +286,8 @@ impl Materializer<'_, '_> {
         }
         let ParsedSyntax { rendered, parsed, names: _ } = self.environment.parse_tree(&tree, span)?;
         let mut syntax = parsed.syntax.ok_or_else(|| category("generated parser returned no category", span))?;
-        super::hygiene::rename(&mut syntax, &rendered, &tree.origins, span)?;
+        super::hygiene::rename(&mut syntax, &rendered, &tree.origins, span,
+            &mut |ident, member_span| self.member_owner_type(ident, member_span))?;
         let limits = self.environment.remaining_limits_for_input();
         let work = zil_expand::remap_generated_spans(&mut syntax, span, &limits)?;
         self.environment.budget.reserve_analysis_work(work as u64)?;

@@ -3,7 +3,7 @@
 use super::render::RenderedSyntax;
 use std::collections::BTreeMap;
 use zil_base::{CompileResult, Diagnostic, Phase, Span};
-use zil_ir::ct_artifact::{CtNameSource, CtOrigin, CtOriginId};
+use zil_ir::ct_artifact::{CtIdent, CtNameNamespace, CtNameSource, CtOrigin, CtOriginId};
 use zil_syntax::{GeneratedSyntax, ast as s};
 
 fn error(span: Span, message: &str) -> Vec<Diagnostic> {
@@ -16,6 +16,7 @@ struct Renamer<'a> {
     invocation: Span,
     next: u64,
     scopes: Vec<BTreeMap<(u32, String), String>>,
+    owner_type: &'a mut dyn FnMut(&CtIdent, Span) -> CompileResult<s::TypeRef>,
 }
 impl Renamer<'_> {
     fn region(&self, mut id: CtOriginId) -> u32 {
@@ -157,7 +158,22 @@ impl Renamer<'_> {
             s::ExprKind::Group(value) | s::ExprKind::Try(value) | s::ExprKind::Unary { operand: value, .. } => self.expr(value),
             s::ExprKind::Tuple(values) | s::ExprKind::Array(values) => { for value in values { self.expr(value)?; } Ok(()) },
             s::ExprKind::Binary { left, right, .. } | s::ExprKind::Pipeline { input: left, target: right } => { self.expr(left)?; self.expr(right) },
-            s::ExprKind::Member { object, .. } => self.expr(object),
+            s::ExprKind::Member { object, member } => {
+                self.expr(object)?;
+                if let s::MemberName::Name(name) = member {
+                    let ident = self.rendered.tokens.iter().rev().find_map(|token| {
+                        (token.span.start >= expr.span.start && token.span.end <= expr.span.end
+                            && self.rendered.source.text.get(token.span.start..token.span.end) == Some(name.as_str()))
+                            .then_some(token.name.as_ref()).flatten()
+                            .filter(|ident| ident.namespace == CtNameNamespace::Member && ident.member_owner_type.is_some())
+                    }).cloned();
+                    if let Some(ident) = ident {
+                        let owner = (self.owner_type)(&ident, expr.span)?;
+                        *member = s::MemberName::Constrained { name: name.clone(), owner: Box::new(owner) };
+                    }
+                }
+                Ok(())
+            }
             s::ExprKind::TypeApply { callee, arguments } => { self.expr(callee)?; for arg in arguments { match arg { s::GenericArg::Type(ty) => self.ty(ty)?, s::GenericArg::Const(expr) => self.expr(expr)?, } } Ok(()) },
             s::ExprKind::Call { callee, arguments } => { self.expr(callee)?; for argument in arguments { self.expr(&mut argument.value)?; } Ok(()) },
             s::ExprKind::Index { object, index } => { self.expr(object)?; self.expr(index) },
@@ -194,8 +210,9 @@ impl Renamer<'_> {
     }
 }
 
-pub(super) fn rename(syntax: &mut GeneratedSyntax, rendered: &RenderedSyntax, origins: &[CtOrigin], invocation: Span) -> CompileResult<()> {
-    let mut renamer = Renamer { rendered, origins, invocation, next: 0, scopes: vec![BTreeMap::new()] };
+pub(super) fn rename(syntax: &mut GeneratedSyntax, rendered: &RenderedSyntax, origins: &[CtOrigin], invocation: Span,
+    owner_type: &mut dyn FnMut(&CtIdent, Span) -> CompileResult<s::TypeRef>) -> CompileResult<()> {
+    let mut renamer = Renamer { rendered, origins, invocation, next: 0, scopes: vec![BTreeMap::new()], owner_type };
     match syntax {
         GeneratedSyntax::Expr(expr) => renamer.expr(expr),
         GeneratedSyntax::Type(ty) => renamer.ty(ty),
