@@ -1,0 +1,258 @@
+{
+  "verdict": "Fail; three frozen negatives remain behind an unexpected gate/category",
+  "tested_commit": "953cf552fbeb1e921cc60fdabe30e1fef32f745b",
+  "tests": {
+    "requested_binaries": 3,
+    "selected": 13,
+    "executed": 1,
+    "passed": 0,
+    "failed": 1
+  },
+  "actual_source_checks": 12,
+  "native_runs": 0,
+  "consumer_tests_executed": 0,
+  "contract_tests_executed": 0,
+  "rows": [
+    {
+      "case": "address_active_window",
+      "status": "SafeReject",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 305,
+            "end": 310
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "external_address_child_environment",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape",
+          "span": {
+            "file": 0,
+            "start": 130,
+            "end": 135
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "external_address_environment",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape",
+          "span": {
+            "file": 0,
+            "start": 129,
+            "end": 136
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "mut_declared_actual_fn_shared_call",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+          "span": {
+            "file": 0,
+            "start": 74,
+            "end": 77
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "once_called_then_returned",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+          "span": {
+            "file": 0,
+            "start": 45,
+            "end": 46
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "once_declared_actual_fn_copy",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+          "span": {
+            "file": 0,
+            "start": 147,
+            "end": 154
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "once_declared_actual_fn_twice",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic callable used after its environment was consumed",
+          "span": {
+            "file": 0,
+            "start": 132,
+            "end": 142
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "once_mixed_return_path",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+          "span": {
+            "file": 0,
+            "start": 63,
+            "end": 64
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "once_mode_through_loop",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic callable used after its environment was consumed",
+          "span": {
+            "file": 0,
+            "start": 243,
+            "end": 253
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "same_closure_id_different_instance",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this generic type argument needs additional type resolution",
+          "span": {
+            "file": 0,
+            "start": 44,
+            "end": 61
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "same_closure_id_wrong_branch",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "this generic type argument needs additional type resolution",
+          "span": {
+            "file": 0,
+            "start": 44,
+            "end": 61
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "case": "use_after_transfer",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-UNINITIALIZED",
+          "message": "local 2 is not initialized on every incoming path",
+          "span": {
+            "file": 0,
+            "start": 168,
+            "end": 177
+          },
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl256-joint-A cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl256_consumer --test impl256_boundaries --test impl256_contracts -- --nocapture"
+}

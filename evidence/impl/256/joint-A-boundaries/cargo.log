@@ -1,0 +1,29 @@
+   Compiling zil-verify v0.1.0 (/workspace/zil-256/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/zil-256/crates/zil-types)
+   Compiling zil-lower v0.1.0 (/workspace/zil-256/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/zil-256/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-256/crates/zil-backend-llvm)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-256/crates/zil-analyze)
+   Compiling zil-expand v0.1.0 (/workspace/zil-256/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/zil-256/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 27.83s
+     Running tests/impl256_boundaries.rs (/workspace/.zil-env/target-256/debug/deps/impl256_boundaries-d16cc4f660a574d7)
+
+running 1 test
+
+thread 'nearest_source_rejections_require_the_actual_mode_origin_or_window_reason' (160598) panicked at crates/zil-driver/tests/impl256_boundaries.rs:58:5:
+3 source negatives have not reached their required semantic check:
+mut_declared_actual_fn_shared_call: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice","span":{"file":0,"start":74,"end":77},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-joint-A/consumer256-negatives-160597/mut_declared_actual_fn_shared_call/phases/syntax.txt"},"input_fingerprint":"faa31288a9ff9948f6af919b3556d502ad6bb154bf515c2108032d798cad8e17","seconds":0.003049421,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/negative/mut_declared_actual_fn_shared_call.zil"},"scalar_interfaces":[]}
+same_closure_id_different_instance: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"this generic type argument needs additional type resolution","span":{"file":0,"start":44,"end":61},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-joint-A/consumer256-negatives-160597/same_closure_id_different_instance/phases/syntax.txt"},"input_fingerprint":"130fa4b1fed0d24e806ba8b14e4e90bb244e88932fd56ad7c9a24884cfe9df33","seconds":0.002815254,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/negative/same_closure_id_different_instance.zil"},"scalar_interfaces":[]}
+same_closure_id_wrong_branch: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"this generic type argument needs additional type resolution","span":{"file":0,"start":44,"end":61},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-joint-A/consumer256-negatives-160597/same_closure_id_wrong_branch/phases/syntax.txt"},"input_fingerprint":"4f4079d3971acb0df7084a32c68aef39e3526e410f3f82c0bbd2dfdd37bf1ef2","seconds":0.003345466,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/frozen-prep/negative/same_closure_id_wrong_branch.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test nearest_source_rejections_require_the_actual_mode_origin_or_window_reason ... FAILED
+
+failures:
+
+failures:
+    nearest_source_rejections_require_the_actual_mode_origin_or_window_reason
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p zil-driver --test impl256_boundaries`
