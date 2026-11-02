@@ -240,7 +240,23 @@ pub(super) fn check(
     checked: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    let (locals, values) = origins(module, function, parameters, budget)?;
+    let precise = if budget
+        .forward_functions
+        .get(function.id.0 as usize)
+        .copied()
+        .unwrap_or(false)
+    {
+        Some(super::forward::prove(
+            module, function, claim, parameters, checked, budget,
+        )?)
+    } else {
+        None
+    };
+    let (locals, values) = if precise.is_none() {
+        origins(module, function, parameters, budget)?
+    } else {
+        (Vec::new(), Vec::new())
+    };
     let mut counts = Counts::default();
     counts.add(function.blocks.len(), 0, 0, budget)?;
     let mut rows: Vec<_> = (0..function.blocks.len())
@@ -252,13 +268,24 @@ pub(super) fn check(
     for (index, block) in function.blocks.iter().enumerate() {
         budget.spend(1, "helper actual block")?;
         let mut output = index;
-        for instruction in &block.instructions {
+        for (position, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1, "helper actual instruction")?;
+            let (locals, values) = if let Some(precise) = &precise {
+                if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
+                    continue;
+                }
+                let Some(snapshot) = &precise[index][position] else {
+                    continue;
+                };
+                (&snapshot.locals[..], &snapshot.values[..])
+            } else {
+                (&locals[..], &values[..])
+            };
             if let Some(child) = forwarded(
                 module,
                 function,
                 instruction,
-                &values,
+                values,
                 &claim.roles,
                 checked,
                 budget,
@@ -267,7 +294,7 @@ pub(super) fn check(
                 rows[output].end = End::Links(vec![entry]);
                 output = continuation;
             } else if let Some(event) =
-                actual_call(instruction, &locals, &values, borrowed_roles, &claim.roles)?
+                actual_call(instruction, locals, values, borrowed_roles, &claim.roles)?
             {
                 counts.add(0, 1, 0, budget)?;
                 rows[output].calls.push(event);
@@ -329,10 +356,11 @@ pub(super) fn check(
         }
     }
     if ordered.len() != n {
-        if claim
-            .roles
-            .iter()
-            .any(|role| role.kind == CallableKind::FnOnce)
+        if precise.is_none()
+            && claim
+                .roles
+                .iter()
+                .any(|role| role.kind == CallableKind::FnOnce)
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
