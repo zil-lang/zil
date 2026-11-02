@@ -136,8 +136,8 @@ fn reaches(edges: &[Vec<usize>], source: usize, target: usize, budget: &mut Budg
 }
 
 /// An ordinary caller may use the already checked single-slot lowering only
-/// when a real Parameter-return call transfers that slot's element out and
-/// restores the call's actual result to the same slot. The per-instruction
+/// when a real Parameter-return call transfers that slot's element out. The
+/// returned instance may move to another local or slot. The per-instruction
 /// resource/borrow passes still prove ownership, live flags and old loans.
 /// A forwarding function instead receives a separate path-sensitive proof in
 /// retained::provenance. No module-level marker can grant this qualification.
@@ -182,6 +182,7 @@ pub(crate) fn check_internal_slot_uses(
     let mut refills = Vec::new();
     let mut takes = Vec::new();
     let mut stores = Vec::new();
+    let mut constructions = Vec::new();
     for (index, block) in f.blocks.iter().enumerate() {
         if !graph.reachable[index] {
             continue;
@@ -192,6 +193,11 @@ pub(crate) fn check_internal_slot_uses(
                 InstructionKind::Store { local, value } => {
                     edges[at(*value)].push(local.0 as usize);
                     stores.push((*local, *value));
+                }
+                InstructionKind::MakeOwnedArray { elements }
+                    if elements.len() == 1 && instruction.result.is_some() =>
+                {
+                    constructions.push((elements[0], instruction.result.unwrap()));
                 }
                 InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                     if let Some(value) = instruction.result {
@@ -237,31 +243,77 @@ pub(crate) fn check_internal_slot_uses(
                 .len()
                 .saturating_add(refills.len())
                 .saturating_add(calls.len())
+                .saturating_add(constructions.len())
                 .saturating_add(1),
         ),
     )?;
     for &(slot, id) in &slots {
         if forwarding && f.return_type == Type::Closure(id) {
-            continue; // retained::provenance checks every actual slot path.
+            let CallableReturnSource::Parameter(position) =
+                f.callable_return_contract.as_ref().unwrap().source
+            else {
+                unreachable!()
+            };
+            let formal = f.parameters.get(position as usize).ok_or_else(|| {
+                reject(
+                    "E-VERIFY-OWNED-ARRAY",
+                    Some(f.span),
+                    "forwarded slot has no actual formal",
+                )
+            })?;
+            if takes.iter().any(|(local, _)| *local == slot) {
+                let mut actual = false;
+                for &(element, array) in &constructions {
+                    if f.values[array.0 as usize] != f.locals[slot.0 as usize].ty
+                        || !reaches(&edges, formal.0 as usize, at(element), budget)?
+                    {
+                        continue;
+                    }
+                    for &(local, value) in &stores {
+                        if local == slot && reaches(&edges, at(array), at(value), budget)? {
+                            actual = true;
+                            break;
+                        }
+                    }
+                    if actual {
+                        break;
+                    }
+                }
+                if actual {
+                    continue; // retained::provenance checks every path and return.
+                }
+            }
+            let mut direct_refill = false;
+            for &(local, value) in &refills {
+                if local == slot && reaches(&edges, formal.0 as usize, at(value), budget)? {
+                    direct_refill = true;
+                    break;
+                }
+            }
+            if direct_refill && takes.iter().any(|(local, _)| *local == slot) {
+                continue;
+            }
+            if let Err(old_gate) =
+                closures::old_container_signature(module, id, Some(f.span), budget)
+            {
+                return Err(old_gate);
+            }
+            return Err(unsupported(
+                "forwarded F array is not its actual internal parameter slot",
+                Some(f.span),
+            ));
         }
         let mut qualified = false;
         for &(taken_local, taken) in &takes {
             if taken_local != slot {
                 continue;
             }
-            for &(actual, result) in &calls {
+            for &(actual, _) in &calls {
                 if !reaches(&edges, at(taken), at(actual), budget)? {
                     continue;
                 }
-                for &(refill_local, refill) in &refills {
-                    if refill_local == slot && reaches(&edges, at(result), at(refill), budget)? {
-                        qualified = true;
-                        break;
-                    }
-                }
-                if qualified {
-                    break;
-                }
+                qualified = true;
+                break;
             }
             if qualified {
                 break;
