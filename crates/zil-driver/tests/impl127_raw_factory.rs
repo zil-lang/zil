@@ -353,11 +353,9 @@ fn raw_borrowed_local_and_nested_creation_keep_their_scope_boundary() {
         closure: ClosureId(0),
         captures: vec![ValueId(0)],
     };
-    observe(
-        "nested-environment",
-        &nested,
-        Some(("helper-local nested", "helper-local nested")),
-    );
+    // This construction captures only the ordinary i32, not the supplied F.
+    // Concrete helper-local closures now compose under the 277/282 contract.
+    observe("nested-environment", &nested, None);
 }
 #[test]
 fn raw_factory_public_envelope_is_rechecked_before_local_calls() {

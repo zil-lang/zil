@@ -582,16 +582,16 @@ fn main()->i32{let f=make(4);return run(&f,3)-12}
         function.values[other.0 as usize]
     );
     arguments[0] = other;
-    // Schema25 Analyze detects the actual borrowed local factory origin before
-    // comparing traces. This remains outside the finite forwarding profile.
-    // Independent raw/Wire Verify still rejects the forged public contract.
+    // Local factory values now have a checked composition profile. Replacing
+    // the actual F with one still falsifies the declared role flow, so both
+    // independent kernels must reject the forged public contract.
     reject_with_analyze_category(
         "same-closure-id-on-loop",
         module,
         candidate,
         ResultCategory::SafeReject,
         "E-VERIFY-CALLABLE-CONTRACT",
-        ResultCategory::Unsupported,
+        ResultCategory::SafeReject,
     );
 }
 

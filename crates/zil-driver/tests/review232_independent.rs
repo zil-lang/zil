@@ -261,7 +261,7 @@ fn rejected_diagnostics<T>(
 #[derive(Clone, Copy)]
 enum AnalyzeExpectation {
     RejectOrigin,
-    ReconstructRetargetedOrdinaryRoot,
+    RejectConflictingOrdinaryRoot,
 }
 
 fn attack(
@@ -290,17 +290,24 @@ fn attack(
     fs::write(out.join("wire.txt"), format!("{decoded:#?}")).unwrap();
     match analyze_expectation {
         AnalyzeExpectation::RejectOrigin => rejected_diagnostics(analyze, marker, None),
-        AnalyzeExpectation::ReconstructRetargetedOrdinaryRoot => {
-            // Both roots qualify as ordinary locals. Analyze must recover the
-            // *new* root rather than retain the old owner's Hold facts. The
-            // later TakeLocal conflict is checked by Verify's separate loan
-            // pass; the unchanged 226 explicit-address baseline is identical.
-            assert_eq!(analyze.unwrap(), plan);
+        AnalyzeExpectation::RejectConflictingOrdinaryRoot => {
+            // The legal control's candidate has already been retargeted to
+            // the actual new ordinary root. Analyze now independently rejects
+            // its later TakeLocal, while raw/Wire retain the same candidate
+            // facts for Verify's separate borrow-conflict check.
+            let errors = analyze.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| d.code == "E-BORROW-CONFLICT"
+                        && d.category == ResultCategory::SafeReject),
+                "{errors:#?}"
+            );
         }
     }
     let code = match analyze_expectation {
         AnalyzeExpectation::RejectOrigin => None,
-        AnalyzeExpectation::ReconstructRetargetedOrdinaryRoot => Some("E-BORROW-CONFLICT"),
+        AnalyzeExpectation::RejectConflictingOrdinaryRoot => Some("E-BORROW-CONFLICT"),
     };
     rejected_diagnostics(raw, marker, code);
     rejected_diagnostics(decoded, marker, code);
@@ -420,6 +427,6 @@ fn retarget_same_type(label: &str, text: &str) {
         module,
         plan,
         "overlaps a shared address",
-        AnalyzeExpectation::ReconstructRetargetedOrdinaryRoot,
+        AnalyzeExpectation::RejectConflictingOrdinaryRoot,
     );
 }

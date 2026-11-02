@@ -194,5 +194,6 @@ fn restored_local_nested_borrow_ends_at_last_call_but_cannot_follow_a_move() {
     );
     fs::write(p.join("report.json"), r.to_json()).unwrap();
     assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
-    assert_eq!(r.phase, Phase::Verify, "{}", r.to_json());
+    assert_eq!(r.phase, Phase::Analyze, "{}", r.to_json());
+    assert_eq!(r.diagnostics[0].code, "E-BORROW-CONFLICT");
 }

@@ -1203,7 +1203,22 @@ fn ordinary_aggregate_inputs<'a>(
         } => (std::slice::from_ref(aggregate), Some(value)),
         _ => return None,
     };
-    Some(inputs)
+    match inputs {
+        ([], None) => None,
+        // This is a constant-time type check within the prepaid instruction
+        // visit. A lone scalar cannot carry a callable role, so it needs no
+        // retained audit entry or second operand visit. Compound inputs keep
+        // the full audit; do not recursively search their shape here.
+        ([value], None)
+            if matches!(
+                function.values[value.0 as usize],
+                Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+            ) =>
+        {
+            None
+        }
+        _ => Some(inputs),
+    }
 }
 
 fn environment_carrier_type(ty: &Type) -> bool {

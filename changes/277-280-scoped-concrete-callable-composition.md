@@ -23,8 +23,14 @@ With的本地body也可来自已有合法具体工厂调用及局部转交。只
 后者不能转作任意普通聚合调用通道。Analyze原实际值证明已拒绝此路径，
 新增准确Managed正前缀及raw/Wire变异回归，不伪造结构错误充当安全证据。
 
-这次新增Types工作为本地准备5250→5257、body-local6832→6836、
-capture6589→6593、无With5364→5370；owned参数2426、scalar248、
+最终Types工作为本地准备5250→5253、body-local6832→6834、
+capture6589→6591、无With5364→5366；owned参数2426、scalar248、
 普通factory1208、借入body1492与三项State/Parameter原控制保持，
 Expand及节点费用不变。Verify原控制费用保持，新合法包装工厂N4552，
 均继续核N/N−1/fresh；没有提高默认限额。
+
+291移除了空聚合及单一基础scalar输入的无用审计队列：它们不能携带
+callable角色，常量时间分类复用既有指令预费。旧Copy enum的610因初版
+额外收2而回归，现恢复610，scalar420和flat418保持；原预算断言未改。
+上述四个新路径从初版5257/6836/6593/5370降到最终精确值，均重新验证
+N/N−1/fresh。多字段、Closure、Address、单槽array及未知/混合来源仍完整审计。
