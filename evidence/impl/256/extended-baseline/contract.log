@@ -1,0 +1,19 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-256/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.76s
+     Running tests/impl256_contracts.rs (/workspace/.zil-env/target-256/debug/deps/impl256_contracts-8745206346b2b947)
+
+running 1 test
+
+thread 'actual_parameter_indices_and_declared_modes_survive_raw_and_wire' (153981) panicked at crates/zil-driver/tests/impl256_contracts.rs:43:6:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Expand, category: Unsupported, code: "E-UNSUPPORTED", message: "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice", span: Some(Span { file: FileId(2), start: 386, end: 389 }), notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test actual_parameter_indices_and_declared_modes_survive_raw_and_wire ... FAILED
+
+failures:
+
+failures:
+    actual_parameter_indices_and_declared_modes_survive_raw_and_wire
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test impl256_contracts`

@@ -1,0 +1,326 @@
+{
+  "verdict": "Blocked; no new positive or semantic negative acceptance",
+  "compiler_commit": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "consumer_parent_commit": "698d280c368fc420656740cd436460f5a566355f",
+  "source_sha256": {
+    "tests/impl256/extended/main.zil": "4cb288cf281b8d3f05dceb305237387b5ddb3674dd772cb3490464b8c072340c",
+    "tests/impl256/extended/model.zil": "7d69e5d7179134575d3f1591375b99b5367fbcbe4dcbca83c7c825c71d236ac0",
+    "tests/impl256/extended/relay.zil": "33ba87457538bef8508818126df0f40ba5d51875b3fee0a8b2fa7ad9860c9dc0"
+  },
+  "oracle_sha256": "78af8b1cf33b06744e9bc70c3e965392cf14da1015b99138370465973d26f4b8",
+  "tests": {
+    "selected": 4,
+    "executed": 4,
+    "passed": 0,
+    "failed": 4,
+    "extended_positive": 2,
+    "source_negative_collection": 1,
+    "public_contract": 1
+  },
+  "actual_driver_compile_attempts": 14,
+  "public_contract_expand_attempts": 1,
+  "verification_runs": 0,
+  "native_runs": 0,
+  "commands": [
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl256-ext-base cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl256_consumer extended_ -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl256-neg-base cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl256_boundaries -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl256-contract-base cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl256_contracts -- --nocapture"
+  ],
+  "rows": [
+    {
+      "kind": "ext",
+      "case": "consumer256-allocator-151155-0",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+          "span": {
+            "file": 2,
+            "start": 386,
+            "end": 389
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "ext",
+      "case": "consumer256-matrix-151155-1",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+          "span": {
+            "file": 2,
+            "start": 386,
+            "end": 389
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "address_active_window",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+          "span": {
+            "file": 0,
+            "start": 50,
+            "end": 53
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "external_address_child_environment",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 42
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "external_address_environment",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 42
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "mut_declared_actual_fn_shared_call",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 45
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "once_called_then_returned",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 47
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "once_declared_actual_fn_copy",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 45
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "once_declared_actual_fn_twice",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 45
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "once_mixed_return_path",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 65
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "once_mode_through_loop",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 117,
+            "end": 163
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "same_closure_id_different_instance",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 139,
+            "end": 192
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "same_closure_id_wrong_branch",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 139,
+            "end": 236
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "kind": "neg",
+      "case": "use_after_transfer",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 24,
+            "end": 66
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    }
+  ],
+  "negative_interpretation": "All twelve illegal neighbors are blocked by the missing common positive entry. None counts as a correct semantic rejection."
+}

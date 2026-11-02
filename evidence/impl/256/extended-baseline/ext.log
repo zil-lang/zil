@@ -1,0 +1,28 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-256/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.10s
+     Running tests/impl256_consumer.rs (/workspace/.zil-env/target-256/debug/deps/impl256_consumer-398be91c245795c0)
+
+running 2 tests
+
+thread 'extended_store_address_loop_actual_allocator_failures' (151156) panicked at crates/zil-driver/tests/impl256_consumer.rs:150:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice","span":{"file":2,"start":386,"end":389},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-ext-base/consumer256-allocator-151155-0/phases/syntax.txt"},"input_fingerprint":"77d574b2994c70bdfcc97b9d18c7975f173a5dba9c1352667058b21cab6ed3d6","seconds":0.05093629,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/extended/main.zil","1":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/extended/model.zil","2":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/extended/relay.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test extended_store_address_loop_actual_allocator_failures ... FAILED
+
+thread 'extended_store_address_loop_native_matrix' (151157) panicked at crates/zil-driver/tests/impl256_consumer.rs:150:5:
+assertion `left == right` failed: {"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice","span":{"file":2,"start":386,"end":389},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-ext-base/consumer256-matrix-151155-1/phases/syntax.txt"},"input_fingerprint":"77d574b2994c70bdfcc97b9d18c7975f173a5dba9c1352667058b21cab6ed3d6","seconds":0.05548236,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/extended/main.zil","1":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/extended/model.zil","2":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/extended/relay.zil"},"scalar_interfaces":[]}
+  left: Unsupported
+ right: Success
+test extended_store_address_loop_native_matrix ... FAILED
+
+failures:
+
+failures:
+    extended_store_address_loop_actual_allocator_failures
+    extended_store_address_loop_native_matrix
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.09s
+
+error: test failed, to rerun pass `-p zil-driver --test impl256_consumer`
