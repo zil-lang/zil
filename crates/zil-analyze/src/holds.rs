@@ -142,6 +142,34 @@ fn store_window_transition(
         budget.spend(1, "captured Store transition root")?;
         changed.insert(root);
     }
+    if callback_windows
+        && budget
+            .forward_functions
+            .get(f.id.0 as usize)
+            .copied()
+            .unwrap_or(false)
+    {
+        // Returning F moves its actual storage position, including the
+        // compiler's single replacement slot. A copied concrete caller value
+        // uses Load instead and keeps the original root valid.
+        let local = match instruction.kind {
+            InstructionKind::TakeLocal { local }
+            | InstructionKind::Store { local, .. }
+            | InstructionKind::DropClosure { local }
+            | InstructionKind::DropOwnedArray { local }
+            | InstructionKind::TakeOwnedArrayElement { local, .. }
+            | InstructionKind::DropOwnedArrayElement { local, .. }
+            | InstructionKind::StoreOwnedArrayElement { local, .. } => Some(local),
+            _ => None,
+        };
+        if let Some(local) = local {
+            let ty = &f.locals[local.0 as usize].ty;
+            if matches!(ty, Type::Closure(_)) || super::forward::internal_slot(ty).is_some() {
+                budget.lookup(changed.len(), "forward actual callable storage transition")?;
+                changed.insert(Root::Local(local));
+            }
+        }
+    }
     if let InstructionKind::UnpackVariant { fields, .. } = &instruction.kind {
         budget.spend(fields.len(), "Unpack target window roots")?;
         for local in fields {

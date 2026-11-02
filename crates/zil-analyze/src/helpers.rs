@@ -65,7 +65,9 @@ fn origins(
                     // retained::check_function has independently checked every
                     // factory before helpers run. Presence alone is not proof.
                     if producer.callable_return_contract.as_ref().is_some_and(|c| {
-                        *ty == Type::Closure(c.closure) && producer.return_type == *ty
+                        c.source == CallableReturnSource::Fresh
+                            && *ty == Type::Closure(c.closure)
+                            && producer.return_type == *ty
                     }) {
                         FACTORY
                     } else {
