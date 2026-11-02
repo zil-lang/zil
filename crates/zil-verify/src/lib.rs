@@ -579,6 +579,7 @@ fn check_module(
                     | InstructionKind::CallIndirect { arguments, .. } => {
                         budget.spend(arguments.len().saturating_add(1))?
                     }
+                    InstructionKind::WithForeignCallback { .. } => budget.spend(2)?,
                     InstructionKind::MakeClosure { captures, .. } => {
                         budget.spend(captures.len())?
                     }
@@ -1431,6 +1432,9 @@ fn check_instruction(
             } else {
                 (**result).clone()
             })
+        }
+        InstructionKind::WithForeignCallback { .. } => {
+            return Err(unsupported("scoped foreign callback verification is not implemented yet", span));
         }
         InstructionKind::ForeignCall {
             function: callee,
@@ -2517,6 +2521,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::ByteBufferNew
         | InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::Unsupported(_) => ([None, None], &[]),
+        InstructionKind::WithForeignCallback { callback, body, .. } => ([Some(*callback), Some(*body)], &[]),
         InstructionKind::OwnedStoreReserve { store, capacity } => {
             ([Some(*store), Some(*capacity)], &[])
         }
