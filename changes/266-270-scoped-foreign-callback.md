@@ -22,7 +22,7 @@ Types/Analyze与独立Verify分别核真实F身份/自含资格、地址来源�
 
 ## 并行写集与验收
 
-公共wrapper保留两个真实角色：With的调用轨迹为`F* (epsilon | B F*)`，登记成功一次调用B，失败只清理B；F允许反复。组合流分别核每个Once角色不可重复，而非见到Once即禁止其它角色的循环，也不因存在With放开任意多角色或环。Types/Analyze与Verify分别重建该责任，不交换证明。
+公共wrapper保留两个真实角色：With的调用轨迹为`F* (epsilon | B F*)`，登记成功一次调用B，失败只清理B；F允许反复。事件固定F=FnMut、B=FnOnce，保留角色声明kind并沿既有支持关系核验，Fn不会使F窗口降成共享，FnOnce F仍拒。组合流分别核每个Once角色不可重复，而非见到Once即禁止其它角色的循环，也不因存在With放开任意多角色或环。Types/Analyze与Verify分别重建该责任，不交换证明。
 
 266 root：合同、公共IR/Wire/版本、共享注册和集成；267：Expand/Types/Analyze；268：独立Verify及raw/Wire反例；269：Lower/LLVM API与text后端；270：真实普通ZIL模块、可控C驱动、独立消费者。265解析标记为前片收尾，不新增编号测试目标；本片回归按功能放入既有模块或一个必要的foreign-scoped功能测试入口。
 
