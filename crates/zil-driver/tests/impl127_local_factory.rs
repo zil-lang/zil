@@ -223,6 +223,30 @@ fn ordinary_factory_keeps_legacy_fn_borrowed_alias_observations() {
     let case = Case::new("legacy-fn-borrowed-alias");
     success(&compile(&input, &case, None));
 }
+
+#[test]
+fn concrete_helper_local_closure_keeps_copy_fn_observations() {
+    for (label, body, expected) in [
+        ("direct", "return f()+local()", 15),
+        (
+            "move-alias",
+            "let alias=f;return alias()+alias()+local()",
+            25,
+        ),
+        (
+            "borrowed-alias",
+            "let alias=&f;return f()+alias()+local()",
+            25,
+        ),
+    ] {
+        let text = format!(
+            "fn run<F:Fn()->i32>(f:F)->i32{{let local=()->i32=>5;{body}}}fn main()->i32{{let f=()->i32=>10;return run(f)-{expected}}}"
+        );
+        let input = project(&[("app", &text)]);
+        let case = Case::new(&format!("local-copy-fn-{label}"));
+        success(&compile(&input, &case, None));
+    }
+}
 #[test]
 fn four_modules_clean_called_unused_and_error_environments() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

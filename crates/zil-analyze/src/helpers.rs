@@ -33,6 +33,22 @@ fn fresh_result(producer: &TypedFunction, ty: &Type) -> bool {
     })
 }
 
+fn aggregate_operand(kind: &InstructionKind) -> bool {
+    matches!(
+        kind,
+        InstructionKind::MakePackage { .. }
+            | InstructionKind::MakeOwnedArray { .. }
+            | InstructionKind::MakeManaged { .. }
+            | InstructionKind::MakeAggregate { .. }
+            | InstructionKind::MakeVariant { .. }
+            | InstructionKind::MakeErrorUnion { .. }
+            | InstructionKind::StorePackageField { .. }
+            | InstructionKind::StoreOwnedArrayElement { .. }
+            | InstructionKind::UpdateField { .. }
+            | InstructionKind::UpdateIndex { .. }
+    )
+}
+
 fn origins(
     module: &TypedModule,
     function: &TypedFunction,
@@ -171,6 +187,7 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         let mut pending = vec![function.entry.0 as usize];
         let mut has_factory_result = false;
         let mut has_composition = false;
+        let mut has_aggregate = false;
         while let Some(index) = pending.pop() {
             budget.spend(1, "helper dependency block")?;
             let block = function
@@ -197,32 +214,7 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 // SSA Fn observations and aliases with exact role traces. A
                 // Fresh result alone does not replace that contract with the
                 // stronger identity proof. New aggregate transfers do need it.
-                if !budget
-                    .forward_functions
-                    .get(caller)
-                    .copied()
-                    .unwrap_or(false)
-                    && matches!(
-                        instruction.kind,
-                        InstructionKind::MakePackage { .. }
-                            | InstructionKind::MakeOwnedArray { .. }
-                            | InstructionKind::MakeManaged { .. }
-                            | InstructionKind::MakeAggregate { .. }
-                            | InstructionKind::MakeVariant { .. }
-                            | InstructionKind::MakeErrorUnion { .. }
-                    )
-                {
-                    for value in super::resources::uses(&instruction.kind) {
-                        budget.spend(1, "factory composition operand classification")?;
-                        if function
-                            .values
-                            .get(value.0 as usize)
-                            .is_some_and(|ty| env(ty).is_some())
-                        {
-                            has_composition = true;
-                        }
-                    }
-                }
+                has_aggregate |= aggregate_operand(&instruction.kind);
                 if let InstructionKind::Call {
                     function: callee, ..
                 } = instruction.kind
@@ -261,6 +253,37 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     pending.extend([then_block.0 as usize, else_block.0 as usize]);
                 }
                 _ => {}
+            }
+        }
+        // Only new factory/aggregate combinations pay this operand audit.
+        // Existing State constructors without a factory keep their old path.
+        if has_factory_result
+            && has_aggregate
+            && !has_composition
+            && !budget
+                .forward_functions
+                .get(caller)
+                .copied()
+                .unwrap_or(false)
+        {
+            for (block, reachable) in function.blocks.iter().zip(&seen) {
+                budget.spend(1, "factory aggregate composition block")?;
+                if !reachable {
+                    continue;
+                }
+                for instruction in &block.instructions {
+                    budget.spend(1, "factory aggregate composition instruction")?;
+                    if !aggregate_operand(&instruction.kind) {
+                        continue;
+                    }
+                    for value in super::resources::uses(&instruction.kind) {
+                        budget.spend(1, "factory composition operand classification")?;
+                        has_composition |= function
+                            .values
+                            .get(value.0 as usize)
+                            .is_some_and(|ty| env(ty).is_some());
+                    }
+                }
             }
         }
         if has_factory_result && has_composition {

@@ -50,6 +50,16 @@ e80将任意公共Fresh Call都接入强身份证明，误拒旧127已核Copy环
 
 限定`impl127_raw_factory`首跑3/4通过：旧同型实际值及F别名正例恢复，mixed/borrowed两类恢复原Unsupported；剩余nested行把Fresh Call改为只捕获i32的新MakeClosure，仍被既有精确证明的Copy观察门拒绝。未修改该原期待，不冒称4/4；独立审查已确认该nested应按本批普通helper本地闭包合同晋升，后继将另补精确观察兼容。`concrete_`16项、`forward::tests`14项及Analyze Clippy通过，factory-only子helper N2073及原精确控制保持。Rust四目标与机器/产品突破限制不随这次兼容恢复改变。
 
+## 127兼容修复第二片：精确证明中的已核Copy Fn观察
+
+旧127的Fn/Owned只读SSA观察与253的Fn/Returned+Parameter强返回身份是不同合同。精确证明现允许无callable返回合同、声明Fn/Owned且实际环境由原`concrete_copy`完整核实为Copy的SSA只读观察；本地同型Store只保存该观察，保留`alias=true`，不产生可转交F。原`consume`保持：观察不能进入消费、MakeClosure捕获、聚合或普通按值Call；FnOnce不因实际Copy Fn获得该入口，Returned/Parameter返回身份完全不使用它。实际Copy资格扫描继续按共享请求额度预付。
+
+root和独立Analyze/Verify审核确认127原nested模块只捕获普通i32，与supplied F只是同ClosureId的不同实际值，F事件仍恰1。原Unsupported属于当时实现边界，不是非法性的证明；本批本地具体闭包合同下保持原module结构，唯一将该行oracle晋升为成功。消费278至`a67ee451`（本树仅依赖cherry到`b3c5f619`）后，旧127 raw四测试4/4通过，包括独立Verify raw/Wire；其它mixed、borrowed local、伪合同/角色事件反例保持原拒绝判据。新三源direct Fn观察、move alias、borrowed alias在既有driver目标新增一个verify-only测试逐一通过；前片两工厂alias源亦通过，共3项/5案例，verification_runs均1。没有新增native结论。
+
+新增raw/Wire直接观察与alias正前缀，以及FnOnce、直接捕获、合法Package藏角色和有效Parameter callee按值转交观察的最近拒绝；253冻结`escape_byvalue_symbolic_fn_call.wire`仍拒。新观察具名预算`copy_fn_observation_282(false)`726、`true`855，均固定N/N−1/fresh且raw=Wire。工厂聚合触发同时覆盖字段/数组更新口；实际操作数分类只在已发现Fresh且原有触发未启用时预费，普通无工厂State不新增该扫描。With及无With的合法Managed+callback Package工厂正前缀均通过，只换supplied B均在真实聚合操作数审计拒绝。
+
+限定最终复核：Analyze `concrete_`18项、`forward::tests`14项（包含253身份、State隐藏、FnOnce控制）、`scoped_`12项；driver `impl127_raw_factory`4项、`impl127_local_factory keeps_`3项均通过，集合交集不叠加。Analyze与两个指定driver目标Clippy通过，文件格式检查通过；旧本树精确控制及factory-only2073保持。完整安全、Rust运行/RSS/编译成本配对、产品四目标合取与突破均未由这次兼容修复建立，未跑正式全量。
+
 ## 限定验证与分账
 
 工具链 `/workspace/.zil-env/env.sh`，`CARGO_TARGET_DIR=/workspace/.zil-env/target-282`，jobs2：
