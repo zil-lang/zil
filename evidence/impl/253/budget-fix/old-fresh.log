@@ -1,0 +1,10 @@
+   Compiling zil-analyze v0.1.0 (/workspace/zil-253/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 0.54s
+     Running tests/impl220_factory.rs (/workspace/.zil-env/target-253/debug/deps/impl220_factory-fe78cf26a61c5a43)
+
+running 1 test
+synthetic Analyze220 exact budget N=880
+test raw_and_wire_replay_charge_exact_n_and_reject_one_less ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.01s
+
