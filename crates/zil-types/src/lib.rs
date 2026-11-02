@@ -2179,6 +2179,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.factory_modes.as_ref().map(|modes| &modes.locals),
         )?;
         if let Some(Type::FunctionPointer { parameters, result }) = expected {
+            if !closures::supported_signature(parameters, result) {
+                return Err(unsupported(span, "owned callback data signatures do not qualify for function pointers"));
+            }
             let pending = &mut self.closures.pending[id.0 as usize];
             if parameters.len() != pending.parameters.len() {
                 return Err(error(
@@ -2355,6 +2358,17 @@ impl<'a, 'c> Builder<'a, 'c> {
             return Ok(());
         }
         let (parameters, result) = pending.inference.resolve(true, pending.span)?;
+        if closures::owned_signature_head(&result) && !result.is_copy_value() {
+            let span = pending.span;
+            let captures = pending.captures.len();
+            self.closures.snapshot(captures.saturating_add(1), span)?;
+            if self.closures.pending[id.0 as usize].captures.iter().any(|capture| {
+                capture.borrowed && matches!(capture.ty, Type::Package { .. })
+            }) {
+                return Err(unsupported(span, "shared Product capture environments require Copy results"));
+            }
+        }
+        let pending = &self.closures.pending[id.0 as usize];
         if pending.owns_leaf_store {
             let span = pending.span;
             let cost = inference::type_snapshot_work(&result, span, self.limits)?;
