@@ -123,6 +123,19 @@ class Source:
             self.emit(str(count) if mutate else "C")
             self.render(event)
 
+    def body_error(self):
+        try:
+            event = self.prepare()
+        except Failed:
+            self.drop("H")
+            self.drop("h")
+            raise
+        self.emit("C")
+        self.drop("H")
+        self.drop(event)
+        self.drop("h")
+        raise Failed()
+
     def sum(self, empty=False):
         event = None if empty else self.prepare()
         self.emit("C")
@@ -156,6 +169,8 @@ class Source:
                 self.sum(mode == 8)
             elif mode == 7:
                 self.store()
+            elif mode == 10:
+                self.body_error()
             else:
                 raise AssertionError(mode)
         except Failed:
@@ -168,12 +183,33 @@ class Source:
                     frees=self.frees, failures=self.failures,
                     live=len(self.live), peak_live=self.peak)
 
+    def owned_error(self):
+        self.emit("S")
+        try:
+            event = self.prepare()
+        except Failed:
+            self.drop("H")
+            self.drop("h")
+            self.emit("Q")
+        else:
+            self.emit("C")
+            error_payload = event
+            self.drop("H")
+            self.drop("h")
+            self.emit("Q")
+            # The entry wrapper owns the error only after caller exit cleanup.
+            self.drop(error_payload)
+        assert not self.live
+        return dict(exit=1, stdout="".join(self.stdout), alloc_calls=self.calls,
+                    allocated=self.allocated, frees=self.frees,
+                    failures=self.failures, live=0, peak_live=self.peak)
+
 
 def build():
     cases = []
-    for mode in range(10):
+    for mode in range(11):
         normal = Source(0).run(mode)
-        cases.append(dict(input=str(mode), normal=normal,
+        cases.append(dict(input=chr(48+mode), normal=normal,
                           allocator=[dict(fail_at=i, **Source(i).run(mode))
                                      for i in range(normal["alloc_calls"] + 2)]))
     frozen = []
@@ -184,8 +220,12 @@ def build():
         assert source == old.read_bytes()
         frozen.append(dict(name=name, source_sha256=hashlib.sha256(source).hexdigest(),
                            native_if_source_verified=[dict(input="", exit=0, stdout="")]))
+    normal = Source(0).owned_error()
+    owned_error = [dict(input="", normal=normal,
+                        allocator=[dict(fail_at=i, **Source(i).owned_error())
+                                   for i in range(normal["alloc_calls"] + 2)])]
     return dict(evidence_level="independent source-operation model; not machine observation",
-                frozen=frozen, cases=cases)
+                frozen=frozen, cases=cases, owned_error=owned_error)
 
 
 if __name__ == "__main__":
