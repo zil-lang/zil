@@ -1,0 +1,29 @@
+{
+  "status": "Fail",
+  "scope": "Live handoff record integrity only; not language correctness or product acceptance",
+  "checked_head": "1a29e2c5255bb56297e58501eab9c24868d02050",
+  "command": "node tools/handoff.mjs",
+  "exit_code": 1,
+  "errors": 1144,
+  "warnings": 0,
+  "historical_errors_baseline": 1144,
+  "historical_errors_unchanged": true,
+  "current_batch": {
+    "ids": [
+      "239",
+      "240",
+      "241",
+      "242",
+      "243",
+      "244"
+    ],
+    "status": "Pass",
+    "record_errors": 0,
+    "all_cards_merged": true
+  },
+  "check_plan_self_test": "Pass",
+  "before": "before-final-metadata.json.gz",
+  "after": "after-final-metadata.json.gz",
+  "portable_snapshot": "data/handoff.json",
+  "snapshot_note": "Exact metadata HEAD before committing this receipt and generated snapshot; subsequent receipt-only commits do not change compiler, tests or normative inputs."
+}
