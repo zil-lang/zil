@@ -815,3 +815,88 @@ pub fn ordinary_local_owner() -> (TypedModule, CandidatePlan) {
     p.functions[4].holds[0].roots = vec![HoldRoot::Parameter(0)];
     (m, p)
 }
+
+/// The caller transfers this invocation's prepared owner to an ordinary
+/// factory. Its actual fresh result, not a same-typed parameter, becomes body.
+pub fn factory_body(package: bool) -> (TypedModule, CandidatePlan) {
+    let (mut m, mut p) = local_owned_body(package);
+    let capture_type = m.closures[1].captures[0].clone();
+    let mut factory = function(
+        5,
+        vec![capture_type.clone()],
+        Type::Closure(ClosureId(1)),
+        None,
+    );
+    factory.values = vec![capture_type, Type::Closure(ClosureId(1))];
+    let mut instructions = vec![
+        instruction(Some(0), InstructionKind::TakeLocal { local: LocalId(0) }),
+        instruction(
+            Some(1),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(1),
+                captures: vec![ValueId(0)],
+            },
+        ),
+    ];
+    if package {
+        instructions.insert(
+            0,
+            instruction(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        );
+        instructions.extend([
+            instruction(None, InstructionKind::StorageDead(LocalId(0))),
+            instruction(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ),
+        ]);
+    }
+    factory.blocks = vec![BasicBlock {
+        id: BlockId(0),
+        instructions,
+        terminator: Terminator::Return(Some(ValueId(1))),
+    }];
+    factory.callable_return_contract = Some(CallableReturnContract {
+        source: CallableReturnSource::Fresh,
+        closure: ClosureId(1),
+        kind: CallableKind::FnOnce,
+        hold: vec![],
+        call: vec![],
+        writes: vec![],
+        cleanup: vec![0],
+        lending_captures: vec![],
+    });
+    m.functions.push(factory);
+    p.functions.push(FunctionPlan {
+        function: FunctionId(5),
+        blocks: vec![BlockPlan {
+            block: BlockId(0),
+            initialized_in: vec![LocalId(0)],
+            initialized_out: vec![],
+        }],
+        holds: vec![
+            ValueHold {
+                value: ValueId(0),
+                roots: vec![],
+            },
+            ValueHold {
+                value: ValueId(1),
+                roots: vec![],
+            },
+        ],
+    });
+    let caller = &mut m.functions[4];
+    let made = caller.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+        .unwrap();
+    made.kind = InstructionKind::Call {
+        function: FunctionId(5),
+        arguments: vec![ValueId(if package { 6 } else { 5 })],
+    };
+    (m, p)
+}

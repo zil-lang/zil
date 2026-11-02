@@ -310,13 +310,16 @@ pub(super) fn reconstruct(
                     (callback, CallableKind::FnMut)
                 };
                 let mark = origins.marks[origins.values_at + value.0 as usize];
+                // A checked Fresh factory contributes this actual owned value,
+                // not a wrapper parameter role. Parameter returns propagated
+                // their actual argument provenance before reaching this site.
+                let concrete_body = stage == 1 && matches!(mark, 4 | 16);
                 let parameter = match mark {
                     1 => origins.parameters.first().copied(),
                     2 => origins.parameters.get(1).copied(),
-                    16 if stage == 1 => None,
                     _ => None,
                 };
-                if parameter.is_none() && !(mark == 16 && stage == 1) {
+                if parameter.is_none() && !concrete_body {
                     return Err(bad(
                         f,
                         "scoped callback operand is not one actual helper role",

@@ -203,7 +203,8 @@ fn environment_origins(
                 InstructionKind::Call { function, .. } => {
                     let producer = &module.functions[function.0 as usize];
                     producer.callable_return_contract.as_ref().is_some_and(|c| {
-                        f.values[result.0 as usize] == Type::Closure(c.closure)
+                        c.source == CallableReturnSource::Fresh
+                            && f.values[result.0 as usize] == Type::Closure(c.closure)
                             && producer.return_type == Type::Closure(c.closure)
                     })
                 }
