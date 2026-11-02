@@ -1,0 +1,993 @@
+{
+  "task": "255",
+  "evidence_level": "final 252 production checkpoint native normal source replay and exact LLVM IR reuse relation",
+  "compiler_checkpoint": "0bfd31e2b45c90c2c82828ddd528566ef13df9a9",
+  "commands": [
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 ZIL_TEST_REPORT_DIR=/tmp/impl255-final-normal cargo test -p zil-driver --features llvm-api --test impl256_consumer --offline --locked -j 2 native_matrix -- --nocapture",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 ZIL_TEST_REPORT_DIR=/tmp/impl255-final-signatures cargo test -p zil-driver --features llvm-api --test impl256_consumer --offline --locked -j 2 signature -- --nocapture"
+  ],
+  "counts": {
+    "project_normal_machine_runs": 50,
+    "standalone_signature_machine_runs": 12,
+    "mismatches": 0
+  },
+  "reuse_basis": "Both legacy and extended project O0/O2 emitted LLVM IR SHA256 exactly equals the IR from the earlier 190 allocator runs in native-oracle.json; the frozen source/ORACLE bytes, LLVM API target, optimizer, object/link flags and allocator shim are unchanged. The 252 changes only Types cleanup admission and one diagnostic category. Allocator rows remain historical observations at their recorded checkpoints, not re-executions here.",
+  "builds": [
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "status": "Success",
+      "verification_runs": 1,
+      "llvm_sha256": "24b5a20623eb819b9e6548f7cc122b29e34f0963b6329a859f521ea935a6fdee",
+      "same_llvm_ir_as_allocator_probe_checkpoint": true,
+      "fallback": null,
+      "input_kind": "builder"
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "status": "Success",
+      "verification_runs": 1,
+      "llvm_sha256": "8f672b7befdf3aaa6bcedcfc9e5d0eca068df91d0735ce8fb6efd0a8ffb18284",
+      "same_llvm_ir_as_allocator_probe_checkpoint": true,
+      "fallback": null,
+      "input_kind": "builder"
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "status": "Success",
+      "verification_runs": 1,
+      "llvm_sha256": "8f672b7befdf3aaa6bcedcfc9e5d0eca068df91d0735ce8fb6efd0a8ffb18284",
+      "same_llvm_ir_as_allocator_probe_checkpoint": true,
+      "fallback": null,
+      "input_kind": "builder"
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "status": "Success",
+      "verification_runs": 1,
+      "llvm_sha256": "24b5a20623eb819b9e6548f7cc122b29e34f0963b6329a859f521ea935a6fdee",
+      "same_llvm_ir_as_allocator_probe_checkpoint": true,
+      "fallback": null,
+      "input_kind": "builder"
+    }
+  ],
+  "normal_rows": [
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "30",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "31",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "3a",
+      "expected": {
+        "exit": 0,
+        "stdout": "S1RA2RBNQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBNQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "3b",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "3c",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "32",
+      "expected": {
+        "exit": 0,
+        "stdout": "SCCCQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCCCQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "33",
+      "expected": {
+        "exit": 0,
+        "stdout": "S123MQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S123MQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "34",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDHhQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "35",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDCHhRAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDCHhRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "36",
+      "expected": {
+        "exit": 1,
+        "stdout": "SDHhQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SDHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "37",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "38",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O0",
+      "input_hex": "39",
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRACRBNQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBNQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "30",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDEaaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDEaaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "31",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDE12AQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDE12AQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "3a",
+      "expected": {
+        "exit": 1,
+        "stdout": "SLMHhDEQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SLMHhDEQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "3b",
+      "expected": {
+        "exit": 0,
+        "stdout": "SLMDECHhQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SLMDECHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "32",
+      "expected": {
+        "exit": 0,
+        "stdout": "S1DE2AQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1DE2AQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "33",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDECCAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDECCAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "34",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDEaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDEaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "35",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDEaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDEaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "36",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "37",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "38",
+      "expected": {
+        "exit": 0,
+        "stdout": "S1AQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1AQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O0",
+      "input_hex": "39",
+      "expected": {
+        "exit": 0,
+        "stdout": "S1234AQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1234AQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "30",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDEaaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDEaaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "31",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDE12AQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDE12AQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "3a",
+      "expected": {
+        "exit": 1,
+        "stdout": "SLMHhDEQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SLMHhDEQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "3b",
+      "expected": {
+        "exit": 0,
+        "stdout": "SLMDECHhQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SLMDECHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "32",
+      "expected": {
+        "exit": 0,
+        "stdout": "S1DE2AQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1DE2AQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "33",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDECCAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDECCAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "34",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDEaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDEaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "35",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDEaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDEaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "36",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "37",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "38",
+      "expected": {
+        "exit": 0,
+        "stdout": "S1AQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1AQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "extended",
+      "optimization": "O2",
+      "input_hex": "39",
+      "expected": {
+        "exit": 0,
+        "stdout": "S1234AQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1234AQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "30",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "31",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "3a",
+      "expected": {
+        "exit": 0,
+        "stdout": "S1RA2RBNQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S1RA2RBNQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "3b",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "3c",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "32",
+      "expected": {
+        "exit": 0,
+        "stdout": "SCCCQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCCCQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "33",
+      "expected": {
+        "exit": 0,
+        "stdout": "S123MQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "S123MQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "34",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDHhQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "35",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDCHhRAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDCHhRAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "36",
+      "expected": {
+        "exit": 1,
+        "stdout": "SDHhQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 1,
+        "stdout": "SDHhQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "37",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "38",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "stderr": ""
+      },
+      "pass": true
+    },
+    {
+      "family": "legacy",
+      "optimization": "O2",
+      "input_hex": "39",
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRACRBNQ",
+        "stderr": ""
+      },
+      "actual": {
+        "exit": 0,
+        "stdout": "SCRACRBNQ",
+        "stderr": ""
+      },
+      "pass": true
+    }
+  ],
+  "standalone": [
+    {
+      "fixture": "fn-copy",
+      "optimization": "default<O0>",
+      "status": "Success",
+      "llvm_sha256": "038b1f27841efa6506b311cb80dd8a88e8ab113e45533e7421254a37ff1359c9",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fn-copy",
+      "optimization": "default<O2>",
+      "status": "Success",
+      "llvm_sha256": "038b1f27841efa6506b311cb80dd8a88e8ab113e45533e7421254a37ff1359c9",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fn-owned",
+      "optimization": "default<O0>",
+      "status": "Success",
+      "llvm_sha256": "10a55b9d78a4aca484c86a97d468b32161859ebec610aba33e1fc70860fbbd23",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fn-owned",
+      "optimization": "default<O2>",
+      "status": "Success",
+      "llvm_sha256": "10a55b9d78a4aca484c86a97d468b32161859ebec610aba33e1fc70860fbbd23",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fnmut-copy",
+      "optimization": "default<O0>",
+      "status": "Success",
+      "llvm_sha256": "3e6712476e7f9714b15e8b47d6c8537811939ddbbe0b09891e29f3d931abf5b4",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fnmut-copy",
+      "optimization": "default<O2>",
+      "status": "Success",
+      "llvm_sha256": "3e6712476e7f9714b15e8b47d6c8537811939ddbbe0b09891e29f3d931abf5b4",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fnmut-owned",
+      "optimization": "default<O0>",
+      "status": "Success",
+      "llvm_sha256": "d5f38311ac66cf272c60d510ed13d45a5aa6c131832b9755e965f56d5806cf50",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fnmut-owned",
+      "optimization": "default<O2>",
+      "status": "Success",
+      "llvm_sha256": "d5f38311ac66cf272c60d510ed13d45a5aa6c131832b9755e965f56d5806cf50",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fnonce-copy",
+      "optimization": "default<O2>",
+      "status": "Success",
+      "llvm_sha256": "92fd50f595ac3fa654551c8a10a4a19430a5c83a795a921548fd1a62662eaec8",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fnonce-copy",
+      "optimization": "default<O0>",
+      "status": "Success",
+      "llvm_sha256": "92fd50f595ac3fa654551c8a10a4a19430a5c83a795a921548fd1a62662eaec8",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fnonce-owned",
+      "optimization": "default<O2>",
+      "status": "Success",
+      "llvm_sha256": "c8ad3d701ee0664cd28f169b74a1d2f74ab265ed0ca5a15f2b11a3ec663c18a5",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    {
+      "fixture": "fnonce-owned",
+      "optimization": "default<O0>",
+      "status": "Success",
+      "llvm_sha256": "c8ad3d701ee0664cd28f169b74a1d2f74ab265ed0ca5a15f2b11a3ec663c18a5",
+      "actual": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    }
+  ]
+}
