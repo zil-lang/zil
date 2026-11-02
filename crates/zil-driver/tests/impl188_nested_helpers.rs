@@ -302,13 +302,19 @@ fn nesting_keeps_recursion_and_mixed_kind_boundaries_while_loops_run() {
 
 #[test]
 fn nested_helpers_keep_current_call_and_lending_result_loans() {
-    rejected(
+    let report = check(
         "argument-writes-live-capture",
         "fn set(n:&mut i32)->i32{*n=9;return 0}\nfn leaf<F:FnMut()->i32>(f:&mut F,n:i32)->i32=>f()+n\nfn run<F:FnMut()->i32>(f:&mut F,n:i32)->i32=>leaf(f,n)\nfn main()->i32{var n=0;var f=()=>{n+=1;return n};return run(&mut f,set(&mut n))}",
-        Phase::Analyze,
-        ResultCategory::SafeReject,
-        "overlaps a captured address",
     );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert_eq!(report.diagnostics[0].code, "E-BORROW-CONFLICT");
+    assert!(!report.artifacts.contains_key("executable"));
     rejected(
         "returned-view-overlaps-next-nested-call",
         "fn make(n:i32)->impl FnMut()->&i32{var value=n;return move()=>{value+=1;return &value}}\nfn leaf<F:FnMut()->&i32>(f:&mut F)->&i32=>f()\nfn run<F:FnMut()->&i32>(f:&mut F)->&i32=>leaf(f)\nfn main()->i32{var f=make(7);let view=run(&mut f);let later=run(&mut f);return *view+*later}",
