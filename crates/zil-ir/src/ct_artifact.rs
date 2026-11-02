@@ -160,6 +160,8 @@ pub enum CtTypeArgument {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CtNameNamespace {
+    /// Fresh/export intent only; the actual name slot supplies its namespace.
+    Unbound,
     Value,
     Type,
     Member,
