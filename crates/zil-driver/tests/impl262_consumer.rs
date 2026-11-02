@@ -324,7 +324,14 @@ fn rejection(entry: &str) -> (Phase, &'static str, &'static [&'static str]) {
         }
         "neg_runtime_read_in_ct_main.zil" => (Phase::Ct, "E-CT-SOURCE", &["runtime"]),
         "neg_unknown_provider_export_main.zil" => (Phase::Expand, "E-SYNTAX-LOCK-ENTRY", &[]),
-        "neg_member_owner_main.zil" => (Phase::Ct, "E-CT-MEMBER-OWNER", &[]),
+        "neg_member_owner_main.zil" => (
+            Phase::Types,
+            "E-MEMBER-OWNER",
+            &[
+                "member provenance owner differs",
+                "actual receiver nominal type or generic instance",
+            ],
+        ),
         "neg_layout_cycle_main.zil" => (Phase::Ct, "E-CT-PHASE-CYCLE", &[]),
         "neg_export_cannot_capture_main.zil" => (Phase::Ct, "E-CT-EXPORT-CAPTURE", &[]),
         "neg_late_import_main.zil" => (Phase::Expand, "E-CT-LATE-IMPORT", &[]),
