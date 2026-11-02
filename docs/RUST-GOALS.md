@@ -10,7 +10,7 @@
 | 编译成本 | 实际消费者在默认额度内通过；两项具名Copy证明费用增加明确留证，旧控制保持。未做本轮Rust编译速度比较。 |
 | 至少一项突破 | 原先Unsupported的拥有Sum及含Store错误载荷原源原样到达原生；四目标产品合取和可重复净突破仍未建立。 |
 
-精确R、实际main与分账验收见docs/LANGUAGE-OWNED-SUM-20261102.md及evidence/integration/owned-sum-20261102/ACCEPTANCE.json。默认3575/0、参考3474/0与PR两CI已核；main重放当前运行中。完整1.4/ZUI NotSatisfied、B0 Doing、产品及原生WindowsNotRun保持，唯一量化合同仍为validation/product-gates.json。
+精确R、实际main与分账验收见docs/LANGUAGE-OWNED-SUM-20261102.md及evidence/integration/owned-sum-20261102/ACCEPTANCE.json。默认3575/0、参考3474/0与PR两CI已核；main两条重放及完整归档/精确源码亦已核回通过，成绩分别记账。完整1.4/ZUI NotSatisfied、B0 Doing、产品及原生WindowsNotRun保持，唯一量化合同仍为validation/product-gates.json。
 
 ## 2026-11-02：227/235/236/237/238同步核心组合
 
