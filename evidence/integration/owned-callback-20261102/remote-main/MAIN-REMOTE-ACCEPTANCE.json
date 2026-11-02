@@ -1,0 +1,120 @@
+{
+  "status": "Pass",
+  "reviewer": "/root/assess_delivery_process",
+  "actual_main": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+  "tree": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+  "scope": "Independent retrieval and complete identity/payload verification of the two new main executions. PR execution receipts remain separate and are not relabelled as these main runs.",
+  "runs": [
+    {
+      "role": "official",
+      "run_id": "41429632742",
+      "run_attempt": 1,
+      "job_id": 125224675244,
+      "result": "run-41429632742/RESULT.json",
+      "result_sha256": "9da8d2f93d23ad30461361a6de6d7dbabb084d9d138d9ea57deb33d3c73c0eee",
+      "actual_checkout": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "tree": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+      "archive": "run-41429632742/evidence.tar.zst",
+      "archive_bytes": 82270854,
+      "archive_sha256": "e26b89454616e1cee0bb82f6dceaed0a12b944294819b655896af1ac2a05570f",
+      "files": 149038,
+      "logical_bytes": 7263105811,
+      "disk_bytes": 446036878,
+      "counts": {
+        "workspace.log": {
+          "passed": 3632,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 403
+        },
+        "reference.log": {
+          "passed": 3529,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 403
+        },
+        "text-reference.log": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 10
+        }
+      },
+      "source": {
+        "files": 4142,
+        "bytes": 26864846,
+        "archive_sha256": "269a5127f8fe821ff5033e432c98b6352ab651e9dc77f8818e9a915fd8eed86f",
+        "gzip_crc": "Pass",
+        "full_non_evidence_set": "Pass",
+        "git_blobs_modes_sha256": "Pass"
+      }
+    },
+    {
+      "role": "research",
+      "run_id": "41429632912",
+      "run_attempt": 1,
+      "job_id": 125224676131,
+      "result": "run-41429632912/RESULT.json",
+      "result_sha256": "12f9c514cf24141451a90d0490a72e211d31d2b1625759443eefb19a8539ab41",
+      "actual_checkout": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "tree": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+      "archive": "run-41429632912/evidence.tar.zst",
+      "archive_bytes": 82462307,
+      "archive_sha256": "11e3ca3c1f78cceea68d8500a81289a20ebaee32daac2d2192b92eb3d5ebe05b",
+      "files": 149209,
+      "logical_bytes": 7267204283,
+      "disk_bytes": 451012584,
+      "counts": {
+        "workspace.log": {
+          "passed": 3632,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 403
+        },
+        "reference.log": {
+          "passed": 3529,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 403
+        },
+        "text-reference.log": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "groups": 10
+        }
+      },
+      "source": {
+        "files": 4142,
+        "bytes": 26864846,
+        "archive_sha256": "269a5127f8fe821ff5033e432c98b6352ab651e9dc77f8818e9a915fd8eed86f",
+        "gzip_crc": "Pass",
+        "full_non_evidence_set": "Pass",
+        "git_blobs_modes_sha256": "Pass"
+      }
+    }
+  ],
+  "previous_pr_acceptance": "E2-REMOTE-ACCEPTANCE.json",
+  "source_continuity_record": "MAIN-SOURCE-CONTINUITY.json",
+  "non_evidence_source_files_each": 4142,
+  "native_manifests_each": {
+    "workspace": 77300,
+    "reference": 71219
+  },
+  "consumer_each": {
+    "builds": 16,
+    "observations": 128,
+    "original_commands": 145
+  },
+  "artifact_uploads": "Still failure due quota; complete exact-main log fallback independently downloaded, CRC/SHA verified and all blobs/coverage checked.",
+  "disk_bytes_sum": 897049462,
+  "native_restore": "Not materialized; content-addressed compressed archives retained with raw logs/ZIPs/index and selected small original receipts.",
+  "actions_not_taken": [
+    "No repository edits",
+    "No merge or branch operation",
+    "No remote evidence deletion",
+    "No billing/quota change",
+    "No new local compiler execution"
+  ],
+  "time_utc": "2026-11-02T11:08:44.539564+00:00"
+}

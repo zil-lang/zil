@@ -1,0 +1,7 @@
+{
+  "status": "Pass",
+  "scope": "Every ZIP member read to EOF; CRC and size bounds",
+  "zip_sha256": "9d9dc70e2de140139b32d89bf42f52715fcf4cb79188122f8fd287bd2729f73a",
+  "members": 28,
+  "complete_envelope_views": 2
+}

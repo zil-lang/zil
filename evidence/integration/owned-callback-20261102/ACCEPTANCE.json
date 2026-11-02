@@ -12,11 +12,13 @@
     "tree": "ffa33e4762765f83f0a525690d7aedd347527f8d",
     "merged_at_utc": "2026-11-02T10:32:31Z",
     "main_replays": {
-      "status": "Running",
+      "status": "Pass",
       "runs": [
         41429632742,
         41429632912
-      ]
+      ],
+      "evidence": "remote-main/MAIN-REMOTE-ACCEPTANCE.json",
+      "exact_run_archives_independently_recovered": true
     }
   },
   "formal_gates": "evidence/integration/owned-callback-20261102/R/RESULT.json",

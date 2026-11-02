@@ -1,0 +1,40 @@
+{
+  "sha": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+  "node_id": "C_kwDOVXdqJNoAKGY2MWUxNzNmZTlmMTg5YmY0OTdhMjdjZTlkNDc5Y2M2ZmVhZTMyNDQ",
+  "url": "https://api.github.com/repos/zil-lang/zil/git/commits/f61e173fe9f189bf497a27ce9d479cc6feae3244",
+  "html_url": "https://github.com/zil-lang/zil/commit/f61e173fe9f189bf497a27ce9d479cc6feae3244",
+  "author": {
+    "name": "cicin",
+    "email": "dsscicin@163.com",
+    "date": "2026-11-02T10:32:30Z"
+  },
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-11-02T10:32:30Z"
+  },
+  "tree": {
+    "sha": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+    "url": "https://api.github.com/repos/zil-lang/zil/git/trees/ffa33e4762765f83f0a525690d7aedd347527f8d"
+  },
+  "message": "Merge PR #18: owned callback values and verified evidence recovery\n\nSupport owned callback values through public dispatch",
+  "parents": [
+    {
+      "sha": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "html_url": "https://github.com/zil-lang/zil/commit/81b7ae0c9ce5e7245613ed536b4702c419fe99bd"
+    },
+    {
+      "sha": "aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+      "html_url": "https://github.com/zil-lang/zil/commit/aebc4a6006150e2da6be3e544eab67c2dc0c2a75"
+    }
+  ],
+  "verification": {
+    "verified": true,
+    "reason": "valid",
+    "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq6Ga+CRC1aQ7uu5UhlAAAvcEQAF2r9m4ag6N4mDFFqsmPBg7u\nDOPeZ/LOZV/eFo8W6sIeICjwGjiA/Qa+Cbla7jlA+EbVX+4XfNwd4EiQDB446gbU\ngpVhRaeOQj4znT+nK32LR8zMvLu+WX5QtWCAQvc4us5H4uXgdDe4JVHY7fxklbMu\nfOs9IRI0WYeaPgfDVs+3Drhz/geJv2ps2ySIh9OzN89y6a9KfwiDx7CiIX8QzSjZ\nw48/Mt6+NfHxpXWfTr9mgV2Oss5GIk9STCOMff9Y1ninE6XRf2DNrCPeoObAE94f\no1LADKS9IapiYLDvXoCx7pSgf6cACVl4i1y0DegSf4opDn4snX37fcoh/EK4JfEF\neW0+EJohvIe/L38qWIFH6X/CivEPBo4kDAqV/3StJlmI7E3uu1LMlh+mXQTB5o7Z\n+ycIYHTy38FcbKInINra6T2fJM4Zr3nllC32EAJnCTLnmLeda7c/NjO4n5/1KhB9\njv1gph6ZAmBewTNNT6aeXOSUUZr7f75xaq3U5xFuqg1y2yN66CtwMH6gjQaUk0Tc\nLpx22dLs5mwEL4eGxhqYovdAdT+27kjR4AQNiBgRpo1AXwq8ebEE8b//HfZCrjwx\nGHhB4/zqVH6jckuCUqFE1SJoAJr1E4zFHpx/HkmglKrpfbiy28Ii7/NXqPMMjpI3\n6zOrYUgOB3SLtTrBfT1d\n=8G4r\n-----END PGP SIGNATURE-----\n",
+    "payload": "tree ffa33e4762765f83f0a525690d7aedd347527f8d\nparent 81b7ae0c9ce5e7245613ed536b4702c419fe99bd\nparent aebc4a6006150e2da6be3e544eab67c2dc0c2a75\nauthor cicin <dsscicin@163.com> 1793615550 +0800\ncommitter GitHub <noreply@github.com> 1793615550 +0800\n\nMerge PR #18: owned callback values and verified evidence recovery\n\nSupport owned callback values through public dispatch",
+    "verified_at": "2026-11-02T10:32:31Z"
+  }
+}

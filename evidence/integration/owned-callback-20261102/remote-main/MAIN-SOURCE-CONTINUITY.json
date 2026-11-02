@@ -1,0 +1,15 @@
+{
+  "status": "SourceTreeContinuityPass_MainReplaysPending",
+  "reviewer": "/root/assess_delivery_process",
+  "accepted_pr_head": "aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+  "actual_main": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+  "pr_tree": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+  "main_tree": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+  "whole_tree_equal": true,
+  "expected_main_runs": {
+    "official": "41429632742",
+    "research": "41429632912"
+  },
+  "new_main_test_results": "Pending actual independent retrieval and verification; prior E2 execution is not relabelled",
+  "time_utc": "2026-11-02T10:34:55.061154+00:00"
+}
