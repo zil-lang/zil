@@ -970,7 +970,7 @@ pub(super) fn check_module(
                                 }
                                 _ => {
                                     return Err(unsupported(
-                                        "shared Product capture requires proven local or shared parameter Product origins",
+                                        "shared Product capture requires proven ordinary local Product origins",
                                         Some(instruction.span),
                                     ));
                                 }
