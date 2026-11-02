@@ -70,6 +70,12 @@ impl FrozenReadView<'_> {
             tree.nodes.push(CtSyntaxNode::Token(CtToken { class, text, origin, name }));
             tree.roots.push(id);
         }
+        if tree.roots.len() != 1 && matches!(category, CtSyntaxCategory::Expr | CtSyntaxCategory::Type) {
+            let id = CtSyntaxNodeId(u32::try_from(tree.nodes.len()).map_err(|_| error("E-CT-SYNTAX-LIMIT", "syntax node identity overflow"))?);
+            let children = std::mem::take(&mut tree.roots);
+            tree.nodes.push(CtSyntaxNode::Group { delimiter: CtDelimiter::Parenthesis, children, origin });
+            tree.roots.push(id);
+        }
         Ok(tree)
     }
     fn instantiate(template: &CtTemplate, holes: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
@@ -307,7 +313,8 @@ impl CtReadView for FrozenReadView<'_> {
         match (kind, args) {
             (CtSyntaxBuilder::Literal, [CtValue::Scalar(value)]) => {
                 let (text, class) = match value {
-                    Constant::Unit => ("()".into(), CtTokenClass::Punctuation),
+                    Constant::Unit => return Self::syntax_tokens(CtSyntaxCategory::Expr,
+                        vec![("(".into(), CtTokenClass::Punctuation, None), (")".into(), CtTokenClass::Punctuation, None)], budget),
                     Constant::Bool(value) => (value.to_string(), CtTokenClass::Keyword),
                     Constant::U8(value) => (value.to_string(), CtTokenClass::Integer),
                     Constant::U16(value) => (value.to_string(), CtTokenClass::Integer),
@@ -315,6 +322,10 @@ impl CtReadView for FrozenReadView<'_> {
                     Constant::I64(value) => (value.to_string(), CtTokenClass::Integer),
                     _ => return Err(error("E-CT-SYNTAX-LITERAL", "runtime value is not a CT literal")),
                 };
+                if text.starts_with('-') {
+                    return Self::syntax_tokens(CtSyntaxCategory::Expr,
+                        vec![("-".into(), CtTokenClass::Punctuation, None), (text[1..].into(), class, None)], budget);
+                }
                 Self::syntax_tokens(CtSyntaxCategory::Expr, vec![(text, class, None)], budget)
             }
             (CtSyntaxBuilder::Literal, [CtValue::Text(value)]) => Self::syntax_tokens(CtSyntaxCategory::Expr,
