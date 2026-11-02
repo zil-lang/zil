@@ -1,0 +1,488 @@
+{
+  "status": "Frozen independent draft; not formal delivery or implementation acceptance",
+  "source_root": "/workspace/.zil-env/forward-prep",
+  "original_source_provenance": "R: evidence/planning/owned-callback-finalR/f-identity/source.zil",
+  "original_source_sha256": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+  "compiler_identity": {
+    "binary": "/workspace/.zil-env/target-core/debug/zil",
+    "binary_sha256": "a07605bd547068bc0220ea459a66b7f1e2a8d3b085fe78ae5190db15becb13b6",
+    "binary_build_commit": "fa8638df7e9fc30e717e23191252bb1600d1e42f",
+    "production_inputs_equal_tested_R": "288e29628389d83a335783d5488be39f22b2008b"
+  },
+  "matrix": {
+    "positive_source_graphs": 8,
+    "negative_source_graphs": 7,
+    "cli_invocations": 30,
+    "parse_controls_success": 15,
+    "legal_full_checks_unsupported": 8,
+    "negative_checks_blocked_by_positive_gap": 7
+  },
+  "preflight_source_checks": [
+    {
+      "report": "baseline/project-parse.json",
+      "source": "project/main.zil",
+      "status": "Success",
+      "phase": "parse",
+      "verification_runs": 0
+    },
+    {
+      "report": "baseline/original-check.json",
+      "source": "frozen-original/source.zil",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0
+    }
+  ],
+  "total_actual_source_cli_invocations_in_preparation": 32,
+  "environment_loader_errors_not_source_checks": 1,
+  "verification_runs": 0,
+  "native_runs": 0,
+  "actual_allocator_injections": 0,
+  "accepted_new_feature_cases": 0,
+  "planned_source_oracle_cases": [
+    {
+      "input": "0",
+      "purpose": "nested-fn-left",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "forwarded_instance_trace": [
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "nested",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": false
+          }
+        ]
+      },
+      "allocator_rows": 2
+    },
+    {
+      "input": "1",
+      "purpose": "nested-fn-right",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "forwarded_instance_trace": [
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "nested",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": true
+          }
+        ]
+      },
+      "allocator_rows": 2
+    },
+    {
+      "input": "2",
+      "purpose": "concrete-copy-fn",
+      "expected": {
+        "exit": 0,
+        "stdout": "SCCCQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "forwarded_instance_trace": [
+          {
+            "identity": "prepared-copy-input",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "prepared-copy-input",
+            "inside_bound": "FnOnce",
+            "helper": "branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "prepared-copy-input",
+            "inside_bound": "FnOnce",
+            "helper": "nested",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": false
+          }
+        ]
+      },
+      "allocator_rows": 2
+    },
+    {
+      "input": "3",
+      "purpose": "fnmut-call-before-return",
+      "expected": {
+        "exit": 0,
+        "stdout": "S123MQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "mutable-instance-M",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnMut",
+            "return_mode": "FnMut",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_rows": 3
+    },
+    {
+      "input": "4",
+      "purpose": "owned-once-unused",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "forwarded_instance_trace": [
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_nested",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": false
+          }
+        ]
+      },
+      "allocator_rows": 4
+    },
+    {
+      "input": "5",
+      "purpose": "owned-once-call",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDCHhRAQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "forwarded_instance_trace": [
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_nested",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": true
+          }
+        ]
+      },
+      "allocator_rows": 5
+    },
+    {
+      "input": "6",
+      "purpose": "later-companion-cancel",
+      "expected": {
+        "exit": 1,
+        "stdout": "SDHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "forwarded_instance_trace": []
+      },
+      "allocator_rows": 4
+    },
+    {
+      "input": "7",
+      "purpose": "owned-error-slot-companion",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "union-caller-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_rows": 3
+    },
+    {
+      "input": "8",
+      "purpose": "owned-success-slot-companion",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "union-caller-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_rows": 3
+    },
+    {
+      "input": "9",
+      "purpose": "owned-arg-fn-repeat",
+      "expected": {
+        "exit": 0,
+        "stdout": "SCRACRBNQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "owned-argument-instance-N",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_rows": 4
+    },
+    {
+      "input": ":",
+      "purpose": "owned-arg-fnmut-repeat",
+      "expected": {
+        "exit": 0,
+        "stdout": "S1RA2RBNQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "owned-argument-instance-N",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnMut",
+            "return_mode": "FnMut",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_rows": 4
+    },
+    {
+      "input": ";",
+      "purpose": "outer-declared-fn",
+      "expected": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "forwarded_instance_trace": [
+          {
+            "identity": "declared-Fn-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_rows": 2
+    },
+    {
+      "input": "<",
+      "purpose": "direct-product-companion",
+      "expected": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "product-caller-A",
+            "inside_bound": "FnOnce",
+            "helper": "with_product",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_rows": 3
+    }
+  ],
+  "planned_allocator_rows": 41,
+  "target_negative_expectations": {
+    "once_declared_actual_fn_twice": "SafeReject: prior outer FnOnce declaration persists after keep; second call consumes dead role",
+    "once_declared_actual_fn_copy": "SafeReject: concrete Copy Fn does not grant Copy to outer declared FnOnce F",
+    "mut_declared_actual_fn_shared_call": "SafeReject: returned role remains outer FnMut and requires writable position",
+    "same_closure_id_different_instance": "SafeReject: return must have actual input origin, not a new same-ClosureId marker",
+    "same_closure_id_wrong_branch": "SafeReject: every normal branch must return actual input origin",
+    "external_address_environment": "Unsupported: self-contained F restriction; external Address capture remains borrowed",
+    "use_after_transfer": "SafeReject: original non-Copy owning F cannot be called after transfer"
+  },
+  "target_negative_checks_currently_validated": 0,
+  "root_decisions": [
+    "Include already-supported Store-bearing Product ordinary companions in this slice, or retain draft Mark/ByteBuffer finite data only?",
+    "Carry existing explicit Copy-address callable signatures through F forwarding in this slice, or keep first contract to stated Copy/owning value signatures?",
+    "Root owns the public returned-input-origin representation; Same ClosureId is insufficient."
+  ],
+  "hashes": {
+    "BASELINE.json": "feef360bbfb97cf97e6255f104848f54cadeb26e30fc09928a2597f359d4dad3",
+    "DRAFT.md": "09ddc1295f706ede77812e8c97be4f0d479ee4de88f264513446e3e6318bc397",
+    "ORACLE.json": "eafa40c2835c5312fad730ba64fbde7ea0edf01db595b9c20d5ff99088394493",
+    "baseline.py": "14981956d440fc9d6a5b28645873bbf4f3ddc1cfc16d71766496d791ec707caf",
+    "frozen-original/source.zil": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+    "negative/external_address_environment.zil": "999ceefd10d1e980ecfb0949663394c774962578f66e2ffba6fb51c3015959d5",
+    "negative/mut_declared_actual_fn_shared_call.zil": "faa31288a9ff9948f6af919b3556d502ad6bb154bf515c2108032d798cad8e17",
+    "negative/once_declared_actual_fn_copy.zil": "22361b10f0acb9b5efc71fd976c04ed41ded11f7fc8c135370ff75e0701b7c0f",
+    "negative/once_declared_actual_fn_twice.zil": "a9b18780630b93ccb0e8edd36cfcdb6b9ceed8edf829b2e710e7bce9a94b68c7",
+    "negative/same_closure_id_different_instance.zil": "130fa4b1fed0d24e806ba8b14e4e90bb244e88932fd56ad7c9a24884cfe9df33",
+    "negative/same_closure_id_wrong_branch.zil": "4f4079d3971acb0df7084a32c68aef39e3526e410f3f82c0bbd2dfdd37bf1ef2",
+    "negative/use_after_transfer.zil": "343b09e22b8666809e7b8c667ff50f87bf0a63241cb7c94886c37ff39c7dd45a",
+    "oracle.py": "554a88db94f1c28685b7cd5707c16e9da5ea07a68f7dbfd002a0e76fe8db5413",
+    "probes/fn-copy.zil": "c48be51cc7f89e3e3c6b87ed78d3ef5b484c48ab8deb12a386997c681fa18f20",
+    "probes/fn-owned.zil": "601ba197054506f41bd55c142936bcbed08e54480fd43d042ab4dc57010e857a",
+    "probes/fnmut-copy.zil": "99278121664127a6ddf8d331576caf8abda0ca4881a381c334cb000eefe5db00",
+    "probes/fnmut-owned.zil": "020ddb603fcd8db9c12bc3fd71924f562720ef25440e861369d0d1c3e98135c2",
+    "probes/fnonce-copy.zil": "b017bf3162a51a4a4cf8394f0b15bd7e4d1ba4fee6a483d8eb33075c87a9e62f",
+    "probes/fnonce-owned.zil": "b6ebd3423e1e01936329d7bdac7a8416b2334d879507975384993e6f99810871",
+    "project/main.zil": "5f44149b429bd51d001f0fed680a345548c68a9677c23820793f663ed0566b20",
+    "project/model.zil": "1b29c235b7840891dc944ead06b110cbe846136ca5b3463f6b2427bbdac63fba",
+    "project/relay.zil": "806db69ff6335b85e830a3f13691158def357dad560d82fa769a8c17772a1b80"
+  }
+}
