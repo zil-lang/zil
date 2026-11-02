@@ -20,9 +20,9 @@ use zil_llvm_api::model as m;
 
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::{
-    BinaryOp, CallableKind, ClosureDefinition, ClosureId, Constant, FunctionId, Instruction,
-    InstructionKind, LirModule, LirView, LocalId, ResourceDefinition, ScalarLayout, Terminator,
-    Type, TypedFunction, UnaryOp, ValueId,
+    BinaryOp, CallableCleanup, CallableKind, CallableReturnSource, ClosureDefinition, ClosureId,
+    Constant, FunctionId, Instruction, InstructionKind, LirModule, LirView, LocalId,
+    ResourceDefinition, ScalarLayout, Terminator, Type, TypedFunction, UnaryOp, ValueId,
 };
 use zil_verify::VerifiedModule;
 
@@ -651,6 +651,12 @@ fn bind_lir(
         }
     }
     for function in lir.functions {
+        if !forwarded_callable_signature(function) {
+            return unsupported(
+                "forwarded callable result requires the same actual by-value parameter and Returned role",
+                Some(function.span),
+            );
+        }
         if !(function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resources::supported_type(&function.return_type, lir.resources)
@@ -2893,6 +2899,40 @@ fn callable_parameter_type(ty: &Type, closures: &[ClosureDefinition]) -> bool {
     closures
         .get(id.0 as usize)
         .is_some_and(|definition| definition.id == *id)
+}
+
+fn forwarded_callable_signature(function: &TypedFunction) -> bool {
+    let Some(contract) = &function.callable_return_contract else {
+        return true;
+    };
+    let CallableReturnSource::Parameter(index) = contract.source else {
+        return true;
+    };
+    if function.foreign.is_some() || function.environment.is_some() {
+        return false;
+    }
+    let Some(parameter) = function.parameters.get(index as usize) else {
+        return false;
+    };
+    let Some(local) = function.locals.get(parameter.0 as usize) else {
+        return false;
+    };
+    let Some(roles) = function
+        .callable_contract
+        .as_ref()
+        .map(|c| c.roles.as_slice())
+    else {
+        return false;
+    };
+    let [role] = roles else {
+        return false;
+    };
+    matches!((&local.ty, &function.return_type),
+        (Type::Closure(input), Type::Closure(output)) if input == output && *input == contract.closure)
+        && role.parameter == index
+        && role.closure == contract.closure
+        && role.kind == contract.kind
+        && role.cleanup == CallableCleanup::Returned
 }
 
 fn callback_data_shape(ty: &Type) -> bool {
