@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = ROOT / 'tests/impl262'
@@ -214,7 +215,14 @@ def build():
 
 if __name__ == '__main__':
     locks = FIXTURES / 'locks'
-    locks.mkdir(exist_ok=True)
-    (locks / 'providers-five.lock').write_text(provider_lock())
-    (locks / 'provider-named.lock').write_text(provider_lock(named=True))
-    (FIXTURES / 'ORACLE.json').write_text(json.dumps(build(), indent=2) + '\n')
+    if sys.argv[1:] == ['--check']:
+        assert (locks / 'providers-five.lock').read_text() == provider_lock()
+        assert (locks / 'provider-named.lock').read_text() == provider_lock(named=True)
+        assert json.loads((FIXTURES / 'ORACLE.json').read_text()) == build()
+        print('frozen source, independent oracle and explicit locks unchanged')
+    else:
+        assert not sys.argv[1:]
+        locks.mkdir(exist_ok=True)
+        (locks / 'providers-five.lock').write_text(provider_lock())
+        (locks / 'provider-named.lock').write_text(provider_lock(named=True))
+        (FIXTURES / 'ORACLE.json').write_text(json.dumps(build(), indent=2) + '\n')
