@@ -196,9 +196,29 @@ struct Compiler<'a> {
     record_sources: Vec<(usize, &'a s::Aggregate)>,
     enum_sources: Vec<(usize, &'a s::EnumDecl)>,
     templates: Vec<CtTemplate>,
+    active_aliases: Vec<(usize, Span)>,
     budget: Budget<'a>,
 }
 impl<'a> Compiler<'a> {
+    // The same source alias can be reached through type syntax and CT expressions.
+    // Track the actual declaration, rather than a textual name or recursion depth.
+    fn enter_alias(&mut self, module: usize, declaration: Span, use_span: Span) -> R<()> {
+        self.budget.work(1, use_span)?;
+        for &(active_module, active_span) in &self.active_aliases {
+            self.budget.work(1, use_span)?;
+            if active_module == module && active_span == declaration {
+                return Err(vec![Diagnostic::error(
+                    Phase::Ct,
+                    "E-CT-PHASE-CYCLE",
+                    Some(use_span),
+                    "CT source type alias depends on its own unfinished attribution",
+                )]);
+            }
+        }
+        self.budget.work(1, use_span)?;
+        self.active_aliases.push((module, declaration));
+        Ok(())
+    }
     fn indexed(modules: &'a [SourceModule<'a>], limits: &'a Limits) -> R<Self> {
         let mut compiler = Self {
             modules: modules,
@@ -212,6 +232,7 @@ impl<'a> Compiler<'a> {
             record_sources: Vec::new(),
             enum_sources: Vec::new(),
             templates: Vec::new(),
+            active_aliases: Vec::new(),
             budget: Budget::new(limits),
         };
         for (module, input) in modules.iter().enumerate() {
