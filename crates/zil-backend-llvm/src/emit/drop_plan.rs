@@ -792,4 +792,54 @@ mod impl243_plan_tests {
         limits.max_analysis_steps = high;
         assert!(functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok());
     }
+
+    #[test]
+    fn impl249_callback_signature_prepays_the_shared_machine_budget() {
+        fn threshold(lir: &LirModule) -> usize {
+            let mut limits = zil_base::Limits::default();
+            let (mut low, mut high) = (0, limits.max_analysis_steps);
+            assert!(functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok());
+            while low + 1 < high {
+                let mid = (low + high) / 2;
+                limits.max_analysis_steps = mid;
+                if functions(&lir.as_view(), &limits, true, EntryPoint::None).is_ok() {
+                    high = mid;
+                } else {
+                    low = mid;
+                }
+            }
+            high
+        }
+        let original = recipe_input();
+        let old_n = threshold(&original);
+        let mut copy = original.clone();
+        copy.closures.push(ClosureDefinition {
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![],
+            parameters: vec![Type::I32],
+            result: Type::I32,
+            kind: CallableKind::FnOnce,
+            lending_captures: vec![],
+        });
+        assert_eq!(threshold(&copy), old_n, "old Copy callback cost changed");
+        let mut owning = copy;
+        owning.closures[0].parameters = vec![packet()];
+        owning.closures[0].result = packet();
+        let new_n = threshold(&owning);
+        eprintln!("impl249 machine budget: old Copy N={old_n}, owning N={new_n}");
+        assert!(new_n > old_n);
+        let mut limits = zil_base::Limits {
+            max_analysis_steps: new_n,
+            ..zil_base::Limits::default()
+        };
+        assert!(functions(&owning.as_view(), &limits, true, EntryPoint::None).is_ok());
+        limits.max_analysis_steps = new_n - 1;
+        assert_eq!(
+            functions(&owning.as_view(), &limits, true, EntryPoint::None).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        limits.max_analysis_steps = new_n;
+        assert!(functions(&owning.as_view(), &limits, true, EntryPoint::None).is_ok());
+    }
 }

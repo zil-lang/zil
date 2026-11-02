@@ -607,21 +607,17 @@ fn bind_lir(
             closure.result,
             Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
         ) && !closure.result.is_copy_value()
+            && callback_data_shape(&closure.result)
             && drop_plan::value_type(&closure.result, lir.resources);
-        let owning_parameters = closure.parameters.iter().any(|ty| {
-            matches!(
-                ty,
-                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
-            ) && !ty.is_copy_value()
-        });
+        let owning_parameters = closure
+            .parameters
+            .iter()
+            .any(|ty| callback_data_shape(ty) && !ty.is_copy_value());
         let owning_signature = (owning_result || owning_parameters)
             && (closure.result.is_copy_value() || owning_result)
             && closure.parameters.iter().all(|ty| {
                 ty.is_copy_value()
-                    || (matches!(
-                        ty,
-                        Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
-                    ) && drop_plan::value_type(ty, lir.resources))
+                    || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
             });
         if !matches!(
             closure.kind,
@@ -2897,4 +2893,25 @@ fn callable_parameter_type(ty: &Type, closures: &[ClosureDefinition]) -> bool {
     closures
         .get(id.0 as usize)
         .is_some_and(|definition| definition.id == *id)
+}
+
+fn callback_data_shape(ty: &Type) -> bool {
+    match ty {
+        Type::Package { fields, .. } => fields.iter().all(|(_, field)| {
+            field.is_copy_value() || matches!(field, Type::Managed(_)) || callback_data_shape(field)
+        }),
+        Type::Enum { variants, .. } => variants.iter().all(|(_, fields)| {
+            fields.iter().all(|field| {
+                field.is_copy_value()
+                    || matches!(field, Type::Managed(_))
+                    || callback_data_shape(field)
+            })
+        }),
+        Type::ErrorUnion { error, result } => [error.as_ref(), result.as_ref()].iter().all(|arm| {
+            arm.is_copy_value()
+                || matches!(arm, Type::Package { .. } | Type::Enum { .. })
+                    && callback_data_shape(arm)
+        }),
+        _ => false,
+    }
 }
