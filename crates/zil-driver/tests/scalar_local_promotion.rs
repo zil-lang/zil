@@ -352,7 +352,7 @@ fn a_borrow_conflict_remains_rejected_before_machine_emission() {
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
     assert_eq!(report.diagnostics[0].code, "E-BORROW-CONFLICT");
     assert!(!report.artifacts.contains_key("llvm"));
     assert!(!report.artifacts.contains_key("executable"));

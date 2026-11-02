@@ -418,7 +418,7 @@ fn actual_capture_and_explicit_address_still_must_be_separate() {
     reject(
         "explicit-capture-alias",
         source,
-        Phase::Verify,
+        Phase::Analyze,
         ResultCategory::SafeReject,
         "E-BORROW-CONFLICT",
     );
