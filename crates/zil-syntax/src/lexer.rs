@@ -385,6 +385,7 @@ const SYMBOLS: &[(&str, Symbol)] = &[
     (":", Symbol::Colon),
     (".", Symbol::Dot),
     ("#", Symbol::Hash),
+    ("$", Symbol::Dollar),
     ("?", Symbol::Question),
     ("+", Symbol::Plus),
     ("-", Symbol::Minus),
