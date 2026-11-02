@@ -868,7 +868,7 @@ fn resolve_imports(
     Ok(graph)
 }
 
-fn unsupported_import(item: &ast::Item, import: &ast::Import) -> CompileResult<()> {
+fn unsupported_import(item: &ast::Item, _import: &ast::Import) -> CompileResult<()> {
     if item.public {
         return Err(vec![Diagnostic::unsupported(
             Phase::Expand,

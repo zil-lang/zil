@@ -396,7 +396,11 @@ impl Materializer<'_, '_> {
             s::ExprKind::Group(e)
             | s::ExprKind::Try(e)
             | s::ExprKind::MetaEval(e)
+            | s::ExprKind::MetaSplice(e)
             | s::ExprKind::Unary { operand: e, .. } => self.expression(e, depth + 1)?,
+            s::ExprKind::Quote { template, .. } => {
+                for hole in &mut template.holes { self.expression(&mut hole.value, depth + 1)?; }
+            }
             s::ExprKind::Tuple(es) | s::ExprKind::Array(es) => {
                 for e in es {
                     self.expression(e, depth + 1)?;
