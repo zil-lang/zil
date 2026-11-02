@@ -1,7 +1,11 @@
 //! Category-directed, transactional project materialization. The caller owns
 //! the cloned AST until every generated list has passed its preflight.
 use super::{
-    compiler::{self, Entry}, execute::Environment, input, lock::provider_entry, render::ParsedSyntax,
+    compiler::{self, Entry},
+    execute::Environment,
+    input,
+    lock::provider_entry,
+    render::ParsedSyntax,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -154,13 +158,19 @@ impl Materializer<'_, '_> {
                 // declaration into the selected module. It is still anchored
                 // in its original, frozen meta item; do not mint a new symbol
                 // for a declaration generated in the current batch.
-                let original = self.parsed.iter().find(|parsed| parsed.module.id == module)?;
+                let original = self
+                    .parsed
+                    .iter()
+                    .find(|parsed| parsed.module.id == module)?;
                 original.module.items.iter().find_map(|item| {
-                    (matches!(item.kind, s::ItemKind::Meta(s::MetaItem::If { .. } | s::MetaItem::For { .. }))
-                        && item.span.file == span.file
+                    (matches!(
+                        item.kind,
+                        s::ItemKind::Meta(s::MetaItem::If { .. } | s::MetaItem::For { .. })
+                    ) && item.span.file == span.file
                         && item.span.start <= span.start
                         && span.end <= item.span.end)
-                        .then(|| self.environment.index.symbol_at(module, item.span)).flatten()
+                        .then(|| self.environment.index.symbol_at(module, item.span))
+                        .flatten()
                 })
             })
             .ok_or_else(|| category("CT expression has no frozen declaration owner", span))
@@ -602,19 +612,35 @@ impl Materializer<'_, '_> {
             })
     }
     fn uses_ct_domain(&mut self, module: ModuleId, expression: &s::Expr) -> CompileResult<bool> {
-        let syntax = self.parsed.iter().map(|parsed| &parsed.module).collect::<Vec<_>>();
+        let syntax = self
+            .parsed
+            .iter()
+            .map(|parsed| &parsed.module)
+            .collect::<Vec<_>>();
         let modules = self.environment.index.modules(self.sources, &syntax);
-        let parameters = self.runtime_scopes.iter().flat_map(|scope| scope.iter())
-            .map(|name| (name.clone(), CtTy::Scalar(CtScalarTy::Unit))).collect::<Vec<_>>();
+        let parameters = self
+            .runtime_scopes
+            .iter()
+            .flat_map(|scope| scope.iter())
+            .map(|name| (name.clone(), CtTy::Scalar(CtScalarTy::Unit)))
+            .collect::<Vec<_>>();
         let mut limits = self.environment.remaining_limits_for_input();
         let before = limits.clone();
-        let result = compiler::uses_ct_domain(&modules, module, expression, &parameters, &mut limits);
+        let result =
+            compiler::uses_ct_domain(&modules, module, expression, &parameters, &mut limits);
         self.environment.budget.reserve_analysis_work(
-            before.max_analysis_steps.saturating_sub(limits.max_analysis_steps) as u64)?;
-        self.environment.budget.reserve_generated_nodes(
-            before.max_nodes.saturating_sub(limits.max_nodes) as u64)?;
+            before
+                .max_analysis_steps
+                .saturating_sub(limits.max_analysis_steps) as u64,
+        )?;
+        self.environment
+            .budget
+            .reserve_generated_nodes(before.max_nodes.saturating_sub(limits.max_nodes) as u64)?;
         self.environment.budget.reserve_temporary_bytes(
-            before.max_source_bytes.saturating_sub(limits.max_source_bytes) as u64)?;
+            before
+                .max_source_bytes
+                .saturating_sub(limits.max_source_bytes) as u64,
+        )?;
         result
     }
     fn provider(

@@ -70,25 +70,51 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
 }
 
 pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> bool {
-    let standard = parsed.module.items.iter().any(|item| matches!(&item.kind,
+    let standard = parsed.module.items.iter().any(|item| {
+        matches!(&item.kind,
         ast::ItemKind::Import(import) if matches!(import.path.as_slice(),
-            [a, b] if a == "std" && (b == "meta" || b == "syntax"))));
-    standard || parsed.type_meta_candidate || parsed.tokens.iter().any(|token| {
-        token.kind == zil_syntax::token::TokenKind::Identifier
-            && matches!(token.text(&source.text), "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit")
-    })
+            [a, b] if a == "std" && (b == "meta" || b == "syntax")))
+    });
+    standard
+        || parsed.type_meta_candidate
+        || parsed.tokens.iter().any(|token| {
+            token.kind == zil_syntax::token::TokenKind::Identifier
+                && matches!(
+                    token.text(&source.text),
+                    "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit"
+                )
+        })
 }
 
 impl CompilationSession {
     pub(super) fn compile_source_artifact_project(
-        &mut self, source: &SourceUnit, parsed: Arc<ParseResult>, snapshot: Arc<QuerySnapshot>,
-        options: &CompileOptions, observer: &mut dyn FnMut(&QueryEvent), report: CompileReport,
+        &mut self,
+        source: &SourceUnit,
+        parsed: Arc<ParseResult>,
+        snapshot: Arc<QuerySnapshot>,
+        options: &CompileOptions,
+        observer: &mut dyn FnMut(&QueryEvent),
+        report: CompileReport,
     ) -> CompileReport {
-        let project = ProjectSources { root: source.module_id, modules: vec![source.clone()], paths: BTreeMap::new() };
-        self.compile_project_request(&project, options, observer,
-            Some(LoadedProject::Prepared(vec![LoadedSyntax {
-                parsed, reused: true, snapshot: Some(snapshot), stable_module_key: None,
-            }], report)))
+        let project = ProjectSources {
+            root: source.module_id,
+            modules: vec![source.clone()],
+            paths: BTreeMap::new(),
+        };
+        self.compile_project_request(
+            &project,
+            options,
+            observer,
+            Some(LoadedProject::Prepared(
+                vec![LoadedSyntax {
+                    parsed,
+                    reused: true,
+                    snapshot: Some(snapshot),
+                    stable_module_key: None,
+                }],
+                report,
+            )),
+        )
     }
     pub fn compile_project(
         &mut self,
@@ -505,7 +531,11 @@ impl CompilationSession {
         // producer. The artifact materializer uses the source compiler's
         // bounded domain classifier at each mixed-project expression.
         let artifact_needed = options.syntax_lock.is_some()
-            || project.modules.iter().zip(&parsed).any(|(source, parsed)| artifact_candidate(source, parsed));
+            || project
+                .modules
+                .iter()
+                .zip(&parsed)
+                .any(|(source, parsed)| artifact_candidate(source, parsed));
         let (raw, expand_snapshot) = self.query(
             key(Phase::Expand, selection_needed || artifact_needed),
             &dependencies,
