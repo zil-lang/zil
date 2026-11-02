@@ -22,7 +22,7 @@ fn plain_type(ty: &s::TypeRef) -> bool {
         TypeKind::Array { element, length } => plain_type(element) && length.as_ref().is_none_or(|expr| matches!(expr.kind, s::ExprKind::Literal(_))),
         TypeKind::Function { params, result } | TypeKind::ForeignFunction { params, result, .. } => params.iter().all(plain_type) && plain_type(result),
         TypeKind::Error { error, result } => plain_type(error) && plain_type(result),
-        TypeKind::MetaEval(_) | TypeKind::MetaBlock(_) => false,
+        TypeKind::MetaEval(_) | TypeKind::MetaBlock(_) | TypeKind::MetaSplice(_) => false,
     }
 }
 
@@ -66,7 +66,7 @@ fn referenced_type(ty: &s::TypeRef, names: &mut Vec<Vec<String>>) {
         TypeKind::Array { element, .. } => referenced_type(element, names),
         TypeKind::Function { params, result } | TypeKind::ForeignFunction { params, result, .. } => { for ty in params { referenced_type(ty, names); } referenced_type(result, names); }
         TypeKind::Error { error, result } => { referenced_type(error, names); referenced_type(result, names); }
-        TypeKind::MetaEval(_) | TypeKind::MetaBlock(_) => {}
+        TypeKind::MetaEval(_) | TypeKind::MetaBlock(_) | TypeKind::MetaSplice(_) => {}
     }
 }
 

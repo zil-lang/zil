@@ -162,3 +162,18 @@ pub fn registry_fingerprint(lock: &SyntaxLock) -> Fingerprint {
     bytes.extend_from_slice(&lock.fingerprint.0);
     Fingerprint::of(&bytes)
 }
+
+pub(super) fn provider_entry<'a>(
+    registry: &'a CtLockedProviderRegistry,
+    path: &str,
+    export: &str,
+    delimiter: CtDelimiter,
+    span: Span,
+) -> CompileResult<&'a CtProviderEntry> {
+    let entry = registry.entries.iter().find(|entry| entry.path == path && entry.export == export)
+        .ok_or_else(|| error("E-SYNTAX-LOCK-ENTRY", Some(span), format!("provider {path} has no locked export {export}")))?;
+    if !entry.delimiters.contains(&delimiter) {
+        return Err(error("E-SYNTAX-LOCK-DELIMITER", Some(span), format!("provider {path}.{export} does not allow this delimiter")));
+    }
+    Ok(entry)
+}
