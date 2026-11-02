@@ -2409,6 +2409,17 @@ impl Check<'_, '_, '_> {
                                 "local FnMut call requires a mutable binding",
                             ));
                         }
+                        zil_ir::CallableKind::FnMut
+                            if self
+                                .callable
+                                .as_ref()
+                                .is_some_and(|bounds| bounds.forwarded) =>
+                        {
+                            return Err(error(
+                                e.span,
+                                "FnMut forwarding call requires a mutable binding",
+                            ));
+                        }
                         zil_ir::CallableKind::FnOnce if mode.is_none() => {
                             self.alias_invalidate(state, local.id, None, callee.span)?;
                             state.moved.insert(local.id);

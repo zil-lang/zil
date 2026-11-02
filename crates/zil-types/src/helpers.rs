@@ -941,11 +941,12 @@ impl Builder<'_, '_> {
                 .iter()
                 .enumerate()
                 .filter_map(|(index, capture)| {
-                    matches!(
-                        capture.stored_type(),
-                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-                    )
-                    .then_some(index as u32)
+                    // Self containment was checked at the input boundary.
+                    // Classify borrowed fields without cloning their type tree.
+                    ((matches!(capture.ty, Type::Managed(_)) && capture.moved)
+                        || (matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
+                            && !capture.borrowed))
+                        .then_some(index as u32)
                 })
                 .collect();
             typed.callable_return_contract = Some(CallableReturnContract {
