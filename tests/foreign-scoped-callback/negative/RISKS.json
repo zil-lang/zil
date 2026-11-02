@@ -5,7 +5,7 @@
     "rule": "12.4.1",
     "risk": "callback must be Fn or FnMut; body consuming a callback capture makes f FnOnce",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "borrowed_callback_environment",
@@ -13,7 +13,7 @@
     "rule": "12.4.1",
     "risk": "actual callback captures a caller address rather than a self-contained environment",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "body_captures_same_callback",
@@ -21,7 +21,7 @@
     "rule": "12.4.1",
     "risk": "body borrows the same actual f during the exclusive registration window",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "body_moves_same_callback",
@@ -29,7 +29,7 @@
     "rule": "12.4.1",
     "risk": "moving non-Copy f into body leaves no initialized f to register",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "body_captures_callback_alias",
@@ -37,7 +37,9 @@
     "rule": "12.4.1",
     "risk": "body captures a shared address alias of the same f; a different SSA name is not a disjoint instance",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "historical/out-of-profile gap; excluded from current semantic rejection group",
+    "current_source_coverage": false,
+    "profile_gap": "Existing explicit Address<Closure> capture is Unsupported before this feature; not a semantic rejection Pass. Root keeps this source gap and requires independent raw alias controls."
   },
   {
     "name": "missing_unsafe_region",
@@ -45,7 +47,7 @@
     "rule": "12.4.1",
     "risk": "external publication requires a real entered unsafe region",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "swapped_roles",
@@ -53,7 +55,7 @@
     "rule": "12.4.1",
     "risk": "register and close declarations must have their actual distinct roles and signatures",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "missing_register_role",
@@ -61,7 +63,7 @@
     "rule": "12.4.1",
     "risk": "same ABI without an explicit register role cannot provide the external lifecycle promise",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "wrong_register_signature",
@@ -69,7 +71,7 @@
     "rule": "12.4.1",
     "risk": "register requires an i64 packed status/result callback, not an i32 callback",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "ordinary_role_call",
@@ -77,7 +79,7 @@
     "rule": "12.4.1",
     "risk": "a role declaration cannot bypass structured publication via ordinary ForeignCall",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "wrong_body_result",
@@ -85,7 +87,7 @@
     "rule": "12.4.1",
     "risk": "body must be a concrete zero-argument i32 callable",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "wrong_callback_signature",
@@ -93,7 +95,7 @@
     "rule": "12.4.1",
     "risk": "actual callback argument must be i32, not i64",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
   },
   {
     "name": "body_used_after_consumption",
@@ -101,6 +103,14 @@
     "rule": "12.4.1",
     "risk": "body is consumed by the structured call even if its implementation is Fn",
     "required_category": "SafeReject",
-    "diagnostic_binding": "pending source-phase/code contract; not executed or accepted as a rejection"
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs; no Unsupported accepted"
+  },
+  {
+    "name": "caller_keeps_live_callback_alias",
+    "source": "caller_keeps_live_callback_alias.zil",
+    "rule": "12.4.1",
+    "risk": "an existing shared alias of actual f remains live across its exclusive publication window; alias is an ordinary local, not a captured Address<Closure>",
+    "required_category": "SafeReject",
+    "diagnostic_binding": "strict source phase/code/reason in foreign_scoped_callbacks.rs"
   }
 ]

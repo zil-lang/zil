@@ -55,8 +55,12 @@ impl Drop for Temp {
         }
     }
 }
-fn project() -> ProjectSources {
-    let names = ["main", "model", "bridge"];
+fn project(entry: &str) -> ProjectSources {
+    let names = if entry == "disjoint_body_main" {
+        vec![entry, "bridge"]
+    } else {
+        vec![entry, "model", "bridge"]
+    };
     ProjectSources {
         root: ModuleId(0),
         modules: names
@@ -137,7 +141,7 @@ fn checked(command: &mut Command) {
     let output = command.output().unwrap();
     assert!(output.status.success(), "{command:?}: {output:?}");
 }
-fn compile(temporary: &Temp, optimization: Optimization) -> PathBuf {
+fn compile(temporary: &Temp, optimization: Optimization, entry: &str) -> PathBuf {
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| "clang".into());
@@ -172,7 +176,7 @@ fn compile(temporary: &Temp, optimization: Optimization) -> PathBuf {
     )).unwrap();
     fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
     let report = compile_project(
-        &project(),
+        &project(entry),
         &CompileOptions {
             backend: backend(),
             optimization,
@@ -291,7 +295,7 @@ fn observe(program: &Path, temporary: &Temp, expected: &Expected) {
 
 #[test]
 fn scoped_event_loop_source_reaches_independent_verification() {
-    let report = compile_project(&project(), &CompileOptions::default());
+    let report = compile_project(&project("main"), &CompileOptions::default());
     assert_eq!(
         report.status,
         ResultCategory::Success,
@@ -311,7 +315,7 @@ fn scoped_event_loop_matches_source_oracle_at_o0_and_o2() {
         } else {
             "o2"
         });
-        let binary = compile(&temporary, optimization);
+        let binary = compile(&temporary, optimization, "main");
         for row in &expected {
             observe(&binary, &temporary, row);
         }
@@ -348,7 +352,7 @@ fn scoped_callback_source_rejections_bind_the_actual_risk() {
             "",
         ),
         (
-            "body_captures_callback_alias",
+            "caller_keeps_live_callback_alias",
             Phase::Analyze,
             "E-BORROW-CONFLICT",
             "",
@@ -424,4 +428,32 @@ fn scoped_callback_source_rejections_bind_the_actual_risk() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn scoped_body_can_borrow_a_disjoint_scalar_through_an_event_loop() {
+    let report = compile_project(&project("disjoint_body_main"), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    // This nearby program has exactly mode 0's external events and no allocation.
+    // It additionally mutates a disjoint caller scalar twice and checks it after
+    // body consumption. The original matrix and frozen oracle stay unchanged.
+    let expected = rows()
+        .into_iter()
+        .find(|r| r.input == b'0' && r.fail_at == 0)
+        .unwrap();
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let temporary = Temp::new(if optimization == Optimization::O0 {
+            "disjoint-o0"
+        } else {
+            "disjoint-o2"
+        });
+        let program = compile(&temporary, optimization, "disjoint_body_main");
+        observe(&program, &temporary, &expected);
+    }
 }

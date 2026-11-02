@@ -38,8 +38,22 @@ It does not invoke undefined C behavior as a language-safety test.
 Temporary output directories use input-byte hex labels. No historical evidence,
 full-output archive, transport round trip or permanent audit store is required.
 
-`negative/` contains 13 standalone source controls. Their risk descriptions are
+`negative/` contains 13 current standalone rejection controls and the preserved
+explicit Address<Closure> capture gap. Their risk descriptions are
 frozen in RISKS.json; the one functional Rust target also matches source phase,
 code and relevant reason, with zero machine execution for illegal cases. These
 are obligations, not a claim of rejection before actual execution. The raw
 verifier's own codes are not substituted for the first source diagnostic.
+
+`project/disjoint_body_main.zil` is a separate positive nearby control: body
+updates an unrelated borrowed i32 twice in its actual event loop. The observable
+C events, result and six zero-allocation counters equal the original mode-0 row;
+the original ten-mode source/oracle stays unchanged. Its native group is two
+additional runs per selected backend (O0/O2), separate from the original 66.
+
+The explicit body-captured Address<Closure> alias source currently fails an old
+capture-profile gate before this feature's alias kernel. It is retained as an
+uncovered gap, never counted as a semantic rejection Pass. The current local
+alias control instead keeps an ordinary shared f address live across exclusive
+publication without capturing that address in body; it reaches Analyze. Raw
+same-root rejection and distinct-root acceptance remain independent obligations.
