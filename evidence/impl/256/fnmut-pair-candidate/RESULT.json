@@ -1,0 +1,63 @@
+{
+  "verdict": "Fail: positive poststate matches; in-scope negative category still Unsupported",
+  "tested_commit": "9201f841d9a3e794ebac014110df75a4cf89a183",
+  "source_expectations": "tests/impl256/paired/EXPECTED.json",
+  "source_expected_sha256": "7e1437abb94df669ff85bb78dbc8214b15bea3494ce6dee3dfc606f09d988e5f",
+  "actual_compile_attempts": 3,
+  "native_runs": 2,
+  "positive_expected": {
+    "stdout": "123M",
+    "exit": 0
+  },
+  "negative_expected": "SafeReject",
+  "negative_actual": "Unsupported expand: callable bound requires its matching environment passing mode",
+  "exact_bad_span_source": "current(1)",
+  "rows": [
+    {
+      "case": "fnmut_return_current_let-O0",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable bound requires its matching environment passing mode",
+          "span": {
+            "file": 0,
+            "start": 111,
+            "end": 121
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "source_sha256": "369cb98d2022fccb91d13a638182dd1dc276c4aabeb63529af8de1b9991370bd"
+    },
+    {
+      "case": "fnmut_return_current_var-O0",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": "1b435b51e13515a49029550a03e7ff6eebe838c550651e29d772b0290328b612",
+      "stdout": "123M",
+      "stderr": "",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "fnmut_return_current_var-O2",
+      "status": "Success",
+      "phase": "link",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "source_sha256": "1b435b51e13515a49029550a03e7ff6eebe838c550651e29d772b0290328b612",
+      "stdout": "123M",
+      "stderr": "",
+      "exit": "Some(0)"
+    }
+  ],
+  "old_boundary_selection_unchanged": true,
+  "old_source_and_expectation_unchanged": true,
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl256-pair-A cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl256_pair -- --nocapture"
+}

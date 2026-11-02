@@ -1,0 +1,22 @@
+   Compiling zil-types v0.1.0 (/workspace/zil-256/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/zil-256/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-256/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/zil-256/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 22.89s
+     Running tests/impl256_pair.rs (/workspace/.zil-env/target-256/debug/deps/impl256_pair-ba2928c5935d1927)
+
+running 1 test
+
+thread 'fnmut_returned_parameter_requires_writable_position_and_keeps_poststate' (167955) panicked at crates/zil-driver/tests/impl256_pair.rs:97:5:
+{"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"callable bound requires its matching environment passing mode","span":{"file":0,"start":111,"end":121},"notes":[]}],"artifacts":{"syntax":"/tmp/impl256-pair-A/consumer256-pair-167954/fnmut_return_current_let-O0/phases/syntax.txt"},"input_fingerprint":"369cb98d2022fccb91d13a638182dd1dc276c4aabeb63529af8de1b9991370bd","seconds":0.006486539,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"/workspace/zil-256/crates/zil-driver/../../tests/impl256/paired/fnmut_return_current_let.zil"},"scalar_interfaces":[]}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test fnmut_returned_parameter_requires_writable_position_and_keeps_poststate ... FAILED
+
+failures:
+
+failures:
+    fnmut_returned_parameter_requires_writable_position_and_keeps_poststate
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+error: test failed, to rerun pass `-p zil-driver --test impl256_pair`
