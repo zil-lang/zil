@@ -518,6 +518,22 @@ pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
         && (result.is_copy_value()
             || (parameters.iter().all(Type::is_copy_value) && lending::supported_result(result)))
 }
+/// Ordinary owned data signatures are deliberately separate from the retained
+/// factory, State and address profiles. This grants no capture/container right.
+pub(super) fn owned_signature_value(ty: &Type) -> bool {
+    ty.is_copy_value()
+        || (matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. })
+            && owned_shapes::value(ty))
+}
+
+pub(super) fn owned_signature_head(ty: &Type) -> bool {
+    matches!(ty, Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. })
+}
+
+pub(super) fn value_signature(parameters: &[Type], result: &Type) -> bool {
+    supported_signature(parameters, result)
+        || (parameters.iter().all(owned_signature_value) && owned_signature_value(result))
+}
 pub(super) const UNIT: u8 = 1;
 pub(super) const BOOL: u8 = 2;
 pub(super) const I32: u8 = 4;
@@ -1391,7 +1407,7 @@ impl Inference {
             "E-CLOSURE-INFERENCE", span,
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
-        if !supported_signature(&signature.0, &signature.1) {
+        if !value_signature(&signature.0, &signature.1) {
             return Err(unsupported(
                 span,
                 "closure signatures require finite Copy or one-layer Copy/slice-address arguments; address arguments require a Copy result",
@@ -1581,7 +1597,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             let variable = this.graph.fresh(VALUE, false);
             if let Some(ty) = &parameter.ty {
-                if !signature_parameter(ty) {
+                if !signature_parameter(ty) && !owned_signature_head(ty) {
                     return Err(unsupported(
                         parameter.span,
                         "closure parameters require a finite Copy type or one Copy/slice address layer",
