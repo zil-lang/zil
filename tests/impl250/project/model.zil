@@ -29,6 +29,16 @@ pub fn prepare_owned_error()->OwnedFault!Event{
 pub fn reply(event:Event,add:i32)->Reply{
     return Reply{mark:give event.mark,payload:give event.payload,code:event.code+add}
 }
+pub fn capture_reply(event:Event,give payload:ByteBuffer)->Reply{
+    return Reply{mark:give event.mark,payload:give payload,code:event.code+1}
+}
+pub fn render_capture(reply:Reply)->i32{
+    emit(82)
+    if bytes_len(reply.payload)!=1{return 2}
+    let view=bytes_view(reply.payload)
+    if view[0]!=86u8{return 3}
+    return reply.code-42
+}
 pub fn render(reply:Reply,want:i32)->i32{
     emit(82)
     if bytes_len(reply.payload)!=1{return 2}

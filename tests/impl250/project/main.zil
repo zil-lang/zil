@@ -92,6 +92,23 @@ fn body_error()->model.Fault!i32{
     let reply=handler(model.prepare(false,65,41)?)?
     return model.render(reply,42)
 }
+fn capture_result()->model.Fault!i32{
+    model.emit(83)
+    defer{model.emit(81)}
+    let active=model.Mark{code:72}
+    let spare=model.Mark{code:104}
+    let payload=bytes_new()
+    if !bytes_reserve(payload,1){return model.Fault.NoMemory}
+    bytes_push(payload,86u8)
+    let handler=move(event:model.Event)->model.Reply=>{
+        model.emit(67)
+        let held=give active
+        let seen=spare.code
+        return model.capture_reply(event,give payload)
+    }
+    let reply=dispatch.dispatch(handler,model.prepare(false,65,41)?)
+    return model.render_capture(reply)
+}
 fn main()->model.Fault!i32{
     let mode=model.read()-48
     if mode==0{return once(false)}
@@ -105,5 +122,6 @@ fn main()->model.Fault!i32{
     if mode==8{return sum(true)}
     if mode==9{return later(false)}
     if mode==10{return body_error()}
+    if mode==11{return capture_result()}
     return 9
 }

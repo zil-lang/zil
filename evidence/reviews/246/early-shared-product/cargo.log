@@ -1,0 +1,23 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-250/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.73s
+     Running tests/review246_owned_signatures.rs (/workspace/.zil-env/target-250/debug/deps/review246_owned_signatures-1bf53f29ce571e2f)
+
+running 3 tests
+test unused_public_single_once_definitions_check_the_complete_owned_signature ... ok
+test consuming_new_data_does_not_consume_fn_or_fnmut_environment ... ok
+
+thread 'owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles' (44485) panicked at crates/zil-driver/tests/review246_owned_signatures.rs:104:9:
+assertion `left == right` failed: shared-product-owning-result: {"status":"Success","phase":"types","diagnostics":[],"artifacts":{},"input_fingerprint":"c07e3a07649f129a8af9b4ce65234c59ddc1dd83980ed4add854579fe9f76f16","seconds":0.00447089,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"},{"phase":"ct","disposition":"executed"},{"phase":"types","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"review246.zil"},"scalar_interfaces":[]}
+  left: Success
+ right: Unsupported
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles ... FAILED
+
+failures:
+
+failures:
+    owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test review246_owned_signatures`
