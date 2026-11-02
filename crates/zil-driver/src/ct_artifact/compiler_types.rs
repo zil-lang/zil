@@ -33,7 +33,7 @@ impl<'a> Compiler<'a> {
             None => Ok(false),
         }
     }
-    fn ct_only_type(
+    pub(super) fn ct_only_type(
         &mut self,
         module: usize,
         ty: &s::TypeRef,
