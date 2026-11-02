@@ -344,19 +344,6 @@ fn owned_callback_signature_does_not_extend_state_array_store_or_opaque_factory(
     let mut raw = dispatch();
     raw.module.functions[2].locals.push(LocalDecl {
         id: LocalId(0),
-        name: "unused_array".into(),
-        ty: Type::Array {
-            element: Box::new(env()),
-            length: 1,
-        },
-        mutable: true,
-        span: span(),
-    });
-    raw.reject("container and opaque callback profiles do not admit owning data signatures");
-
-    let mut raw = dispatch();
-    raw.module.functions[2].locals.push(LocalDecl {
-        id: LocalId(0),
         name: "unused_store".into(),
         ty: Type::Managed(Box::new(Type::OwnedStore {
             element: Box::new(state),
@@ -390,6 +377,22 @@ fn owned_callback_signature_does_not_extend_state_array_store_or_opaque_factory(
         lending_captures: vec![],
     });
     raw.reject("container and opaque callback profiles do not admit owning data signatures");
+}
+
+#[test]
+fn declared_but_uninitialized_private_slot_is_allowed_raw_wire() {
+    let mut raw = dispatch();
+    raw.module.functions[2].locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "unused_array".into(),
+        ty: Type::Array {
+            element: Box::new(env()),
+            length: 1,
+        },
+        mutable: true,
+        span: span(),
+    });
+    raw.accept();
 }
 
 fn slot_through_reused_local(replace: bool) -> Raw {
