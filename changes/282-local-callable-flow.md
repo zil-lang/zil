@@ -42,6 +42,14 @@
 
 限定复核：Analyze `concrete_`16项、`forward::tests`14项、`independent_once_state_consumes_captures_and_rejects_reuse`1项、`single_state_constructor_does_not_acquire_new_sum_companion_parameters`1项通过；同一Analyze Clippy和文件rustfmt检查通过。本树未叠279的scoped借入精确2352仍保持；集成叠279后真实新增费用由集成方另测，不把单片费用断言覆盖组合费用。
 
+## 127兼容修复第一片：限定工厂精确证明触发
+
+e80将任意公共Fresh Call都接入强身份证明，误拒旧127已核Copy环境的Fn SSA观察/局部别名；这不是合法源码应有的拒绝。Fresh工厂单独存在恢复沿旧origins/trace核：其真实Fn声明、实际Copy资格、来源及调用次数仍核验。只有工厂与子helper角色转交或实际callable聚合操作组合时，新增工厂触发才启用原精确证明；原MakeClosure、With及Parameter返回触发保持。聚合实际操作数分类预费，已经启用证明的路径不重复分类；不改FnOnce、捕获/聚合、任意Call或Parameter返回身份的规则。
+
+两真实回归`good_move_alias.zil`与`good_borrowed_alias.zil`已原字节固化到既有`impl127_local_factory.rs`的两项verify-only测试：共同`make(seed)->impl Fn()->i32`，普通`run<F:Fn()->i32>`先`local=make(5)`，分别`alias=f;alias()+alias()+local()`与`alias=&f;f()+alias()+local()`，main传make(10)并减25。实际CLI两源均Success/phase verify、verification_runs=1；两新增真实source测试通过。本片没有机器执行。
+
+限定`impl127_raw_factory`首跑3/4通过：旧同型实际值及F别名正例恢复，mixed/borrowed两类恢复原Unsupported；剩余nested行把Fresh Call改为只捕获i32的新MakeClosure，仍被既有精确证明的Copy观察门拒绝。未修改该原期待，不冒称4/4；独立审查已确认该nested应按本批普通helper本地闭包合同晋升，后继将另补精确观察兼容。`concrete_`16项、`forward::tests`14项及Analyze Clippy通过，factory-only子helper N2073及原精确控制保持。Rust四目标与机器/产品突破限制不随这次兼容恢复改变。
+
 ## 限定验证与分账
 
 工具链 `/workspace/.zil-env/env.sh`，`CARGO_TARGET_DIR=/workspace/.zil-env/target-282`，jobs2：

@@ -207,6 +207,22 @@ fn parameter_alias_retains_parameter_origin() {
     trace(&source, CallableKind::Fn, &[1]);
     native(&project(&[("main", &source)]), "parameter-alias", "42\n", 0);
 }
+
+#[test]
+fn ordinary_factory_keeps_legacy_fn_move_alias_observations() {
+    let text = "fn make(seed:i32)->impl Fn()->i32{return move()->i32=>seed}\nfn run<F:Fn()->i32>(f:F)->i32{let local=make(5);let alias=f;return alias()+alias()+local()}fn main()->i32{let f=make(10);return run(f)-25}\n";
+    let input = project(&[("app", text)]);
+    let case = Case::new("legacy-fn-move-alias");
+    success(&compile(&input, &case, None));
+}
+
+#[test]
+fn ordinary_factory_keeps_legacy_fn_borrowed_alias_observations() {
+    let text = "fn make(seed:i32)->impl Fn()->i32{return move()->i32=>seed}\nfn run<F:Fn()->i32>(f:F)->i32{let local=make(5);let alias=&f;return f()+alias()+local()}fn main()->i32{let f=make(10);return run(f)-25}\n";
+    let input = project(&[("app", text)]);
+    let case = Case::new("legacy-fn-borrowed-alias");
+    success(&compile(&input, &case, None));
+}
 #[test]
 fn four_modules_clean_called_unused_and_error_environments() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
