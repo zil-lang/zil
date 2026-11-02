@@ -1,5 +1,33 @@
 //! Analyze's independent structured external-call envelope; no producer claims.
 use super::*;
+fn entry(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(
+        closure.parameters.len().saturating_add(1),
+        "scoped actual closure entry signature",
+    )?;
+    let f = module
+        .functions
+        .get(closure.function.0 as usize)
+        .ok_or_else(|| bad("scoped closure entry is absent"))?;
+    if f.environment != Some(closure.id)
+        || f.foreign.is_some()
+        || f.return_type != closure.result
+        || f.parameters.len() != closure.parameters.len()
+        || f.result_mode != PassingMode::Infer
+    {
+        return Err(bad("scoped closure differs from its actual entry"));
+    }
+    for (local, ty) in f.parameters.iter().zip(&closure.parameters) {
+        if f.locals.get(local.0 as usize).map(|l| &l.ty) != Some(ty) {
+            return Err(bad("scoped closure entry parameter differs"));
+        }
+    }
+    Ok(())
+}
 fn declaration(
     function: &TypedFunction,
     role: ScopedCallbackRole,
@@ -53,6 +81,7 @@ pub(super) fn check(
     if !budget.scoped_foreign {
         return Ok(());
     }
+    let mut calls = Vec::new();
     for function in &module.functions {
         budget.spend(1, "scoped callback declaration inventory")?;
         if let Some(role) = function.foreign.as_ref().and_then(|f| f.scoped_callback) {
@@ -62,14 +91,27 @@ pub(super) fn check(
             budget.spend(1, "scoped callback envelope block")?;
             for instruction in &block.instructions {
                 budget.spend(1, "scoped callback envelope instruction")?;
+                if let InstructionKind::Call {
+                    function: callee, ..
+                } = instruction.kind
+                {
+                    budget.spend(1, "scoped actual call dependency")?;
+                    calls.push((function.id, callee));
+                }
                 match instruction.kind {
                     InstructionKind::ForeignCall {
                         function: callee, ..
-                    } if module
-                        .functions
-                        .get(callee.0 as usize)
-                        .and_then(|f| f.foreign.as_ref())
-                        .is_some_and(|f| f.scoped_callback.is_some()) =>
+                    }
+                    | InstructionKind::Call {
+                        function: callee, ..
+                    }
+                    | InstructionKind::FunctionRef { function: callee }
+                    | InstructionKind::ForeignFunctionRef { function: callee }
+                        if module
+                            .functions
+                            .get(callee.0 as usize)
+                            .and_then(|f| f.foreign.as_ref())
+                            .is_some_and(|f| f.scoped_callback.is_some()) =>
                     {
                         return Err(bad(
                             "scoped callback role cannot be an ordinary ForeignCall",
@@ -116,6 +158,7 @@ pub(super) fn check(
                             ));
                         }
                         callable_fields::self_contained(module, *id, budget)?;
+                        entry(module, callback, budget)?;
                         let Type::Closure(body) = function.values[body.0 as usize] else {
                             return Err(bad("scoped body must be a concrete closure value"));
                         };
@@ -131,6 +174,7 @@ pub(super) fn check(
                                 "scoped body must support once-consumption with ()->i32",
                             ));
                         }
+                        entry(module, body, budget)?;
                         if instruction
                             .result
                             .and_then(|v| function.values.get(v.0 as usize))
@@ -138,11 +182,6 @@ pub(super) fn check(
                         {
                             return Err(bad("scoped callback result must be (bool,i32)"));
                         }
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "scoped foreign callback alias/window reconstruction is pending",
-                            Some(instruction.span),
-                        )]);
                     }
                     _ => {}
                 }
@@ -187,10 +226,10 @@ pub(super) fn check(
                             ));
                         }
                     }
-                    InstructionKind::WithForeignCallback { region, .. } => {
-                        if stack.last() != Some(&region) {
-                            return Err(bad("scoped callback has no actual active unsafe region"));
-                        }
+                    InstructionKind::WithForeignCallback { region, .. }
+                        if stack.last() != Some(&region) =>
+                    {
+                        return Err(bad("scoped callback has no actual active unsafe region"));
                     }
                     _ => {}
                 }
@@ -229,6 +268,25 @@ pub(super) fn check(
                     queue.push_back(successor.0 as usize);
                 }
             }
+        }
+    }
+    loop {
+        let mut changed = false;
+        for (caller, callee) in &calls {
+            budget.lookup(
+                budget.scoped_functions.len(),
+                "scoped actual caller dependency",
+            )?;
+            if budget.scoped_functions.contains(callee) {
+                budget.lookup(
+                    budget.scoped_functions.len(),
+                    "scoped caller window publication",
+                )?;
+                changed |= budget.scoped_functions.insert(*caller);
+            }
+        }
+        if !changed {
+            break;
         }
     }
     Ok(())

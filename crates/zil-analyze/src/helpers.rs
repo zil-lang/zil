@@ -134,10 +134,17 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     let mut depths: Option<Vec<usize>> = None;
     let mut incoming = vec![0usize; count];
     let mut users = vec![Vec::new(); count];
-    if !budget.parameter_returns.is_empty() {
+    if !budget.parameter_returns.is_empty() || !budget.scoped_functions.is_empty() {
         budget.spend(count, "forward helper dependency flags")?;
         budget.forward_functions = vec![false; count];
         for id in &budget.parameter_returns {
+            budget.forward_functions[id.0 as usize] = true;
+        }
+        budget.spend(
+            budget.scoped_functions.len(),
+            "scoped actual helper instance proof",
+        )?;
+        for id in &budget.scoped_functions {
             budget.forward_functions[id.0 as usize] = true;
         }
     }

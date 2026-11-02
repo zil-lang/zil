@@ -32,6 +32,7 @@ pub(super) struct Budget {
     pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
     pub(super) scoped_foreign: bool,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
+    pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
     sum_roots: BTreeSet<usize>,
 }
 
@@ -54,6 +55,7 @@ impl Budget {
             forward_closures: BTreeSet::new(),
             scoped_foreign: false,
             scoped_functions: BTreeSet::new(),
+            scoped_helper_bodies: std::collections::BTreeMap::new(),
             sum_roots: BTreeSet::new(),
         }
     }

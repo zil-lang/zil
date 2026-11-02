@@ -2360,9 +2360,14 @@ impl Flow<'_> {
                                     live_sources(state, &fact, budget)?;
                                 }
                             }
-                            if consume {
+                            {
+                                let ty = if let Type::Address { inner, .. } = ty {
+                                    inner.as_ref()
+                                } else {
+                                    ty
+                                };
                                 let Type::Closure(id) = ty else {
-                                    return Err(error("scoped callback body is not a closure"));
+                                    return Err(error("scoped callback operand is not a closure"));
                                 };
                                 let definition = &self.module.closures[id.0 as usize];
                                 if let Some(dependencies) = self.dependencies {
@@ -2734,6 +2739,16 @@ fn effect_consumers(
             }
             for instruction in &block.instructions {
                 budget.spend(1, "resource effect frontier instruction")?;
+                if let InstructionKind::WithForeignCallback { callback, .. } = instruction.kind {
+                    let callee = effect_entry(module, &function.values[callback.0 as usize])?;
+                    let users = consumers
+                        .get_mut(callee)
+                        .ok_or_else(|| error("scoped callback entry is absent"))?;
+                    if users.last() != Some(&caller) {
+                        budget.spend(2, "scoped callback effect frontier edge")?;
+                        users.push(caller);
+                    }
+                }
                 let callee = match &instruction.kind {
                     InstructionKind::Call { function, .. } => {
                         let target = module
