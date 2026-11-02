@@ -501,6 +501,13 @@ impl CompilationSession {
                 } else { None };
                 let mut runtime_imports = imports.clone();
                 if let Some(result) = &mut ct_result {
+                    for (module, import) in &result.required_imports {
+                        let index = project.modules.iter().position(|source| source.module_id == *module)
+                            .ok_or_else(|| infra("E-CT-IMPORT", "generated caller is outside the frozen project"))?;
+                        if !runtime_imports[index].iter().any(|existing| existing.alias == import.alias && existing.module == import.module) {
+                            runtime_imports[index].push(import.clone());
+                        }
+                    }
                     let active = result.modules.iter().map(|module| (module.id,
                         module.items.iter().any(|item| !matches!(item.kind, ast::ItemKind::Import(_)))))
                         .collect::<BTreeMap<_, _>>();
