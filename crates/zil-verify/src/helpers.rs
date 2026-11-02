@@ -25,6 +25,15 @@ pub(super) fn parameter_type(ty: &Type) -> Option<(ClosureId, bool)> {
     }
 }
 
+fn forwarded_single_slot(f: &TypedFunction, roles: &[CallableRole], ty: &Type) -> bool {
+    f.callable_return_contract
+        .as_ref()
+        .is_some_and(|contract| matches!(contract.source, CallableReturnSource::Parameter(_)))
+        && matches!(roles, [role] if matches!(ty,
+        Type::Array { element, length: 1 }
+            if element.as_ref() == &Type::Closure(role.closure)))
+}
+
 struct EnvironmentOrigins {
     values_at: usize,
     marks: Vec<u8>,
@@ -62,10 +71,22 @@ fn environment_origins(
                 budget.spend(1)?;
                 edges[values_at + value.0 as usize].push(local.0 as usize);
             }
+            if let InstructionKind::StoreOwnedArrayElement {
+                local,
+                index: 0,
+                value,
+            } = instruction.kind
+                && forwarded_single_slot(f, roles, &f.locals[local.0 as usize].ty)
+            {
+                budget.spend(1)?;
+                edges[values_at + value.0 as usize].push(local.0 as usize);
+            }
             let Some(result) = instruction.result else {
                 continue;
             };
-            if parameter_type(&f.values[result.0 as usize]).is_none() {
+            if parameter_type(&f.values[result.0 as usize]).is_none()
+                && !forwarded_single_slot(f, roles, &f.values[result.0 as usize])
+            {
                 continue;
             }
             let destination = values_at + result.0 as usize;
@@ -76,6 +97,18 @@ fn environment_origins(
                 | InstructionKind::BorrowLocalMut { local } => Some(local.0 as usize),
                 InstructionKind::ReborrowAddress { address, .. } => {
                     Some(values_at + address.0 as usize)
+                }
+                InstructionKind::TakeOwnedArrayElement { local, index: 0 }
+                | InstructionKind::BorrowOwnedArrayElement {
+                    local, index: 0, ..
+                } if forwarded_single_slot(f, roles, &f.locals[local.0 as usize].ty) => {
+                    Some(local.0 as usize)
+                }
+                InstructionKind::MakeOwnedArray { ref elements }
+                    if forwarded_single_slot(f, roles, &f.values[result.0 as usize])
+                        && elements.len() == 1 =>
+                {
+                    Some(values_at + elements[0].0 as usize)
                 }
                 _ => None,
             };
