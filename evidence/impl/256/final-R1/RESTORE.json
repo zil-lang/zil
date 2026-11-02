@@ -1,0 +1,28 @@
+{
+  "status": "Pass",
+  "script_sha256": "ff085f3d444c085d554f7a48a2ca2f20423b0f486a362523fd5a88affb9ec67b",
+  "auditor": "/root/assess_delivery_process",
+  "expected_head": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+  "pinned_producer_sha256": "d42d485328fc094cb637ecf4e268cc6d16f4cf926c31dfb288970518bc814f74",
+  "archive": "/workspace/.zil-env/forward/R1/workspace.tar.zst",
+  "archive_sha256": "fc6708ccd6d53f5ca72a05590b3168e555be563ccf06fe939c6268b1922f3b54",
+  "archive_bytes": 67135340,
+  "full_index_files": 79441,
+  "all_content_addressed_blobs": "Pass",
+  "selected_files": 2047,
+  "selected_logical_bytes": 114872122,
+  "unique_selected_objects": 455,
+  "actual_restored_modes_sizes_sha256": "Pass",
+  "index_run_id": null,
+  "index_checkout": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+  "index_missing_roots": [
+    "consumer209",
+    "llvm-23.1.4/install-receipt.json",
+    "llvm-23.1.4/installation-logs"
+  ],
+  "restored_root": "/workspace/.zil-env/forward/R1/consumer256-workspace-selected/restored",
+  "full_index": "/workspace/.zil-env/forward/R1/consumer256-workspace-selected/INDEX.json",
+  "selection_index": "/workspace/.zil-env/forward/R1/consumer256-workspace-selected/SELECTED.json",
+  "original_json_rewritten": false,
+  "scope": "Selected file restoration only; source execution identity and grouped consumer acceptance are separate collector/audit checks."
+}
