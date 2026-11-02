@@ -720,3 +720,179 @@ fn internal_owned_slot_can_restore_across_loop_but_not_replace_parameter_with_fr
     f.blocks[0].terminator = Terminator::Return(Some(ValueId(8)));
     rejected(&m);
 }
+
+#[test]
+fn forward_work_is_per_request_exact_and_not_a_cached_permission() {
+    let m = owned_slot();
+    let defaults = Limits::default();
+    let mut budget = Budget::new(&defaults);
+    let expected = analyze_budgeted(&m, &defaults, &mut budget, None).unwrap();
+    let n = defaults.max_analysis_steps - budget.remaining();
+    for steps in [n, n - 1, n] {
+        let result = analyze(
+            &m,
+            &Limits {
+                max_analysis_steps: steps,
+                ..defaults.clone()
+            },
+        );
+        if steps == n {
+            assert_eq!(result.unwrap(), expected);
+        } else {
+            assert!(
+                result
+                    .unwrap_err()
+                    .iter()
+                    .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+            );
+        }
+    }
+    let mut session = AnalysisSession::default();
+    assert_eq!(session.analyze(&m, &defaults).unwrap(), expected);
+    let mut stale = m.clone();
+    stale.functions[1].blocks[0].instructions.swap(6, 7);
+    assert!(session.analyze(&stale, &defaults).is_err());
+    assert_eq!(session.analyze(&m, &defaults).unwrap(), expected);
+    println!(
+        "253 raw owning slot Analyze N={n}; N-1 ResourceLimit only; fresh N identical; incremental stale loan rejected"
+    );
+}
+
+#[test]
+fn returning_a_child_does_not_keep_a_borrow_of_its_old_capture_position_alive() {
+    let mut m = owned_slot();
+    let mut parent = m.functions[0].clone();
+    parent.id = FunctionId(2);
+    parent.name = "parent".into();
+    parent.environment = Some(ClosureId(1));
+    parent.locals = vec![local(0, Type::Closure(ClosureId(0)))];
+    parent.values = vec![
+        Type::Address {
+            mutable: true,
+            inner: Box::new(Type::Closure(ClosureId(0))),
+        },
+        Type::Closure(ClosureId(0)),
+        Type::Bool,
+        Type::Closure(ClosureId(0)),
+        Type::I32,
+    ];
+    parent.blocks = vec![block(
+        0,
+        vec![
+            enter(),
+            op(None, InstructionKind::StorageLive(LocalId(0))),
+            op(
+                Some(ValueId(0)),
+                InstructionKind::BorrowCapture {
+                    index: 0,
+                    mutable: true,
+                },
+            ),
+            op(
+                Some(ValueId(4)),
+                InstructionKind::CallClosureBorrowed {
+                    callee: ValueId(0),
+                    kind: CallableKind::FnMut,
+                    arguments: vec![],
+                },
+            ),
+            op(Some(ValueId(1)), InstructionKind::TakeCapture { index: 0 }),
+            op(
+                Some(ValueId(2)),
+                InstructionKind::Constant(Constant::Bool(false)),
+            ),
+            op(
+                Some(ValueId(3)),
+                InstructionKind::Call {
+                    function: FunctionId(1),
+                    arguments: vec![ValueId(2), ValueId(1)],
+                },
+            ),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(0),
+                    value: ValueId(3),
+                },
+            ),
+            op(None, InstructionKind::DropClosure { local: LocalId(0) }),
+            op(None, InstructionKind::StorageDead(LocalId(0))),
+            op(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ),
+        ],
+        Terminator::Return(Some(ValueId(4))),
+    )];
+    m.functions.push(parent);
+    m.closures.push(ClosureDefinition {
+        id: ClosureId(1),
+        function: FunctionId(2),
+        captures: vec![Type::Closure(ClosureId(0))],
+        parameters: vec![],
+        result: Type::I32,
+        kind: CallableKind::FnOnce,
+        lending_captures: vec![],
+    });
+    accepted(&m);
+    m.functions[2].blocks[0].instructions.swap(3, 4);
+    rejected(&m);
+}
+
+#[test]
+fn self_contained_forward_type_cannot_hide_different_actual_capture_operands() {
+    let mut m = owned_slot();
+    let mut bad = m.functions[0].clone();
+    bad.id = FunctionId(2);
+    bad.name = "bad_constructor".into();
+    bad.environment = None;
+    bad.locals = vec![local(0, Type::Closure(ClosureId(0)))];
+    bad.values = vec![Type::I32, Type::Closure(ClosureId(0))];
+    bad.blocks = vec![block(
+        0,
+        vec![
+            enter(),
+            op(None, InstructionKind::StorageLive(LocalId(0))),
+            op(
+                Some(ValueId(0)),
+                InstructionKind::Constant(Constant::I32(7)),
+            ),
+            op(
+                Some(ValueId(1)),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![ValueId(0)],
+                },
+            ),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(0),
+                    value: ValueId(1),
+                },
+            ),
+            op(None, InstructionKind::DropClosure { local: LocalId(0) }),
+            op(None, InstructionKind::StorageDead(LocalId(0))),
+            op(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ),
+        ],
+        Terminator::Return(Some(ValueId(0))),
+    )];
+    m.functions.push(bad);
+    let diagnostics = analyze(&m, &Limits::default()).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|d| d.message.contains("actual capture type differs")),
+        "{diagnostics:?}"
+    );
+    rejected(&m);
+}

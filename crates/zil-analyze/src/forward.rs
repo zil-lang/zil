@@ -103,6 +103,11 @@ pub(super) fn envelope(
             return Err(bad("forward environment contains an owning capture cycle"));
         }
         *color = 1;
+        budget.lookup(
+            budget.forward_closures.len(),
+            "forward concrete environment inventory",
+        )?;
+        budget.forward_closures.insert(id);
         let def = &module.closures[id.0 as usize];
         let body = module
             .functions
@@ -416,9 +421,8 @@ fn transfer(
                 } else if matches!(
                     i.kind,
                     InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }
-                ) {
-                    taken.alias = true;
-                } else if slot.origin & 3 != 0 && !slot.alias {
+                ) || (slot.origin & 3 != 0 && !slot.alias)
+                {
                     taken.alias = true;
                 } else if check && !concrete_copy(module, &f.locals[local.0 as usize].ty, budget)? {
                     return Err(bad("Load duplicates a non-Copy concrete environment"));
