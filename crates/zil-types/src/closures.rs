@@ -105,6 +105,8 @@ pub(super) struct State {
     pub active_helpers: std::collections::BTreeSet<helpers::TemplateKey>,
     pub helper_tables: std::rc::Rc<helpers::Tables>,
     pub helper_instances: BTreeMap<helpers::Instance, FunctionId>,
+    pub forward_callers: BTreeSet<helpers::Instance>,
+    pub forward_results: BTreeMap<FunctionId, u32>,
     pub store_instances: Vec<store_templates::Instance>,
     pub products: aggregate_templates::Products,
     // Private compiler provenance; public Core/Typed/Wire cannot supply it.
@@ -222,6 +224,8 @@ impl State {
             active_helpers: std::collections::BTreeSet::new(),
             helper_tables: std::rc::Rc::new(BTreeMap::new()),
             helper_instances: BTreeMap::new(),
+            forward_callers: BTreeSet::new(),
+            forward_results: BTreeMap::new(),
             store_instances: Vec::new(),
             products: None,
             internal_product_fields: BTreeMap::new(),

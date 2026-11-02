@@ -2303,6 +2303,18 @@ impl Flow<'_> {
                             }
                         }
                     }
+                    let forwarded_fact = if let Some(k) = super::forward::parameter(callee) {
+                        let value = arguments
+                            .get(k as usize)
+                            .ok_or_else(|| error("forwarded resource argument is absent"))?;
+                        if self.shapes.contains_key(&Place::Value(*value)) {
+                            Some(copied(state, Place::Value(*value), budget)?)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
                     for value in arguments {
                         self.consume(state, *value, check, budget)?;
                     }
@@ -2312,14 +2324,21 @@ impl Flow<'_> {
                             .functions
                             .get(function.0 as usize)
                             .ok_or_else(|| error("absent callee"))?;
-                        produced = Some(Fact {
-                            life: BTreeSet::from([Life::Available]),
-                            sources: BTreeSet::new(),
-                            birth: BTreeSet::from([if callee.result_mode == PassingMode::Create {
-                                Birth::Created
-                            } else {
-                                Birth::Incoming
-                            }]),
+                        produced = Some(if let Some(mut fact) = forwarded_fact {
+                            fact.life = BTreeSet::from([Life::Available]);
+                            fact
+                        } else {
+                            Fact {
+                                life: BTreeSet::from([Life::Available]),
+                                sources: BTreeSet::new(),
+                                birth: BTreeSet::from([
+                                    if callee.result_mode == PassingMode::Create {
+                                        Birth::Created
+                                    } else {
+                                        Birth::Incoming
+                                    },
+                                ]),
+                            }
                         });
                     }
                 }

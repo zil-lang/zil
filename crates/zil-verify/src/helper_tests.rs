@@ -3,6 +3,7 @@
 use super::*;
 use std::collections::BTreeMap;
 use zil_base::{FileId, ModuleId};
+mod forward;
 mod owned_values;
 mod sum_data;
 

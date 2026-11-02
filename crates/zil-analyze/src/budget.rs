@@ -27,6 +27,8 @@ pub(super) struct Budget {
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     pub(super) owned_callback_window_functions: Vec<bool>,
+    pub(super) parameter_returns: BTreeSet<zil_ir::FunctionId>,
+    pub(super) forward_functions: Vec<bool>,
     sum_roots: BTreeSet<usize>,
 }
 
@@ -44,6 +46,8 @@ impl Budget {
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
             owned_callback_window_functions: Vec::new(),
+            parameter_returns: BTreeSet::new(),
+            forward_functions: Vec::new(),
             sum_roots: BTreeSet::new(),
         }
     }
@@ -782,7 +786,11 @@ pub(super) fn preflight(
                     .saturating_add(contract.writes.len())
                     .saturating_add(contract.cleanup.len())
                     .saturating_add(contract.lending_captures.len())
-                    .saturating_add(2),
+                    .saturating_add(2)
+                    .saturating_add(match contract.source {
+                        zil_ir::CallableReturnSource::Fresh => 1,
+                        zil_ir::CallableReturnSource::Parameter(_) => 2,
+                    }),
                 "callable return contract metadata",
             )?;
         }

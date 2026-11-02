@@ -65,7 +65,9 @@ fn origins(
                     // retained::check_function has independently checked every
                     // factory before helpers run. Presence alone is not proof.
                     if producer.callable_return_contract.as_ref().is_some_and(|c| {
-                        *ty == Type::Closure(c.closure) && producer.return_type == *ty
+                        c.source == CallableReturnSource::Fresh
+                            && *ty == Type::Closure(c.closure)
+                            && producer.return_type == *ty
                     }) {
                         FACTORY
                     } else {
@@ -132,6 +134,13 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     let mut depths: Option<Vec<usize>> = None;
     let mut incoming = vec![0usize; count];
     let mut users = vec![Vec::new(); count];
+    if !budget.parameter_returns.is_empty() {
+        budget.spend(count, "forward helper dependency flags")?;
+        budget.forward_functions = vec![false; count];
+        for id in &budget.parameter_returns {
+            budget.forward_functions[id.0 as usize] = true;
+        }
+    }
     for (caller, function) in module.functions.iter().enumerate() {
         if function.callable_contract.is_none() {
             continue;
@@ -204,6 +213,12 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         )?;
         order.push(function);
         for &user in &users[function] {
+            if !budget.forward_functions.is_empty() {
+                budget.spend(1, "forward helper dependency propagation")?;
+                if budget.forward_functions[function] {
+                    budget.forward_functions[user] = true;
+                }
+            }
             let depth = depths.as_mut().expect("helper edges have a depth table");
             let candidate = depth[function]
                 .checked_add(1)
@@ -294,7 +309,9 @@ fn forwarded<'a>(
         let parent = roles
             .get(origin)
             .ok_or_else(|| bad("nested helper names an absent parent role"))?;
-        if role.kind != parent.kind
+        if !(role.kind == parent.kind
+            || (super::forward::parameter(target).is_some()
+                && super::forward::compatible(parent.kind, role.kind)))
             || env(&function.values[value.0 as usize]).map(|(id, _)| id) != Some(role.closure)
         {
             return Err(bad("nested helper role identity or mode differs"));
@@ -596,10 +613,17 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 .closures
                 .get(closure.0 as usize)
                 .ok_or_else(|| bad("helper environment definition missing"))?;
+            let returned = super::forward::parameter(function).is_some();
             let owned_data = budget.owned_callbacks.contains(&closure)
                 || (!function.return_type.is_copy_value()
                     && !matches!(function.return_type, Type::Address { .. }));
-            if owned_data {
+            if returned {
+                budget.lookup(
+                    budget.owned_callback_helpers.len(),
+                    "forward helper signature inventory",
+                )?;
+                budget.owned_callback_helpers.insert(function.id);
+            } else if owned_data {
                 if candidates.len() != 1
                     || borrowed.is_some()
                     || role.kind != CallableKind::FnOnce
@@ -629,7 +653,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     }
                 }
             }
-            if !(owned_data
+            if !(returned
+                || owned_data
                 || function.return_type.is_copy_value()
                 || (candidates.len() == 1
                     && borrowed.is_some()
@@ -646,7 +671,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             }
             if closure != role.closure
                 || role.cleanup
-                    != if borrowed.is_some() {
+                    != if returned {
+                        CallableCleanup::Returned
+                    } else if borrowed.is_some() {
                         CallableCleanup::Borrowed
                     } else {
                         CallableCleanup::Owned
@@ -664,7 +691,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     CallableKind::FnMut | CallableKind::FnOnce
                 ) | (CallableKind::FnOnce, CallableKind::FnOnce)
             ) || (role.kind == CallableKind::FnOnce && borrowed.is_some())
-                || (role.kind == CallableKind::FnMut && borrowed != Some(true))
+                || (role.kind == CallableKind::FnMut
+                    && borrowed != Some(true)
+                    && !(returned && borrowed.is_none()))
             {
                 return Err(bad(
                     "helper parameter cannot provide the requested call mode",

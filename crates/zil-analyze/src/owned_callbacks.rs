@@ -58,7 +58,9 @@ pub(super) fn signature(
         function
             .callable_return_contract
             .as_ref()
-            .is_some_and(|contract| contract.closure == definition.id)
+            .is_some_and(|contract| {
+                contract.closure == definition.id && contract.source == CallableReturnSource::Fresh
+            })
     }) {
         return Err(bad(
             "owned callback signature does not grant an opaque factory profile",
@@ -203,15 +205,21 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     }
     budget.spend(module.functions.len(), "owned callback call functions")?;
     for f in &module.functions {
-        for ty in f
-            .locals
-            .iter()
-            .map(|local| &local.ty)
-            .chain(&f.values)
-            .chain(std::iter::once(&f.return_type))
-        {
+        let forward_body = budget
+            .forward_functions
+            .get(f.id.0 as usize)
+            .copied()
+            .unwrap_or(false);
+        for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
+            // A checked F body may use the existing one-element replacement
+            // slot. Its per-element origin/liveness was independently proved;
+            // this exemption does not apply to captures or public results.
+            if forward_body && super::forward::internal_slot(ty).is_some() {
+                continue;
+            }
             container_profile(ty, budget)?;
         }
+        container_profile(&f.return_type, budget)?;
         budget.spend(f.blocks.len(), "owned callback call blocks")?;
         for b in &f.blocks {
             budget.spend(b.instructions.len(), "owned callback call instructions")?;
@@ -345,6 +353,15 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 changed |= !windows[caller] || !windows[callee];
                 windows[caller] = true;
                 windows[callee] = true;
+            }
+            if !budget.forward_functions.is_empty() {
+                budget.spend(1, "forward connected address window edge")?;
+                if budget.forward_functions[caller] || budget.forward_functions[callee] {
+                    changed |=
+                        !budget.forward_functions[caller] || !budget.forward_functions[callee];
+                    budget.forward_functions[caller] = true;
+                    budget.forward_functions[callee] = true;
+                }
             }
         }
         if !changed {

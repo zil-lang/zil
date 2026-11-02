@@ -1,0 +1,19 @@
+   Compiling zil-analyze v0.1.0 (/workspace/zil-253/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 7.32s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-253/debug/deps/zil_analyze-aa0422b5c4d89887)
+
+running 1 test
+
+thread 'forward::tests::moving_a_returned_callable_cannot_revive_a_borrow_of_its_old_position' (163319) panicked at crates/zil-analyze/src/forward_tests.rs:153:5:
+assertion failed: analyze(module, &limits).is_err()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test forward::tests::moving_a_returned_callable_cannot_revive_a_borrow_of_its_old_position ... FAILED
+
+failures:
+
+failures:
+    forward::tests::moving_a_returned_callable_cannot_revive_a_borrow_of_its_old_position
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 79 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p zil-analyze --lib`

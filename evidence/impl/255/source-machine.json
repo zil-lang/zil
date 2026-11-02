@@ -1,0 +1,282 @@
+{
+  "task": "255",
+  "evidence_level": "production source through Types, Analyze, independent Verify, Lower, LLVM API builder and native execution",
+  "source_sha256": {
+    "original_identity": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+    "fnmut_after_state": "b369bf062818e74e2b5adfda3b8901d6d2fa59eaa4b29a8641c961aaf5f18c5a",
+    "frozen_project_main": "5f44149b429bd51d001f0fed680a345548c68a9677c23820793f663ed0566b20",
+    "frozen_project_model": "1b29c235b7840891dc944ead06b110cbe846136ca5b3463f6b2427bbdac63fba",
+    "frozen_project_relay": "806db69ff6335b85e830a3f13691158def357dad560d82fa769a8c17772a1b80",
+    "oracle": "78af8b1cf33b06744e9bc70c3e965392cf14da1015b99138370465973d26f4b8"
+  },
+  "commands": [
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo run -q -p zil-cli --offline --locked -j 2 -- build SOURCE --backend llvm-api --opt O0|O2 -o OUTPUT --emit-dir DIR --json",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 ZIL_TEST_REPORT_DIR=/tmp/impl255-signatures cargo test -p zil-driver --features llvm-api --test impl256_consumer --offline --locked -j 2 signature -- --nocapture",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 ZIL_TEST_REPORT_DIR=/tmp/impl255-main-matrix cargo test -p zil-driver --features llvm-api --test impl256_consumer --offline --locked -j 2 three_module_predeclared_native_matrix -- --nocapture",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 ZIL_TEST_REPORT_DIR=/tmp/impl255-main-alloc cargo test -p zil-driver --features llvm-api --test impl256_consumer --offline --locked -j 2 three_module_actual_allocator_failures_follow_the_frozen_source_oracle -- --nocapture"
+  ],
+  "results": {
+    "standalone_signature_tests": 6,
+    "standalone_machine_builds": 12,
+    "standalone_native_runs": 12,
+    "frozen_project_normal_runs": 26,
+    "frozen_project_allocator_runs": 82,
+    "normal_oracle_mismatches": 0,
+    "allocator_oracle_mismatches": 0,
+    "self_source_runs": [
+      {
+        "source": "original",
+        "optimization": "O0",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "backend": "llvm-api",
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "llvm_sha256": "9500d33996fed31c5a43913883d0faddf8f87871f66e710b920861128ffac374",
+        "compiler_checkpoint": "8a872cfc0e6d2b58df7e3c02a21732ebd4d376a6"
+      },
+      {
+        "source": "original",
+        "optimization": "O2",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "backend": "llvm-api",
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "llvm_sha256": "9500d33996fed31c5a43913883d0faddf8f87871f66e710b920861128ffac374",
+        "compiler_checkpoint": "8a872cfc0e6d2b58df7e3c02a21732ebd4d376a6"
+      },
+      {
+        "source": "step",
+        "optimization": "O0",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "backend": "llvm-api",
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "llvm_sha256": "a8703bb9600eccc52e1d6483a040e7123220be8700a241158497b67d57079d27",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "source": "step",
+        "optimization": "O2",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "backend": "llvm-api",
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "llvm_sha256": "a8703bb9600eccc52e1d6483a040e7123220be8700a241158497b67d57079d27",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      }
+    ],
+    "standalone": [
+      {
+        "fixture": "fn-copy",
+        "optimization": "default<O0>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "038b1f27841efa6506b311cb80dd8a88e8ab113e45533e7421254a37ff1359c9",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fn-copy",
+        "optimization": "default<O2>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "038b1f27841efa6506b311cb80dd8a88e8ab113e45533e7421254a37ff1359c9",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fn-owned",
+        "optimization": "default<O0>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "10a55b9d78a4aca484c86a97d468b32161859ebec610aba33e1fc70860fbbd23",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fn-owned",
+        "optimization": "default<O2>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "10a55b9d78a4aca484c86a97d468b32161859ebec610aba33e1fc70860fbbd23",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fnmut-copy",
+        "optimization": "default<O0>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "3e6712476e7f9714b15e8b47d6c8537811939ddbbe0b09891e29f3d931abf5b4",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fnmut-copy",
+        "optimization": "default<O2>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "3e6712476e7f9714b15e8b47d6c8537811939ddbbe0b09891e29f3d931abf5b4",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fnmut-owned",
+        "optimization": "default<O0>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "d5f38311ac66cf272c60d510ed13d45a5aa6c131832b9755e965f56d5806cf50",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fnmut-owned",
+        "optimization": "default<O2>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "d5f38311ac66cf272c60d510ed13d45a5aa6c131832b9755e965f56d5806cf50",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fnonce-copy",
+        "optimization": "default<O2>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "92fd50f595ac3fa654551c8a10a4a19430a5c83a795a921548fd1a62662eaec8",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fnonce-copy",
+        "optimization": "default<O0>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "92fd50f595ac3fa654551c8a10a4a19430a5c83a795a921548fd1a62662eaec8",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fnonce-owned",
+        "optimization": "default<O2>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "c8ad3d701ee0664cd28f169b74a1d2f74ab265ed0ca5a15f2b11a3ec663c18a5",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      },
+      {
+        "fixture": "fnonce-owned",
+        "optimization": "default<O0>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "llvm_sha256": "c8ad3d701ee0664cd28f169b74a1d2f74ab265ed0ca5a15f2b11a3ec663c18a5",
+        "exit": "Some(0)",
+        "compiler_checkpoint": "a1297fb486e554014ef350375906ff99700bf35c"
+      }
+    ],
+    "project_builds": [
+      {
+        "kind": "main-normal",
+        "optimization": "default<O0>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "backend": "llvm-api",
+        "fallback": null,
+        "input_kind": "builder",
+        "llvm_sha256": "24b5a20623eb819b9e6548f7cc122b29e34f0963b6329a859f521ea935a6fdee",
+        "compiler_checkpoint": "4e21284ca8243b5108b606fef6c164733b6e9e5a"
+      },
+      {
+        "kind": "main-normal",
+        "optimization": "default<O2>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "backend": "llvm-api",
+        "fallback": null,
+        "input_kind": "builder",
+        "llvm_sha256": "24b5a20623eb819b9e6548f7cc122b29e34f0963b6329a859f521ea935a6fdee",
+        "compiler_checkpoint": "4e21284ca8243b5108b606fef6c164733b6e9e5a"
+      },
+      {
+        "kind": "main-allocator",
+        "optimization": "default<O0>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "backend": "llvm-api",
+        "fallback": null,
+        "input_kind": "builder",
+        "llvm_sha256": "24b5a20623eb819b9e6548f7cc122b29e34f0963b6329a859f521ea935a6fdee",
+        "compiler_checkpoint": "4e21284ca8243b5108b606fef6c164733b6e9e5a"
+      },
+      {
+        "kind": "main-allocator",
+        "optimization": "default<O2>",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "backend": "llvm-api",
+        "fallback": null,
+        "input_kind": "builder",
+        "llvm_sha256": "24b5a20623eb819b9e6548f7cc122b29e34f0963b6329a859f521ea935a6fdee",
+        "compiler_checkpoint": "4e21284ca8243b5108b606fef6c164733b6e9e5a"
+      }
+    ]
+  },
+  "compiler_checkpoints": {
+    "original_identity": "8a872cfc0e6d2b58df7e3c02a21732ebd4d376a6",
+    "fnmut_after_state": "a1297fb486e554014ef350375906ff99700bf35c",
+    "standalone_signatures": "a1297fb486e554014ef350375906ff99700bf35c",
+    "frozen_project_normal_and_allocator": "4e21284ca8243b5108b606fef6c164733b6e9e5a"
+  },
+  "extended_project": {
+    "compiler_checkpoint": "c415d7af6f75cafbed2863538578453cafb5b8ff",
+    "normal_native_runs": 24,
+    "allocator_native_runs": 108,
+    "oracle_mismatches": 0,
+    "detail": "native-oracle.json"
+  }
+}
