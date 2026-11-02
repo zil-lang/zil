@@ -497,6 +497,66 @@ fn two_type_state_constructor(
     Ok(true)
 }
 
+// The first public by-value FnOnce boundary transports one concrete closed
+// signature. Rebuild it from actual parameter locals and the environment
+// definition before the ordinary role/traces checker examines the real CFG.
+fn owned_dispatch(
+    module: &TypedModule,
+    function: &TypedFunction,
+    parameters: &[(u32, ClosureId, bool, &Type)],
+    claim: &CallableParameterContract,
+    budget: &mut Budget,
+) -> Check<bool> {
+    let [(position, id, false, _)] = parameters else {
+        return Ok(false);
+    };
+    let definition = closures::definition(module, *id, Some(function.span))?;
+    if !definition.parameters.iter().any(owned_callbacks::root)
+        && !owned_callbacks::root(&definition.result)
+    {
+        return Ok(false);
+    }
+    if claim.roles.len() != 1
+        || claim.roles[0].kind != CallableKind::FnOnce
+        || function.return_type != definition.result
+        || function.parameters.len() != definition.parameters.len().saturating_add(1)
+        || !definition.lending_captures.is_empty()
+    {
+        return Err(bad(
+            function,
+            "owning dispatch requires one by-value FnOnce role and its exact closed data signature",
+        ));
+    }
+    budget.spend(function.parameters.len().saturating_mul(2))?;
+    let mut argument = 0;
+    for (index, local) in function.parameters.iter().enumerate() {
+        if index == *position as usize {
+            continue;
+        }
+        let actual = &function.locals[local.0 as usize].ty;
+        if actual != &definition.parameters[argument] {
+            return Err(bad(
+                function,
+                "owning dispatch data parameter differs from its concrete callback",
+            ));
+        }
+        if owned_callbacks::root(actual) {
+            owned_callbacks::value(module, actual, Some(function.span), budget)?;
+        } else {
+            resources::charge_payload(actual, budget)?;
+            check_type(actual, Some(function.span))?;
+        }
+        argument += 1;
+    }
+    if owned_callbacks::root(&function.return_type) {
+        owned_callbacks::value(module, &function.return_type, Some(function.span), budget)?;
+    } else {
+        resources::charge_payload(&function.return_type, budget)?;
+        check_type(&function.return_type, Some(function.span))?;
+    }
+    Ok(true)
+}
+
 pub(super) fn check_module(
     module: &TypedModule,
     graphs: &[FunctionGraph],
@@ -658,7 +718,11 @@ pub(super) fn check_module(
                 "callback role table does not exactly cover actual parameters",
             ));
         }
+        let owning_dispatch = owned_dispatch(module, f, &parameters, claim, budget)?;
         for (position, local) in f.parameters.iter().enumerate() {
+            if owning_dispatch {
+                break;
+            }
             if parameters.iter().any(|(p, ..)| *p as usize == position) {
                 continue;
             }
@@ -690,7 +754,8 @@ pub(super) fn check_module(
                 ));
             }
             let definition = closures::definition(module, *closure, Some(f.span))?;
-            if !f.return_type.is_copy_value()
+            if !owning_dispatch
+                && !f.return_type.is_copy_value()
                 && !(parameters.len() == 1
                     && *borrowed
                     && closures::lending_result(&f.return_type)
