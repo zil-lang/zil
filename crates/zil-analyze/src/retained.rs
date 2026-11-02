@@ -22,9 +22,7 @@ pub(super) fn check_function(
         .as_ref()
         .ok_or_else(|| bad("closure result has no public callable return contract"))?;
     if contract.source != CallableReturnSource::Fresh {
-        return Err(bad(
-            "parameter callable returns require an independent instance proof",
-        ));
+        return super::forward::envelope(module, function, budget);
     }
     let definition = module
         .closures
