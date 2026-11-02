@@ -10,9 +10,10 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
     time::{Duration, Instant},
 };
-use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{
     CompileOptions, NativeBackend, Optimization, ProjectSources, Stage, compile_project,
+    compile_source,
 };
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -315,4 +316,112 @@ fn scoped_event_loop_matches_source_oracle_at_o0_and_o2() {
             observe(&binary, &temporary, row);
         }
     }
+}
+
+#[test]
+fn scoped_callback_source_rejections_bind_the_actual_risk() {
+    // Bind the source phase and code as well as rejection category. These
+    // expectations describe the risk, never an early parser/Unsupported result.
+    let cases = [
+        (
+            "fn_once_callback",
+            Phase::Types,
+            "E-FFI-SCOPED-CALLBACK",
+            "FnOnce",
+        ),
+        (
+            "borrowed_callback_environment",
+            Phase::Types,
+            "E-FFI-SCOPED-CALLBACK",
+            "self-contained",
+        ),
+        (
+            "body_captures_same_callback",
+            Phase::Analyze,
+            "E-BORROW-CONFLICT",
+            "",
+        ),
+        (
+            "body_moves_same_callback",
+            Phase::Analyze,
+            "E-UNINITIALIZED",
+            "",
+        ),
+        (
+            "body_captures_callback_alias",
+            Phase::Analyze,
+            "E-BORROW-CONFLICT",
+            "",
+        ),
+        (
+            "missing_unsafe_region",
+            Phase::Types,
+            "E-FFI-UNSAFE",
+            "unsafe",
+        ),
+        ("swapped_roles", Phase::Types, "E-FFI-SCOPED-ROLE", "role"),
+        (
+            "missing_register_role",
+            Phase::Types,
+            "E-FFI-SCOPED-ROLE",
+            "role",
+        ),
+        (
+            "wrong_register_signature",
+            Phase::Types,
+            "E-FFI-DECLARATION",
+            "signature",
+        ),
+        (
+            "ordinary_role_call",
+            Phase::Types,
+            "E-FFI-SCOPED-ROLE",
+            "only",
+        ),
+        (
+            "wrong_body_result",
+            Phase::Types,
+            "E-TYPE-MISMATCH",
+            "closure type constraints",
+        ),
+        (
+            "wrong_callback_signature",
+            Phase::Types,
+            "E-TYPE-MISMATCH",
+            "closure type constraints",
+        ),
+        (
+            "body_used_after_consumption",
+            Phase::Analyze,
+            "E-UNINITIALIZED",
+            "",
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (name, phase, code, reason) in cases {
+        let path = fixtures().join(format!("negative/{name}.zil"));
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            path.to_string_lossy().into_owned(),
+            fs::read_to_string(path).unwrap(),
+        );
+        let report = compile_source(&source, &CompileOptions::default());
+        let exact = report.status == ResultCategory::SafeReject
+            && report.verification_runs == 0
+            && report.diagnostics.iter().any(|d| {
+                d.phase == phase
+                    && d.code == code
+                    && d.category == ResultCategory::SafeReject
+                    && d.message.contains(reason)
+                    && d.span.is_none_or(|span| span.file == FileId(0))
+            });
+        if !exact {
+            failures.push(format!(
+                "{name}: expected {phase:?}/{code}/{reason:?}; {}",
+                report.to_json()
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

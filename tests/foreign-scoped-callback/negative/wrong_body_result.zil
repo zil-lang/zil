@@ -2,4 +2,4 @@ extern "C" fn register_scope(cb:extern "C" fn(c_handle,i32)->i64,ctx:c_handle)->
 contract{provides(static_callbacks(),scoped_callback_register());effects(ffi);};
 extern "C" fn close_scope(token:c_handle)
 contract{provides(static_callbacks(),scoped_callback_close());effects(ffi);};
-fn main()->i32{var f=(value:i32)->i32=>value;let body=()->i64=>i64(17);let result=unsafe{c_with_callback(register_scope,close_scope,&mut f,body)};return result.1}
+fn main()->i32{var f=(value:i32)->i32=>value;let body=()->i64=>i64(17);unsafe{let result=c_with_callback(register_scope,close_scope,&mut f,body);return result.1}}

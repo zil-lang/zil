@@ -37,3 +37,9 @@ It does not invoke undefined C behavior as a language-safety test.
 
 Temporary output directories use input-byte hex labels. No historical evidence,
 full-output archive, transport round trip or permanent audit store is required.
+
+`negative/` contains 13 standalone source controls. Their risk descriptions are
+frozen in RISKS.json; the one functional Rust target also matches source phase,
+code and relevant reason, with zero machine execution for illegal cases. These
+are obligations, not a claim of rejection before actual execution. The raw
+verifier's own codes are not substituted for the first source diagnostic.
