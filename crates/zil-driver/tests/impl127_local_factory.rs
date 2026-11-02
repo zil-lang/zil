@@ -436,3 +436,79 @@ fn local_invocations_pay_each_independent_phase_budget() {
     }
     case.write("boundaries.json", format!("[{}]\n", records.join(",")));
 }
+
+#[test]
+fn concrete_copy_fn_observations_and_aliases_reach_native() {
+    let backend = if cfg!(feature = "llvm-api") {
+        zil_driver::NativeBackend::LlvmApi
+    } else {
+        zil_driver::NativeBackend::Clang
+    };
+    let sources = [
+        (
+            "observe",
+            include_str!(
+                "../../../tests/foreign-scoped-callback/callable-composition/alias-controls/observe.zil"
+            ),
+        ),
+        (
+            "move-alias",
+            include_str!(
+                "../../../tests/foreign-scoped-callback/callable-composition/alias-controls/move_alias.zil"
+            ),
+        ),
+        (
+            "borrow-alias",
+            include_str!(
+                "../../../tests/foreign-scoped-callback/callable-composition/alias-controls/borrow_alias.zil"
+            ),
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (label, text) in sources {
+        let input = project(&[(label, text)]);
+        let verified = compile_project(&input, &CompileOptions::default());
+        if verified.status != ResultCategory::Success || verified.verification_runs != 1 {
+            failures.push(format!("{label}: {}", verified.to_json()));
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let case = Case::new(&format!(
+                "copy-fn-{label}-{}-{optimization:?}",
+                backend.name()
+            ));
+            let report = compile_project(
+                &input,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(case.0.join("program")),
+                    emit_dir: Some(case.0.join("phases")),
+                    ..CompileOptions::default()
+                },
+            );
+            case.write("compile.json", report.to_json());
+            success(&report);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            if cfg!(feature = "llvm-api") {
+                assert!(!codegen.object_reports.is_empty());
+                assert!(codegen.object_reports.iter().all(|r| {
+                    r.contains("\"input_kind\":\"builder\"")
+                        && r.contains("\"parse_ns\":0,")
+                        && r.contains("\"verify_before_after\":true")
+                }));
+            }
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            // Source arithmetic: 10+5=15 or 10+10+5=25; main subtracts it.
+            assert_eq!(output.status.code(), Some(0), "{label}: {output:?}");
+            assert!(output.stdout.is_empty(), "{label}: {output:?}");
+            assert!(output.stderr.is_empty(), "{label}: {output:?}");
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
