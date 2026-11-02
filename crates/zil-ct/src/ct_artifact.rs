@@ -123,6 +123,7 @@ impl CtExecutionBudget {
     }
     fn record_query(&mut self, query: CtQueryDependency) -> CompileResult<()> {
         self.reserve_generated_nodes(1)?;
+        self.reserve_temporary_bytes(96)?;
         self.usage.queries.push(query);
         Ok(())
     }
@@ -159,6 +160,11 @@ pub trait CtReadView {
         input: &CtTokenTree,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtSyntaxTree>;
+    fn parse_ident(
+        &self,
+        input: &CtTokenTree,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<CtIdent>;
     fn query(
         &self,
         requester: &CtSymbolId,
@@ -190,7 +196,9 @@ pub trait CtReadView {
 struct Frame<'a> {
     function: &'a CtFunction,
     locals: Vec<Option<CtValue>>,
+    local_bytes: Vec<u64>,
     values: Vec<Option<CtValue>>,
+    value_bytes: Vec<u64>,
     block: usize,
     instruction: usize,
     destination: Option<CtValueId>,
@@ -199,16 +207,26 @@ impl<'a> Frame<'a> {
     fn new(
         function: &'a CtFunction,
         arguments: Vec<CtValue>,
+        argument_bytes: Vec<u64>,
         destination: Option<CtValueId>,
     ) -> Self {
         let mut locals = vec![None; function.locals.len()];
-        for (id, value) in function.parameters.iter().zip(arguments) {
+        let mut local_bytes = vec![0; function.locals.len()];
+        for ((id, value), bytes) in function
+            .parameters
+            .iter()
+            .zip(arguments)
+            .zip(argument_bytes)
+        {
             locals[id.0 as usize] = Some(value);
+            local_bytes[id.0 as usize] = bytes;
         }
         Self {
             function,
             locals,
+            local_bytes,
             values: vec![None; function.values.len()],
+            value_bytes: vec![0; function.values.len()],
             block: function.entry.0 as usize,
             instruction: 0,
             destination,
@@ -219,6 +237,72 @@ impl<'a> Frame<'a> {
             .as_ref()
             .expect("verified CT value dominates use")
     }
+    fn release(self, budget: &mut CtExecutionBudget) {
+        for bytes in self.local_bytes.into_iter().chain(self.value_bytes) {
+            budget.release_temporary_bytes(bytes);
+        }
+    }
+}
+
+fn value_bytes(value: &CtValue) -> u64 {
+    let sum = |values: &[CtValue]| {
+        values
+            .iter()
+            .fold(16u64, |n, v| n.saturating_add(value_bytes(v)))
+    };
+    match value {
+        CtValue::Scalar(_) => 16,
+        CtValue::Text(s) => 16u64.saturating_add(s.len() as u64),
+        CtValue::Type(t) => 16u64.saturating_add((t.nodes.len() as u64).saturating_mul(64)),
+        CtValue::Syntax(t) => 16u64
+            .saturating_add((t.nodes.len() as u64).saturating_mul(80))
+            .saturating_add((t.origins.len() as u64).saturating_mul(32))
+            .saturating_add(t.nodes.iter().fold(0u64, |n, node| match node {
+                CtSyntaxNode::Token(token) => n.saturating_add(token.text.len() as u64),
+                _ => n,
+            })),
+        CtValue::Ident(i) => 80u64.saturating_add(i.text.len() as u64).saturating_add(
+            i.member_owner_type
+                .as_ref()
+                .map_or(0, |t| (t.nodes.len() as u64).saturating_mul(64)),
+        ),
+        CtValue::TokenTree(t) => 16u64
+            .saturating_add((t.nodes.len() as u64).saturating_mul(80))
+            .saturating_add((t.origins.len() as u64).saturating_mul(32))
+            .saturating_add(t.nodes.iter().fold(0u64, |n, node| match node {
+                CtTokenNode::Token(token) => n.saturating_add(token.text.len() as u64),
+                _ => n,
+            })),
+        CtValue::TokenCursor(_) => 48,
+        CtValue::ShapeInfo(s) => {
+            80u64.saturating_add((s.visible_fields.len() as u64).saturating_mul(128))
+        }
+        CtValue::FieldInfo(f) => 128u64
+            .saturating_add((f.ty.nodes.len() as u64).saturating_mul(64))
+            .saturating_add((f.owner_type.nodes.len() as u64).saturating_mul(64)),
+        CtValue::ImplInfo(i) => {
+            96u64.saturating_add((i.for_type.nodes.len() as u64).saturating_mul(64))
+        }
+        CtValue::LayoutInfo(l) => {
+            64u64.saturating_add((l.field_offsets.len() as u64).saturating_mul(8))
+        }
+        CtValue::Tuple(v) | CtValue::Array(v) | CtValue::List(v) => sum(v),
+        CtValue::Record { fields, .. } | CtValue::Variant { fields, .. } => sum(fields),
+    }
+}
+fn clone_operands(
+    frame: &Frame<'_>,
+    ids: &[CtValueId],
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<(Vec<CtValue>, u64)> {
+    let bytes = ids.iter().fold(0u64, |n, id| {
+        n.saturating_add(value_bytes(frame.value(*id)))
+    });
+    budget.reserve_temporary_bytes(bytes)?;
+    Ok((
+        ids.iter().map(|id| frame.value(*id).clone()).collect(),
+        bytes,
+    ))
 }
 
 fn scalar_ty(value: &Constant) -> Option<CtScalarTy> {
@@ -275,7 +359,13 @@ pub fn evaluate_ct_artifact(
     }
     budget.reserve_instance()?;
     budget.observe_depth(1)?;
-    let mut frames = vec![Frame::new(entry, arguments.to_vec(), None)];
+    let argument_bytes: Vec<_> = arguments.iter().map(value_bytes).collect();
+    for bytes in &argument_bytes {
+        budget.reserve_temporary_bytes(*bytes)?;
+    }
+    let mut live_cells = (entry.locals.len() + entry.values.len()) as u64;
+    budget.observe_live_cells(live_cells)?;
+    let mut frames = vec![Frame::new(entry, arguments.to_vec(), argument_bytes, None)];
     loop {
         budget.reserve_steps(1)?;
         let current_depth = frames.len();
@@ -290,27 +380,56 @@ pub fn evaluate_ct_artifact(
             {
                 let target = &raw.functions[function.0 as usize];
                 budget.observe_depth(current_depth + 1)?;
+                let incoming_cells = (target.locals.len() + target.values.len()) as u64;
+                budget.observe_live_cells(live_cells.saturating_add(incoming_cells))?;
+                let argument_bytes: Vec<_> = arguments
+                    .iter()
+                    .map(|v| value_bytes(frame.value(*v)))
+                    .collect();
+                for bytes in &argument_bytes {
+                    budget.reserve_temporary_bytes(*bytes)?;
+                }
                 let args = arguments.iter().map(|v| frame.value(*v).clone()).collect();
-                frames.push(Frame::new(target, args, inst.result));
+                frames.push(Frame::new(target, args, argument_bytes, inst.result));
+                live_cells += incoming_cells;
                 continue;
             }
+            let bytes_before = budget.live_temporary_bytes;
             let produced = execute_instruction(raw, frame, inst, arguments, reader, budget)?;
             if let Some(id) = inst.result {
                 let value = produced.expect("verified CT value instruction has result");
                 if !value_matches_type(&value, &frame.function.values[id.0 as usize], raw, 0) {
                     return Err(error("CT read view returned a value of the wrong type"));
                 }
+                let mut added = budget.live_temporary_bytes.saturating_sub(bytes_before);
+                let required = value_bytes(&value);
+                if added < required {
+                    budget.reserve_temporary_bytes(required - added)?;
+                    added = required;
+                }
+                let old = frame.value_bytes[id.0 as usize];
+                budget.release_temporary_bytes(old);
+                frame.value_bytes[id.0 as usize] = added;
                 frame.values[id.0 as usize] = Some(value);
             }
         } else {
             match block.terminator {
                 CtTerminator::Return(result) => {
+                    let bytes = result.map_or(16, |id| value_bytes(frame.value(id)));
+                    budget.reserve_temporary_bytes(bytes)?;
                     let output = result
                         .map(|id| frame.value(id).clone())
                         .unwrap_or(CtValue::Scalar(Constant::Unit));
                     let completed = frames.pop().expect("active CT frame");
+                    live_cells -=
+                        (completed.function.locals.len() + completed.function.values.len()) as u64;
+                    let destination = completed.destination;
+                    completed.release(budget);
                     if let Some(parent) = frames.last_mut() {
-                        if let Some(id) = completed.destination {
+                        if let Some(id) = destination {
+                            let old = parent.value_bytes[id.0 as usize];
+                            budget.release_temporary_bytes(old);
+                            parent.value_bytes[id.0 as usize] = bytes;
                             parent.values[id.0 as usize] = Some(output);
                         }
                     } else {
@@ -347,7 +466,20 @@ fn value_matches_type(value: &CtValue, ty: &CtTy, raw: &CtArtifactProgram, depth
         (CtValue::Text(v), CtTy::Text) => v.len() as u64 <= raw.budget.max_temporary_bytes,
         (CtValue::Type(v), CtTy::Type) => type_ref_valid(v, raw),
         (CtValue::Ident(v), CtTy::Ident) => {
-            !v.text.is_empty() && v.text.len() as u64 <= raw.budget.max_temporary_bytes
+            !v.text.is_empty()
+                && v.text.len() as u64 <= raw.budget.max_temporary_bytes
+                && v.member_owner.is_some() == v.member_owner_type.is_some()
+                && v.member_owner_type
+                    .as_ref()
+                    .is_none_or(|owner| type_ref_valid(owner, raw))
+                && match v.source {
+                    CtNameSource::Input(_) | CtNameSource::Definition(_) => {
+                        v.namespace != CtNameNamespace::Unbound
+                    }
+                    CtNameSource::Fresh { .. } | CtNameSource::Export => {
+                        v.namespace == CtNameNamespace::Unbound
+                    }
+                }
         }
         (CtValue::TokenTree(v), CtTy::TokenTree) => token_tree_valid(v, raw),
         (CtValue::TokenCursor(_), CtTy::TokenCursor)
@@ -588,11 +720,19 @@ fn construct_type(
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<CtTypeRef> {
     budget.reserve_generated_nodes(args.len() as u64 + 1)?;
+    let output_nodes = 1u64.saturating_add(
+        args.iter()
+            .filter_map(|v| match v {
+                CtValue::Type(t) => Some(t.nodes.len() as u64),
+                _ => None,
+            })
+            .sum::<u64>(),
+    );
+    budget.reserve_temporary_bytes(16u64.saturating_add(output_nodes.saturating_mul(64)))?;
     let mut nodes = Vec::new();
     let mut children = Vec::new();
     for arg in args {
         if let CtValue::Type(value) = arg {
-            budget.reserve_temporary_bytes((value.nodes.len() as u64).saturating_mul(48))?;
             children.push(append_type(&mut nodes, value)?);
         }
     }
@@ -641,6 +781,29 @@ fn project_meta(
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<CtValue> {
     use CtMetaProjection as P;
+    let allocation = match (value, projection) {
+        (CtValue::ShapeInfo(s), P::ShapeFields) => s.visible_fields.iter().fold(16u64, |n, f| {
+            n.saturating_add(128)
+                .saturating_add((f.ty.nodes.len() as u64).saturating_mul(64))
+        }),
+        (CtValue::FieldInfo(f), P::FieldName) => 80u64
+            .saturating_add(f.name.text.len() as u64)
+            .saturating_add((f.owner_type.nodes.len() as u64).saturating_mul(64)),
+        (CtValue::FieldInfo(f), P::FieldType) => {
+            16u64.saturating_add((f.ty.nodes.len() as u64).saturating_mul(64))
+        }
+        (CtValue::ImplInfo(i), P::ImplType) => {
+            16u64.saturating_add((i.for_type.nodes.len() as u64).saturating_mul(64))
+        }
+        (CtValue::LayoutInfo(l), P::LayoutFieldOffsets) => {
+            16u64.saturating_add((l.field_offsets.len() as u64).saturating_mul(16))
+        }
+        (_, P::ImplTrait) => 0, // the frozen reader prepays its resolved identifier
+        _ => 16,
+    };
+    if allocation > 0 {
+        budget.reserve_temporary_bytes(allocation)?;
+    }
     match (value, projection) {
         (CtValue::ShapeInfo(s), P::ShapeFields) => Ok(CtValue::List(
             s.visible_fields
@@ -652,7 +815,13 @@ fn project_meta(
         (CtValue::ShapeInfo(s), P::ShapeComplete) => {
             Ok(CtValue::Scalar(Constant::Bool(s.complete)))
         }
-        (CtValue::FieldInfo(f), P::FieldName) => Ok(CtValue::Ident(f.name.clone())),
+        (CtValue::FieldInfo(f), P::FieldName) => {
+            let mut name = f.name.clone();
+            name.namespace = CtNameNamespace::Member;
+            name.member_owner = Some(f.owner.clone());
+            name.member_owner_type = Some(f.owner_type.clone());
+            Ok(CtValue::Ident(name))
+        }
         (CtValue::FieldInfo(f), P::FieldType) => Ok(CtValue::Type(f.ty.clone())),
         (CtValue::FieldInfo(f), P::FieldManaged) => Ok(CtValue::Scalar(Constant::Bool(f.managed))),
         (CtValue::ImplInfo(i), P::ImplTrait) => Ok(CtValue::Ident(reader.definition_ident(
@@ -692,16 +861,62 @@ fn execute_instruction(
 ) -> CompileResult<Option<CtValue>> {
     use CtInstructionKind as K;
     let get = |id: CtValueId| frame.value(id);
+    let copy_bytes = |ids: &[CtValueId]| -> u64 {
+        ids.iter()
+            .fold(16u64, |n, id| n.saturating_add(value_bytes(get(*id))))
+    };
+    let planned = match &inst.kind {
+        K::Constant(id) => match &raw.constants[id.0 as usize] {
+            CtConstant::Scalar(_) => 16,
+            CtConstant::Text(t) => 16u64.saturating_add(t.len() as u64),
+        },
+        K::InvocationInput { index } => value_bytes(&invocation[*index as usize]),
+        K::Load(id) => value_bytes(
+            frame.locals[id.0 as usize]
+                .as_ref()
+                .expect("verified initialized local"),
+        ),
+        K::ConvertInteger { .. }
+        | K::Unary { .. }
+        | K::Binary { .. }
+        | K::Length(_)
+        | K::VariantTag(_) => 16,
+        K::MakeTuple(ids) | K::MakeArray(ids) | K::MakeList(ids) => copy_bytes(ids),
+        K::MakeRecord { fields, .. } | K::MakeVariant { fields, .. } => copy_bytes(fields),
+        K::TypePrimitive(_) | K::TypeBuiltin(_) => 80,
+        K::VariantField { value, field, .. } => match get(*value) {
+            CtValue::Variant { fields, .. } => value_bytes(&fields[*field as usize]),
+            _ => unreachable!("verified enum"),
+        },
+        K::Extract { aggregate, index } => match get(*aggregate) {
+            CtValue::Array(fields) | CtValue::List(fields) => {
+                value_bytes(&fields[integer_index(get(*index), fields.len())?])
+            }
+            _ => unreachable!("verified homogeneous container"),
+        },
+        K::ExtractField { aggregate, index } => match get(*aggregate) {
+            CtValue::Tuple(fields) | CtValue::Record { fields, .. } => {
+                value_bytes(&fields[*index as usize])
+            }
+            _ => unreachable!("verified static container"),
+        },
+        K::Replace { aggregate, .. } | K::ReplaceField { aggregate, .. } => {
+            value_bytes(get(*aggregate))
+        }
+        _ => 0,
+    };
+    if planned > 0 {
+        budget.reserve_temporary_bytes(planned)?;
+    }
     let output = match &inst.kind {
         K::Constant(id) => match &raw.constants[id.0 as usize] {
             CtConstant::Scalar(c) => Some(CtValue::Scalar(c.clone())),
-            CtConstant::Text(t) => {
-                budget.reserve_temporary_bytes(t.len() as u64)?;
-                Some(CtValue::Text(t.clone()))
-            }
+            CtConstant::Text(t) => Some(CtValue::Text(t.clone())),
         },
         K::InvocationInput { index } => Some(invocation[*index as usize].clone()),
         K::StorageLive(id) | K::StorageDead(id) => {
+            budget.release_temporary_bytes(frame.local_bytes[id.0 as usize]);
+            frame.local_bytes[id.0 as usize] = 0;
             frame.locals[id.0 as usize] = None;
             None
         }
@@ -712,7 +927,12 @@ fn execute_instruction(
                 .clone(),
         ),
         K::Store { local, value } => {
-            frame.locals[local.0 as usize] = Some(get(*value).clone());
+            let bytes = value_bytes(get(*value));
+            budget.reserve_temporary_bytes(bytes)?;
+            let copied = get(*value).clone();
+            budget.release_temporary_bytes(frame.local_bytes[local.0 as usize]);
+            frame.local_bytes[local.0 as usize] = bytes;
+            frame.locals[local.0 as usize] = Some(copied);
             None
         }
         K::ConvertInteger { value, target } => {
@@ -873,43 +1093,62 @@ fn execute_instruction(
             budget,
         )?)),
         K::TypeApply { nominal, arguments } => {
-            let args: Vec<_> = arguments.iter().map(|id| get(*id).clone()).collect();
-            Some(CtValue::Type(reader.type_apply(
-                &frame.function.definition,
-                nominal,
-                &args,
-                budget,
-            )?))
+            let (args, temporary) = clone_operands(frame, arguments, budget)?;
+            let answer = reader.type_apply(&frame.function.definition, nominal, &args, budget);
+            budget.release_temporary_bytes(temporary);
+            Some(CtValue::Type(answer?))
         }
         K::TypeConstruct {
             constructor,
             arguments,
         } => {
-            let args: Vec<_> = arguments.iter().map(|id| get(*id).clone()).collect();
-            Some(CtValue::Type(construct_type(*constructor, &args, budget)?))
+            let (args, temporary) = clone_operands(frame, arguments, budget)?;
+            let answer = construct_type(*constructor, &args, budget);
+            budget.release_temporary_bytes(temporary);
+            Some(CtValue::Type(answer?))
         }
         K::Quote { template, holes } => {
-            let args: Vec<_> = holes.iter().map(|id| get(*id).clone()).collect();
+            let (args, temporary) = clone_operands(frame, holes, budget)?;
             let template = &raw.templates[template.0 as usize];
             for (hole, value) in template.holes.iter().zip(&args) {
                 if let CtHoleKind::Ident(namespace) = hole {
                     let CtValue::Ident(name) = value else {
                         unreachable!("verified Ident hole")
                     };
-                    if name.namespace != *namespace {
+                    if name.namespace == CtNameNamespace::Unbound {
+                        match name.source {
+                            CtNameSource::Fresh { .. } => {}
+                            CtNameSource::Export
+                                if matches!(
+                                    template.syntax.category,
+                                    CtSyntaxCategory::StmtList | CtSyntaxCategory::ItemList
+                                ) => {}
+                            _ => {
+                                return Err(error(
+                                    "CT unbound name intent is not valid in this quote",
+                                ));
+                            }
+                        }
+                    } else if name.namespace != *namespace {
                         return Err(error("CT quote name hole has wrong namespace"));
                     }
                 }
             }
-            Some(CtValue::Syntax(
-                reader.instantiate_quote(template, &args, budget)?,
-            ))
+            let answer = reader.instantiate_quote(template, &args, budget);
+            budget.release_temporary_bytes(temporary);
+            Some(CtValue::Syntax(answer?))
         }
         K::Parse { category, input } => {
             let CtValue::TokenTree(tree) = get(*input) else {
                 unreachable!("verified TokenTree")
             };
             Some(CtValue::Syntax(reader.parse(*category, tree, budget)?))
+        }
+        K::ParseIdent { input } => {
+            let CtValue::TokenTree(tree) = get(*input) else {
+                unreachable!("verified TokenTree")
+            };
+            Some(CtValue::Ident(reader.parse_ident(tree, budget)?))
         }
         K::TokenInspect {
             source,
@@ -935,24 +1174,43 @@ fn execute_instruction(
                     let fragment = a
                         .get(start..end)
                         .ok_or_else(|| error("CT text slice cuts UTF-8 or is out of range"))?;
-                    budget.reserve_temporary_bytes(fragment.len() as u64)?;
+                    budget.reserve_temporary_bytes(16u64.saturating_add(fragment.len() as u64))?;
                     CtValue::Text(fragment.to_owned())
                 }
                 T::Concatenate => {
                     let b = text(get(arguments[1]));
-                    budget.reserve_temporary_bytes(a.len().saturating_add(b.len()) as u64)?;
+                    budget.reserve_temporary_bytes(
+                        16u64.saturating_add(a.len().saturating_add(b.len()) as u64),
+                    )?;
                     CtValue::Text(format!("{a}{b}"))
                 }
             })
         }
         K::SyntaxBuild { kind, arguments } => {
-            let args: Vec<_> = arguments.iter().map(|id| get(*id).clone()).collect();
-            Some(CtValue::Syntax(reader.build_syntax(*kind, &args, budget)?))
+            let (mut args, temporary) = clone_operands(frame, arguments, budget)?;
+            if *kind == CtSyntaxBuilder::NameExpr {
+                let CtValue::Ident(name) = &mut args[0] else {
+                    unreachable!("verified name_expr Ident")
+                };
+                match (&name.source, name.namespace) {
+                    (CtNameSource::Fresh { .. }, CtNameNamespace::Unbound) => {
+                        name.namespace = CtNameNamespace::Value
+                    }
+                    (
+                        CtNameSource::Input(_) | CtNameSource::Definition(_),
+                        CtNameNamespace::Value,
+                    ) => {}
+                    _ => return Err(error("CT name_expr needs a value name, not export intent")),
+                }
+            }
+            let answer = reader.build_syntax(*kind, &args, budget);
+            budget.release_temporary_bytes(temporary);
+            Some(CtValue::Syntax(answer?))
         }
         K::NameBuild { kind, text: source } => {
             let label = text(get(*source));
             budget.reserve_generated_nodes(1)?;
-            budget.reserve_temporary_bytes(label.len() as u64)?;
+            budget.reserve_temporary_bytes(80u64.saturating_add(label.len() as u64))?;
             let ordinal = u32::try_from(budget.usage.generated_nodes)
                 .map_err(|_| limit("CT fresh-name ordinal overflow"))?;
             let source = match kind {
@@ -964,15 +1222,17 @@ fn execute_instruction(
             };
             Some(CtValue::Ident(CtIdent {
                 text: label.to_owned(),
-                namespace: CtNameNamespace::Value,
+                namespace: CtNameNamespace::Unbound,
                 source,
                 member_owner: None,
+                member_owner_type: None,
             }))
         }
         K::Query { kind, arguments } => {
-            let args: Vec<_> = arguments.iter().map(|id| get(*id).clone()).collect();
-            let (answer, dependency) =
-                reader.query(&frame.function.definition, *kind, &args, budget)?;
+            let (args, temporary) = clone_operands(frame, arguments, budget)?;
+            let result = reader.query(&frame.function.definition, *kind, &args, budget);
+            budget.release_temporary_bytes(temporary);
+            let (answer, dependency) = result?;
             budget.record_query(dependency)?;
             Some(answer)
         }
@@ -1067,6 +1327,13 @@ mod tests {
             _: &CtTokenTree,
             _: &mut CtExecutionBudget,
         ) -> CompileResult<CtSyntaxTree> {
+            Err(error("unused test reader method"))
+        }
+        fn parse_ident(
+            &self,
+            _: &CtTokenTree,
+            _: &mut CtExecutionBudget,
+        ) -> CompileResult<CtIdent> {
             Err(error("unused test reader method"))
         }
         fn query(
@@ -1196,5 +1463,160 @@ mod tests {
             evaluate_ct_artifact(&verified, &[], &Reader, &mut budget).unwrap_err()[0].code,
             "E-RESOURCE-LIMIT"
         );
+    }
+    #[test]
+    fn temporary_bytes_exact_peak_and_fresh_retry() {
+        let raw = raw();
+        let authority = Authority {
+            snapshot: raw.snapshot.clone(),
+        };
+        let verified = verify_ct_artifact(raw.clone(), &Limits::default(), &authority).unwrap();
+        let exact = CtDeclaredBudget {
+            max_temporary_bytes: 64,
+            ..raw.budget
+        };
+        let (_, receipt) =
+            evaluate_ct_artifact(&verified, &[], &Reader, &mut CtExecutionBudget::new(exact))
+                .unwrap();
+        assert_eq!(receipt.peak_temporary_bytes, 64);
+        let below = CtDeclaredBudget {
+            max_temporary_bytes: 63,
+            ..raw.budget
+        };
+        assert_eq!(
+            evaluate_ct_artifact(&verified, &[], &Reader, &mut CtExecutionBudget::new(below))
+                .unwrap_err()[0]
+                .code,
+            "E-RESOURCE-LIMIT"
+        );
+        assert_eq!(
+            evaluate_ct_artifact(&verified, &[], &Reader, &mut CtExecutionBudget::new(exact))
+                .unwrap()
+                .0,
+            CtValue::Scalar(Constant::I32(9))
+        );
+    }
+    #[test]
+    fn executes_verified_loop_with_local_refill() {
+        let mut program = raw();
+        let s = Span::default();
+        let f = &mut program.functions[0];
+        f.locals = vec![CtTy::Scalar(CtScalarTy::I32)];
+        f.values = vec![CtTy::Scalar(CtScalarTy::I32); 8];
+        f.values[3] = CtTy::Scalar(CtScalarTy::Bool);
+        f.blocks = vec![
+            CtBlock {
+                id: CtBlockId(0),
+                instructions: vec![
+                    CtInstruction {
+                        result: None,
+                        kind: CtInstructionKind::StorageLive(CtLocalId(0)),
+                        span: s,
+                    },
+                    CtInstruction {
+                        result: Some(CtValueId(0)),
+                        kind: CtInstructionKind::Constant(CtConstantId(0)),
+                        span: s,
+                    },
+                    CtInstruction {
+                        result: None,
+                        kind: CtInstructionKind::Store {
+                            local: CtLocalId(0),
+                            value: CtValueId(0),
+                        },
+                        span: s,
+                    },
+                ],
+                terminator: CtTerminator::Jump(CtBlockId(1)),
+            },
+            CtBlock {
+                id: CtBlockId(1),
+                instructions: vec![
+                    CtInstruction {
+                        result: Some(CtValueId(1)),
+                        kind: CtInstructionKind::Load(CtLocalId(0)),
+                        span: s,
+                    },
+                    CtInstruction {
+                        result: Some(CtValueId(2)),
+                        kind: CtInstructionKind::Constant(CtConstantId(1)),
+                        span: s,
+                    },
+                    CtInstruction {
+                        result: Some(CtValueId(3)),
+                        kind: CtInstructionKind::Binary {
+                            op: zil_ir::BinaryOp::Less,
+                            left: CtValueId(1),
+                            right: CtValueId(2),
+                        },
+                        span: s,
+                    },
+                ],
+                terminator: CtTerminator::Branch {
+                    condition: CtValueId(3),
+                    then_block: CtBlockId(2),
+                    else_block: CtBlockId(3),
+                },
+            },
+            CtBlock {
+                id: CtBlockId(2),
+                instructions: vec![
+                    CtInstruction {
+                        result: Some(CtValueId(4)),
+                        kind: CtInstructionKind::Load(CtLocalId(0)),
+                        span: s,
+                    },
+                    CtInstruction {
+                        result: Some(CtValueId(5)),
+                        kind: CtInstructionKind::Constant(CtConstantId(2)),
+                        span: s,
+                    },
+                    CtInstruction {
+                        result: Some(CtValueId(6)),
+                        kind: CtInstructionKind::Binary {
+                            op: zil_ir::BinaryOp::Add,
+                            left: CtValueId(4),
+                            right: CtValueId(5),
+                        },
+                        span: s,
+                    },
+                    CtInstruction {
+                        result: None,
+                        kind: CtInstructionKind::Store {
+                            local: CtLocalId(0),
+                            value: CtValueId(6),
+                        },
+                        span: s,
+                    },
+                ],
+                terminator: CtTerminator::Jump(CtBlockId(1)),
+            },
+            CtBlock {
+                id: CtBlockId(3),
+                instructions: vec![CtInstruction {
+                    result: Some(CtValueId(7)),
+                    kind: CtInstructionKind::Load(CtLocalId(0)),
+                    span: s,
+                }],
+                terminator: CtTerminator::Return(Some(CtValueId(7))),
+            },
+        ];
+        program.constants = vec![
+            CtConstant::Scalar(Constant::I32(0)),
+            CtConstant::Scalar(Constant::I32(3)),
+            CtConstant::Scalar(Constant::I32(1)),
+        ];
+        let authority = Authority {
+            snapshot: program.snapshot.clone(),
+        };
+        let verified = verify_ct_artifact(program.clone(), &Limits::default(), &authority).unwrap();
+        let (value, _) = evaluate_ct_artifact(
+            &verified,
+            &[],
+            &Reader,
+            &mut CtExecutionBudget::new(program.budget),
+        )
+        .unwrap();
+        assert_eq!(value, CtValue::Scalar(Constant::I32(3)));
     }
 }

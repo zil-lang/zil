@@ -262,6 +262,9 @@ fn check_ident(
     }
     match &ident.source {
         CtNameSource::Input(id) => {
+            if ident.namespace == CtNameNamespace::Unbound {
+                return Err(reject(None, "CT input name cannot have unbound namespace"));
+            }
             let Some(token) = raw.input_tokens.tokens.get(id.0 as usize) else {
                 return Err(reject(None, "CT input name token is out of range"));
             };
@@ -273,16 +276,24 @@ fn check_ident(
             }
         }
         CtNameSource::Definition(symbol) => {
+            if ident.namespace == CtNameNamespace::Unbound {
+                return Err(reject(
+                    None,
+                    "CT definition name cannot have unbound namespace",
+                ));
+            }
             if !authority.authorize_symbol(requester, symbol, CtSymbolUsage::DefinitionName) {
                 return Err(reject(None, "CT definition-site name is not visible"));
             }
         }
         CtNameSource::Fresh { invocation, .. } => {
-            if *invocation != raw.input_tokens.invocation_fingerprint {
+            if ident.namespace != CtNameNamespace::Unbound
+                || *invocation != raw.input_tokens.invocation_fingerprint
+            {
                 return Err(reject(None, "CT fresh name belongs to another invocation"));
             }
         }
-        CtNameSource::Export if allow_export => {}
+        CtNameSource::Export if allow_export && ident.namespace == CtNameNamespace::Unbound => {}
         CtNameSource::Export => {
             return Err(reject(
                 None,
@@ -290,11 +301,29 @@ fn check_ident(
             ));
         }
     }
+    if ident.member_owner.is_some() != ident.member_owner_type.is_some() {
+        return Err(reject(
+            None,
+            "CT member name needs both nominal and instantiated owner",
+        ));
+    }
     if let Some(owner) = &ident.member_owner {
         if ident.namespace != CtNameNamespace::Member
             || !authority.authorize_symbol(requester, owner, CtSymbolUsage::DefinitionName)
         {
             return Err(reject(None, "CT member name owner is not authenticated"));
+        }
+        let actual = ident
+            .member_owner_type
+            .as_ref()
+            .expect("paired member owner type");
+        if actual.root.0 as usize >= actual.nodes.len()
+            || !matches!(&actual.nodes[actual.root.0 as usize], CtTypeNode::Nominal { symbol, .. } if symbol == owner)
+        {
+            return Err(reject(
+                None,
+                "CT instantiated member owner differs from declaration",
+            ));
         }
     }
     Ok(())
@@ -497,6 +526,27 @@ fn check_function(
     }
     let preds = predecessors(function)?;
     let blocks = function.blocks.len();
+    let static_work = blocks
+        .saturating_mul(blocks)
+        .saturating_add(blocks.saturating_mul(function.locals.len()))
+        .saturating_add(function.values.len())
+        .saturating_add(
+            function
+                .blocks
+                .iter()
+                .map(|b| b.instructions.len())
+                .sum::<usize>(),
+        );
+    if static_work
+        > limits
+            .max_analysis_steps
+            .min(raw.budget.max_analysis_work as usize)
+    {
+        return Err(limit(
+            Some(function.span),
+            "CT CFG analysis matrix exceeds work budget",
+        ));
+    }
     let all: BTreeSet<usize> = (0..blocks).collect();
     let mut dominators = vec![all; blocks];
     dominators[function.entry.0 as usize] = BTreeSet::from([function.entry.0 as usize]);
@@ -505,7 +555,7 @@ fn check_function(
     while changed {
         changed = false;
         iterations = iterations.saturating_add(1);
-        if iterations.saturating_mul(blocks)
+        if iterations.saturating_mul(static_work)
             > limits
                 .max_analysis_steps
                 .min(raw.budget.max_analysis_work as usize)
@@ -754,6 +804,7 @@ fn operands(kind: &CtInstructionKind) -> Vec<CtValueId> {
         | CtInstructionKind::MakeVariant { fields, .. } => fields.clone(),
         CtInstructionKind::VariantField { value, .. }
         | CtInstructionKind::Parse { input: value, .. }
+        | CtInstructionKind::ParseIdent { input: value }
         | CtInstructionKind::NameBuild { text: value, .. } => vec![*value],
         CtInstructionKind::ExtractField { aggregate, .. } => vec![*aggregate],
         CtInstructionKind::ReplaceField {
@@ -1194,6 +1245,13 @@ fn check_instruction(
                 "CT parser needs raw TokenTree input",
             )?;
             CtTy::Syntax(*category)
+        }
+        K::ParseIdent { input } => {
+            expect(
+                *value(*input)? == CtTy::TokenTree,
+                "CT identifier parser needs raw TokenTree input",
+            )?;
+            CtTy::Ident
         }
         K::TokenInspect {
             source,
