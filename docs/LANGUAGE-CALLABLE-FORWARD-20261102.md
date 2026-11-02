@@ -10,4 +10,4 @@ R1随后在测试代码的两处usize冗余转换处被Clippy拦下，总判仍F
 
 证据入口：evidence/integration/callable-forward-20261102/R1/，evidence/impl/256/final-R1/，evidence/reviews/252–256/。不同候选与default/reference、作者/独审/CI重放分别记账。
 
-最终PR运行41455207131、41455207092均完整独立核回；primary artifact配额仍满，完整日志备用归档有效。main自动重放待核回。原始R1默认归档79,441项、R3参考归档72,116项全部核回后释放展开原件，压缩档保留。
+最终PR运行41455207131、41455207092均完整独立核回；primary artifact配额仍满，完整日志备用归档有效。main自动重放41461237336、41461237165已逐份独立核回，各默认3733/0、参考3626/0、文本64/0，精确checkout及全部4237项源码和原始归档一致；见[main回放验收](../evidence/integration/callable-forward-20261102/main-replay/ACCEPTANCE.json)。原始R1默认归档79,441项、R3参考归档72,116项全部核回后释放展开原件，压缩档保留。
