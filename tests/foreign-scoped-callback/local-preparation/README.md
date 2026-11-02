@@ -57,6 +57,26 @@ for semantic rejection. The old-control clang O0/O2 native group passes its
 24 executions, including eight actual reserve failures and eight beyond-point
 controls, with live=0 throughout. API replay is tracked separately.
 
+After exact frontend checkpoint `cc2bcc8a`, all three frozen sources and the
+observed nearby source reach independent Verify (one verification run each).
+Both explicit backends pass the new groups at O0/O2 independently:
+
+| Group per backend | Executions | Actual reserve failures | Beyond controls | Live-zero returns |
+| --- | ---: | ---: | ---: | ---: |
+| frozen generic-local | 12 | 4 | 4 | 12 |
+| frozen concrete-local and generic-owned-parameter controls | 24 | 8 | 8 | 24 |
+| observed generic-local | 12 | 4 | 4 | 12 |
+
+The observed group additionally matches exact body/Mark-drop/after-call events;
+body is absent on null and reserve failure, Mark drops once on each path, and
+the caller invokes f(4)==5 after every return. Successful close independently
+observes zero actual live ByteBuffer allocations before reentry rejection.
+The old controls' early replay and later combined replay are repetitions,
+not additional coverage. The complete existing functional target also passes
+all nine tests on clang and LLVM API, zero ignored/filtered, preserving the
+original callback matrix, disjoint/local-body groups and 13 strict negative
+source obligations. This is a bounded target run, not a workspace full gate.
+
 Use the existing `foreign_scoped_callbacks` target with
 `CARGO_TARGET_DIR=/workspace/.zil-env/target-275 CARGO_BUILD_JOBS=2` after
 sourcing `/workspace/.zil-env/env.sh`. The exact selectors are
@@ -68,3 +88,12 @@ For source or native checks use `cargo test -p zil-driver --test
 foreign_scoped_callbacks NAME -- --exact --nocapture`; add `--features llvm-api`
 for the API backend. Native checks assert the actual backend, no fallback,
 and API builder input, parse_ns=0 and verification before/after optimization.
+
+The concrete generic-local preparation previously rejected at Expand now
+composes ordinary owned resources, an Event and a consumed body through real
+native execution. This is an expression/composition improvement with limited
+ownership/cleanup evidence toward Rust-like safety. There is no measured
+same-semantics Rust runtime/RSS comparison, full framework-maintenance claim
+or Rust compile-speed comparison; unchanged budgets do not establish lower
+compile cost. The four-goal product conjunction and full language remain
+incomplete, with existing product-gate requirements unchanged.
