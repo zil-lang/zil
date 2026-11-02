@@ -105,7 +105,9 @@ impl<'a> Environment<'a> {
         let clone_charge = expected.functions.len().saturating_mul(128)
             .saturating_add(expected.templates.len().saturating_mul(128)) as u64;
         self.budget.reserve_temporary_bytes(clone_charge)?;
-        let result = zil_verify::verify_ct_artifact(expected.clone(), &selected_limits, &authority);
+        let mut meter = zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
+        let result = zil_verify::verify_ct_artifact_metered(expected.clone(), &selected_limits, &authority, &mut meter);
+        self.budget.reserve_analysis_work(meter.spent())?;
         self.budget.release_temporary_bytes(clone_charge);
         result?;
         self.ct_only.extend(classified);
@@ -132,7 +134,10 @@ impl<'a> Environment<'a> {
         let raw = expected.clone();
         let authority = FrozenAuthority { source_fingerprint: self.source_fingerprint, snapshot: &self.snapshot,
             input: input_tokens, index: &self.index, expected_functions: &expected.functions, expected_artifact: &expected };
-        let verified = zil_verify::verify_ct_artifact(raw, &selected_limits, &authority)?;
+        let mut meter = zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
+        let result = zil_verify::verify_ct_artifact_metered(raw, &selected_limits, &authority, &mut meter);
+        self.budget.reserve_analysis_work(meter.spent())?;
+        let verified = result?;
         let reader = FrozenReadView { index: &self.index, sources: self.sources, syntax: &syntax,
             shape: self.shape.as_ref(), shape_failure: self.shape_failure.as_deref(), input, limits: &selected_limits, target: self.target, snapshot: &self.snapshot };
         let (value, _usage) = zil_ct::evaluate_ct_artifact(&verified, arguments, &reader, &mut self.budget)

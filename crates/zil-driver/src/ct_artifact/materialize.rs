@@ -20,6 +20,7 @@ fn late_import(span: Span) -> Vec<Diagnostic> {
 pub(crate) struct Materialized {
     pub modules: Vec<s::Module>,
     pub previews: Vec<Preview>,
+    pub required_imports: Vec<(ModuleId, CoreImport)>,
     pub usage: CtUsageReceipt,
 }
 #[derive(Clone, Debug)]
@@ -57,7 +58,9 @@ struct Materializer<'a, 'b> {
     sources: &'b [SourceUnit],
     parsed: &'b [Arc<ParseResult>],
     registry: Option<&'a CtLockedProviderRegistry>,
+    paths: &'b BTreeMap<Vec<String>, ModuleId>,
     previews: Vec<Preview>,
+    required_imports: Vec<(ModuleId, CoreImport)>,
     max_depth: usize,
 }
 
@@ -102,7 +105,35 @@ impl Materializer<'_, '_> {
         let CtValue::Syntax(tree) = value else { return Err(category("compile-time result is not Syntax", span)); };
         if tree.category != expected { return Err(category("Syntax category differs from the receiving slot", span)); }
         let ParsedSyntax { rendered, parsed, names: _ } = self.environment.parse_tree(&tree, span)?;
+        let caller = self.sources.iter().find(|source| source.file_id == span.file)
+            .map(|source| source.module_id).ok_or_else(|| category("generated caller module is absent", span))?;
+        self.environment.budget.reserve_analysis_work(rendered.tokens.len() as u64)?;
+        for pair in rendered.tokens.windows(2) {
+            let first = &pair[0];
+            if rendered.source.text.get(pair[1].span.start..pair[1].span.end) != Some(".") { continue; }
+            let Some(origin) = tree.origins.get(first.origin.0 as usize) else { return Err(category("generated origin is absent", span)); };
+            if origin.role != CtOriginRole::QuoteDefinition { continue; }
+            let Some(provider_index) = self.sources.iter().position(|source| source.file_id == origin.span.file) else { continue; };
+            let alias = &rendered.source.text[first.span.start..first.span.end];
+            let source_import = self.parsed[provider_index].module.items.iter().find_map(|item| match &item.kind {
+                s::ItemKind::Import(import) if !import.syntax && import.alias.as_deref().or_else(|| import.path.last().map(String::as_str)) == Some(alias) => Some(import),
+                _ => None,
+            });
+            let Some(source_import) = source_import else { continue; };
+            let Some(target) = self.paths.get(&source_import.path) else { continue; };
+            let conflicting = self.parsed_source(caller)?.1.module.items.iter().any(|item| match &item.kind {
+                s::ItemKind::Import(import) => import.alias.as_deref().or_else(|| import.path.last().map(String::as_str)) == Some(alias)
+                    && self.paths.get(&import.path) != Some(target),
+                _ => false,
+            });
+            if conflicting { return Err(category("definition-site module alias collides with a caller binding", span)); }
+            if !self.required_imports.iter().any(|(module, import)| *module == caller && import.alias == alias && import.module == *target) {
+                self.environment.budget.reserve_generated_nodes(1)?;
+                self.required_imports.push((caller, CoreImport { alias: alias.to_owned(), module: *target, span }));
+            }
+        }
         let mut syntax = parsed.syntax.ok_or_else(|| category("generated parser returned no category", span))?;
+        super::hygiene::rename(&mut syntax, &rendered, &tree.origins, span)?;
         let limits = self.environment.remaining_limits_for_input();
         let work = zil_expand::remap_generated_spans(&mut syntax, span, &limits)?;
         self.environment.budget.reserve_analysis_work(work as u64)?;
@@ -307,7 +338,9 @@ pub(crate) fn materialize(
     let mut environment = Environment::new(sources, parsed, paths, imports, root, fingerprint, target, limits)?;
     environment.classify_definitions()?;
     let mut output = modules.iter().map(|module| (*module).clone()).collect::<Vec<_>>();
-    let mut materializer = Materializer { environment: &mut environment, sources, parsed, registry, previews: Vec::new(), max_depth: limits.max_call_depth };
+    let mut materializer = Materializer { environment: &mut environment, sources, parsed, registry, paths,
+        previews: Vec::new(), required_imports: Vec::new(), max_depth: limits.max_call_depth };
     for module in &mut output { materializer.items(module.id, &mut module.items, None, 0, false)?; }
-    Ok(Materialized { modules: output, previews: materializer.previews, usage: environment.budget.usage().clone() })
+    Ok(Materialized { modules: output, previews: materializer.previews, required_imports: materializer.required_imports,
+        usage: environment.budget.usage().clone() })
 }

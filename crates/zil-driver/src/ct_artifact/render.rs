@@ -49,6 +49,12 @@ struct Renderer<'a> {
     aliases: &'a BTreeMap<ModuleId, String>,
 }
 impl Renderer<'_> {
+    fn spelling(token: &zil_ir::ct_artifact::CtToken) -> String {
+        if let Some(CtIdent { source: CtNameSource::Fresh { invocation, binder }, .. }) = &token.name {
+            return format!("__zil_ct_f{}_{}", &invocation.to_hex()[..16], binder);
+        }
+        token.text.clone()
+    }
     fn alias_for(&self, name: Option<&CtIdent>) -> CompileResult<Option<String>> {
         let Some(CtIdent { source: CtNameSource::Definition(symbol), namespace: CtNameNamespace::Type | CtNameNamespace::Value, .. }) = name else { return Ok(None); };
         if symbol.module == self.module { return Ok(None); }
@@ -78,7 +84,10 @@ impl Renderer<'_> {
                     self.write(&alias, token.origin, None)?;
                     self.write(".", token.origin, None)?;
                 }
-                self.write(&token.text, token.origin, token.name.clone())
+                let spelling = Self::spelling(token);
+                let mut name = token.name.clone();
+                if let Some(name) = &mut name { name.text = spelling.clone(); }
+                self.write(&spelling, token.origin, name)
             }
             CtSyntaxNode::Group { delimiter, children, origin } => {
                 if origin.0 as usize >= self.tree.origins.len() { return Err(error("generated group origin is out of range")); }
@@ -104,7 +113,7 @@ pub(super) fn render(tree: &CtSyntaxTree, file: FileId, module: ModuleId, aliase
                 let extra = if let Some(CtIdent { source: CtNameSource::Definition(symbol), namespace: CtNameNamespace::Type | CtNameNamespace::Value, .. }) = &token.name {
                     if symbol.module != module { aliases.get(&symbol.module).ok_or_else(|| error("definition-site name has no sealed import in the generated caller module"))?.len().saturating_add(3) } else { 0 }
                 } else { 0 };
-                token.text.len().saturating_add(1).saturating_add(extra)
+                Renderer::spelling(token).len().saturating_add(1).saturating_add(extra)
             },
             CtSyntaxNode::Group { .. } => 4,
             CtSyntaxNode::Hole { .. } => return Err(error("evaluated syntax still contains a quote hole")),
