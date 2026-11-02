@@ -16,6 +16,8 @@ mod scalar_leaf;
 mod scalar_locals;
 mod scalar_summaries;
 mod scoped_callback;
+#[cfg(test)]
+mod scoped_callback_tests;
 mod slices;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
