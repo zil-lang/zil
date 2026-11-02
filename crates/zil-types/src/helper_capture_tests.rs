@@ -219,3 +219,208 @@ fn disjoint_borrowed_local_capture_keeps_exact_fresh_work_boundaries() {
         );
     }
 }
+
+#[test]
+fn ordinary_aggregates_cannot_launder_a_supplied_role_into_a_local_body() {
+    for shape in ["package", "union", "array", "tuple", "variant"] {
+        for source in ["supplied", "fresh", "unknown"] {
+            let (mut function, bounds) = fixture(true, 1, false);
+            let callback = Type::Closure(ClosureId(1));
+            let payload = Type::Record {
+                name: "Token".into(),
+                fields: vec![("n".into(), Type::I32)],
+            };
+            let managed = Type::Managed(Box::new(payload));
+            let (ty, kind) = match shape {
+                "package" => (
+                    Type::Package {
+                        name: "Hidden".into(),
+                        fields: vec![
+                            ("callback".into(), callback.clone()),
+                            ("owner".into(), managed.clone()),
+                        ],
+                    },
+                    InstructionKind::MakePackage {
+                        fields: vec![ValueId(0), ValueId(4)],
+                    },
+                ),
+                "union" => (
+                    Type::ErrorUnion {
+                        error: Box::new(Type::I32),
+                        result: Box::new(callback.clone()),
+                    },
+                    InstructionKind::MakeErrorUnion {
+                        is_error: false,
+                        value: ValueId(0),
+                    },
+                ),
+                "array" => (
+                    Type::Array {
+                        element: Box::new(callback.clone()),
+                        length: 2,
+                    },
+                    InstructionKind::MakeOwnedArray {
+                        elements: vec![ValueId(0), ValueId(0)],
+                    },
+                ),
+                "tuple" => (
+                    Type::Tuple(vec![callback.clone()]),
+                    InstructionKind::MakeAggregate {
+                        fields: vec![ValueId(0)],
+                    },
+                ),
+                _ => (
+                    Type::Enum {
+                        name: "Hidden".into(),
+                        variants: vec![("Callback".into(), vec![callback])],
+                    },
+                    InstructionKind::MakeVariant {
+                        variant: 0,
+                        fields: vec![ValueId(0)],
+                    },
+                ),
+            };
+            function.values[1] = ty;
+            function.values.extend([managed, Type::I32]);
+            let instruction = |result, kind| Instruction {
+                result: Some(ValueId(result)),
+                kind,
+                span: span(),
+            };
+            function.blocks[0].instructions.splice(
+                1..1,
+                [
+                    instruction(5, InstructionKind::Constant(Constant::I32(0))),
+                    instruction(
+                        4,
+                        InstructionKind::MakeManaged {
+                            fields: vec![ValueId(5)],
+                        },
+                    ),
+                    instruction(1, kind),
+                ],
+            );
+            if source == "fresh" {
+                function.blocks[0].instructions[0].kind = InstructionKind::MakeClosure {
+                    closure: ClosureId(1),
+                    captures: vec![],
+                };
+            } else if source == "unknown" {
+                function.blocks[0].instructions[0].kind = InstructionKind::Call {
+                    function: FunctionId(77),
+                    arguments: vec![],
+                };
+            }
+            let InstructionKind::MakeClosure { captures, .. } =
+                &mut function.blocks[0].instructions[4].kind
+            else {
+                unreachable!()
+            };
+            *captures = vec![ValueId(1)];
+            let run = |work| {
+                let limits = Limits {
+                    max_analysis_steps: work,
+                    ..Limits::default()
+                };
+                let mut state = closures::State::new(0, &limits);
+                let result = environment_origins(&function, &bounds, &mut state, span());
+                (result, state.accounting()[4])
+            };
+            let (result, work) = run(10_000);
+            if source != "fresh" {
+                let diagnostic = result.unwrap_err();
+                assert_eq!(
+                    diagnostic.message, "supplied callable role cannot enter an ordinary aggregate",
+                    "{shape}"
+                );
+            } else {
+                let expected = result.unwrap_or_else(|error| panic!("{shape}: {error:?}"));
+                assert_eq!(run(work).0.unwrap(), expected);
+                assert_eq!(run(work).0.unwrap(), expected);
+                assert_eq!(
+                    run(work - 1).0.unwrap_err().category,
+                    zil_base::ResultCategory::ResourceLimit
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_single_element_parameter_bridge_does_not_authorize_an_aggregate_call() {
+    let (mut function, bounds) = fixture(true, 1, false);
+    function.values[1] = Type::Array {
+        element: Box::new(Type::Closure(ClosureId(1))),
+        length: 1,
+    };
+    function.blocks[0].instructions.insert(
+        1,
+        Instruction {
+            result: Some(ValueId(1)),
+            kind: InstructionKind::MakeOwnedArray {
+                elements: vec![ValueId(0)],
+            },
+            span: span(),
+        },
+    );
+    let InstructionKind::MakeClosure { captures, .. } =
+        &mut function.blocks[0].instructions[2].kind
+    else {
+        unreachable!()
+    };
+    captures.clear();
+    let mut state = closures::State::new(0, &Limits::default());
+    let (_, origins) = environment_origins(&function, &bounds, &mut state, span()).unwrap();
+    assert_eq!(origins[1], 2);
+    let call = Instruction {
+        result: None,
+        kind: InstructionKind::Call {
+            function: FunctionId(9),
+            arguments: vec![ValueId(1)],
+        },
+        span: span(),
+    };
+    let diagnostic = forwarded_contract(&function, &call, &origins, &bounds, &mut state)
+        .err()
+        .expect("aggregate Call must reject");
+    assert_eq!(
+        diagnostic.message,
+        "nested helper cannot receive an aggregate containing a supplied callable role"
+    );
+}
+
+#[test]
+fn reading_a_role_address_preserves_its_actual_capture_origin() {
+    for captured in [0, 1] {
+        let (mut function, bounds) = fixture(true, captured, false);
+        function.values[0] = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Closure(ClosureId(captured))),
+        };
+        function.blocks[0].instructions[0].kind = InstructionKind::BorrowLocal {
+            local: LocalId(captured),
+        };
+        function.blocks[0].instructions.insert(
+            1,
+            Instruction {
+                result: Some(ValueId(1)),
+                kind: InstructionKind::ReadAddress {
+                    address: ValueId(0),
+                },
+                span: span(),
+            },
+        );
+        let InstructionKind::MakeClosure { captures, .. } =
+            &mut function.blocks[0].instructions[2].kind
+        else {
+            unreachable!()
+        };
+        *captures = vec![ValueId(1)];
+        let mut state = closures::State::new(0, &Limits::default());
+        let diagnostic = environment_origins(&function, &bounds, &mut state, span()).unwrap_err();
+        assert_eq!(
+            diagnostic.message,
+            "local concrete callable cannot capture a supplied callable role"
+        );
+    }
+}

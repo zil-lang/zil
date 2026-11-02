@@ -1168,6 +1168,49 @@ fn scoped_body_sources(
     Ok(sources)
 }
 
+// These are ordinary Flow-profile operations. Owning State constructors use
+// their separate declaration/position checker, outside this helper Flow path.
+fn ordinary_aggregate_inputs<'a>(
+    instruction: &'a Instruction,
+    function: &TypedFunction,
+) -> Option<(&'a [ValueId], Option<&'a ValueId>)> {
+    let inputs = match &instruction.kind {
+        InstructionKind::MakeOwnedArray { elements } if elements.len() == 1 => return None,
+        InstructionKind::StoreOwnedArrayElement {
+            local, index: 0, ..
+        } if matches!(
+            function.locals[local.0 as usize].ty,
+            Type::Array { length: 1, .. }
+        ) =>
+        {
+            return None;
+        }
+        InstructionKind::MakePackage { fields }
+        | InstructionKind::MakeManaged { fields }
+        | InstructionKind::MakeAggregate { fields }
+        | InstructionKind::MakeVariant { fields, .. }
+        | InstructionKind::MakeOwnedArray { elements: fields } => (fields.as_slice(), None),
+        InstructionKind::MakeErrorUnion { value, .. }
+        | InstructionKind::StorePackageField { value, .. }
+        | InstructionKind::WriteAddress { value, .. }
+        | InstructionKind::StoreOwnedArrayElement { value, .. }
+        | InstructionKind::OwnedStorePush { value, .. } => (std::slice::from_ref(value), None),
+        InstructionKind::UpdateField {
+            aggregate, value, ..
+        }
+        | InstructionKind::UpdateIndex {
+            aggregate, value, ..
+        } => (std::slice::from_ref(aggregate), Some(value)),
+        _ => return None,
+    };
+    Some(inputs)
+}
+
+fn environment_carrier_type(ty: &Type) -> bool {
+    environment_type(ty)
+        || matches!(ty, Type::Array { element, length: 1 } if environment_type(element))
+}
+
 /// Private value provenance, not hidden type identity. Factory calls may
 /// produce the very same ClosureId as the supplied parameter. A monotone union
 /// deliberately rejects a slot that can carry both origins.
@@ -1191,10 +1234,15 @@ fn environment_origins(
     let tables = Rc::clone(&state.helper_tables);
     let mut scoped_bodies = None;
     let mut concrete_captures = Vec::new();
+    let mut ordinary_aggregates = Vec::new();
     for block in &function.blocks {
         state.snapshot(1, span)?;
         for instruction in &block.instructions {
             state.snapshot(1, instruction.span)?;
+            if ordinary_aggregate_inputs(instruction, function).is_some() {
+                state.snapshot(1, instruction.span)?;
+                ordinary_aggregates.push(instruction);
+            }
             if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
                 if scoped_bodies.is_none() {
                     scoped_bodies = Some(scoped_body_sources(function, state, span)?);
@@ -1228,6 +1276,11 @@ fn environment_origins(
                 | InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
                 | InstructionKind::ReborrowAddress { .. }
+                | InstructionKind::ReadAddress { .. }
+                | InstructionKind::AddressField { .. }
+                | InstructionKind::AddressIndex { .. }
+                | InstructionKind::ExtractField { .. }
+                | InstructionKind::ExtractIndex { .. }
                 | InstructionKind::TakeOwnedArrayElement { index: 0, .. }
                 | InstructionKind::BorrowOwnedArrayElement { index: 0, .. } => 0,
                 InstructionKind::Call {
@@ -1278,7 +1331,14 @@ fn environment_origins(
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => locals[local.0 as usize],
-                    InstructionKind::ReborrowAddress { address, .. } => values[address.0 as usize],
+                    InstructionKind::ReborrowAddress { address, .. }
+                    | InstructionKind::ReadAddress { address }
+                    | InstructionKind::AddressField { address, .. }
+                    | InstructionKind::AddressIndex { address, .. } => values[address.0 as usize],
+                    InstructionKind::ExtractField { aggregate, .. }
+                    | InstructionKind::ExtractIndex { aggregate, .. } => {
+                        values[aggregate.0 as usize]
+                    }
                     InstructionKind::MakeOwnedArray { ref elements } if elements.len() == 1 => {
                         values[elements[0].0 as usize]
                     }
@@ -1333,6 +1393,26 @@ fn environment_origins(
             break;
         }
     }
+    // Resolve every alias first: a zero mask during convergence grants no
+    // permission to send a supplied role through an ordinary aggregate.
+    for instruction in ordinary_aggregates {
+        let (inputs, extra) = ordinary_aggregate_inputs(instruction, function).unwrap();
+        state.snapshot(
+            inputs.len().saturating_add(usize::from(extra.is_some())),
+            instruction.span,
+        )?;
+        if inputs.iter().chain(extra).any(|value| {
+            let index = value.0 as usize;
+            values[index] & 3 != 0
+                || (environment_carrier_type(&function.values[index])
+                    && !matches!(values[index], 4 | 16 | 32))
+        }) {
+            return Err(unsupported(
+                instruction.span,
+                "supplied callable role cannot enter an ordinary aggregate",
+            ));
+        }
+    }
     for instruction in concrete_captures {
         let InstructionKind::MakeClosure { captures, .. } = &instruction.kind else {
             unreachable!()
@@ -1372,10 +1452,21 @@ fn forwarded_contract(
         return Ok(None);
     };
     state.snapshot(arguments.len(), instruction.span)?;
-    if !arguments
-        .iter()
-        .any(|value| environment_type(&function.values[value.0 as usize]))
-    {
+    let mut has_environment = false;
+    for value in arguments {
+        if environment_type(&function.values[value.0 as usize]) {
+            has_environment = true;
+        } else if origins[value.0 as usize] & 3 != 0
+            || (environment_carrier_type(&function.values[value.0 as usize])
+                && !matches!(origins[value.0 as usize], 4 | 16 | 32))
+        {
+            return Err(unsupported(
+                instruction.span,
+                "nested helper cannot receive an aggregate containing a supplied callable role",
+            ));
+        }
+    }
+    if !has_environment {
         return Ok(None);
     }
     state.snapshot(state.helper_functions.len(), instruction.span)?;
