@@ -15,7 +15,7 @@ pub(crate) fn module(
     source: &SourceUnit,
     raw: &[Token],
     limits: &Limits,
-) -> (Module, Vec<Diagnostic>, usize) {
+) -> (Module, Vec<Diagnostic>, usize, bool) {
     let mut parser = make_parser(source, raw, limits);
     let items = parser.item_list(false);
     (
@@ -26,6 +26,7 @@ pub(crate) fn module(
         },
         parser.diagnostics,
         parser.nodes,
+        parser.type_meta_candidate,
     )
 }
 
@@ -65,6 +66,7 @@ fn make_parser<'a>(source: &'a SourceUnit, raw: &'a [Token], limits: &'a Limits)
         nodes: 0,
         limits,
         quote_frames: Vec::new(),
+        type_meta_candidate: false,
     }
 }
 
@@ -80,6 +82,7 @@ struct Parser<'a> {
     nodes: usize,
     limits: &'a Limits,
     quote_frames: Vec<quote::QuoteFrame>,
+    type_meta_candidate: bool,
 }
 
 impl Parser<'_> {
@@ -563,7 +566,7 @@ pub(crate) fn generated(
     raw: &[Token],
     category: SyntaxCategory,
     limits: &Limits,
-) -> (Option<crate::GeneratedSyntax>, Vec<Diagnostic>, usize) {
+) -> (Option<crate::GeneratedSyntax>, Vec<Diagnostic>, usize, bool) {
     let mut p = make_parser(source, raw, limits);
     p.newlines();
     let syntax = match category {
@@ -592,7 +595,7 @@ pub(crate) fn generated(
             "generated category must consume its complete input",
         );
     }
-    (syntax, p.diagnostics, p.nodes)
+    (syntax, p.diagnostics, p.nodes, p.type_meta_candidate)
 }
 
 #[cfg(test)]

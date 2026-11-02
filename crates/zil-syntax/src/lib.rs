@@ -28,9 +28,13 @@ pub struct ParseResult {
     /// Actual parser/attribute work needed by successful immutable syntax.
     /// This receipt carries no verification authority.
     pub usage: ParseUsage,
+    /// The parser encountered a TypeRef MetaEval, MetaSplice or MetaBlock.
+    /// This is only an untrusted routing candidate, including in quote templates
+    /// or recovered input; it grants no compile-time or verification authority.
+    pub type_meta_candidate: bool,
 }
 
-// Usage is process-local scheduling metadata. Keep syntax dump formatting
+// Usage and routing hints are process-local metadata. Keep syntax dump formatting
 // identical to the original raw front-end result.
 impl std::fmt::Debug for ParseResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -75,6 +79,8 @@ pub struct GeneratedParseResult {
     pub context: GeneratedParseContext,
     pub diagnostics: Vec<Diagnostic>,
     pub usage: ParseUsage,
+    /// Untrusted TypeRef meta-syntax routing hint, as in `ParseResult`.
+    pub type_meta_candidate: bool,
 }
 impl GeneratedParseResult {
     pub fn into_result(self) -> CompileResult<Self> {
@@ -172,14 +178,14 @@ pub fn parse_generated(
             entry += 1;
         }
     }
-    let (syntax, mut errors, nodes) = if diagnostics.is_empty() {
+    let (syntax, mut errors, nodes, type_meta_candidate) = if diagnostics.is_empty() {
         let remaining = Limits {
             max_nodes: limits.max_nodes - context_work.unwrap(),
             ..limits.clone()
         };
         parser::generated(source, &lexed.tokens, category, &remaining)
     } else {
-        (None, Vec::new(), 0)
+        (None, Vec::new(), 0, false)
     };
     diagnostics.append(&mut errors);
     GeneratedParseResult {
@@ -194,6 +200,7 @@ pub fn parse_generated(
         usage: ParseUsage {
             nodes_required: nodes.saturating_add(context_work.unwrap_or(usize::MAX)),
         },
+        type_meta_candidate,
     }
 }
 
@@ -238,7 +245,8 @@ pub fn parse_with_attribute_context(
     context: &attributes::AttributeContext,
 ) -> ParseResult {
     let lexed = lexer::lex_with_limits(source, limits);
-    let (module, mut diagnostics, parser_nodes) = parser::module(source, &lexed.tokens, limits);
+    let (module, mut diagnostics, parser_nodes, type_meta_candidate) =
+        parser::module(source, &lexed.tokens, limits);
     let mut all = lexed.diagnostics;
     all.append(&mut diagnostics);
     let (validation, attribute_work) = if all.is_empty() {
@@ -256,6 +264,7 @@ pub fn parse_with_attribute_context(
         usage: ParseUsage {
             nodes_required: parser_nodes.max(attribute_work),
         },
+        type_meta_candidate,
     }
 }
 

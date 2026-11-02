@@ -157,7 +157,7 @@ impl Parser<'_> {
             let inner = Box::new(self.type_primary()?);
             TypeKind::ForLifetime { lifetime, inner }
         } else if self.eat(Symbol::Hash) {
-            if self.splice_ahead() {
+            let kind = if self.splice_ahead() {
                 self.bump();
                 self.expect(Symbol::LParen)?;
                 let value = self.scoped(true, |p| {
@@ -180,7 +180,9 @@ impl Parser<'_> {
                     "E-PARSE-HASH-DISPATCH",
                     "type `#` must be immediately followed by `(` or `{`",
                 );
-            }
+            };
+            self.type_meta_candidate = true;
+            kind
         } else {
             let path = self.qualified_kind(QuoteNameNamespace::Type)?;
             let args = self.nominal_type_args(&path)?;
