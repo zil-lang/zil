@@ -1,0 +1,19 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-247/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.41s
+     Running tests/impl247_source.rs (/workspace/.zil-env/target-247/debug/deps/impl247_source-0735690e18fb5a09)
+
+running 1 test
+
+thread 'source_callback_result_does_not_revive_the_input_loan' (38649) panicked at crates/zil-driver/tests/impl247_source.rs:67:73:
+called `Result::unwrap_err()` on an `Ok` value: CandidatePlan { schema_version: 30, module_fingerprint: Fingerprint([237, 113, 238, 3, 222, 61, 4, 121, 37, 108, 31, 240, 79, 46, 160, 111, 167, 219, 236, 37, 247, 111, 54, 221, 144, 208, 30, 193, 134, 56, 212, 248]), target_fingerprint: Fingerprint([205, 49, 11, 211, 61, 158, 160, 206, 0, 177, 155, 124, 142, 36, 127, 255, 149, 121, 131, 121, 165, 196, 116, 61, 206, 130, 190, 234, 40, 5, 28, 15]), functions: [FunctionPlan { function: FunctionId(0), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }, ValueHold { value: ValueId(1), roots: [] }, ValueHold { value: ValueId(2), roots: [] }, ValueHold { value: ValueId(3), roots: [] }, ValueHold { value: ValueId(4), roots: [] }, ValueHold { value: ValueId(5), roots: [] }, ValueHold { value: ValueId(6), roots: [] }, ValueHold { value: ValueId(7), roots: [Local(LocalId(4))] }, ValueHold { value: ValueId(8), roots: [Local(LocalId(4))] }, ValueHold { value: ValueId(9), roots: [] }, ValueHold { value: ValueId(10), roots: [] }, ValueHold { value: ValueId(11), roots: [] }, ValueHold { value: ValueId(12), roots: [] }, ValueHold { value: ValueId(13), roots: [] }, ValueHold { value: ValueId(14), roots: [Local(LocalId(4))] }, ValueHold { value: ValueId(15), roots: [] }, ValueHold { value: ValueId(16), roots: [Local(LocalId(4))] }, ValueHold { value: ValueId(17), roots: [Local(LocalId(4))] }, ValueHold { value: ValueId(18), roots: [] }, ValueHold { value: ValueId(19), roots: [] }, ValueHold { value: ValueId(20), roots: [] }, ValueHold { value: ValueId(21), roots: [] }, ValueHold { value: ValueId(22), roots: [] }] }, FunctionPlan { function: FunctionId(1), blocks: [BlockPlan { block: BlockId(0), initialized_in: [LocalId(0)], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }] }], origins: [], responsibilities: [], unsupported: [] }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test source_callback_result_does_not_revive_the_input_loan ... FAILED
+
+failures:
+
+failures:
+    source_callback_result_does_not_revive_the_input_loan
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test impl247_source`
