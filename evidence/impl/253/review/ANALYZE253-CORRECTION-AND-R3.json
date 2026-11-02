@@ -1,0 +1,31 @@
+{
+  "reviewer": "/root/assess_delivery_process",
+  "reviewed_head": "6c1cf564ca22ba22efc5cb62d30b432d1635d514",
+  "status": "changes_requested",
+  "supersedes_classification_only": "ANALYZE253-REVIEW-6c1cf564c.json original i32 by-value control was mislabeled legal; retain all original observations and files.",
+  "correction": "A symbolic F does not gain Copy from its concrete Fn instantiation. TakeLocal F -> CallClosure(value F, i32) -> Return same SSA is itself an invalid by-value duplication. The previous i32 CallClosure example is therefore a negative case, not a positive control. This review classification error is corrected explicitly without changing original logs.",
+  "AN253-R2": {
+    "status": "confirmed with corrected independent matched pair",
+    "valid": "CallClosureShared(local F, i32), then TakeLocal F and Return; accepted raw/Wire",
+    "invalid": "Same Shared-local call but normal i32 argument replaced with Load(F) observation; accepted raw/Wire unexpectedly",
+    "artifacts": [
+      "reruns/corrected-6c1cf564c/control_shared_callback_i32_argument.wire",
+      "reruns/corrected-6c1cf564c/escape_shared_callback_f_argument.wire"
+    ],
+    "fix": "Check arguments/result signatures and prohibit symbolic F in ordinary argument slots across all CallClosure variants; prepay scans."
+  },
+  "AN253-R3": {
+    "severity": "blocking",
+    "title": "By-value Fn call copies symbolic F without Copy capability",
+    "location": "crates/zil-analyze/src/forward.rs:632-675 (consume runs only for FnOnce wanted mode)",
+    "reproduction": "Symbolic F:Fn(i32)->i32, concrete Fn with no captures; TakeLocal F->v0; CallClosure(callee=v0, arguments=[i32]); Return v0. Analyze accepts raw/Wire although no symbolic Copy permission exists.",
+    "valid_control": "CallClosureShared against live F local followed by TakeLocal and Return; raw/Wire accepted.",
+    "fix": "For symbolic F, reject by-value Fn CallClosure observation/copy; allow explicitly borrowed/local invocation without granting Copy. Do not reject concrete Copy caller values with no symbolic role provenance.",
+    "artifact": "reruns/corrected-6c1cf564c/escape_byvalue_symbolic_fn_call.wire"
+  },
+  "total_unique_findings": 3,
+  "AN253-R1": "fixed by 6c, preserved first Fail",
+  "new_probe": "probe-corrected.rs",
+  "new_result": "reruns/corrected-6c1cf564c/RESULT.json",
+  "verification_scope": "Independent Analyze raw/Wire, no Verify invoked or relied on as producer proof; root Verify information prompted correction of the semantic expectation only."
+}

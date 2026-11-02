@@ -1,0 +1,50 @@
+{
+  "reviewer": "/root/assess_delivery_process",
+  "independent_non_author": true,
+  "status": "Pass",
+  "production_commit": "883f55c640f8c5674ef73149f43e52702a64a091",
+  "production_tree": "9253a681636b31fe11805598fae0a10a80fbeea4",
+  "analyze_tree": "fe125d2328f16e2d57cd136b3d682e828eae908f",
+  "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "contract": "_zil_design.md section 9.4.2; schema/Wire31",
+  "scope": "Independent non-author Analyze slice 253 code review and fixed bounded raw/Wire regression matrix; does not substitute for unified candidate/full formal acceptance.",
+  "closed_findings": {
+    "AN253-R1": "Forwarded actual parent/child bodies are roots for both window sets before call graph propagation. Original 4 byte-identical raw/Wire parent fixtures now accept valid bodies and reject stale capture loans both with and without consumer edges.",
+    "AN253-R2": "Shared/Mut/value/Once/Borrowed callback branches validate actual argument/result signatures and prohibit symbolic F in ordinary data argument slots. Corrected Shared-local i32 positive accepts; symbolic F argument rejects. All callback forms inspected for shared validator use.",
+    "AN253-R3": "By-value Fn calls with symbolic-role provenance reject without Copy authority. Shared-local invocation remains accepted; fresh concrete Copy callback created within the same helper remains accepted."
+  },
+  "semantic_near_neighbors": {
+    "Array<Closure;2> symbolic escape": "reject raw+Wire",
+    "thin FunctionPointer local Store from symbolic F": "reject raw+Wire",
+    "concrete Copy new instance by-value call": "accept raw+Wire",
+    "shared i32 callback argument": "accept raw+Wire"
+  },
+  "independent_verification": {
+    "raw_wire_observations": 22,
+    "fixture_count": 11,
+    "all_expected": true,
+    "verify_invoked": false,
+    "full_suite_run": false,
+    "budget": {
+      "fixture": "valid parent with captured child and no in-module consumer call edge",
+      "minimum_public_analyze_steps": 1670,
+      "N": "same candidate",
+      "N_minus_1": "ResourceLimit diagnostics only",
+      "fresh_N": "same candidate"
+    },
+    "incremental": "Same session accepts valid parent, rejects stale parent, accepts valid again; accepts Shared-local i32 control, rejects symbolic argument escape, accepts valid again."
+  },
+  "prepayment_review": "New body root inventory is charged before iteration. Resource operand enumeration is lazy with a charge before each check. Callback arguments are prepaid before traversal; result and parameter type traversal is prepaid before equality; position type traversal is prepaid before exact type/borrow-permission checks.",
+  "legacy_fail_and_correction_preserved": [
+    "ANALYZE253-REVIEW.json",
+    "ANALYZE253-REVIEW-6c1cf564c.json",
+    "ANALYZE253-CORRECTION-AND-R3.json"
+  ],
+  "classification_correction": "Original i32 by-value CallClosure example was incorrectly labeled a positive control; the separate correction reclassifies it as R3 negative. Original files and observations remain unchanged.",
+  "result_file": "reruns/fixed-883f55c64/RESULT.json",
+  "result_sha256": "aada5705a2bb53ab565d24a196d2feebf4486bf16632ce2fdab4f14d7b8c5271",
+  "log_file": "reruns/fixed-883f55c64/probe.log",
+  "log_sha256": "ef9c85b8004877fac3ec2a057d2d2c0af4c68c095881cc8f610b79c78ac397b7",
+  "production_modified_by_reviewer": false,
+  "unified_candidate_binding": "pending root notification; this Pass binds exact 883f55c640f8c5674ef73149f43e52702a64a091 only"
+}
