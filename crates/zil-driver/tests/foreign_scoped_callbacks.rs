@@ -56,10 +56,10 @@ impl Drop for Temp {
     }
 }
 fn project(entry: &str) -> ProjectSources {
-    let names = if entry == "disjoint_body_main" {
-        vec![entry, "bridge"]
-    } else {
-        vec![entry, "model", "bridge"]
+    let names = match entry {
+        "disjoint_body_main" => vec![entry, "bridge"],
+        "local_body_main" => vec![entry, "local_body_bridge"],
+        _ => vec![entry, "model", "bridge"],
     };
     ProjectSources {
         root: ModuleId(0),
@@ -100,6 +100,9 @@ struct Expected {
     counters: BTreeMap<String, u64>,
 }
 fn rows() -> Vec<Expected> {
+    oracle_rows("ORACLE.json")
+}
+fn oracle_rows(name: &str) -> Vec<Expected> {
     // Read the frozen oracle, not the generator or observed compiler output.
     let python = r#"
 import json,sys
@@ -111,7 +114,7 @@ for case in json.load(open(sys.argv[1]))['cases']:
 "#;
     let output = Command::new("python3")
         .args(["-c", python])
-        .arg(fixtures().join("ORACLE.json"))
+        .arg(fixtures().join(name))
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");
@@ -220,11 +223,7 @@ fn observe(program: &Path, temporary: &Temp, expected: &Expected) {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = command.spawn().unwrap();
-    let write = child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(&[expected.input]);
+    let write = child.stdin.take().unwrap().write_all(&[expected.input]);
     if let Err(error) = write {
         // Nearby controls need no input and can exit before this write. Their
         // exact exit status, events and counters are still checked below.
@@ -460,5 +459,28 @@ fn scoped_body_can_borrow_a_disjoint_scalar_through_an_event_loop() {
         });
         let program = compile(&temporary, optimization, "disjoint_body_main");
         observe(&program, &temporary, &expected);
+    }
+}
+
+#[test]
+fn scoped_f_only_wrapper_creates_its_own_concrete_body() {
+    let report = compile_project(&project("local_body_main"), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let expected = oracle_rows("LOCAL_BODY_ORACLE.json");
+    assert_eq!(expected.len(), 1);
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let temporary = Temp::new(if optimization == Optimization::O0 {
+            "local-body-o0"
+        } else {
+            "local-body-o2"
+        });
+        let program = compile(&temporary, optimization, "local_body_main");
+        observe(&program, &temporary, &expected[0]);
     }
 }

@@ -58,6 +58,27 @@ alias control instead keeps an ordinary shared f address live across exclusive
 publication without capturing that address in body; it reaches Analyze. Raw
 same-root rejection and distinct-root acceptance remain independent obligations.
 
+`project/local_body_main.zil` and `local_body_bridge.zil` are a second separate
+nearby control. The public wrapper has only an F parameter: it creates its own
+concrete, noncapturing body, then publishes the caller's actual FnMut location.
+The local body pumps two events; the caller checks the body result, cleared C
+roots and persistent callback count after close. `LOCAL_BODY_ORACLE.json` is
+generated independently by `tools/language/foreign-scoped-callback/local_body_oracle.py`
+from those source operations and the C protocol. It adds two native executions
+per backend, with no change to the original source/oracle matrix. The initial
+run rejected at Expand's existing generic-expression profile; this is a
+required legal combination, not a negative control. The first expanded input
+also imported two modules that redeclared the same C symbols; Verify correctly
+rejected that fixture with E-VERIFY-FOREIGN. The final nearby input has one
+self-contained bridge module and one declaration per foreign symbol.
+After exact frontend `9f4e5b9c` and independent Verify `abf642d5`, the local
+body source reaches independent verification and passes O0/O2 clang and LLVM
+API execution, including builder input, parse_ns=0 and LLVM verification.
+The complete functional target has five passing tests with zero ignored or
+filtered tests on each backend, including all 13 strict source rejection controls.
+The original group remains 66 executions per backend; disjoint and local-body
+groups each add two separately counted executions per backend.
+
 The body factory takes its captured Event into a real body local, so its fresh
 implementation is genuinely FnOnce. The nested-body factory reads its owning
 Event and declares the actual Fn mode; the structured call still consumes that
@@ -82,6 +103,9 @@ The exact names are `scoped_event_loop_source_reaches_independent_verification`,
 `scoped_callback_source_rejections_bind_the_actual_risk`,
 `scoped_event_loop_matches_source_oracle_at_o0_and_o2` and
 `scoped_body_can_borrow_a_disjoint_scalar_through_an_event_loop`.
+The new control is `scoped_f_only_wrapper_creates_its_own_concrete_body`.
+Final runs omit `NAME -- --exact` to run all five tests in this functional
+target; this does not run the workspace suite.
 For the API backend add `--features llvm-api` before `--test`; its native
 reports must identify builder input with parse_ns=0, verification before and
 after LLVM optimization and no fallback. The three existing positive tests
@@ -94,6 +118,13 @@ The harness now accepts only that write error and still checks the child's
 exact exit, output and six counters. The subsequent combined replay passes
 all three existing positive tests on both backends. The initial harness
 failure remains distinct from compiler or program failure.
+
+The first targeted API Clippy run failed in Types' helper-flow classifier
+with too_many_arguments. Frontend `9f4e5b9c` reorganizes those arguments; the
+final `cargo clippy -p zil-driver --features llvm-api --test foreign_scoped_callbacks
+-- -D warnings` passes. The consumer Rust file passes rustfmt, both oracle
+files exactly match independent source-operation regeneration, and git diff
+passes whitespace checks.
 
 This slice adds real source-level composition and independently checked
 ownership/borrow controls toward Rust-like safety. Runtime evidence is limited
