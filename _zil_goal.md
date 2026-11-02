@@ -2,7 +2,7 @@
 
 ## 2026-11-02：外部回调已合入，普通组合并行推进
 
-266–272经PR21合入a7f0783a，默认3904/0、reference3796/0、text64/0及迁移9、独审和两远端CI通过，见docs/LANGUAGE-SCOPED-CALLBACK.md。273–275泛型具体资源准备候选9c6a64ee进入正式验收。277 Expand具体Event→Reply handler、278 Verify工厂body、279 Analyze捕获窗口一致性、280真实组合消费者按独立写集并行；276单独移除CI强制原始归档，真实测试门保持。源探针已确认每项差距和最近正控，不以Unsupported目录硬派工。
+277–283具体Event→Reply闭包、普通工厂组合及捕获窗口已通过PR24合入cd2e42f4；默认3974/0、参考3866/0及同源两CI通过，见docs/LANGUAGE-CALLABLE-COMPOSITION.md。273–275资源准备、Type/Syntax及结构化外部回调均已合入。284–287共享Product参数捕获已完成两核实现及独审，消费者与集成待验；具体派工只在主树.task/impl。
 
 ## 2026-11-03：Type/Syntax已合入，结构化外部回调验收
 
