@@ -1,7 +1,7 @@
 //! Closed CT services over the pre-generation source snapshot. Host callbacks
 //! return pure data and never execute a provider or grant ordinary Verify.
-use super::{snapshot::ShapeSnapshot, source_index::SourceIndex, type_ref::from_checked_type};
-use zil_base::{CompileResult, Diagnostic, Fingerprint, Phase, SourceUnit, Span};
+use super::{authority::stage_allows, ordinary_type, render, snapshot::ShapeSnapshot, source_index::SourceIndex, type_ref::from_checked_type};
+use zil_base::{CompileResult, Diagnostic, FileId, Fingerprint, ModuleId, Phase, SourceUnit, Span};
 use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{Constant, ct_artifact::*};
 use zil_syntax::ast::{self as s, ItemKind};
@@ -16,10 +16,22 @@ pub(super) struct FrozenReadView<'a> {
     pub sources: &'a [SourceUnit],
     pub syntax: &'a [&'a s::Module],
     pub shape: Option<&'a ShapeSnapshot>,
+    pub shape_failure: Option<&'a [Diagnostic]>,
     pub input: Option<&'a CtTokenTree>,
+    pub limits: &'a zil_base::Limits,
+    pub target: &'a zil_base::TargetProfile,
+    pub snapshot: &'a CtSnapshotRequest,
 }
 
 impl FrozenReadView<'_> {
+    fn unready(&self, message: &str) -> Vec<Diagnostic> {
+        let cycle = self.shape_failure.is_some_and(|errors| errors.iter().any(|error| {
+            let code = error.code.to_ascii_lowercase();
+            let text = error.message.to_ascii_lowercase();
+            code.contains("cycle") || code.contains("recursive") || text.contains("cycle") || text.contains("recursive")
+        }));
+        error(if cycle { "E-CT-PHASE-CYCLE" } else { "E-CT-PHASE-DEPENDENCY" }, message)
+    }
     fn type_spelling(&self, ty: &CtTypeRef, node: CtTypeNodeId, out: &mut Vec<(String, CtTokenClass, Option<CtIdent>)>, depth: usize) -> CompileResult<()> {
         if depth > 128 { return Err(error("E-CT-TYPE-PHASE", "type syntax nesting exceeds budget")); }
         let actual = ty.nodes.get(node.0 as usize).ok_or_else(|| error("E-CT-TYPE-PHASE", "type node is out of range"))?;
@@ -190,7 +202,7 @@ impl FrozenReadView<'_> {
         if !self.index.visible(requester, symbol) { return Err(error("E-CT-VISIBILITY", "CT type declaration is absent or hidden at this definition site")); }
         let item = self.declaration(symbol).ok_or_else(|| phase("type declaration is not in the frozen source batch"))?;
         if !matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_) | ItemKind::TypeAlias(_)) { return Err(phase("symbol is not a ready nominal type")); }
-        let ready = self.shape.ok_or_else(|| phase("ShapeReady has not completed"))?;
+        let ready = self.shape.ok_or_else(|| self.unready("ShapeReady has not completed"))?;
         let found = ready.core.modules.iter().any(|module| module.core.module_id == symbol.module && (
             module.core.aggregates.iter().any(|aggregate| aggregate.span == item.span)
             || module.core.enums.iter().any(|enumeration| enumeration.span == item.span)
@@ -204,7 +216,7 @@ impl FrozenReadView<'_> {
         Ok((ty, symbol))
     }
     fn aggregate(&self, symbol: &CtSymbolId) -> CompileResult<&zil_ir::CoreAggregate> {
-        let ready = self.shape.ok_or_else(|| phase("ShapeReady has not completed"))?;
+        let ready = self.shape.ok_or_else(|| self.unready("ShapeReady has not completed"))?;
         let span = self.index.span(symbol).ok_or_else(|| phase("shape symbol is absent"))?;
         ready.core.modules.iter().find(|module| module.core.module_id == symbol.module)
             .and_then(|module| module.core.aggregates.iter().find(|aggregate| aggregate.span == span))
@@ -213,7 +225,7 @@ impl FrozenReadView<'_> {
     fn field_info(&self, requester: &CtSymbolId, owner: &CtSymbolId, owner_type: &CtTypeRef, field: &zil_ir::CoreField, budget: &mut CtExecutionBudget) -> CompileResult<CtFieldInfo> {
         if requester.module != owner.module && !field.public { return Err(error("E-CT-VISIBILITY", "field is private at this CT definition site")); }
         let field_symbol = self.index.symbol_at(owner.module, field.span).ok_or_else(|| phase("field identity is absent from frozen source"))?;
-        let ready = self.shape.ok_or_else(|| phase("ShapeReady has not completed"))?;
+        let ready = self.shape.ok_or_else(|| self.unready("ShapeReady has not completed"))?;
         budget.reserve_analysis_work(1)?;
         budget.reserve_generated_nodes(2u64.saturating_add(owner_type.nodes.len() as u64).saturating_mul(2))?;
         budget.reserve_temporary_bytes(field.name.len() as u64)?;
@@ -303,10 +315,42 @@ impl CtReadView for FrozenReadView<'_> {
         budget.reserve_temporary_bytes(ident.text.len() as u64)?;
         Ok(ident.clone())
     }
-    fn parse(&self, _category: CtSyntaxCategory, _input: &CtTokenTree, _budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
-        Err(phase("generated syntax parser is not connected to the frozen input view"))
+    fn parse(&self, category: CtSyntaxCategory, input: &CtTokenTree, budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
+        if self.input != Some(input) { return Err(error("E-CT-INPUT", "syntax parser needs the authenticated provider input")); }
+        let [root] = input.roots.as_slice() else { return Err(error("E-CT-CATEGORY", "provider parser needs one outer delimiter")); };
+        let Some(CtTokenNode::Group { children, origin, .. }) = input.nodes.get(root.0 as usize) else {
+            return Err(error("E-CT-CATEGORY", "provider parser needs one outer delimiter"));
+        };
+        let byte_count = input.nodes.iter().filter_map(|node| match node { CtTokenNode::Token(token) => Some(token.text.len() as u64), _ => None }).sum::<u64>();
+        budget.reserve_analysis_work(input.nodes.len().saturating_add(input.origins.len()) as u64)?;
+        budget.reserve_generated_nodes(input.nodes.len().saturating_add(input.origins.len()) as u64)?;
+        budget.reserve_temporary_bytes(byte_count)?;
+        let nodes = input.nodes.iter().map(|node| match node {
+            CtTokenNode::Token(token) => CtSyntaxNode::Token(token.clone()),
+            CtTokenNode::Group { delimiter, children, origin } => CtSyntaxNode::Group {
+                delimiter: *delimiter, children: children.iter().map(|id| CtSyntaxNodeId(id.0)).collect(), origin: *origin,
+            },
+        }).collect::<Vec<_>>();
+        let mut tree = CtSyntaxTree { category, nodes, roots: children.iter().map(|id| CtSyntaxNodeId(id.0)).collect(), origins: input.origins.clone() };
+        if tree.roots.len() != 1 && matches!(category, CtSyntaxCategory::Expr | CtSyntaxCategory::Type) {
+            let id = CtSyntaxNodeId(u32::try_from(tree.nodes.len()).map_err(|_| error("E-CT-CATEGORY", "provider syntax node overflow"))?);
+            let children = std::mem::take(&mut tree.roots);
+            tree.nodes.push(CtSyntaxNode::Group { delimiter: CtDelimiter::Parenthesis, children, origin: *origin });
+            tree.roots.push(id);
+        }
+        let file = input.origins.first().map_or(FileId(0), |origin| origin.span.file);
+        let module = self.sources.iter().find(|source| source.file_id == file).map_or(ModuleId(0), |source| source.module_id);
+        let mut limits = self.limits.clone();
+        limits.max_nodes = limits.max_nodes.min(budget.remaining().max_analysis_work as usize);
+        limits.max_call_depth = limits.max_call_depth.min(budget.remaining().max_call_depth as usize);
+        render::parse(&tree, file, module, &limits, budget)?;
+        Ok(tree)
     }
     fn query(&self, requester: &CtSymbolId, kind: CtQueryKind, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<(CtValue, CtQueryDependency)> {
+        if !self.index.contains(requester) || !self.snapshot.requested_queries.contains(&kind)
+            || !stage_allows(self.snapshot.ready, kind) {
+            return Err(self.unready("query is not ready or granted in this immutable CT snapshot"));
+        }
         let value = match kind {
             CtQueryKind::Shape => {
                 let (ty, nominal) = self.nominal_root(args.first().ok_or_else(|| error("E-CT-QUERY-ARG", "shape query needs a type"))?)?;
@@ -321,7 +365,20 @@ impl CtReadView for FrozenReadView<'_> {
                 CtValue::FieldInfo(self.field_info(requester, nominal, ty, field, budget)?)
             }
             CtQueryKind::ImplIndex => return Err(phase("ImplIndexReady has not completed for this generation batch")),
-            CtQueryKind::Layout => return Err(phase("LayoutReady has not completed for this generation batch")),
+            CtQueryKind::Layout => {
+                let (ty, nominal) = self.nominal_root(args.first().ok_or_else(|| error("E-CT-QUERY-ARG", "layout query needs a type"))?)?;
+                self.nominal(requester, nominal)?;
+                let ready = self.shape.ok_or_else(|| self.unready("LayoutReady has not completed for this generation batch"))?;
+                let ordinary = ordinary_type::checked_type(ty, ready, self.index, self.limits.max_call_depth)?;
+                let (size, alignment, field_offsets) = zil_backend_llvm::ct_layout_of_checked_type(
+                    &ordinary, self.target, self.limits, &mut |charge| {
+                        budget.reserve_analysis_work(charge as u64)?;
+                        budget.reserve_temporary_bytes(charge as u64)
+                    },
+                )?;
+                budget.reserve_generated_nodes(field_offsets.len().saturating_add(1) as u64)?;
+                CtValue::LayoutInfo(CtLayoutInfo { target_fingerprint: self.target.fingerprint(), size, alignment, field_offsets })
+            }
         };
         let dependency = Self::dependency(kind, args, &value);
         Ok((value, dependency))

@@ -2,7 +2,7 @@
 //! The raw artifact's copied table and snapshot are compared to these values.
 use super::source_index::SourceIndex;
 use zil_base::Fingerprint;
-use zil_ir::ct_artifact::{CtFunction, CtInputTable, CtQueryKind, CtReadyStage, CtSnapshotRequest, CtSymbolId};
+use zil_ir::ct_artifact::{CtArtifactProgram, CtFunction, CtInputTable, CtQueryKind, CtReadyStage, CtSnapshotRequest, CtSymbolId};
 use zil_verify::{CtArtifactAuthority, CtSymbolUsage};
 
 pub(super) struct FrozenAuthority<'a> {
@@ -13,9 +13,10 @@ pub(super) struct FrozenAuthority<'a> {
     /// Reattributed from the immutable source request by the driver. This
     /// comparison authenticates definition-site provenance, not CT correctness.
     pub expected_functions: &'a [CtFunction],
+    pub expected_artifact: &'a CtArtifactProgram,
 }
 
-fn stage_allows(stage: CtReadyStage, kind: CtQueryKind) -> bool {
+pub(super) fn stage_allows(stage: CtReadyStage, kind: CtQueryKind) -> bool {
     let reached = match stage {
         CtReadyStage::Tokens => 0,
         CtReadyStage::Config => 1,
@@ -37,6 +38,9 @@ impl CtArtifactAuthority for FrozenAuthority<'_> {
     fn source_fingerprint(&self) -> Fingerprint { self.source_fingerprint }
     fn snapshot(&self) -> &CtSnapshotRequest { self.snapshot }
     fn authenticate_input_table(&self, input: &CtInputTable) -> bool { input == self.input }
+    fn authenticate_artifact(&self, raw: &CtArtifactProgram) -> bool {
+        raw == self.expected_artifact
+    }
     fn authenticate_function(&self, function: &CtFunction) -> bool {
         self.index.contains(&function.definition)
             && self.expected_functions.iter().any(|expected| expected == function)
@@ -45,8 +49,7 @@ impl CtArtifactAuthority for FrozenAuthority<'_> {
         self.index.visible(requester, symbol)
     }
     fn authorize_query(&self, requester: &CtSymbolId, kind: CtQueryKind) -> bool {
+        let _ = kind;
         self.index.contains(requester)
-            && self.snapshot.requested_queries.contains(&kind)
-            && stage_allows(self.snapshot.ready, kind)
     }
 }
