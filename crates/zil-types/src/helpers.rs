@@ -82,6 +82,9 @@ pub(super) fn validate_template(
     function: &CoreFunction,
     prepay: &mut impl FnMut(&Type, Span) -> R<()>,
 ) -> R<()> {
+    if forwarding::bound(function).is_some() {
+        return forwarding::validate(function, prepay);
+    }
     if owning_factory::template(function) {
         return owning_factory::validate(function);
     }
@@ -414,8 +417,14 @@ impl Builder<'_, '_> {
         }
         let owned_state = callable_fields::signature(signature);
         let owned_factory = owning_factory::signature(signature);
+        let forward = forwarding::signature(signature).map(|bound| bound.index);
+        if forward.is_some() {
+            self.forward_modes(span)?;
+        }
+        let mut returned_mode = None;
         if !owned_state
             && !owned_factory
+            && forward.is_none()
             && let Some(expected) = expected
         {
             self.same(&signature.result, expected, span)?;
@@ -563,9 +572,14 @@ impl Builder<'_, '_> {
                 };
                 self.require_state_kind(argument, None, closure, bound.kind)?;
                 self.factory_require_value(value, bound.kind, argument.span)?;
-                if owned_factory {
+                if owned_factory || forward.is_some() {
                     self.closures
                         .factory_self_contained(closure, argument.span)?;
+                }
+                if forward == Some(index as u32) {
+                    returned_mode = self
+                        .declared_state_kind(argument, None, closure)?
+                        .or(self.factory_value_kind(value, argument.span)?);
                 }
                 self.validate_bound(closure, bound, owned_state, argument.span)?;
                 environments.bind(bound.generic_index, closure, argument.span)?;
@@ -595,7 +609,7 @@ impl Builder<'_, '_> {
             environments,
             span,
         )?;
-        let result = if owned_state || owned_factory {
+        let result = if owned_state || owned_factory || forward.is_some() {
             self.closures
                 .snapshot(self.closures.helper_functions.len(), span)?;
             self.closures
@@ -621,6 +635,12 @@ impl Builder<'_, '_> {
             self.constant(Constant::Unit, span)
         } else {
             let value = self.value(instruction, result.clone(), span)?;
+            if let Some(mode) = returned_mode {
+                self.factory_modes
+                    .as_mut()
+                    .expect("forward modes")
+                    .value_mode(value, mode);
+            }
             Ok((value, result))
         }
     }
@@ -738,6 +758,10 @@ impl Builder<'_, '_> {
         let bounds = bounds_view.as_ref();
         let owned_state = callable_fields::template(&function);
         let owned_factory = owning_factory::template(&function);
+        let forward = forwarding::bound(&function).map(|bound| bound.index);
+        if forward.is_some() {
+            function.return_type = Type::Closure(bindings.get(bounds[0].generic_index, span)?);
+        }
         if owned_state {
             if (template.function.state_parameters.is_empty()
                 && bounds
@@ -820,6 +844,9 @@ impl Builder<'_, '_> {
             self.closures,
         )?;
         builder.state_uses = state_uses;
+        if forward.is_some() || builder.closures.forward_callers.contains(&(key, bindings)) {
+            builder.forward_modes(span)?;
+        }
         if owned_state && builder.state_uses.is_none() {
             builder.closures.snapshot(1, span)?;
             let bound = &bounds[0];
@@ -877,7 +904,11 @@ impl Builder<'_, '_> {
                     ) {
                         CallableCleanup::Borrowed
                     } else {
-                        CallableCleanup::Owned
+                        if forward == Some(bound.index) {
+                            CallableCleanup::Returned
+                        } else {
+                            CallableCleanup::Owned
+                        }
                     },
                 });
             }
@@ -885,6 +916,49 @@ impl Builder<'_, '_> {
                 roles,
                 traces: flow::contract(&typed, bounds, self.closures, self.limits, span)?,
             });
+        }
+        if let Some(parameter) = forward {
+            let role = &typed
+                .callable_contract
+                .as_ref()
+                .expect("forward role")
+                .roles[0];
+            let captures = self.closures.pending[role.closure.0 as usize]
+                .captures
+                .len();
+            self.closures.snapshot(
+                captures
+                    .saturating_mul(2)
+                    .saturating_add(role.hold.len())
+                    .saturating_add(role.call.len())
+                    .saturating_add(role.writes.len())
+                    .saturating_add(plan::tree_work(self.closures.forward_results.len()))
+                    .saturating_add(1),
+                span,
+            )?;
+            let cleanup = self.closures.pending[role.closure.0 as usize]
+                .captures
+                .iter()
+                .enumerate()
+                .filter_map(|(index, capture)| {
+                    matches!(
+                        capture.stored_type(),
+                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                    )
+                    .then_some(index as u32)
+                })
+                .collect();
+            typed.callable_return_contract = Some(CallableReturnContract {
+                source: CallableReturnSource::Parameter(parameter),
+                closure: role.closure,
+                kind: role.kind,
+                hold: role.hold.clone(),
+                call: role.call.clone(),
+                writes: role.writes.clone(),
+                cleanup,
+                lending_captures: Vec::new(),
+            });
+            self.closures.forward_results.insert(id, parameter);
         }
         self.closures.helper_exports.push(Export {
             module: template.context.module,
@@ -897,7 +971,7 @@ impl Builder<'_, '_> {
                     .iter()
                     .map(|p| (p.mode, p.ty.clone()))
                     .collect(),
-                result: if owned_factory {
+                result: if owned_factory || forward.is_some() {
                     typed.return_type.clone()
                 } else {
                     function.return_type
@@ -1072,7 +1146,22 @@ fn environment_origins(
                             }
                         }
                     }
-                    if factory { 4 } else { 8 }
+                    let forwarded = if state.forward_results.is_empty() {
+                        false
+                    } else {
+                        state.snapshot(
+                            plan::tree_work(state.forward_results.len()),
+                            instruction.span,
+                        )?;
+                        state.forward_results.contains_key(callee)
+                    };
+                    if forwarded {
+                        0
+                    } else if factory {
+                        4
+                    } else {
+                        8
+                    }
                 }
                 _ => 8,
             };
@@ -1090,6 +1179,24 @@ fn environment_origins(
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => locals[local.0 as usize],
                     InstructionKind::ReborrowAddress { address, .. } => values[address.0 as usize],
+                    InstructionKind::Call {
+                        function: callee,
+                        ref arguments,
+                    } => {
+                        if state.forward_results.is_empty() {
+                            0
+                        } else {
+                            state.snapshot(
+                                plan::tree_work(state.forward_results.len()),
+                                instruction.span,
+                            )?;
+                            state
+                                .forward_results
+                                .get(&callee)
+                                .and_then(|index| arguments.get(*index as usize))
+                                .map_or(0, |argument| values[argument.0 as usize])
+                        }
+                    }
                     InstructionKind::Store { local, value } => {
                         let prior = locals[local.0 as usize];
                         locals[local.0 as usize] |= values[value.0 as usize];
@@ -1188,7 +1295,11 @@ fn forwarded_contract(
                 "nested helper environment is not one actual supplied role",
             )
         })?;
-        if child.kind != caller.kind {
+        let returns_input = state.helper_functions[position]
+            .callable_return_contract
+            .as_ref()
+            .is_some_and(|contract| matches!(contract.source, CallableReturnSource::Parameter(_)));
+        if child.kind != caller.kind && !(returns_input && compatible(caller.kind, child.kind)) {
             return Err(unsupported(
                 instruction.span,
                 "nested helper role has a different declared callable kind",
