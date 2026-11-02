@@ -62,18 +62,6 @@ fn run(path: &Path, input: &[u8], mode: Option<&str>) -> Output {
     if let Some(mode) = mode {
         command.env("ZIL_SHORT_WRITE_MODE", mode);
     }
-    let mut child = command.spawn().unwrap();
-    child.stdin.take().unwrap().write_all(input).unwrap();
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while child.try_wait().unwrap().is_none() {
-        if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
-            panic!("byte application timed out: {}", path.display());
-        }
-        std::thread::sleep(Duration::from_millis(2));
-    }
-    let output = child.wait_with_output().unwrap();
     let record = path.with_file_name(format!(
         "run-{}-{}",
         path.file_name().unwrap().to_string_lossy(),
@@ -81,6 +69,28 @@ fn run(path: &Path, input: &[u8], mode: Option<&str>) -> Output {
     ));
     fs::write(record.with_extension("command"), format!("{command:?}\n")).unwrap();
     fs::write(record.with_extension("stdin"), input).unwrap();
+    let mut child = command.spawn().unwrap();
+    child.stdin.take().unwrap().write_all(input).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while child.try_wait().unwrap().is_none() {
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let output = child.wait_with_output().unwrap();
+            fs::write(record.with_extension("stdout"), &output.stdout).unwrap();
+            fs::write(record.with_extension("stderr"), &output.stderr).unwrap();
+            fs::write(
+                record.with_extension("exit"),
+                format!("timeout after 5 seconds; {:?}\n", output.status),
+            )
+            .unwrap();
+            panic!(
+                "byte application timed out: {} input={input:?} mode={mode:?}: {output:?}",
+                path.display()
+            );
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let output = child.wait_with_output().unwrap();
     fs::write(record.with_extension("stdout"), &output.stdout).unwrap();
     fs::write(record.with_extension("stderr"), &output.stderr).unwrap();
     fs::write(

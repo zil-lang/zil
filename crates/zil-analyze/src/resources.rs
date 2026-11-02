@@ -657,18 +657,57 @@ pub(super) fn address_afters(
     reachable: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
+    address_afters_inner(f, reachable, false, budget)
+}
+
+// Capturing an address transports its last-use dependency into the actual
+// closure carrier. Keep the ordinary address-only walk unchanged for callers
+// outside this profile; the Hold solver supplies all actual roots separately.
+pub(super) fn capture_afters(
+    f: &TypedFunction,
+    reachable: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
+    address_afters_inner(f, reachable, true, budget)
+}
+
+pub(super) fn capture_carrier(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::Closure(id) = ty else {
+        return Ok(false);
+    };
+    budget.lookup(
+        budget.address_capture_closures.len(),
+        "captured address carrier lookup",
+    )?;
+    Ok(budget.address_capture_closures.contains(id))
+}
+
+fn address_afters_inner(
+    f: &TypedFunction,
+    reachable: &[bool],
+    captures: bool,
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
     budget.spend(
         f.locals.len().saturating_add(f.values.len()),
         "captured Store address shape scan",
     )?;
     let mut shapes = BTreeMap::new();
+    let mut has_capture = false;
     for (place, ty) in f.locals.iter().map(|l| (Place::Local(l.id), &l.ty)).chain(
         f.values
             .iter()
             .enumerate()
             .map(|(index, ty)| (Place::Value(ValueId(index as u32)), ty)),
     ) {
-        if matches!(ty, Type::Address { .. }) {
+        let captured = captures && capture_carrier(ty, budget)?;
+        has_capture |= captured;
+        if captured || matches!(ty, Type::Address { .. }) {
             budget.lookup(shapes.len(), "captured Store address shape insertion")?;
             shapes.insert(
                 place,
@@ -679,7 +718,7 @@ pub(super) fn address_afters(
             );
         }
     }
-    if shapes.is_empty() {
+    if shapes.is_empty() || (captures && !has_capture) {
         return Ok(Vec::new());
     }
     afters(f, reachable, &shapes, budget)

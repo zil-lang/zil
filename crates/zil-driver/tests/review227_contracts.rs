@@ -54,7 +54,16 @@ fn rejected(result: Result<impl Sized, Vec<Diagnostic>>, label: &str) {
         "{label}: rejected only candidate claims: {errors:#?}"
     );
 }
-fn raw_wire(label: &str, module: TypedModule, mut plan: CandidatePlan, accept: bool) {
+fn raw_wire(label: &str, module: TypedModule, plan: CandidatePlan, accept: bool) {
+    raw_wire_with_code(label, module, plan, accept, None);
+}
+fn raw_wire_with_code(
+    label: &str,
+    module: TypedModule,
+    mut plan: CandidatePlan,
+    accept: bool,
+    expected_code: Option<&str>,
+) {
     let out = dir(label);
     let limits = Limits::default();
     plan.module_fingerprint = module.fingerprint();
@@ -78,6 +87,15 @@ fn raw_wire(label: &str, module: TypedModule, mut plan: CandidatePlan, accept: b
         if accept {
             result.unwrap_or_else(|e| panic!("{label}/{route}: {e:#?}"));
         } else {
+            if let Some(code) = expected_code {
+                let errors = result.as_ref().expect_err("invalid raw accepted");
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.code == code && d.category == ResultCategory::SafeReject),
+                    "{label}/{route}: {errors:#?}"
+                );
+            }
             rejected(result, &format!("{label}/{route}"));
         }
     }
@@ -456,8 +474,9 @@ fn ordinary_once_transfer_preserves_shared_address_holds_until_actual_invocation
         unreachable!()
     };
     store.kind = I::Store { local: left, value };
-    // The producer exports Hold roots; ordinary shared-write exclusion remains
-    // a Verify obligation, as on the pre-existing direct shared-address path.
+    // The verified legal control already exports the actual shared Hold root.
+    // Retargeting this scalar Store does not change those facts or block
+    // initialization. Both kernels must independently reject the new write.
     let action = f
         .blocks
         .iter()
@@ -483,10 +502,8 @@ fn ordinary_once_transfer_preserves_shared_address_holds_until_actual_invocation
         })
         .unwrap();
     let function = f.id;
-    let analyzed = zil_analyze::analyze(&attacked, &Limits::default()).unwrap();
     assert!(
-        analyzed
-            .functions
+        plan.functions
             .iter()
             .find(|p| p.function == function)
             .unwrap()
@@ -497,7 +514,20 @@ fn ordinary_once_transfer_preserves_shared_address_holds_until_actual_invocation
             .roots
             .contains(&zil_ir::HoldRoot::Local(left))
     );
+    let analyzed = zil_analyze::analyze(&attacked, &Limits::default()).unwrap_err();
+    assert!(
+        analyzed
+            .iter()
+            .all(|d| d.code == "E-BORROW-CONFLICT" && d.category == ResultCategory::SafeReject),
+        "{analyzed:#?}"
+    );
     let out = dir("laundered-address-analysis");
     fs::write(out.join("analyze.txt"), format!("{analyzed:#?}")).unwrap();
-    raw_wire("laundered-address", attacked, plan, false);
+    raw_wire_with_code(
+        "laundered-address",
+        attacked,
+        plan,
+        false,
+        Some("E-BORROW-CONFLICT"),
+    );
 }

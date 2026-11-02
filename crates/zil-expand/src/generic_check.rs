@@ -2948,7 +2948,8 @@ impl Check<'_, '_, '_> {
                 .callable
                 .as_ref()
                 .is_some_and(|bounds| bounds.owned_factory)
-                || self.scoped_body_closure(e.span)? =>
+                || self.scoped_body_closure(e.span)?
+                || self.callable.is_some() =>
             {
                 let scoped_body = !self.callable.as_ref().is_some_and(|b| b.owned_factory);
                 let saved_cleanup = std::mem::replace(&mut self.defer_body, false);

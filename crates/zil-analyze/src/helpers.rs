@@ -22,6 +22,33 @@ fn env(ty: &Type) -> Option<(ClosureId, Option<bool>)> {
 const FACTORY: u8 = 4;
 const UNKNOWN: u8 = 8;
 
+// retained::check_function has independently checked every public factory
+// before helpers run. Match this Call's actual result, not just its type ID or
+// the presence of a return claim; Parameter forwarding is never Fresh.
+fn fresh_result(producer: &TypedFunction, ty: &Type) -> bool {
+    producer.callable_return_contract.as_ref().is_some_and(|c| {
+        c.source == CallableReturnSource::Fresh
+            && *ty == Type::Closure(c.closure)
+            && producer.return_type == *ty
+    })
+}
+
+fn aggregate_operand(kind: &InstructionKind) -> bool {
+    matches!(
+        kind,
+        InstructionKind::MakePackage { .. }
+            | InstructionKind::MakeOwnedArray { .. }
+            | InstructionKind::MakeManaged { .. }
+            | InstructionKind::MakeAggregate { .. }
+            | InstructionKind::MakeVariant { .. }
+            | InstructionKind::MakeErrorUnion { .. }
+            | InstructionKind::StorePackageField { .. }
+            | InstructionKind::StoreOwnedArrayElement { .. }
+            | InstructionKind::UpdateField { .. }
+            | InstructionKind::UpdateIndex { .. }
+    )
+}
+
 fn origins(
     module: &TypedModule,
     function: &TypedFunction,
@@ -64,11 +91,7 @@ fn origins(
                         .ok_or_else(|| bad("helper factory producer is absent"))?;
                     // retained::check_function has independently checked every
                     // factory before helpers run. Presence alone is not proof.
-                    if producer.callable_return_contract.as_ref().is_some_and(|c| {
-                        c.source == CallableReturnSource::Fresh
-                            && *ty == Type::Closure(c.closure)
-                            && producer.return_type == *ty
-                    }) {
+                    if fresh_result(producer, ty) {
                         FACTORY
                     } else {
                         UNKNOWN
@@ -162,6 +185,9 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         )?;
         let mut seen = vec![false; function.blocks.len()];
         let mut pending = vec![function.entry.0 as usize];
+        let mut has_factory_result = false;
+        let mut has_composition = false;
+        let mut has_aggregate = false;
         while let Some(index) = pending.pop() {
             budget.spend(1, "helper dependency block")?;
             let block = function
@@ -174,6 +200,21 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             seen[index] = true;
             for instruction in &block.instructions {
                 budget.spend(1, "helper dependency instruction")?;
+                // Local construction needs actual CFG positions, including
+                // captures and later moves; preserve legacy accounting for
+                // helpers which contain no local environment construction.
+                if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
+                    if budget.forward_functions.is_empty() {
+                        budget.spend(count, "concrete helper dependency flags")?;
+                        budget.forward_functions = vec![false; count];
+                    }
+                    budget.forward_functions[caller] = true;
+                }
+                // The legacy Copy-only factory-local profile already checks
+                // SSA Fn observations and aliases with exact role traces. A
+                // Fresh result alone does not replace that contract with the
+                // stronger identity proof. New aggregate transfers do need it.
+                has_aggregate |= aggregate_operand(&instruction.kind);
                 if let InstructionKind::Call {
                     function: callee, ..
                 } = instruction.kind
@@ -183,7 +224,15 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         .functions
                         .get(callee)
                         .ok_or_else(|| bad("helper dependency target is absent"))?;
+                    if instruction
+                        .result
+                        .and_then(|v| function.values.get(v.0 as usize))
+                        .is_some_and(|ty| fresh_result(target, ty))
+                    {
+                        has_factory_result = true;
+                    }
                     if target.callable_contract.is_some() {
+                        has_composition = true;
                         budget.spend(2, "helper dependency edge")?;
                         incoming[caller] += 1;
                         users[callee].push(caller);
@@ -205,6 +254,45 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 }
                 _ => {}
             }
+        }
+        // Only new factory/aggregate combinations pay this operand audit.
+        // Existing State constructors without a factory keep their old path.
+        if has_factory_result
+            && has_aggregate
+            && !has_composition
+            && !budget
+                .forward_functions
+                .get(caller)
+                .copied()
+                .unwrap_or(false)
+        {
+            for (block, reachable) in function.blocks.iter().zip(&seen) {
+                budget.spend(1, "factory aggregate composition block")?;
+                if !reachable {
+                    continue;
+                }
+                for instruction in &block.instructions {
+                    budget.spend(1, "factory aggregate composition instruction")?;
+                    if !aggregate_operand(&instruction.kind) {
+                        continue;
+                    }
+                    for value in super::resources::uses(&instruction.kind) {
+                        budget.spend(1, "factory composition operand classification")?;
+                        has_composition |= function
+                            .values
+                            .get(value.0 as usize)
+                            .is_some_and(|ty| env(ty).is_some());
+                    }
+                }
+            }
+        }
+        if has_factory_result && has_composition {
+            budget.spend(1, "actual public Fresh factory composition proof trigger")?;
+            if budget.forward_functions.is_empty() {
+                budget.spend(count, "concrete factory helper dependency flags")?;
+                budget.forward_functions = vec![false; count];
+            }
+            budget.forward_functions[caller] = true;
         }
     }
     let mut ready: VecDeque<_> = incoming
@@ -264,7 +352,7 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
 struct Forwarded<'a> {
     traces: &'a CallableTraces,
     /// Each child parameter is replaced at this actual static call site.
-    roles: Vec<(u32, u32)>,
+    roles: Vec<(u32, Option<u32>)>,
 }
 
 fn forwarded<'a>(
@@ -311,7 +399,29 @@ fn forwarded<'a>(
         let value = *arguments
             .get(role.parameter as usize)
             .ok_or_else(|| bad("nested helper role argument is absent"))?;
-        let origin = parameter_invocation(origins[value.0 as usize], true)?
+        let actual = origins[value.0 as usize];
+        // Only the position-sensitive proof may discharge a concrete local
+        // argument. A ClosureId match never supplies a symbolic parent role.
+        if actual == FACTORY
+            && budget
+                .forward_functions
+                .get(function.id.0 as usize)
+                .copied()
+                .unwrap_or(false)
+        {
+            let (id, _) = env(&function.values[value.0 as usize])
+                .ok_or_else(|| bad("nested concrete argument has no environment"))?;
+            let definition = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| bad("nested concrete environment is absent"))?;
+            if role.closure != id || !super::forward::compatible(definition.kind, role.kind) {
+                return Err(bad("nested concrete helper identity or mode differs"));
+            }
+            substitutions.push((role.parameter, None));
+            continue;
+        }
+        let origin = parameter_invocation(actual, true)?
             .ok_or_else(|| bad("nested helper must forward an actual parent role"))?;
         let parent = roles
             .get(origin)
@@ -323,7 +433,7 @@ fn forwarded<'a>(
         {
             return Err(bad("nested helper role identity or mode differs"));
         }
-        substitutions.push((role.parameter, parent.parameter));
+        substitutions.push((role.parameter, Some(parent.parameter)));
     }
     Ok(Some(Forwarded {
         traces: &claim.traces,

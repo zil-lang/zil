@@ -948,6 +948,7 @@ struct FunctionGraph {
     predecessors: Vec<Vec<usize>>,
     reachable: Vec<bool>,
     package_views: packages::CaptureViews,
+    role_data_uses: Vec<ValueId>,
 }
 
 fn check_function(
@@ -972,6 +973,7 @@ fn check_function(
             predecessors: Vec::new(),
             reachable: Vec::new(),
             package_views: packages::CaptureViews::default(),
+            role_data_uses: Vec::new(),
         });
     }
     if n == 0 || function.entry.0 as usize >= n {
@@ -1146,6 +1148,7 @@ fn check_function(
         return Err(fail("E-VERIFY-SSA", "declared SSA value has no definition"));
     }
     let reachable = reachability(function.entry.0 as usize, &successors, budget)?;
+    let mut role_data_uses = Vec::new();
     for (b, block) in function.blocks.iter().enumerate() {
         if reachable[b] && matches!(block.terminator, Terminator::Unreachable) {
             return Err(fail(
@@ -1184,6 +1187,14 @@ fn check_function(
             for operand in instruction_operands(&instruction.kind) {
                 budget.spend(1)?;
                 check_use(operand, b, i, &definitions, &dominators, instruction.span)?;
+                // Reuse this already-paid operand visit. Only actual callable
+                // data transfers allocate a new private use-site; ordinary
+                // data and the independently checked Parameter slot stay on
+                // their existing exact budget path.
+                if helpers::role_data_operand(function, instruction, operand) {
+                    budget.spend(1)?;
+                    role_data_uses.push(operand);
+                }
             }
             if matches!(instruction.kind, InstructionKind::TakeErrorUnion { .. }) {
                 errors::check_take_tag(
@@ -1280,6 +1291,7 @@ fn check_function(
         predecessors,
         reachable,
         package_views,
+        role_data_uses,
     };
     foreign::check_regions(function, &graph, budget)?;
     cleanup::check_function(module, function, &graph, budget)?;

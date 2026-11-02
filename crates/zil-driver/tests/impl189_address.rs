@@ -95,6 +95,9 @@ fn native(files: &[(&str, &str)], expected_stdout: &[u8], exit: i32) {
     }
 }
 fn conflict(source: &str) {
+    conflict_at(source, Phase::Verify);
+}
+fn conflict_at(source: &str, phase: Phase) {
     let report = check(source);
     assert_eq!(
         report.status,
@@ -102,7 +105,7 @@ fn conflict(source: &str) {
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+    assert_eq!(report.phase, phase, "{}", report.to_json());
     assert!(
         report
             .diagnostics
@@ -270,7 +273,7 @@ fn current_call_includes_captured_address_qualification() {
         let source = format!(
             "fn apply<F:Fn(&mut i32)->i32>(f:&F,p:&mut i32)->i32{{return f(p)}}fn main()->i32{{var n=3;let saved=&n;let f=move(p:&mut i32)->i32=>{{*p+=1;return *saved}};return {call}}}"
         );
-        conflict(&source);
+        conflict_at(&source, Phase::Analyze);
         let other = source
             .replace("let saved=&n", "var other=4;let saved=&n")
             .replace("f(&mut n)", "f(&mut other)")

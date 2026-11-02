@@ -302,13 +302,19 @@ fn nesting_keeps_recursion_and_mixed_kind_boundaries_while_loops_run() {
 
 #[test]
 fn nested_helpers_keep_current_call_and_lending_result_loans() {
-    rejected(
+    let report = check(
         "argument-writes-live-capture",
         "fn set(n:&mut i32)->i32{*n=9;return 0}\nfn leaf<F:FnMut()->i32>(f:&mut F,n:i32)->i32=>f()+n\nfn run<F:FnMut()->i32>(f:&mut F,n:i32)->i32=>leaf(f,n)\nfn main()->i32{var n=0;var f=()=>{n+=1;return n};return run(&mut f,set(&mut n))}",
-        Phase::Verify,
-        ResultCategory::SafeReject,
-        "active address window",
     );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert_eq!(report.diagnostics[0].code, "E-BORROW-CONFLICT");
+    assert!(!report.artifacts.contains_key("executable"));
     rejected(
         "returned-view-overlaps-next-nested-call",
         "fn make(n:i32)->impl FnMut()->&i32{var value=n;return move()=>{value+=1;return &value}}\nfn leaf<F:FnMut()->&i32>(f:&mut F)->&i32=>f()\nfn run<F:FnMut()->&i32>(f:&mut F)->&i32=>leaf(f)\nfn main()->i32{var f=make(7);let view=run(&mut f);let later=run(&mut f);return *view+*later}",
@@ -369,7 +375,7 @@ fn main()->i32{let seed=3;let first=move()=>seed;return run(pack(first))-23}
 }
 
 #[test]
-fn planning_a_known_factory_type_does_not_establish_parameter_origin() {
+fn local_factory_instances_keep_their_own_origins_in_nested_helpers() {
     for factory in ["make", "other"] {
         let source = format!(
             r#"
@@ -380,12 +386,14 @@ fn middle<F:Fn()->i32>(f:&F)->i32{{let unrelated={factory}(99);return leaf(&unre
 fn main()->i32{{let f=make(4);return middle(&f)}}
 "#
         );
-        rejected(
-            "planned-factory-is-not-parameter",
-            &source,
-            Phase::Types,
-            ResultCategory::Unsupported,
-            "not one actual supplied role",
+        // A checked local factory result can be passed to a nested helper.
+        // Its value is unrelated to the supplied F, even for the same ClosureId.
+        accepted("local-factory-is-not-parameter", &source);
+        native(
+            "local-factory-is-not-parameter",
+            &[("main", &source)],
+            b"",
+            if factory == "make" { 99 } else { 100 },
         );
     }
 }

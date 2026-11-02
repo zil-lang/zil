@@ -34,11 +34,42 @@ fn forwarded_single_slot(f: &TypedFunction, roles: &[CallableRole], ty: &Type) -
             if element.as_ref() == &Type::Closure(role.closure)))
 }
 
+pub(super) fn role_data_operand(
+    f: &TypedFunction,
+    instruction: &Instruction,
+    value: ValueId,
+) -> bool {
+    let Some(claim) = &f.callable_contract else {
+        return false;
+    };
+    let ty = &f.values[value.0 as usize];
+    if parameter_type(ty).is_none() && !forwarded_single_slot(f, &claim.roles, ty) {
+        return false;
+    }
+    match &instruction.kind {
+        InstructionKind::MakeOwnedArray { .. } => !instruction.result.is_some_and(|result| {
+            forwarded_single_slot(f, &claim.roles, &f.values[result.0 as usize])
+        }),
+        InstructionKind::StoreOwnedArrayElement {
+            local, index: 0, ..
+        } => !forwarded_single_slot(f, &claim.roles, &f.locals[local.0 as usize].ty),
+        InstructionKind::MakePackage { .. }
+        | InstructionKind::MakeManaged { .. }
+        | InstructionKind::MakeAggregate { .. }
+        | InstructionKind::MakeVariant { .. }
+        | InstructionKind::MakeErrorUnion { .. }
+        | InstructionKind::StorePackageField { .. }
+        | InstructionKind::StoreOwnedArrayElement { .. }
+        | InstructionKind::UpdateField { .. }
+        | InstructionKind::UpdateIndex { .. } => true,
+        _ => false,
+    }
+}
+
 struct EnvironmentOrigins {
     values_at: usize,
     marks: Vec<u8>,
     parameters: Vec<u32>,
-    local_bodies: Option<Vec<bool>>,
 }
 
 // This is a use restriction, not a closure safety certificate. Only concrete
@@ -103,10 +134,12 @@ fn scoped_local_bodies(f: &TypedFunction, budget: &mut Budget) -> Check<Option<V
 /// Independent provenance graph. Edges describe only actual local/SSA
 /// transfers; type equality never supplies an edge. The finite marks are
 /// roles (1 and 2), verified self-contained factory (4), other producer (8),
-/// and an actual local With body construction (16).
+/// an actual local With body construction (16), and another concrete local
+/// construction (32). Both construction classes must preserve capture roles.
 fn environment_origins(
     module: &TypedModule,
     f: &TypedFunction,
+    graph: &FunctionGraph,
     roles: &[CallableRole],
     budget: &mut Budget,
 ) -> Check<EnvironmentOrigins> {
@@ -119,6 +152,7 @@ fn environment_origins(
     let mut pending = VecDeque::new();
     budget.spend(roles.len().saturating_mul(2))?;
     let mut parameters = Vec::with_capacity(roles.len());
+    let mut concrete_captures = Vec::new();
     for (position, role) in roles.iter().enumerate() {
         let parameter = f.parameters[role.parameter as usize];
         marks[parameter.0 as usize] = 1 << position;
@@ -203,7 +237,8 @@ fn environment_origins(
                 InstructionKind::Call { function, .. } => {
                     let producer = &module.functions[function.0 as usize];
                     producer.callable_return_contract.as_ref().is_some_and(|c| {
-                        f.values[result.0 as usize] == Type::Closure(c.closure)
+                        c.source == CallableReturnSource::Fresh
+                            && f.values[result.0 as usize] == Type::Closure(c.closure)
                             && producer.return_type == Type::Closure(c.closure)
                     })
                 }
@@ -211,12 +246,17 @@ fn environment_origins(
             };
             marks[destination] = if factory {
                 4
-            } else if matches!(instruction.kind, InstructionKind::MakeClosure { .. })
-                && local_bodies
+            } else if let InstructionKind::MakeClosure { ref captures, .. } = instruction.kind {
+                budget.spend(1)?;
+                concrete_captures.push(captures);
+                if local_bodies
                     .as_ref()
                     .is_some_and(|bodies| bodies[destination])
-            {
-                16
+                {
+                    16
+                } else {
+                    32
+                }
             } else {
                 8
             };
@@ -236,11 +276,34 @@ fn environment_origins(
             }
         }
     }
+    for captures in concrete_captures {
+        budget.spend(captures.len().saturating_add(1))?;
+        for value in captures {
+            if parameter_type(&f.values[value.0 as usize]).is_none() {
+                continue;
+            }
+            let origin = marks[values_at + value.0 as usize];
+            if !matches!(origin, 4 | 16 | 32) {
+                return Err(bad(
+                    f,
+                    "local concrete callable captures a supplied, unknown or mixed callable origin",
+                ));
+            }
+        }
+    }
+    budget.spend(graph.role_data_uses.len())?;
+    for value in &graph.role_data_uses {
+        if !matches!(marks[values_at + value.0 as usize], 4 | 16 | 32) {
+            return Err(bad(
+                f,
+                "supplied, unknown or mixed callable origin cannot enter aggregate data",
+            ));
+        }
+    }
     Ok(EnvironmentOrigins {
         values_at,
         marks,
         parameters,
-        local_bodies,
     })
 }
 
@@ -272,7 +335,7 @@ fn invocation(
         _ => return Ok(None),
     };
     let mark = origins.marks[origin];
-    if mark == 4 && !borrowed {
+    if mark == 4 && !borrowed || matches!(mark, 16 | 32) {
         return Ok(None);
     }
     let parameter = match mark {
@@ -366,7 +429,7 @@ fn dependency_order(
 
 struct Forwarded<'a> {
     traces: &'a CallableTraces,
-    mapping: Vec<(u32, u32)>,
+    mapping: Vec<(u32, Option<u32>)>,
 }
 impl Forwarded<'_> {
     fn remap(
@@ -380,21 +443,22 @@ impl Forwarded<'_> {
                 .len()
                 .saturating_mul(self.mapping.len().saturating_add(1)),
         )?;
-        calls
-            .iter()
-            .map(|event| {
-                let parameter = self
-                    .mapping
-                    .iter()
-                    .find(|(child, _)| *child == event.parameter)
-                    .map(|(_, caller)| *caller)
-                    .ok_or_else(|| bad(f, "child event has no actual role substitution"))?;
-                Ok(CallEvent {
+        let mut result = Vec::new();
+        for event in calls {
+            let parameter = self
+                .mapping
+                .iter()
+                .find(|(child, _)| *child == event.parameter)
+                .map(|(_, caller)| *caller)
+                .ok_or_else(|| bad(f, "child event has no actual role substitution"))?;
+            if let Some(parameter) = parameter {
+                result.push(CallEvent {
                     parameter,
                     kind: event.kind,
-                })
-            })
-            .collect()
+                });
+            }
+        }
+        Ok(result)
     }
 }
 
@@ -443,6 +507,27 @@ fn forwarded<'a>(
             .get(child.parameter as usize)
             .ok_or_else(|| bad(f, "nested helper role parameter is absent"))?;
         let mark = origins.marks[origins.values_at + value.0 as usize];
+        if matches!(mark, 4 | 16 | 32) {
+            let Some((id, _)) = parameter_type(&f.values[value.0 as usize]) else {
+                return Err(bad(
+                    f,
+                    "child concrete callable lacks its actual environment type",
+                ));
+            };
+            if id != child.closure
+                || !closures::supports(
+                    closures::definition(module, id, Some(instruction.span))?.kind,
+                    child.kind,
+                )
+            {
+                return Err(bad(
+                    f,
+                    "child concrete callable type or mode differs from its checked role",
+                ));
+            }
+            mapping.push((child.parameter, None));
+            continue;
+        }
         let position = match mark {
             1 => 0,
             2 => 1,
@@ -464,7 +549,7 @@ fn forwarded<'a>(
                 "nested helper actual role type or bound exceeds the caller declaration",
             ));
         }
-        mapping.push((child.parameter, caller.parameter));
+        mapping.push((child.parameter, Some(caller.parameter)));
     }
     Ok(Some(Forwarded {
         traces: &claim.traces,
@@ -968,7 +1053,8 @@ pub(super) fn check_module(
                 },
             });
         }
-        let traces = flow::reconstruct(module, f, &roles, &checked, limits, budget)?;
+        let traces =
+            flow::reconstruct(module, f, &graphs[index], &roles, &checked, limits, budget)?;
         let expected = CallableParameterContract { roles, traces };
         budget.spend(claim.roles.len())?;
         for role in &claim.roles {

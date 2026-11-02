@@ -1256,6 +1256,7 @@ mod frontier_tests {
             .map(|f| {
                 if f.blocks.len() == 1 {
                     FunctionGraph {
+                        role_data_uses: Vec::new(),
                         predecessors: vec![vec![]],
                         successors: vec![vec![]],
                         reachable: vec![true],
@@ -1263,6 +1264,7 @@ mod frontier_tests {
                     }
                 } else {
                     FunctionGraph {
+                        role_data_uses: Vec::new(),
                         predecessors: vec![vec![], vec![0], vec![0]],
                         successors: vec![vec![1, 2], vec![], vec![]],
                         reachable: vec![true; 3],
