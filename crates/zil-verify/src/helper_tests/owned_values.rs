@@ -255,3 +255,117 @@ fn owning_result_does_not_expand_shared_product_or_store_capture_profiles() {
     });
     raw.reject("captured Store requires a finite Copy or Unit result");
 }
+
+#[test]
+fn callback_result_cannot_export_callee_created_resource_as_a_create_result() {
+    let mut raw = dispatch();
+    let caller = &mut raw.module.functions[2];
+    caller.return_type = owned();
+    caller.result_mode = PassingMode::Create;
+    let local = LocalId(0);
+    caller.locals.push(LocalDecl {
+        id: local,
+        name: "response".into(),
+        ty: reply(),
+        mutable: true,
+        span: span(),
+    });
+    let token = ValueId(caller.values.len() as u32);
+    caller.values.push(owned());
+    let instructions = &mut caller.blocks[0].instructions;
+    let exit = instructions
+        .iter()
+        .position(|instruction| matches!(instruction.kind, InstructionKind::ScopeExit { .. }))
+        .unwrap();
+    instructions.splice(
+        exit..exit,
+        [
+            op(None, InstructionKind::StorageLive(local)),
+            op(
+                None,
+                InstructionKind::Store {
+                    local,
+                    value: ValueId(4),
+                },
+            ),
+            op(
+                Some(token),
+                InstructionKind::TakePackageField { local, index: 0 },
+            ),
+            op(None, InstructionKind::DropPackage { local }),
+            op(None, InstructionKind::StorageDead(local)),
+        ],
+    );
+    caller.blocks[0].terminator = Terminator::Return(Some(token));
+    raw.reject("create result is not independently proven fresh");
+}
+
+fn callback_state() -> Type {
+    Type::Package {
+        name: "State".into(),
+        fields: vec![("token".into(), owned()), ("callback".into(), env())],
+    }
+}
+
+#[test]
+fn owned_callback_signature_does_not_extend_state_array_store_or_opaque_factory() {
+    let state = callback_state();
+    let mut raw = dispatch();
+    raw.module.functions[2].locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "unused_state".into(),
+        ty: state.clone(),
+        mutable: true,
+        span: span(),
+    });
+    raw.reject("container and opaque callback profiles do not admit owning data signatures");
+
+    let mut raw = dispatch();
+    raw.module.functions[2].locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "unused_array".into(),
+        ty: Type::Array {
+            element: Box::new(env()),
+            length: 1,
+        },
+        mutable: true,
+        span: span(),
+    });
+    raw.reject("container and opaque callback profiles do not admit owning data signatures");
+
+    let mut raw = dispatch();
+    raw.module.functions[2].locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "unused_store".into(),
+        ty: Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(state),
+        })),
+        mutable: true,
+        span: span(),
+    });
+    raw.reject("container and opaque callback profiles do not admit owning data signatures");
+
+    let mut raw = dispatch();
+    let store_element = callback_state();
+    raw.module.resources.push(ResourceDefinition {
+        name: dynamic_store::definition_name(&store_element),
+        payload: Type::OwnedStore {
+            element: Box::new(store_element),
+        },
+        teardown: None,
+    });
+    raw.reject("container and opaque callback profiles do not admit owning data signatures");
+
+    let mut raw = dispatch();
+    raw.module.functions[2].return_type = env();
+    raw.module.functions[2].callable_return_contract = Some(CallableReturnContract {
+        closure: ClosureId(0),
+        kind: CallableKind::FnOnce,
+        hold: vec![],
+        call: vec![],
+        writes: vec![],
+        cleanup: vec![],
+        lending_captures: vec![],
+    });
+    raw.reject("container and opaque callback profiles do not admit owning data signatures");
+}
