@@ -243,3 +243,70 @@ fn raw_unused_parameter_definition_checks_mutable_position_before_any_instance()
         "unused raw FnMut called through immutable F parameter"
     );
 }
+
+#[test]
+fn original_forward_has_exact_fresh_types_and_expand_work_boundaries() {
+    let text = include_str!("impl252_fixtures/original.zil");
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "front252.zil", text);
+    let ast = zil_syntax::parse(&source).into_result().unwrap();
+    let expanded = zil_expand::expand(&source, &ast).unwrap();
+    let expected =
+        zil_types::check(&expanded, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
+    let expand = |n| {
+        zil_expand::expand_with_map_limits(
+            &source,
+            &ast,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+    };
+    let types = |n| {
+        zil_types::check(
+            &expanded,
+            &TargetProfile::host_llvm(),
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+    };
+    let minimum = |ok: &dyn Fn(usize) -> bool| {
+        let (mut lo, mut hi) = (0, Limits::default().max_analysis_steps);
+        assert!(ok(hi));
+        while lo + 1 < hi {
+            let n = lo + (hi - lo) / 2;
+            if ok(n) { hi = n } else { lo = n }
+        }
+        hi
+    };
+    let en = minimum(&|n| expand(n).is_ok());
+    let tn = minimum(&|n| types(n).is_ok());
+    assert!(
+        expand(en - 1)
+            .unwrap_err()
+            .iter()
+            .any(|e| e.category == zil_base::ResultCategory::ResourceLimit)
+    );
+    assert!(
+        types(tn - 1)
+            .unwrap_err()
+            .iter()
+            .any(|e| e.category == zil_base::ResultCategory::ResourceLimit)
+    );
+    assert_eq!(expand(en).unwrap().core, expanded);
+    assert_eq!(expand(en).unwrap().core, expanded);
+    assert_eq!(types(tn).unwrap(), expected);
+    assert_eq!(types(tn).unwrap(), expected);
+    println!(
+        "252 original forward Expand N={en}, Types N={tn}; N-1 ResourceLimit/fresh N identity"
+    );
+}
+
+#[test]
+fn nested_forwarding_accepts_a_stronger_fn_through_mutable_adaptation() {
+    checked(
+        "fn step<F:FnMut(i32)->i32>(f:F)->F{var current=f;current(1);return current}fn relay<F:Fn(i32)->i32>(f:F)->F{return step(f)}fn main()->i32{let f=(n:i32)=>n+1;let current=relay(f);return current(2)-3}",
+    );
+}
