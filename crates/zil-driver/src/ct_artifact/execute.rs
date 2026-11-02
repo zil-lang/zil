@@ -21,6 +21,7 @@ pub(super) struct Environment<'a> {
     snapshot: CtSnapshotRequest,
     limits: Limits,
     pub budget: CtExecutionBudget,
+    pub ct_only: Vec<CtSymbolId>,
     source_fingerprint: Fingerprint,
     target: &'a TargetProfile,
 }
@@ -58,7 +59,8 @@ impl<'a> Environment<'a> {
             max_instances: limits.max_functions as u64,
             max_analysis_work: limits.max_analysis_steps as u64,
         };
-        Ok(Self { sources, parsed, index, shape, shape_failure, snapshot, limits: limits.clone(), budget: CtExecutionBudget::new(declared), source_fingerprint: fingerprint, target })
+        Ok(Self { sources, parsed, index, shape, shape_failure, snapshot, limits: limits.clone(), budget: CtExecutionBudget::new(declared),
+            ct_only: Vec::new(), source_fingerprint: fingerprint, target })
     }
 
     fn remaining_limits(&self) -> Limits {
@@ -75,6 +77,40 @@ impl<'a> Environment<'a> {
     }
 
     pub(super) fn remaining_limits_for_input(&self) -> Limits { self.remaining_limits() }
+
+    /// Classify every actual CT-only declaration from the same source artifact
+    /// used by execution. Verify its entire body without calling the VM.
+    pub(super) fn classify_definitions(&mut self) -> CompileResult<()> {
+        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let modules = self.index.modules(self.sources, &syntax);
+        let mut limits = self.remaining_limits();
+        let before = self.budget.remaining();
+        let entry = compiler::definitions_entry(&modules, &mut limits)?;
+        self.budget.reserve_analysis_work(before.max_analysis_work.saturating_sub(limits.max_analysis_steps as u64))?;
+        let Some(entry) = entry else { return Ok(()); };
+        let span = self.index.span(&entry).ok_or_else(|| error("CT-only definition is absent from the frozen source index", Span::default()))?;
+        let input_tokens = self.empty_input(span)?;
+        let selected_limits = self.remaining_limits();
+        let mut expected = compiler::compile(CompileRequest { modules: &modules,
+            source_fingerprint: self.source_fingerprint, entry: Entry::Function(entry),
+            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits })?;
+        let classified = compiler::ct_only_definitions(&mut expected)?;
+        let declared = expected.budget;
+        let before = self.budget.remaining();
+        self.budget.reserve_analysis_work(before.max_analysis_work.saturating_sub(declared.max_analysis_work))?;
+        self.budget.reserve_generated_nodes(before.max_generated_nodes.saturating_sub(declared.max_generated_nodes))?;
+        for _ in 0..before.max_instances.saturating_sub(declared.max_instances) { self.budget.reserve_instance()?; }
+        let authority = FrozenAuthority { source_fingerprint: self.source_fingerprint, snapshot: &self.snapshot,
+            input: &input_tokens, index: &self.index, expected_functions: &expected.functions, expected_artifact: &expected };
+        let clone_charge = expected.functions.len().saturating_mul(128)
+            .saturating_add(expected.templates.len().saturating_mul(128)) as u64;
+        self.budget.reserve_temporary_bytes(clone_charge)?;
+        let result = zil_verify::verify_ct_artifact(expected.clone(), &selected_limits, &authority);
+        self.budget.release_temporary_bytes(clone_charge);
+        result?;
+        self.ct_only.extend(classified);
+        Ok(())
+    }
 
     pub(super) fn evaluate(&mut self, entry: Entry<'_>, input_tokens: &CtInputTable, input: Option<&CtTokenTree>, arguments: &[CtValue], span: Span) -> CompileResult<CtValue> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
@@ -115,8 +151,10 @@ impl<'a> Environment<'a> {
     }
 
     pub(super) fn parse_tree(&mut self, tree: &CtSyntaxTree, span: Span) -> CompileResult<ParsedSyntax> {
-        render::parse(tree, span.file, self.sources.iter().find(|source| source.file_id == span.file)
-            .map_or(ModuleId(0), |source| source.module_id), &self.limits, &mut self.budget)
+        let module = self.sources.iter().find(|source| source.file_id == span.file)
+            .map_or(ModuleId(0), |source| source.module_id);
+        let aliases = self.index.aliases(module);
+        render::parse(tree, span.file, module, &aliases, &self.limits, &mut self.budget)
     }
 
     pub(super) fn type_syntax(&mut self, ty: CtTypeRef) -> CompileResult<CtSyntaxTree> {

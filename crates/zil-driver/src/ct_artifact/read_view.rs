@@ -346,7 +346,7 @@ impl CtReadView for FrozenReadView<'_> {
         let mut limits = self.limits.clone();
         limits.max_nodes = limits.max_nodes.min(budget.remaining().max_analysis_work as usize);
         limits.max_call_depth = limits.max_call_depth.min(budget.remaining().max_call_depth as usize);
-        render::parse(&tree, file, module, &limits, budget)?;
+        render::parse(&tree, file, module, &self.index.aliases(module), &limits, budget)?;
         Ok(tree)
     }
     fn query(&self, requester: &CtSymbolId, kind: CtQueryKind, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<(CtValue, CtQueryDependency)> {

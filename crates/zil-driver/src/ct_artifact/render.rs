@@ -1,8 +1,9 @@
 //! Lossless, bounded generated text for the ordinary parser and preview. Token
 //! origin/name handles are retained separately; text alone is never authority.
-use zil_base::{CompileResult, Diagnostic, FileId, Limits, Phase, SourceUnit, Span};
+use std::collections::BTreeMap;
+use zil_base::{CompileResult, Diagnostic, FileId, Limits, ModuleId, Phase, SourceUnit, Span};
 use zil_ct::CtExecutionBudget;
-use zil_ir::ct_artifact::{CtDelimiter, CtIdent, CtOriginId, CtSyntaxNode, CtSyntaxNodeId, CtSyntaxTree};
+use zil_ir::ct_artifact::{CtDelimiter, CtIdent, CtNameNamespace, CtNameSource, CtOriginId, CtSyntaxNode, CtSyntaxNodeId, CtSyntaxTree};
 use zil_syntax::{GeneratedParseContext, GeneratedParseResult, GeneratedTokenContext, ast::SyntaxCategory};
 
 #[derive(Clone, Debug)]
@@ -44,8 +45,16 @@ struct Renderer<'a> {
     tokens: Vec<RenderedToken>,
     remaining: usize,
     max_depth: usize,
+    module: ModuleId,
+    aliases: &'a BTreeMap<ModuleId, String>,
 }
 impl Renderer<'_> {
+    fn alias_for(&self, name: Option<&CtIdent>) -> CompileResult<Option<String>> {
+        let Some(CtIdent { source: CtNameSource::Definition(symbol), namespace: CtNameNamespace::Type | CtNameNamespace::Value, .. }) = name else { return Ok(None); };
+        if symbol.module == self.module { return Ok(None); }
+        self.aliases.get(&symbol.module).cloned().map(Some).ok_or_else(||
+            error("definition-site name has no sealed import in the generated caller module"))
+    }
     fn write(&mut self, text: &str, origin: CtOriginId, name: Option<CtIdent>) -> CompileResult<()> {
         self.remaining = self.remaining.checked_sub(text.len().saturating_add(1)).ok_or_else(|| error("generated syntax text exceeds reserved size"))?;
         let start = self.text.len();
@@ -65,6 +74,10 @@ impl Renderer<'_> {
         match self.tree.nodes.get(id.0 as usize).ok_or_else(|| error("generated syntax node is out of range"))? {
             CtSyntaxNode::Token(token) => {
                 if token.origin.0 as usize >= self.tree.origins.len() { return Err(error("generated token origin is out of range")); }
+                if let Some(alias) = self.alias_for(token.name.as_ref())? {
+                    self.write(&alias, token.origin, None)?;
+                    self.write(".", token.origin, None)?;
+                }
                 self.write(&token.text, token.origin, token.name.clone())
             }
             CtSyntaxNode::Group { delimiter, children, origin } => {
@@ -83,11 +96,16 @@ impl Renderer<'_> {
     }
 }
 
-pub(super) fn render(tree: &CtSyntaxTree, file: FileId, module: zil_base::ModuleId, budget: &mut CtExecutionBudget) -> CompileResult<RenderedSyntax> {
+pub(super) fn render(tree: &CtSyntaxTree, file: FileId, module: ModuleId, aliases: &BTreeMap<ModuleId, String>, budget: &mut CtExecutionBudget) -> CompileResult<RenderedSyntax> {
     let mut bytes = 0usize;
     for node in &tree.nodes {
         bytes = bytes.checked_add(match node {
-            CtSyntaxNode::Token(token) => token.text.len().saturating_add(1),
+            CtSyntaxNode::Token(token) => {
+                let extra = if let Some(CtIdent { source: CtNameSource::Definition(symbol), namespace: CtNameNamespace::Type | CtNameNamespace::Value, .. }) = &token.name {
+                    if symbol.module != module { aliases.get(&symbol.module).ok_or_else(|| error("definition-site name has no sealed import in the generated caller module"))?.len().saturating_add(3) } else { 0 }
+                } else { 0 };
+                token.text.len().saturating_add(1).saturating_add(extra)
+            },
             CtSyntaxNode::Group { .. } => 4,
             CtSyntaxNode::Hole { .. } => return Err(error("evaluated syntax still contains a quote hole")),
         }).ok_or_else(|| error("generated syntax text size overflow"))?;
@@ -95,13 +113,13 @@ pub(super) fn render(tree: &CtSyntaxTree, file: FileId, module: zil_base::Module
     budget.reserve_analysis_work(tree.nodes.len() as u64)?;
     budget.reserve_temporary_bytes(bytes as u64)?;
     let mut renderer = Renderer { tree, file, text: String::with_capacity(bytes), tokens: Vec::new(), remaining: bytes,
-        max_depth: budget.remaining().max_call_depth as usize };
+        max_depth: budget.remaining().max_call_depth as usize, module, aliases };
     for id in &tree.roots { renderer.node(*id, 0)?; }
     Ok(RenderedSyntax { source: SourceUnit::new(file, module, "<ct-generated>", renderer.text), tokens: renderer.tokens })
 }
 
-pub(super) fn parse(tree: &CtSyntaxTree, file: FileId, module: zil_base::ModuleId, limits: &Limits, budget: &mut CtExecutionBudget) -> CompileResult<ParsedSyntax> {
-    let rendered = render(tree, file, module, budget)?;
+pub(super) fn parse(tree: &CtSyntaxTree, file: FileId, module: ModuleId, aliases: &BTreeMap<ModuleId, String>, limits: &Limits, budget: &mut CtExecutionBudget) -> CompileResult<ParsedSyntax> {
+    let rendered = render(tree, file, module, aliases, budget)?;
     let mut names = Vec::new();
     let mut context = GeneratedParseContext { tokens: Vec::with_capacity(rendered.tokens.len()) };
     for token in &rendered.tokens {

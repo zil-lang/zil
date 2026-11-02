@@ -75,12 +75,12 @@ impl Materializer<'_, '_> {
         self.environment.index.symbol_at(module, span).or_else(|| inherited.cloned())
             .ok_or_else(|| category("CT expression has no frozen declaration owner", span))
     }
-    fn expression_value(&mut self, module: ModuleId, owner: &CtSymbolId, expression: &s::Expr, expected: CtTy) -> CompileResult<CtValue> {
+    fn expression_value(&mut self, module: ModuleId, owner: &CtSymbolId, expression: &s::Expr, expected: Option<CtTy>) -> CompileResult<CtValue> {
         if let s::ExprKind::SyntaxIsland { path, tree } = &expression.kind {
-            return self.provider(module, path, tree, expression.span, &expected);
+            return self.provider(module, path, tree, expression.span, expected.as_ref().ok_or_else(|| category("provider output needs a Syntax receiving category", expression.span))?);
         }
         let input = self.environment.empty_input(expression.span)?;
-        self.environment.evaluate(Entry::Expression { module, expression, definition: owner.clone(), expected: Some(expected), parameters: &[] },
+        self.environment.evaluate(Entry::Expression { module, expression, definition: owner.clone(), expected, parameters: &[] },
             &input, None, &[], expression.span)
     }
     fn provider(&mut self, module: ModuleId, path: &[String], tree: &s::TokenTree, span: Span, expected: &CtTy) -> CompileResult<CtValue> {
@@ -116,9 +116,13 @@ impl Materializer<'_, '_> {
         for mut item in std::mem::take(items) {
             if generated && matches!(item.kind, s::ItemKind::Import(_)) { return Err(late_import(item.span)); }
             let owner = self.owner(module, item.span, inherited)?;
+            if self.environment.ct_only.contains(&owner)
+                && matches!(item.kind, s::ItemKind::Function(_) | s::ItemKind::Extern { .. }) {
+                continue;
+            }
             match &mut item.kind {
                 s::ItemKind::Meta(s::MetaItem::Emit(expression)) => {
-                    let value = self.expression_value(module, &owner, expression, CtTy::Syntax(CtSyntaxCategory::ItemList))?;
+                    let value = self.expression_value(module, &owner, expression, Some(CtTy::Syntax(CtSyntaxCategory::ItemList)))?;
                     let GeneratedSyntax::ItemList(mut generated_items) = self.parsed(value, CtSyntaxCategory::ItemList, item.span)? else {
                         return Err(category("#emit must yield ItemList in item position", item.span));
                     };
@@ -176,7 +180,7 @@ impl Materializer<'_, '_> {
         for mut stmt in std::mem::take(statements) {
             match &mut stmt.kind {
                 s::StmtKind::Meta(s::MetaStatement::Emit(expression)) => {
-                    let value = self.expression_value(module, owner, expression, CtTy::Syntax(CtSyntaxCategory::StmtList))?;
+                    let value = self.expression_value(module, owner, expression, Some(CtTy::Syntax(CtSyntaxCategory::StmtList)))?;
                     let GeneratedSyntax::StmtList(mut generated) = self.parsed(value, CtSyntaxCategory::StmtList, stmt.span)? else {
                         return Err(category("#emit must yield StmtList in statement position", stmt.span));
                     };
@@ -227,12 +231,12 @@ impl Materializer<'_, '_> {
         self.depth(depth, ty.span)?;
         match &mut ty.kind {
             s::TypeKind::MetaSplice(expression) => {
-                let value = self.expression_value(module, owner, expression, CtTy::Syntax(CtSyntaxCategory::Type))?;
+                let value = self.expression_value(module, owner, expression, Some(CtTy::Syntax(CtSyntaxCategory::Type)))?;
                 let GeneratedSyntax::Type(replacement) = self.parsed(value, CtSyntaxCategory::Type, ty.span)? else { return Err(category("type #splice needs Syntax<Type>", ty.span)); };
                 *ty = replacement;
             }
             s::TypeKind::MetaEval(expression) => {
-                let value = self.expression_value(module, owner, expression, CtTy::Type)?;
+                let value = self.expression_value(module, owner, expression, Some(CtTy::Type))?;
                 let CtValue::Type(value) = value else { return Err(category("type #(...) needs Type value", ty.span)); };
                 let syntax = self.environment.type_syntax(value)?;
                 let GeneratedSyntax::Type(replacement) = self.parsed(CtValue::Syntax(syntax), CtSyntaxCategory::Type, ty.span)? else { return Err(category("Type value did not reify to Type syntax", ty.span)); };
@@ -252,7 +256,7 @@ impl Materializer<'_, '_> {
         self.depth(depth, expression.span)?;
         match &mut expression.kind {
             s::ExprKind::MetaSplice(inner) => {
-                let value = self.expression_value(module, owner, inner, CtTy::Syntax(CtSyntaxCategory::Expr))?;
+                let value = self.expression_value(module, owner, inner, Some(CtTy::Syntax(CtSyntaxCategory::Expr)))?;
                 let GeneratedSyntax::Expr(replacement) = self.parsed(value, CtSyntaxCategory::Expr, expression.span)? else { return Err(category("expression #splice needs Syntax<Expr>", expression.span)); };
                 *expression = replacement;
             }
@@ -262,7 +266,20 @@ impl Materializer<'_, '_> {
                 *expression = replacement;
             }
             s::ExprKind::Quote { .. } => return Err(runtime("Syntax value cannot enter a runtime expression", expression.span)),
-            s::ExprKind::MetaEval(_) | s::ExprKind::MetaBlock(_) => {},
+            s::ExprKind::MetaEval(inner) => {
+                let value = self.expression_value(module, owner, inner, None)?;
+                let CtValue::Scalar(scalar) = value else { return Err(runtime("Type, Syntax, Ident and CT views cannot enter runtime expressions", expression.span)); };
+                expression.kind = match scalar {
+                    zil_ir::Constant::Bool(value) => s::ExprKind::Literal(s::Literal::Bool(value)),
+                    zil_ir::Constant::U8(value) => s::ExprKind::Literal(s::Literal::Integer(value.to_string())),
+                    zil_ir::Constant::U16(value) => s::ExprKind::Literal(s::Literal::Integer(value.to_string())),
+                    zil_ir::Constant::I32(value) => s::ExprKind::Literal(s::Literal::Integer(value.to_string())),
+                    zil_ir::Constant::I64(value) => s::ExprKind::Literal(s::Literal::Integer(value.to_string())),
+                    zil_ir::Constant::Unit => s::ExprKind::Tuple(Vec::new()),
+                    _ => return Err(runtime("CT result has no ordinary scalar literal", expression.span)),
+                };
+            }
+            s::ExprKind::MetaBlock(_) => {},
             s::ExprKind::Group(e) | s::ExprKind::Try(e) | s::ExprKind::Unary { operand: e, .. } => self.expr(module, e, owner, depth + 1)?,
             s::ExprKind::Tuple(values) | s::ExprKind::Array(values) => for e in values { self.expr(module, e, owner, depth + 1)?; },
             s::ExprKind::Binary { left, right, .. } | s::ExprKind::Pipeline { input: left, target: right } => { self.expr(module, left, owner, depth + 1)?; self.expr(module, right, owner, depth + 1)?; },
@@ -288,6 +305,7 @@ pub(crate) fn materialize(
     target: &TargetProfile, limits: &Limits, registry: Option<&CtLockedProviderRegistry>,
 ) -> CompileResult<Materialized> {
     let mut environment = Environment::new(sources, parsed, paths, imports, root, fingerprint, target, limits)?;
+    environment.classify_definitions()?;
     let mut output = modules.iter().map(|module| (*module).clone()).collect::<Vec<_>>();
     let mut materializer = Materializer { environment: &mut environment, sources, parsed, registry, previews: Vec::new(), max_depth: limits.max_call_depth };
     for module in &mut output { materializer.items(module.id, &mut module.items, None, 0, false)?; }
