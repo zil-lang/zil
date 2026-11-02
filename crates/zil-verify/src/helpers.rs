@@ -38,7 +38,6 @@ struct EnvironmentOrigins {
     values_at: usize,
     marks: Vec<u8>,
     parameters: Vec<u32>,
-    local_bodies: Option<Vec<bool>>,
 }
 
 // This is a use restriction, not a closure safety certificate. Only concrete
@@ -119,6 +118,7 @@ fn environment_origins(
     let mut pending = VecDeque::new();
     budget.spend(roles.len().saturating_mul(2))?;
     let mut parameters = Vec::with_capacity(roles.len());
+    let mut concrete_captures = Vec::new();
     for (position, role) in roles.iter().enumerate() {
         let parameter = f.parameters[role.parameter as usize];
         marks[parameter.0 as usize] = 1 << position;
@@ -218,6 +218,10 @@ fn environment_origins(
                     .is_some_and(|bodies| bodies[destination])
             {
                 16
+            } else if let InstructionKind::MakeClosure { ref captures, .. } = instruction.kind {
+                budget.spend(1)?;
+                concrete_captures.push(captures);
+                32
             } else {
                 8
             };
@@ -237,11 +241,25 @@ fn environment_origins(
             }
         }
     }
+    for captures in concrete_captures {
+        budget.spend(captures.len().saturating_add(1))?;
+        for value in captures {
+            if parameter_type(&f.values[value.0 as usize]).is_none() {
+                continue;
+            }
+            let origin = marks[values_at + value.0 as usize];
+            if !matches!(origin, 4 | 16 | 32) {
+                return Err(bad(
+                    f,
+                    "local concrete callable captures a supplied, unknown or mixed callable origin",
+                ));
+            }
+        }
+    }
     Ok(EnvironmentOrigins {
         values_at,
         marks,
         parameters,
-        local_bodies,
     })
 }
 
@@ -273,7 +291,7 @@ fn invocation(
         _ => return Ok(None),
     };
     let mark = origins.marks[origin];
-    if mark == 4 && !borrowed {
+    if mark == 4 && !borrowed || matches!(mark, 16 | 32) {
         return Ok(None);
     }
     let parameter = match mark {
@@ -367,7 +385,7 @@ fn dependency_order(
 
 struct Forwarded<'a> {
     traces: &'a CallableTraces,
-    mapping: Vec<(u32, u32)>,
+    mapping: Vec<(u32, Option<u32>)>,
 }
 impl Forwarded<'_> {
     fn remap(
@@ -381,21 +399,22 @@ impl Forwarded<'_> {
                 .len()
                 .saturating_mul(self.mapping.len().saturating_add(1)),
         )?;
-        calls
-            .iter()
-            .map(|event| {
-                let parameter = self
-                    .mapping
-                    .iter()
-                    .find(|(child, _)| *child == event.parameter)
-                    .map(|(_, caller)| *caller)
-                    .ok_or_else(|| bad(f, "child event has no actual role substitution"))?;
-                Ok(CallEvent {
+        let mut result = Vec::new();
+        for event in calls {
+            let parameter = self
+                .mapping
+                .iter()
+                .find(|(child, _)| *child == event.parameter)
+                .map(|(_, caller)| *caller)
+                .ok_or_else(|| bad(f, "child event has no actual role substitution"))?;
+            if let Some(parameter) = parameter {
+                result.push(CallEvent {
                     parameter,
                     kind: event.kind,
-                })
-            })
-            .collect()
+                });
+            }
+        }
+        Ok(result)
     }
 }
 
@@ -444,6 +463,27 @@ fn forwarded<'a>(
             .get(child.parameter as usize)
             .ok_or_else(|| bad(f, "nested helper role parameter is absent"))?;
         let mark = origins.marks[origins.values_at + value.0 as usize];
+        if matches!(mark, 4 | 16 | 32) {
+            let Some((id, _)) = parameter_type(&f.values[value.0 as usize]) else {
+                return Err(bad(
+                    f,
+                    "child concrete callable lacks its actual environment type",
+                ));
+            };
+            if id != child.closure
+                || !closures::supports(
+                    closures::definition(module, id, Some(instruction.span))?.kind,
+                    child.kind,
+                )
+            {
+                return Err(bad(
+                    f,
+                    "child concrete callable type or mode differs from its checked role",
+                ));
+            }
+            mapping.push((child.parameter, None));
+            continue;
+        }
         let position = match mark {
             1 => 0,
             2 => 1,
@@ -465,7 +505,7 @@ fn forwarded<'a>(
                 "nested helper actual role type or bound exceeds the caller declaration",
             ));
         }
-        mapping.push((child.parameter, caller.parameter));
+        mapping.push((child.parameter, Some(caller.parameter)));
     }
     Ok(Some(Forwarded {
         traces: &claim.traces,

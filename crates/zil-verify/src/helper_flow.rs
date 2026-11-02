@@ -221,19 +221,6 @@ pub(super) fn reconstruct(
                         ]));
                         break;
                     }
-                    if matches!(instruction.kind, InstructionKind::MakeClosure { .. })
-                        && !instruction.result.is_some_and(|result| {
-                            origins
-                                .local_bodies
-                                .as_ref()
-                                .is_some_and(|bodies| bodies[origins.values_at + result.0 as usize])
-                        })
-                    {
-                        return Err(unsupported(
-                            "helper-local nested environments require an additional contract",
-                            Some(instruction.span),
-                        ));
-                    }
                     if let Some(child) =
                         forwarded(module, f, instruction, &origins, roles, checked, budget)?
                     {

@@ -416,7 +416,7 @@ fn local_body_actual_capture_roots_keep_callback_exclusion_and_disjoint_borrows(
     check(m, p, Some("E-VERIFY-RESOURCE"));
 }
 #[test]
-fn local_body_does_not_create_a_parameter_event_or_general_nested_helper_permission() {
+fn local_body_does_not_create_a_parameter_event_or_erase_unused_responsibility() {
     let (mut m, p) = fixture::local_body_wrapper(true);
     let CallableTraces::Flow(flow) = &mut m.functions[4].callable_contract.as_mut().unwrap().traces
     else {
@@ -443,7 +443,51 @@ fn local_body_does_not_create_a_parameter_event_or_general_nested_helper_permiss
         value: ValueId(3),
         roots: vec![],
     });
-    check_category(m, p, Some("E-UNSUPPORTED"), ResultCategory::Unsupported);
+    check(m, p, Some("E-VERIFY-RESOURCE"));
+}
+#[test]
+fn local_handler_capture_rebuilds_actual_origin_instead_of_the_closure_id() {
+    for package in [false, true] {
+        let (m, p) = fixture::captured_local_handler(package);
+        check(m, p, None);
+    }
+    let (m, p) = fixture::role_capturing_local_handler();
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+}
+#[test]
+fn local_handler_child_keeps_real_outer_f_event_and_checks_child_role() {
+    let (m, p) = fixture::local_child_handler();
+    check(m, p, None);
+    let (mut m, p) = fixture::local_child_handler();
+    let CallableTraces::Finite(paths) =
+        &mut m.functions[4].callable_contract.as_mut().unwrap().traces
+    else {
+        unreachable!()
+    };
+    paths[0].calls.clear();
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+    let (mut m, p) = fixture::local_child_handler();
+    m.functions[5].callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::Fn;
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+}
+#[test]
+fn factory_handler_child_uses_only_checked_fresh_actual_result_without_with() {
+    let (m, p) = fixture::factory_child_handler();
+    check(m, p, None);
+    let (mut m, p) = fixture::factory_child_handler();
+    m.functions[6]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .source = CallableReturnSource::Parameter(0);
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+}
+#[test]
+fn local_handler_cannot_hide_supplied_roles_in_unopened_aggregate_captures() {
+    for union in [false, true] {
+        let (m, p) = fixture::wrapped_role_capture(union);
+        check_category(m, p, Some("E-UNSUPPORTED"), ResultCategory::Unsupported);
+    }
 }
 #[test]
 fn wrapper_keeps_original_kind_and_rejects_forged_trace() {
@@ -535,6 +579,18 @@ fn factory_body_raw_wire_work_has_exact_fresh_boundaries() {
     for (name, (m, p)) in [
         ("factory_managed_body", fixture::factory_body(false)),
         ("factory_package_body", fixture::factory_body(true)),
+    ] {
+        exact_work_boundary(name, m, p);
+    }
+}
+#[test]
+fn local_handler_raw_wire_work_has_exact_fresh_boundaries() {
+    for (name, (m, p)) in [
+        (
+            "captured_local_handler",
+            fixture::captured_local_handler(true),
+        ),
+        ("local_child_handler", fixture::local_child_handler()),
     ] {
         exact_work_boundary(name, m, p);
     }
