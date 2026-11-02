@@ -1,0 +1,91 @@
+workspace	Recover complete evidence through verified log transport	﻿2026-11-02T09:29:13.4121392Z ##[group]Run set -euo pipefail
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4121792Z [36;1mset -euo pipefail[0m
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4122384Z [36;1mpython3 tools/ci/evidence_transport.py pack "$RUNNER_TEMP" "$RUNNER_TEMP/evidence-recovery.tar.zst"[0m
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4123573Z [36;1mpython3 tools/ci/evidence_transport.py emit "$RUNNER_TEMP/evidence-recovery.tar.zst"[0m
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4124814Z [36;1mecho '::warning::Artifact upload failed; complete evidence was locally verified and emitted to this log. The integrator must retrieve and verify the exact-run archive before merging.'[0m
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4148009Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4148447Z env:
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4148684Z   CARGO_BUILD_JOBS: 2
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4148963Z   CARGO_PROFILE_TEST_DEBUG: 0
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4149278Z   CARGO_PROFILE_DEV_DEBUG: 0
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4149588Z   CARGO_PROFILE_TEST_STRIP: symbols
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4149941Z   CARGO_PROFILE_DEV_STRIP: symbols
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4150303Z   CARGO_INCREMENTAL: 0
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4150663Z   ZIL_CLANG: /home/runner/work/_temp/llvm-23.1.4/bin/clang
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4151147Z   ZIL_LLVM_LIB_DIR: /home/runner/work/_temp/llvm-23.1.4/lib
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4151639Z   LD_LIBRARY_PATH: /home/runner/work/_temp/llvm-23.1.4/lib
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4152099Z   CARGO_TARGET_DIR: /home/runner/work/_temp/target
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4152581Z   ZIL_TEST_REPORT_DIR: /home/runner/work/_temp/native-evidence
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4153038Z   UPLOAD_DISK_CHECKPOINT: failure
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4153614Z   UPLOAD_WORKSPACE_RECEIPTS: failure
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4153965Z   UPLOAD_WORKSPACE_NATIVE: failure
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4154310Z   UPLOAD_REFERENCE_RECEIPTS: failure
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4154660Z   UPLOAD_REFERENCE_NATIVE: failure
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4154993Z   UPLOAD_RECOVERY_FINAL: failure
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:13.4155310Z ##[endgroup]
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3662287Z Traceback (most recent call last):
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3663927Z   File "/home/runner/work/zil/zil/tools/ci/evidence_transport.py", line 337, in <module>
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3665230Z     main()
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3666161Z   File "/home/runner/work/zil/zil/tools/ci/evidence_transport.py", line 323, in main
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3667354Z     index = pack(args.root, args.archive)
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3668086Z             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3668951Z   File "/home/runner/work/zil/zil/tools/ci/evidence_transport.py", line 90, in pack
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3669795Z     files, missing = inventory(root)
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3670321Z                      ^^^^^^^^^^^^^^^
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3671056Z   File "/home/runner/work/zil/zil/tools/ci/evidence_transport.py", line 81, in inventory
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3671871Z     safe_path(relative)
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3672670Z   File "/home/runner/work/zil/zil/tools/ci/evidence_transport.py", line 43, in safe_path
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3673980Z     require(path.parts and not path.is_absolute() and path.as_posix() == name
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3674946Z   File "/home/runner/work/zil/zil/tools/ci/evidence_transport.py", line 36, in require
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3676225Z     raise ValueError(message)
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.3676734Z ValueError: unsafe evidence path
+workspace	Recover complete evidence through verified log transport	2026-11-02T09:29:58.4221189Z ##[error]Process completed with exit code 1.
+workspace	Report every evidence upload outcome	﻿2026-11-02T09:29:58.4263613Z ##[group]Run python3 - <<'PY_UPLOADS'
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4264058Z [36;1mpython3 - <<'PY_UPLOADS'[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4264366Z [36;1mimport os[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4264629Z [36;1mfrom pathlib import Path[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4265201Z [36;1moutcomes = {key[7:].lower(): value for key, value in os.environ.items() if key.startswith('UPLOAD_')}[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4266105Z [36;1mlines = ['Evidence upload outcomes:'] + [f'- {key}: {value or "not run"}' for key, value in sorted(outcomes.items())][0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4266819Z [36;1mrecovery = os.environ.get('EVIDENCE_LOG_RECOVERY')[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4267462Z [36;1mlines.append(f'- log recovery (local verification/emission only): {recovery or "not run"}')[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4268063Z [36;1mprint('\n'.join(lines))[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4268491Z [36;1mwith Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as stream:[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4268978Z [36;1m    stream.write('\n'.join(lines) + '\n')[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4269491Z [36;1mfailed = any(value in ('failure', 'cancelled') for value in outcomes.values())[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4270121Z [36;1mif failed or outcomes.get('recovery_final') != 'success':[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4270547Z [36;1m    if recovery != 'success':[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4271258Z [36;1m        print('::error::Evidence upload and complete log recovery are incomplete. Test results do not imply artifact preservation.')[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4272007Z [36;1m        raise SystemExit(1)[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4272743Z [36;1m    print('::warning::Uploads remain failed. Complete log recovery emitted; independent retrieval and verification are required before merge.')[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4273800Z [36;1mPY_UPLOADS[0m
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4731175Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4731927Z env:
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4732327Z   CARGO_BUILD_JOBS: 2
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4732805Z   CARGO_PROFILE_TEST_DEBUG: 0
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4733505Z   CARGO_PROFILE_DEV_DEBUG: 0
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4733979Z   CARGO_PROFILE_TEST_STRIP: symbols
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4734462Z   CARGO_PROFILE_DEV_STRIP: symbols
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4734919Z   CARGO_INCREMENTAL: 0
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4735406Z   ZIL_CLANG: /home/runner/work/_temp/llvm-23.1.4/bin/clang
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4736092Z   ZIL_LLVM_LIB_DIR: /home/runner/work/_temp/llvm-23.1.4/lib
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4736762Z   LD_LIBRARY_PATH: /home/runner/work/_temp/llvm-23.1.4/lib
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4737391Z   CARGO_TARGET_DIR: /home/runner/work/_temp/target
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4738053Z   ZIL_TEST_REPORT_DIR: /home/runner/work/_temp/native-evidence
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4738673Z   UPLOAD_DISK_CHECKPOINT: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4739144Z   UPLOAD_WORKSPACE_RECEIPTS: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4739631Z   UPLOAD_WORKSPACE_NATIVE: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4740094Z   UPLOAD_REFERENCE_RECEIPTS: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4740564Z   UPLOAD_REFERENCE_NATIVE: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4741029Z   UPLOAD_RECOVERY_FINAL: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4741481Z   EVIDENCE_LOG_RECOVERY: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.4741897Z ##[endgroup]
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5032389Z Evidence upload outcomes:
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5033415Z - disk_checkpoint: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5034108Z - recovery_final: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5034743Z - reference_native: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5035411Z - reference_receipts: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5036108Z - workspace_native: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5036766Z - workspace_receipts: failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5037573Z - log recovery (local verification/emission only): failure
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5040265Z ##[error]Evidence upload and complete log recovery are incomplete. Test results do not imply artifact preservation.
+workspace	Report every evidence upload outcome	2026-11-02T09:29:58.5077857Z ##[error]Process completed with exit code 1.
