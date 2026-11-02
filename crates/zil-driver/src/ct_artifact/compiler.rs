@@ -132,6 +132,21 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    fn ty(&mut self, ty: &CtTy, depth: usize, span: Span) -> R<()> {
+        self.depth(depth, span)?;
+        match ty {
+            CtTy::Tuple(fields) => {
+                for field in fields {
+                    self.ty(field, depth + 1, span)?;
+                }
+            }
+            CtTy::Array { element, .. } | CtTy::List(element) => {
+                self.ty(element, depth + 1, span)?
+            }
+            _ => {}
+        }
+        Ok(())
+    }
     fn declared(&self) -> CtDeclaredBudget {
         CtDeclaredBudget {
             max_steps: self.limits.max_ct_steps,
@@ -345,7 +360,7 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
     // are compiled only when actually referenced by the pure CT call graph.
     for index in 0..compiler.declarations.len() {
         let d = compiler.declarations[index];
-        if types::ct_only_function(d.function) {
+        if compiler.ct_only_function(d.module, d.function)? {
             compiler.enqueue(index)?;
         }
     }
@@ -397,6 +412,14 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
         }
     };
     while let Some(declaration) = compiler.pending.pop_front() {
+        compiler.budget.work(
+            compiler
+                .selected
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2),
+            compiler.declarations[declaration].item.span,
+        )?;
         let id = compiler.selected[&declaration];
         let body = cfg::function(&mut compiler, id, declaration)?;
         compiler.functions[id.0 as usize] = Some(body);

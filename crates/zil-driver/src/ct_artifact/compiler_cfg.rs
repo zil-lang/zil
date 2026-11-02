@@ -1,4 +1,6 @@
 use super::*;
+#[path = "compiler_cfg_prune.rs"]
+mod prune;
 #[derive(Clone)]
 pub(super) struct Value {
     pub id: CtValueId,
@@ -145,6 +147,7 @@ impl<'c, 'a> Builder<'c, 'a> {
             span,
             "CT value-table budget exhausted",
         )?;
+        self.compiler.budget.ty(&ty, 0, span)?;
         let id = CtValueId(self.values.len() as u32);
         self.values.push(ty.clone());
         self.op(kind, span)?;
@@ -186,6 +189,7 @@ impl<'c, 'a> Builder<'c, 'a> {
                 self.compiler.budget.work(1, span)?;
                 if binding.name == name {
                     let local = binding.local;
+                    self.compiler.budget.ty(&binding.ty, 0, span)?;
                     let ty = binding.ty.clone();
                     return self
                         .emit(CtInstructionKind::Load(local), ty, span)
@@ -303,7 +307,10 @@ impl<'c, 'a> Builder<'c, 'a> {
         }
     }
     pub fn expect(&mut self, value: Value, expected: Option<&CtTy>, span: Span) -> R<Value> {
-        self.compiler.budget.work(1, span)?;
+        self.compiler.budget.ty(&value.ty, 0, span)?;
+        if let Some(ty) = expected {
+            self.compiler.budget.ty(ty, 0, span)?;
+        }
         if expected.is_some_and(|t| *t != value.ty) {
             return Err(error(
                 span,
@@ -636,16 +643,7 @@ impl<'c, 'a> Builder<'c, 'a> {
                 ));
             }
         }
-        let blocks = self
-            .blocks
-            .into_iter()
-            .enumerate()
-            .map(|(id, b)| CtBlock {
-                id: CtBlockId(id as u32),
-                instructions: b.instructions,
-                terminator: b.terminator.unwrap_or(CtTerminator::Trap),
-            })
-            .collect();
+        let blocks = self.closed_blocks()?;
         Ok(CtFunction {
             id: self.id,
             definition: self.definition,
@@ -707,6 +705,7 @@ pub(super) fn expression(
         expression.span,
     )?;
     for (name, ty) in parameters {
+        b.compiler.budget.ty(ty, 0, expression.span)?;
         let local = b.bind(name, ty.clone(), false, expression.span)?;
         b.parameters.push(local);
         b.parameter_types.push(ty.clone());
@@ -921,6 +920,7 @@ impl Builder<'_, '_> {
                         }
                     }
                     let tag = found.ok_or_else(|| error(arm.span, "CT enum variant is absent"))?;
+                    self.compiler.budget.work(covered.len(), arm.span)?;
                     if covered.contains(&tag) {
                         return Err(error(arm.span, "duplicate CT enum match arm"));
                     }
