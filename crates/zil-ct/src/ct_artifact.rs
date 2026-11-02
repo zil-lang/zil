@@ -1021,6 +1021,9 @@ mod tests {
         fn authenticate_input_table(&self, input: &CtInputTable) -> bool {
             input.tokens.is_empty()
         }
+        fn authenticate_function(&self, _: &CtFunction) -> bool {
+            true
+        }
         fn authorize_symbol(&self, _: &CtSymbolId, _: &CtSymbolId, _: CtSymbolUsage) -> bool {
             true
         }

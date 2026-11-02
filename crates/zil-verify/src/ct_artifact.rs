@@ -22,6 +22,9 @@ pub trait CtArtifactAuthority {
     fn source_fingerprint(&self) -> Fingerprint;
     fn snapshot(&self) -> &CtSnapshotRequest;
     fn authenticate_input_table(&self, input: &CtInputTable) -> bool;
+    /// Compare with a trusted compilation of the frozen source definition;
+    /// a raw body cannot inherit another definition's private query rights.
+    fn authenticate_function(&self, function: &CtFunction) -> bool;
     fn authorize_symbol(
         &self,
         requester: &CtSymbolId,
@@ -102,11 +105,13 @@ pub fn verify_ct_artifact(
                 "CT function IDs must match their table indices",
             ));
         }
-        if !authority.authorize_symbol(
-            &function.definition,
-            &function.definition,
-            CtSymbolUsage::FunctionDefinition,
-        ) {
+        if !authority.authenticate_function(function)
+            || !authority.authorize_symbol(
+                &function.definition,
+                &function.definition,
+                CtSymbolUsage::FunctionDefinition,
+            )
+        {
             return Err(reject(
                 Some(function.span),
                 "CT function definition is not in the frozen project",
@@ -1368,6 +1373,7 @@ mod tests {
 
     struct Authority {
         snapshot: CtSnapshotRequest,
+        expected: Option<CtFunction>,
     }
     impl CtArtifactAuthority for Authority {
         fn source_fingerprint(&self) -> Fingerprint {
@@ -1378,6 +1384,11 @@ mod tests {
         }
         fn authenticate_input_table(&self, input: &CtInputTable) -> bool {
             input.invocation_fingerprint == Fingerprint::ZERO && input.tokens.is_empty()
+        }
+        fn authenticate_function(&self, function: &CtFunction) -> bool {
+            self.expected
+                .as_ref()
+                .is_none_or(|actual| actual == function)
         }
         fn authorize_symbol(&self, _: &CtSymbolId, symbol: &CtSymbolId, _: CtSymbolUsage) -> bool {
             symbol.module == ModuleId(0) && symbol.declaration == NodeId(1)
@@ -1469,6 +1480,7 @@ mod tests {
     fn check(raw: CtArtifactProgram) -> CompileResult<VerifiedCTArtifactProgram> {
         let authority = Authority {
             snapshot: raw.snapshot.clone(),
+            expected: None,
         };
         verify_ct_artifact(raw, &Limits::default(), &authority)
     }
@@ -1523,5 +1535,21 @@ mod tests {
         let mut p = raw();
         p.budget.max_analysis_work = 0;
         assert_eq!(check(p).unwrap_err()[0].code, "E-RESOURCE-LIMIT");
+    }
+    #[test]
+    fn rejects_body_impersonating_real_definition() {
+        let mut p = raw();
+        let expected = p.functions[0].clone();
+        p.functions[0].blocks[0].instructions[0].kind =
+            CtInstructionKind::Constant(CtConstantId(1));
+        let authority = Authority {
+            snapshot: p.snapshot.clone(),
+            expected: Some(expected),
+        };
+        assert!(
+            verify_ct_artifact(p, &Limits::default(), &authority).unwrap_err()[0]
+                .message
+                .contains("definition")
+        );
     }
 }
