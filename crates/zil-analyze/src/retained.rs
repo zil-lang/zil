@@ -21,6 +21,11 @@ pub(super) fn check_function(
         .callable_return_contract
         .as_ref()
         .ok_or_else(|| bad("closure result has no public callable return contract"))?;
+    if contract.source != CallableReturnSource::Fresh {
+        return Err(bad(
+            "parameter callable returns require an independent instance proof",
+        ));
+    }
     let definition = module
         .closures
         .get(contract.closure.0 as usize)

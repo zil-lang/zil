@@ -39,8 +39,8 @@ fn frozen_schema27_and29_wire_are_rejected_as_old_transports() {
 fn migrate_original_envelope(limits: &Limits) -> Vec<u8> {
     assert_eq!(&ORIGINAL[..8], b"ZILMODP\0");
     assert_eq!(&ORIGINAL[8..12], &27u32.to_le_bytes());
-    assert_eq!(zil_ir::wire::WIRE_VERSION, 30);
-    assert_eq!(zil_base::SCHEMA_VERSION, 30);
+    assert_eq!(zil_ir::wire::WIRE_VERSION, 31);
+    assert_eq!(zil_base::SCHEMA_VERSION, 31);
     let mut transport = ORIGINAL.to_vec();
     transport[8..12].copy_from_slice(&30u32.to_le_bytes());
     let (mut module, mut plan) = zil_ir::wire::decode_module_candidate(&transport, limits).unwrap();

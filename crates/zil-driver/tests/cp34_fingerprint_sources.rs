@@ -5,8 +5,8 @@ use zil_base::{
 use zil_driver::{CompilationSession, CompileOptions, Stage};
 use zil_ir::{CoreProgram, TypedModule};
 
-// The v27/v28/v29 oracles remain archived byte-for-byte; current source uses v30.
-#[path = "../../zil-ir/tests/support/cp34_legacy_v30.rs"]
+// The v27/v28/v29/v30 oracles remain archived byte-for-byte; current source uses v31.
+#[path = "../../zil-ir/tests/support/cp34_legacy_v31.rs"]
 mod legacy;
 
 fn check_identity_and_verify(module: TypedModule) {

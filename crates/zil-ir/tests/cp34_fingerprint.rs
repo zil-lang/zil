@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/cp34_instruction_cases.rs"]
 mod cases;
-#[path = "support/cp34_legacy_v30.rs"]
+#[path = "support/cp34_legacy_v31.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -142,6 +142,7 @@ fn contract(flow: bool) -> CallableParameterContract {
 }
 fn return_contract(kind: CallableKind) -> CallableReturnContract {
     CallableReturnContract {
+        source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(11),
         kind,
         hold: vec![1],
@@ -351,12 +352,19 @@ fn equal(module: &TypedModule) {
 
 #[test]
 fn frozen_vec_oracle_and_archived_encoders_have_pinned_independent_sources() {
-    let source = include_str!("support/cp34_legacy_v30.rs");
+    let source = include_str!("support/cp34_legacy_v31.rs");
     let (_, original) = source
         .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
         .unwrap();
     assert_eq!(
         Fingerprint::of(original.as_bytes()).to_hex(),
+        "96c82451fb7280e734046399bc51f1ed6e534bd6c3633e7ed519244ce4f41cab"
+    );
+    let (_, archived30) = include_str!("support/cp34_legacy_v30.rs")
+        .split_once("// BEGIN FROZEN BASELINE ENCODER\n")
+        .unwrap();
+    assert_eq!(
+        Fingerprint::of(archived30.as_bytes()).to_hex(),
         "b66ed171400a682a28b20b1347b7499fdc57abcdb3525924c4aa017211084458"
     );
     let (_, archived29) = include_str!("support/cp34_legacy_v29.rs")
@@ -458,7 +466,7 @@ fn defer227_domain_rejects_v27_identity_even_with_the_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 27;
     let mut old_domain = legacy::bytes(&input);
-    let domain = b"ZIL-TYPED-MODULE-V30\0";
+    let domain = b"ZIL-TYPED-MODULE-V31\0";
     assert!(old_domain.starts_with(domain));
     old_domain[..domain.len()].copy_from_slice(b"ZIL-TYPED-MODULE-V27\0");
     assert_ne!(input.fingerprint(), Fingerprint::of(&old_domain));
@@ -469,7 +477,7 @@ fn product237_domain_rejects_previous_v28_even_with_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 28;
     let mut previous = legacy::bytes(&input);
-    previous[..b"ZIL-TYPED-MODULE-V30\0".len()].copy_from_slice(b"ZIL-TYPED-MODULE-V28\0");
+    previous[..b"ZIL-TYPED-MODULE-V31\0".len()].copy_from_slice(b"ZIL-TYPED-MODULE-V28\0");
     assert_ne!(input.fingerprint(), Fingerprint::of(&previous));
 }
 
@@ -478,6 +486,101 @@ fn owned_sum239_domain_rejects_previous_v29_with_same_schema_claim() {
     let mut input = module(false);
     input.schema_version = 29;
     let mut previous = legacy::bytes(&input);
-    previous[..b"ZIL-TYPED-MODULE-V30\0".len()].copy_from_slice(b"ZIL-TYPED-MODULE-V29\0");
+    previous[..b"ZIL-TYPED-MODULE-V31\0".len()].copy_from_slice(b"ZIL-TYPED-MODULE-V29\0");
     assert_ne!(input.fingerprint(), Fingerprint::of(&previous));
+}
+
+#[test]
+fn forward251_source_and_returned_debt_are_bound_in_all_public_identities() {
+    let mut input = module(false);
+    input.functions[0].callable_return_contract = Some(return_contract(CallableKind::Fn));
+    input.functions[0].callable_contract = Some(contract(false));
+    let fresh = input.fingerprint();
+    let mut previous = legacy::bytes(&input);
+    previous[..b"ZIL-TYPED-MODULE-V31\0".len()].copy_from_slice(b"ZIL-TYPED-MODULE-V30\0");
+    assert_ne!(fresh, Fingerprint::of(&previous));
+    let mut identities = std::collections::BTreeSet::new();
+    for source in [
+        CallableReturnSource::Fresh,
+        CallableReturnSource::Parameter(0),
+        CallableReturnSource::Parameter(2),
+        CallableReturnSource::Parameter(u32::MAX),
+    ] {
+        input.functions[0]
+            .callable_return_contract
+            .as_mut()
+            .unwrap()
+            .source = source;
+        let returned = input.functions[0]
+            .callable_return_contract
+            .as_ref()
+            .unwrap();
+        assert_eq!(
+            callable_return_contract_fingerprint(returned),
+            legacy::callable_return_contract_fingerprint(returned)
+        );
+        assert!(identities.insert(format!(
+            "{:?}",
+            callable_return_contract_fingerprint(returned)
+        )));
+        equal(&input);
+        if source != CallableReturnSource::Fresh {
+            assert_ne!(fresh, input.fingerprint());
+        }
+    }
+    let before = input.fingerprint();
+    let roles = input.functions[0].callable_contract.as_mut().unwrap();
+    let before_roles = callable_contract_fingerprint(roles);
+    roles.roles[0].cleanup = CallableCleanup::Returned;
+    assert_ne!(before_roles, callable_contract_fingerprint(roles));
+    assert_eq!(
+        callable_contract_fingerprint(roles),
+        legacy::callable_contract_fingerprint(roles)
+    );
+    assert_ne!(before, input.fingerprint());
+    equal(&input);
+}
+
+#[test]
+fn forward251_wire_preserves_actual_parameter_and_rejects_unknown_source() {
+    let limits = zil_base::Limits::default();
+    let mut input = module(false);
+    input.functions[0].callable_return_contract = Some(return_contract(CallableKind::Fn));
+    input.functions[0].callable_contract = Some(contract(false));
+    input.functions[0].callable_contract.as_mut().unwrap().roles[0].cleanup =
+        CallableCleanup::Returned;
+    let encode = |module: &TypedModule| {
+        let plan = CandidatePlan::empty_for(module);
+        let bytes = wire::encode_module_candidate(module, &plan, &limits).unwrap();
+        assert_eq!(
+            wire::decode_module_candidate(&bytes, &limits).unwrap(),
+            (module.clone(), plan)
+        );
+        bytes
+    };
+    let fresh = encode(&input);
+    input.functions[0]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .source = CallableReturnSource::Parameter(2);
+    let parameter = encode(&input);
+    let tag = fresh
+        .iter()
+        .zip(&parameter)
+        .position(|(a, b)| a != b)
+        .unwrap();
+    assert_eq!((fresh[tag], parameter[tag]), (0, 1));
+    let mut malformed = parameter.clone();
+    malformed[tag] = 255;
+    assert_eq!(
+        wire::decode_module_candidate(&malformed, &limits).unwrap_err()[0].code,
+        "E-WIRE-TAG"
+    );
+    let mut old = parameter;
+    old[8..12].copy_from_slice(&30u32.to_le_bytes());
+    assert_eq!(
+        wire::decode_module_candidate(&old, &limits).unwrap_err()[0].code,
+        "E-WIRE-VERSION"
+    );
 }

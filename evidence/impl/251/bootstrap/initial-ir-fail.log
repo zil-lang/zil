@@ -1,0 +1,128 @@
+   Compiling zil-ir v0.1.0 (/workspace/zil-251/crates/zil-ir)
+    Finished `test` profile [unoptimized] target(s) in 2.83s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-251/debug/deps/zil_ir-1cde8e00cc003ffa)
+
+running 41 tests
+test wire::flow_tests::each_flow_field_and_representation_changes_contract_identity ... ok
+test wire::flow_tests::distributed_calls_and_edges_obey_cumulative_contract_limits ... ok
+test wire::flow_tests::joint_roles_and_event_order_are_transport_identity_not_layout_aliases ... ok
+test wire::flow_tests::flow_roundtrip_keeps_backedges_zero_calls_and_both_exits ... ok
+test wire::flow_tests::unknown_flow_variants_and_untrusted_lengths_fail_before_allocation ... ok
+test wire::owned_carrier_tests::schema19_owned_claims_fingerprint_binds_every_operand_and_flag ... ok
+test wire::owned_carrier_tests::schema19_owned_claims_reject_noncanonical_flags_and_array_allocation_bombs ... ok
+test wire::owned_sum_tests::malicious_collection_lengths_do_not_allocate_or_consume_fake_records ... ok
+test wire::owned_sum_tests::local_enum_fingerprint_binds_opcodes_every_projection_and_output_order ... ok
+test wire::owned_sum_tests::projection_and_output_vectors_are_precharged_before_allocation ... ok
+test wire::owned_carrier_tests::schema19_owned_claims_roundtrip_with_distinct_fixed_opcodes ... ok
+test wire::owned_sum_tests::owned_sum_literal_opcodes_preserve_all_raw_fields_and_truncation_rejects ... ok
+test wire::state_field_tests::shared_package_shape_does_not_grant_copy_or_general_pointee_support ... ok
+test wire::state_field_tests::new_window_instructions_match_manual_bytes_and_all_truncations_fail ... ok
+test wire::state_field_tests::window_fingerprints_bind_each_index_operand_and_mutability ... ok
+test wire::store_tests::shared_head_shape_does_not_expand_general_pointees_or_sealed_heads ... ok
+test wire::store_tests::store_fingerprint_binds_each_operand_and_full_element_type ... ok
+test wire::store_tests::current_wire_rejects_all_old_versions_and_next_unknown_version ... FAILED
+test wire::store_tests::store_type_has_distinct_tag_and_nested_metadata_is_bounded_both_ways ... ok
+test wire::tests::byte_count_node_depth_and_execution_quotas_precede_allocation ... ok
+test wire::store_tests::store_raw_ops_have_fixed_tags_and_reject_every_truncated_prefix ... ok
+test wire::tests::borrowed_callable_operation_binds_requested_mode_and_real_address ... ok
+test wire::tests::bytes083_scalar_ct_current_wire_preserves_byte_conversion_and_all_prefixes_reject ... ok
+test wire::tests::ct_roundtrip_is_stable_and_preserves_raw_claims ... ok
+test wire::tests::defer227_registration_preserves_raw_ids_and_binds_both_fingerprint_fields ... ok
+test wire::tests::forbidden_ops_and_dependencies_survive_as_untrusted_data ... ok
+test wire::tests::every_truncated_ct_prefix_is_rejected_without_panicking ... ok
+test wire::tests::module_and_candidate_roundtrip_and_every_partial_record_rejects ... ok
+test wire::tests::package_capture_view_current_wire_preserves_indices_end_kind_and_fingerprints ... ok
+test wire::tests::concrete_helper_contract_roundtrips_and_binds_each_claim ... ok
+test wire::tests::raw_cache_keeps_resource_claims_without_endorsing_them ... ok
+test wire::tests::rejects_trailing_bytes_noncanonical_bool_and_unknown_type ... ok
+test wire::tests::rejects_unknown_opcode_version_and_missing_typed_claims ... ok
+test wire::tests::error_cleanup_raw_contract_roundtrips_and_binds_each_claim ... ok
+test wire::tests::shared_address_operations_and_raw_hold_claims_roundtrip ... ok
+test wire::type_stack_tests::default_type_depth_boundary_is_a_result_on_the_normal_test_stack ... ok
+test wire::type_stack_tests::independently_encoded_258_level_input_rejects_before_host_stack_exhaustion ... ok
+test wire::tests::resource_closure_operations_bind_wire_and_fingerprint ... ok
+test wire::type_stack_tests::type_nodes_keep_the_exact_preexisting_collection_and_child_charge ... ok
+test wire::tests::resource_raw_fields_roundtrip_bind_fingerprint_and_reject_old_wire ... ok
+test wire::tests::package_wire_preserves_untrusted_shape_and_binds_all_field_operations ... ok
+
+failures:
+
+---- wire::store_tests::current_wire_rejects_all_old_versions_and_next_unknown_version stdout ----
+
+thread 'wire::store_tests::current_wire_rejects_all_old_versions_and_next_unknown_version' (136649) panicked at crates/zil-ir/src/wire/store_tests.rs:156:5:
+assertion `left == right` failed
+  left: 31
+ right: 30
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    wire::store_tests::current_wire_rejects_all_old_versions_and_next_unknown_version
+
+test result: FAILED. 40 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-ir --lib`
+     Running tests/cp34_fingerprint.rs (/workspace/.zil-env/target-251/debug/deps/cp34_fingerprint-94cd6ec2056e8452)
+
+running 9 tests
+test callable_public_fingerprints_keep_the_original_vec_contracts ... ok
+test defer227_domain_rejects_v27_identity_even_with_the_same_schema_claim ... ok
+test frozen_vec_oracle_and_archived_encoders_have_pinned_independent_sources ... FAILED
+test owned_sum239_domain_rejects_previous_v29_with_same_schema_claim ... ok
+test product237_domain_rejects_previous_v28_even_with_same_schema_claim ... ok
+test forward251_wire_preserves_actual_parameter_and_rejects_unknown_source ... ok
+test every_raw_encoding_variant_matches_the_frozen_vec_oracle ... ok
+test forward251_source_and_returned_debt_are_bound_in_all_public_identities ... ok
+test sha_blocks_and_stream_buffer_boundaries_preserve_exact_bytes ... ok
+
+failures:
+
+---- frozen_vec_oracle_and_archived_encoders_have_pinned_independent_sources stdout ----
+
+thread 'frozen_vec_oracle_and_archived_encoders_have_pinned_independent_sources' (136681) panicked at crates/zil-ir/tests/cp34_fingerprint.rs:359:5:
+assertion `left == right` failed
+  left: "96c82451fb7280e734046399bc51f1ed6e534bd6c3633e7ed519244ce4f41cab"
+ right: "b66ed171400a682a28b20b1347b7499fdc57abcdb3525924c4aa017211084458"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    frozen_vec_oracle_and_archived_encoders_have_pinned_independent_sources
+
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+error: test failed, to rerun pass `-p zil-ir --test cp34_fingerprint`
+     Running tests/impl092_slice_wire.rs (/workspace/.zil-env/target-251/debug/deps/impl092_slice_wire-fd17ad4027a20909)
+
+running 3 tests
+test range_transport_cannot_be_relabelled_as_an_old_or_unknown_wire_version ... ok
+test new_recursive_pointee_is_bounded_before_wire_allocation ... ok
+test both_optional_endpoints_and_slice_element_participate_in_wire_and_identity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/impl096_byte_buffer_wire.rs (/workspace/.zil-env/target-251/debug/deps/impl096_byte_buffer_wire-8d6aa3e4ae79c94d)
+
+running 2 tests
+test each_byte_storage_operand_mutability_and_definition_bind_identity ... ok
+test raw_byte_storage_roundtrip_preserves_every_claim_and_old_versions_reject ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/review092_slice_transport.rs (/workspace/.zil-env/target-251/debug/deps/review092_slice_transport-a2e757ddf82d5571)
+
+running 2 tests
+test optional_range_presence_flags_require_canonical_zero_or_one ... ok
+test all_new_fields_change_identity_and_roundtrip_without_loss ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests zil_ir
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: 2 targets failed:
+    `-p zil-ir --lib`
+    `-p zil-ir --test cp34_fingerprint`

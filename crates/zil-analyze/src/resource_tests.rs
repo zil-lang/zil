@@ -588,6 +588,7 @@ fn impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles() {
     }
     let mut m = base;
     m.functions[0].callable_return_contract = Some(CallableReturnContract {
+        source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(0),
         kind: CallableKind::FnOnce,
         hold: vec![],
