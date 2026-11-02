@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/assess_delivery_process",
+  "verdict": "Pass",
+  "implementation_commit": "4364ab020fc5b0e1e3f67b8bda23975fa79f2519",
+  "implementation_author": "/root/callback_consumer",
+  "independent_non_author": true,
+  "review_scope": "Consumer final delivery delta, collector/transport writeset, and explicit R1 workspace evidence reuse for proposed R2; this is not a full R2 or remote CI Pass",
+  "cast_fix_commit": "5c9c723ad1386d6a0b12252d32c573178bd58efc",
+  "candidate_at_review": "b454f015352cfa5d0055d3e31250b379e7e66886",
+  "native_execution_source_commit": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+  "cast_fix": {
+    "path": "crates/zil-driver/tests/impl256_contracts.rs",
+    "exact_change": "Delete exactly two usize-to-usize casts on Span.start/end; Span fields are usize in unchanged zil-base definition. The range and all assertions remain identical.",
+    "new_file_sha256": "e0f4b10dfc36be4d57c2a892c0ba935c9d8e02a6e66b50936a5d5954c2f50428",
+    "semantics_unchanged": true,
+    "fix_delta_files": [
+      "crates/zil-driver/tests/impl256_contracts.rs",
+      "evidence/impl/256/contract-cast-fix/R1-original-RESULT.json",
+      "evidence/impl/256/contract-cast-fix/R1-original-clippy-check.json",
+      "evidence/impl/256/contract-cast-fix/R1-original-clippy.log",
+      "evidence/impl/256/contract-cast-fix/RESULT.json",
+      "evidence/impl/256/contract-cast-fix/clippy.log",
+      "evidence/impl/256/contract-cast-fix/contracts.log"
+    ],
+    "postfix_delta_evidence_only": true
+  },
+  "collector_review": {
+    "path": "tools/research/256/final_receipt.py",
+    "sha256": "ba352039a216792bb7c1bdaaf7180cb9ac6b431d01ebfd36af44f044ee519d00",
+    "write_set_authorized": "tools/research/256/** in authoritative impl256 card",
+    "operations": "Read Git blobs with rev-parse/show/ls-tree, read indexed artifacts and validator modules, write only requested final receipt; no compiler or native process execution. Raw JSON paths are mapped through logical index without mutation.",
+    "R1_specific_counts": "Explicit historical R1 expected counts, not a generic future CI total or new execution count.",
+    "original_oracles_fixtures_unchanged": true,
+    "transport_producer_unchanged": true
+  },
+  "input_equivalence": {
+    "all_non_evidence_changes_to_consumer_delivery": [
+      "crates/zil-driver/tests/impl256_contracts.rs",
+      "tools/research/256/final_receipt.py"
+    ],
+    "compiler_production_all_bytes_unchanged": true,
+    "Cargo_lock_manifests_toolchain_unchanged": true,
+    "all_fixture_and_oracle_bytes_unchanged": true,
+    "remaining_input_projection_entries": 4220,
+    "remaining_input_projection_sha256": "a25b124cba5779ba1aabfb038884843b587613fe5e088796440b5cdeb1c71f12",
+    "allowed_R2_parent_metadata_changes": [
+      {
+        "path": ".task/B0.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/T01.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/T02.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/T03.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/T04.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/T05.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/T06.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/T07.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/T08.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/T09.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/W1.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/W2.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/W3.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      },
+      {
+        "path": ".task/W4.md",
+        "changed_json_keys": [
+          "normative_hash",
+          "spec_hash",
+          "task_revision"
+        ],
+        "status_unchanged": true,
+        "done_when_unchanged": true
+      }
+    ]
+  },
+  "reuse_decision": "AllowExplicitEvidenceReuse",
+  "workspace_evidence_reuse": {
+    "status": "ReusedFromR1Pass",
+    "source_commit": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+    "executed_on_R2": false,
+    "totals": {
+      "passed": 3733,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "test_summary_groups": 414,
+    "log_sha256": "f0cbeb2ce35d4549ad91eae0fde36ce71cab180e20fa3640ae28845fc450d0c3",
+    "scope": "3733 is the original R1 execution count; the one changed contracts test is separately revalidated, not added to form a fictional 3734-run R2."
+  },
+  "changed_test_validation": {
+    "evidence_commit": "5c9c723ad1386d6a0b12252d32c573178bd58efc",
+    "tested_source_parent": "737e22be412dae52d6b4741d62f02afd4d3b03e3",
+    "tested_file_sha_matches_final_delivery": true,
+    "tests": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "targeted_clippy": "Pass author receipt and exact log SHA checked",
+    "new_native_runs": 0,
+    "independently_reexecuted_by_reviewer": false
+  },
+  "original_R1_total_gate": {
+    "status": "Fail",
+    "reason": "All-target Clippy rejected two redundant usize casts",
+    "result_sha256": "72b913a041be9710a89e78b21feac1fbae8d00423c9a5949424e1acc511e744d",
+    "clippy_log_sha256": "52871a3f9a2f266ca860f108f9f16a8d5a47bd93472f6b6bf781f99a1a80a797",
+    "not_reclassified_as_Pass": true
+  },
+  "remaining_R2_requirements": [
+    "Actual all-target Clippy",
+    "Actual reference profile",
+    "Actual text-reference boundary",
+    "Actual migration/transport gates",
+    "Final remote head actual full default execution and complete exact-head evidence audit"
+  ],
+  "status_of_remaining_R2_gates_at_review": "Pending; not inferred from reuse approval",
+  "no_native_repetition_required_for_this_delta": true,
+  "prior_288_native_observations_remain_R1_only": true,
+  "old_consumer_native_review": "/workspace/.zil-env/forward/R1/INDEPENDENT-WORKSPACE-CONSUMERS.json",
+  "production_modified_by_reviewer": false,
+  "new_test_compiler_native_runs_by_reviewer": 0
+}

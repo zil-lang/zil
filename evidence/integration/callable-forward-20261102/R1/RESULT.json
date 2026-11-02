@@ -1,0 +1,101 @@
+{
+  "source_commit": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+  "scope": "formal common-candidate gates",
+  "known_feature_gaps_not_closed_by_regression_pass": [],
+  "profiles": {
+    "debug": 0,
+    "strip": "symbols",
+    "incremental": false,
+    "jobs": 2
+  },
+  "checks": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 5.913,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 591.239,
+      "log_sha256": "f0cbeb2ce35d4549ad91eae0fde36ce71cab180e20fa3640ae28845fc450d0c3",
+      "test_summaries": 414,
+      "totals": {
+        "passed": 3733,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 101,
+      "timeout": false,
+      "elapsed_seconds": 16.001,
+      "log_sha256": "52871a3f9a2f266ca860f108f9f16a8d5a47bd93472f6b6bf781f99a1a80a797",
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Fail"
+    }
+  ],
+  "archives": [
+    {
+      "phase": "workspace",
+      "source_commit": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+      "status": "Pass",
+      "archive": "/workspace/.zil-env/forward/R1/workspace.tar.zst",
+      "archive_bytes": 67135340,
+      "archive_sha256": "fc6708ccd6d53f5ca72a05590b3168e555be563ccf06fe939c6268b1922f3b54",
+      "files": 79441,
+      "logical_bytes": 3813330811,
+      "verification": "All indexed archive blobs hashed; exact original path/size/mode/SHA256 set rechecked before release"
+    }
+  ],
+  "status": "Fail"
+}
