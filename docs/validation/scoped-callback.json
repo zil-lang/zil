@@ -1,0 +1,165 @@
+{
+  "source": "fa34160bacb8ca5bd4c998467be6e6177e3a5aec",
+  "status": "Pass",
+  "checks": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 5.09,
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 58.56,
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 922.28,
+      "test_summaries": 422,
+      "totals": {
+        "passed": 3904,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "reference",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--no-default-features",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 745.76,
+      "test_summaries": 422,
+      "totals": {
+        "passed": 3796,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "text-reference",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "text-reference"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 9.6,
+      "test_summaries": 10,
+      "totals": {
+        "passed": 64,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "migration",
+      "command": [
+        "python3",
+        "tools/llvm/test_validate_migration.py"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 0.43,
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    }
+  ],
+  "merged_commit": "a7f0783a56dce71642ef3980d554950a9c421f79",
+  "pull_request": "https://github.com/zil-lang/zil/pull/21",
+  "remote_checks": [
+    {
+      "run": 41513826172,
+      "conclusion": "success"
+    },
+    {
+      "run": 41513826386,
+      "conclusion": "success"
+    }
+  ],
+  "merge_diff": "Only four Type/Syntax documentation files differ; production code, tests and tooling match tested source.",
+  "review": "Independent scoped source, raw/Wire, provenance, flow, cleanup and consumer oracle review passed; local formal logs independently recomputed.",
+  "limitations": [
+    "Direct same-thread structured callback only; no returned registration/cross-thread/asynchronous lifetime",
+    "Explicit Address<Closure> capture and additional generic compositions remain",
+    "Full ZIL/ZUI and Rust product comparisons not complete"
+  ],
+  "storage": "Only useful source fixtures, commands and compact results retained; no permanent raw artifact archive."
+}

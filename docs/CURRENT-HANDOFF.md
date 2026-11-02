@@ -1,9 +1,7 @@
-# 当前接续：Type/Syntax 验收与外部回调
+# 当前接续：普通闭包组合
 
-已验收主线包含拥有 Event → 具体闭包/公共 dispatch → 拥有 Reply，以及回调原值转交。历史清理后远端 main 为 `f8f750e6c2d1065b9343cbbd272bbc4a28093d42`；迁移后的已验收源码为 `f8116c84374c1bcd2c6239d0e7b6f023ffe8de9e`。旧证据目录已按用户要求连同Git历史移除，七个必要输入保留在tests/fixtures，见[清理记录](GIT-HISTORY-CLEANUP.md)。
+已验收main `a7f0783a56dce71642ef3980d554950a9c421f79`：[Type/Syntax](LANGUAGE-TYPE-SYNTAX.md)与[结构化外部回调](LANGUAGE-SCOPED-CALLBACK.md)已合入，此前拥有Event/Reply与回调原值转交也已完成相应有限范围。schema/Wire32，Rust1.99.1、LLVM23.1.4。
 
-257–265 Type/Syntax 精确源码 `bea1e95b0826dd3e695396cac1665d6a74ad38ec` 已通过本地默认3857/0、参考3749/0、text64/0、格式、Clippy和迁移9项；独立审查及原失败见[阶段验收](LANGUAGE-TYPE-SYNTAX.md)。两套远端CI已通过，经[PR20](https://github.com/zil-lang/zil/pull/20)合入`fd5fb8a49c8b7d71f9f22536236acc73e9e2db7d`。运行产物可清理，不再创建永久原始证据归档。
+273–275候选9c6a64ee（PR22）正在正式验收；277–280从固定2013bee5按独立写集推进，具体状态只在主树.task/impl。276（PR23）移除CI强制原始产物归档，测试命令与失败语义保留。下一目标见[主线优先级](LANGUAGE-NEXT-PRIORITIES.md)。
 
-266–272已在隔离分支并行施工：公共schema/Wire32、前端与实际所有权、独立Verify、LLVM后端、真实三模块+C消费者、CT/driver适配及独审。目标为同线程结构化 `c_with_callback`，公共wrapper内反复调用F、一次消费body、关闭确认无未来入口后才释放环境。主消费者已通过源到Verify及两后端O0/O2、拥有/失败清理与13负源限定检查；F-only本地body组合已补齐。共同候选正在正式全量验收，尚未合入main。
-
-主树工单是任务状态入口，分树副本不维护；源码和小型结果集中提交，不逐条状态push。CP清理已完成，唯一成果的CP25保留，263机制重写和264测试重组未合入。环境沿用原托管线程，不重绑或发布配置。handoff历史元数据仍有债务，不把它写成Pass。完整1.4/ZUI NotSatisfied、B0 Doing，产品和原生Windows NotRun。
+主树工单由boss维护，集中提交，不逐条push；有用测试输入与精简结果入库，生成产物可清理。evidence历史清理和CP清理已完成，唯一成果CP25保留；263机制重写和264测试重组未合入。环境沿用原托管线程，不重绑或发布。历史handoff元数据仍有债务，不标Pass。完整1.4/ZUI NotSatisfied、B0 Doing，产品与原生Windows NotRun。

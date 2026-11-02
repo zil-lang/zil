@@ -1,5 +1,9 @@
 # ZIL 施工总计划
 
+## 2026-11-02：外部回调已合入，普通组合并行推进
+
+266–272经PR21合入a7f0783a，默认3904/0、reference3796/0、text64/0及迁移9、独审和两远端CI通过，见docs/LANGUAGE-SCOPED-CALLBACK.md。273–275泛型具体资源准备候选9c6a64ee进入正式验收。277 Expand具体Event→Reply handler、278 Verify工厂body、279 Analyze捕获窗口一致性、280真实组合消费者按独立写集并行；276单独移除CI强制原始归档，真实测试门保持。源探针已确认每项差距和最近正控，不以Unsupported目录硬派工。
+
 ## 2026-11-03：Type/Syntax已合入，结构化外部回调验收
 
 257–265经PR20合入`fd5fb8a4`：本地默认3857/0、参考3749/0、文本64/0、迁移9项及两套远端CI通过，精确身份、原失败与独审见docs/LANGUAGE-TYPE-SYNTAX.md。266–272已并行贯通实际拥有F登记、公共wrapper与具体本地body、独立实际窗口和Wire核、关闭后释放环境；原三模块及两个近邻已通过API/clang O0/O2限定机器检查。共同候选进入正式全量，仍未合入。验收期间273–275按固定fa34160并行补scoped helper的具体本地资源准备：原generic-local在give门被拒，非泛型及拥有参数两个控制均Verify通过，独立raw显示既有两核可核责任；仅做必要Expand准入、独立组合回归与真实成功/null/准备失败清理，不新增IR或放宽旧边界。保留显式Address<Closure>捕获、跨线程/异步可返回登记、完整1.4/ZUI和产品门的剩余义务。
