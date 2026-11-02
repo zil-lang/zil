@@ -184,6 +184,8 @@ pub struct CtIdent {
     pub source: CtNameSource,
     /// Field/member names carry owner identity, not just matching text.
     pub member_owner: Option<CtSymbolId>,
+    /// Full instantiated owner; a declaration ID alone loses generic arguments.
+    pub member_owner_type: Option<CtTypeRef>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -297,6 +299,7 @@ pub struct CtInputTable {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtFieldInfo {
     pub owner: CtSymbolId,
+    pub owner_type: CtTypeRef,
     pub field: CtSymbolId,
     pub name: CtIdent,
     pub ty: CtTypeRef,
