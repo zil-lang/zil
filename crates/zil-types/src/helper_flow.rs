@@ -209,6 +209,8 @@ pub(super) fn contract(
     span: Span,
 ) -> R<CallableTraces> {
     let (locals, values) = environment_origins(function, bounds, state, span)?;
+    let mut scoped_loop = false;
+    let mut once_parameters = BTreeSet::new();
     let mut size = Size::default();
     size.reserve(function.blocks.len(), 0, 0, limits, state, span)?;
     let mut fragments: Vec<_> = (0..function.blocks.len())
@@ -222,6 +224,88 @@ pub(super) fn contract(
         let mut current = block_id;
         for instruction in &block.instructions {
             state.snapshot(1, instruction.span)?;
+            if let InstructionKind::WithForeignCallback { callback, body, .. } = instruction.kind {
+                scoped_loop = true;
+                let event = |value: ValueId, kind: CallableKind| -> R<Option<CallEvent>> {
+                    let origin = values[value.0 as usize];
+                    if origin == 4 {
+                        return Ok(None);
+                    }
+                    let bound = match origin {
+                        1 => bounds.first(),
+                        2 => bounds.get(1),
+                        _ => None,
+                    }
+                    .ok_or_else(|| {
+                        unsupported(
+                            instruction.span,
+                            "scoped callback helper origin is unknown or mixed",
+                        )
+                    })?;
+                    if !compatible(bound.kind, kind) {
+                        return Err(error(
+                            "E-CLOSURE-MODE",
+                            instruction.span,
+                            "scoped callback role cannot support its actual invocation mode",
+                        ));
+                    }
+                    Ok(Some(CallEvent {
+                        parameter: bound.index,
+                        kind,
+                    }))
+                };
+                let callback = event(callback, CallableKind::FnMut)?;
+                let body = event(body, CallableKind::FnOnce)?;
+                if let Some(body) = &body {
+                    state.snapshot(plan::tree_work(once_parameters.len()), instruction.span)?;
+                    once_parameters.insert(body.parameter);
+                }
+                size.reserve(
+                    4,
+                    callback.is_some() as usize * 2 + body.is_some() as usize,
+                    10,
+                    limits,
+                    state,
+                    instruction.span,
+                )?;
+                let before = fragments.len();
+                let body_node = before + 1;
+                let after = before + 2;
+                let continuation = before + 3;
+                fragments[current].next = Some(CallableFlowNext::Edges(vec![
+                    before as u32,
+                    body_node as u32,
+                    continuation as u32,
+                ]));
+                fragments.push(Fragment {
+                    calls: callback.into_iter().collect(),
+                    next: Some(CallableFlowNext::Edges(vec![
+                        before as u32,
+                        body_node as u32,
+                        continuation as u32,
+                    ])),
+                });
+                fragments.push(Fragment {
+                    calls: body.into_iter().collect(),
+                    next: Some(CallableFlowNext::Edges(vec![
+                        after as u32,
+                        continuation as u32,
+                    ])),
+                });
+                fragments.push(Fragment {
+                    calls: callback.into_iter().collect(),
+                    next: Some(CallableFlowNext::Edges(vec![
+                        after as u32,
+                        continuation as u32,
+                    ])),
+                });
+                fragments.push(Fragment {
+                    calls: Vec::new(),
+                    next: None,
+                });
+                current = continuation;
+                continue;
+            }
             if let Some(forwarded) =
                 forwarded_contract(function, instruction, &values, bounds, state)?
             {
@@ -390,6 +474,8 @@ pub(super) fn contract(
         limits,
         span,
         matches!(function.return_type, Type::Closure(_)),
+        scoped_loop,
+        &once_parameters,
     )
 }
 
@@ -454,6 +540,8 @@ fn classify(
     limits: &Limits,
     span: Span,
     forward_loop: bool,
+    scoped_loop: bool,
+    once_parameters: &BTreeSet<u32>,
 ) -> R<CallableTraces> {
     let n = flow.nodes.len();
     state.snapshot(n.saturating_mul(3), span)?;
@@ -487,6 +575,15 @@ fn classify(
         }
     }
     if order.len() != n {
+        if scoped_loop {
+            for bound in bounds {
+                state.snapshot(1, span)?;
+                if bound.kind == CallableKind::FnOnce || once_parameters.contains(&bound.index) {
+                    scoped_once(&flow, bound.index, state, span)?;
+                }
+            }
+            return Ok(CallableTraces::Flow(flow));
+        }
         if forward_loop {
             for node in &flow.nodes {
                 state.snapshot(node.calls.len().saturating_add(1), span)?;
@@ -575,4 +672,51 @@ fn classify(
     }
     state.snapshot(exits.len(), span)?;
     Ok(CallableTraces::Finite(exits.into_iter().collect()))
+}
+
+// A finite 0/1/2 prefix lattice proves each consumed parameter independently.
+// Any back edge through its call raises 2, even when another role owns the loop.
+fn scoped_once(
+    flow: &CallableFlow,
+    parameter: u32,
+    state: &mut closures::State,
+    span: Span,
+) -> R<()> {
+    state.snapshot(flow.nodes.len().saturating_mul(3).saturating_add(1), span)?;
+    let mut incoming = vec![None::<u8>; flow.nodes.len()];
+    incoming[flow.entry as usize] = Some(0);
+    let mut queue = VecDeque::from([flow.entry as usize]);
+    while let Some(index) = queue.pop_front() {
+        let node = &flow.nodes[index];
+        state.snapshot(node.calls.len().saturating_add(1), span)?;
+        let count = incoming[index]
+            .unwrap()
+            .saturating_add(
+                node.calls
+                    .iter()
+                    .filter(|e| e.parameter == parameter)
+                    .count()
+                    .min(2) as u8,
+            )
+            .min(2);
+        if count > 1 {
+            return Err(error(
+                "E-CLOSURE-MODE",
+                span,
+                "scoped callback helper can consume one body parameter more than once",
+            ));
+        }
+        if let CallableFlowNext::Edges(targets) = &node.next {
+            state.snapshot(targets.len(), span)?;
+            for target in targets {
+                let old = &mut incoming[*target as usize];
+                if old.is_none_or(|n| n < count) {
+                    state.snapshot(1, span)?;
+                    *old = Some(count);
+                    queue.push_back(*target as usize);
+                }
+            }
+        }
+    }
+    Ok(())
 }
