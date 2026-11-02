@@ -1,0 +1,60 @@
+{
+  "at": "2026-11-02T12:23:03.603237+00:00",
+  "scope": "clean fully accepted local worktrees and local task refs only; exact commits remain reachable from actual remote main",
+  "entries": [
+    {
+      "task": 245,
+      "worktree": "/workspace/zil-245",
+      "branch": "task/245",
+      "head": "10b4337b869d6515325d53c3ff49304e3243fbfa",
+      "clean": true,
+      "contained_in_remote_accepted_main": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "removed_worktree_and_local_branch": true
+    },
+    {
+      "task": 246,
+      "worktree": "/workspace/zil-246",
+      "branch": "task/246",
+      "head": "975b7f8890bdcd18ddac90b013fac22f3e21c31f",
+      "clean": true,
+      "contained_in_remote_accepted_main": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "removed_worktree_and_local_branch": true
+    },
+    {
+      "task": 247,
+      "worktree": "/workspace/zil-247",
+      "branch": "task/247",
+      "head": "78e1f5f8ad09ae0f4eda01ebb52bb8b220db35f9",
+      "clean": true,
+      "contained_in_remote_accepted_main": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "removed_worktree_and_local_branch": true
+    },
+    {
+      "task": 248,
+      "worktree": "/workspace/zil-248",
+      "branch": "task/248",
+      "head": "468e1d1c73b1b3a76afe991c043c1fc1f9b05a48",
+      "clean": true,
+      "contained_in_remote_accepted_main": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "removed_worktree_and_local_branch": true
+    },
+    {
+      "task": 249,
+      "worktree": "/workspace/zil-249",
+      "branch": "task/249",
+      "head": "6be4c3a53deed003ca30566f10ce3c92002a2de6",
+      "clean": true,
+      "contained_in_remote_accepted_main": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "removed_worktree_and_local_branch": true
+    },
+    {
+      "task": 250,
+      "worktree": "/workspace/zil-250",
+      "branch": "task/250",
+      "head": "ebbee34647b5297ebd7b9ddd10abe8a1d9295381",
+      "clean": true,
+      "contained_in_remote_accepted_main": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "removed_worktree_and_local_branch": true
+    }
+  ]
+}

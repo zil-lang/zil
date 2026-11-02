@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/assess_delivery_process",
+  "verdict": "Pass",
+  "implementation_commit": "920be0043dd7b9790fc4efedbb3a3f9c86631b3c",
+  "implementation_author": "/root/callback_analyze",
+  "independent_non_author": true,
+  "production_commit": "6d4e8016fc4714cf3111fcfb6a6e766ea2209839",
+  "production_analyze_tree": "2df4f100c79d985e20693efb4a1845327780df2d",
+  "implementation_analyze_tree": "2df4f100c79d985e20693efb4a1845327780df2d",
+  "review_scope": "Final exact delivery binding of Analyze slice 253; original forward proof plus structural private carrier increment; no retesting beyond existing exact production review",
+  "binding_method": {
+    "all_non_evidence_git_entries_equal": true,
+    "non_evidence_file_count": 4230,
+    "non_evidence_inventory_sha256": "7c147fd6937d7dc87179718143a0829e84be6cc23f927593742ae6db97169008",
+    "inventory_encoding": "git ls-tree -rlz entries excluding evidence/, NUL-separated",
+    "delta_only_evidence": true,
+    "changed_files": [
+      "evidence/impl/253/RESULT.json",
+      "evidence/impl/253/budget-fix/clippy.log",
+      "evidence/impl/253/budget-fix/fmt.log",
+      "evidence/impl/253/budget-fix/new-kernel.log",
+      "evidence/impl/253/budget-fix/old-flat.log",
+      "evidence/impl/253/budget-fix/old-fresh.log",
+      "evidence/impl/253/budget-fix/source.log",
+      "evidence/impl/253/budget-fix/structural-source.log",
+      "evidence/impl/253/history/RESULT-22d3f2716.json",
+      "evidence/impl/253/review/ANALYZE253B-PASS-6d4e8016f.json",
+      "evidence/impl/253/review/ANALYZE253B-REVIEW-c8b130848.json",
+      "evidence/impl/253/review/B-fixed-6d-RESULT.json",
+      "evidence/impl/253/review/B-fixed-6d-SOURCE-BINDING.json",
+      "evidence/impl/253/review/B-fixed-6d-artifacts.tar.gz",
+      "evidence/impl/253/review/B-fixed-6d-probe.log"
+    ]
+  },
+  "findings": [],
+  "closed_findings": [
+    "AN253-R1",
+    "AN253-R2",
+    "AN253-R3",
+    "AN253B-R1"
+  ],
+  "review_chain": [
+    {
+      "path": "/workspace/.zil-env/forward-review-253/ANALYZE253-PASS-883f55c64.json",
+      "sha256": "590f80d5d126c6b4bb44c69f8866de4952de032e9810e32a6ea0234d8c950ef8"
+    },
+    {
+      "path": "/workspace/.zil-env/forward-review-253/B/ANALYZE253B-PASS-6d4e8016f.json",
+      "sha256": "658a5136f6d1fdb98be84046219ea6bdf735abd906485b36ad749c4ba971492e"
+    },
+    {
+      "path": "/workspace/.zil-env/forward-review-253/B/runs/fixed-6d4e8016f/RESULT.json",
+      "sha256": "cd404317a9ea49fc63fba9407cedb161ffe02e0d72ebc31069b1562a8dea8a4b"
+    }
+  ],
+  "validation_reused": {
+    "forward_production": "883f55c640f8c5674ef73149f43e52702a64a091: independent raw/Wire matrix, N=1670 boundary and incremental permission checks",
+    "private_carrier_production": "6d4e8016fc4714cf3111fcfb6a6e766ea2209839: independent source-derived raw/Wire increment, N=14136 boundary; no helper-edge admission requirement",
+    "repeated_tests_for_binding": false
+  },
+  "historical_failures_and_correction_preserved": true,
+  "old_pass_preserved": true,
+  "limitations": [
+    "This binds the implementation delivery, not root final unified R or remote CI acceptance.",
+    "Carrier Package escape rejection occurred at earlier aggregate type admission; not claimed as an operand-specific diagnostic."
+  ],
+  "production_modified_by_reviewer": false,
+  "bound_at_utc": "2026-11-02T12:52:57.624586+00:00"
+}

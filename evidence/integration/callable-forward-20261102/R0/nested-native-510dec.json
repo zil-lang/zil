@@ -1,0 +1,139 @@
+{
+  "source_commit": "510dec463cfbc8a82191c0f70965d05ef489228d",
+  "source_path": "crates/zil-driver/tests/impl252_fixtures/nested_original.zil",
+  "source_sha256": "36b9029e66295a477de85574489ea13f1f28ca6c459cfc53a073ccffe04e2236",
+  "compiler_sha256": "ece80b1bdfce24d11c1595737b1f393fdcd6d85e3d51674c71e8243e79cea40f",
+  "status": "Pass",
+  "native_runs": 2,
+  "observations": [
+    {
+      "optimization": "O0",
+      "build_command": [
+        "/workspace/.zil-env/target-251/debug/zil",
+        "build",
+        "/workspace/zil-251/crates/zil-driver/tests/impl252_fixtures/nested_original.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "-o",
+        "/workspace/.zil-env/forward/nested-native/O0/program",
+        "--emit-dir",
+        "/workspace/.zil-env/forward/nested-native/O0/phases",
+        "--json"
+      ],
+      "build_exit": 0,
+      "native_exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "backend": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 4200,
+            "input_kind": "builder",
+            "preflight_ns": 4331144,
+            "builder_ns": 2991622,
+            "parse_ns": 0,
+            "optimize_ns": 1134637,
+            "emit_ns": 19580693,
+            "total_ns": 30536097
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "report_sha256": "8966230aaf0f138ad0efa01135932695707c69635f11da05b1ce00c567f20ad9"
+    },
+    {
+      "optimization": "O2",
+      "build_command": [
+        "/workspace/.zil-env/target-251/debug/zil",
+        "build",
+        "/workspace/zil-251/crates/zil-driver/tests/impl252_fixtures/nested_original.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "-o",
+        "/workspace/.zil-env/forward/nested-native/O2/program",
+        "--emit-dir",
+        "/workspace/.zil-env/forward/nested-native/O2/phases",
+        "--json"
+      ],
+      "build_exit": 0,
+      "native_exit": 0,
+      "stdout": "",
+      "stderr": "",
+      "backend": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 864,
+            "input_kind": "builder",
+            "preflight_ns": 1164105,
+            "builder_ns": 2545269,
+            "parse_ns": 0,
+            "optimize_ns": 8779549,
+            "emit_ns": 10391880,
+            "total_ns": 23677738
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "report_sha256": "a56aeda00d916074e3a2ad2c486e66508c8fbc20fa065ac4beff7a03babac58f"
+    }
+  ],
+  "limits": "Original nested no-keep f=f source at O0/O2; no allocator injection or extra nested signature coverage claimed"
+}

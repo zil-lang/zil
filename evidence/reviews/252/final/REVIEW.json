@@ -1,0 +1,40 @@
+{
+  "task": "252-nested-owning-callback-final-frontend-review",
+  "reviewer": "/root/callback_backend_fallback",
+  "verdict": "Pass",
+  "implementation_commit": "e023b228020cea739ce3922d4c595914980b0884",
+  "production_commit": "33dc3932ec9cab5be85aa4fb7e047f6f2833ab56",
+  "previous_reviewed_production": "37d55e831333ecdabd3639bc54da6413f473ac92",
+  "baseline": "95790321e469b1588f5e1a1972d1543616e05a6b",
+  "scope": "Independent review of the complete 252 frontend delta through the author's final evidence commit, including 33dc's nested keep inference addition. The independent Analyze, Verify, backend and full combined/native matrices remain separately owned.",
+  "delta_review": [
+    "helper_argument now returns its private LocalType, while its new Nested branch precharges and clones the complete source signature, compares all actual parameters and result to the declared helper bound, and accepts only compatible by-value/shared/exclusive passing modes. It does not bind Nested as Copy or public FunctionPointer.",
+    "The nested call returns the actual private argument identity only for a by-value callable argument whose helper signature result is that same generic binder. The ordinary Builder still checks concrete ClosureId, callable mode and origin; same-signature different lambda cannot refill the old local.",
+    "Previously reviewed 37d source closure inference, concrete Builder emission and public pointer/Copy boundaries remain unchanged. Author final e023 changes only evidence relative to production 33dc."
+  ],
+  "new_independent_sources": [
+    {
+      "path": "nested-keep-positive.zil",
+      "sha256": "77eb943e38ac00998ea77d6656814fa5468f77e6d7a20433e7e44b35e15fe837",
+      "result": "Original nested source with f=keep(f), actual FnOnce(Event)->Reply helper; CLI LLVM API O0 Success link, Verify once, builder input, no fallback, native exit 0. This is one extra source, not the original f=f program's native result."
+    },
+    {
+      "path": "nested-keep-wrong-instance.zil",
+      "sha256": "7e5513ef979c3a9a1e9b48dbf0a5bea2b3445df377a479c3ce0900285087cd8e",
+      "result": "The same helper returns a different literal's identical Event→Reply signature; Types SafeReject E-TYPE-MISMATCH: different closure expressions have different concrete types."
+    }
+  ],
+  "tests": {
+    "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo test -p zil-driver --test impl252_nested --test impl194_copy_callable --test impl218_factory_budget --offline --locked -j 2 -- --nocapture",
+    "log": "final-author-replay.log",
+    "passed": 28,
+    "failed": 0,
+    "breakdown": {"impl252_nested": 6, "impl194_copy_callable": 19, "impl218_factory_budget": 3},
+    "own_nested_types_N": 1135,
+    "copy_nested_types_N": 148,
+    "both_N_minus_1": "ResourceLimit",
+    "both_fresh_N": "identical"
+  },
+  "author_final_receipt": "evidence/impl/252/nested/RESULT.json records 78/78 selected source/old-control tests plus Clippy at e023; those author runs are not recounted as the 28 independent replay above.",
+  "limitations": "The original f=f source at this author's final snapshot still stops at the old Analyze container gate. Borrow and double-move proof belongs to later independent kernels; Types admission alone does not certify ownership cleanup."
+}

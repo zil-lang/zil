@@ -1,0 +1,71 @@
+{
+  "source_commit": "77b1073db6e655669a9f1173855559026e6c608f",
+  "scope": "formal common-candidate gates",
+  "known_feature_gaps_not_closed_by_regression_pass": [
+    "Nested owning callback local source still rejected in Types; this regression pass alone cannot complete the feature",
+    "Analyze no-keep private carrier composition review pending"
+  ],
+  "profiles": {
+    "debug": 0,
+    "strip": "symbols",
+    "incremental": false,
+    "jobs": 2
+  },
+  "checks": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "timeout": false,
+      "elapsed_seconds": 5.869,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_summaries": 0,
+      "totals": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Pass"
+    },
+    {
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 101,
+      "timeout": false,
+      "elapsed_seconds": 662.788,
+      "log_sha256": "935f4b0569618e8c8ed250c0782b1bb9486a895301e19208e1f72878d0e4dcb7",
+      "test_summaries": 413,
+      "totals": {
+        "passed": 3713,
+        "failed": 4,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "status": "Fail"
+    }
+  ],
+  "archives": [],
+  "status": "Fail",
+  "archive_validation_failure": {
+    "operation": "compare pack return with JSON-decoded verified INDEX",
+    "exception": "AssertionError",
+    "cause_pending_recheck": "in-memory roots tuple vs JSON decoded list suspected; native originals retained",
+    "script_sha256": "92ec195f5278bfe49cadcc976f9f21869d35b1d791c1b6b8c87a72b19c1540b3"
+  }
+}

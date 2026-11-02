@@ -1,0 +1,12 @@
+{
+  "status": "Pass",
+  "source_commit": "77b1073db6e655669a9f1173855559026e6c608f",
+  "archive": "/workspace/.zil-env/forward/pre-nested-R0/workspace.tar.zst",
+  "archive_sha256": "7fc69e3bd3b3d63794a1c8de424d13e20ac2d98cc189a1e65e6ce5fe0661fa31",
+  "archive_bytes": 66954188,
+  "files": 79016,
+  "logical_bytes": 3781741562,
+  "verification": "Complete indexed blobs verified; exact original path/size/mode/SHA256 set; roots equal after JSON sequence normalization",
+  "original_script_failure": "Tuple ROOTS versus JSON list made index equality false; original AssertionError and script preserved",
+  "tests_status": "Fail: 3713 passed, 4 failed; archive validation is not test acceptance"
+}

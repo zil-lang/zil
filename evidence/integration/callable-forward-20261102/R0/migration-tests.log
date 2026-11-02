@@ -1,0 +1,65 @@
+   Compiling zil-verify v0.1.0 (/workspace/zil-251/crates/zil-verify)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-251/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/zil-251/crates/zil-types)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-251/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/zil-251/crates/zil-lower)
+   Compiling zil-ct v0.1.0 (/workspace/zil-251/crates/zil-ct)
+   Compiling zil-driver v0.1.0 (/workspace/zil-251/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 30.75s
+     Running tests/impl204_analyze_capture.rs (/workspace/.zil-env/target-251/debug/deps/impl204_analyze_capture-82a62e4f3435c214)
+
+running 7 tests
+test actual_same_type_store_values_remain_distinct_owned_inputs ... ok
+test actual_consuming_entry_cannot_copy_or_repeat_taken_store ... ok
+test original_live_capture_window_and_stronger_reserve_neighbor_close_in_analyze ... ok
+test strong_window_new_work_and_legacy_source_metadata_have_exact_fresh_boundaries ... ok
+test unchanged_originals_pass_analyze_and_independent_raw_and_wire_verify ... ok
+test two_same_type_capture_and_package_field_roots_remain_independent ... ok
+test callee_preparation_failure_keeps_owned_store_debt_and_body_take_is_observable ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+
+     Running tests/impl204_review.rs (/workspace/.zil-env/target-251/debug/deps/impl204_review-501ba75f977f9e5b)
+
+running 21 tests
+test actual_capture_writes_and_transfers_cannot_be_hidden_by_mode_or_read_metadata ... ok
+test captured_store_windows_keep_the_parent_until_the_last_real_use ... ok
+test declared_once_field_of_actual_fn_keeps_its_own_captured_store_cleanup ... ok
+test legacy_byte_capture_has_exact_fresh_budget_control ... ok
+test move_keyword_does_not_turn_a_store_description_into_an_owned_capture ... ok
+test direct_child_environment_propagates_the_new_copy_result_requirement ... ok
+test equal_store_types_keep_independent_capture_and_package_field_cleanup_order ... ok
+test new_owned_store_capture_has_exact_recoverable_phase_budgets ... ok
+test old_copy_callback_fields_remain_valid_outside_the_captured_inner_leaf ... ok
+test package_field_give_moves_its_store_but_keeps_sibling_flags ... ok
+test raw_equal_typed_capture_indices_do_not_make_two_stores_the_same_parent ... ok
+test raw_store_mutation_keeps_the_current_capture_window_alive ... ok
+test outer_store_moves_two_same_type_environments_without_merging_inner_stores ... ok
+test raw_take_capture_keeps_the_original_element_parent_after_local_reserve ... ok
+test implicit_body_give_and_once_exit_points_keep_the_actual_owner ... ok
+test source_produced_unused_capture_still_requires_exact_canonical_resource ... ok
+test source_produced_make_closure_cannot_duplicate_one_actual_store_value ... ok
+test unused_capture_table_without_store_operations_checks_the_second_actual_leaf ... ok
+test unused_capture_qualification_has_exact_fresh_raw_and_wire_work_limits ... ok
+test original_four_sources_keep_bytes_and_reach_real_o0_o2_execution ... ok
+test take_capture_cannot_leave_a_window_valid_for_a_reallocated_local_owner ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.63s
+
+     Running tests/review223_replay.rs (/workspace/.zil-env/target-251/debug/deps/review223_replay-0e0541ab51b6a6d1)
+
+running 2 tests
+test frozen_schema27_29_and30_wire_are_rejected_as_old_transports ... ok
+test frozen_mutable_product_raw_and_wire_must_be_rejected ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/review240_helper_sum.rs (/workspace/.zil-env/target-251/debug/deps/review240_helper_sum-3a189264c6aab715)
+
+running 3 tests
+test ordinary_sum_argument_does_not_expand_callable_or_state_permissions ... ok
+test formerly_unsupported_return_f_keeps_the_instance_and_cleans_owning_companion ... ok
+test finite_fn_helper_accepts_complete_enum_product_and_error_arguments ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.89s
+
