@@ -486,13 +486,17 @@ impl FrozenReadView<'_> {
         })
     }
     fn append_source_type(&self, requester: &CtSymbolId, module: ModuleId, ty: &s::TypeRef,
-        formal: &str, actual: CtTypeNodeId, nodes: &mut Vec<CtTypeNode>,
+        substitutions: &[(&str, CtTypeNodeId)], nodes: &mut Vec<CtTypeNode>,
         budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<CtTypeNodeId> {
         if depth > self.limits.max_call_depth { return Err(self.unready("generic field type nesting exceeds CT depth")); }
         budget.reserve_analysis_work(1)?;
         let node = match &ty.kind {
-            s::TypeKind::Group(inner) => return self.append_source_type(requester, module, inner, formal, actual, nodes, budget, depth + 1),
-            s::TypeKind::Named { path, args } if path.len() == 1 && path[0] == formal && args.is_empty() => return Ok(actual),
+            s::TypeKind::Group(inner) => return self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1),
+            s::TypeKind::Named { path, args } if path.len() == 1 && args.is_empty()
+                && substitutions.iter().any(|(formal, _)| path[0] == *formal) => {
+                return Ok(substitutions.iter().find(|(formal, _)| path[0] == *formal)
+                    .expect("guarded substitution").1);
+            }
             s::TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => {
                 match path[0].as_str() {
                     "Unit" => CtTypeNode::Primitive(CtScalarTy::Unit), "bool" => CtTypeNode::Primitive(CtScalarTy::Bool),
@@ -515,7 +519,7 @@ impl FrozenReadView<'_> {
                 let mut arguments = Vec::new();
                 for arg in args {
                     match arg {
-                        s::GenericArg::Type(inner) => arguments.push(CtTypeArgument::Type(self.append_source_type(requester, module, inner, formal, actual, nodes, budget, depth + 1)?)),
+                        s::GenericArg::Type(inner) => arguments.push(CtTypeArgument::Type(self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1)?)),
                         s::GenericArg::Const(_) => return Err(self.unready("nested const generic field argument has no completed CT lineage")),
                     }
                 }
@@ -523,10 +527,10 @@ impl FrozenReadView<'_> {
             }
             s::TypeKind::Tuple(parts) => {
                 budget.reserve_temporary_bytes((parts.len() as u64).saturating_mul(8))?;
-                CtTypeNode::Tuple(parts.iter().map(|inner| self.append_source_type(requester, module, inner, formal, actual, nodes, budget, depth + 1)).collect::<CompileResult<Vec<_>>>()?)
+                CtTypeNode::Tuple(parts.iter().map(|inner| self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1)).collect::<CompileResult<Vec<_>>>()?)
             }
             s::TypeKind::Reference { mutable, inner, .. } => CtTypeNode::Address { mutable: *mutable,
-                inner: self.append_source_type(requester, module, inner, formal, actual, nodes, budget, depth + 1)? },
+                inner: self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1)? },
             _ => return Err(self.unready("nested generic field type has no completed CT lineage")),
         };
         budget.reserve_generated_nodes(1)?;
@@ -541,18 +545,25 @@ impl FrozenReadView<'_> {
         let ItemKind::Aggregate(declaration) = &self.declaration(owner).ok_or_else(|| phase("generic owner declaration is absent"))?.kind else {
             return Err(phase("generic field owner is not an aggregate"));
         };
-        let [parameter] = declaration.generics.as_slice() else { return Err(self.unready("generic field has no single frozen formal Type")); };
         let source_field = declaration.fields.iter().find(|field| field.span == field_span)
             .ok_or_else(|| phase("generic field source identity differs from checked shape"))?;
         let Some(CtTypeNode::Nominal { arguments, .. }) = owner_type.nodes.get(owner_type.root.0 as usize) else {
             return Err(error("E-CT-QUERY-TYPE", "generic field owner requires nominal Type"));
         };
-        let [CtTypeArgument::Type(actual)] = arguments.as_slice() else { return Err(error("E-CT-TYPE-ARITY", "generic field owner requires one Type argument")); };
+        if arguments.len() != declaration.generics.len() {
+            return Err(error("E-CT-TYPE-ARITY", "generic field owner argument count differs from frozen declaration"));
+        }
+        let substitutions = declaration.generics.iter().zip(arguments).map(|(parameter, argument)| {
+            match (&parameter.kind, argument) {
+                (s::GenericParamKind::Type(_), CtTypeArgument::Type(actual)) => Ok((parameter.name.as_str(), *actual)),
+                _ => Err(self.unready("generic field has a non-Type formal without completed CT lineage")),
+            }
+        }).collect::<CompileResult<Vec<_>>>()?;
         budget.reserve_generated_nodes(owner_type.nodes.len() as u64)?;
         budget.reserve_temporary_bytes((owner_type.nodes.len() as u64).saturating_mul(96))?;
         let mut nodes = owner_type.nodes.clone();
         let root = self.append_source_type(requester, owner.module, &source_field.ty,
-            &parameter.name, *actual, &mut nodes, budget, 0)?;
+            &substitutions, &mut nodes, budget, 0)?;
         let Some(CtTypeNode::Nominal { symbol, .. }) = nodes.get(root.0 as usize) else {
             return Err(phase("checked generic field is nominal but source lineage is not"));
         };
@@ -567,19 +578,18 @@ impl FrozenReadView<'_> {
             return Err(phase("type alias identity differs from frozen source"));
         };
         let rhs = declaration.value.as_ref().ok_or_else(|| self.unready("type alias has no completed right hand side"))?;
-        let (formal, actual) = match declaration.generics.as_slice() {
-            [] => ("", CtTypeNodeId(0)),
-            [parameter] => {
-                let Some(CtTypeNode::Nominal { arguments, .. }) = handle.nodes.get(handle.root.0 as usize) else {
-                    return Err(error("E-CT-QUERY-TYPE", "generic alias requires a nominal Type application"));
-                };
-                let [CtTypeArgument::Type(id)] = arguments.as_slice() else {
-                    return Err(error("E-CT-TYPE-ARITY", "generic alias requires one Type argument"));
-                };
-                (parameter.name.as_str(), *id)
-            }
-            _ => return Err(self.unready("multi-parameter alias has no completed CT Type lineage")),
+        let Some(CtTypeNode::Nominal { arguments, .. }) = handle.nodes.get(handle.root.0 as usize) else {
+            return Err(error("E-CT-QUERY-TYPE", "alias requires a nominal Type application"));
         };
+        if arguments.len() != declaration.generics.len() {
+            return Err(error("E-CT-TYPE-ARITY", "alias argument count differs from frozen declaration"));
+        }
+        let substitutions = declaration.generics.iter().zip(arguments).map(|(parameter, argument)| {
+            match (&parameter.kind, argument) {
+                (s::GenericParamKind::Type(_), CtTypeArgument::Type(actual)) => Ok((parameter.name.as_str(), *actual)),
+                _ => Err(self.unready("alias has a non-Type formal without completed CT lineage")),
+            }
+        }).collect::<CompileResult<Vec<_>>>()?;
         let (derived, bytes) = self.derived_shape(alias, handle, budget)?;
         let probe_name = format!("__zil_ct_shape_probe_{}_{}", alias.module.0, alias.declaration.0);
         let checked = derived.core.modules.iter().find(|module| module.core.module_id == alias.module)
@@ -590,7 +600,7 @@ impl FrozenReadView<'_> {
         budget.reserve_generated_nodes(handle.nodes.len() as u64)?;
         budget.reserve_temporary_bytes((handle.nodes.len() as u64).saturating_mul(96))?;
         let mut nodes = handle.nodes.clone();
-        let root = self.append_source_type(requester, alias.module, rhs, formal, actual, &mut nodes, budget, 0)?;
+        let root = self.append_source_type(requester, alias.module, rhs, &substitutions, &mut nodes, budget, 0)?;
         let value = Self::compact_type_ref(CtTypeRef { nodes, root }, budget)?;
         let matching = match (checked, value.nodes.get(value.root.0 as usize)) {
             (Type::Unit, Some(CtTypeNode::Primitive(CtScalarTy::Unit)))
@@ -631,35 +641,45 @@ impl FrozenReadView<'_> {
         budget.reserve_analysis_work((count as u64).saturating_mul(3).saturating_add(edges))?;
         let scratch = (count as u64).saturating_mul(16).saturating_add(edges.saturating_mul(8));
         budget.reserve_temporary_bytes(scratch)?;
-        let mut reached = vec![false; count];
-        let mut pending = vec![ty.root];
-        while let Some(id) = pending.pop() {
+        let mut reached = vec![0u8; count];
+        let mut pending = vec![(ty.root, false)];
+        let mut order = Vec::with_capacity(count);
+        while let Some((id, complete)) = pending.pop() {
             let index = id.0 as usize;
             let node = ty.nodes.get(index).ok_or_else(|| error("E-CT-TYPE-LIMIT", "type DAG node is outside the frozen field value"))?;
-            if reached[index] { continue; }
-            reached[index] = true;
-            match node {
-                CtTypeNode::Nominal { arguments, .. } => for arg in arguments {
-                    if let CtTypeArgument::Type(id) = arg { pending.push(*id); }
-                },
-                CtTypeNode::Tuple(parts) => pending.extend(parts),
+            if complete {
+                reached[index] = 2;
+                order.push(index);
+                continue;
+            }
+            if reached[index] == 2 { continue; }
+            if reached[index] == 1 { return Err(error("E-CT-TYPE-LIMIT", "type DAG has a cycle")); }
+            reached[index] = 1;
+            pending.push((id, true));
+            let children = match node {
+                CtTypeNode::Nominal { arguments, .. } => arguments.iter().filter_map(|arg| match arg {
+                    CtTypeArgument::Type(id) => Some(*id), CtTypeArgument::Scalar(_) => None,
+                }).collect::<Vec<_>>(),
+                CtTypeNode::Tuple(parts) => parts.clone(),
                 CtTypeNode::Array { element, .. } | CtTypeNode::Slice(element) | CtTypeNode::Managed(element)
                     | CtTypeNode::Desc(element) | CtTypeNode::OwnedStore(element)
-                    | CtTypeNode::Address { inner: element, .. } => pending.push(*element),
+                    | CtTypeNode::Address { inner: element, .. } => vec![*element],
                 CtTypeNode::FunctionPointer { parameters, result } | CtTypeNode::ForeignCallback { parameters, result } => {
-                    pending.extend(parameters); pending.push(*result);
+                    let mut children = parameters.clone(); children.push(*result); children
                 }
-                CtTypeNode::ErrorUnion { error, result } => { pending.push(*error); pending.push(*result); }
-                _ => {},
-            }
+                CtTypeNode::ErrorUnion { error, result } => vec![*error, *result],
+                _ => Vec::new(),
+            };
+            for child in children.into_iter().rev() { pending.push((child, false)); }
         }
-        let live = reached.iter().filter(|value| **value).count();
+        let live = order.len();
         budget.reserve_generated_nodes(live as u64)?;
         budget.reserve_temporary_bytes((live as u64).saturating_mul(96).saturating_add(edges.saturating_mul(32)))?;
         let mut remap = vec![CtTypeNodeId(0); count];
         let mut nodes = Vec::with_capacity(live);
-        for (index, node) in ty.nodes.into_iter().enumerate() {
-            if !reached[index] { continue; }
+        let mut originals = ty.nodes.into_iter().map(Some).collect::<Vec<_>>();
+        for index in order {
+            let node = originals[index].take().expect("each reachable DAG node has one postorder entry");
             let mapped = |id: CtTypeNodeId| remap[id.0 as usize];
             let node = match node {
                 CtTypeNode::Nominal { symbol, arguments } => CtTypeNode::Nominal { symbol,
