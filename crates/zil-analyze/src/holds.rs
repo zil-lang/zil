@@ -1658,6 +1658,13 @@ fn parameter_product_windows(
         let mut field_stores = vec![BTreeMap::<u32, Vec<ValueId>>::new(); f.locals.len()];
         let mut value_fields = vec![BTreeMap::<u32, Roots>::new(); f.values.len()];
         let mut local_fields = vec![BTreeMap::<u32, Roots>::new(); f.locals.len()];
+        // In a straight-line function the preceding window pass checked each
+        // move at its actual program point. A field taken after that check is
+        // the current unique field position, including after a refill. Do not
+        // use this shortcut for branches or loops.
+        let current_field_positions = element_windows
+            && f.blocks.len() == 1
+            && matches!(f.blocks[0].terminator, Terminator::Return(_));
         let mut formal = vec![false; f.locals.len()];
         for (position, local) in f.parameters.iter().enumerate() {
             budget.spend(1, "Product owned Store parameter scan")?;
@@ -1834,11 +1841,18 @@ fn parameter_product_windows(
                         }
                         InstructionKind::TakePackageField { local, index }
                             if local_known[local.0 as usize]
-                                && local_fields[local.0 as usize].contains_key(index) =>
+                                && (current_field_positions
+                                    || local_fields[local.0 as usize].contains_key(index)) =>
                         {
                             budget.spend(1, "Product Store field move origin")?;
                             source.insert(Root::Field(*local, *index));
-                            extend(&mut source, &local_fields[local.0 as usize][index], budget)?;
+                            if !current_field_positions {
+                                extend(
+                                    &mut source,
+                                    &local_fields[local.0 as usize][index],
+                                    budget,
+                                )?;
+                            }
                             true
                         }
                         InstructionKind::MakePackage { fields }
@@ -1908,6 +1922,23 @@ fn parameter_product_windows(
             }
             if !changed {
                 break;
+            }
+        }
+        if current_field_positions {
+            for assignments in &field_stores {
+                for values_in_field in assignments.values() {
+                    budget.spend(values_in_field.len(), "Product current field source proof")?;
+                    for value in values_in_field {
+                        if product_owned_store_dependency(
+                            &f.values[value.0 as usize],
+                            &store_closures,
+                            budget,
+                        )? && !value_known[value.0 as usize]
+                        {
+                            return Err(bad("Product field replacement has unknown Store origin"));
+                        }
+                    }
+                }
             }
         }
         owned_known.push(value_known);

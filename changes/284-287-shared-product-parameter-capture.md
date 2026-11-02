@@ -50,10 +50,16 @@ move及inline构造等9个反例均 E-BORROW-CONFLICT；伪造空参数来源与
 
 独立审查另发现组装 Product 后提取字段丢失原 Store 父来源；逐字段传播
 构造、整体移动及字段替换来源，未知来源保守拒绝。同字段两个反例 raw/Wire
-拒绝，不同 Store 和先组装后借用的相邻字段正控通过（N=34067/25205，
+拒绝，不同 Store 和先组装后借用的相邻字段正控通过（N=33921/25059，
 N−1 ResourceLimit，fresh N 一致）。后续仍须独立审查及替换近邻验证。
 
 此前把先借 left、再 give left 组装 Product、最后消费 right 的源误记为
 相邻字段正控；窗口内 give 借入 Store 本身已违反合同，应拒，8880 原接受。
 后继按实际 Store 元素借入或地址返回触发活窗口检查；该源现 raw/Wire
 均 E-BORROW-CONFLICT。替代正控先组装 Product 再借 left/消费 right。
+
+合法直线交换字段后才开始借用的源此前误拒；单直线无循环内，先由
+活窗口检查逐操作确认，再按当前拥有字段位置判断，并核实所有拥有字段
+写入的 Store 来源。交换正控 raw/Wire N=39384、N−1 ResourceLimit、fresh
+一致；交换后借用同一字段、先借后移动和同源重填近邻均 E-BORROW-CONFLICT。
+分支/循环及未知写入来源不通过此快捷路径，仍须独立审查。
