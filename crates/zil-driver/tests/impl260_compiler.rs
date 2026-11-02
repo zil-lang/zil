@@ -626,3 +626,13 @@ fn source_alias_owns_its_ct_block_locals_and_restores_caller_scopes() {
         })
     );
 }
+
+#[test]
+fn typed_range_and_reverse_literal_operands_keep_i64_context() {
+    let value = run(
+        "fn sum(n:i64)->i64{var v:i64=0;for i in 0..n{v+=i}if 1<v{return 1+v}return 0}",
+        "sum",
+        &[CtValue::Scalar(zil_ir::Constant::I64(10))],
+    );
+    assert_eq!(value, CtValue::Scalar(zil_ir::Constant::I64(46)));
+}
