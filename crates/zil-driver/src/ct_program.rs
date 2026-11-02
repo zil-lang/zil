@@ -205,7 +205,12 @@ impl Compiler<'_> {
         depth: usize,
         shape: &mut Collector<'_>,
     ) -> CompileResult<Option<Type>> {
-        let CoreExprKind::Member { object, member } = &expression.kind else {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner: None,
+        } = &expression.kind
+        else {
             return Ok(None);
         };
         let CoreExprKind::Name(name) = &object.kind else {
@@ -353,7 +358,7 @@ impl Compiler<'_> {
                     _ => None,
                 }
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 if let Some(ty) = self.enum_hint(module, e, depth + 1, shape)? {
                     return Ok(Some(ty));
                 }
@@ -403,7 +408,11 @@ fn resolve<'a>(
 ) -> Option<(ModuleId, &'a str)> {
     match &callee.kind {
         CoreExprKind::Name(name) => Some((module, name)),
-        CoreExprKind::Member { object, member } => {
+        CoreExprKind::Member {
+            object,
+            member,
+            owner: None,
+        } => {
             let CoreExprKind::Name(alias) = &object.kind else {
                 return None;
             };
@@ -978,7 +987,14 @@ impl Collector<'_> {
                 self.expression(module, left, depth + 1)?;
                 self.expression(module, right, depth + 1)?;
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
+                if let Some(owner) = owner {
+                    self.ty(owner, depth + 1)?;
+                }
                 self.text(member)?;
                 self.expression(module, object, depth + 1)?;
             }

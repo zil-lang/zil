@@ -446,6 +446,7 @@ fn raw_field(owner: &str, field: &str, id: u32, span: Span) -> CoreExpr {
         id: NodeId(id),
         span,
         kind: CoreExprKind::Member {
+            owner: None,
             object: Box::new(raw_name(owner, id + 1, span)),
             member: field.into(),
         },
