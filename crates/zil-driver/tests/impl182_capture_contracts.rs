@@ -300,7 +300,7 @@ fn mutable_address_capture_reborrows_and_releases_after_last_call() {
     rejected(
         &conflicting,
         ResultCategory::SafeReject,
-        Phase::Verify,
+        Phase::Analyze,
         "E-BORROW-CONFLICT",
     );
 }

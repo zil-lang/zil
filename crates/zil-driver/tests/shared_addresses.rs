@@ -176,13 +176,22 @@ fn every_live_address_and_mixed_closure_alias_keeps_its_source() {
         "fn result() -> i32 { var x = 1; let p = &x; let q = p; *p; x = 2; return *q; }",
         "fn result() -> i32 { var x = 1; let p = &x; for i in 0..2 { *p; x = 2; } return 0; }",
         "fn result() -> i32 { var x = 1; var y = 2; var p = &x; if true { p = &y; } x = 3; return *p; }",
+    ] {
+        reject(
+            text,
+            ResultCategory::SafeReject,
+            Phase::Verify,
+            "E-BORROW-CONFLICT",
+        );
+    }
+    for text in [
         "fn result() -> i32 { var x = 1; let p = &x; let f = move () => *p; let g = f; f(); x = 2; return g(); }",
         "fn result() -> i32 { var x = 1; var y = 2; var p = &x; let f = move () => *p; p = &y; x = 3; return f(); }",
     ] {
         reject(
             text,
             ResultCategory::SafeReject,
-            Phase::Verify,
+            Phase::Analyze,
             "E-BORROW-CONFLICT",
         );
     }
@@ -243,7 +252,7 @@ fn unsupported_reference_contracts_and_authority_remain_explicit() {
     reject(
         "fn result() -> i32 { var x=1; let p=&x; let f=()=>*p; x=2; return f(); }",
         ResultCategory::SafeReject,
-        Phase::Verify,
+        Phase::Analyze,
         "E-BORROW-CONFLICT",
     );
     reject(

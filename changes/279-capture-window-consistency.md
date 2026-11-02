@@ -27,6 +27,13 @@ N−1/fresh，不以免计费维持旧数值。
 验收包含三份原始 caller-write 源、独立 raw/Wire、最近合法前后窗口与
 不相交对照、无 Address 捕获旧费用对照，以及新增路径的预算恢复。
 
+集成时逐原源核对旧借用测试的诊断迁移：borrowed_closures的四个caller写、
+shared_addresses的两个捕获副本及一个默认捕获写、impl182的一个mutable捕获写，
+保留源字节和E-BORROW-CONFLICT，仅将实际阶段Verify改为Analyze。纯Address、
+词法存储退出和其余Desc冲突仍按各自原阶段。原StorageDead/重激活raw变异现在先
+断言Analyze拒绝；另保留原合法边界计划并更新实际module指纹，继续独立要求
+Verify raw及Wire同样拒绝，不再依赖Analyze放过非法IR。
+
 ## 原始源码及最近控制
 
 三例均由真实 source→Types 产生公共候选，再分别直接检查 TypedIR 及
