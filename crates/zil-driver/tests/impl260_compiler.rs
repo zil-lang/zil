@@ -5,9 +5,9 @@ mod compiler;
 use compiler::*;
 use zil_base::{FileId, Fingerprint, Limits, ModuleId, NodeId, SourceUnit};
 use zil_ir::ct_artifact::*;
-fn build(text: &str, entry: &str) -> CtArtifactProgram {
+fn try_build(text: &str, entry: &str) -> zil_base::CompileResult<CtArtifactProgram> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "260.zil", text);
-    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let syntax = zil_syntax::parse(&source).into_result()?;
     let symbols: Vec<_> = syntax
         .items
         .iter()
@@ -80,7 +80,9 @@ fn build(text: &str, entry: &str) -> CtArtifactProgram {
         snapshot: &snapshot,
         limits: &Limits::default(),
     })
-    .unwrap()
+}
+fn build(text: &str, entry: &str) -> CtArtifactProgram {
+    try_build(text, entry).unwrap()
 }
 #[test]
 fn ordinary_type_function_uses_real_control_flow_and_scalar_calls() {
@@ -125,9 +127,15 @@ impl zil_verify::CtArtifactAuthority for Authority<'_> {
         symbol: &CtSymbolId,
         usage: zil_verify::CtSymbolUsage,
     ) -> bool {
+        if usage == zil_verify::CtSymbolUsage::Schema {
+            return self.raw.record_schemas.iter().any(|s| &s.name == symbol)
+                || self.raw.enum_schemas.iter().any(|s| &s.name == symbol);
+        }
         matches!(
             usage,
-            zil_verify::CtSymbolUsage::FunctionDefinition | zil_verify::CtSymbolUsage::Call
+            zil_verify::CtSymbolUsage::FunctionDefinition
+                | zil_verify::CtSymbolUsage::Call
+                | zil_verify::CtSymbolUsage::QuoteDefinition
         ) && self.raw.functions.iter().any(|f| &f.definition == symbol)
     }
     fn authorize_query(&self, _: &CtSymbolId, _: CtQueryKind) -> bool {
@@ -335,4 +343,76 @@ fn no_invocation_definition_entry_uses_real_source_identity_and_request_remainde
         Some(symbols[1].1.clone())
     );
     assert!(limits.max_analysis_steps < old);
+}
+
+#[test]
+fn standard_module_aliases_are_shadowed_by_actual_parameters_and_locals() {
+    for source in [
+        "import std.meta as meta; fn bad(meta:i32)->Type{return meta.array_type(i32,2)}",
+        "import std.syntax as syntax; fn bad(syntax:i32)->Syntax<Expr>{return syntax.literal(1)}",
+        "import std.meta as meta; fn bad()->Type{let meta=0;return meta.array_type(i32,2)}",
+        "import std.syntax as syntax; fn bad()->Syntax<Expr>{let syntax=0;return syntax.literal(1)}",
+    ] {
+        let errors = try_build(source, "bad").unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.phase == zil_base::Phase::Ct && e.code == "E-CT-SOURCE"),
+            "{errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("shadows the function/module name")),
+            "{errors:?}"
+        );
+    }
+}
+#[test]
+fn actual_value_binding_shadows_primitive_type_name() {
+    assert_eq!(
+        run(
+            "fn type_id(t:Type)->Type{let i32=t;return i32} fn main()->Type{return type_id(i64)}",
+            "main",
+            &[]
+        ),
+        CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
+            root: CtTypeNodeId(0)
+        })
+    );
+}
+#[test]
+fn ct_record_alias_and_enum_fields_preserve_real_type_values() {
+    for source in [
+        "struct Holder{pub value:Type} type Alias=Holder; fn main()->Type{let h:Alias=Holder{value:i64};return h.value}",
+        "enum Pick{First(Type),Second(Type)} fn main()->Type{let value=Pick.Second(i64);match value{Pick.First(t)=>{return t},Pick.Second(t)=>{return t}}}",
+    ] {
+        assert_eq!(
+            run(source, "main", &[]),
+            CtValue::Type(CtTypeRef {
+                nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
+                root: CtTypeNodeId(0)
+            })
+        );
+    }
+}
+#[test]
+fn indirect_ct_only_unused_definition_is_checked_before_any_vm_execution() {
+    let errors=try_build("struct Holder{pub value:Type} type Alias=Holder; fn unused(h:Alias)->Type{return h.value+1} fn main()->i32{return 0}","main").unwrap_err();
+    assert!(errors.iter().all(|e| e.phase == zil_base::Phase::Ct));
+}
+#[test]
+fn empty_explicit_ct_array_retains_its_element_type() {
+    assert_eq!(
+        run(
+            "fn main()->Type{let empty:[Type;0]=[];return i32}",
+            "main",
+            &[]
+        ),
+        CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+            root: CtTypeNodeId(0)
+        })
+    );
 }
