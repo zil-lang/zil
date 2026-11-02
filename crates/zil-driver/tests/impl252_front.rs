@@ -238,9 +238,13 @@ fn raw_unused_parameter_definition_checks_mutable_position_before_any_instance()
             kind: CoreStatementKind::Expression(call),
         },
     );
+    let errors =
+        zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap_err();
     assert!(
-        zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).is_err(),
-        "unused raw FnMut called through immutable F parameter"
+        errors.iter().any(|d| d.phase == zil_base::Phase::Types
+            && d.category == zil_base::ResultCategory::SafeReject
+            && d.code == "E-CLOSURE-MUTABILITY"),
+        "{errors:?}"
     );
 }
 
@@ -309,4 +313,24 @@ fn nested_forwarding_accepts_a_stronger_fn_through_mutable_adaptation() {
     checked(
         "fn step<F:FnMut(i32)->i32>(f:F)->F{var current=f;current(1);return current}fn relay<F:Fn(i32)->i32>(f:F)->F{return step(f)}fn main()->i32{let f=(n:i32)=>n+1;let current=relay(f);return current(2)-3}",
     );
+}
+
+#[test]
+fn in_scope_forward_fnmut_let_call_is_safe_rejected_and_var_call_preserves_state() {
+    let prelude = "fn keep<F:FnOnce(i32)->i32>(f:F)->F{return f}";
+    let bad = format!(
+        "{prelude}fn outer<F:FnMut(i32)->i32>(f:F)->F{{let current=keep(f);current(1);return current}}fn main(){{}}"
+    );
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "mut252.zil", &bad);
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let errors = zil_expand::expand(&unit, &ast).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == zil_base::ResultCategory::SafeReject
+                && d.message.contains("mutable binding"))
+    );
+    checked(&format!(
+        "{prelude}fn outer<F:FnMut(i32)->i32>(f:F)->F{{var current=keep(f);current(1);return current}}fn main()->i32{{var count=0;let handler=move(delta:i32)=>{{count+=delta;return count}};var current=outer(handler);return current(1)+current(1)-5}}"
+    ));
 }
