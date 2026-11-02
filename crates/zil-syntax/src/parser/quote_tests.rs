@@ -236,3 +236,34 @@ fn quote_receipt_exact_n_minus_one_and_fresh_limits() {
         println!("quote parser N={n}, N-1=ResourceLimit, fresh=N");
     }
 }
+#[test]
+fn unknown_island_keeps_raw_dollars_comments_delimiters_and_utf8() {
+    let raw = "{  $(unknown)\t/* 保留\r\n /* nested */ */ [\"$()\",{x}] }";
+    let text = format!("fn f(){{let value=missing.tokens!{raw}}}");
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "island.zil", &text);
+    let module = parse(&source).into_result().unwrap();
+    let ItemKind::Function(f) = &module.items[0].kind else {
+        panic!()
+    };
+    let FunctionBody::Block(b) = &f.body else {
+        panic!()
+    };
+    let StmtKind::Binding { value, .. } = &b.statements[0].kind else {
+        panic!()
+    };
+    let ExprKind::SyntaxIsland { tree, .. } = &value.kind else {
+        panic!()
+    };
+    assert_eq!(&text[tree.span.start..tree.span.end], raw);
+    let formatted = crate::format::format(&source).unwrap();
+    assert!(formatted.contains(raw));
+    assert!(
+        parse(&SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "formatted.zil",
+            formatted
+        ))
+        .is_ok()
+    );
+}
