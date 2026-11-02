@@ -2,7 +2,7 @@
   "verdict": "Fail preserved before the directory-label fix",
   "checkout": "e3ddaafee77f9a1becc814e390a51de06bcdcb8e",
   "ci_run_id": "41417349429",
-  "ci_original_pr_merge_commit": "53b79181d (as recorded by checkout log)",
+  "ci_original_pr_merge_commit": "53b79181dc8547a3b0883e9c60255b701f9ef09b",
   "ci_failure_log_sha256": "7bb658878b78d6267271128e5d60132c01ad1d6e38df0ff5141bd77f324064eb",
   "ci_full_log_sha256": "83219558300a22aa89ad8e9e9616f7dfe92886e724e116388db4b6994c2c8fcf",
   "ci_full_log_bytes": 1858780,
@@ -132,5 +132,17 @@
       "text": "workspace\tPreserve all workspace native evidence before releasing it\t          "
     }
   ],
-  "remote_acceptance": "Fail: the failed remote native outputs were not published and cannot be recovered. This local replay does not replace remote acceptance; CI must rerun after the fix."
+  "remote_acceptance": "Fail: the failed remote native outputs were not published and cannot be recovered. This local replay does not replace remote acceptance; CI must rerun after the fix.",
+  "all_original_ci_full_logs": [
+    {
+      "path": "/tmp/zil-ci-41417349326-full.log",
+      "sha256": "2f442239ef5af4c506e1cf4318d6bcd98a911082063433e0d951c69ca529b0a6",
+      "bytes": 1864150
+    },
+    {
+      "path": "/tmp/zil-ci-41417349429-full.log",
+      "sha256": "83219558300a22aa89ad8e9e9616f7dfe92886e724e116388db4b6994c2c8fcf",
+      "bytes": 1858780
+    }
+  ]
 }
