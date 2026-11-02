@@ -1,0 +1,24 @@
+{
+  "status": "Blocked",
+  "evidence_level": "source-through-production-compiler; zero native executions",
+  "tested_commit": "0140a356cdb6cc46375c890a710daaf0fa6557d9",
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-250 ZIL_TEST_REPORT_DIR=/tmp/impl250-baseline cargo test -p zil-driver --offline --locked --features llvm-api --test impl250_consumer three_module_predeclared_native_matrix -- --exact --nocapture",
+  "cargo_exit": 101,
+  "selected_tests": 1,
+  "executed_tests": 1,
+  "passed_tests": 0,
+  "failed_tests": 1,
+  "compile_attempts": 1,
+  "verification_runs": 0,
+  "native_runs": 0,
+  "reason": "Expected legal owning callback is Unsupported in Types on frozen contract baseline. This is preserved as a failure, not a passing acceptance.",
+  "source_sha256": {
+    "tests/impl250/frozen-R/event-copy-result/source.zil": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+    "tests/impl250/frozen-R/event-reply/source.zil": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+    "tests/impl250/frozen-R/owned-result/source.zil": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+    "tests/impl250/project/dispatch.zil": "155984ba6127d697531cbe7bd876baaeb39c879220d491cd355d745c452c63fc",
+    "tests/impl250/project/main.zil": "5f90a45a6db217d73d6543d20b58400ba1a4f6a7eeb1ea60a3e3b9e18019254d",
+    "tests/impl250/project/model.zil": "b638167a3484ce44b9afdec62da684fd8acb17aa39d2220a8e2810fca396afb6"
+  },
+  "oracle_sha256": "355e4617ffd00a649ce93222be103c7e9ea5394ca912e783d2204c2233a5e24c"
+}
