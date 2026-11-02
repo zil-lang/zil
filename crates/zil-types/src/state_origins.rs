@@ -1444,8 +1444,10 @@ pub(super) fn collect(
         state.snapshot(work, span)?;
     }
     let legacy_state = legacy_candidate && callable_fields::template(function);
+    let forward = forwarding::bound(function).is_some();
     if function.state_parameters.is_empty()
         && !legacy_state
+        && !forward
         && !callable_fields::dual_constructor(
             &function.callable_parameters,
             &function.return_type,
@@ -1467,7 +1469,8 @@ pub(super) fn collect(
         scopes: vec![BTreeMap::new()],
         expressions: BTreeMap::new(),
         capture: false,
-        position_liveness: replacement(function) || legacy_state,
+        position_liveness: replacement(function) || legacy_state || forward,
+        forward,
         live: 1,
         loops: Vec::new(),
         state,
@@ -1497,6 +1500,7 @@ struct Walk<'a, 's> {
     // One F may name two fields plus a direct replacement. Its declaration
     // kind is shared; MoveWalk owns each actual position and refill lifetime.
     position_liveness: bool,
+    forward: bool,
     // Four possible consumed-slot masks for this declaration's two distinct
     // sources. This is source capability checking, not a concrete loan proof.
     live: u8,
@@ -2283,7 +2287,20 @@ impl Walk<'_, '_> {
                 }
                 CoreStatementKind::Return(value) => {
                     if let Some(value) = value {
-                        self.expr(value, depth + 1)?;
+                        let returned = self.expr(value, depth + 1)?;
+                        if self.forward {
+                            self.same_origin(
+                                &returned,
+                                &Shape::Callable(self.bounds[0].generic_index),
+                                value.span,
+                            )?;
+                        }
+                    } else if self.forward {
+                        return Err(error(
+                            "E-CALLABLE-RETURN",
+                            statement.span,
+                            "forwarding must return its actual F input",
+                        ));
                     }
                     self.live = 0;
                 }

@@ -22,6 +22,7 @@ pub(crate) struct CallableTemplates {
     /// A single direct owned F producing a fresh opaque environment. This
     /// source classification grants no concrete ownership proof.
     pub owned_factory: bool,
+    pub forwarded: bool,
     /// One type slot, but two real owning inputs. Syntax classification keeps
     /// its old role storage until the paid selector pass publishes the owner.
     pub state_replacement: Option<StateReplacement>,
@@ -546,6 +547,17 @@ fn template_with_state(
         .return_type
         .as_ref()
         .is_some_and(|ty| opaque_signature(ty).is_some());
+    let forwarded = function.return_type.as_ref().is_some_and(|ty| {
+        callables
+            .iter()
+            .any(|parameter| parameter_mode(ty, &parameter.name) == Some(None))
+    });
+    if forwarded && (callables.len() != 1 || function.generics.len() != 1) {
+        return Err(unsupported(
+            function.span,
+            "callable forwarding requires one callable binder and no ordinary type parameter",
+        ));
+    }
     if owned_factory && (callables.len() != 1 || function.generics.len() != 1) {
         return Err(unsupported(
             function.span,
@@ -692,7 +704,7 @@ fn template_with_state(
                 direct_owner = Some(index);
             }
             match (kind, mode) {
-                (CallableKind::FnMut, None) if !owning && !owned_factory => {
+                (CallableKind::FnMut, None) if !owning && !owned_factory && !forwarded => {
                     return Err(unsupported(
                         input.span,
                         "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
@@ -731,11 +743,18 @@ fn template_with_state(
         if function.return_type.as_ref().is_some_and(|t| {
             refers(t, &parameter.name)
                 && !is_state(t, &parameter.name, dual)
+                && !(forwarded && parameter_mode(t, &parameter.name) == Some(None))
                 && !(dual && takes_state && state_union_result(t, &parameter.name, &is_state))
         }) {
             return Err(unsupported(
                 function.span,
                 "escaping callable result is not implemented",
+            ));
+        }
+        if forwarded && (count != 1 || first_mode != Some(None) || owning) {
+            return Err(unsupported(
+                function.span,
+                "callable forwarding requires exactly one direct by-value F input",
             ));
         }
         if count == 0 {
@@ -775,6 +794,7 @@ fn template_with_state(
         state_bindings,
         owned_state,
         owned_factory,
+        forwarded,
         state_replacement,
     }))
 }
