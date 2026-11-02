@@ -635,8 +635,13 @@ fn scoped_concrete_composition_existing_controls_match_native_oracle() {
 }
 
 #[test]
-fn scoped_concrete_composition_local_handlers_match_native_oracle() {
-    composition_native_group("frozen", &COMPOSITION_HANDLERS, "FROZEN_ORACLE.json");
+fn scoped_concrete_composition_local_handler_matches_native_oracle() {
+    composition_native_group("frozen", &["body-dispatch-local"], "FROZEN_ORACLE.json");
+}
+
+#[test]
+fn scoped_concrete_composition_captured_handler_matches_native_oracle() {
+    composition_native_group("frozen", &["body-dispatch-capture"], "FROZEN_ORACLE.json");
 }
 
 #[test]
@@ -645,8 +650,17 @@ fn scoped_concrete_composition_factory_bodies_match_native_oracle() {
 }
 
 #[test]
-fn scoped_concrete_composition_handlers_preserve_remaining_cleanup_and_callback_access() {
-    composition_native_group("observed", &COMPOSITION_HANDLERS, "OBSERVED_ORACLE.json");
+fn scoped_concrete_composition_local_handler_preserves_remaining_cleanup_and_callback_access() {
+    composition_native_group("observed", &["body-dispatch-local"], "OBSERVED_ORACLE.json");
+}
+
+#[test]
+fn scoped_concrete_composition_captured_handler_preserves_remaining_cleanup_and_callback_access() {
+    composition_native_group(
+        "observed",
+        &["body-dispatch-capture"],
+        "OBSERVED_ORACLE.json",
+    );
 }
 
 #[test]

@@ -95,3 +95,16 @@ The source-operation oracle was frozen before these native runs and matches
 exactly: B4/D3/D7 before close on success, D3/D7 without B on null, only D3 on
 preparation failure, and A5 before outcome propagation on every observed path.
 Handler groups remain separate and still require the frontend checkpoint.
+
+After exact frontend `a4608818` plus Verify `fd6b8610`, ten of thirteen source
+obligations reach Verify. The remaining failures advance to the independent
+kernels: frozen/observed outer-handler capture reaches Verify/E-UNSUPPORTED
+"helper-local nested environments require an additional contract" at original
+1111..1145 / observed 1372..1406; the no-With control reaches
+Analyze/E-ANALYZE-IR with that message. These legal paths stay failing positive
+obligations until their actual capture/role proofs are available.
+The body-local handler and observed body-local handler pass two tests on each
+explicit backend at O0/O2 (12 frozen plus 12 observed executions per backend,
+eight real reserve failures, eight beyond controls, all live=0). Native handler tests are split between
+body-local and outer-captured forms so a later-stage gap cannot hide an
+already-supported path. This changes no source byte, oracle or assertion.
