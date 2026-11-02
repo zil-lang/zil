@@ -125,9 +125,10 @@ pub(super) fn validate_parametric<'l>(
             let TypeKind::Tuple(parameters) = &parameters.kind else {
                 continue;
             };
-            for ty in parameters.iter().chain(std::iter::once(result)) {
+            for ty in parameters.iter().chain(std::iter::once(result)).chain(function.return_type.iter()) {
                 if matches!(group(ty).kind, TypeKind::Reference { .. })
-                    || dependent(ty, &check.variables)
+                    || trait_bounds::plain(ty).is_some_and(|name| check.bounds.get(name)
+                        .is_some_and(|bounds| bounds.iter().any(|bound| bound == copy::BOUND)))
                     || known_copy(ty, &check.variables, check.nominals) == Some(true)
                 {
                     continue;

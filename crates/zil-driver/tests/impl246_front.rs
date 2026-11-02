@@ -167,6 +167,8 @@ fn unused_owned_dispatch_definitions_are_checked_and_can_discard_the_callback() 
         "fn dispatch<F:FnMut(Event)->Reply>(f:&mut F,event:Event)->Reply{return f(event)}",
         "fn dispatch<F:FnOnce(Event)->Reply>(f:&F,event:Event)->Reply{return f(event)}",
         "fn dispatch<F:FnOnce(Event)->Reply,T:Copy>(f:F,event:Event,extra:T)->Reply{return f(event)}",
+        "fn convert(event:Event)->Reply{return Reply{payload:give event.payload,tag:event.tag}}fn dispatch<F:FnOnce(i32)->i32,T:Copy>(f:F,event:Event,extra:T)->Reply{f(1);return convert(event)}",
+        "package GenericEvent<T>{manages bytes:ByteBuffer;value:T}fn dispatch<F:FnOnce(GenericEvent<T>)->i32,T:Copy>(f:F,event:GenericEvent<T>)->i32{return f(event)}",
         "fn dispatch<F:FnOnce(Event)->Reply,G:Fn()->i32>(f:F,g:G,event:Event)->Reply{return f(event)}",
         "fn dispatch<F:FnOnce(Event)->Reply>(f:F,event:Event)->Reply{let a=f(event);return f(event)}",
         "fn dispatch<F:FnOnce(Event)->Reply>(f:F,event:Event)->Reply{let a=f(event);return event}",
