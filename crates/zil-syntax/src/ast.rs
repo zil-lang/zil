@@ -517,6 +517,15 @@ pub struct QuoteHole {
 pub struct QuoteTemplate {
     pub tree: QuoteTokenTree,
     pub holes: Vec<QuoteHole>,
+    /// Literal identifier tokens only, excluding this layer's hole expressions.
+    /// These are exact source sites, not a scope or binding proof.
+    pub name_sites: Vec<QuoteNameSite>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct QuoteNameSite {
+    pub span: Span,
+    pub token_index: u32,
 }
 
 #[derive(Clone, Debug, PartialEq)]

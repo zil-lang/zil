@@ -43,7 +43,7 @@ pub use build::{
     WindowsLinkOptions, build, build_view_with_cancellation,
     build_view_with_cancellation_and_stable_names, build_with_cancellation,
 };
-pub use emit::{emit, emit_with_options};
+pub use emit::{ct_layout_of_checked_type, emit, emit_with_options};
 
 /// Wrappers are explicit. `ReturnValue` is a test/CLI harness which calls the
 /// selected ZIL function and prints its full signed result; a shell exit code is

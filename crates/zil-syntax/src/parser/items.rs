@@ -19,6 +19,11 @@ impl Parser<'_> {
             let start = p.peek().span;
             let attributes = p.attributes()?;
             let public = p.eat_word("pub");
+            if p.at(Symbol::Dollar) && p.in_quote() {
+                if public || !attributes.is_empty(){return p.fail("E-PARSE-QUOTE-LIST","list holes cannot take item modifiers");}
+                p.quote_hole(QuoteHoleKind::ItemList)?;p.end()?;
+                return Ok(Item{kind:ItemKind::Meta(MetaItem::Emit(p.quote_dummy(p.span_from(start)))),attributes,public,span:p.span_from(start)});
+            }
             let kind = if p.at_word("fn") { ItemKind::Function(p.function()?) }
                 else if p.at_word("struct") || p.at_word("resource") || p.at_word("package") { ItemKind::Aggregate(p.aggregate()?) }
                 else if p.at_word("enum") { ItemKind::Enum(p.enum_decl()?) }
@@ -139,7 +144,7 @@ impl Parser<'_> {
     }
     pub(super) fn function(&mut self) -> P<Function> {
         let start = self.expect_word("fn")?.span;
-        let name = self.ident()?;
+        let name = self.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
         let generics = self.generics()?;
         self.expect(Symbol::LParen)?;
         let params = self.scoped(true, |p| {
@@ -198,7 +203,7 @@ impl Parser<'_> {
         let start = self.peek().span;
         let attributes = self.attributes()?;
         let give = self.eat_word("give");
-        let name = self.ident()?;
+        let name = self.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
         self.expect(Symbol::Colon)?;
         let ty = self.ty()?;
         Ok(Param {
@@ -218,7 +223,7 @@ impl Parser<'_> {
             self.expect_word("package")?;
             AggregateKind::Package
         };
-        let name = self.ident()?;
+        let name = self.ident_kind(QuoteNameNamespace::Type, QuoteNameRole::Binding)?;
         let generics = self.generics()?;
         self.newlines();
         self.expect(Symbol::LBrace)?;
@@ -276,7 +281,7 @@ impl Parser<'_> {
         public: bool,
         manages: bool,
     ) -> P<Field> {
-        let name = self.ident()?;
+        let name = self.ident_kind(QuoteNameNamespace::Member, QuoteNameRole::Binding)?;
         self.expect(Symbol::Colon)?;
         let ty = self.ty()?;
         let default = if self.eat(Symbol::Eq) {
@@ -298,7 +303,7 @@ impl Parser<'_> {
     }
     fn enum_decl(&mut self) -> P<EnumDecl> {
         self.expect_word("enum")?;
-        let name = self.ident()?;
+        let name = self.ident_kind(QuoteNameNamespace::Type, QuoteNameRole::Binding)?;
         let generics = self.generics()?;
         self.newlines();
         self.expect(Symbol::LBrace)?;
@@ -308,7 +313,7 @@ impl Parser<'_> {
             while !p.at(Symbol::RBrace) {
                 let start = p.peek().span;
                 let attributes = p.attributes()?;
-                let name = p.ident()?;
+                let name = p.ident_kind(QuoteNameNamespace::Member, QuoteNameRole::Binding)?;
                 let fields = if p.eat(Symbol::LParen) {
                     let fields = p.scoped(true, |p| {
                         let mut fields = Vec::new();
@@ -366,7 +371,7 @@ impl Parser<'_> {
     }
     fn trait_decl(&mut self) -> P<TraitDecl> {
         self.expect_word("trait")?;
-        let name = self.ident()?;
+        let name = self.ident_kind(QuoteNameNamespace::Type, QuoteNameRole::Binding)?;
         let generics = self.generics()?;
         let bounds = if self.eat(Symbol::Colon) {
             self.bounds()?
@@ -443,7 +448,7 @@ impl Parser<'_> {
     }
     fn type_alias(&mut self, associated: bool) -> P<TypeAlias> {
         self.expect_word("type")?;
-        let name = self.ident()?;
+        let name = self.ident_kind(QuoteNameNamespace::Type, QuoteNameRole::Binding)?;
         let generics = self.generics()?;
         let bounds = if associated && self.eat(Symbol::Colon) {
             self.bounds()?
@@ -468,7 +473,7 @@ impl Parser<'_> {
     }
     fn const_decl(&mut self, associated: bool) -> P<ConstDecl> {
         self.expect_word("const")?;
-        let name = self.ident()?;
+        let name = self.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
         let ty = if self.eat(Symbol::Colon) {
             Some(self.ty()?)
         } else if associated {

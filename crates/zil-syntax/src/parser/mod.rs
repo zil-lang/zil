@@ -1,6 +1,7 @@
 //! Recovery-oriented recursive descent and Pratt parsing. No name/type queries.
 mod expr;
 mod items;
+mod quote;
 mod stmt;
 mod types;
 
@@ -63,6 +64,7 @@ fn make_parser<'a>(source: &'a SourceUnit, raw: &'a [Token], limits: &'a Limits)
         depth: 0,
         nodes: 0,
         limits,
+        quote_frames: Vec::new(),
     }
 }
 
@@ -77,6 +79,7 @@ struct Parser<'a> {
     depth: usize,
     nodes: usize,
     limits: &'a Limits,
+    quote_frames: Vec<quote::QuoteFrame>,
 }
 
 impl Parser<'_> {
@@ -135,6 +138,15 @@ impl Parser<'_> {
         }
     }
     fn ident(&mut self) -> P<String> {
+        self.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Reference)
+    }
+    fn ident_kind(&mut self, namespace: QuoteNameNamespace, role: QuoteNameRole) -> P<String> {
+        if self.at(Symbol::Dollar) && self.in_quote() {
+            self.quote_hole(QuoteHoleKind::Ident { namespace, role })?;
+            // This temporary validation AST is discarded by quote(). Its empty
+            // field is never a name or authority in the emitted template.
+            return Ok(String::new());
+        }
         let token = self.peek();
         if token.kind == TokenKind::Identifier && !keyword(self.text(&token)) {
             self.bump();
@@ -204,10 +216,13 @@ impl Parser<'_> {
         }
     }
     fn qualified(&mut self) -> P<Vec<String>> {
-        let mut path = vec![self.ident()?];
+        self.qualified_kind(QuoteNameNamespace::Value)
+    }
+    fn qualified_kind(&mut self, namespace: QuoteNameNamespace) -> P<Vec<String>> {
+        let mut path = vec![self.ident_kind(namespace, QuoteNameRole::Reference)?];
         while self.eat(Symbol::Dot) {
             self.newlines();
-            path.push(self.ident()?);
+            path.push(self.ident_kind(namespace, QuoteNameRole::Reference)?);
         }
         Ok(path)
     }
@@ -580,3 +595,6 @@ pub(crate) fn generated(
     }
     (syntax, p.diagnostics, p.nodes)
 }
+
+#[cfg(test)]
+mod quote_tests;
