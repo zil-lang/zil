@@ -2837,6 +2837,17 @@ impl<'a, 'c> Builder<'a, 'c> {
         ))
     }
 }
+/// Parse a target integer literal using the ordinary language's exact rules.
+/// This function provides no type, ownership, or verification authority.
+pub fn parse_integer_literal(
+    text: &str,
+    expected: Option<&Type>,
+    negative: bool,
+    span: Span,
+) -> CompileResult<Constant> {
+    integer(text, expected, negative, span).map_err(|error| vec![error])
+}
+
 fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R<Constant> {
     let clean = text.replace('_', "");
     let (mut digits, mut ty) = (clean.as_str(), None);
