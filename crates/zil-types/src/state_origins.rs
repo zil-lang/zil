@@ -56,6 +56,7 @@ struct MoveWalk<'a, 's> {
     bounds: &'a [CoreCallableParameter],
     scopes: Vec<BTreeMap<String, u32>>,
     next: u32,
+    mutable_positions: Option<std::collections::BTreeSet<u32>>,
     generation: u64,
     flow: MoveFlow,
     loops: Vec<(Option<MoveFlow>, Option<MoveFlow>)>,
@@ -211,7 +212,24 @@ impl MoveWalk<'_, '_> {
         }
         Ok(())
     }
+    fn require_writable(&mut self, root: u32, span: Span) -> R<()> {
+        if let Some(positions) = &self.mutable_positions {
+            self.state
+                .snapshot(helpers::plan::tree_work(positions.len()), span)?;
+            if !positions.contains(&root) {
+                return Err(error(
+                    "E-CLOSURE-MUTABILITY",
+                    span,
+                    "FnMut forwarding requires a mutable actual F position",
+                ));
+            }
+        }
+        Ok(())
+    }
     fn fresh_alias(&mut self, parent: Position, mutable: bool, span: Span) -> R<Vec<Alias>> {
+        if mutable {
+            self.require_writable(parent.0, span)?;
+        }
         let borrowed_at = self.next_generation(span)?;
         let values = vec![Alias {
             parent,
@@ -506,6 +524,9 @@ impl MoveWalk<'_, '_> {
         let Some(position @ (root, field)) = self.position(expression, depth + 1)? else {
             return Ok(());
         };
+        if access == Access::Write {
+            self.require_writable(root, expression.span)?;
+        }
         if access != Access::Write {
             self.check_aliases(AliasKey::Local(root), expression.span)?;
         }
@@ -838,12 +859,22 @@ impl MoveWalk<'_, '_> {
             self.node(depth + 1, statement.span)?;
             match &statement.kind {
                 CoreStatementKind::Binding {
-                    name, initializer, ..
+                    name,
+                    initializer,
+                    mutable,
+                    ..
                 } => {
                     if let Some(value) = initializer {
                         self.expr(value, Access::Move, depth + 1)?;
                     }
                     self.bind(name, statement.span)?;
+                    if *mutable && let Some(positions) = &mut self.mutable_positions {
+                        self.state.snapshot(
+                            helpers::plan::tree_work(positions.len()).saturating_add(1),
+                            statement.span,
+                        )?;
+                        positions.insert(self.next - 1);
+                    }
                     if let Some(value) = initializer {
                         self.copy_aliases(
                             AliasKey::Expression(value.id),
@@ -1022,6 +1053,7 @@ fn check_moves(
         bounds,
         scopes: vec![BTreeMap::new()],
         next: 0,
+        mutable_positions: forwarding::bound(function).map(|_| Default::default()),
         generation: 0,
         flow: MoveFlow {
             live: true,

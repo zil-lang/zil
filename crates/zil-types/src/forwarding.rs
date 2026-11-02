@@ -98,6 +98,7 @@ impl Builder<'_, '_> {
                     instruction.result,
                     self.closures,
                     instruction.span,
+                    true,
                 )?;
             }
         }
