@@ -42,6 +42,38 @@ impl CtExecutionBudget {
     pub fn usage(&self) -> &CtUsageReceipt {
         &self.usage
     }
+    pub fn live_temporary_bytes(&self) -> u64 {
+        self.live_temporary_bytes
+    }
+    /// Call after the driver has materialized and discarded a returned value.
+    /// Dependency receipts and other request-owned allocations remain charged.
+    pub fn release_value(&mut self, value: &CtValue) {
+        self.release_temporary_bytes(value_bytes(value));
+    }
+    fn constrain_to_program(&mut self, declared: CtDeclaredBudget) -> CompileResult<()> {
+        self.remaining.max_steps = self.remaining.max_steps.min(declared.max_steps);
+        self.remaining.max_call_depth = self.remaining.max_call_depth.min(declared.max_call_depth);
+        self.remaining.max_live_cells = self.remaining.max_live_cells.min(declared.max_live_cells);
+        self.remaining.max_temporary_bytes = self
+            .remaining
+            .max_temporary_bytes
+            .min(declared.max_temporary_bytes);
+        self.remaining.max_generated_nodes = self
+            .remaining
+            .max_generated_nodes
+            .min(declared.max_generated_nodes);
+        self.remaining.max_instances = self.remaining.max_instances.min(declared.max_instances);
+        self.remaining.max_analysis_work = self
+            .remaining
+            .max_analysis_work
+            .min(declared.max_analysis_work);
+        if self.live_temporary_bytes > self.remaining.max_temporary_bytes {
+            return Err(limit(
+                "CT program declared temporary-byte budget is below current live bytes",
+            ));
+        }
+        Ok(())
+    }
     pub fn reserve_steps(&mut self, count: u64) -> CompileResult<()> {
         self.remaining.max_steps = self
             .remaining
@@ -347,6 +379,7 @@ pub fn evaluate_ct_artifact(
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<(CtValue, CtUsageReceipt)> {
     let raw = program.program();
+    budget.constrain_to_program(raw.budget)?;
     let entry = &raw.functions[raw.entry.0 as usize];
     if arguments.len() != entry.parameter_types.len() {
         return Err(error("CT invocation argument count differs"));
@@ -1281,7 +1314,9 @@ mod tests {
         fn authenticate_input_table(&self, input: &CtInputTable) -> bool {
             input.tokens.is_empty()
         }
-        fn authenticate_artifact(&self, _: &CtArtifactProgram) -> bool { true }
+        fn authenticate_artifact(&self, _: &CtArtifactProgram) -> bool {
+            true
+        }
         fn authenticate_function(&self, _: &CtFunction) -> bool {
             true
         }
