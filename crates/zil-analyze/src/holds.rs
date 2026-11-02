@@ -1289,6 +1289,244 @@ fn infer_with_private(
 // This private summary is a may-effect for the complete call, not an ordering
 // claim. It uses actual Hold origins at each call; no nominal type or parameter
 // name establishes an alias. Only modules with a proven parameter capture pay.
+// This is a conservative dependency classifier, never an alias certificate.
+// A Store or a transitively Store-capturing closure hidden in any supported
+// aggregate means that a call needs actual provenance before it can be opened.
+fn product_store_capture_dependency(
+    ty: &Type,
+    closures: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.spend(1, "Product Store capture type dependency")?;
+    match ty {
+        Type::OwnedStore { .. } => Ok(true),
+        Type::Closure(id) => closures
+            .get(id.0 as usize)
+            .copied()
+            .ok_or_else(|| bad("Product Store captured closure is absent")),
+        Type::Address { inner, .. }
+        | Type::Managed(inner)
+        | Type::Desc(inner)
+        | Type::Array { element: inner, .. }
+        | Type::Slice { element: inner }
+        | Type::Opaque { hidden: inner, .. } => {
+            product_store_capture_dependency(inner, closures, budget)
+        }
+        Type::Tuple(fields) => {
+            for field in fields {
+                if product_store_capture_dependency(field, closures, budget)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            for (_, field) in fields {
+                if product_store_capture_dependency(field, closures, budget)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for field in fields {
+                    if product_store_capture_dependency(field, closures, budget)? {
+                        return Ok(true);
+                    }
+                }
+            }
+            Ok(false)
+        }
+        Type::ErrorUnion { error, result } => {
+            Ok(product_store_capture_dependency(error, closures, budget)?
+                || product_store_capture_dependency(result, closures, budget)?)
+        }
+        // A code pointer's signature is not captured data. Its actual Store
+        // arguments are conservatively accounted at the call site instead.
+        Type::FunctionPointer { .. } | Type::ForeignCallback { .. } => Ok(false),
+        _ => Ok(false),
+    }
+}
+
+// A by-value owner may release a Store buried in an owning Product, array,
+// Sum, or concrete closure. Addresses and descriptions do not transfer it.
+fn product_owned_store_dependency(
+    ty: &Type,
+    closures: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.spend(1, "Product owned Store type dependency")?;
+    match ty {
+        Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. }) => Ok(true),
+        Type::Managed(inner) | Type::Opaque { hidden: inner, .. } => {
+            product_owned_store_dependency(inner, closures, budget)
+        }
+        Type::Tuple(fields) => {
+            for field in fields {
+                if product_owned_store_dependency(field, closures, budget)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        Type::Closure(id) => closures
+            .get(id.0 as usize)
+            .copied()
+            .ok_or_else(|| bad("Product owned Store closure is absent")),
+        Type::Array { element, length } if *length > 0 => {
+            product_owned_store_dependency(element, closures, budget)
+        }
+        Type::Package { fields, .. } | Type::Record { fields, .. } => {
+            for (_, field) in fields {
+                if product_owned_store_dependency(field, closures, budget)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for field in fields {
+                    if product_owned_store_dependency(field, closures, budget)? {
+                        return Ok(true);
+                    }
+                }
+            }
+            Ok(false)
+        }
+        Type::ErrorUnion { error, result } => {
+            Ok(product_owned_store_dependency(error, closures, budget)?
+                || product_owned_store_dependency(result, closures, budget)?)
+        }
+        _ => Ok(false),
+    }
+}
+
+// A captured Store used only for reads is not an invalidating effect. This
+// conservative callable graph records possible writes, not source identity;
+// identity is still required separately at the actual call boundary.
+fn product_may_store_write(
+    module: &TypedModule,
+    store_closures: &[bool],
+    budget: &mut Budget,
+) -> CompileResult<Vec<bool>> {
+    budget.spend(module.functions.len(), "Product callable may-write table")?;
+    let mut writes = vec![false; module.functions.len()];
+    loop {
+        let mut changed = false;
+        for (index, function) in module.functions.iter().enumerate() {
+            for block in &function.blocks {
+                budget.spend(
+                    block.instructions.len().saturating_add(1),
+                    "Product callable may-write scan",
+                )?;
+                for instruction in &block.instructions {
+                    let mut effect =
+                        dynamic_store::access(&instruction.kind).is_some_and(|(_, write)| write);
+                    let owner = match instruction.kind {
+                        InstructionKind::TakeLocal { local }
+                        | InstructionKind::Store { local, .. }
+                        | InstructionKind::DropManaged { local }
+                        | InstructionKind::DropPackage { local }
+                        | InstructionKind::DropClosure { local }
+                        | InstructionKind::DropOwnedArray { local }
+                        | InstructionKind::DropEnum { local }
+                        | InstructionKind::DropErrorUnion { local }
+                        | InstructionKind::TakePackageField { local, .. }
+                        | InstructionKind::DropPackageField { local, .. }
+                        | InstructionKind::StorePackageField { local, .. }
+                        | InstructionKind::TakeOwnedArrayElement { local, .. }
+                        | InstructionKind::DropOwnedArrayElement { local, .. }
+                        | InstructionKind::StoreOwnedArrayElement { local, .. } => {
+                            Some(&function.locals[local.0 as usize].ty)
+                        }
+                        InstructionKind::WriteAddress { address, .. } => {
+                            match &function.values[address.0 as usize] {
+                                Type::Address { inner, .. } => Some(inner.as_ref()),
+                                _ => None,
+                            }
+                        }
+                        InstructionKind::TakeCapture { index }
+                        | InstructionKind::WriteCapture { index, .. } => function
+                            .environment
+                            .and_then(|id| module.closures.get(id.0 as usize))
+                            .and_then(|closure| closure.captures.get(index as usize)),
+                        _ => None,
+                    };
+                    if let Some(owner) = owner {
+                        effect |= product_owned_store_dependency(owner, store_closures, budget)?;
+                    }
+                    if let InstructionKind::WriteDesc { desc, .. } = instruction.kind {
+                        budget.spend(1, "Product callable descriptor write")?;
+                        effect |= dynamic_store::is_carrier(&function.values[desc.0 as usize]);
+                    }
+                    let uncertain = match &instruction.kind {
+                        InstructionKind::ForeignCall { arguments, .. }
+                        | InstructionKind::CallIndirect { arguments, .. }
+                        | InstructionKind::CallClosure { arguments, .. }
+                        | InstructionKind::CallClosureOnce { arguments, .. }
+                        | InstructionKind::CallClosureBorrowed { arguments, .. }
+                        | InstructionKind::CallClosureShared { arguments, .. }
+                        | InstructionKind::CallClosureMut { arguments, .. } => arguments.as_slice(),
+                        _ => &[],
+                    };
+                    budget.spend(uncertain.len(), "Product callable unknown arguments")?;
+                    effect |= uncertain
+                        .iter()
+                        .any(|value| dynamic_store::is_carrier(&function.values[value.0 as usize]));
+                    let target = match instruction.kind {
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. } => {
+                            Some(&function.locals[callee.0 as usize].ty)
+                        }
+                        InstructionKind::CallClosure { callee, .. }
+                        | InstructionKind::CallClosureOnce { callee, .. }
+                        | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                            Some(&function.values[callee.0 as usize])
+                        }
+                        _ => None,
+                    };
+                    // Ordinary function calls and closure entry calls both
+                    // propagate may-write; they are bounded by this request.
+                    let callee = match instruction.kind {
+                        InstructionKind::Call { function, .. } => Some(function.0 as usize),
+                        _ => target.and_then(|ty| {
+                            let ty = if let Type::Address { inner, .. } = ty {
+                                inner.as_ref()
+                            } else {
+                                ty
+                            };
+                            if let Type::Closure(id) = ty {
+                                module
+                                    .closures
+                                    .get(id.0 as usize)
+                                    .map(|c| c.function.0 as usize)
+                            } else {
+                                None
+                            }
+                        }),
+                    };
+                    if let Some(callee) = callee {
+                        budget.spend(1, "Product callable may-write lookup")?;
+                        effect |= *writes
+                            .get(callee)
+                            .ok_or_else(|| bad("Product callable effect target is absent"))?;
+                    }
+                    if effect && !writes[index] {
+                        writes[index] = true;
+                        changed = true;
+                    }
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    Ok(writes)
+}
+
 fn product_parameter_of(
     function: &TypedFunction,
     root: Root,
@@ -1317,7 +1555,7 @@ fn parameter_product_windows(
 ) -> CompileResult<()> {
     let count = module.functions.len();
     budget.spend(
-        count.saturating_mul(5),
+        count.saturating_mul(6),
         "Product parameter may summary tables",
     )?;
     let mut summaries = vec![Roots::new(); count];
@@ -1337,89 +1575,6 @@ fn parameter_product_windows(
             }
         }
     }
-    let mut private = Vec::with_capacity(count);
-    for (index, (f, (predecessors, reachable))) in module.functions.iter().zip(graphs).enumerate() {
-        let mut values = Vec::new();
-        infer_with_private(
-            module,
-            &summaries,
-            f,
-            predecessors,
-            reachable,
-            f.environment
-                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false))
-                || ordinary_store_function(index, budget)?,
-            budget,
-            Some(&mut values),
-        )?;
-        // The ordinary Hold certificate tracks descriptions and addresses, not
-        // owned Store SSA values. Reconstruct their actual moved positions for
-        // this private call-window check; do not manufacture public Holds.
-        budget.spend(f.locals.len(), "Product owned Store local origins")?;
-        let mut owned = vec![Roots::new(); f.locals.len()];
-        for (position, local) in f.parameters.iter().enumerate() {
-            budget.spend(1, "Product owned Store parameter scan")?;
-            if contains_owned_store(&f.locals[local.0 as usize].ty, budget)? {
-                owned[local.0 as usize].insert(Root::Parameter(position as u32));
-            }
-        }
-        loop {
-            let mut changed = false;
-            for (block, live) in f.blocks.iter().zip(reachable) {
-                if !live {
-                    continue;
-                }
-                budget.spend(
-                    block.instructions.len(),
-                    "Product owned Store provenance scan",
-                )?;
-                for instruction in &block.instructions {
-                    if let InstructionKind::Store { local, value } = instruction.kind
-                        && contains_owned_store(&f.locals[local.0 as usize].ty, budget)?
-                    {
-                        let source = &values[value.0 as usize];
-                        if source.is_empty() {
-                            budget.lookup(
-                                owned[local.0 as usize].len(),
-                                "Product Store construction origin",
-                            )?;
-                            changed |= owned[local.0 as usize].insert(Root::Local(local));
-                        } else {
-                            changed |= extend(&mut owned[local.0 as usize], source, budget)?;
-                        }
-                    }
-                    if let Some(result) = instruction.result
-                        && contains_owned_store(&f.values[result.0 as usize], budget)?
-                    {
-                        let mut source = Roots::new();
-                        match instruction.kind {
-                            InstructionKind::TakeLocal { local } => {
-                                // BorrowLocal/DescribeLocal and this consuming
-                                // move both refer to this actual current slot,
-                                // including after an earlier ownership move.
-                                budget.spend(1, "Product Store current move position")?;
-                                source.insert(Root::Local(local));
-                                extend(&mut source, &owned[local.0 as usize], budget)?;
-                            }
-                            InstructionKind::TakePackageField { local, index } => {
-                                budget.spend(1, "Product Store field move origin")?;
-                                source.insert(Root::Field(local, index));
-                            }
-                            _ => {}
-                        }
-                        changed |= extend(&mut values[result.0 as usize], &source, budget)?;
-                    }
-                }
-            }
-            if !changed {
-                break;
-            }
-        }
-        private.push(values);
-    }
-    let mut captures = vec![BTreeSet::<u32>::new(); count];
-    let mut effects = vec![BTreeSet::<u32>::new(); count];
-    let mut unknown_effects = vec![false; count];
     budget.spend(
         module.closures.len(),
         "Product Store closure dependency table",
@@ -1434,13 +1589,7 @@ fn parameter_product_windows(
             )?;
             let mut store = false;
             for capture in &closure.captures {
-                store |= dynamic_store::is_carrier(capture);
-                if let Type::Closure(id) = capture {
-                    budget.spend(1, "Product Store child closure lookup")?;
-                    store |= *store_closures
-                        .get(id.0 as usize)
-                        .ok_or_else(|| bad("Product Store captured closure is absent"))?;
-                }
+                store |= product_store_capture_dependency(capture, &store_closures, budget)?;
             }
             if store && !store_closures[index] {
                 store_closures[index] = true;
@@ -1451,6 +1600,218 @@ fn parameter_product_windows(
             break;
         }
     }
+    let callable_writes = product_may_store_write(module, &store_closures, budget)?;
+    let mut private = Vec::with_capacity(count);
+    let mut owned_known = Vec::with_capacity(count);
+    for (index, (f, (predecessors, reachable))) in module.functions.iter().zip(graphs).enumerate() {
+        let mut values = Vec::new();
+        infer_with_private(
+            module,
+            &summaries,
+            f,
+            predecessors,
+            reachable,
+            f.environment
+                .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false))
+                || ordinary_store_function(index, budget)?,
+            budget,
+            Some(&mut values),
+        )?;
+        // Reconstruct owned Store lineage without treating an empty source as
+        // fresh. Only known constructors, checked Create results, forwarded
+        // owned arguments, and complete aggregates can establish a source.
+        budget.spend(
+            f.locals
+                .len()
+                .saturating_mul(3)
+                .saturating_add(f.values.len()),
+            "Product owned Store provenance tables",
+        )?;
+        let mut owned = vec![Roots::new(); f.locals.len()];
+        let mut local_known = vec![false; f.locals.len()];
+        let mut value_known = vec![false; f.values.len()];
+        let mut stores = vec![Vec::<ValueId>::new(); f.locals.len()];
+        let mut formal = vec![false; f.locals.len()];
+        for (position, local) in f.parameters.iter().enumerate() {
+            budget.spend(1, "Product owned Store parameter scan")?;
+            if product_owned_store_dependency(
+                &f.locals[local.0 as usize].ty,
+                &store_closures,
+                budget,
+            )? {
+                formal[local.0 as usize] = true;
+                owned[local.0 as usize].insert(Root::Parameter(position as u32));
+            }
+        }
+        for (block, live) in f.blocks.iter().zip(reachable) {
+            if !live {
+                continue;
+            }
+            budget.spend(
+                block.instructions.len(),
+                "Product owned Store assignment scan",
+            )?;
+            for instruction in &block.instructions {
+                if let InstructionKind::Store { local, value } = instruction.kind
+                    && product_owned_store_dependency(
+                        &f.locals[local.0 as usize].ty,
+                        &store_closures,
+                        budget,
+                    )?
+                {
+                    budget.spend(1, "Product owned Store assignment entry")?;
+                    stores[local.0 as usize].push(value);
+                }
+            }
+        }
+        loop {
+            let mut changed = false;
+            for local in 0..f.locals.len() {
+                budget.spend(
+                    stores[local].len().saturating_add(1),
+                    "Product owned Store local proof",
+                )?;
+                let has_source = formal[local] || !stores[local].is_empty();
+                if has_source
+                    && stores[local]
+                        .iter()
+                        .all(|value| value_known[value.0 as usize])
+                    && !local_known[local]
+                {
+                    local_known[local] = true;
+                    changed = true;
+                }
+            }
+            for (block, live) in f.blocks.iter().zip(reachable) {
+                if !live {
+                    continue;
+                }
+                budget.spend(
+                    block.instructions.len(),
+                    "Product owned Store provenance scan",
+                )?;
+                for instruction in &block.instructions {
+                    if let InstructionKind::Store { local, value } = instruction.kind
+                        && product_owned_store_dependency(
+                            &f.locals[local.0 as usize].ty,
+                            &store_closures,
+                            budget,
+                        )?
+                        && value_known[value.0 as usize]
+                    {
+                        let source = &values[value.0 as usize];
+                        if source.is_empty() {
+                            budget.lookup(
+                                owned[local.0 as usize].len(),
+                                "Product fresh Store actual slot",
+                            )?;
+                            changed |= owned[local.0 as usize].insert(Root::Local(local));
+                        } else {
+                            changed |= extend(&mut owned[local.0 as usize], source, budget)?;
+                        }
+                    }
+                    let Some(result) = instruction.result else {
+                        continue;
+                    };
+                    if !product_owned_store_dependency(
+                        &f.values[result.0 as usize],
+                        &store_closures,
+                        budget,
+                    )? {
+                        continue;
+                    }
+                    let mut source = Roots::new();
+                    let mut children: &[ValueId] = &[];
+                    let known = match &instruction.kind {
+                        InstructionKind::OwnedStoreNew { .. } => true,
+                        InstructionKind::TakeLocal { local } if local_known[local.0 as usize] => {
+                            budget.spend(1, "Product Store current move position")?;
+                            source.insert(Root::Local(*local));
+                            extend(&mut source, &owned[local.0 as usize], budget)?;
+                            true
+                        }
+                        InstructionKind::TakePackageField { local, index }
+                            if local_known[local.0 as usize] =>
+                        {
+                            budget.spend(1, "Product Store field move origin")?;
+                            source.insert(Root::Field(*local, *index));
+                            true
+                        }
+                        InstructionKind::MakePackage { fields }
+                        | InstructionKind::MakeAggregate { fields }
+                        | InstructionKind::MakeVariant { fields, .. }
+                        | InstructionKind::MakeOwnedArray { elements: fields } => {
+                            children = fields;
+                            true
+                        }
+                        InstructionKind::MakeErrorUnion { value, .. } => {
+                            children = std::slice::from_ref(value);
+                            true
+                        }
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } => {
+                            let callee = module
+                                .functions
+                                .get(function.0 as usize)
+                                .ok_or_else(|| bad("Product owned result callee is absent"))?;
+                            if callee.return_type != f.values[result.0 as usize] {
+                                false
+                            } else if callee.result_mode == PassingMode::Create {
+                                true
+                            } else if callee.result_mode == PassingMode::Give {
+                                children = arguments;
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        _ => false,
+                    };
+                    if !known {
+                        continue;
+                    }
+                    let mut relevant = false;
+                    let mut complete = true;
+                    budget.spend(children.len(), "Product Store aggregate source operands")?;
+                    for value in children {
+                        if product_owned_store_dependency(
+                            &f.values[value.0 as usize],
+                            &store_closures,
+                            budget,
+                        )? {
+                            relevant = true;
+                            complete &= value_known[value.0 as usize];
+                            extend(&mut source, &values[value.0 as usize], budget)?;
+                        }
+                    }
+                    // A Give result must actually have a known owned source.
+                    if matches!(instruction.kind, InstructionKind::Call { .. })
+                        && !children.is_empty()
+                        && !relevant
+                    {
+                        complete = false;
+                    }
+                    if complete {
+                        if !value_known[result.0 as usize] {
+                            value_known[result.0 as usize] = true;
+                            changed = true;
+                        }
+                        changed |= extend(&mut values[result.0 as usize], &source, budget)?;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        owned_known.push(value_known);
+        private.push(values);
+    }
+    let mut captures = vec![BTreeSet::<u32>::new(); count];
+    let mut effects = vec![BTreeSet::<u32>::new(); count];
+    let mut unknown_effects = vec![false; count];
     let roots = |function: usize, value: ValueId| -> CompileResult<&Roots> {
         private
             .get(function)
@@ -1460,7 +1821,11 @@ fn parameter_product_windows(
     for (index, (f, (_, reachable))) in module.functions.iter().zip(graphs).enumerate() {
         for (position, local) in f.parameters.iter().enumerate() {
             budget.spend(1, "Product Store consuming parameter scan")?;
-            if contains_owned_store(&f.locals[local.0 as usize].ty, budget)? {
+            if product_owned_store_dependency(
+                &f.locals[local.0 as usize].ty,
+                &store_closures,
+                budget,
+            )? {
                 budget.lookup(
                     effects[index].len(),
                     "Product Store consuming parameter insertion",
@@ -1518,9 +1883,14 @@ fn parameter_product_windows(
                     };
                     if let Type::Closure(id) = ty {
                         budget.spend(1, "Product Store called closure lookup")?;
-                        unknown_effects[index] |= *store_closures
+                        let definition = module
+                            .closures
                             .get(id.0 as usize)
                             .ok_or_else(|| bad("Product Store called closure is absent"))?;
+                        unknown_effects[index] |= store_closures[id.0 as usize]
+                            && *callable_writes
+                                .get(definition.function.0 as usize)
+                                .ok_or_else(|| bad("Product Store closure entry is absent"))?;
                     }
                 }
                 let uncertain_arguments = match &instruction.kind {
@@ -1624,7 +1994,14 @@ fn parameter_product_windows(
                                 .get(parameter as usize)
                                 .ok_or_else(|| bad("Product call parameter is absent"))?;
                             let actual_roots = roots(index, *actual)?;
-                            if actual_roots.is_empty() && !unknown_effects[index] {
+                            let unproven_owner = product_owned_store_dependency(
+                                &f.values[actual.0 as usize],
+                                &store_closures,
+                                budget,
+                            )? && !owned_known[index][actual.0 as usize];
+                            if (actual_roots.is_empty() || unproven_owner)
+                                && !unknown_effects[index]
+                            {
                                 unknown_effects[index] = true;
                                 changed = true;
                             }
@@ -1699,7 +2076,12 @@ fn parameter_product_windows(
                             .get(*effect as usize)
                             .ok_or_else(|| bad("Product Store actual is absent"))?;
                         let changed_roots = roots(index, *changed)?;
-                        if changed_roots.is_empty() {
+                        let unproven_owner = product_owned_store_dependency(
+                            &f.values[changed.0 as usize],
+                            &store_closures,
+                            budget,
+                        )? && !owned_known[index][changed.0 as usize];
+                        if changed_roots.is_empty() || unproven_owner {
                             return Err(bad("Store effect argument has no actual parent origin"));
                         }
                         if overlaps(captured_roots, changed_roots, budget)? {
@@ -2198,5 +2580,151 @@ mod frontier_tests {
         let error =
             infer_module(&module, &graphs(&module), &[], &mut Budget::new(&limits)).unwrap_err();
         assert_eq!(error[0].category, zil_base::ResultCategory::ResourceLimit);
+    }
+}
+
+#[cfg(test)]
+mod product_parameter_dependency_tests {
+    use super::*;
+
+    #[test]
+    fn nested_store_dependency_is_conservative_but_code_signatures_are_not_values() {
+        let store = Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(Type::I32),
+        }));
+        let nested = Type::Package {
+            name: "P".into(),
+            fields: vec![(
+                "items".into(),
+                Type::Array {
+                    element: Box::new(store.clone()),
+                    length: 1,
+                },
+            )],
+        };
+        let address_child = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Closure(ClosureId(0))),
+        };
+        let pointer = Type::FunctionPointer {
+            parameters: vec![store],
+            result: Box::new(Type::Unit),
+        };
+        let defaults = Limits::default();
+        let check = |steps| {
+            let mut budget = Budget::new(&Limits {
+                max_analysis_steps: steps,
+                ..defaults.clone()
+            });
+            let flags = [true];
+            let value = (
+                product_store_capture_dependency(&nested, &flags, &mut budget)?,
+                product_owned_store_dependency(&nested, &flags, &mut budget)?,
+                product_store_capture_dependency(&address_child, &flags, &mut budget)?,
+                product_owned_store_dependency(&address_child, &flags, &mut budget)?,
+                product_store_capture_dependency(&pointer, &flags, &mut budget)?,
+            );
+            Ok::<_, Vec<Diagnostic>>((value, defaults.max_analysis_steps - budget.remaining()))
+        };
+        // Measure with the same request ceiling used by Budget; then test the
+        // shared request boundary separately with a fresh budget each time.
+        let (expected, exact) = check(defaults.max_analysis_steps).unwrap();
+        assert_eq!(expected, (true, true, true, false, false));
+        for steps in [exact, exact - 1, exact] {
+            let mut budget = Budget::new(&Limits {
+                max_analysis_steps: steps,
+                ..defaults.clone()
+            });
+            let run = (|| {
+                let flags = [true];
+                Ok::<_, Vec<Diagnostic>>((
+                    product_store_capture_dependency(&nested, &flags, &mut budget)?,
+                    product_owned_store_dependency(&nested, &flags, &mut budget)?,
+                    product_store_capture_dependency(&address_child, &flags, &mut budget)?,
+                    product_owned_store_dependency(&address_child, &flags, &mut budget)?,
+                    product_store_capture_dependency(&pointer, &flags, &mut budget)?,
+                ))
+            })();
+            if steps == exact {
+                assert_eq!(run.unwrap(), expected);
+            } else {
+                assert_eq!(
+                    run.unwrap_err()[0].category,
+                    zil_base::ResultCategory::ResourceLimit
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn callable_store_may_effect_distinguishes_read_and_transitive_write() {
+        use zil_base::{Fingerprint, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
+        let instruction = |kind| Instruction {
+            result: None,
+            kind,
+            span: Span::default(),
+        };
+        let function = |id, instructions| TypedFunction {
+            id: FunctionId(id),
+            name: format!("f{id}"),
+            foreign: None,
+            environment: None,
+            parameters: vec![],
+            return_type: Type::Unit,
+            result_mode: PassingMode::Infer,
+            locals: vec![],
+            values: vec![
+                Type::Desc(Box::new(Type::OwnedStore {
+                    element: Box::new(Type::I32),
+                })),
+                Type::I64,
+            ],
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                instructions,
+                terminator: Terminator::Return(None),
+            }],
+            entry: BlockId(0),
+            span: Span::default(),
+            callable_contract: None,
+            callable_return_contract: None,
+        };
+        let mut module = TypedModule {
+            schema_version: SCHEMA_VERSION,
+            module_id: ModuleId(0),
+            source_fingerprint: Fingerprint::ZERO,
+            target: TargetProfile::host_llvm(),
+            resources: vec![],
+            closures: vec![],
+            unsupported: vec![],
+            functions: vec![
+                function(
+                    0,
+                    vec![instruction(InstructionKind::OwnedStoreLen {
+                        store: ValueId(0),
+                    })],
+                ),
+                function(
+                    1,
+                    vec![instruction(InstructionKind::Call {
+                        function: FunctionId(0),
+                        arguments: vec![],
+                    })],
+                ),
+            ],
+        };
+        let limits = Limits::default();
+        assert_eq!(
+            product_may_store_write(&module, &[], &mut Budget::new(&limits)).unwrap(),
+            vec![false, false]
+        );
+        module.functions[0].blocks[0].instructions[0].kind = InstructionKind::OwnedStoreReserve {
+            store: ValueId(0),
+            capacity: ValueId(1),
+        };
+        assert_eq!(
+            product_may_store_write(&module, &[], &mut Budget::new(&limits)).unwrap(),
+            vec![true, true]
+        );
     }
 }

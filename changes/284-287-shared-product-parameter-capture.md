@@ -31,3 +31,19 @@ raw/Wire、N/N−1/fresh和生产源到两后端O0/O2分别记账。
 的 Product 参数按整次调用检查。Store 来源未知、或被调用闭包持有 Store 而实际
 父来源尚不能恢复时保守 Unsupported；不以名义闭包类型或不同参数名称证明不相交。
 源、raw/Wire、预算、独立 Verify 和机器验证仍须各自完成，本说明不代表通过。
+
+285 后继把 Store 依赖判断扩展到闭包实际捕获的嵌套 Product/数组/和式及
+闭包字段；代码指针的签名不是其持有的数据。闭包入口及普通调用的有限
+may 写入图在当前请求内预付收敛：只读 Store 不被误记为写，可能写且无法
+恢复实际 Store 父位置仍保守 Unsupported。拥有 Store 或含 Store Product 的
+移动位置保留当前槽及原始父来源；不把 Parameter 改写成 Local。
+
+Analyze 本地测量（target-285/jobs1，TypedModule raw/Wire；N−1 为
+ResourceLimit，重新请求 N 与首次结果相同）：原参数普通 Local 源 N=8158，
+参数来自 Store 的最后使用源 N=12136；不同 Store N=12498、同父不同 Store
+字段 N=20889、不同 owner Product N=36563、give 不同 Store N=13166。旧普通
+Local 捕获 `examples/mainline/shared_product_capture226/local.zil` 的冻结基线
+与新路径均 N=17355。独立source-derived raw/Wire 复核同Store reserve/pop、
+调用内部先读后失效、同父同字段、普通嵌套调用和先move再give/整Product
+move及inline构造等9个反例均 E-BORROW-CONFLICT；伪造空参数来源与断裂Store父来源均拒绝。
+这是 Analyze 限定证据，不替代 Verify、native 或整合验收。
