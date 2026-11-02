@@ -292,7 +292,22 @@ impl Materializer<'_, '_> {
         drop(alias_sites);
         drop(sequences);
         self.environment.budget.release_temporary_bytes(sequence_bytes);
-        let ParsedSyntax { rendered, parsed, names: _ } = self.environment.parse_tree(&tree, span)?;
+        for node in &tree.nodes {
+            let CtSyntaxNode::Token(token) = node else { continue; };
+            let Some(CtIdent { source: CtNameSource::Definition(symbol), namespace: CtNameNamespace::Type | CtNameNamespace::Value, .. }) = &token.name else { continue; };
+            if symbol.module == caller || self.environment.index.aliases(caller).contains_key(&symbol.module)
+                || self.required_imports.iter().any(|(module, import)| *module == caller && import.module == symbol.module) { continue; }
+            if !self.sources.iter().any(|source| source.module_id == symbol.module) {
+                return Err(category("definition-site name refers outside the sealed project", span));
+            }
+            let alias = format!("__zil_ct_def{}_{}_{}", caller.0, symbol.module.0, span.start);
+            self.environment.budget.reserve_generated_nodes(1)?;
+            self.environment.budget.reserve_temporary_bytes(alias.len() as u64)?;
+            self.required_imports.push((caller, CoreImport { alias, module: symbol.module, span }));
+        }
+        let extra_aliases = self.required_imports.iter().filter(|(module, _)| *module == caller)
+            .map(|(_, import)| (import.module, import.alias.clone())).collect::<Vec<_>>();
+        let ParsedSyntax { rendered, parsed, names: _ } = self.environment.parse_tree(&tree, span, &extra_aliases)?;
         let mut syntax = parsed.syntax.ok_or_else(|| category("generated parser returned no category", span))?;
         let longest = rendered.tokens.iter().map(|token| token.span.end.saturating_sub(token.span.start)).max().unwrap_or(0);
         let hygiene_bytes = (rendered.tokens.len() as u64).saturating_mul((longest as u64).saturating_add(64));

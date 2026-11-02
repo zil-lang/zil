@@ -168,10 +168,11 @@ impl<'a> Environment<'a> {
         Ok(CtInputTable { invocation_fingerprint: Fingerprint::of(&bytes), tokens: Vec::new() })
     }
 
-    pub(super) fn parse_tree(&mut self, tree: &CtSyntaxTree, span: Span) -> CompileResult<ParsedSyntax> {
+    pub(super) fn parse_tree(&mut self, tree: &CtSyntaxTree, span: Span, extra_aliases: &[(ModuleId, String)]) -> CompileResult<ParsedSyntax> {
         let module = self.sources.iter().find(|source| source.file_id == span.file)
             .map_or(ModuleId(0), |source| source.module_id);
-        let aliases = self.index.aliases(module);
+        let mut aliases = self.index.aliases(module);
+        for (target, alias) in extra_aliases { aliases.insert(*target, alias.clone()); }
         render::parse(tree, span.file, module, &aliases, &self.limits, &mut self.budget)
     }
 

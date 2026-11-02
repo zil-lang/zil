@@ -36,10 +36,14 @@ impl FrozenReadView<'_> {
         if depth > 128 { return Err(error("E-CT-TYPE-PHASE", "type syntax nesting exceeds budget")); }
         let actual = ty.nodes.get(node.0 as usize).ok_or_else(|| error("E-CT-TYPE-PHASE", "type node is out of range"))?;
         let punctuation = |out: &mut Vec<_>, text: &str| out.push((text.to_owned(), CtTokenClass::Punctuation, None));
+        let word = |out: &mut Vec<_>, text: &str| out.push((text.to_owned(), CtTokenClass::Identifier, None));
         match actual {
             CtTypeNode::Primitive(scalar) => out.push((match scalar {
                 CtScalarTy::Unit => "Unit", CtScalarTy::Bool => "bool", CtScalarTy::U8 => "u8", CtScalarTy::U16 => "u16", CtScalarTy::I32 => "i32", CtScalarTy::I64 => "i64",
             }.into(), CtTokenClass::Identifier, None)),
+            CtTypeNode::Builtin(builtin) => word(out, match builtin {
+                CtBuiltinType::ByteBuffer => "ByteBuffer", CtBuiltinType::ForeignHandle => "ForeignHandle", CtBuiltinType::CWideString => "CWideString",
+            }),
             CtTypeNode::Nominal { symbol, arguments } => {
                 let (text, namespace) = self.text_name(symbol)?;
                 out.push((text.clone(), CtTokenClass::Identifier, Some(CtIdent { text, namespace, source: CtNameSource::Definition(symbol.clone()), member_owner: None, member_owner_type: None })));
@@ -49,7 +53,19 @@ impl FrozenReadView<'_> {
                         if index != 0 { punctuation(out, ","); }
                         match argument {
                             CtTypeArgument::Type(id) => self.type_spelling(ty, *id, out, depth + 1)?,
-                            CtTypeArgument::Scalar(value) => out.push((format!("{value:?}"), CtTokenClass::Integer, None)),
+                            CtTypeArgument::Scalar(value) => {
+                                let text = match value {
+                                    Constant::Bool(value) => value.to_string(), Constant::U8(value) => value.to_string(),
+                                    Constant::U16(value) => value.to_string(), Constant::I32(value) => value.to_string(),
+                                    Constant::I64(value) => value.to_string(),
+                                    _ => return Err(phase("generic Type constant has no ordinary syntax spelling")),
+                                };
+                                if let Some(digits) = text.strip_prefix('-') {
+                                    punctuation(out, "-"); out.push((digits.into(), CtTokenClass::Integer, None));
+                                } else {
+                                    out.push((text, if matches!(value, Constant::Bool(_)) { CtTokenClass::Keyword } else { CtTokenClass::Integer }, None));
+                                }
+                            },
                         }
                     }
                     punctuation(out, ">");
@@ -62,9 +78,34 @@ impl FrozenReadView<'_> {
             CtTypeNode::Tuple(items) => {
                 punctuation(out, "(");
                 for (index, item) in items.iter().enumerate() { if index != 0 { punctuation(out, ","); } self.type_spelling(ty, *item, out, depth + 1)?; }
+                if items.len() == 1 { punctuation(out, ","); }
                 punctuation(out, ")");
             }
-            _ => return Err(phase("this checked Type constructor has no materializable source spelling")),
+            CtTypeNode::Slice(inner) => { punctuation(out, "["); self.type_spelling(ty, *inner, out, depth + 1)?; punctuation(out, "]"); }
+            CtTypeNode::Address { mutable, inner } => {
+                punctuation(out, "&"); if *mutable { word(out, "mut"); }
+                self.type_spelling(ty, *inner, out, depth + 1)?;
+            }
+            CtTypeNode::Managed(inner) | CtTypeNode::Desc(inner) | CtTypeNode::OwnedStore(inner) => {
+                word(out, match actual { CtTypeNode::Managed(_) => "Managed", CtTypeNode::Desc(_) => "Desc", _ => "Store" });
+                punctuation(out, "<"); self.type_spelling(ty, *inner, out, depth + 1)?; punctuation(out, ">");
+            }
+            CtTypeNode::FunctionPointer { parameters, result } | CtTypeNode::ForeignCallback { parameters, result } => {
+                if matches!(actual, CtTypeNode::ForeignCallback { .. }) {
+                    word(out, "extern"); out.push(("\"C\"".into(), CtTokenClass::String, None));
+                }
+                word(out, "fn"); punctuation(out, "(");
+                for (index, parameter) in parameters.iter().enumerate() {
+                    if index != 0 { punctuation(out, ","); }
+                    self.type_spelling(ty, *parameter, out, depth + 1)?;
+                }
+                punctuation(out, ")"); punctuation(out, "->"); self.type_spelling(ty, *result, out, depth + 1)?;
+            }
+            CtTypeNode::ErrorUnion { error, result } => {
+                self.type_spelling(ty, *error, out, depth + 1)?;
+                punctuation(out, "!"); self.type_spelling(ty, *result, out, depth + 1)?;
+            }
+            CtTypeNode::Opaque { .. } => return Err(phase("opaque Type cannot reveal a source spelling")),
         }
         Ok(())
     }
@@ -298,6 +339,7 @@ impl CtReadView for FrozenReadView<'_> {
         };
         if params.len() != args.len() { return Err(error("E-CT-TYPE-ARITY", "generic Type application argument count differs from the frozen declaration")); }
         let total = args.iter().fold(1u64, |count, arg| count.saturating_add(match arg { CtValue::Type(ty) => ty.nodes.len() as u64, _ => 0 }));
+        if total > u32::MAX as u64 { return Err(error("E-CT-TYPE-LIMIT", "generic Type DAG exceeds identity range")); }
         budget.reserve_analysis_work(total.saturating_add(params.len() as u64))?;
         budget.reserve_generated_nodes(total)?;
         budget.reserve_temporary_bytes(total.saturating_mul(96))?;
