@@ -3,6 +3,34 @@
 use super::*;
 
 pub(super) fn data(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    // Store's ordinary value profile also admits callback-bearing State. That
+    // independent container permission is not an ordinary callback data slot.
+    budget.type_work(ty, false, "owned callback closed data tree")?;
+    fn closed(ty: &Type) -> bool {
+        match ty {
+            Type::Closure(_) | Type::Opaque { .. } | Type::Address { .. } | Type::Desc(_) => false,
+            Type::Tuple(fields) => fields.iter().all(closed),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fields.iter().all(|(_, ty)| closed(ty))
+            }
+            Type::Enum { variants, .. } => {
+                variants.iter().all(|(_, fields)| fields.iter().all(closed))
+            }
+            Type::ErrorUnion { error, result } => closed(error) && closed(result),
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::OwnedStore { element }
+            | Type::Managed(element) => closed(element),
+            // Thin function values remain atomic Copy data under their old
+            // signature/FFI checks; they do not carry an environment or F.
+            _ => true,
+        }
+    }
+    if !closed(ty) {
+        return Err(bad(
+            "owned callback data cannot hide an environment, opaque or borrowed dependency",
+        ));
+    }
     match ty {
         Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } => {
             resources::sums::admit(module, ty, budget).map(|_| ())
@@ -25,6 +53,17 @@ pub(super) fn signature(
     definition: &ClosureDefinition,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    budget.spend(module.functions.len(), "owned callback factory exclusion")?;
+    if module.functions.iter().any(|function| {
+        function
+            .callable_return_contract
+            .as_ref()
+            .is_some_and(|contract| contract.closure == definition.id)
+    }) {
+        return Err(bad(
+            "owned callback signature does not grant an opaque factory profile",
+        ));
+    }
     let entry = module
         .functions
         .get(definition.function.0 as usize)
@@ -38,7 +77,10 @@ pub(super) fn signature(
         false,
         "owned callback entry result comparison",
     )?;
-    if module.closures.get(definition.id.0 as usize) != Some(definition)
+    if !module
+        .closures
+        .get(definition.id.0 as usize)
+        .is_some_and(|actual| std::ptr::eq(actual, definition))
         || definition.kind == CallableKind::FunctionPointer
         || !definition.lending_captures.is_empty()
         || entry.environment != Some(definition.id)
@@ -59,12 +101,86 @@ pub(super) fn signature(
             return Err(bad("owned callback actual parameter type differs"));
         }
     }
+    budget.spend(entry.blocks.len(), "owned callback capture access blocks")?;
+    for block in &entry.blocks {
+        budget.spend(
+            block.instructions.len(),
+            "owned callback capture access instructions",
+        )?;
+        for instruction in &block.instructions {
+            if let InstructionKind::WriteCapture { index, value } = instruction.kind {
+                let ty = definition
+                    .captures
+                    .get(index as usize)
+                    .ok_or_else(|| bad("owned callback capture write index is absent"))?;
+                budget.type_work(ty, true, "owned callback capture write type")?;
+                if definition.kind == CallableKind::Fn
+                    || !ty.is_copy_value()
+                    || entry.values.get(value.0 as usize) != Some(ty)
+                    || instruction.result.is_some()
+                {
+                    return Err(bad(
+                        "owned callback capture write requires a mutable entry and exact Copy field",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn container_profile(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    budget.type_work(ty, false, "owned callback container profile exclusion")?;
+    fn contained(ty: &Type, nested: bool, owned: &BTreeSet<ClosureId>) -> bool {
+        match ty {
+            Type::Closure(id) => nested && owned.contains(id),
+            Type::Tuple(fields) => fields.iter().any(|ty| contained(ty, true, owned)),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                fields.iter().any(|(_, ty)| contained(ty, true, owned))
+            }
+            Type::Enum { variants, .. } => variants
+                .iter()
+                .any(|(_, fields)| fields.iter().any(|ty| contained(ty, true, owned))),
+            Type::ErrorUnion { error, result } => {
+                contained(error, true, owned) || contained(result, true, owned)
+            }
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::OwnedStore { element }
+            | Type::Managed(element)
+            | Type::Opaque {
+                hidden: element, ..
+            } => contained(element, true, owned),
+            // A borrowed direct environment remains a concrete call
+            // position; an address does not turn it into a container.
+            Type::Address { inner, .. } | Type::Desc(inner) => contained(inner, nested, owned),
+            _ => false,
+        }
+    }
+    if contained(ty, false, &budget.owned_callbacks) {
+        return Err(bad(
+            "owned callback signature does not grant a State, array or container profile",
+        ));
+    }
     Ok(())
 }
 
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
     if budget.owned_callbacks.is_empty() && budget.owned_callback_helpers.is_empty() {
         return Ok(());
+    }
+    budget.spend(
+        module.closures.len(),
+        "owned callback capture container profiles",
+    )?;
+    for definition in &module.closures {
+        budget.spend(
+            definition.captures.len(),
+            "owned callback capture container slots",
+        )?;
+        for ty in &definition.captures {
+            container_profile(ty, budget)?;
+        }
     }
     budget.spend(
         module.functions.len(),
@@ -87,10 +203,42 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     }
     budget.spend(module.functions.len(), "owned callback call functions")?;
     for f in &module.functions {
+        for ty in f
+            .locals
+            .iter()
+            .map(|local| &local.ty)
+            .chain(&f.values)
+            .chain(std::iter::once(&f.return_type))
+        {
+            container_profile(ty, budget)?;
+        }
         budget.spend(f.blocks.len(), "owned callback call blocks")?;
         for b in &f.blocks {
             budget.spend(b.instructions.len(), "owned callback call instructions")?;
             for i in &b.instructions {
+                if let InstructionKind::MakeClosure { closure, captures } = &i.kind {
+                    budget.lookup(
+                        budget.owned_callbacks.len(),
+                        "owned callback construction lookup",
+                    )?;
+                    if budget.owned_callbacks.contains(closure) {
+                        let definition = &module.closures[closure.0 as usize];
+                        budget.spend(captures.len(), "owned callback actual captures")?;
+                        if captures.len() != definition.captures.len()
+                            || i.result.and_then(|v| f.values.get(v.0 as usize))
+                                != Some(&Type::Closure(*closure))
+                        {
+                            return Err(bad("owned callback construction signature differs"));
+                        }
+                        for (value, ty) in captures.iter().zip(&definition.captures) {
+                            budget.type_work(ty, false, "owned callback actual capture type")?;
+                            if f.values.get(value.0 as usize) != Some(ty) {
+                                return Err(bad("owned callback actual capture type differs"));
+                            }
+                        }
+                    }
+                    continue;
+                }
                 if let InstructionKind::Call {
                     function,
                     arguments,
@@ -164,6 +312,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 )?;
                 if !budget.owned_callbacks.contains(id) {
                     continue;
+                }
+                if let InstructionKind::CallClosureMut { callee, .. } = i.kind
+                    && !f.locals[callee.0 as usize].mutable
+                {
+                    return Err(bad(
+                        "owned callback FnMut requires an actual writable environment",
+                    ));
                 }
                 budget.spend(arguments.len(), "owned callback actual arguments")?;
                 budget.type_work(&c.result, false, "owned callback actual result")?;

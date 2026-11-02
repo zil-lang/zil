@@ -11,14 +11,122 @@ fn typed(text: &str) -> TypedModule {
 
 #[test]
 fn original_callback_sources_reach_analyze() {
-    for text in [
+    for (index, text) in [
         include_str!("impl246_fixtures/event_reply.zil"),
         include_str!("impl246_fixtures/event_copy_result.zil"),
         include_str!("impl246_fixtures/owned_result.zil"),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let m = typed(text);
-        zil_analyze::analyze(&m, &Limits::default()).unwrap();
+        let limits = Limits::default();
+        let plan = zil_analyze::analyze(&m, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &plan, &limits).unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+            .unwrap()
+            .0;
+        assert_eq!(zil_analyze::analyze(&decoded, &limits).unwrap(), plan);
+        if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+            let path = std::path::PathBuf::from(root).join(format!("original-{index}"));
+            std::fs::create_dir_all(&path).unwrap();
+            std::fs::write(path.join("source.zil"), text).unwrap();
+            std::fs::write(path.join("typed.txt"), format!("{m:#?}")).unwrap();
+            std::fs::write(path.join("candidate.txt"), format!("{plan:#?}")).unwrap();
+            std::fs::write(path.join("candidate.wire"), bytes).unwrap();
+        }
     }
+}
+
+#[test]
+fn source_derived_dispatch_roles_and_trace_are_reconstructed() {
+    let m = typed(include_str!("impl246_fixtures/event_reply.zil"));
+    let mut wrong_mode = m.clone();
+    let helper = wrong_mode
+        .functions
+        .iter_mut()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap();
+    helper.callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::Fn;
+    assert!(zil_analyze::analyze(&wrong_mode, &Limits::default()).is_err());
+    let mut omitted = m;
+    let helper = omitted
+        .functions
+        .iter_mut()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap();
+    match &mut helper.callable_contract.as_mut().unwrap().traces {
+        CallableTraces::Finite(paths) => {
+            for path in paths {
+                path.calls.clear();
+            }
+        }
+        CallableTraces::Flow(flow) => {
+            for node in &mut flow.nodes {
+                node.calls.clear();
+            }
+        }
+    }
+    assert!(zil_analyze::analyze(&omitted, &Limits::default()).is_err());
+    let mut wrong_entry = typed(&format!(
+        "{DATA} fn main()->i32{{var n=0;var h=move(e:Event)->Event=>{{n+=1;return e}};let a=h(event(1));return a.r.n}}"
+    ));
+    let definition = wrong_entry
+        .closures
+        .iter_mut()
+        .find(|c| c.kind == CallableKind::FnMut)
+        .unwrap();
+    definition.kind = CallableKind::Fn;
+    assert!(zil_analyze::analyze(&wrong_entry, &Limits::default()).is_err());
+}
+
+#[test]
+fn owned_source_analysis_budget_has_exact_and_fresh_boundaries() {
+    let module = typed(include_str!("impl246_fixtures/event_reply.zil"));
+    let defaults = Limits::default();
+    let expected = zil_analyze::analyze(&module, &defaults).unwrap();
+    let mut low = 0;
+    let mut high = defaults.max_analysis_steps;
+    while low + 1 < high {
+        let n = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: n,
+            ..defaults.clone()
+        };
+        match zil_analyze::analyze(&module, &limits) {
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                high = n;
+            }
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                );
+                low = n;
+            }
+        }
+    }
+    let limits = Limits {
+        max_analysis_steps: high,
+        ..defaults.clone()
+    };
+    assert_eq!(zil_analyze::analyze(&module, &limits).unwrap(), expected);
+    let too_small = Limits {
+        max_analysis_steps: high - 1,
+        ..defaults.clone()
+    };
+    assert!(
+        zil_analyze::analyze(&module, &too_small)
+            .unwrap_err()
+            .iter()
+            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+    );
+    assert_eq!(zil_analyze::analyze(&module, &limits).unwrap(), expected);
+    println!(
+        "impl247 original event_reply source Analyze N={high}; N-1 ResourceLimit; fresh N exact output equality"
+    );
 }
 
 const DATA: &str = "resource R{n:i32} package Event{manages r:R} enum Fault{Cancel} fn event(n:i32)->Event{let r=R{n:n};return Event{r:give r}}";
