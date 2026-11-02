@@ -1,0 +1,575 @@
+{
+  "evidence_level": "independent source-operation model; not machine observation",
+  "frozen": [
+    {
+      "name": "event-reply",
+      "source_sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+      "native_if_source_verified": [
+        {
+          "input": "",
+          "exit": 0,
+          "stdout": ""
+        }
+      ]
+    },
+    {
+      "name": "event-copy-result",
+      "source_sha256": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+      "native_if_source_verified": [
+        {
+          "input": "",
+          "exit": 0,
+          "stdout": ""
+        }
+      ]
+    },
+    {
+      "name": "owned-result",
+      "source_sha256": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+      "native_if_source_verified": [
+        {
+          "input": "",
+          "exit": 0,
+          "stdout": ""
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "input": "0",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCHhRAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAHhQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "SCHhRAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        }
+      ]
+    },
+    {
+      "input": "1",
+      "normal": {
+        "exit": 1,
+        "stdout": "SAHhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 1,
+          "stdout": "SAHhQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAHhQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SAHhQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        }
+      ]
+    },
+    {
+      "input": "2",
+      "normal": {
+        "exit": 1,
+        "stdout": "SBAHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 1,
+          "stdout": "SBAHhQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAHhQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SBAHhQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 3,
+          "exit": 1,
+          "stdout": "SBAHhQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2
+        }
+      ]
+    },
+    {
+      "input": "3",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCRACRBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCRACRBQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SCRABQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 3,
+          "exit": 0,
+          "stdout": "SCRACRBQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        }
+      ]
+    },
+    {
+      "input": "4",
+      "normal": {
+        "exit": 0,
+        "stdout": "S1RA2RBQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "S1RA2RBQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "S1RABQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 3,
+          "exit": 0,
+          "stdout": "S1RA2RBQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        }
+      ]
+    },
+    {
+      "input": "5",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCRAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "SCRAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        }
+      ]
+    },
+    {
+      "input": "6",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCRAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCRAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "SCRAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        }
+      ]
+    },
+    {
+      "input": "7",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCRABQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 3
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCRABQ",
+          "alloc_calls": 3,
+          "allocated": 3,
+          "frees": 3,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 3
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SAQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 3,
+          "exit": 1,
+          "stdout": "SBAQ",
+          "alloc_calls": 3,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 2
+        },
+        {
+          "fail_at": 4,
+          "exit": 0,
+          "stdout": "SCRABQ",
+          "alloc_calls": 3,
+          "allocated": 3,
+          "frees": 3,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 3
+        }
+      ]
+    },
+    {
+      "input": "8",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCEQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCEQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 1,
+          "exit": 0,
+          "stdout": "SCEQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0
+        }
+      ]
+    },
+    {
+      "input": "9",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCHBhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCHBhRAQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAHhQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SBAHhQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 3,
+          "exit": 0,
+          "stdout": "SCHBhRAQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2
+        }
+      ]
+    }
+  ]
+}
