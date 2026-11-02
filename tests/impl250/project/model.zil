@@ -8,7 +8,8 @@ pub enum Fault{NoMemory,Cancelled}
 pub package Event{manages mark:Mark;manages payload:ByteBuffer;pub code:i32}
 pub package Reply{manages mark:Mark;manages payload:ByteBuffer;pub code:i32}
 pub enum Packet{Empty,Data(Event)}
-pub package Leaf{manages mark:Mark;manages bytes:ByteBuffer}
+pub package OwnedFault{pub packet:Packet}
+pub package Leaf{manages mark:Mark;manages bytes:ByteBuffer;pub code:i32}
 pub package Items{manages values:Store<Leaf>}
 pub fn prepare(cancel:bool,label:i32,code:i32)->Fault!Event{
     let mark=Mark{code:label}
@@ -17,6 +18,13 @@ pub fn prepare(cancel:bool,label:i32,code:i32)->Fault!Event{
     bytes_push(payload,85u8)
     if cancel{return Fault.Cancelled}
     return Event{mark:give mark,payload:give payload,code:code}
+}
+pub fn prepare_owned_error()->OwnedFault!Event{
+    let mark=Mark{code:65}
+    let payload=bytes_new()
+    if !bytes_reserve(payload,1){return OwnedFault{packet:Packet.Empty}}
+    bytes_push(payload,85u8)
+    return Event{mark:give mark,payload:give payload,code:41}
 }
 pub fn reply(event:Event,add:i32)->Reply{
     return Reply{mark:give event.mark,payload:give event.payload,code:event.code+add}
@@ -42,7 +50,7 @@ pub fn items()->Fault!Items{
         let bytes=bytes_new()
         if !bytes_reserve(bytes,1){return Fault.NoMemory}
         bytes_push(bytes,85u8)
-        store_push(values,Leaf{mark:give mark,bytes:give bytes})
+        store_push(values,Leaf{mark:give mark,bytes:give bytes,code:85})
     }
     return Items{values:give values}
 }
@@ -51,9 +59,7 @@ pub fn render_items(items:Items)->i32{
     if store_len(items.values)!=2{return 4}
     for i in 0..2{
         let leaf=store_at(items.values,i64(i))
-        if bytes_len(leaf.bytes)!=1{return 5}
-        let view=bytes_view(leaf.bytes)
-        if view[0]!=85u8{return 6}
+        if leaf.code!=85{return 5}
     }
     return 0
 }

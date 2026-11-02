@@ -11,3 +11,6 @@ pub fn fallible<F:FnOnce(model.Fault!model.Packet)->model.Fault!model.Packet>(ha
 pub fn items<F:FnOnce(model.Items)->model.Items>(handler:F,event:model.Items)->model.Items{
     return handler(event)
 }
+pub fn owned_error<F:FnOnce(model.Event)->model.OwnedFault!model.Reply>(handler:F,event:model.Event)->model.OwnedFault!model.Reply{
+    return handler(event)
+}
