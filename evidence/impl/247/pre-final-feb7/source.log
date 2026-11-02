@@ -1,0 +1,17 @@
+   Compiling zil-analyze v0.1.0 (/workspace/zil-247/crates/zil-analyze)
+   Compiling zil-driver v0.1.0 (/workspace/zil-247/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 18.13s
+     Running tests/impl247_source.rs (/workspace/.zil-env/target-247/debug/deps/impl247_source-0735690e18fb5a09)
+
+running 7 tests
+test source_callback_result_does_not_revive_the_input_loan ... ok
+test original_callback_sources_reach_analyze ... ok
+test source_derived_dispatch_roles_and_trace_are_reconstructed ... ok
+test owned_data_source_modes_and_cleanup_cfg_reach_analyze ... ok
+test source_later_argument_failure_cleanup_is_independently_required ... ok
+test source_sum_store_and_ordinary_callee_transfers_preserve_actual_windows ... ok
+impl247 original event_reply source Analyze N=12978; N-1 ResourceLimit; fresh N exact output equality
+test owned_source_analysis_budget_has_exact_and_fresh_boundaries ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

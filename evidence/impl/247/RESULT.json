@@ -1,0 +1,100 @@
+{
+  "task": "247",
+  "author": "/root/callback_analyze",
+  "status": "AuthorLimitedPass",
+  "source_commit": "b9818e77de8d29e2b6147990ac48b6af490102c7",
+  "contract_commit": "0140a356cdb6cc46375c890a710daaf0fa6557d9",
+  "parent_baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+  "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+  "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+  "schema_version": 30,
+  "toolchain": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "profile": "debug tests",
+    "build_jobs": 2,
+    "offline": true,
+    "locked": true,
+    "target_dir": "/workspace/.zil-env/target-247"
+  },
+  "counts": {
+    "final_tests_selected": 26,
+    "final_tests_executed": 26,
+    "passed": 26,
+    "failed": 0,
+    "ignored": 0,
+    "assertion_count": "Rust assertions are active; individual assertion executions are not instrumented. Test outcomes are not an assertion-count proxy.",
+    "source_unique_positive_cases": 13,
+    "source_unique_safe_reject_cases": 5,
+    "source_derived_ir_mutations_rejected": 4,
+    "original_source_wire_roundtrip_positive_cases": 3,
+    "new_raw_test_functions": 7,
+    "legacy_or_adjacent_test_functions": 12,
+    "source_test_functions": 7
+  },
+  "observations": [
+    "Three preserved planning originals reach Types -> Analyze -> Wire30 decode -> Analyze with identical candidate.",
+    "Fn/FnMut consume two fresh Event arguments; FnOnce normal and uncalled destruction paths pass.",
+    "Product/Enum/ErrorUnion/Store data and remaining Once capture/later argument failure CFGs pass; deleting Package cleanup is rejected.",
+    "ByteBuffer view use before transfer and unrelated same-type sibling roots pass; use after concrete/helper/Sum/Store/ordinary-callee transfer rejects in Analyze.",
+    "Forged actual helper roles/traces and Fn capture mutation are rejected independently.",
+    "An actual callee-created leaf returns Incoming, so a caller create claim rejects.",
+    "Canonical Store<State with Closure> data rejects raw and Wire. State/array slots and opaque factory retain their old signature boundary."
+  ],
+  "budgets": {
+    "new_raw_fnmut_two_calls": 4525,
+    "new_original_event_reply_source": 13556,
+    "protocol": [
+      "N succeeds",
+      "N-1 ResourceLimit only",
+      "fresh N identical candidate"
+    ],
+    "legacy_flat_product": {
+      "Types": 418,
+      "Analyze": 8673,
+      "reference": "crates/zil-driver/tests/impl206_budget.rs old_flat_package_records_exact_phase_boundaries",
+      "delta": 0
+    },
+    "legacy_direct_store_capture": {
+      "Types": 835,
+      "Analyze": 7129,
+      "Verify": 12161,
+      "reference": "evidence/impl/235/budget235-legacy-post-fix.json",
+      "delta": 0
+    },
+    "default_limits_changed": false,
+    "new_path": "Qualification and additional actual-window work occur only with owned callback signature/helper profiles; actual connected call components select window checks."
+  },
+  "commands": "final/commands.json",
+  "stage_artifacts": "final/stage-artifacts.json",
+  "preserved_failures": [
+    "pre-fix/loan-revival-test.log",
+    "pre-final-feb7/clippy.log"
+  ],
+  "evidence_level": {
+    "source": "Real source -> Types -> Analyze; original three also Wire30 -> Analyze.",
+    "raw": "Hand-authored TypedIR and source-derived corruptions are separately labeled.",
+    "verify_new_profile": "Not run here; 248 owns independent Verify.",
+    "native_new_profile": "Not run here; 249/250 own native/allocation failure checks.",
+    "full_suite": "Not run by implementer.",
+    "product_gate": "Not run."
+  },
+  "rust_goals": {
+    "same_class_safety": "Finite owning callback responsibility and actual loan counterexamples have author evidence; independent Verify and full language safety are separate.",
+    "runtime_memory": "No new RC/Box/default budgets; no native/Rust runtime or RSS comparison in this slice.",
+    "expression_maintenance": "Original Event -> dispatch -> Reply sources now analyze without wrappers; framework maintenance comparison is unmeasured.",
+    "compile_cost": "New exact N/N-1/fresh plus two unchanged legacy minima; compile-speed comparison unmeasured.",
+    "breakthrough": "Reproducible finite owning callbacks and closed FnOnce dispatch increment; product four-goal conjunction unproven."
+  },
+  "input_hashes": {
+    "Cargo.lock": "99b70f5eae3be5aec5d26185cf3ac4a875e3e508751767f11c2204dc2a806fde",
+    "crates/zil-analyze/src/budget.rs": "55ef4544f475e0f0b682f9174ca331cbb556479e477c1eb3e2e2bffc269fa961",
+    "crates/zil-analyze/src/helpers.rs": "72caaa1a2ffef3fd081f804ec57c80ce0a9a9e9b70ad375cc4f91ed8f22f0459",
+    "crates/zil-analyze/src/holds.rs": "a40e0f32dce6415c763f3a40c4b70ef73515ed6b6b2b7aedd8efc7eacca04067",
+    "crates/zil-analyze/src/lib.rs": "c504e62074142cb5daca84b6189b12d3f1412e2a443bf78fd4884a0b68e60a5a",
+    "crates/zil-analyze/src/owned_callbacks.rs": "521295b07faa279159a1f317f23ef6ce9dfcb3b344d7855e8c57819865c4f3b0",
+    "crates/zil-analyze/src/resources.rs": "2739dc82f911f406fc637db89aa7e9db0d211dfd8db75e406fdcee8b541c46a0",
+    "crates/zil-analyze/src/resource_tests.rs": "93650f04ece8b767a5d2533b0366edbc9694d7d23691410c4694aff7de136306",
+    "crates/zil-driver/tests/impl247_source.rs": "77e65af972dda987e822d5a5f1ae8ab78957a409a28f30586eb0cc8a87a3aab1"
+  }
+}

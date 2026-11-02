@@ -1,0 +1,22 @@
+   Compiling zil-analyze v0.1.0 (/workspace/zil-247/crates/zil-analyze)
+    Finished `test` profile [unoptimized] target(s) in 21.43s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-247/debug/deps/zil_analyze-aa0422b5c4d89887)
+
+running 13 tests
+impl247 owned callback Analyze N=4270; N-1 ResourceLimit; fresh equality
+test resource_tests::impl247_callback_data_cannot_smuggle_a_callback_state_through_store ... ok
+test resource_tests::impl247_owned_callback_definition_and_actual_call_are_checked_independently ... ok
+test resource_tests::impl247_owned_callback_result_cannot_export_created_freshness ... ok
+test resource_tests::impl247_owned_callback_budget_is_module_scoped_and_recovers_fresh ... ok
+test resource_tests::independent_effects_distinguish_borrowed_target_and_owned_environment_writes ... ok
+test resource_tests::independent_once_state_consumes_captures_and_rejects_reuse ... ok
+test resource_tests::impl247_owned_callbacks_consume_fresh_arguments_and_return_incoming_owners ... ok
+test resource_tests::independent_resource_closure_flow_accepts_repeatable_and_consuming_environments ... ok
+test resource_tests::independent_sources_reject_stale_borrowed_capture_and_repeated_consuming_ssa ... ok
+test resource_tests::independent_resource_diagnostics_reject_copy_leaks_and_repeated_cleanup ... ok
+test resource_tests::initialization_reuse_does_not_cache_callee_effect_safety ... ok
+test resource_tests::independent_effect_fixed_point_follows_direct_and_forwarding_calls ... ok
+test resource_tests::impl247_owned_callback_arguments_and_results_have_one_responsibility ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 60 filtered out; finished in 0.04s
+
