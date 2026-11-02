@@ -120,12 +120,16 @@ fn weaker(a: CallableKind, b: CallableKind) -> CallableKind {
 }
 
 impl Modes {
+    pub(super) fn value_mode(&mut self, value: ValueId, kind: CallableKind) {
+        self.values.insert(value, kind);
+    }
     pub(super) fn record(
         &mut self,
         kind: &InstructionKind,
         result: Option<ValueId>,
         state: &mut closures::State,
         span: Span,
+        forward_storage: bool,
     ) -> R<()> {
         state.snapshot(
             helpers::plan::tree_work(self.locals.len())
@@ -139,6 +143,28 @@ impl Modes {
             | InstructionKind::TakeLocal { local }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::BorrowLocalMut { local } => self.locals.get(local).copied(),
+            InstructionKind::MakeOwnedArray { elements }
+                if forward_storage && elements.len() == 1 =>
+            {
+                self.values.get(&elements[0]).copied()
+            }
+            InstructionKind::TakeOwnedArrayElement { local, index: 0 }
+            | InstructionKind::BorrowOwnedArrayElement {
+                local, index: 0, ..
+            } if forward_storage => self.locals.get(local).copied(),
+            InstructionKind::StoreOwnedArrayElement {
+                local,
+                index: 0,
+                value,
+            } if forward_storage => {
+                if let Some(mode) = self.values.get(value).copied() {
+                    self.locals
+                        .entry(*local)
+                        .and_modify(|prior| *prior = weaker(*prior, mode))
+                        .or_insert(mode);
+                }
+                None
+            }
             InstructionKind::ReborrowAddress { address, .. }
             | InstructionKind::ReadAddress { address } => self.values.get(address).copied(),
             InstructionKind::ReadCapture { index }

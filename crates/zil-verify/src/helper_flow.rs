@@ -375,7 +375,24 @@ fn classify(
         }
     }
     if cyclic {
-        if roles.iter().any(|role| role.kind == CallableKind::FnOnce) {
+        let returns_parameter = f
+            .callable_return_contract
+            .as_ref()
+            .is_some_and(|contract| matches!(contract.source, CallableReturnSource::Parameter(_)));
+        // A forwarding loop may move an uncalled FnOnce instance through
+        // successive local positions. Its actual one-instance lifetime is
+        // independently proved by retained::provenance. A cyclic call event
+        // still needs a separate finite consumption contract.
+        if roles.iter().any(|role| role.kind == CallableKind::FnOnce)
+            && (!returns_parameter
+                || flow.nodes.iter().any(|node| {
+                    node.calls.iter().any(|event| {
+                        roles.iter().any(|role| {
+                            role.parameter == event.parameter && role.kind == CallableKind::FnOnce
+                        })
+                    })
+                }))
+        {
             return Err(unsupported(
                 "cyclic FnOnce helper requires an additional consumption contract",
                 Some(f.span),

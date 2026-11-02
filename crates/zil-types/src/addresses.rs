@@ -68,7 +68,10 @@ impl Builder<'_, '_> {
             let sequenced_owner =
                 matches!((&ty, expected), (Type::Managed(_), Some(Type::Managed(_))))
                     && self.sequenced_values.contains(&local);
-            if self.affine_type(&ty) || sequenced_owner {
+            if self.affine_type(&ty)
+                || sequenced_owner
+                || (self.forwarding_modes && self.factory_declared_kind(e)?.is_some())
+            {
                 if let Some(expected) = expected {
                     self.same(&ty, expected, e.span)?;
                 }

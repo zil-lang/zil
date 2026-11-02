@@ -22,9 +22,7 @@ pub(super) fn check_function(
         .as_ref()
         .ok_or_else(|| bad("closure result has no public callable return contract"))?;
     if contract.source != CallableReturnSource::Fresh {
-        return Err(bad(
-            "parameter callable returns require an independent instance proof",
-        ));
+        return super::forward::envelope(module, function, budget);
     }
     let definition = module
         .closures
@@ -127,11 +125,9 @@ pub(super) fn check_function(
                     .functions
                     .get(callee.0 as usize)
                     .ok_or_else(|| bad("factory calls an absent function"))?;
-                if target
-                    .callable_return_contract
-                    .as_ref()
-                    .is_some_and(|c| c.closure == contract.closure)
-                {
+                if target.callable_return_contract.as_ref().is_some_and(|c| {
+                    c.closure == contract.closure && c.source == CallableReturnSource::Fresh
+                }) {
                     creations += 1;
                 }
             }
