@@ -29,7 +29,10 @@ fn integer_name(name: &str) -> bool {
     matches!(name, "u8" | "u16" | "i32" | "i64")
 }
 fn foreign_constructor_name(name: &str) -> bool {
-    matches!(name, "c_null" | "c_wstr_null" | "c_wstr" | "c_callback")
+    matches!(
+        name,
+        "c_null" | "c_wstr_null" | "c_wstr" | "c_callback" | "c_with_callback"
+    )
 }
 fn byte_buffer_name(name: &str) -> bool {
     matches!(

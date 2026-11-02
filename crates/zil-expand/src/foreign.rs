@@ -48,13 +48,14 @@ impl Expander<'_> {
             );
             return;
         }
-        let (noescape_parameters, static_callbacks) = match noescape_contract(function) {
-            Ok(indices) => indices,
-            Err(diagnostic) => {
-                self.diagnostics.push(diagnostic);
-                return;
-            }
-        };
+        let (noescape_parameters, static_callbacks, scoped_callback) =
+            match noescape_contract(function) {
+                Ok(indices) => indices,
+                Err(diagnostic) => {
+                    self.diagnostics.push(diagnostic);
+                    return;
+                }
+            };
         let id = self.id();
         self.map_node(id, function.span, ExpansionRole::Source, Vec::new());
         let parameters = function.params.iter().map(|p| self.param(p)).collect();
@@ -81,7 +82,7 @@ impl Expander<'_> {
                 symbol: function.name.clone(),
                 noescape_parameters,
                 static_callbacks,
-                scoped_callback: None,
+                scoped_callback,
             }),
             parameters,
             return_type,
@@ -306,11 +307,14 @@ fn wide_literal(spelling: &str) -> Option<Vec<u16>> {
     Some(result)
 }
 
-fn noescape_contract(function: &s::Function) -> Result<(Vec<u32>, bool), Diagnostic> {
+fn noescape_contract(
+    function: &s::Function,
+) -> Result<(Vec<u32>, bool, Option<ScopedCallbackRole>), Diagnostic> {
     let bad =
         |span, message| Diagnostic::error(Phase::Expand, "E-FFI-DECLARATION", Some(span), message);
     let mut ffi = false;
     let mut static_callbacks = false;
+    let mut scoped_callback = None;
     let mut parameters = BTreeSet::new();
     let mut positions = BTreeMap::new();
     for (index, parameter) in function.params.iter().enumerate() {
@@ -345,6 +349,22 @@ fn noescape_contract(function: &s::Function) -> Result<(Vec<u32>, bool), Diagnos
                             ));
                         }
                         static_callbacks = true;
+                        continue;
+                    }
+                    let role = if term.path.as_slice() == ["scoped_callback_register"] {
+                        Some(ScopedCallbackRole::Register)
+                    } else if term.path.as_slice() == ["scoped_callback_close"] {
+                        Some(ScopedCallbackRole::Close)
+                    } else {
+                        None
+                    };
+                    if let Some(role) = role {
+                        if !simple(term) || scoped_callback.replace(role).is_some() {
+                            return Err(bad(
+                                clause.span,
+                                "one argument-free scoped callback role is permitted",
+                            ));
+                        }
                         continue;
                     }
                     if term.path.as_slice() != ["noescape"]
@@ -389,7 +409,17 @@ fn noescape_contract(function: &s::Function) -> Result<(Vec<u32>, bool), Diagnos
             "borrowed foreign parameters and static callbacks require effects(ffi)",
         ));
     }
-    Ok((parameters.into_iter().collect(), static_callbacks))
+    if scoped_callback.is_some() && (!ffi || !static_callbacks || !parameters.is_empty()) {
+        return Err(bad(
+            function.span,
+            "scoped callback roles require static_callbacks and ffi, without borrowed ABI parameters",
+        ));
+    }
+    Ok((
+        parameters.into_iter().collect(),
+        static_callbacks,
+        scoped_callback,
+    ))
 }
 
 fn simple(term: &s::ContractTerm) -> bool {

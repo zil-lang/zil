@@ -110,6 +110,7 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
                     type_parameter: None,
                     template: None,
                     foreign: false,
+                    scoped_callback: None,
                     cleanup: false,
                     parameters: f.parameters.iter().map(|p| p.ty.clone()).collect(),
                     result: Type::Unit,

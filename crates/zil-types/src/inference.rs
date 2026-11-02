@@ -595,6 +595,7 @@ fn headers(
                     || !function.state_parameters.is_empty())
                 .then_some((core.module_id, function.id)),
                 foreign: function.foreign.is_some(),
+                scoped_callback: function.foreign.as_ref().and_then(|f| f.scoped_callback),
                 cleanup: core
                     .aggregates
                     .iter()
@@ -3178,6 +3179,74 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         &byte_buffer::result_type(name).expect("byte primitive"),
                         span,
                     );
+                }
+                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
+                    self.budget.node(depth + 1, callee.span)?;
+                    self.expression_index += 1;
+                    let [register, close, callback, body] = arguments.as_slice() else {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "c_with_callback requires four arguments",
+                        ));
+                    };
+                    for (expression, role) in [
+                        (register, ScopedCallbackRole::Register),
+                        (close, ScopedCallbackRole::Close),
+                    ] {
+                        let Term::Function(signature) = self.expr(expression, depth + 1, false)?
+                        else {
+                            return Err(error(
+                                "E-FFI-SCOPED-ROLE",
+                                expression.span,
+                                "scoped callback role requires an actual static foreign symbol",
+                            ));
+                        };
+                        if signature.scoped_callback != Some(role) {
+                            return Err(error(
+                                "E-FFI-SCOPED-ROLE",
+                                expression.span,
+                                "scoped callback role differs from its actual declaration",
+                            ));
+                        }
+                    }
+                    let Term::ClosureAddress(callback_id, true) =
+                        self.expr(callback, depth + 1, false)?
+                    else {
+                        return Err(error(
+                            "E-FFI-SCOPED-CALLBACK",
+                            callback.span,
+                            "scoped callback requires an exclusive concrete closure address",
+                        ));
+                    };
+                    if self.closures[callback_id].parameters.len() != 1 {
+                        return Err(error(
+                            "E-FFI-SCOPED-CALLBACK",
+                            callback.span,
+                            "scoped callback signature is (i32)->i32",
+                        ));
+                    }
+                    self.graph
+                        .bind(self.closures[callback_id].parameters[0], &Type::I32, span)?;
+                    self.graph
+                        .bind(self.closures[callback_id].result, &Type::I32, span)?;
+                    let Term::Closure(body_id) = self.expr(body, depth + 1, false)? else {
+                        return Err(error(
+                            "E-FFI-SCOPED-BODY",
+                            body.span,
+                            "scoped body must be a concrete closure",
+                        ));
+                    };
+                    if !self.closures[body_id].parameters.is_empty() {
+                        return Err(error(
+                            "E-FFI-SCOPED-BODY",
+                            body.span,
+                            "scoped body signature is ()->i32",
+                        ));
+                    }
+                    self.graph
+                        .bind(self.closures[body_id].result, &Type::I32, span)?;
+                    return self.known_term(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
                 }
                 if foreign::callback_constructor(callee) {
                     // Keep normalization's expression numbering exact without

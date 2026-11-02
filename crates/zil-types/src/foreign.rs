@@ -109,6 +109,32 @@ pub(super) fn check_declaration(
             "C ABI results require unit/u8/u16/i32/i64/c_handle; borrowed or static pointer results are forbidden",
         ));
     }
+    if let Some(role) = foreign.scoped_callback {
+        spend(1)?;
+        let parameters = function
+            .parameters
+            .iter()
+            .map(|p| &p.ty)
+            .collect::<Vec<_>>();
+        let callback = Type::ForeignCallback {
+            parameters: vec![Type::ForeignHandle, Type::I32],
+            result: Box::new(Type::I64),
+        };
+        let valid = match role {
+            ScopedCallbackRole::Register => {
+                parameters == vec![&callback, &Type::ForeignHandle]
+                    && function.return_type == Type::ForeignHandle
+            }
+            ScopedCallbackRole::Close => {
+                parameters == vec![&Type::ForeignHandle] && function.return_type == Type::Unit
+            }
+        };
+        if !valid || !foreign.static_callbacks || !foreign.noescape_parameters.is_empty() {
+            return Err(fail(
+                "scoped callback role requires its exact C signature and static_callbacks contract",
+            ));
+        }
+    }
     let mut noescape = Vec::new();
     for (index, parameter) in function.parameters.iter().enumerate() {
         if !(matches!(parameter.mode, PassingMode::Copy | PassingMode::Infer)
@@ -227,6 +253,13 @@ impl Builder<'_, '_> {
             ));
         }
         if signature.foreign {
+            if signature.scoped_callback.is_some() {
+                return Err(error(
+                    "E-FFI-SCOPED-ROLE",
+                    span,
+                    "scoped callback role declarations can only be invoked by c_with_callback",
+                ));
+            }
             let region = self.unsafe_regions.last().copied().ok_or_else(|| {
                 error(
                     "E-FFI-UNSAFE",

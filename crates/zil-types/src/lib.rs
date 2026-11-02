@@ -16,6 +16,7 @@ mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
+mod foreign_scoped;
 mod forwarding;
 mod functions;
 mod helpers;
@@ -57,6 +58,7 @@ struct Signature {
     type_parameter: Option<CoreTypeParameter>,
     template: Option<(zil_base::ModuleId, zil_base::NodeId)>,
     foreign: bool,
+    scoped_callback: Option<ScopedCallbackRole>,
     cleanup: bool,
     parameters: Vec<Type>,
     result: Type,
@@ -173,6 +175,7 @@ fn signatures(
                         && f.state_parameters.is_empty()))
                     .then_some((core.module_id, f.id)),
                     foreign: f.foreign.is_some(),
+                    scoped_callback: f.foreign.as_ref().and_then(|f| f.scoped_callback),
                     cleanup: core
                         .aggregates
                         .iter()
@@ -1716,6 +1719,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                         self.same(&Type::I64, expected, e.span)?;
                     }
                     return Ok((value, Type::I64));
+                }
+                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
+                    return self.with_foreign_callback(arguments, expected, e.span);
                 }
                 if foreign::callback_constructor(callee) {
                     return self.foreign_callback(arguments, e.span);
