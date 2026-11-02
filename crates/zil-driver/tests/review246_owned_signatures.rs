@@ -113,7 +113,9 @@ fn owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles() {
         let (phase, reason) = match label {
             "address-mixed" => (Phase::Types, "address arguments require a Copy result"),
             "borrowed-public" => (Phase::Types, "finite nonescaping callable roles"),
-            "two-public-roles" => (Phase::Expand, "one callable type"),
+            // Final frontend preserves the legacy multi-F Expand route and
+            // checks the new owning profile in Types, including unused Core.
+            "two-public-roles" => (Phase::Types, "finite nonescaping callable roles"),
             "enum-capture" => (Phase::Types, "capture requires a finite Copy value"),
             "store-capture-owning-result" => (
                 Phase::Types,
