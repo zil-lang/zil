@@ -209,3 +209,181 @@ fn each_byte_storage_operand_mutability_and_definition_bind_identity() {
         );
     }
 }
+
+#[test]
+fn scoped_foreign_callback_wire32_fields_and_boundaries() {
+    use zil_base::{Limits, ResultCategory};
+    assert_eq!(SCHEMA_VERSION, 32);
+    assert_eq!(wire::WIRE_VERSION, 32);
+    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 1);
+    let limits = Limits::default();
+    let mut raw = candidate();
+    raw.functions[0].foreign = Some(ForeignDeclaration {
+        abi: "C".into(),
+        symbol: "unique_scoped_callback_marker".into(),
+        noescape_parameters: vec![],
+        static_callbacks: true,
+        scoped_callback: None,
+    });
+    let kind = InstructionKind::WithForeignCallback {
+        register: FunctionId(0x12345671),
+        close: FunctionId(0x23456782),
+        callback: ValueId(0x34567893),
+        body: ValueId(0x456789a4),
+        region: 0x56789ab5,
+    };
+    raw.functions[0].blocks[0].instructions.push(Instruction {
+        result: Some(ValueId(3)),
+        kind: kind.clone(),
+        span: Span::default(),
+    });
+    let plan = CandidatePlan::empty_for(&raw);
+    let encode = |m: &TypedModule| wire::encode_module_candidate(m, &plan, &limits).unwrap();
+    let none = encode(&raw);
+    assert_eq!(
+        wire::decode_module_candidate(&none, &limits).unwrap(),
+        (raw.clone(), plan.clone())
+    );
+    let none_fp = raw.fingerprint();
+    raw.functions[0].foreign.as_mut().unwrap().scoped_callback = Some(ScopedCallbackRole::Register);
+    let register = encode(&raw);
+    let register_fp = raw.fingerprint();
+    assert_ne!(none_fp, register_fp);
+    raw.functions[0].foreign.as_mut().unwrap().scoped_callback = Some(ScopedCallbackRole::Close);
+    let close = encode(&raw);
+    assert_ne!(register_fp, raw.fingerprint());
+    assert_eq!(
+        wire::decode_module_candidate(&close, &limits).unwrap(),
+        (raw.clone(), plan.clone())
+    );
+    let role_changes = none
+        .iter()
+        .zip(&register)
+        .enumerate()
+        .filter_map(|(i, (a, b))| (a != b).then_some(i))
+        .collect::<Vec<_>>();
+    assert_eq!(role_changes.len(), 1);
+    let role = role_changes[0];
+    assert_eq!((none[role], register[role], close[role]), (0, 1, 2));
+    let mut bad_role = register.clone();
+    bad_role[role] = 3;
+    assert_eq!(
+        wire::decode_module_candidate(&bad_role, &limits).unwrap_err()[0].code,
+        "E-WIRE-TAG"
+    );
+    let mut old = register.clone();
+    old[8..12].copy_from_slice(&31u32.to_le_bytes());
+    assert_eq!(
+        wire::decode_module_candidate(&old, &limits).unwrap_err()[0].code,
+        "E-WIRE-VERSION"
+    );
+    let needle = [
+        vec![94],
+        0x12345671u32.to_le_bytes().to_vec(),
+        0x23456782u32.to_le_bytes().to_vec(),
+        0x34567893u32.to_le_bytes().to_vec(),
+        0x456789a4u32.to_le_bytes().to_vec(),
+        0x56789ab5u32.to_le_bytes().to_vec(),
+    ]
+    .concat();
+    let matches = register
+        .windows(needle.len())
+        .enumerate()
+        .filter_map(|(i, x)| (x == needle).then_some(i))
+        .collect::<Vec<_>>();
+    assert_eq!(matches.len(), 1);
+    let mut bad_op = register.clone();
+    bad_op[matches[0]] = 254;
+    assert_eq!(
+        wire::decode_module_candidate(&bad_op, &limits).unwrap_err()[0].code,
+        "E-WIRE-OPCODE"
+    );
+    let before = raw.fingerprint();
+    for field in 0..5 {
+        let mut m = raw.clone();
+        let InstructionKind::WithForeignCallback {
+            register,
+            close,
+            callback,
+            body,
+            region,
+        } = &mut m.functions[0].blocks[0]
+            .instructions
+            .last_mut()
+            .unwrap()
+            .kind
+        else {
+            panic!()
+        };
+        match field {
+            0 => register.0 += 1,
+            1 => close.0 += 1,
+            2 => callback.0 += 1,
+            3 => body.0 += 1,
+            _ => *region += 1,
+        };
+        assert_ne!(before, m.fingerprint(), "field {field}")
+    }
+    let exact = Limits {
+        max_source_bytes: register.len(),
+        ..limits.clone()
+    };
+    assert_eq!(
+        wire::encode_module_candidate(&raw, &plan, &exact).unwrap(),
+        close
+    );
+    assert!(wire::decode_module_candidate(&close, &exact).is_ok());
+    let below = Limits {
+        max_source_bytes: close.len() - 1,
+        ..exact
+    };
+    for e in [
+        wire::encode_module_candidate(&raw, &plan, &below).unwrap_err(),
+        wire::decode_module_candidate(&close, &below).unwrap_err(),
+    ] {
+        assert!(
+            e.iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit)
+        );
+    }
+    for decoding in [false, true] {
+        let works = |nodes| {
+            let l = Limits {
+                max_nodes: nodes,
+                ..limits.clone()
+            };
+            if decoding {
+                wire::decode_module_candidate(&close, &l).map(|_| ())
+            } else {
+                wire::encode_module_candidate(&raw, &plan, &l).map(|_| ())
+            }
+        };
+        let mut low = 0;
+        let mut high = limits.max_nodes;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            match works(mid) {
+                Ok(()) => high = mid,
+                Err(e) => {
+                    assert!(
+                        e.iter()
+                            .all(|e| e.category == ResultCategory::ResourceLimit),
+                        "{e:?}"
+                    );
+                    low = mid + 1
+                }
+            }
+        }
+        assert!(works(low).is_ok());
+        assert!(
+            works(low - 1)
+                .unwrap_err()
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit)
+        );
+        println!(
+            "{} node boundary N={low}",
+            if decoding { "decode" } else { "encode" }
+        );
+    }
+}
