@@ -1,0 +1,1 @@
+{"case":"conditional","expand_work":818,"types_work":978,"types_locals":14,"types_functions":5,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}

@@ -1,0 +1,1 @@
+{"case":"owning","expand_work":724,"types_work":770,"types_locals":12,"types_functions":5,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}

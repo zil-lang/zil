@@ -1,0 +1,20 @@
+{
+  "command": [
+    "cargo",
+    "clippy",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-expand",
+    "-p",
+    "zil-types",
+    "--all-targets",
+    "--",
+    "-D",
+    "warnings"
+  ],
+  "source_commit": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
+  "exit_code": 0,
+  "elapsed_seconds": 16.501,
+  "stdout_stderr": "evidence/impl/252/clippy.log"
+}
