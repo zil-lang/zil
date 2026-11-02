@@ -214,6 +214,20 @@ impl SyntaxLock {
         for entry in &self.entries {
             let path = entry.path.join(".");
             let Some(module) = paths.get(&entry.path).copied() else {
+                // Filesystem discovery reports a requested missing provider as
+                // a missing module before the lock is checked. The in-memory
+                // request has the same closed graph and must report the same
+                // missing import. A stray lock entry remains a lock error.
+                if let Some(span) = syntax.iter().flat_map(|module| &module.items).find_map(|item| {
+                    matches!(&item.kind, ItemKind::Import(import)
+                        if import.syntax && import.path == entry.path)
+                        .then_some(item.span)
+                }) {
+                    return Err(error(
+                        "E-MODULE-NOT-FOUND", Some(span),
+                        format!("module {path} was not supplied"),
+                    ));
+                }
                 return Err(error(
                     "E-SYNTAX-LOCK-MODULE",
                     None,
