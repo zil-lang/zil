@@ -618,6 +618,65 @@
           "peak_live": 1
         }
       ]
+    },
+    {
+      "input": ";",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCHhRAQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCHhRAQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "ShHQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SAHhQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 3,
+          "exit": 0,
+          "stdout": "SCHhRAQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2
+        }
+      ]
     }
   ],
   "owned_error": [
