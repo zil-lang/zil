@@ -22,6 +22,8 @@ Types/Analyze与独立Verify分别核真实F身份/自含资格、地址来源�
 
 ## 并行写集与验收
 
+公共wrapper保留两个真实角色：With的调用轨迹为`F* (epsilon | B F*)`，登记成功一次调用B，失败只清理B；F允许反复。组合流分别核每个Once角色不可重复，而非见到Once即禁止其它角色的循环，也不因存在With放开任意多角色或环。Types/Analyze与Verify分别重建该责任，不交换证明。
+
 266 root：合同、公共IR/Wire/版本、共享注册和集成；267：Expand/Types/Analyze；268：独立Verify及raw/Wire反例；269：Lower/LLVM API与text后端；270：真实普通ZIL模块、可控C驱动、独立消费者。265解析标记为前片收尾，不新增编号测试目标；本片回归按功能放入既有模块或一个必要的foreign-scoped功能测试入口。
 
 正例含公共wrapper/真实事件循环、两个相同ClosureId的独立f、注册同步反调、body期间多次反调、f返回负数/边界i32、body自含资源清理、close反调拒入、嵌套但不同f。最近反例含body访问/移动/捕获f、FnOnce/借入f、错误role/签名/region、raw伪造f/body及重复消费、调用者过早移动/离域。真实C驱动检查顺序与完整结果，O0/O2默认/参考分别运行；注册失败、body未执行的剩余清理、关闭后不再调用，以及准备资源的实际分配失败须live0。另用子进程核abort边界，不将非法C违反合同当成语言保证。完整异步/跨线程、可返回登记值、外部恶意任意写与原生Windows不在本profile完成声明内，仍保留后续义务。

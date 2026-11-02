@@ -828,6 +828,8 @@ register签名精确为`(extern "C" fn(c_handle,i32)->i64,c_handle)->c_handle`�
 
 TypedIR/LIR `WithForeignCallback { register, close, callback, body, region }` 保留实际声明、活独占Closure地址、一次消费body以及真实unsafe区；result须为Tuple[Bool,I32]。Types/Analyze和独立Verify各自重建资格、地址/别名、消费及真实签名/角色，候选注解和同ClosureId不证明同值/不同值；CT不得执行此指令。runtime schema/Wire/fingerprint32同批绑定角色和指令，CT artifact schema1不变。旧无新能力路径的语义费用保持，新增工作使用当前请求余额且预付；Wire新增角色字节按真实新格式计费，默认额度不增。
 
+公共泛型wrapper的实际角色流将此指令表示为`F* (epsilon | B F*)`：F可反复调用，B仅登记成功时调用一次；失败不调用B，但两路均完成其拥有责任。组合后的每个Once角色须分别证明不可重复，不能因另一个角色允许循环而放过包含该Once角色的环；该流不替代实际来源、别名与清理核验。
+
 <a id="ZIL-LOWERING"></a>
 
 ## 13. 目标表示：规定主路径，不让每个后端重新发明
