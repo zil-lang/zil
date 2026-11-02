@@ -98,6 +98,7 @@ struct Walk<'a, 'b> {
     full_values: bool,
     restart_full: bool,
     owned_factory: bool,
+    has_forward: bool,
 }
 
 impl Walk<'_, '_> {
@@ -710,6 +711,7 @@ impl Walk<'_, '_> {
                             expression.span,
                         )?;
                         self.found.insert(Node::Callable((key, bindings)));
+                        self.has_forward |= forwarding::signature(signature).is_some();
                         self.shape(
                             &signature.result,
                             &signature.callable,
@@ -1051,6 +1053,7 @@ fn dependencies(
         full_values: false,
         restart_full: false,
         owned_factory: owning_factory::template(function),
+        has_forward: false,
     };
     for parameter in &function.parameters {
         let shape = walk.shape(&parameter.ty, bounds, bindings, parameter.span, 0)?;
@@ -1070,6 +1073,15 @@ fn dependencies(
         walk.block(&function.body, 0)?;
     } else {
         first?;
+    }
+    if walk.has_forward
+        && let Node::Callable(instance) = instance
+    {
+        walk.state.snapshot(
+            tree_work(walk.state.forward_callers.len()).saturating_add(1),
+            span,
+        )?;
+        walk.state.forward_callers.insert(instance);
     }
     walk.state.snapshot(walk.found.len(), span)?;
     Ok(walk.found.into_iter().collect())
@@ -1200,6 +1212,7 @@ mod result_shape_tests {
             full_values: false,
             restart_full: false,
             owned_factory: false,
+            has_forward: false,
         };
         let span = Span::default();
         let pattern = CorePattern {

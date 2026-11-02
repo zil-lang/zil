@@ -41,6 +41,7 @@ pub(super) fn fixture(kind: CallableKind, captures: usize) -> TypedModule {
     factory.name = "factory".into();
     factory.return_type = Type::Closure(ClosureId(0));
     factory.callable_return_contract = Some(CallableReturnContract {
+        source: zil_ir::CallableReturnSource::Fresh,
         lending_captures: Vec::new(),
         closure: ClosureId(0),
         kind,
@@ -275,6 +276,7 @@ fn owning_fixture(kind: CallableKind, retain_input: bool) -> TypedModule {
     );
     factory.blocks[0].terminator = Terminator::Return(Some(returned));
     factory.callable_return_contract = Some(CallableReturnContract {
+        source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(1),
         kind,
         hold: vec![],

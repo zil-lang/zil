@@ -16,6 +16,7 @@ mod dynamic_store;
 mod enums;
 mod errors;
 mod foreign;
+mod forwarding;
 mod functions;
 mod helpers;
 mod incremental;
@@ -229,6 +230,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         ));
     }
     if !(f.callable_return.is_some()
+        || forwarding::bound(f).is_some()
         || callable_fields::template(f)
         || f.return_type.is_copy_value()
         || f.return_type.is_scalar_or_address()
@@ -467,6 +469,7 @@ struct Builder<'a, 'c> {
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
     closure_captures: BTreeMap<LocalId, (u32, Type)>,
     factory_modes: Option<owning_factory::Modes>,
+    forwarding_modes: bool,
     closure_slots: BTreeMap<LocalId, ClosureId>,
     package_captures: BTreeMap<LocalId, u32>,
     temporary_locals: std::collections::BTreeSet<LocalId>,
@@ -546,6 +549,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             managed_captures: BTreeMap::new(),
             closure_captures: BTreeMap::new(),
             factory_modes: owning_factory::template(f).then(owning_factory::Modes::default),
+            forwarding_modes: false,
             closure_slots: BTreeMap::new(),
             package_captures: BTreeMap::new(),
             temporary_locals: std::collections::BTreeSet::new(),
@@ -844,7 +848,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             None
         };
         if let Some(modes) = &mut self.factory_modes {
-            modes.record(&kind, result, self.closures, span)?;
+            modes.record(&kind, result, self.closures, span, self.forwarding_modes)?;
         }
         self.function.blocks[self.current.expect("live block").0 as usize]
             .instructions
@@ -2589,6 +2593,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         } else if let Some(local) = existing_place
             && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
                 || self.lending_closure(&self.function.locals[local.0 as usize].ty)?
+                || (self.forwarding_modes && declared_capture.is_some())
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
             (None, self.function.locals[local.0 as usize].ty.clone())
@@ -2662,7 +2667,10 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         let call_place = if borrowed_callee.is_none()
             && (kind == CallableKind::FnMut
-                || (kind == CallableKind::Fn && (owns_resources || lends)))
+                || (kind == CallableKind::Fn
+                    && (owns_resources
+                        || lends
+                        || (self.forwarding_modes && declared_kind.is_some()))))
         {
             let local = if let Some(local) = existing_place {
                 if kind == CallableKind::FnMut && !self.function.locals[local.0 as usize].mutable {
@@ -2771,10 +2779,16 @@ impl<'a, 'c> Builder<'a, 'c> {
                     callee: call_place.expect("exclusive environment"),
                     arguments: values,
                 },
-                CallableKind::Fn if owns_resources || lends => InstructionKind::CallClosureShared {
-                    callee: call_place.expect("shared environment"),
-                    arguments: values,
-                },
+                CallableKind::Fn
+                    if owns_resources
+                        || lends
+                        || (self.forwarding_modes && declared_kind.is_some()) =>
+                {
+                    InstructionKind::CallClosureShared {
+                        callee: call_place.expect("shared environment"),
+                        arguments: values,
+                    }
+                }
                 _ => InstructionKind::CallClosure {
                     callee: callee_value.expect("Copy environment"),
                     arguments: values,

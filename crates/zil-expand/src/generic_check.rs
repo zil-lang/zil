@@ -39,7 +39,7 @@ pub(super) fn validate_parametric<'l>(
     let owned_dispatch = function.generics.len() == 1 && callable.as_ref().is_some_and(|bounds| {
         !bounds.owned_state && !bounds.owned_factory && bounds.state_bindings.is_empty()
             && matches!(bounds.roles.as_slice(), [role]
-                if role.kind == zil_ir::CallableKind::FnOnce
+                if (role.kind == zil_ir::CallableKind::FnOnce || bounds.forwarded)
                     && callable::parameter_mode(&function.params[role.index].ty, &role.generic_name) == Some(None))
     });
     for p in &function.params {
@@ -868,6 +868,17 @@ impl Check<'_, '_, '_> {
         let fresh = owns && self.fresh_store_expression(expression, state)?;
         let expected = self.result.clone();
         let actual = self.expr(expression, state, Some(&expected), false)?;
+        if self
+            .callable
+            .as_ref()
+            .is_some_and(|bounds| bounds.forwarded)
+            && callable::opaque_signature(&actual).is_some()
+        {
+            return Err(error(
+                expression.span,
+                "callable forwarding must return the actual input instance, not a fresh factory environment",
+            ));
+        }
         if self.factory_scopes.is_empty()
             && self
                 .callable
@@ -2332,7 +2343,8 @@ impl Check<'_, '_, '_> {
                             "generic callable parameter requires a Fn bound",
                         ));
                     };
-                    let owned_state = bounds.owned_state || bounds.owned_factory;
+                    let owned_state =
+                        bounds.owned_state || bounds.owned_factory || bounds.forwarded;
                     let bound = bounds.bindings().find(|bound| {
                         callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
                     });
@@ -2395,6 +2407,17 @@ impl Check<'_, '_, '_> {
                             return Err(error(
                                 e.span,
                                 "local FnMut call requires a mutable binding",
+                            ));
+                        }
+                        zil_ir::CallableKind::FnMut
+                            if self
+                                .callable
+                                .as_ref()
+                                .is_some_and(|bounds| bounds.forwarded) =>
+                        {
+                            return Err(error(
+                                e.span,
+                                "FnMut forwarding call requires a mutable binding",
                             ));
                         }
                         zil_ir::CallableKind::FnOnce if mode.is_none() => {
@@ -2528,6 +2551,23 @@ impl Check<'_, '_, '_> {
                         found.insert(param.name.clone(), ty.clone());
                     }
                 }
+                if self.callable.as_ref().is_some_and(|bounds| {
+                    bounds.forwarded
+                        && expected.is_some_and(|ty| {
+                            bounds.single_generic().is_some_and(|name| {
+                                callable::parameter_mode(ty, name) == Some(None)
+                            })
+                        })
+                }) && function
+                    .return_type
+                    .as_ref()
+                    .is_some_and(|ty| callable::opaque_signature(ty).is_some())
+                {
+                    return Err(error(
+                        e.span,
+                        "callable forwarding must return the actual input instance, not a fresh factory environment",
+                    ));
+                }
                 if let (Some(result), Some(expected)) = (&function.return_type, expected)
                     && !self.callable.as_ref().is_some_and(|bounds| {
                         bounds.owned_factory && callable::opaque_signature(result).is_some()
@@ -2587,6 +2627,7 @@ impl Check<'_, '_, '_> {
                         });
                         let (kind, parameters, result) = if let Some(caller) = caller {
                             if !callees.owned_state
+                                && !callees.forwarded
                                 && !self.callable.as_ref().unwrap().owned_state
                                 && caller.kind != callee.kind
                             {
