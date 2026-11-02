@@ -396,3 +396,76 @@ fn project_owner_work_is_accumulated_across_modules() {
     );
     println!("member owner two-module Expand work N={n}; N-1 ResourceLimit; fresh=N");
 }
+#[test]
+fn self_owner_prepays_actual_host_name_before_substitution_and_clone() {
+    let mut measured = Vec::new();
+    for name in ["A", "NominalWithALongerActualDefinitionName"] {
+        let (source, mut module) = parsed(&format!(
+            "struct {name}{{pub x:i32;fn read(self:&Self)->i32{{return self.x}}}}"
+        ));
+        let s::ItemKind::Aggregate(a) = &mut module.items[0].kind else {
+            panic!()
+        };
+        let s::ItemKind::Function(f) = &mut a.methods[0].kind else {
+            panic!()
+        };
+        let s::FunctionBody::Block(b) = &mut f.body else {
+            panic!()
+        };
+        let s::StmtKind::Return(Some(s::Expr {
+            kind: s::ExprKind::Member { member, .. },
+            ..
+        })) = &mut b.statements[0].kind
+        else {
+            panic!()
+        };
+        attach(member, named("Self", source.span()));
+        let n = boundary(|n| {
+            zil_expand::expand_with_map_limits(
+                &source,
+                &module,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            )
+            .is_ok()
+        });
+        let core = zil_expand::expand_with_map_limits(
+            &source,
+            &module,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .unwrap()
+        .core;
+        let C::Member {
+            owner: Some(Type::Named(owner)),
+            object,
+            ..
+        } = &core_return(&core.functions[0]).kind
+        else {
+            panic!()
+        };
+        assert_eq!(owner, name);
+        assert!(matches!(&object.kind,C::Name(n) if n=="self"));
+        assert!(
+            zil_expand::expand_with_map_limits(
+                &source,
+                &module,
+                &Limits {
+                    max_analysis_steps: n - 1,
+                    ..Limits::default()
+                }
+            )
+            .unwrap_err()
+            .iter()
+            .all(|e| e.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        measured.push(n);
+    }
+    assert!(measured[1] > measured[0]);
+    println!("member owner Self actual host work N={measured:?}; N-1 ResourceLimit");
+}
