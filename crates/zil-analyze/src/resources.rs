@@ -412,6 +412,9 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::WithForeignCallback { callback, body, .. } => {
+            (Some(*callback), Some(*body), &[])
+        }
         InstructionKind::OwnedStoreReserve { store, capacity } => {
             (Some(*store), Some(*capacity), &[])
         }
