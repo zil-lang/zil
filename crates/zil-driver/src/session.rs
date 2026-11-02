@@ -247,6 +247,37 @@ impl CompilationSession {
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> CompileReport {
+        // Single-source Type/Syntax uses the same frozen project pipeline as a
+        // one-module ProjectSources request. Keep the ordinary source path and
+        // its Parse-only behavior intact. This text test only avoids parsing
+        // old sources twice; the parsed AST decides whether the bridge applies.
+        if options.stop_after != Stage::Parse
+            && (options.syntax_lock.is_some()
+                || source.text.contains("std.")
+                || source.text.contains("syntax use")
+                || source.text.contains("quote")
+                || source.text.contains("splice")
+                || source.text.contains("emit")
+                || source.text.contains("Type")
+                || source.text.contains("Syntax")
+                || source.text.contains("Ident")
+                || source.text.contains(":#")
+                || source.text.contains(": #")
+                || source.text.contains("->#")
+                || source.text.contains("-> #")
+                || source.text.contains("=#")
+                || source.text.contains("= #"))
+        {
+            let parsed = zil_syntax::parse_with_limits(source, &options.limits);
+            if parsed.diagnostics.is_empty()
+                && (options.syntax_lock.is_some()
+                    || super::project::artifact_candidate(source, &parsed))
+            {
+                return self.compile_source_artifact_project(
+                    source, Arc::new(parsed), options, observer,
+                );
+            }
+        }
         let start = Instant::now();
         let mut report = CompileReport::new(source);
         if let Err(errors) = self.pipeline(source, options, &mut report, observer) {

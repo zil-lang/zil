@@ -67,7 +67,39 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
     CompilationSession::default().compile_project(project, options)
 }
 
+pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> bool {
+    let standard = parsed.module.items.iter().any(|item| matches!(&item.kind,
+        ast::ItemKind::Import(import) if matches!(import.path.as_slice(),
+            [a, b] if a == "std" && (b == "meta" || b == "syntax"))));
+    let typed_hash = {
+        use zil_syntax::token::{Symbol, TokenKind};
+        let mut previous = None;
+        let mut found = false;
+        for token in parsed.tokens.iter().filter(|token| !token.is_trivia()) {
+            if token.kind == TokenKind::Symbol(Symbol::Hash)
+                && matches!(previous, Some(TokenKind::Symbol(Symbol::Colon | Symbol::Arrow))) {
+                found = true;
+                break;
+            }
+            previous = Some(token.kind);
+        }
+        found
+    };
+    standard || typed_hash || parsed.tokens.iter().any(|token| {
+        token.kind == zil_syntax::token::TokenKind::Identifier
+            && matches!(token.text(&source.text), "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit")
+    })
+}
+
 impl CompilationSession {
+    pub(super) fn compile_source_artifact_project(
+        &mut self, source: &SourceUnit, parsed: Arc<ParseResult>,
+        options: &CompileOptions, observer: &mut dyn FnMut(&QueryEvent),
+    ) -> CompileReport {
+        let project = ProjectSources { root: source.module_id, modules: vec![source.clone()], paths: BTreeMap::new() };
+        self.compile_project_request(&project, options, observer,
+            Some(LoadedProject::Parsed(vec![LoadedSyntax { parsed, reused: false, stable_module_key: None }])))
+    }
     pub fn compile_project(
         &mut self,
         project: &ProjectSources,
@@ -471,29 +503,7 @@ impl CompilationSession {
         // producer. The artifact materializer uses the source compiler's
         // bounded domain classifier at each mixed-project expression.
         let artifact_needed = options.syntax_lock.is_some()
-            || project.modules.iter().zip(&parsed).any(|(source, parsed)| {
-                let standard = parsed.module.items.iter().any(|item| matches!(&item.kind,
-                    ast::ItemKind::Import(import) if matches!(import.path.as_slice(),
-                        [a, b] if a == "std" && (b == "meta" || b == "syntax"))));
-                let typed_hash = {
-                    use zil_syntax::token::{Symbol, TokenKind};
-                    let mut previous = None;
-                    let mut found = false;
-                    for token in parsed.tokens.iter().filter(|token| !token.is_trivia()) {
-                        if token.kind == TokenKind::Symbol(Symbol::Hash)
-                            && matches!(previous, Some(TokenKind::Symbol(Symbol::Colon | Symbol::Arrow))) {
-                            found = true;
-                            break;
-                        }
-                        previous = Some(token.kind);
-                    }
-                    found
-                };
-                standard || typed_hash || parsed.tokens.iter().any(|token| {
-                    token.kind == zil_syntax::token::TokenKind::Identifier
-                        && matches!(token.text(&source.text), "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit")
-                })
-            });
+            || project.modules.iter().zip(&parsed).any(|(source, parsed)| artifact_candidate(source, parsed));
         let (raw, expand_snapshot) = self.query(
             key(Phase::Expand, selection_needed || artifact_needed),
             &dependencies,

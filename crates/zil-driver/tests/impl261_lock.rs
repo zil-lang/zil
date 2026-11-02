@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use zil_base::{FileId, Fingerprint, ModuleId, RULE_VERSION, SourceUnit};
-use zil_driver::{CompileOptions, ProjectSources, Stage, SyntaxLock, compile_project};
+use zil_driver::{CompileOptions, ProjectSources, Stage, SyntaxLock, compile_project, compile_source};
 
 fn lock_for(source: &SourceUnit) -> String {
     let hash = source.fingerprint();
@@ -79,4 +79,20 @@ fn mixed_type_materialization_keeps_ordinary_record_ct_in_its_original_domain() 
         ..CompileOptions::default() });
     assert_eq!(report.status, zil_base::ResultCategory::Success, "{}", report.to_json());
     assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn single_source_type_and_syntax_use_the_project_pipeline() {
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "main.zil",
+        "fn build()->Syntax<Expr>{return quote<Expr>{42};}fn main()->i32{return #splice(build());}");
+    let options = CompileOptions { stop_after: Stage::Verify, ..CompileOptions::default() };
+    let single = compile_source(&source, &options);
+    let project = compile_project(&ProjectSources { root: source.module_id,
+        modules: vec![source.clone()], paths: BTreeMap::new() }, &options);
+    assert_eq!(single.status, zil_base::ResultCategory::Success, "{}", single.to_json());
+    assert_eq!(project.status, single.status, "{}", project.to_json());
+    assert_eq!(single.phase, project.phase);
+    assert_eq!(single.input_fingerprint, project.input_fingerprint);
+    assert_eq!(single.scalar_interfaces, project.scalar_interfaces);
+    assert_eq!(single.verification_runs, 1);
 }
