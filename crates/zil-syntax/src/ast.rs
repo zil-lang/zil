@@ -602,7 +602,10 @@ pub enum MemberName {
     Name(String),
     /// Materialized reflected member, never constructed by source parsing.
     /// The owner remains an ordinary untrusted type constraint.
-    Constrained { name: String, owner: Box<TypeRef> },
+    Constrained {
+        name: String,
+        owner: Box<TypeRef>,
+    },
     TupleIndex(u32),
 }
 

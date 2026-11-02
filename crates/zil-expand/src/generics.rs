@@ -1134,7 +1134,8 @@ impl<'a> Engine<'a> {
                     }
                     (
                         ExprKind::Member {
-                            member: MemberName::Name(member),
+                            member:
+                                MemberName::Name(member) | MemberName::Constrained { name: member, .. },
                             ..
                         },
                         TypeKind::Named { path, args },
@@ -1771,6 +1772,9 @@ impl<'a> Engine<'a> {
                     .transpose()?
             }
             ExprKind::Member { object, member } => {
+                if let MemberName::Constrained { owner, .. } = member {
+                    self.ty(owner, depth + 1)?;
+                }
                 let object_type = self.expr(object, env, depth + 1)?;
                 match (object_type.as_ref().map(projection_shape), member) {
                     (
@@ -1780,7 +1784,10 @@ impl<'a> Engine<'a> {
                         }),
                         MemberName::TupleIndex(i),
                     ) => fields.get(*i as usize).cloned(),
-                    (Some(ty), MemberName::Name(member)) => self.record_field(ty, member)?,
+                    (
+                        Some(ty),
+                        MemberName::Name(member) | MemberName::Constrained { name: member, .. },
+                    ) => self.record_field(ty, member)?,
                     _ => None,
                 }
             }
@@ -2641,7 +2648,12 @@ impl Substitution<'_> {
                 self.expr(input);
                 self.expr(target);
             }
-            ExprKind::Member { object, .. } => self.expr(object),
+            ExprKind::Member { object, member } => {
+                self.expr(object);
+                if let MemberName::Constrained { owner, .. } = member {
+                    self.ty(owner);
+                }
+            }
             ExprKind::TypeApply { callee, arguments } => {
                 self.expr(callee);
                 for a in arguments {
