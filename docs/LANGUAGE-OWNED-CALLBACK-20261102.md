@@ -1,6 +1,6 @@
 # 同步拥有回调：已合入
 
-共同源码 `288e29628389d83a335783d5488be39f22b2008b`（基线81b7ae0c）及仅修复产物目录标签的E2已通过本地正式验收、非作者审核和两套远端完整证据核回，经PR18进入实际main `f61e173fe9f189bf497a27ce9d479cc6feae3244`，整树与E2相同。主干两套自动重放另列进行中。精确交付、审核和结果见 [ACCEPTANCE.json](../evidence/integration/owned-callback-20261102/ACCEPTANCE.json)。
+共同源码 `288e29628389d83a335783d5488be39f22b2008b`（基线81b7ae0c）及仅修复产物目录标签的E2已通过本地正式验收、非作者审核和两套远端完整证据核回，经PR18进入实际main `f61e173fe9f189bf497a27ce9d479cc6feae3244`，整树与E2相同。主干两套自动重放及各自完整归档也已独立核回通过。精确交付、审核和结果见 [ACCEPTANCE.json](../evidence/integration/owned-callback-20261102/ACCEPTANCE.json)。
 
 拥有Event可传入具体Fn/FnMut/FnOnce闭包，经公共单F按值FnOnce dispatch返回拥有Reply。Product、Enum、ErrorUnion与含Store数据走同一有限闭合路径；实际参数消费不提升环境调用模式。结果先准备，再清局部与Once剩余环境；晚到参数失败、回调body错误、拥有错误载荷、未调用销毁均有独立证据。环境ByteBuffer转入Reply与输入中的另一缓冲区分别回收。
 
