@@ -1,0 +1,95 @@
+{
+  "reviewer": "/root/assess_delivery_process",
+  "independent_non_author": true,
+  "scope": "Analyze implementation slice 253; public contract 9.4.2; no Verify acceptance used",
+  "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "reviewed_head": "b5e44e3cd6802065a6c8597ddafaf4ddd44eb857",
+  "status": "changes_requested",
+  "findings": [
+    {
+      "id": "AN253-R1",
+      "severity": "blocking",
+      "title": "Forwarded capture bodies are omitted from stale-window checking unless the call graph connects them to a forward helper",
+      "location": "crates/zil-analyze/src/owned_callbacks.rs:219-224,364-380; crates/zil-analyze/src/holds.rs:92-107",
+      "reproduction": "Parameter(1) keep forwards Closure1/FnOnce containing Closure0/FnMut with owned capture. Closure1 body borrows capture0, takes capture0, then invokes the old borrowed address. With no call edge to keep, Analyze accepts raw and wire. A valid consumer that invokes keep and returned Closure1 causes the same malformed body to be rejected by the address window pass.",
+      "expected": "Reject stale body independently of whether this module also contains a consumer invocation of the forwarded environment.",
+      "actual": {
+        "valid_no_call_edge": "accept raw+wire",
+        "stale_no_call_edge": "ACCEPT raw+wire (defect)",
+        "valid_with_call_edge": "accept raw+wire",
+        "stale_with_call_edge": "reject raw+wire: owned storage transition invalidates a live address window"
+      },
+      "minimum_fix": "Seed the actual body function of every forward_closures entry into both callback window roots and forward function roots before graph propagation; charge inventory/lookup work before scanning or adding roots. Retain capture-graph and graph-edge validation. Add matched no-call-edge parent/capture tests.",
+      "scope_limit": "No runtime exploit claimed: this is independent acceptance of an invalid returned closure body when no in-module invocation edge exists."
+    }
+  ],
+  "reviewed_areas": [
+    "per-CFG exact instance origin/life/mode",
+    "nested keep actual argument index and role-kind compatibility",
+    "single internal Array<Closure;1> slot tracking",
+    "BorrowLocal/Take/old address invalidation",
+    "Capture/field invalidation gating",
+    "resource Fact source/birth preserved across Parameter return",
+    "Source Fresh vs Parameter separation",
+    "new allocations and dataflow prepayment"
+  ],
+  "tests": {
+    "command": ". /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/forward-review-253/target cargo +1.99.1 run --offline --manifest-path Cargo.toml",
+    "working_directory": "/workspace/.zil-env/forward-review-253/probe",
+    "log": "capture-probe.log",
+    "result": "4 matched raw IR fixtures x raw/Wire; no full suite; no native/Verify invoked",
+    "fixture_provenance": "External non-author probe copied baseline constructor helpers from author raw unit fixtures; new parent/call-edge matrix designed independently."
+  },
+  "production_modified": false,
+  "final_common_source_binding": "pending from root",
+  "artifacts": {
+    "capture-probe.log": {
+      "sha256": "e5d3d545e68d4bdc122318bfe35a85301253dd1d3cc377355c439190321b8d2b",
+      "bytes": 912
+    },
+    "parent_stale_no_call_edge.typed.txt": {
+      "sha256": "8ba4c569a9237335c11a07324a4da317c03f0e49e52cd148eab69dc76f81ec99",
+      "bytes": 19128
+    },
+    "parent_stale_no_call_edge.wire": {
+      "sha256": "36dcf257c36d36870eb37347c6c81d46b145dd69c7a35502eb9aa286b6085457",
+      "bytes": 1190
+    },
+    "parent_stale_with_call_edge.typed.txt": {
+      "sha256": "5a0845cedc542c1c921fd7dd68398308fe9cc7f52e8db0943e4a6043f6960ce7",
+      "bytes": 28374
+    },
+    "parent_stale_with_call_edge.wire": {
+      "sha256": "f4377cd4c8fbaefd468ac2a207af92b04de10c53b8c8998d1a3be89352f7c478",
+      "bytes": 1636
+    },
+    "parent_valid_no_call_edge.typed.txt": {
+      "sha256": "8512d7b34970102f37212e44f1ac9a2a8c5826bb05bf42b842380c0a61407edb",
+      "bytes": 19128
+    },
+    "parent_valid_no_call_edge.wire": {
+      "sha256": "382fb81192134ff6c451368f7be076b9a25595aaa51a72d4f9d827c500b5e942",
+      "bytes": 1190
+    },
+    "parent_valid_with_call_edge.typed.txt": {
+      "sha256": "21f38131db3db03fa09fa2563d3c23b1f4ea0fdfa224ff880871cafc467d41c5",
+      "bytes": 28374
+    },
+    "parent_valid_with_call_edge.wire": {
+      "sha256": "adce2fce89a5b7a71612f9e51e22926e02013b49824a50430201c5716c759e4b",
+      "bytes": 1636
+    },
+    "probe/Cargo.toml": {
+      "sha256": "e0f76a625901ecdeac07dce1ac9c301bd09aba72dc934fcf0967e089b1f544a1",
+      "bytes": 291
+    },
+    "probe/Cargo.lock": {
+      "sha256": "988787e471c8ce1fd43c2cfa831a8f4d11f791b12cc22161c92c0044e736f6f5",
+      "bytes": 2464
+    },
+    "probe/src/main.rs": {
+      "sha256": "816f29c16b21199d72fea45ff2f034dc6c69e0bc9c69133ab3234385916bfea8",
+      "bytes": 11484
+    }
+  }
+}

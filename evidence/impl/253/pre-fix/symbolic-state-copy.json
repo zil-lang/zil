@@ -1,0 +1,9 @@
+{
+  "base": "b5e44e3cd",
+  "patch": "symbolic-state-copy.patch.gz",
+  "patch_sha256": "3e658d6cc78cd98f8106eda1845168766930ee2782744e656c9766bd4501e2fb",
+  "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-253 CARGO_BUILD_JOBS=2 cargo test -p zil-analyze --offline --locked --lib symbolic_copy_capability -- --nocapture",
+  "exit_code": 101,
+  "actual": "actual Copy Fn incorrectly allowed symbolic F to enter State and return same SSA; expected reject assertion failed",
+  "log": "symbolic-state-copy.log"
+}

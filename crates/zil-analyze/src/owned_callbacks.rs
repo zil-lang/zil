@@ -222,6 +222,18 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     for id in &budget.owned_callback_helpers {
         windows[id.0 as usize] = true;
     }
+    // Every environment admitted to Parameter forwarding must have its body
+    // checked even when no consumer invokes it in this module. This includes
+    // its actual owning children, not just the top-level return type.
+    budget.spend(
+        budget.forward_closures.len(),
+        "forward actual body window roots",
+    )?;
+    for id in &budget.forward_closures {
+        let function = module.closures[id.0 as usize].function.0 as usize;
+        windows[function] = true;
+        budget.forward_functions[function] = true;
+    }
     budget.spend(module.functions.len(), "owned callback call functions")?;
     for f in &module.functions {
         if budget.parameter_returns.is_empty() {

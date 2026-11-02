@@ -896,3 +896,97 @@ fn self_contained_forward_type_cannot_hide_different_actual_capture_operands() {
     );
     rejected(&m);
 }
+
+#[test]
+fn symbolic_copy_capability_is_not_obtained_by_hiding_f_in_an_old_state_value() {
+    let mut m = base(CallableKind::FnOnce);
+    let payload = Type::Record {
+        name: "Token".into(),
+        fields: vec![("n".into(), Type::I32)],
+    };
+    let managed = Type::Managed(Box::new(payload.clone()));
+    m.resources.push(ResourceDefinition {
+        name: "Token".into(),
+        payload,
+        teardown: None,
+    });
+    let state = Type::Package {
+        name: "State".into(),
+        fields: vec![
+            ("r".into(), managed.clone()),
+            ("callback".into(), Type::Closure(ClosureId(0))),
+        ],
+    };
+    let f = &mut m.functions[1];
+    f.locals.push(local(2, state.clone()));
+    f.values.extend([Type::I32, managed, state]);
+    let mut instructions = vec![
+        enter(),
+        op(None, InstructionKind::StorageLive(LocalId(2))),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::TakeLocal { local: LocalId(1) },
+        ),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::Constant(Constant::I32(7)),
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::MakeManaged {
+                fields: vec![ValueId(1)],
+            },
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::MakePackage {
+                fields: vec![ValueId(2), ValueId(0)],
+            },
+        ),
+        op(
+            None,
+            InstructionKind::Store {
+                local: LocalId(2),
+                value: ValueId(3),
+            },
+        ),
+        op(None, InstructionKind::DropPackage { local: LocalId(2) }),
+        op(None, InstructionKind::StorageDead(LocalId(2))),
+    ];
+    instructions.extend(exit());
+    f.blocks[0].instructions = instructions;
+    rejected(&m);
+}
+
+#[test]
+fn reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges() {
+    // Unmodified Wire31 counterexamples/controls constructed by the independent
+    // reviewer. The producer candidate in each file grants no authority.
+    for (valid, bytes) in [
+        (
+            true,
+            include_bytes!("../tests/impl253_fixtures/parent_valid_no_call_edge.wire").as_slice(),
+        ),
+        (
+            false,
+            include_bytes!("../tests/impl253_fixtures/parent_stale_no_call_edge.wire").as_slice(),
+        ),
+        (
+            true,
+            include_bytes!("../tests/impl253_fixtures/parent_valid_with_call_edge.wire").as_slice(),
+        ),
+        (
+            false,
+            include_bytes!("../tests/impl253_fixtures/parent_stale_with_call_edge.wire").as_slice(),
+        ),
+    ] {
+        let module = zil_ir::wire::decode_module_candidate(bytes, &Limits::default())
+            .unwrap()
+            .0;
+        if valid {
+            accepted(&module);
+        } else {
+            rejected(&module);
+        }
+    }
+}

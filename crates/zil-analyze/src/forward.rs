@@ -386,6 +386,17 @@ fn transfer(
 ) -> CompileResult<()> {
     for (position, i) in f.blocks[block].instructions.iter().enumerate() {
         budget.spend(1, "forward actual instruction")?;
+        if i.result.is_some_and(|v| v.0 as usize >= f.values.len()) {
+            return Err(bad("forward instruction result is outside the value table"));
+        }
+        for value in super::resources::uses(&i.kind) {
+            budget.spend(1, "forward actual operand bounds")?;
+            if value.0 as usize >= f.values.len() {
+                return Err(bad(
+                    "forward instruction operand is outside the value table",
+                ));
+            }
+        }
         let call = matches!(
             i.kind,
             InstructionKind::Call { .. }
@@ -663,7 +674,20 @@ fn transfer(
                     consume(module, f, state, *callee, check, budget)?;
                 }
             }
-            _ => {}
+            _ => {
+                // A concrete instantiation being Copy does not authorize the
+                // symbolic F to escape into an aggregate, field, conversion or
+                // thin value. Only the explicit position/call rules above can
+                // transfer or observe a supplied callable role.
+                for value in super::resources::uses(&i.kind) {
+                    budget.spend(1, "forward unhandled callable operand audit")?;
+                    if carrier(&f.values[value.0 as usize])
+                        && state.values[value.0 as usize].origin & 3 != 0
+                    {
+                        return Err(bad("symbolic F enters an unsupported value operation"));
+                    }
+                }
+            }
         }
         if let Some(value) = i.result
             && carrier(&f.values[value.0 as usize])
