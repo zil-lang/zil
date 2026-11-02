@@ -307,7 +307,7 @@ fn wide_literal(spelling: &str) -> Option<Vec<u16>> {
     Some(result)
 }
 
-fn noescape_contract(
+pub(super) fn noescape_contract(
     function: &s::Function,
 ) -> Result<(Vec<u32>, bool, Option<ScopedCallbackRole>), Diagnostic> {
     let bad =

@@ -720,6 +720,13 @@ impl<'a, 'c> Builder<'a, 'c> {
         span: Span,
         start: bool,
     ) -> R<LocalId> {
+        if name == "c_with_callback" {
+            return Err(error(
+                "E-FFI-SCOPED-NAME",
+                span,
+                "c_with_callback is a reserved bare structured primitive and cannot be rebound",
+            ));
+        }
         if self.function.locals.len() >= self.limits.max_locals {
             return Err(Diagnostic::limit(
                 Phase::Types,

@@ -6,6 +6,8 @@ use loop_control::BlockFlow;
 mod deferred;
 #[path = "generic_factory.rs"]
 mod factory;
+#[path = "generic_scoped.rs"]
+mod scoped;
 
 pub(super) struct ParametricTables<'a, 'l> {
     pub nominals: &'a BTreeMap<String, &'l Item>,
@@ -2258,6 +2260,9 @@ impl Check<'_, '_, '_> {
                     }
                     return Ok(named(&value.ty().name(), e.span));
                 }
+                if super::super::foreign::bare_name(callee) == Some("c_with_callback") {
+                    return self.scoped_callback_call(arguments, state, e.span);
+                }
                 if super::super::foreign::bare_name(callee) == Some("c_callback") {
                     let [argument] = arguments.as_slice() else {
                         return Err(super::super::foreign::callback_error(
@@ -3393,7 +3398,8 @@ impl Check<'_, '_, '_> {
                         .callable
                         .as_ref()
                         .is_some_and(|b| b.dual_names().is_some())
-                        || self.defer_body =>
+                        || self.defer_body
+                        || self.scoped_callback_block(body, 0)? =>
                 {
                     let mut inner = self.clone_state(state)?;
                     let saved = self.unsafe_scope;

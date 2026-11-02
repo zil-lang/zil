@@ -33,3 +33,33 @@ fn unexecuted_attributes_cannot_disappear_from_core_parameters_or_fields() {
         assert_eq!(span.end, text.find(']').unwrap() + 1);
     }
 }
+
+#[test]
+fn scoped_foreign_primitive_rejects_value_bindings_but_preserves_member_names() {
+    for text in [
+        "fn main(){let c_with_callback=1}",
+        "fn main(c_with_callback:i32){}",
+        "fn main(){let f=(c_with_callback:i32)->i32=>0}",
+        "fn main(){for c_with_callback in 0..1{}}",
+        "enum E{A(i32)}fn main(e:E){match e{E.A(c_with_callback)=>{}}}",
+        "fn c_with_callback(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "scoped-name.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.phase == Phase::Expand && e.code == "E-FFI-SCOPED-NAME"),
+            "{text}: {errors:?}"
+        );
+    }
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "member.zil",
+        "struct S{c_with_callback:i32}fn read(s:S)->i32{return s.c_with_callback}",
+    );
+    let parsed = zil_syntax::parse(&source).into_result().unwrap();
+    zil_expand::expand(&source, &parsed).unwrap();
+}

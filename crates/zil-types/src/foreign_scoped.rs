@@ -73,8 +73,10 @@ impl Builder<'_, '_> {
                 "scoped callback must support FnMut invocation and cannot be FnOnce",
             ));
         }
-        self.closures
-            .factory_self_contained(callback_id, callback.span)?;
+        self.closures.factory_self_contained(callback_id, callback.span).map_err(|diagnostic| {
+            if diagnostic.category==zil_base::ResultCategory::ResourceLimit {diagnostic}
+            else {error("E-FFI-SCOPED-CALLBACK",callback.span,"scoped callback must be self-contained and cannot capture borrowed positions or descriptions")}
+        })?;
         let (body_value, body_type) = self.transfer_expr(body, None)?;
         let Type::Closure(body_id) = body_type else {
             return Err(error(
