@@ -202,7 +202,7 @@ fn two_same_type_capture_and_package_field_roots_remain_independent() {
 }
 
 #[test]
-fn strong_window_new_work_has_exact_fresh_boundaries_and_old_bytes_keep_2230() {
+fn strong_window_new_work_and_legacy_source_metadata_have_exact_fresh_boundaries() {
     let original = include_str!("impl204_fixtures/04_take_capture_live_window.zil");
     let new_source = original.replace("+ view.value - 42", "+ answer - 42");
     let old_source = "fn make()->impl Fn()->i32{let b=bytes_new();return move()=>i32(bytes_len(b))}fn main()->i32{let callback=make();return callback()}";
@@ -259,7 +259,8 @@ fn strong_window_new_work_has_exact_fresh_boundaries_and_old_bytes_keep_2230() {
         );
         case.write("boundary.json", format!("{{\"label\":\"{label}\",\"analyze\":{low},\"fresh_equal\":true,\"below\":\"ResourceLimit\"}}\n"));
         if old {
-            assert_eq!(low, 2230);
+            // One Fresh source tag is visited by preflight and fingerprint.
+            assert_eq!(low, 2230 + 2);
         }
         println!("204 {label} Analyze N={low}, N-1 ResourceLimit, fresh equal");
     }
