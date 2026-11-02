@@ -1,0 +1,873 @@
+use super::*;
+use cfg::{Builder, Value};
+fn scalar_constant(c: &Constant) -> CtTy {
+    CtTy::Scalar(match c {
+        Constant::Unit => CtScalarTy::Unit,
+        Constant::Bool(_) => CtScalarTy::Bool,
+        Constant::U8(_) => CtScalarTy::U8,
+        Constant::U16(_) => CtScalarTy::U16,
+        Constant::I32(_) => CtScalarTy::I32,
+        Constant::I64(_) => CtScalarTy::I64,
+        _ => unreachable!(),
+    })
+}
+fn runtime_scalar(ty: Option<&CtTy>) -> Option<zil_ir::Type> {
+    Some(match ty? {
+        CtTy::Scalar(CtScalarTy::U8) => zil_ir::Type::U8,
+        CtTy::Scalar(CtScalarTy::U16) => zil_ir::Type::U16,
+        CtTy::Scalar(CtScalarTy::I32) => zil_ir::Type::I32,
+        CtTy::Scalar(CtScalarTy::I64) => zil_ir::Type::I64,
+        _ => return None,
+    })
+}
+fn binary(op: s::BinaryOp) -> Option<BinaryOp> {
+    Some(match op {
+        s::BinaryOp::Add => BinaryOp::Add,
+        s::BinaryOp::Subtract => BinaryOp::Subtract,
+        s::BinaryOp::Multiply => BinaryOp::Multiply,
+        s::BinaryOp::Divide => BinaryOp::Divide,
+        s::BinaryOp::Remainder => BinaryOp::Remainder,
+        s::BinaryOp::AddWrapping => BinaryOp::AddWrapping,
+        s::BinaryOp::SubtractWrapping => BinaryOp::SubtractWrapping,
+        s::BinaryOp::MultiplyWrapping => BinaryOp::MultiplyWrapping,
+        s::BinaryOp::ShiftLeft => BinaryOp::ShiftLeft,
+        s::BinaryOp::ShiftRight => BinaryOp::ShiftRight,
+        s::BinaryOp::BitAnd => BinaryOp::BitAnd,
+        s::BinaryOp::BitOr => BinaryOp::BitOr,
+        s::BinaryOp::BitXor => BinaryOp::BitXor,
+        s::BinaryOp::Equal => BinaryOp::Equal,
+        s::BinaryOp::NotEqual => BinaryOp::NotEqual,
+        s::BinaryOp::Less => BinaryOp::Less,
+        s::BinaryOp::LessEqual => BinaryOp::LessEqual,
+        s::BinaryOp::Greater => BinaryOp::Greater,
+        s::BinaryOp::GreaterEqual => BinaryOp::GreaterEqual,
+        _ => return None,
+    })
+}
+fn text(spelling: &str, span: Span) -> R<String> {
+    let Some(s) = spelling.strip_prefix('"').and_then(|s| s.strip_suffix('"')) else {
+        return Err(error(span, "malformed CT Text literal"));
+    };
+    let mut out = String::new();
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        out.push(match chars.next() {
+            Some('n') => '\n',
+            Some('r') => '\r',
+            Some('t') => '\t',
+            Some('0') => '\0',
+            Some('"') => '"',
+            Some('\\') => '\\',
+            _ => return Err(error(span, "unsupported Text literal escape")),
+        });
+    }
+    Ok(out)
+}
+impl Builder<'_, '_> {
+    fn source_path(&mut self, expression: &s::Expr, depth: usize) -> R<Option<Vec<String>>> {
+        self.compiler.budget.depth(depth, expression.span)?;
+        match &expression.kind {
+            s::ExprKind::Name(name) => {
+                self.compiler.budget.text(name, expression.span)?;
+                self.compiler.budget.node(expression.span)?;
+                Ok(Some(vec![name.clone()]))
+            }
+            s::ExprKind::Member {
+                object,
+                member: s::MemberName::Name(name),
+            } => {
+                let Some(mut path) = self.source_path(object, depth + 1)? else {
+                    return Ok(None);
+                };
+                self.compiler.budget.text(name, expression.span)?;
+                self.compiler.budget.node(expression.span)?;
+                path.push(name.clone());
+                Ok(Some(path))
+            }
+            s::ExprKind::Group(inner) => self.source_path(inner, depth + 1),
+            _ => Ok(None),
+        }
+    }
+
+    pub(super) fn expr(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
+        self.compiler.budget.depth(depth, e.span)?;
+        if let Some(ty) = expected {
+            self.compiler.budget.ty(ty, 0, e.span)?;
+        }
+        let span = e.span;
+        let value = match &e.kind {
+            s::ExprKind::Literal(s::Literal::Bool(v)) => self.constant(
+                CtConstant::Scalar(Constant::Bool(*v)),
+                CtTy::Scalar(CtScalarTy::Bool),
+                span,
+            )?,
+            s::ExprKind::Literal(s::Literal::Integer(spelling)) => {
+                self.compiler.budget.text(spelling, span)?;
+                let c = zil_types::parse_integer_literal(
+                    spelling,
+                    runtime_scalar(expected).as_ref(),
+                    false,
+                    span,
+                )?;
+                let ty = scalar_constant(&c);
+                self.constant(CtConstant::Scalar(c), ty, span)?
+            }
+            s::ExprKind::Literal(s::Literal::String(spelling)) => {
+                self.compiler.budget.text(spelling, span)?;
+                self.constant(CtConstant::Text(text(spelling, span)?), CtTy::Text, span)?
+            }
+            s::ExprKind::Name(name) => {
+                if let Some(value) = self.lookup(name, span)? {
+                    value
+                } else if let Some(t) = types::scalar(name) {
+                    self.emit(CtInstructionKind::TypePrimitive(t), CtTy::Type, span)?
+                } else if let Some(t) = match name.as_str() {
+                    "ByteBuffer" => Some(CtBuiltinType::ByteBuffer),
+                    "ForeignHandle" => Some(CtBuiltinType::ForeignHandle),
+                    "CWideString" => Some(CtBuiltinType::CWideString),
+                    _ => None,
+                } {
+                    self.emit(CtInstructionKind::TypeBuiltin(t), CtTy::Type, span)?
+                } else {
+                    self.type_name(&[name.clone()], span, depth)?
+                }
+            }
+            s::ExprKind::Group(inner) | s::ExprKind::MetaEval(inner) => {
+                self.expr(inner, expected, depth + 1)?
+            }
+            s::ExprKind::Tuple(fields) => {
+                if fields.is_empty() {
+                    self.constant(
+                        CtConstant::Scalar(Constant::Unit),
+                        CtTy::Scalar(CtScalarTy::Unit),
+                        span,
+                    )?
+                } else {
+                    let mut values = Vec::new();
+                    let mut tys = Vec::new();
+                    for (i, field) in fields.iter().enumerate() {
+                        self.compiler.budget.node(field.span)?;
+                        let target = match expected {
+                            Some(CtTy::Tuple(ts)) => ts.get(i),
+                            _ => None,
+                        };
+                        let value = self.expr(field, target, depth + 1)?;
+                        values.push(value.id);
+                        tys.push(value.ty);
+                    }
+                    self.emit(CtInstructionKind::MakeTuple(values), CtTy::Tuple(tys), span)?
+                }
+            }
+            s::ExprKind::Array(fields) => {
+                let target = match expected {
+                    Some(CtTy::Array { element, .. }) | Some(CtTy::List(element)) => {
+                        Some(element.as_ref())
+                    }
+                    _ => None,
+                };
+                let mut values = Vec::new();
+                let mut element = target.cloned();
+                for field in fields {
+                    self.compiler.budget.node(field.span)?;
+                    let value = self.expr(field, element.as_ref(), depth + 1)?;
+                    if element.is_none() {
+                        element = Some(value.ty.clone());
+                    }
+                    values.push(value.id);
+                }
+                let element = element.ok_or_else(|| {
+                    error(span, "empty CT array/list needs an explicit element type")
+                })?;
+                if matches!(expected, Some(CtTy::List(_))) {
+                    self.emit(
+                        CtInstructionKind::MakeList(values),
+                        CtTy::List(Box::new(element)),
+                        span,
+                    )?
+                } else {
+                    self.emit(
+                        CtInstructionKind::MakeArray(values),
+                        CtTy::Array {
+                            element: Box::new(element),
+                            length: fields.len() as u32,
+                        },
+                        span,
+                    )?
+                }
+            }
+            s::ExprKind::Unary {
+                op: s::UnaryOp::Negate,
+                operand,
+            } if matches!(operand.kind, s::ExprKind::Literal(s::Literal::Integer(_))) => {
+                let s::ExprKind::Literal(s::Literal::Integer(spelling)) = &operand.kind else {
+                    unreachable!()
+                };
+                self.compiler.budget.text(spelling, span)?;
+                let c = zil_types::parse_integer_literal(
+                    spelling,
+                    runtime_scalar(expected).as_ref(),
+                    true,
+                    span,
+                )?;
+                let ty = scalar_constant(&c);
+                self.constant(CtConstant::Scalar(c), ty, span)?
+            }
+            s::ExprKind::Unary { op, operand } => {
+                let op = match op {
+                    s::UnaryOp::Not => UnaryOp::Not,
+                    s::UnaryOp::Negate => UnaryOp::Negate,
+                    s::UnaryOp::BitNot => UnaryOp::BitNot,
+                    _ => {
+                        return Err(error(
+                            span,
+                            "CT values have no runtime borrowing, dereference or resource transfer",
+                        ));
+                    }
+                };
+                let value = self.expr(operand, expected, depth + 1)?;
+                self.emit(
+                    CtInstructionKind::Unary {
+                        op,
+                        operand: value.id,
+                    },
+                    value.ty,
+                    span,
+                )?
+            }
+            s::ExprKind::Binary { op, left, right }
+                if matches!(op, s::BinaryOp::And | s::BinaryOp::Or) =>
+            {
+                let constant = s::Expr {
+                    kind: s::ExprKind::Literal(s::Literal::Bool(*op == s::BinaryOp::Or)),
+                    span,
+                };
+                if *op == s::BinaryOp::And {
+                    self.expr_if(
+                        left,
+                        right,
+                        &constant,
+                        Some(&CtTy::Scalar(CtScalarTy::Bool)),
+                        depth + 1,
+                        span,
+                    )?
+                } else {
+                    self.expr_if(
+                        left,
+                        &constant,
+                        right,
+                        Some(&CtTy::Scalar(CtScalarTy::Bool)),
+                        depth + 1,
+                        span,
+                    )?
+                }
+            }
+            s::ExprKind::Binary { op, left, right } => {
+                let op = binary(*op).ok_or_else(|| {
+                    error(span, "range is only valid as an ordinary for-loop iterable")
+                })?;
+                let compare = matches!(
+                    op,
+                    BinaryOp::Equal
+                        | BinaryOp::NotEqual
+                        | BinaryOp::Less
+                        | BinaryOp::LessEqual
+                        | BinaryOp::Greater
+                        | BinaryOp::GreaterEqual
+                );
+                let lhs_expected = if compare { None } else { expected };
+                let lhs = self.expr(left, lhs_expected, depth + 1)?;
+                let rhs = self.expr(right, Some(&lhs.ty), depth + 1)?;
+                let integer = matches!(
+                    lhs.ty,
+                    CtTy::Scalar(
+                        CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64
+                    )
+                );
+                let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
+                if !integer
+                    && !(equality
+                        && matches!(
+                            lhs.ty,
+                            CtTy::Scalar(CtScalarTy::Bool) | CtTy::Type | CtTy::Ident | CtTy::Text
+                        ))
+                {
+                    return Err(error(
+                        span,
+                        "CT operator is not defined for these actual data operands",
+                    ));
+                }
+                let result = if compare {
+                    CtTy::Scalar(CtScalarTy::Bool)
+                } else {
+                    lhs.ty
+                };
+                self.emit(
+                    CtInstructionKind::Binary {
+                        op,
+                        left: lhs.id,
+                        right: rhs.id,
+                    },
+                    result,
+                    span,
+                )?
+            }
+            s::ExprKind::Call { callee, arguments } => {
+                self.call(callee, arguments, expected, depth + 1, span)?
+            }
+            s::ExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => self.expr_if(condition, then_value, else_value, expected, depth + 1, span)?,
+            s::ExprKind::Index { object, index } => {
+                let object = self.expr(object, None, depth + 1)?;
+                let element = match &object.ty {
+                    CtTy::Array { element, .. } | CtTy::List(element) => element.as_ref().clone(),
+                    _ => return Err(error(span, "CT dynamic indexing needs an Array or List")),
+                };
+                let index = self.expr(index, None, depth + 1)?;
+                self.emit(
+                    CtInstructionKind::Extract {
+                        aggregate: object.id,
+                        index: index.id,
+                    },
+                    element,
+                    span,
+                )?
+            }
+            s::ExprKind::Member { object, member } => {
+                if let Some(path) = self.source_path(e, depth + 1)?
+                    && path.len() >= 2
+                    && !self.has_local(&path[0], span)?
+                {
+                    if let Some(value) = self.enum_value(&path, &[], depth + 1, span)? {
+                        value
+                    } else {
+                        self.type_name(&path, span, depth + 1)?
+                    }
+                } else {
+                    let value = self.expr(object, None, depth + 1)?;
+                    self.field(value, member, span)?
+                }
+            }
+            s::ExprKind::Record { ty, base, fields } => {
+                if base.is_some() {
+                    return Err(error(
+                        span,
+                        "CT record update requires explicit pure field replacement",
+                    ));
+                }
+                let target = if let Some(t) = ty {
+                    let path = self.source_path(t, depth + 1)?.ok_or_else(|| {
+                        error(t.span, "CT record constructor needs a nominal declaration")
+                    })?;
+                    let t = s::TypeRef {
+                        kind: s::TypeKind::Named {
+                            path,
+                            args: Vec::new(),
+                        },
+                        span: t.span,
+                    };
+                    self.compiler.ty(self.module, &t, depth + 1)?
+                } else {
+                    expected.cloned().ok_or_else(|| {
+                        error(span, "CT record needs its actual expected nominal type")
+                    })?
+                };
+                let CtTy::Record(id) = target else {
+                    return Err(error(span, "CT record constructor requires a pure struct"));
+                };
+                let (owner, decl) = self.compiler.record_sources[id.0 as usize];
+                for ty in &self.compiler.records[id.0 as usize].fields {
+                    self.compiler.budget.ty(ty, 0, span)?;
+                }
+                let types = self.compiler.records[id.0 as usize].fields.clone();
+                let mut values = Vec::new();
+                if fields.len() != decl.fields.len() {
+                    return Err(error(
+                        span,
+                        "CT record requires every actual field exactly once",
+                    ));
+                }
+                for (field, ty) in decl.fields.iter().zip(types) {
+                    if owner != self.module && !field.public {
+                        return Err(error(
+                            span,
+                            "CT record constructor cannot initialize private foreign fields",
+                        ));
+                    }
+                    self.compiler.budget.work(fields.len(), span)?;
+                    let mut found = fields.iter().filter(|f| f.name == field.name);
+                    let actual = found
+                        .next()
+                        .ok_or_else(|| error(span, "CT record field is missing"))?;
+                    if found.next().is_some() {
+                        return Err(error(actual.span, "duplicate CT record field"));
+                    }
+                    let shorthand = s::Expr {
+                        kind: s::ExprKind::Name(actual.name.clone()),
+                        span: actual.span,
+                    };
+                    let value = self.expr(
+                        actual.value.as_ref().unwrap_or(&shorthand),
+                        Some(&ty),
+                        depth + 1,
+                    )?;
+                    self.compiler.budget.node(span)?;
+                    values.push(value.id);
+                }
+                self.emit(
+                    CtInstructionKind::MakeRecord {
+                        schema: id,
+                        fields: values,
+                    },
+                    CtTy::Record(id),
+                    span,
+                )?
+            }
+            s::ExprKind::TypeApply { callee, arguments } => {
+                let names = self.source_path(callee, depth + 1)?.ok_or_else(|| {
+                    error(span, "Type application needs an actual nominal declaration")
+                })?;
+                if self.has_local(&names[0], span)? {
+                    return Err(error(
+                        span,
+                        "value binding shadows a nominal Type application",
+                    ));
+                }
+                let (owner, item) = self.compiler.named_item(self.module, &names, span)?;
+                let nominal = self.compiler.symbol(owner, item.span)?;
+                let mut ids = Vec::new();
+                for argument in arguments {
+                    self.compiler.budget.node(span)?;
+                    let value = match argument {
+                        s::GenericArg::Type(ty) => self.type_ref(self.module, ty, depth + 1)?,
+                        s::GenericArg::Const(e) => self.expr(e, None, depth + 1)?,
+                    };
+                    ids.push(value.id);
+                }
+                self.emit(
+                    CtInstructionKind::TypeApply {
+                        nominal,
+                        arguments: ids,
+                    },
+                    CtTy::Type,
+                    span,
+                )?
+            }
+            s::ExprKind::MetaBlock(body) => self.meta_block(body, expected, depth + 1)?,
+            s::ExprKind::Quote { category, template } => {
+                self.quote(*category, template, depth + 1, span)?
+            }
+            _ => {
+                return Err(error(
+                    span,
+                    "expression is not a closed pure CT data operation",
+                ));
+            }
+        };
+        self.expect(value, expected, span)
+    }
+    fn enum_value(
+        &mut self,
+        path: &[String],
+        arguments: &[s::Argument],
+        depth: usize,
+        span: Span,
+    ) -> R<Option<Value>> {
+        if path.len() < 2 {
+            return Ok(None);
+        }
+        let (owner, item) =
+            match self
+                .compiler
+                .named_item(self.module, &path[..path.len() - 1], span)
+            {
+                Ok(item) => item,
+                Err(errors)
+                    if errors
+                        .iter()
+                        .any(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+                {
+                    return Err(errors);
+                }
+                Err(_) => return Ok(None),
+            };
+        let s::ItemKind::Enum(enumeration) = &item.kind else {
+            return Ok(None);
+        };
+        let ty = s::TypeRef {
+            kind: s::TypeKind::Named {
+                path: path[..path.len() - 1].to_vec(),
+                args: Vec::new(),
+            },
+            span,
+        };
+        let CtTy::Enum(schema) = self.compiler.ty(self.module, &ty, depth + 1)? else {
+            unreachable!()
+        };
+        let name = path.last().unwrap();
+        let mut tag = None;
+        for (index, variant) in enumeration.variants.iter().enumerate() {
+            self.compiler
+                .budget
+                .work(name.len().saturating_add(1), span)?;
+            if variant.name == *name {
+                tag = Some(index);
+                break;
+            }
+        }
+        let tag = tag.ok_or_else(|| error(span, "CT enum constructor variant is absent"))?;
+        if owner != self.module && !item.public {
+            return Err(error(span, "CT enum is private"));
+        }
+        for ty in &self.compiler.enums[schema.0 as usize].variants[tag] {
+            self.compiler.budget.ty(ty, 0, span)?;
+        }
+        let expected = self.compiler.enums[schema.0 as usize].variants[tag].clone();
+        if expected.len() != arguments.len() {
+            return Err(error(span, "CT enum constructor field count differs"));
+        }
+        let mut fields = Vec::new();
+        for (argument, ty) in arguments.iter().zip(expected) {
+            self.compiler.budget.node(argument.span)?;
+            if argument.spread {
+                return Err(error(
+                    argument.span,
+                    "CT enum field cannot use an unexpanded spread",
+                ));
+            }
+            fields.push(self.expr(&argument.value, Some(&ty), depth + 1)?.id);
+        }
+        self.emit(
+            CtInstructionKind::MakeVariant {
+                schema,
+                tag: tag as u32,
+                fields,
+            },
+            CtTy::Enum(schema),
+            span,
+        )
+        .map(Some)
+    }
+    fn type_name(&mut self, path: &[String], span: Span, depth: usize) -> R<Value> {
+        let (owner, item) = self.compiler.named_item(self.module, path, span)?;
+        if let s::ItemKind::TypeAlias(alias) = &item.kind {
+            return self.type_ref(
+                owner,
+                alias
+                    .value
+                    .as_ref()
+                    .ok_or_else(|| error(span, "CT alias has no actual definition"))?,
+                depth + 1,
+            );
+        }
+        let symbol = self.compiler.symbol(owner, item.span)?;
+        self.emit(CtInstructionKind::TypeName(symbol), CtTy::Type, span)
+    }
+    pub(super) fn type_ref(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<Value> {
+        self.compiler.budget.depth(depth, ty.span)?;
+        match &ty.kind {
+            s::TypeKind::Named { path, args } if args.is_empty() => {
+                if path.len() == 1 {
+                    if let Some(t) = types::scalar(&path[0]) {
+                        return self.emit(CtInstructionKind::TypePrimitive(t), CtTy::Type, ty.span);
+                    }
+                    if let Some(t) = match path[0].as_str() {
+                        "ByteBuffer" => Some(CtBuiltinType::ByteBuffer),
+                        "ForeignHandle" => Some(CtBuiltinType::ForeignHandle),
+                        "CWideString" => Some(CtBuiltinType::CWideString),
+                        _ => None,
+                    } {
+                        return self.emit(CtInstructionKind::TypeBuiltin(t), CtTy::Type, ty.span);
+                    }
+                }
+                let old = self.module;
+                self.module = module;
+                let result = self.type_name(path, ty.span, depth + 1);
+                self.module = old;
+                result
+            }
+            s::TypeKind::Named { path, args } => {
+                let (owner, item) = self.compiler.named_item(module, path, ty.span)?;
+                let nominal = self.compiler.symbol(owner, item.span)?;
+                let mut arguments = Vec::new();
+                for arg in args {
+                    let value = match arg {
+                        s::GenericArg::Type(t) => self.type_ref(module, t, depth + 1)?,
+                        s::GenericArg::Const(e) => self.expr(e, None, depth + 1)?,
+                    };
+                    self.compiler.budget.node(ty.span)?;
+                    arguments.push(value.id);
+                }
+                self.emit(
+                    CtInstructionKind::TypeApply { nominal, arguments },
+                    CtTy::Type,
+                    ty.span,
+                )
+            }
+            s::TypeKind::Group(inner) => self.type_ref(module, inner, depth + 1),
+            s::TypeKind::Tuple(fields) => {
+                let mut arguments = Vec::new();
+                for field in fields {
+                    let v = self.type_ref(module, field, depth + 1)?;
+                    self.compiler.budget.node(ty.span)?;
+                    arguments.push(v.id);
+                }
+                self.emit(
+                    CtInstructionKind::TypeConstruct {
+                        constructor: CtTypeConstructor::Tuple,
+                        arguments,
+                    },
+                    CtTy::Type,
+                    ty.span,
+                )
+            }
+            s::TypeKind::Reference { mutable, inner, .. } => {
+                let v = self.type_ref(module, inner, depth + 1)?;
+                self.emit(
+                    CtInstructionKind::TypeConstruct {
+                        constructor: CtTypeConstructor::Address { mutable: *mutable },
+                        arguments: vec![v.id],
+                    },
+                    CtTy::Type,
+                    ty.span,
+                )
+            }
+            s::TypeKind::Array { element, length } => {
+                let v = self.type_ref(module, element, depth + 1)?;
+                let (constructor, arguments) = if let Some(n) = length {
+                    let n = self.expr(n, None, depth + 1)?;
+                    (CtTypeConstructor::Array, vec![v.id, n.id])
+                } else {
+                    (CtTypeConstructor::Slice, vec![v.id])
+                };
+                self.emit(
+                    CtInstructionKind::TypeConstruct {
+                        constructor,
+                        arguments,
+                    },
+                    CtTy::Type,
+                    ty.span,
+                )
+            }
+            s::TypeKind::Function { params, result } => {
+                let mut arguments = Vec::new();
+                for t in params {
+                    let v = self.type_ref(module, t, depth + 1)?;
+                    self.compiler.budget.node(ty.span)?;
+                    arguments.push(v.id);
+                }
+                let v = self.type_ref(module, result, depth + 1)?;
+                arguments.push(v.id);
+                self.emit(
+                    CtInstructionKind::TypeConstruct {
+                        constructor: CtTypeConstructor::FunctionPointer,
+                        arguments,
+                    },
+                    CtTy::Type,
+                    ty.span,
+                )
+            }
+            s::TypeKind::Error { error, result } => {
+                let a = self.type_ref(module, error, depth + 1)?;
+                let b = self.type_ref(module, result, depth + 1)?;
+                self.emit(
+                    CtInstructionKind::TypeConstruct {
+                        constructor: CtTypeConstructor::ErrorUnion,
+                        arguments: vec![a.id, b.id],
+                    },
+                    CtTy::Type,
+                    ty.span,
+                )
+            }
+            s::TypeKind::MetaEval(e) => self.expr(e, Some(&CtTy::Type), depth + 1),
+            s::TypeKind::MetaBlock(body) => self.meta_block(body, Some(&CtTy::Type), depth + 1),
+            _ => Err(error(ty.span, "unsupported Type data constructor")),
+        }
+    }
+    fn field(&mut self, value: Value, field: &s::MemberName, span: Span) -> R<Value> {
+        if let s::MemberName::Name(name) = field {
+            let projection = match (&value.ty, name.as_str()) {
+                (CtTy::ShapeInfo, "fields") => Some((
+                    CtMetaProjection::ShapeFields,
+                    CtTy::List(Box::new(CtTy::FieldInfo)),
+                )),
+                (CtTy::ShapeInfo, "complete") => Some((
+                    CtMetaProjection::ShapeComplete,
+                    CtTy::Scalar(CtScalarTy::Bool),
+                )),
+                (CtTy::FieldInfo, "name") => Some((CtMetaProjection::FieldName, CtTy::Ident)),
+                (CtTy::FieldInfo, "ty") => Some((CtMetaProjection::FieldType, CtTy::Type)),
+                (CtTy::FieldInfo, "managed") => Some((
+                    CtMetaProjection::FieldManaged,
+                    CtTy::Scalar(CtScalarTy::Bool),
+                )),
+                (CtTy::ImplInfo, "for_type") => Some((CtMetaProjection::ImplType, CtTy::Type)),
+                (CtTy::LayoutInfo, "size") => {
+                    Some((CtMetaProjection::LayoutSize, CtTy::Scalar(CtScalarTy::I64)))
+                }
+                (CtTy::LayoutInfo, "alignment") => Some((
+                    CtMetaProjection::LayoutAlignment,
+                    CtTy::Scalar(CtScalarTy::I64),
+                )),
+                (CtTy::LayoutInfo, "field_offsets") => Some((
+                    CtMetaProjection::LayoutFieldOffsets,
+                    CtTy::List(Box::new(CtTy::Scalar(CtScalarTy::I64))),
+                )),
+                _ => None,
+            };
+            if let Some((projection, ty)) = projection {
+                return self.emit(
+                    CtInstructionKind::MetaProject {
+                        value: value.id,
+                        projection,
+                    },
+                    ty,
+                    span,
+                );
+            }
+        }
+        let (index, ty) = match (&value.ty, field) {
+            (CtTy::Tuple(fields), s::MemberName::TupleIndex(index)) => (
+                *index,
+                fields
+                    .get(*index as usize)
+                    .cloned()
+                    .ok_or_else(|| error(span, "CT tuple field is absent"))?,
+            ),
+            (CtTy::Record(id), s::MemberName::Name(name)) => {
+                let (owner, decl) = self.compiler.record_sources[id.0 as usize];
+                let mut found = None;
+                for (index, field) in decl.fields.iter().enumerate() {
+                    self.compiler.budget.work(1, span)?;
+                    if field.name == *name {
+                        found = Some(index);
+                        break;
+                    }
+                }
+                let i = found.ok_or_else(|| error(span, "CT struct field is absent"))?;
+                if owner != self.module && !decl.fields[i].public {
+                    return Err(error(
+                        span,
+                        "CT struct field is private to its actual declaring module",
+                    ));
+                }
+                (
+                    i as u32,
+                    self.compiler.records[id.0 as usize].fields[i].clone(),
+                )
+            }
+            _ => {
+                return Err(error(
+                    span,
+                    "CT field projection requires an actual pure struct or tuple",
+                ));
+            }
+        };
+        self.emit(
+            CtInstructionKind::ExtractField {
+                aggregate: value.id,
+                index,
+            },
+            ty,
+            span,
+        )
+    }
+    fn call(
+        &mut self,
+        callee: &s::Expr,
+        arguments: &[s::Argument],
+        _expected: Option<&CtTy>,
+        depth: usize,
+        span: Span,
+    ) -> R<Value> {
+        let Some(path) = self.source_path(callee, depth + 1)? else {
+            return Err(error(
+                span,
+                "CT call requires a concrete ordinary function or imported standard operation",
+            ));
+        };
+        if self.has_local(&path[0], span)? {
+            return Err(error(
+                span,
+                "CT data binding shadows the function/module name and is not callable",
+            ));
+        }
+        for argument in arguments {
+            self.compiler.budget.work(1, argument.span)?;
+            if argument.spread {
+                return Err(error(
+                    argument.span,
+                    "CT function call cannot use unexpanded spread arguments",
+                ));
+            }
+        }
+        if path.len() == 2 {
+            for import in self.compiler.modules[self.module].imports {
+                self.compiler.budget.work(1, span)?;
+                if import.alias == path[0]
+                    && import.target
+                        != ImportTarget::Module(self.compiler.modules[self.module].syntax.id)
+                    && matches!(import.target, ImportTarget::Meta | ImportTarget::Syntax)
+                {
+                    return self.builtin(import.target, &path[1], arguments, depth, span);
+                }
+            }
+        }
+        if path.len() == 1
+            && let Some(target) = types::scalar(&path[0])
+            && !matches!(target, CtScalarTy::Unit | CtScalarTy::Bool)
+        {
+            if arguments.len() != 1 {
+                return Err(error(span, "integer conversion takes exactly one argument"));
+            }
+            let value = self.expr(&arguments[0].value, None, depth)?;
+            return self.emit(
+                CtInstructionKind::ConvertInteger {
+                    value: value.id,
+                    target,
+                },
+                CtTy::Scalar(target),
+                span,
+            );
+        }
+        if let Some(value) = self.enum_value(&path, arguments, depth, span)? {
+            return Ok(value);
+        }
+        let declaration = self.compiler.function(self.module, &path, span)?;
+        let (types, result) = self.compiler.header(declaration)?;
+        if types.len() != arguments.len() {
+            return Err(error(span, "CT function actual argument count differs"));
+        }
+        let mut actual = Vec::new();
+        for (arg, ty) in arguments.iter().zip(types) {
+            self.compiler.budget.node(arg.span)?;
+            actual.push(self.expr(&arg.value, Some(&ty), depth)?.id);
+        }
+        let function = self.compiler.enqueue(declaration)?;
+        if result == CtTy::Scalar(CtScalarTy::Unit) {
+            self.op(
+                CtInstructionKind::Call {
+                    function,
+                    arguments: actual,
+                },
+                span,
+            )?;
+            self.constant(CtConstant::Scalar(Constant::Unit), result, span)
+        } else {
+            self.emit(
+                CtInstructionKind::Call {
+                    function,
+                    arguments: actual,
+                },
+                result,
+                span,
+            )
+        }
+    }
+}

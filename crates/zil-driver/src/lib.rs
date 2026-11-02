@@ -4,6 +4,8 @@
 
 mod artifacts;
 mod contracts;
+mod ct_artifact;
+pub use ct_artifact::SyntaxLock;
 mod ct_program;
 mod ct_selection;
 mod project;
@@ -85,6 +87,7 @@ pub struct CompileOptions {
     /// Explicit non-source build inputs, such as a locked import/configuration
     /// manifest. The scalar driver never silently reads ambient configuration.
     pub build_inputs: Fingerprint,
+    pub syntax_lock: Option<SyntaxLock>,
     pub profile: ExecutionProfile,
 }
 impl Default for CompileOptions {
@@ -109,6 +112,7 @@ impl Default for CompileOptions {
             limits: Limits::default(),
             cancellation: CancellationToken::default(),
             build_inputs: Fingerprint::ZERO,
+            syntax_lock: None,
             profile: ExecutionProfile::Native,
         }
     }

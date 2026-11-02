@@ -8,94 +8,104 @@
     "task_root": ".task",
     "current_is_main": true
   },
-  "current_head": "1a29e2c5255bb56297e58501eab9c24868d02050",
-  "main_head": "1a29e2c5255bb56297e58501eab9c24868d02050",
-  "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-  "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+  "current_head": "bb8c28b3c772586c448146947a865e55682afc3a",
+  "main_head": "bb8c28b3c772586c448146947a865e55682afc3a",
+  "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+  "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
   "worktrees": [
     {
       "branch": "refs/heads/main",
-      "head": "1a29e2c5255bb56297e58501eab9c24868d02050",
+      "head": "bb8c28b3c772586c448146947a865e55682afc3a",
       "is_main": true
     },
     {
       "branch": null,
-      "head": "7bdb0cfbf7f3435d72e5a1c038b7618e533eb06b",
+      "head": "6d4e8016fc4714cf3111fcfb6a6e766ea2209839",
       "is_main": false
     },
     {
       "branch": null,
-      "head": "23c636a5ab1a50d71e5b65dd8b281f16e4216fba",
+      "head": "c8b130848d53c0fc292982184e8f64049586ea02",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/227",
-      "head": "192b45c051a4c938659eb8ff5c0029a24a671900",
+      "branch": null,
+      "head": "6c1cf564ca22ba22efc5cb62d30b432d1635d514",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/235",
-      "head": "edb044089592ff73832040ed52057f78eb9b419b",
+      "branch": null,
+      "head": "883f55c640f8c5674ef73149f43e52702a64a091",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/236",
-      "head": "566396accaa3b1df90ee4c3ff478615df518b073",
+      "branch": "refs/heads/task/251",
+      "head": "19f8663c0d22953b5a24cd809bfa92cba9659b21",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/237",
-      "head": "addb36909738208b0711fd6b5f6e282c58a8588d",
+      "branch": "refs/heads/task/252",
+      "head": "e023b228020cea739ce3922d4c595914980b0884",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/238",
-      "head": "1b7572807d8948ac255312b035f8fc063d314995",
+      "branch": "refs/heads/task/253",
+      "head": "920be0043dd7b9790fc4efedbb3a3f9c86631b3c",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/238-privacy",
-      "head": "0b6b9e99632191283d67f6ee78292fddbe634ef1",
+      "branch": "refs/heads/task/254",
+      "head": "80979a443d5a0303bd1e27f185558171e1db4706",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/238-regression",
-      "head": "541f21bbe8cff775cb7341aae3652759a0a65c8d",
+      "branch": "refs/heads/task/255",
+      "head": "4bbc4b6f26d9dfce21bf0ba5ff18514a55e13a2d",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/239",
-      "head": "ca1520d1b4ac827d81ea8c43e85bff6ab07486ab",
+      "branch": "refs/heads/task/256",
+      "head": "4364ab020fc5b0e1e3f67b8bda23975fa79f2519",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/240",
-      "head": "47840ac983746590c7d754a0fb41b9aa144f12b9",
+      "branch": "refs/heads/task/257",
+      "head": "90814599a6d379601376a7a92706f7f7314071f2",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/241",
-      "head": "027847a2ca4fc8c04a65240be20fe4fe5ce5b27a",
+      "branch": "refs/heads/task/258",
+      "head": "2ea267ac16424c8cb26ac34c0f9ffca38a5aa7aa",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/242",
-      "head": "6ed77caa5519b2085fb67cf5a677dd48f7a26bbb",
+      "branch": "refs/heads/task/259",
+      "head": "dd34b493c4b0c70bef724d00598495cd6bddd723",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/243",
-      "head": "2f73305a502c9450141f9598b901d01bb099866f",
+      "branch": "refs/heads/task/260",
+      "head": "a3ac1cd9f857180412e625904b8e8caaab1345d4",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/244",
-      "head": "0ea499ddc76f14dc63b48d9afb3c64845650bde8",
+      "branch": "refs/heads/task/261",
+      "head": "57fa58c8a8940efe3b988e3c4380bd48ab9aceb0",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/owned-sum-evidence-20261102",
-      "head": "7e515d3d526ee6900882fcd181103ef82fd3efb8",
+      "branch": "refs/heads/task/262",
+      "head": "c634220a4e580f5c1d76d62794480d8da3a77fec",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/owned-callback-20261102",
+      "head": "aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "b831f62af435df33086381d2410c46ba379a03fc",
       "is_main": false
     }
   ],
@@ -112,7 +122,7 @@
       "path": ".task/B0.md",
       "status": "Doing",
       "baseline": "c9ee2e81de661bb0789ac6a0c6a130d864c4d5a9",
-      "record_sha256": "d8b6f73075099356da129975a381861f5653157ffb2fa6407197b485c028c6cb",
+      "record_sha256": "8accccfb23ecc8e97593350b440c180de901647a3bedadf76fc67769115220ff",
       "committed": true,
       "evidence": [
         {
@@ -128,8 +138,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": []
     },
@@ -138,7 +148,7 @@
       "path": ".task/T01.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "62d52ad7c2ec69648032e839197c5411410d57a92ee2e9f64d3ed783dd4c6c86",
+      "record_sha256": "a5797ad52313a557e2ad06a506a14aeaecf3ccb812a30c30df019fe3638bc312",
       "committed": true,
       "evidence": [
         {
@@ -151,8 +161,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "B0"
@@ -163,7 +173,7 @@
       "path": ".task/T02.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "25d585c9741ca99b7e33ae552a153a0ce2fc8182dd6c1d214dfaa621d1297b59",
+      "record_sha256": "08a3758b17cb3d88dc45177dfcf7be6c59fa2e02617320cbeb4c3c4d934dfe4a",
       "committed": true,
       "evidence": [
         {
@@ -173,8 +183,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "B0"
@@ -185,14 +195,14 @@
       "path": ".task/T03.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "81e424bf289a7921ce805e831251c79493f782dbd7be4037916a5705a31beb55",
+      "record_sha256": "3ce48027591e8bc74bf4afc75ddebf905bc68b8984ff60d69e3a7867d3af1c56",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "T01",
@@ -205,7 +215,7 @@
       "path": ".task/T04.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "e33a05ed60c02e56e96ab378883d907720da3e4a297cece0fc3e77a84f3e2936",
+      "record_sha256": "0bd8153f6aa44de432b4d4cfedc28621ba13f10300f0da983257d219f0f17bde",
       "committed": true,
       "evidence": [
         {
@@ -218,8 +228,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "B0"
@@ -230,7 +240,7 @@
       "path": ".task/T05.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "165dec72c114cc8314e570a890e7fd2880eb52f4aa346f8f461de416ce9963cd",
+      "record_sha256": "8578e75d07e7a1b210ee476f7d1e7326d73d7bf7b901e0c2070d6309a3d9e2f1",
       "committed": true,
       "evidence": [
         {
@@ -240,8 +250,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "B0"
@@ -252,14 +262,14 @@
       "path": ".task/T06.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "738091948653be558cb24f815531f176413fd15a7d706c8dd5af0c0a2d9dd935",
+      "record_sha256": "726ff11750fc0b5e838441623843f6226f6fb4ac32f66adba368495e474a228a",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "T02",
@@ -271,14 +281,14 @@
       "path": ".task/T07.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "cb5e8f04270d4ab84c4dac026d8eb9aeb0e7da40d68bde3d394f918472c8b9db",
+      "record_sha256": "86b2ff70c53f7f3404bffe656ae31888b4e5b7c38e1bcb4ab15befd8b0c50cd5",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "T05"
@@ -289,14 +299,14 @@
       "path": ".task/T08.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "053849d6d4dd6d9b71dd974b10e7bfa0f234a625eea12c2b70be325dc32a5044",
+      "record_sha256": "05b7a40a764cc41135aba48d27954b149733417704ac43615129cab1fae0b99e",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "W1"
@@ -307,14 +317,14 @@
       "path": ".task/T09.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "09120edc9bc88a05189c0490371c2a2068bcdac4b1d6d2f1bb1035f2536ce76b",
+      "record_sha256": "9414d434250b409321ab762f4e4ea92ad1b003358bec4656d63e589bd7cbce98",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "W1",
@@ -326,14 +336,14 @@
       "path": ".task/W1.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "79cdb7dcf7d858a78ab6e0ae20bd3325bfc9ad5bf73d60beb00a959d31696507",
+      "record_sha256": "4ecb77b81089d6dbc384bd585851cd734b2b11e2011f7e343439af4310fb546c",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "T01",
@@ -349,14 +359,14 @@
       "path": ".task/W2.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "e3ba30a6f3f22f1f13adddadcb5cbceabc8fbf50a718ad7b7ad6c70b74afd3a6",
+      "record_sha256": "ffd974d07b233e3b76713f2a52f1d37dad11cd623e2b07b1e3c8d77d6004f838",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "W1",
@@ -369,14 +379,14 @@
       "path": ".task/W3.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "8acd209d53bb668cc3570cec0940bb81aefb70d471455395b82ad7776864ac6d",
+      "record_sha256": "36f7e4313e516784aa485c561b4fb0a45a6ce3c32c9ec5f01f080e367a1e41e6",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "T09",
@@ -388,14 +398,14 @@
       "path": ".task/W4.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "4798c13a4a23437ff20bcbf7e1e97361a80808e76b5a04dd43d7e064f41d7820",
+      "record_sha256": "e4869a3c46a69f9fc136a2c3f79ae9c6a0c81b1bdaf499c99c69b9b13e6dd138",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "blocked_by": [
         "W2",
@@ -1182,8 +1192,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5679,8 +5689,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5709,8 +5719,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5736,8 +5746,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5761,8 +5771,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5787,8 +5797,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5812,8 +5822,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5839,8 +5849,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5864,8 +5874,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5890,8 +5900,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5917,8 +5927,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5940,8 +5950,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5962,8 +5972,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -5987,8 +5997,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6013,8 +6023,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6037,8 +6047,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6061,8 +6071,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6088,8 +6098,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6118,8 +6128,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -7508,8 +7518,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9347,8 +9357,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9380,8 +9390,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9413,8 +9423,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9440,8 +9450,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -9466,8 +9476,8 @@
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-        "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
       },
       "parent_task": "B0",
       "write_set": [
@@ -11417,6 +11427,762 @@
           }
         ]
       }
+    },
+    {
+      "id": "245",
+      "path": ".task/impl/245.md",
+      "status": "已合入",
+      "baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "record_sha256": "15d8a2cb384d81aaa4f4a426d779dc02fdc8bf777b853ca72cfb3d482c3c9484",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/maintenance/cp-cleanup/receipt.json",
+          "sha256": "874f0e187dcdbe3e84e48f70cb99dfd96354cb6d50e336fb28aee8e80f1185c8",
+          "location": "main",
+          "passing": true
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "10b4337b869d6515325d53c3ff49304e3243fbfa",
+        "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "evidence/maintenance/cp-cleanup/**"
+      ],
+      "implementation_author": "/root/cleanup_cp245",
+      "implementation_commit": "10b4337b869d6515325d53c3ff49304e3243fbfa",
+      "integration_commit": "755537621958e75a62973c260f591faac6b79798",
+      "review": {
+        "reviewer": "/root",
+        "verdict": "Pass",
+        "implementation_commit": "10b4337b869d6515325d53c3ff49304e3243fbfa",
+        "evidence": [
+          {
+            "path": "evidence/reviews/245/RESULT.json",
+            "sha256": "3a5a2432c768466e1a9cd01f33cc6cd65780d1b047b4786a28b7f8a79c673511",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "246",
+      "path": ".task/impl/246.md",
+      "status": "已合入",
+      "baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "record_sha256": "29a2f2e518166cf6676dc5e157f742dc665c9e6d5caffa8f4e3a130e16c4567e",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/impl/246/RESULT.json",
+          "sha256": "a5fc0fc39ec29373387c9da167d9f90e44446e1d2b975f1e1f911cdc10fe1ce5",
+          "location": "main",
+          "passing": false
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "975b7f8890bdcd18ddac90b013fac22f3e21c31f",
+        "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-expand/**",
+        "crates/zil-types/**",
+        "crates/zil-driver/tests/impl246*",
+        "evidence/impl/246/**"
+      ],
+      "implementation_author": "/root/callback_frontend",
+      "implementation_commit": "975b7f8890bdcd18ddac90b013fac22f3e21c31f",
+      "integration_commit": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "review": {
+        "reviewer": "/root/callback_consumer",
+        "verdict": "Pass",
+        "implementation_commit": "975b7f8890bdcd18ddac90b013fac22f3e21c31f",
+        "evidence": [
+          {
+            "path": "evidence/reviews/246/final-R/review.json",
+            "sha256": "4e2bb328ff08515f2a25a752d5749c6d0edd3407e7af158bd99512c237629fc3",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "247",
+      "path": ".task/impl/247.md",
+      "status": "已合入",
+      "baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "record_sha256": "17b5d05ad1c108f3bf7f8cd2af0425530d6451936dd7d3d1a238a81c3d4dd602",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/impl/247/RESULT.json",
+          "sha256": "9a3928abb38bac9bbe442dc7690abc32ed933c2a04315b5a6cc9670805808cd0",
+          "location": "main",
+          "passing": false
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "78e1f5f8ad09ae0f4eda01ebb52bb8b220db35f9",
+        "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-analyze/**",
+        "crates/zil-driver/tests/impl247*",
+        "evidence/impl/247/**"
+      ],
+      "implementation_author": "/root/callback_analyze",
+      "implementation_commit": "78e1f5f8ad09ae0f4eda01ebb52bb8b220db35f9",
+      "integration_commit": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "review": {
+        "reviewer": "/root",
+        "verdict": "Pass",
+        "implementation_commit": "78e1f5f8ad09ae0f4eda01ebb52bb8b220db35f9",
+        "evidence": [
+          {
+            "path": "evidence/reviews/247/final-R/review.json",
+            "sha256": "868b8a5740b17461859a492bfaed2d2035728e14f464ab01ddf66e4882847a88",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "248",
+      "path": ".task/impl/248.md",
+      "status": "已合入",
+      "baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "record_sha256": "420f3030249aba3ce390e82bd15a4f10237d2463f2e6ba6592e40269bdf74c9c",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/impl/248/receipt.json",
+          "sha256": "81eb1132be1afaa8252d570e73f56a7292ef9d03f856a01589ec5c903db5aa51",
+          "location": "main",
+          "passing": false
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "468e1d1c73b1b3a76afe991c043c1fc1f9b05a48",
+        "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-verify/**",
+        "crates/zil-driver/tests/impl248*",
+        "evidence/impl/248/**"
+      ],
+      "implementation_author": "/root/callback_verify_fallback",
+      "implementation_commit": "468e1d1c73b1b3a76afe991c043c1fc1f9b05a48",
+      "integration_commit": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "review": {
+        "reviewer": "/root",
+        "verdict": "Pass",
+        "implementation_commit": "468e1d1c73b1b3a76afe991c043c1fc1f9b05a48",
+        "evidence": [
+          {
+            "path": "evidence/reviews/248/final-R/review.json",
+            "sha256": "a36593ba76e86484dc70f28ce14b3d1f168267ddd401eb6bf92412836c55d840",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "249",
+      "path": ".task/impl/249.md",
+      "status": "已合入",
+      "baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "record_sha256": "deed3ed3d95fe4e620c88d273a5a9eeabf4841000d77ab7edb9e2f03508bcc35",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/impl/249/source_native.json",
+          "sha256": "4793c9f37ed02206f9192926b05e204eff693fbb50ee038ac230c6af0fefb9c0",
+          "location": "main",
+          "passing": false
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "6be4c3a53deed003ca30566f10ce3c92002a2de6",
+        "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-lower/**",
+        "crates/zil-backend-llvm/**",
+        "crates/zil-driver/tests/impl249*",
+        "evidence/impl/249/**"
+      ],
+      "implementation_author": "/root/callback_backend_fallback",
+      "implementation_commit": "6be4c3a53deed003ca30566f10ce3c92002a2de6",
+      "integration_commit": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "review": {
+        "reviewer": "/root/callback_consumer",
+        "verdict": "Pass",
+        "implementation_commit": "6be4c3a53deed003ca30566f10ce3c92002a2de6",
+        "evidence": [
+          {
+            "path": "evidence/reviews/249/final-R/review.json",
+            "sha256": "69ebe4f01a803f060565ce49c3b412d86ca036107bc72b39797d008b09cc144e",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "250",
+      "path": ".task/impl/250.md",
+      "status": "已合入",
+      "baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "record_sha256": "09dffc3e859a61adf6480141fe7732db1ce1bc91a5eaf1e7cedbcd11de26f8a4",
+      "committed": true,
+      "evidence": [
+        {
+          "path": "evidence/impl/250/final-R/ACCEPTANCE.json",
+          "sha256": "58355f80440cb026468532711b6a585fa55b32f5bad8b9567d4e582c8acd9ec7",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/impl/250/ci-portable-path/RESULT.json",
+          "sha256": "26642dd9d70e3c5ebaf05d9185e3336396b62709935b402ef00d8755278a6e56",
+          "location": "main",
+          "passing": false
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "ebbee34647b5297ebd7b9ddd10abe8a1d9295381",
+        "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "tests/impl250/**",
+        "tools/research/250/**",
+        "crates/zil-driver/tests/impl250*",
+        "crates/zil-driver/tests/review246*",
+        "crates/zil-driver/tests/review247*",
+        "crates/zil-driver/tests/review248*",
+        "crates/zil-driver/tests/review249*",
+        "evidence/impl/250/**",
+        "evidence/reviews/246/**",
+        "evidence/reviews/247/**",
+        "evidence/reviews/248/**",
+        "evidence/reviews/249/**"
+      ],
+      "implementation_author": "/root/callback_consumer",
+      "implementation_commit": "ebbee34647b5297ebd7b9ddd10abe8a1d9295381",
+      "integration_commit": "f61e173fe9f189bf497a27ce9d479cc6feae3244",
+      "review": {
+        "reviewer": "/root",
+        "verdict": "Pass",
+        "implementation_commit": "ebbee34647b5297ebd7b9ddd10abe8a1d9295381",
+        "evidence": [
+          {
+            "path": "evidence/reviews/250/ci-portable-path/RESULT.json",
+            "sha256": "96c9fbc5c2f462195030fee963512c3be70686190f8614aa1040e4f824271c62",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "251",
+      "path": ".task/impl/251.md",
+      "status": "已合入",
+      "baseline": "aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+      "record_sha256": "15fceacd05f86ebf7927f5fbecd5822ec33f2ccc5e967699e3895bc83e23ffc4",
+      "committed": false,
+      "evidence": [
+        {
+          "path": "evidence/impl/251/bootstrap/RESULT.json",
+          "sha256": "3fc4f7be7f652770914478acb42c221a03b20daa990dab9384cce65283d3760d",
+          "location": "main",
+          "passing": false
+        },
+        {
+          "path": "evidence/reviews/251/final/public-bootstrap.json",
+          "sha256": "533f1b03860222cc3776db4119809b1527f5549770e629ed30c7a85c62846b48",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "_zil_design.md",
+        "spec/interfaces.json",
+        "changes/251-256-callable-forward.md",
+        "crates/zil-base/src/lib.rs",
+        "crates/zil-ir/**",
+        "已列机械Fresh迁移及版本断言",
+        "evidence/impl/251/**"
+      ],
+      "implementation_author": "/root",
+      "implementation_commit": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+      "integration_commit": "9aeffc113971002fe788dc679c157a332b7dfcef",
+      "review": {
+        "reviewer": "/root/callback_backend_fallback",
+        "verdict": "Pass",
+        "implementation_commit": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+        "evidence": [
+          {
+            "path": "evidence/reviews/251/final/public-bootstrap.json",
+            "sha256": "533f1b03860222cc3776db4119809b1527f5549770e629ed30c7a85c62846b48",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "252",
+      "path": ".task/impl/252.md",
+      "status": "已合入",
+      "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+      "record_sha256": "71e6fbf0f4b305a55748b7ef147f0c45971b843203bb9889b20e5610f8c33924",
+      "committed": false,
+      "evidence": [
+        {
+          "path": "evidence/impl/252/RESULT.json",
+          "sha256": "ddeabfac39b16b06cce89053b20376d706eee3583044a8c28d6e51d5f730ea64",
+          "location": "main",
+          "passing": false
+        },
+        {
+          "path": "evidence/reviews/252/final/REVIEW.json",
+          "sha256": "62a73522f706c363ade9b499c7ca6d28caef806ed33fce26f870add4f4071bcb",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "e023b228020cea739ce3922d4c595914980b0884",
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-expand/**",
+        "crates/zil-types/**",
+        "crates/zil-driver/tests/impl252*",
+        "evidence/impl/252/**"
+      ],
+      "implementation_author": "/root/callback_frontend",
+      "implementation_commit": "e023b228020cea739ce3922d4c595914980b0884",
+      "integration_commit": "9aeffc113971002fe788dc679c157a332b7dfcef",
+      "review": {
+        "reviewer": "/root/callback_backend_fallback",
+        "verdict": "Pass",
+        "implementation_commit": "e023b228020cea739ce3922d4c595914980b0884",
+        "evidence": [
+          {
+            "path": "evidence/reviews/252/final/REVIEW.json",
+            "sha256": "62a73522f706c363ade9b499c7ca6d28caef806ed33fce26f870add4f4071bcb",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "253",
+      "path": ".task/impl/253.md",
+      "status": "已合入",
+      "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+      "record_sha256": "3ad182ec029113721f06dccf9154223a38287a51224f4c80e5e2fcaa6c1fde9d",
+      "committed": false,
+      "evidence": [
+        {
+          "path": "evidence/reviews/253/final/REVIEW.json",
+          "sha256": "98cc57a6c6005cc111f501e1817f414755fc5352e4820ffb64fde47bbd1347a7",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "920be0043dd7b9790fc4efedbb3a3f9c86631b3c",
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-analyze/**",
+        "crates/zil-driver/tests/impl253*",
+        "evidence/impl/253/**"
+      ],
+      "implementation_author": "/root/callback_analyze",
+      "implementation_commit": "920be0043dd7b9790fc4efedbb3a3f9c86631b3c",
+      "integration_commit": "9aeffc113971002fe788dc679c157a332b7dfcef",
+      "review": {
+        "reviewer": "/root/assess_delivery_process",
+        "verdict": "Pass",
+        "implementation_commit": "920be0043dd7b9790fc4efedbb3a3f9c86631b3c",
+        "evidence": [
+          {
+            "path": "evidence/reviews/253/final/REVIEW.json",
+            "sha256": "98cc57a6c6005cc111f501e1817f414755fc5352e4820ffb64fde47bbd1347a7",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "254",
+      "path": ".task/impl/254.md",
+      "status": "已合入",
+      "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+      "record_sha256": "e9754418c9fa97b6bc43e8f81877cb6dca990e0104a0d54e0869f129c53efffe",
+      "committed": false,
+      "evidence": [
+        {
+          "path": "evidence/impl/254/RESULT.json",
+          "sha256": "2d58de01fdd6c34b00afe916459d63a4f63c1ad478f3519d50474bb4784fe8b7",
+          "location": "main",
+          "passing": false
+        },
+        {
+          "path": "evidence/reviews/254/final/REVIEW.json",
+          "sha256": "69f3e764794a24958a40e874b9cd5fec18946dcab4d3a1704c96d54eff20e976",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "80979a443d5a0303bd1e27f185558171e1db4706",
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-verify/**",
+        "crates/zil-driver/tests/impl254*",
+        "tests/impl254/**",
+        "evidence/impl/254/**"
+      ],
+      "implementation_author": "/root/callback_verify_fallback",
+      "implementation_commit": "80979a443d5a0303bd1e27f185558171e1db4706",
+      "integration_commit": "9aeffc113971002fe788dc679c157a332b7dfcef",
+      "review": {
+        "reviewer": "/root/callback_frontend",
+        "verdict": "Pass",
+        "implementation_commit": "80979a443d5a0303bd1e27f185558171e1db4706",
+        "evidence": [
+          {
+            "path": "evidence/reviews/254/final/REVIEW.json",
+            "sha256": "69f3e764794a24958a40e874b9cd5fec18946dcab4d3a1704c96d54eff20e976",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "255",
+      "path": ".task/impl/255.md",
+      "status": "已合入",
+      "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+      "record_sha256": "c5bf6b309eac71415b66083c2c301bdf88edacafd8a82fce6be5e927c8c6ca21",
+      "committed": false,
+      "evidence": [
+        {
+          "path": "evidence/impl/255/final-candidate.json",
+          "sha256": "ced90ebf0ff86565dcd1e3382dc0a4df9a1c20197900a5d890fa9f419e83b0eb",
+          "location": "main",
+          "passing": false
+        },
+        {
+          "path": "evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "4bbc4b6f26d9dfce21bf0ba5ff18514a55e13a2d",
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-lower/**",
+        "crates/zil-backend-llvm/**",
+        "crates/zil-llvm-api/**",
+        "crates/zil-driver/tests/impl255*",
+        "evidence/impl/255/**"
+      ],
+      "implementation_author": "/root/callback_backend_fallback",
+      "implementation_commit": "4bbc4b6f26d9dfce21bf0ba5ff18514a55e13a2d",
+      "integration_commit": "9aeffc113971002fe788dc679c157a332b7dfcef",
+      "review": {
+        "reviewer": "/root",
+        "verdict": "Pass",
+        "implementation_commit": "4bbc4b6f26d9dfce21bf0ba5ff18514a55e13a2d",
+        "evidence": [
+          {
+            "path": "evidence/reviews/255/root/REVIEW.json",
+            "sha256": "e0fa900a2b2acf1f7823d03d852725b44a4955d95c6d72dee3dd108c1053e8b9",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "256",
+      "path": ".task/impl/256.md",
+      "status": "已合入",
+      "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+      "record_sha256": "4d53e6673f4bbdf7ee5f7335868085c4b938f1043057b4f125fd91fb4a11a733",
+      "committed": false,
+      "evidence": [
+        {
+          "path": "evidence/reviews/256/final/REVIEW.json",
+          "sha256": "f05853b15526adc86e322d66971deb95d641c25ad2a3746910ff4ea8955c7936",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/reviews/256/repair/REVIEW.json",
+          "sha256": "351767725540e147ce8123126ad0111b0625d182e2f68421bae19d50dbffa58c",
+          "location": "main",
+          "passing": true
+        },
+        {
+          "path": "evidence/impl/256/final-R1/ACCEPTANCE.json",
+          "sha256": "b573e4fa91d5643d042021f2f0810fb398d44b6764282bf251365d849982f914",
+          "location": "main",
+          "passing": false
+        },
+        {
+          "path": "evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+        }
+      ],
+      "specification": {
+        "source": "implementation_commit",
+        "revision": "4364ab020fc5b0e1e3f67b8bda23975fa79f2519",
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "tests/impl256/**",
+        "tools/research/256/**",
+        "tools/language/256/**",
+        "crates/zil-driver/tests/impl256*",
+        "evidence/impl/256/**"
+      ],
+      "implementation_author": "/root/callback_consumer",
+      "implementation_commit": "4364ab020fc5b0e1e3f67b8bda23975fa79f2519",
+      "integration_commit": "9aeffc113971002fe788dc679c157a332b7dfcef",
+      "review": {
+        "reviewer": "/root/assess_delivery_process",
+        "verdict": "Pass",
+        "implementation_commit": "4364ab020fc5b0e1e3f67b8bda23975fa79f2519",
+        "evidence": [
+          {
+            "path": "evidence/reviews/256/repair/REVIEW.json",
+            "sha256": "351767725540e147ce8123126ad0111b0625d182e2f68421bae19d50dbffa58c",
+            "location": "main",
+            "passing": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "257",
+      "path": ".task/impl/257.md",
+      "status": "施工",
+      "baseline": "1b8f0963d293b4d7354c2a865c13da7c170a0157",
+      "record_sha256": "7ed9dd5451239ab045d54fe9aa969c7733b9ec511812037488472f6474567aef",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "_zil_design.md",
+        "spec/**",
+        "changes/257-262*",
+        "crates/zil-ir/**",
+        "root shared module registration",
+        "evidence/impl/257/**"
+      ],
+      "implementation_author": "/root",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "258",
+      "path": ".task/impl/258.md",
+      "status": "施工",
+      "baseline": "1b8f0963d293b4d7354c2a865c13da7c170a0157",
+      "record_sha256": "34a6324cbaa2817f993a3a8179b7ac3da067f20e8aa5c6522dc522f1294d1266",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-syntax/**",
+        "crates/zil-expand/**",
+        "crates/zil-driver/tests/impl258*",
+        "evidence/impl/258/**"
+      ],
+      "implementation_author": "/root/callback_frontend",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "259",
+      "path": ".task/impl/259.md",
+      "status": "施工",
+      "baseline": "1b8f0963d293b4d7354c2a865c13da7c170a0157",
+      "record_sha256": "dd7673e0df960cffb218de1dbd539ad4525a42fc3e0281f0bab66a1b67a6bb87",
+      "committed": false,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-verify/src/ct_artifact*",
+        "crates/zil-ct/src/ct_artifact*",
+        "crates/zil-ct/src/lib.rs arithmetic helper visibility only",
+        "crates/zil-driver/tests/impl259*",
+        "evidence/impl/259/**"
+      ],
+      "implementation_author": "/root/callback_backend_fallback",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "260",
+      "path": ".task/impl/260.md",
+      "status": "施工",
+      "baseline": "1b8f0963d293b4d7354c2a865c13da7c170a0157",
+      "record_sha256": "8049e8fc0faacff2a1458b790d55c8488c1e8bcb02f7fd9ada8066885e745bbc",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-driver/src/ct_artifact/compiler*",
+        "crates/zil-driver/tests/impl260*",
+        "evidence/impl/260/**"
+      ],
+      "implementation_author": "/root/callback_analyze",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "261",
+      "path": ".task/impl/261.md",
+      "status": "施工",
+      "baseline": "1b8f0963d293b4d7354c2a865c13da7c170a0157",
+      "record_sha256": "be9f5862dd962740d5927e112a3b4ae00e72fa0cc0d3a7c0d8312fc4dbc0b8a6",
+      "committed": false,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-driver/src/ct_artifact (excluding compiler*)",
+        "crates/zil-driver/src/project*.rs",
+        "crates/zil-driver/src/ct_selection/**",
+        "crates/zil-driver/src/ct_selection.rs",
+        "crates/zil-cli/**",
+        "crates/zil-driver/tests/impl261*",
+        "evidence/impl/261/**"
+      ],
+      "implementation_author": "/root/type_syntax_project",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "262",
+      "path": ".task/impl/262.md",
+      "status": "施工",
+      "baseline": "1b8f0963d293b4d7354c2a865c13da7c170a0157",
+      "record_sha256": "ee29cd4d9308de28d89b6fbd77d9cac0843e35f342ab6e07fc10fcfa82024b2b",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "tests/impl262/**",
+        "crates/zil-driver/tests/impl262*",
+        "tools/language/262/**",
+        "evidence/impl/262/**"
+      ],
+      "implementation_author": "/root/callback_consumer",
+      "implementation_commit": null,
+      "integration_commit": null
     }
   ],
   "next": [
@@ -11544,6 +12310,36 @@
       "id": "212",
       "status": "施工",
       "authoritative_task": ".task/impl/212.md"
+    },
+    {
+      "id": "257",
+      "status": "施工",
+      "authoritative_task": ".task/impl/257.md"
+    },
+    {
+      "id": "258",
+      "status": "施工",
+      "authoritative_task": ".task/impl/258.md"
+    },
+    {
+      "id": "259",
+      "status": "施工",
+      "authoritative_task": ".task/impl/259.md"
+    },
+    {
+      "id": "260",
+      "status": "施工",
+      "authoritative_task": ".task/impl/260.md"
+    },
+    {
+      "id": "261",
+      "status": "施工",
+      "authoritative_task": ".task/impl/261.md"
+    },
+    {
+      "id": "262",
+      "status": "施工",
+      "authoritative_task": ".task/impl/262.md"
     }
   ],
   "commands": {
@@ -11553,8 +12349,57 @@
     "plan": "python3 tools/check-plan.py --self-test",
     "draft": "python3 tools/validate-draft.py"
   },
-  "warnings": [],
+  "warnings": [
+    {
+      "id": "251",
+      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+    },
+    {
+      "id": "252",
+      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+    },
+    {
+      "id": "253",
+      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+    },
+    {
+      "id": "254",
+      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+    },
+    {
+      "id": "255",
+      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+    },
+    {
+      "id": "256",
+      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+    },
+    {
+      "id": "259",
+      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+    },
+    {
+      "id": "261",
+      "reason": "Current task record differs from committed main; it is a working instruction, not a completed handoff."
+    }
+  ],
   "errors": [
+    {
+      "id": "normative",
+      "reason": "Changed or missing input: _zil_design.md"
+    },
+    {
+      "id": "normative",
+      "reason": "Changed or missing input: spec/interfaces.json"
+    },
+    {
+      "id": "normative",
+      "reason": "Normative input digest does not match its registry."
+    },
+    {
+      "id": "B0",
+      "reason": "Task specification snapshot is stale."
+    },
     {
       "id": "B0",
       "reason": "baseline must identify an existing complete commit."
@@ -11573,6 +12418,10 @@
     },
     {
       "id": "T01",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "T01",
       "reason": "Evidence is missing, empty, or uncommitted: evidence/T01/20261022T141443Z-6f935e0b/result.json"
     },
     {
@@ -11581,7 +12430,19 @@
     },
     {
       "id": "T02",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "T02",
       "reason": "Evidence is missing, empty, or uncommitted: evidence/T02/20261022T141446Z-041bcee1/result.json"
+    },
+    {
+      "id": "T03",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "T04",
+      "reason": "Task specification snapshot is stale."
     },
     {
       "id": "T04",
@@ -11593,7 +12454,43 @@
     },
     {
       "id": "T05",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "T05",
       "reason": "Evidence is missing, empty, or uncommitted: evidence/T05/20261022T141443Z-d55307c9/result.json"
+    },
+    {
+      "id": "T06",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "T07",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "T08",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "T09",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "W1",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "W2",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "W3",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "W4",
+      "reason": "Task specification snapshot is stale."
     },
     {
       "id": "001",
@@ -16129,6 +17026,190 @@
     },
     {
       "id": "212",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "246",
+      "reason": "Evidence has no passing outcome: evidence/impl/246/RESULT.json"
+    },
+    {
+      "id": "247",
+      "reason": "Evidence has no passing outcome: evidence/impl/247/RESULT.json"
+    },
+    {
+      "id": "248",
+      "reason": "Evidence has no passing outcome: evidence/impl/248/receipt.json"
+    },
+    {
+      "id": "249",
+      "reason": "Evidence has no passing outcome: evidence/impl/249/source_native.json"
+    },
+    {
+      "id": "250",
+      "reason": "Evidence has no passing outcome: evidence/impl/250/ci-portable-path/RESULT.json"
+    },
+    {
+      "id": "251",
+      "reason": "Historical normative input does not match its committed registry: _zil_design.md"
+    },
+    {
+      "id": "251",
+      "reason": "Historical normative input does not match its committed registry: spec/interfaces.json"
+    },
+    {
+      "id": "251",
+      "reason": "Historical normative digest does not match its committed registry."
+    },
+    {
+      "id": "251",
+      "reason": "Evidence has no passing outcome: evidence/impl/251/bootstrap/RESULT.json"
+    },
+    {
+      "id": "251",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+    },
+    {
+      "id": "251",
+      "reason": "Merged task record has not been committed."
+    },
+    {
+      "id": "252",
+      "reason": "Historical normative input does not match its committed registry: _zil_design.md"
+    },
+    {
+      "id": "252",
+      "reason": "Historical normative input does not match its committed registry: spec/interfaces.json"
+    },
+    {
+      "id": "252",
+      "reason": "Historical normative digest does not match its committed registry."
+    },
+    {
+      "id": "252",
+      "reason": "Evidence has no passing outcome: evidence/impl/252/RESULT.json"
+    },
+    {
+      "id": "252",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+    },
+    {
+      "id": "252",
+      "reason": "Merged task record has not been committed."
+    },
+    {
+      "id": "253",
+      "reason": "Historical normative input does not match its committed registry: _zil_design.md"
+    },
+    {
+      "id": "253",
+      "reason": "Historical normative input does not match its committed registry: spec/interfaces.json"
+    },
+    {
+      "id": "253",
+      "reason": "Historical normative digest does not match its committed registry."
+    },
+    {
+      "id": "253",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+    },
+    {
+      "id": "253",
+      "reason": "Merged task record has not been committed."
+    },
+    {
+      "id": "254",
+      "reason": "Historical normative input does not match its committed registry: _zil_design.md"
+    },
+    {
+      "id": "254",
+      "reason": "Historical normative input does not match its committed registry: spec/interfaces.json"
+    },
+    {
+      "id": "254",
+      "reason": "Historical normative digest does not match its committed registry."
+    },
+    {
+      "id": "254",
+      "reason": "Evidence has no passing outcome: evidence/impl/254/RESULT.json"
+    },
+    {
+      "id": "254",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+    },
+    {
+      "id": "254",
+      "reason": "Merged task record has not been committed."
+    },
+    {
+      "id": "255",
+      "reason": "Historical normative input does not match its committed registry: _zil_design.md"
+    },
+    {
+      "id": "255",
+      "reason": "Historical normative input does not match its committed registry: spec/interfaces.json"
+    },
+    {
+      "id": "255",
+      "reason": "Historical normative digest does not match its committed registry."
+    },
+    {
+      "id": "255",
+      "reason": "Evidence has no passing outcome: evidence/impl/255/final-candidate.json"
+    },
+    {
+      "id": "255",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+    },
+    {
+      "id": "255",
+      "reason": "Merged task record has not been committed."
+    },
+    {
+      "id": "256",
+      "reason": "Historical normative input does not match its committed registry: _zil_design.md"
+    },
+    {
+      "id": "256",
+      "reason": "Historical normative input does not match its committed registry: spec/interfaces.json"
+    },
+    {
+      "id": "256",
+      "reason": "Historical normative digest does not match its committed registry."
+    },
+    {
+      "id": "256",
+      "reason": "Evidence has no passing outcome: evidence/impl/256/final-R1/ACCEPTANCE.json"
+    },
+    {
+      "id": "256",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/integration/callable-forward-20261102/remote-pr/PR19-REMOTE-ACCEPTANCE.json"
+    },
+    {
+      "id": "256",
+      "reason": "Merged task record has not been committed."
+    },
+    {
+      "id": "257",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "258",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "259",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "260",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "261",
+      "reason": "Task specification snapshot is stale."
+    },
+    {
+      "id": "262",
       "reason": "Task specification snapshot is stale."
     }
   ]
