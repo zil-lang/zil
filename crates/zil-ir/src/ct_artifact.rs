@@ -117,7 +117,6 @@ pub struct CtTypeRef {
 pub enum CtTypeNode {
     Primitive(CtScalarTy),
     Builtin(CtBuiltinType),
-    Builtin(CtBuiltinType),
     Nominal {
         symbol: CtSymbolId,
         arguments: Vec<CtTypeArgument>,
@@ -152,12 +151,6 @@ pub enum CtTypeNode {
         error: CtTypeNodeId,
         result: CtTypeNodeId,
     },
-}
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CtBuiltinType {
-    ByteBuffer,
-    ForeignHandle,
-    CWideString,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeArgument {
