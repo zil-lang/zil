@@ -206,3 +206,52 @@ fn owning_callback_argument_is_consumed_once_raw_and_wire() {
     );
     raw.reject("consumes a callback role more than once");
 }
+
+#[test]
+fn unused_owned_signature_cannot_hide_callback_in_store_element_raw_and_wire() {
+    let mut raw = dispatch();
+    raw.module.closures[0].result = Type::Package {
+        name: "BadReply".into(),
+        fields: vec![(
+            "callbacks".into(),
+            Type::Managed(Box::new(Type::OwnedStore {
+                element: Box::new(Type::Package {
+                    name: "CallbackItem".into(),
+                    fields: vec![("callback".into(), env())],
+                }),
+            })),
+        )],
+    };
+    raw.reject("cannot contain a concrete or opaque callback");
+}
+
+fn stored_event() -> Type {
+    Type::Managed(Box::new(Type::OwnedStore {
+        element: Box::new(event()),
+    }))
+}
+
+#[test]
+fn owning_result_does_not_expand_shared_product_or_store_capture_profiles() {
+    let mut raw = dispatch();
+    raw.module.closures[0].captures = vec![address(event(), false)];
+    raw.reject("shared Product captures require a finite Copy result");
+
+    let mut raw = dispatch();
+    raw.module.closures[0].captures = vec![stored_event()];
+    raw.reject("captured Store requires a finite Copy or Unit result");
+
+    let mut raw = dispatch();
+    raw.module.closures[0].captures = vec![stored_event()];
+    raw.module.closures[0].result = Type::I32;
+    raw.module.closures.push(ClosureDefinition {
+        id: ClosureId(1),
+        function: FunctionId(2),
+        captures: vec![env()],
+        parameters: vec![],
+        result: reply(),
+        kind: CallableKind::FnOnce,
+        lending_captures: vec![],
+    });
+    raw.reject("captured Store requires a finite Copy or Unit result");
+}

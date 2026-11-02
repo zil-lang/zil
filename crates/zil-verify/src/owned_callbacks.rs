@@ -23,6 +23,60 @@ pub(super) fn value(
         ));
     }
     resources::charge_payload(ty, budget)?;
+    // Ordinary StoreElement may contain a concrete callback field. That
+    // container is independently supported elsewhere, but a new callback
+    // data signature cannot use it to carry F through a result or argument.
+    // Walk every embedded type, including Store elements and inactive Sum
+    // alternatives; actual operation checks still prove its live branches.
+    budget.spend(1)?;
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        match ty {
+            Type::Closure(_) => {
+                return Err(unsupported(
+                    "owning callback data cannot contain a concrete or opaque callback",
+                    span,
+                ));
+            }
+            Type::Array { element, .. }
+            | Type::OwnedStore { element }
+            | Type::Address { inner: element, .. }
+            | Type::Managed(element)
+            | Type::Desc(element) => {
+                budget.spend(1)?;
+                pending.push(element);
+            }
+            Type::ErrorUnion { error, result } => {
+                budget.spend(2)?;
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                budget.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| ty));
+            }
+            Type::Enum { variants, .. } => {
+                let width = variants
+                    .iter()
+                    .map(|(_, fields)| fields.len())
+                    .sum::<usize>();
+                budget.spend(width)?;
+                pending.extend(variants.iter().flat_map(|(_, fields)| fields));
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                budget.spend(parameters.len().saturating_add(1))?;
+                pending.extend(parameters);
+                pending.push(result);
+            }
+            _ => {}
+        }
+    }
     match ty {
         Type::Package { .. } if !sums::needs_shape(ty, budget)? => {
             packages::check_ordinary_type(module, ty, span, budget)
