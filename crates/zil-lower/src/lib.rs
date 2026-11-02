@@ -54,7 +54,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
         ) && !closure.result.is_copy_value()
         {
-            sum_budget.admits(&closure.result, &module.resources, 0)?
+            callback_data_shape(&closure.result)
+                && sum_budget.admits(&closure.result, &module.resources, 0)?
         } else {
             false
         };
@@ -64,10 +65,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             if ty.is_copy_value() {
                 continue;
             }
-            if !matches!(
-                ty,
-                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
-            ) {
+            if !callback_data_shape(ty) {
                 complete_parameters = false;
                 break;
             }
@@ -371,6 +369,30 @@ fn callable_parameter_type(ty: &Type, closures: &[zil_ir::ClosureDefinition]) ->
     closures
         .get(id.0 as usize)
         .is_some_and(|definition| definition.id == *id)
+}
+
+// Callback data is complete ordinary Product/Sum, never a naked resource,
+// address, description, or a callback nested as data. An ErrorUnion's owning
+// arm must itself be a complete Product or Enum.
+fn callback_data_shape(ty: &Type) -> bool {
+    match ty {
+        Type::Package { fields, .. } => fields.iter().all(|(_, field)| {
+            field.is_copy_value() || matches!(field, Type::Managed(_)) || callback_data_shape(field)
+        }),
+        Type::Enum { variants, .. } => variants.iter().all(|(_, fields)| {
+            fields.iter().all(|field| {
+                field.is_copy_value()
+                    || matches!(field, Type::Managed(_))
+                    || callback_data_shape(field)
+            })
+        }),
+        Type::ErrorUnion { error, result } => [error.as_ref(), result.as_ref()].iter().all(|arm| {
+            arm.is_copy_value()
+                || matches!(arm, Type::Package { .. } | Type::Enum { .. })
+                    && callback_data_shape(arm)
+        }),
+        _ => false,
+    }
 }
 
 #[cfg(test)]

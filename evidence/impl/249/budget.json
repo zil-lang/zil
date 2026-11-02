@@ -1,0 +1,27 @@
+{
+  "task": "249",
+  "evidence_level": "private recipe budgeting tests; source/native acceptance is in source_native.json and consumer_probe.json",
+  "commands": [
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-249 cargo test -p zil-lower --lib impl249_lower_callback_argument_and_result_share_one_budget --offline --locked -j 2 -- --nocapture",
+    "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-249 cargo test -p zil-backend-llvm --lib impl249_callback_signature_prepays_the_shared_machine_budget --offline --locked -j 2 -- --nocapture"
+  ],
+  "lower": {
+    "owning_event_reply_n": 38,
+    "n_result": "Pass",
+    "n_minus_one_result": "ResourceLimit",
+    "fresh_n_result": "Pass",
+    "shared_request_budget": true
+  },
+  "machine": {
+    "old_copy_callback_n": 2826,
+    "without_callback_n": 2826,
+    "owning_packet_callback_n": 4006,
+    "owning_n_result": "Pass",
+    "owning_n_minus_one_result": "ResourceLimit",
+    "fresh_n_result": "Pass",
+    "shared_request_budget": true
+  },
+  "selected": 2,
+  "executed": 2,
+  "assertions": "all listed boundary and legacy-equality assertions passed"
+}
