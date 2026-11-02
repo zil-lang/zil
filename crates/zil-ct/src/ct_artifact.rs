@@ -1281,6 +1281,7 @@ mod tests {
         fn authenticate_input_table(&self, input: &CtInputTable) -> bool {
             input.tokens.is_empty()
         }
+        fn authenticate_artifact(&self, _: &CtArtifactProgram) -> bool { true }
         fn authenticate_function(&self, _: &CtFunction) -> bool {
             true
         }
@@ -1618,5 +1619,56 @@ mod tests {
         )
         .unwrap();
         assert_eq!(value, CtValue::Scalar(Constant::I32(3)));
+    }
+    #[test]
+    fn constructs_array_type_value_with_element_identity() {
+        let mut program = raw();
+        let s = Span::default();
+        let f = &mut program.functions[0];
+        f.result_type = CtTy::Type;
+        f.values = vec![CtTy::Type, CtTy::Scalar(CtScalarTy::I32), CtTy::Type];
+        f.blocks[0].instructions = vec![
+            CtInstruction {
+                result: Some(CtValueId(0)),
+                kind: CtInstructionKind::TypePrimitive(CtScalarTy::I32),
+                span: s,
+            },
+            CtInstruction {
+                result: Some(CtValueId(1)),
+                kind: CtInstructionKind::Constant(CtConstantId(0)),
+                span: s,
+            },
+            CtInstruction {
+                result: Some(CtValueId(2)),
+                kind: CtInstructionKind::TypeConstruct {
+                    constructor: CtTypeConstructor::Array,
+                    arguments: vec![CtValueId(0), CtValueId(1)],
+                },
+                span: s,
+            },
+        ];
+        f.blocks[0].terminator = CtTerminator::Return(Some(CtValueId(2)));
+        let authority = Authority {
+            snapshot: program.snapshot.clone(),
+        };
+        let verified = verify_ct_artifact(program.clone(), &Limits::default(), &authority).unwrap();
+        let (answer, _) = evaluate_ct_artifact(
+            &verified,
+            &[],
+            &Reader,
+            &mut CtExecutionBudget::new(program.budget),
+        )
+        .unwrap();
+        let CtValue::Type(result) = answer else {
+            panic!("expected CT Type")
+        };
+        assert_eq!(result.root, CtTypeNodeId(1));
+        assert_eq!(
+            result.nodes[1],
+            CtTypeNode::Array {
+                element: CtTypeNodeId(0),
+                length: 4
+            }
+        );
     }
 }
