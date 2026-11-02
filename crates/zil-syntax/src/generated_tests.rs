@@ -39,12 +39,19 @@ fn generated_categories_preserve_exact_token_contexts() {
 #[test]
 fn generated_parse_rejects_extra_input_and_bad_context_without_dropping_source() {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "generated.zil", "1;2");
-    let result = parse_generated(
-        &source,
-        SyntaxCategory::Expr,
-        &GeneratedParseContext::default(),
-        &Limits::default(),
-    );
+    let complete = GeneratedParseContext {
+        tokens: lexer::lex(&source)
+            .tokens
+            .into_iter()
+            .filter(|t| t.kind != TokenKind::Eof)
+            .map(|t| GeneratedTokenContext {
+                span: t.span,
+                origin: 7,
+                name_context: None,
+            })
+            .collect(),
+    };
+    let result = parse_generated(&source, SyntaxCategory::Expr, &complete, &Limits::default());
     assert!(
         result
             .diagnostics
@@ -66,4 +73,34 @@ fn generated_parse_rejects_extra_input_and_bad_context_without_dropping_source()
             .iter()
             .any(|d| d.code == "E-PARSE-GENERATED-CONTEXT")
     );
+}
+
+#[test]
+fn generated_parse_requires_all_real_tokens_including_identifiers() {
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "generated.zil", "value+1");
+    for context in [
+        GeneratedParseContext::default(),
+        GeneratedParseContext {
+            tokens: vec![
+                GeneratedTokenContext {
+                    span: Span::new(FileId(0), 5, 6),
+                    origin: 2,
+                    name_context: None,
+                },
+                GeneratedTokenContext {
+                    span: Span::new(FileId(0), 6, 7),
+                    origin: 2,
+                    name_context: None,
+                },
+            ],
+        },
+    ] {
+        let result = parse_generated(&source, SyntaxCategory::Expr, &context, &Limits::default());
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-PARSE-GENERATED-CONTEXT")
+        );
+    }
 }
