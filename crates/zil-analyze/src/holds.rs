@@ -15,6 +15,61 @@ enum Root {
 type Roots = BTreeSet<Root>;
 type State = BTreeMap<LocalId, Roots>;
 
+fn window_conflict(instruction: &Instruction, message: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        Phase::Analyze,
+        "E-BORROW-CONFLICT",
+        Some(instruction.span),
+        message,
+    )]
+}
+
+// Only ancestors of this actual reborrow may remain live across its child.
+// Equal roots or equal ClosureId alone never establish delegated permission.
+fn delegated(
+    f: &TypedFunction,
+    callback: ValueId,
+    active: resources::Place,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    use resources::Place;
+    let mut pending = vec![callback];
+    let mut seen = BTreeSet::new();
+    while let Some(value) = pending.pop() {
+        budget.lookup(seen.len(), "scoped delegation identity")?;
+        if !seen.insert(value) {
+            continue;
+        }
+        if active == Place::Value(value) {
+            return Ok(true);
+        }
+        for block in &f.blocks {
+            budget.spend(
+                block.instructions.len().saturating_add(1),
+                "scoped actual delegation producer",
+            )?;
+            for instruction in &block.instructions {
+                if instruction.result != Some(value) {
+                    continue;
+                }
+                match instruction.kind {
+                    InstructionKind::ReborrowAddress { address, .. }
+                    | InstructionKind::AddressField { address, .. }
+                    | InstructionKind::AddressIndex { address, .. }
+                    | InstructionKind::AddressSlice { address, .. } => pending.push(address),
+                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
+                        if active == Place::Local(local) =>
+                    {
+                        return Ok(true);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 fn overlaps(a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
     budget.product(a.len(), b.len(), 1, "scoped actual storage overlap")?;
     Ok(a.iter().any(|a| {
@@ -60,6 +115,7 @@ fn scoped_captures_address(
 // This uses actual Hold roots, never nominal ClosureId equality. It protects
 // the preparation interval as well as B's complete captured dependency set.
 fn scoped_transition(
+    module: &TypedModule,
     f: &TypedFunction,
     instruction: &Instruction,
     values: &[Roots],
@@ -89,10 +145,28 @@ fn scoped_transition(
             InstructionKind::Load(local) => {
                 f.locals[local.0 as usize].ty == f.values[instruction.result.unwrap().0 as usize]
             }
+            InstructionKind::ReadCapture { index } => {
+                f.environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|c| c.captures.get(index as usize))
+                    == instruction.result.map(|v| &f.values[v.0 as usize])
+            }
+            InstructionKind::BorrowCapture {
+                index,
+                mutable: requested,
+            } => f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .is_some_and(|c| {
+                    c.captures.get(index as usize) == Some(inner.as_ref())
+                        && *mutable == requested
+                        && (!requested || c.kind != CallableKind::Fn)
+                }),
             _ => true,
         };
         if !valid {
-            return Err(bad(
+            return Err(window_conflict(
+                instruction,
                 "scoped callback address producer upgrades its actual permission",
             ));
         }
@@ -166,7 +240,8 @@ fn scoped_transition(
             continue;
         }
         if overlaps(&accessed, roots, budget)? {
-            return Err(bad(
+            return Err(window_conflict(
+                instruction,
                 "scoped callback preparation accesses an exclusively borrowed position",
             ));
         }
@@ -177,7 +252,8 @@ fn scoped_transition(
                     continue;
                 }
                 if overlaps(&values[operand.0 as usize], roots, budget)? {
-                    return Err(bad(
+                    return Err(window_conflict(
+                        instruction,
                         "scoped callback preparation accesses a live exclusive alias",
                     ));
                 }
@@ -191,18 +267,65 @@ fn scoped_transition(
             budget,
         )?
     {
-        return Err(bad("scoped body accesses the actual callback position"));
+        return Err(window_conflict(
+            instruction,
+            "scoped body accesses the actual callback position",
+        ));
     }
-    if let InstructionKind::Call {
-        function: callee,
-        arguments,
-    } = &instruction.kind
-    {
+    if let InstructionKind::WithForeignCallback { callback, .. } = instruction.kind {
+        for active in live {
+            budget.spend(1, "scoped retained caller alias")?;
+            let (ty, roots) = match active {
+                Place::Value(value) => (&f.values[value.0 as usize], &values[value.0 as usize]),
+                Place::Local(local) => (
+                    &f.locals[local.0 as usize].ty,
+                    state.get(local).unwrap_or(&empty),
+                ),
+                _ => continue,
+            };
+            if matches!(ty, Type::Address { .. })
+                && overlaps(&values[callback.0 as usize], roots, budget)?
+                && !delegated(f, callback, *active, budget)?
+            {
+                return Err(window_conflict(
+                    instruction,
+                    "scoped callback overlaps an ordinary caller alias that remains live",
+                ));
+            }
+        }
+    }
+    let call = match &instruction.kind {
+        InstructionKind::Call {
+            function,
+            arguments,
+        } => Some((*function, arguments.as_slice())),
+        InstructionKind::MakeClosure { closure, captures } => {
+            let definition = &module.closures[closure.0 as usize];
+            budget.lookup(budget.scoped_functions.len(), "scoped capture entry lookup")?;
+            if budget.scoped_functions.contains(&definition.function) {
+                budget.spend(captures.len(), "scoped actual capture signature")?;
+                if captures.len() != definition.captures.len() {
+                    return Err(bad(
+                        "scoped capture arity differs from the actual environment",
+                    ));
+                }
+                for (value, expected) in captures.iter().zip(&definition.captures) {
+                    budget.type_work(expected, false, "scoped actual capture type comparison")?;
+                    if &f.values[value.0 as usize] != expected {
+                        return Err(bad("scoped capture type differs from its actual operand"));
+                    }
+                }
+            }
+            Some((definition.function, captures.as_slice()))
+        }
+        _ => None,
+    };
+    if let Some((callee, arguments)) = call {
         budget.lookup(
             budget.scoped_functions.len(),
             "scoped call actual window lookup",
         )?;
-        if budget.scoped_functions.contains(callee) {
+        if budget.scoped_functions.contains(&callee) {
             for (index, argument) in arguments.iter().enumerate() {
                 budget.spend(1, "scoped call actual mutable window")?;
                 if !matches!(
@@ -210,6 +333,28 @@ fn scoped_transition(
                     Type::Address { mutable: true, .. }
                 ) {
                     continue;
+                }
+                for active in live {
+                    budget.spend(1, "scoped call retained alias")?;
+                    let (ty, roots) = match active {
+                        Place::Value(value) if instruction.result != Some(*value) => {
+                            (&f.values[value.0 as usize], &values[value.0 as usize])
+                        }
+                        Place::Local(local) => (
+                            &f.locals[local.0 as usize].ty,
+                            state.get(local).unwrap_or(&empty),
+                        ),
+                        _ => continue,
+                    };
+                    if matches!(ty, Type::Address { .. })
+                        && overlaps(&values[argument.0 as usize], roots, budget)?
+                        && !delegated(f, *argument, *active, budget)?
+                    {
+                        return Err(window_conflict(
+                            instruction,
+                            "scoped call overlaps an ordinary caller alias that remains live",
+                        ));
+                    }
                 }
                 for (other, value) in arguments.iter().enumerate() {
                     if index != other
@@ -219,7 +364,8 @@ fn scoped_transition(
                             budget,
                         )?
                     {
-                        return Err(bad(
+                        return Err(window_conflict(
+                            instruction,
                             "scoped helper body aliases an actual exclusive argument",
                         ));
                     }
@@ -573,6 +719,7 @@ fn infer(
                 budget.spend(1, "Hold instruction")?;
                 if scoped {
                     scoped_transition(
+                        module,
                         f,
                         instruction,
                         &values,

@@ -255,12 +255,246 @@ fn scoped_fixture(mode: u8) -> TypedModule {
 #[test]
 fn scoped_preparation_protects_actual_position_and_allows_prior_independent_copy() {
     for mode in 0..6 {
-        let result = analyze(&scoped_fixture(mode), &Limits::default());
+        let module = scoped_fixture(mode);
+        let limits = Limits::default();
+        let result = analyze(&module, &limits);
         assert_eq!(
             result.is_ok(),
             matches!(mode, 0 | 2 | 4 | 5),
             "mode={mode}: {result:?}"
         );
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(decoded, module);
+        assert_eq!(analyze(&decoded, &limits), result);
+    }
+}
+
+#[test]
+fn scoped_raw_claims_cannot_forge_mutability_origin_or_storage_liveness() {
+    for mutation in 0..5 {
+        let mut module = scoped_fixture(0);
+        let f = &mut module.functions[0];
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::BorrowLocalMut { .. }))
+            .unwrap();
+        let InstructionKind::BorrowLocalMut { local } = f.blocks[0].instructions[at].kind else {
+            unreachable!()
+        };
+        match mutation {
+            0 => f.blocks[0].instructions[at].kind = InstructionKind::BorrowLocal { local },
+            1 => f.blocks[0].instructions[at].kind = InstructionKind::Constant(Constant::Unit),
+            2 => f.locals[local.0 as usize].mutable = false,
+            3 => {
+                f.values.push(Type::Closure(ClosureId(0)));
+                f.blocks[0].instructions.insert(
+                    at + 1,
+                    inst(
+                        Some(ValueId((f.values.len() - 1) as u32)),
+                        InstructionKind::TakeLocal { local },
+                    ),
+                );
+            }
+            4 => module.closures[0].function = FunctionId(2),
+            _ => unreachable!(),
+        }
+        let limits = Limits::default();
+        let errors = analyze(&module, &limits).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::SafeReject);
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(analyze(&decoded, &limits).unwrap_err(), errors);
+    }
+}
+
+#[test]
+fn scoped_exclusive_interval_rejects_a_live_shared_alias_but_not_an_ended_one() {
+    for live in [false, true] {
+        let mut module = scoped_fixture(0);
+        module.closures[0].kind = CallableKind::Fn;
+        let f = &mut module.functions[0];
+        let alias = ValueId(f.values.len() as u32);
+        f.values.push(Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Closure(ClosureId(0))),
+        });
+        let argument = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let result = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::BorrowLocalMut { .. }))
+            .unwrap();
+        f.blocks[0].instructions.insert(
+            at,
+            inst(
+                Some(alias),
+                InstructionKind::BorrowLocal { local: LocalId(0) },
+            ),
+        );
+        f.blocks[0].instructions.insert(
+            at + 1,
+            inst(Some(argument), InstructionKind::Constant(Constant::I32(1))),
+        );
+        let at = if live {
+            f.blocks[0]
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::StorageDead(_)))
+                .unwrap()
+        } else {
+            at + 2
+        };
+        f.blocks[0].instructions.insert(
+            at,
+            inst(
+                Some(result),
+                InstructionKind::CallClosureBorrowed {
+                    callee: alias,
+                    kind: CallableKind::Fn,
+                    arguments: vec![argument],
+                },
+            ),
+        );
+        let limits = Limits::default();
+        let outcome = analyze(&module, &limits);
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(analyze(&decoded, &limits), outcome);
+        if live {
+            let errors = outcome.unwrap_err();
+            assert_eq!(errors[0].code, "E-BORROW-CONFLICT");
+        } else {
+            outcome.unwrap();
+        }
+    }
+}
+
+#[test]
+fn scoped_exclusive_interval_preserves_only_actual_reborrow_ancestors() {
+    for stored in [false, true] {
+        let mut module = scoped_fixture(0);
+        let f = &mut module.functions[0];
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::WithForeignCallback { .. }))
+            .unwrap();
+        let InstructionKind::WithForeignCallback {
+            callback: parent, ..
+        } = f.blocks[0].instructions[at].kind
+        else {
+            unreachable!()
+        };
+        let address = f.values[parent.0 as usize].clone();
+        let mut preparation = vec![];
+        let parent_local = LocalId(f.locals.len() as u32);
+        let parent = if stored {
+            f.locals.push(LocalDecl {
+                id: parent_local,
+                name: "delegated".into(),
+                ty: address.clone(),
+                mutable: false,
+                span: s(),
+            });
+            preparation.extend([
+                inst(None, InstructionKind::StorageLive(parent_local)),
+                inst(
+                    None,
+                    InstructionKind::Store {
+                        local: parent_local,
+                        value: parent,
+                    },
+                ),
+            ]);
+            let loaded = ValueId(f.values.len() as u32);
+            f.values.push(address.clone());
+            preparation.push(inst(Some(loaded), InstructionKind::Load(parent_local)));
+            loaded
+        } else {
+            parent
+        };
+        let child = ValueId(f.values.len() as u32);
+        f.values.push(address.clone());
+        preparation.push(inst(
+            Some(child),
+            InstructionKind::ReborrowAddress {
+                address: parent,
+                mutable: true,
+            },
+        ));
+        if let InstructionKind::WithForeignCallback { callback, .. } =
+            &mut f.blocks[0].instructions[at].kind
+        {
+            *callback = child;
+        }
+        let offset = preparation.len();
+        f.blocks[0].instructions.splice(at..at, preparation);
+        let parent = if stored {
+            let loaded = ValueId(f.values.len() as u32);
+            f.values.push(address);
+            f.blocks[0].instructions.insert(
+                at + offset + 1,
+                inst(Some(loaded), InstructionKind::Load(parent_local)),
+            );
+            loaded
+        } else {
+            parent
+        };
+        let arg = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let result = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let at = at + offset + 1 + usize::from(stored);
+        f.blocks[0].instructions.splice(
+            at..at,
+            [
+                inst(Some(arg), InstructionKind::Constant(Constant::I32(7))),
+                inst(
+                    Some(result),
+                    InstructionKind::CallClosureBorrowed {
+                        callee: parent,
+                        kind: CallableKind::FnMut,
+                        arguments: vec![arg],
+                    },
+                ),
+            ],
+        );
+        if stored {
+            f.blocks[0].instructions.insert(
+                at + 2,
+                inst(None, InstructionKind::StorageDead(parent_local)),
+            );
+        }
+        let limits = Limits::default();
+        let expected = analyze(&module, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(analyze(&decoded, &limits).unwrap(), expected);
     }
 }
 

@@ -98,6 +98,45 @@ pub(super) fn check(
                     budget.spend(1, "scoped actual call dependency")?;
                     calls.push((function.id, callee));
                 }
+                let closure = match &instruction.kind {
+                    InstructionKind::MakeClosure { closure, .. } => Some(*closure),
+                    InstructionKind::CallClosureShared { callee, .. }
+                    | InstructionKind::CallClosureMut { callee, .. } => {
+                        function.locals.get(callee.0 as usize).and_then(|l| {
+                            if let Type::Closure(id) = l.ty {
+                                Some(id)
+                            } else {
+                                None
+                            }
+                        })
+                    }
+                    InstructionKind::CallClosure { callee, .. }
+                    | InstructionKind::CallClosureOnce { callee, .. }
+                    | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                        function.values.get(callee.0 as usize).and_then(|ty| {
+                            let ty = if let Type::Address { inner, .. } = ty {
+                                inner.as_ref()
+                            } else {
+                                ty
+                            };
+                            if let Type::Closure(id) = ty {
+                                Some(*id)
+                            } else {
+                                None
+                            }
+                        })
+                    }
+                    _ => None,
+                };
+                if let Some(id) = closure {
+                    let entry = module
+                        .closures
+                        .get(id.0 as usize)
+                        .ok_or_else(|| bad("scoped actual call environment is absent"))?
+                        .function;
+                    budget.spend(1, "scoped actual environment dependency")?;
+                    calls.push((function.id, entry));
+                }
                 match instruction.kind {
                     InstructionKind::ForeignCall {
                         function: callee, ..
