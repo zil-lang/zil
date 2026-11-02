@@ -547,11 +547,8 @@ fn template_with_state(
         .return_type
         .as_ref()
         .is_some_and(|ty| opaque_signature(ty).is_some());
-    let forwarded = function.return_type.as_ref().is_some_and(|ty| {
-        callables
-            .iter()
-            .any(|parameter| parameter_mode(ty, &parameter.name) == Some(None))
-    });
+    let forwarded = matches!(callables.as_slice(), [parameter]
+        if function.return_type.as_ref().is_some_and(|ty|parameter_mode(ty,&parameter.name)==Some(None)));
     if forwarded && (callables.len() != 1 || function.generics.len() != 1) {
         return Err(unsupported(
             function.span,
