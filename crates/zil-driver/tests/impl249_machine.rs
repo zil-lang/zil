@@ -3,12 +3,10 @@ use std::{fs, path::Path, process::Command};
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 
-const EVENT_REPLY: &str =
-    include_str!("../../../evidence/planning/owned-callback-finalR/event-reply/source.zil");
+const EVENT_REPLY: &str = include_str!("../../../tests/fixtures/callbacks/event-reply.zil");
 const EVENT_COPY_RESULT: &str =
-    include_str!("../../../evidence/planning/owned-callback-finalR/event-copy-result/source.zil");
-const OWNED_RESULT: &str =
-    include_str!("../../../evidence/planning/owned-callback-finalR/owned-result/source.zil");
+    include_str!("../../../tests/fixtures/callbacks/event-copy-result.zil");
+const OWNED_RESULT: &str = include_str!("../../../tests/fixtures/callbacks/owned-result.zil");
 
 #[test]
 fn impl249_concrete_owned_event_and_result_execute_o0_o2() {

@@ -242,8 +242,6 @@ def build():
     for name in ("event-reply", "event-copy-result", "owned-result"):
         path = ROOT / "tests/impl250/frozen-R" / name / "source.zil"
         source = path.read_bytes()
-        old = ROOT / "evidence/planning/owned-callback-finalR" / name / "source.zil"
-        assert source == old.read_bytes()
         frozen.append(dict(name=name, source_sha256=hashlib.sha256(source).hexdigest(),
                            native_if_source_verified=[dict(input="", exit=0, stdout="")]))
     normal = Source(0).owned_error()

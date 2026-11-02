@@ -263,8 +263,6 @@ def build():
                           allocator_if_source_implemented=[dict(fail_at=i,**Source(i).run(mode))
                                     for i in range(normal['alloc_calls']+2)]))
     original=(ROOT/'frozen-original/source.zil').read_bytes()
-    immutable=Path('/workspace/zil/evidence/planning/owned-callback-finalR/f-identity/source.zil').read_bytes()
-    assert original==immutable
     return dict(status="Draft oracle only; no native executions",evidence_level="independent source-operation model",
                 original_identity_source_sha256=hashlib.sha256(original).hexdigest(),
                 original_native_if_implemented=dict(exit=0,stdout=""),cases=cases,

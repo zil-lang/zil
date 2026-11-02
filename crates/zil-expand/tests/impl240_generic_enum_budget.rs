@@ -1,6 +1,6 @@
 //! The one explicitly attributed legacy budget migration keeps exact controls.
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
-const SAMPLE: &str = include_str!("../../../evidence/impl/240/generic-enum-budget/SAMPLE.zil");
+const SAMPLE: &str = include_str!("../../../tests/fixtures/budgets/generic-enum.zil");
 #[test]
 fn copy_generic_enum_instance_has_exact_attributed_work_and_node_boundaries() {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "copy-generic-enum.zil", SAMPLE);
