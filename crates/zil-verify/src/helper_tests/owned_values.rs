@@ -688,3 +688,58 @@ fn private_array_ssa_without_a_local_carrier_is_rejected_raw_wire() {
     caller.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
     raw.reject("private callback array must have an actual local carrier");
 }
+
+#[test]
+fn private_slot_raw_wire_budget_has_exact_fresh_boundary() {
+    let raw = slot_through_reused_local(true);
+    let plan = raw.plan();
+    let bytes =
+        zil_ir::wire::encode_module_candidate(&raw.module, &plan, &Limits::default()).unwrap();
+    for wire in [false, true] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            if wire {
+                verify_module_bytes(&bytes, &raw.module.target, &limits)
+            } else {
+                verify_module(
+                    raw.module.clone(),
+                    plan.clone(),
+                    &raw.module.target,
+                    &limits,
+                )
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        let expected = run(high).unwrap().fingerprint();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(verified) => {
+                    assert_eq!(verified.fingerprint(), expected);
+                    high = middle;
+                }
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|e| e.category == zil_base::ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        assert_eq!(run(high).unwrap().fingerprint(), expected);
+        assert!(
+            run(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|e| e.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        assert_eq!(run(high).unwrap().fingerprint(), expected);
+        println!("private-slot254 wire={wire} N={high}; N-1=ResourceLimit; fresh N=Pass");
+    }
+}
