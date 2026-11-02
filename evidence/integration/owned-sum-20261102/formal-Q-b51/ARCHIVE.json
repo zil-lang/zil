@@ -1,0 +1,32 @@
+{
+  "origin": "local formal execution, not a CI run",
+  "checkout": "b51dc2043ae51ec42c1bec964bec0623df152431",
+  "roots": [
+    "STATUS.json",
+    "evidence-transport.log",
+    "evidence-transport.result.json",
+    "fmt.command.json",
+    "fmt.log",
+    "fmt.result.json",
+    "llvm-toolchain.json",
+    "migration.log",
+    "migration.result.json",
+    "native",
+    "plan.log",
+    "plan.result.json",
+    "source",
+    "source-snapshot.log",
+    "toolchain.txt",
+    "workspace.command.json",
+    "workspace.log",
+    "workspace.result.json"
+  ],
+  "files": 76282,
+  "bytes": 74186844,
+  "sha256": "e0d5a5a5d4b441f35ecae294c45b4f6cffdf3352d9f10310ba15f5b10ee37286",
+  "archive": "/workspace/.zil-env/formal-owned-sum-Q-b51.tar.zst",
+  "every_archive_blob_rehashed": true,
+  "original_inventory_rechecked": true,
+  "release_native_requested": true,
+  "native_released_after_verified_archive": true
+}

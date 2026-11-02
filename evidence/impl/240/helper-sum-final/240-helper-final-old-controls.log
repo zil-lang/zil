@@ -1,0 +1,19 @@
+   Compiling zil-expand v0.1.0 (/workspace/zil-240/crates/zil-expand)
+    Finished `test` profile [unoptimized] target(s) in 4.81s
+     Running tests/impl237_product_recipes.rs (/workspace/.zil-env/target-240/debug/deps/impl237_product_recipes-0243848275902dad)
+
+running 3 tests
+test concrete_existing_generic_fields_are_materialized_in_the_original_recipe ... ok
+test preserves_original_recipe_and_exact_ordinary_owner ... ok
+test new_recipe_tables_have_exact_fresh_work_node_and_depth_boundaries ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/impl240_generic_enum_budget.rs (/workspace/.zil-env/target-240/debug/deps/impl240_generic_enum_budget-64151d3768689e47)
+
+running 2 tests
+test actual_owned_field_is_rejected_before_generic_identity_is_erased ... ok
+test copy_generic_enum_instance_has_exact_attributed_work_and_node_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

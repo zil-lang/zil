@@ -1,0 +1,28 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "reviewer": "/root/review_language_contracts",
+  "production_checkpoint": "1f43ced2abe4290b7cf5ef342986eb23b4a3e174",
+  "schema": 30,
+  "feature": "llvm-api",
+  "production_edited": false,
+  "selected": 1,
+  "passed": 1,
+  "failed": 0,
+  "native_runs": 0,
+  "snapshot_requests": [
+    "owned",
+    "owned clone",
+    "shared module",
+    "shared program module",
+    "Wire replay"
+  ],
+  "actual_checks": "Default emission succeeds before and after smaller requests. All five independently verified wrappers retain max_nodes512/call_depth32, Lower succeeds, emission returns ResourceLimit using that request.",
+  "quota_exploration": [
+    "max_nodes1000 permitted emission; threshold assumption incorrect, not compiler failure",
+    "max_nodes128 rejected Wire node quota before emission",
+    "max_nodes512 accepts verification including Wire and stops emission"
+  ],
+  "limitation": "512 is a development measurement for this algorithm, not an immutable source oracle; backend memo optimization may lower the measured threshold and requires a new observation.",
+  "test": "crates/zil-driver/tests/review242_tag_edges.rs",
+  "test_sha256": "eb4d097401ba0f07aa1f8fea929bbbfba215160473bd46df4d88eddf61dd9eaf"
+}

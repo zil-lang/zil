@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{let t=(a,b);let d=t.0;let other=t.1;let n=d.n+other.n;let p=P{r:give a};return cb()+n}}}fn main()->i32{return use_value(()=>0,E.V(R{n:1},R{n:2}),true)}

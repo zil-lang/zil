@@ -1,0 +1,10 @@
+{
+  "sha256": {
+    "sum-true-wire.txt": "489defa649cdb82836477bc2c5b0f191589893d48dcf8bd529af59a087a2bea2",
+    "sum-true.wire": "0e74fa6b83df30f7d2fd06640ac1ab534cc8345ee8e023736bd3e5ffabb3155c",
+    "sum-true-raw.txt": "489defa649cdb82836477bc2c5b0f191589893d48dcf8bd529af59a087a2bea2",
+    "sum-false-wire.txt": "051f55b61478cea1fc0f8f783a7d735985aa48ab31bafa74aa03f71035081eae",
+    "sum-false.wire": "989f0a978d2d3e699fa271740edfbd3c294c1f6658e0d59e58dd11e5045dff5b",
+    "sum-false-raw.txt": "051f55b61478cea1fc0f8f783a7d735985aa48ab31bafa74aa03f71035081eae"
+  }
+}

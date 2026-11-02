@@ -1,0 +1,58 @@
+[
+  {
+    "dir": "owned-results166-309654-34",
+    "source_sha256": "6d5dd4674c697e7342cac0d2ae254d9efeb2b58b0665611afbbaa80941643127",
+    "stdout": "AZB",
+    "exit": 0,
+    "report_sha256": "fd9727f55e72e855943f2ffbcc38401916cd40bb43a35b8acbd9519312f996fd",
+    "native_codegen": {
+      "backend": "clang",
+      "object_reports": [],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  },
+  {
+    "dir": "owned-results166-309654-41",
+    "source_sha256": "6d5dd4674c697e7342cac0d2ae254d9efeb2b58b0665611afbbaa80941643127",
+    "stdout": "AZB",
+    "exit": 0,
+    "report_sha256": "38fb0bf3020876956f34bf8daae1eed030c1828537f9ec82a387b6167b3ab0b4",
+    "native_codegen": {
+      "backend": "clang",
+      "object_reports": [],
+      "object_cache": {
+        "requested": false,
+        "enabled": false,
+        "hits": 0,
+        "misses": 0,
+        "corrupt": 0,
+        "stored": 0,
+        "write_failures": 0,
+        "key_ns": 0,
+        "lookup_ns": 0,
+        "current_preflight_ns": 0,
+        "disabled_reason": null
+      },
+      "requested_units": 1,
+      "actual_units": 1,
+      "jobs": 1,
+      "fallback": null
+    }
+  }
+]

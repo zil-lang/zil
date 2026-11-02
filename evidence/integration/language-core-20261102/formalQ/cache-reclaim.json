@@ -1,0 +1,12 @@
+{
+  "action": "Remove reproducible completed reference Cargo cache only",
+  "path": "/workspace/.zil-env/target-reference-core",
+  "preserved_native_archive": "/workspace/.zil-env/formal-languageQ-native.tar.zst",
+  "archive_sha256": "015758613ea8e63c57f06eaa37a91551a421615ac98dde3ac47ba84b1e2d875e",
+  "preserved_raw": [
+    "/workspace/.zil-env/formal-languageQ/native",
+    "/workspace/.zil-env/formal-languageQ/reference-native"
+  ],
+  "time_utc": "2026-11-01T21:04:21Z",
+  "status": "Complete"
+}

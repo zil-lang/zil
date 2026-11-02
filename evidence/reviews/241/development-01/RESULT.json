@@ -1,0 +1,29 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "production_checkpoint": "1f43ced2abe4290b7cf5ef342986eb23b4a3e174",
+  "reviewer": "/root/review_language_contracts",
+  "schema": 30,
+  "feature": "llvm-api",
+  "production_edited": false,
+  "native_runs": 0,
+  "selected": 2,
+  "passed": 2,
+  "failed": 0,
+  "source_cases": 8,
+  "valid_source_cases": 4,
+  "invalid_source_cases": 4,
+  "hostile_raw_candidate": 1,
+  "raw_wire_checks": "Four positive source-derived candidate pairs; one hostile raw/Wire pair. Hostile candidate changes only reserve operand from distinct right Store to actual borrowed left Store after Enum flip/unpack. Both kernels reject actual overlapping window.",
+  "checks": [
+    "ordinary identity and nonidentity Sum transfer keep same-typed Store roots separate",
+    "borrow left + reserve right accepted",
+    "last use permits reserve left",
+    "active borrow blocks reserve same Store",
+    "active borrow blocks repack/move owner",
+    "raw reserve cannot select borrowed twin"
+  ],
+  "levels": "Parse/Expand/Types/Analyze and public raw/Wire; empty Store index is deliberately never executed.",
+  "fixture_correction": "dev01 Rust test referenced nonexistent OwnedStoreAt spelling; changed to real OwnedStoreBorrow; no production conclusion.",
+  "test": "crates/zil-driver/tests/review241_store_windows.rs",
+  "test_sha256": "dd702cf97cc183a04c1dbe15f8555ab589e4646af9a40742f3b09ff8776847a1"
+}

@@ -509,8 +509,12 @@ pub(super) fn check_module(
     for index in order {
         let f = &module.functions[index];
         let mut parameters: Vec<(u32, ClosureId, bool, &Type)> = Vec::new();
+        let mut owned_union_data = false;
         for (position, local) in f.parameters.iter().enumerate() {
             let ty = &f.locals[local.0 as usize].ty;
+            // This constant legacy test piggybacks on the existing parameter
+            // pass; it does not introduce a free structural classifier.
+            owned_union_data |= errors::owned(ty, false);
             if let Some((closure, borrowed)) = parameter_type(ty) {
                 budget.spend(parameters.len())?;
                 if parameters
@@ -563,6 +567,27 @@ pub(super) fn check_module(
             && f.callable_contract.is_none()
             && matches!(&f.return_type, Type::Package { fields, .. } if fields.iter().any(|(_, ty)| *ty == Type::Closure(*closure)))
         {
+            if owned_union_data || budget.sum_function(f.id) {
+                budget.spend(f.parameters.len())?;
+                for (position, local) in f.parameters.iter().enumerate() {
+                    if parameters.iter().any(|(p, ..)| *p as usize == position) {
+                        continue;
+                    }
+                    let ty = &f.locals[local.0 as usize].ty;
+                    let sum_data = if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+                        resources::charge_payload(ty, budget)?;
+                        sums::owned(ty)
+                    } else {
+                        sums::needs_shape(ty, budget)?
+                    };
+                    if sum_data {
+                        return Err(unsupported(
+                            "ordinary Sum data does not extend owning State constructor parameter permissions",
+                            Some(f.span),
+                        ));
+                    }
+                }
+            }
             closures::self_contained(module, *closure, budget)?;
             packages::check_type_for(module, &f.return_type, Some(f.span), budget)?;
             continue;
@@ -644,6 +669,11 @@ pub(super) fn check_module(
                 && !matches!(ty, Type::Managed(_) | Type::Package { .. })
                 && !matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
             {
+                if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+                    budget.mark_sum(Some(f.id.0 as usize))?;
+                    sums::check_type_for(module, ty, Some(f.span), budget)?;
+                    continue;
+                }
                 return Err(unsupported(
                     "other callback helper parameters must be finite Copy, one Copy/slice address, Managed, complete Package or ByteBuffer description values; slice arguments require a Copy helper result",
                     Some(f.span),

@@ -411,6 +411,34 @@ Types独立核所有表、唯一性、owner/参数范围和约束、完整字段
 
 新表、名字、类型recipe、实例复制、比较、替换、参数推导和队列在增长前预付；旧空表路径费用保持，不提高默认额度。CT正规化保留完整表与词法身份，CT执行这些运行时模板仍明确禁止。公共Core版本随本片为schema/Wire/指纹29，无新运行时opcode；必须保存原235独审泛型返回失败，并经原样正例、跨模块/phantom/跨binder/未用非法表、raw入口、预算及O0/O2机器清理验证。登记不代表完成。
 
+#### 8.1.5 普通完整拥有 Sum（239–244）
+
+本片闭合有限、无by-value环的普通完整拥有形状：既有Copy值、已核Managed叶、Product以及按真实活动分支拥有的Sum。普通非泛型Enum的Unit/Tuple variant允许多个完整拥有字段；Product可包含完整拥有Enum/ErrorUnion，Enum载荷可包含完整Product/Sum，错误联合的普通完整Product/Enum载荷包含235的Store组合。既有直接Managed成功载荷及两侧平坦拥有错误联合保持原模式；不凭新形状推断任何create/give权限。即使当前活动variant为Unit或全Copy，含任一拥有variant的Enum整体仍非Copy。有限Copy泛型enum已有能力保持，本片不新增拥有泛型enum。
+
+普通完整构造、局部转交、参数、返回、完整字段take/refill/replace及消耗式match同批贯通。裸资源类型R仍为Desc<R>；Enum tuple字段可显式写`manages R`，只由该拥有位置解析为现有Managed<R>，构造转交沿实际create/give规则，不能把Ref/Desc升级。普通Package/Enum载荷仍按Value转交。新的形状不自动获得StoreElement、拥有数组、capture、shared/lending、资源头、FFI、async或借入payload资格；既有各有限profile分别保留，不因普通资格递归调用而放开。Store叶继续独立核canonical资源和原元素资格。
+
+构造按源字段顺序准备，每个成功的拥有实参进入真实prepared temp；后续准备失败只逆成功准备序清理已有临时。全部成功后MakeVariant一次接收完整字段，真实来源按variant/字段/深层child保留；整个Enum销毁只清活动分支，按字段声明顺序递归。Product内Sum字段是一个完整责任，取出后必须完整回填才能转交父值；同型不同字段或Store不能合并实例，inactive variant不制造债务。ErrorUnion保留原ABI与实际两侧身份，包含新形状时沿相同真实活动分支清理；普通来源不能经包装变成Created。
+
+公共TypedIR新增`VariantProjection{variant:u32,index:u32}`和四条指令：`VariantTagLocal{local,path}`返回i32；`ReadVariantLocal{local,path}`返回严格有限Copy末端；`UnpackVariant{local,variant,fields:Vec<LocalId>}`无结果；`DropEnum{local}`无结果。path是有界VariantProjection序列，每步只在当前真实Type::Enum选择指定variant的指定字段，不能按布局穿越Product、Tuple或ErrorUnion。TagLocal允许空path，末端必须Enum；ReadLocal必须非空，末端必须Copy。观察要求根完整且live、每一层真实选中tag，绝不产生拥有值、地址、Desc或可转交view。旧SSA VariantTag/ReadVariant保持Copy入口，不得借此复制新的拥有Enum。
+
+每层观察和Unpack的tag权限由Analyze与Verify分别从真实指令及CFG重建，绑定实际local当前激活、完整投影prefix及tag。可使用已知构造tag或实际TagLocal与常量比较的成功控制边；相反边、绕过前驱及不满足全部路径条件的合流不能授信。Store/Take/Drop/StorageDead、字段重写及激活更换使相关观察权限失效；旧i32快照在失效之后再比较也不能恢复权限。单个Sum的possible-tag事实可合流，不枚举多个Sum的笛卡尔状态；候选元数据和运行时trap均不能替代静态责任检查。
+
+Unpack原子消费一个完整live的拥有Enum local，并初始化所选variant的所有字段目的local；源与目的互异，目的互不重复、storage live且vacant，字段数量、位置和完整Type精确匹配，无中途用户调用、失败或挂起。字段来源按实际位置搬运，同型目的次序置换若仍按真实映射保存来源本身不构成错误；伪造Created或Store根关系须拒。Unit variant空fields也消费整个Enum。目标按fields的逆序登记实际成功初始化；不引入继承父清理年龄或前端排序权限。所有初始化、scope、defer、borrow与资源消费者必须识别这些local输出。 DropEnum沿既有条件自动清理规则：live且有责任时清除真实活动分支；live storage内尚未初始化或已转走的空责任是无作用的条件清理，不能把它再次消费为拥有值。所有路径均已Cleaned时重复清理继续拒绝，条件合流沿既有flag规则；StorageDead之后的清理由scope核拒绝。这样Unpack后搬空临时的退出清理合法，而实际重复释放不能被掩盖。
+
+现有无guard、穷尽match支持递归Variant及Copy子pattern。完整scrutinee先进入真实隐藏拥有local；全部tag及Copy模式测试成功之前保持其完整，失败边可继续后续arm。选定arm后逐层Unpack到真实中间temp，嵌套child可重新取tag并经成功边再拆；不得在模式失败后假装已拆开的父仍完整。最后按整个pattern递归字段声明序的逆序，将最终Name和隐藏`_`拥有叶从temp Take→Store发布；未继续拆的Product/Sum作为一个叶。此提交走廊不插入用户调用、可恢复失败或早退，全部中间拥有temp在发布后为空。最终退出依原实际初始化逆序规则得到递归声明序；例如Outer.Pair(a,Inner.Pair(c,d))按a,c,d清理。整个Name转交完整值，整个`_`保留隐藏完整责任；arm内return、`?`、break/continue和defer均清真实剩余责任。此条不新增guard语法或借入payload模式。
+
+可变拥有Sum整值替换沿238的先准备、后清旧、无失败发布及原词法shell清理年龄。允许Types以私有单字段Package slot承载实际Sum局部，字段操作和来源由两核照常独立检查，不改变函数参数/返回ABI，不以名字授信，也不伪造源字段可见性。独立RHS失败保留尚未移出的旧分支；唯一直接self静态调用实参只在真实求值位置转交，后续失败仅清实际剩余责任。不能复活已整值移走的普通绑定，活payload窗口继续阻止父移动、切换或销毁。
+
+保留Enum的i32 tag加对齐max-payload内联布局，以及ErrorUnion的i1 tag加固定两侧slots布局；Managed按真实header、Product按真实字段、Sum按真实分支存储，无隐式Box/RC/锁/全局表。后端用私有结构化清理计划表达Leaf/Product/Sum，统一覆盖Package整体/字段、Enum、错误联合及原生入口错误清理；先清实际责任flag，再按真实tag执行声明序清理，非法tag显式trap。计划不是未核LIR权限；Verify仍独立核全部类型、未用定义、实际资源与责任。
+
+Lower/机器生成新增形状的预付使用本次Verify实际请求的Limits；VerifiedModule私有保存该快照并提供只读limits()，owned/shared/缓存命中入口均绑定当前请求，克隆保留该快照。它不是候选或Wire权限，也不能用默认额度覆盖调用者更小限额。已有付费类型/op核验同时产生私有presence位，经只读uses_owned_sum_extension()暴露，仅决定是否启用新阶段工作预算；不进行额外免费整树分类，不授予形状、来源或LIR权限。false路径保持旧费用，true路径在同一阶段共用一个remaining，所有新分类/计划/布局/事件增长预付，不能按helper重置。旧profile逻辑费用保持。
+
+既有Copy泛型enum的实例化保留一个具名预算例外：在原模板身份尚在时，对实际替换后的字段执行有限Copy资格检查，避免普通拥有Enum准入反向放开拥有泛型enum。这次必要的实际工作在Expand预付，允许相应旧Copy泛型enum精确N增加；不通过免费扫描、省略检查、新权限或提高默认额度维持旧数。其余旧profile费用保持。必须用原样源码、实际Q依赖字节同一性、旧/新N及N−1/fresh/暖调用记录具体差额，不能宣称所有旧N完全未变。
+
+泛型helper定义期对实际Enum及含Enum的ErrorUnion进行Copy/线性资格判断时，必须核其声明字段，不能仅因类型名字不依赖binder而视为Copy；未调用定义同样禁止重复移动或重复消耗式match。此处复用有预算的实际Copy证明，作为第二个具名预算例外，允许相应旧Copy Enum helper的精确Expand N增加，默认额度与其他旧路径不变。原样控制在Q等同依赖中为Expand work266/nodes116、Types219，实际补核后Expand work296/nodes130、Types219，增加30work/14nodes；必须保留两版N−1/fresh及相同输出证据。此义务不增加拥有泛型Enum或callback拥有签名权限，也不以省略必要证明维持旧费用。
+
+公共schema/Wire/指纹迁移为30；新增opcode90–93依次对应本地Tag、本地Copy Read、Unpack、Drop。旧版本明确拒绝，历史Wire字节及失败证据保留，已核Copy Enum的CT执行保持，新增运行时拥有操作明确CT禁止。类型/路径/变体/目标索引、完整类型复制、来源映射、合流、布局和清理计划在增长前预付既有数量/深度/工作额度，默认限额不提高；除上述Copy泛型enum实例资格与helper Enum定义期Copy资格两项具名例外之外，旧无新形状profile费用保持。必须覆盖原Q的03/05失败源原样晋升及已有01/02/04/06、多字段/同型Store/右嵌套pattern、跨模块参数返回、Product<Sum>与错误载荷、准备失败/替换/defer顺序、活窗口与重复消费、raw/Wire陈旧tag及错误目标、N/N−1/fresh和O0/O2真实分配失败。登记仅为施工合同，不代表验收或完整语言完成。
+
 ### 8.2 泛型 Store 元素资格
 
 `StoreElement` 是编译器保留的有限形状约束，使用既有 `T: StoreElement` bound 语法；它不是可由用户 impl 授予的普通 trait，也不是一个可构造的值类型。其含义是 T 满足当前公开的完整 Store 元素形状：有限非零大小 Package，Copy 字段或直接拥有的已支持 ByteBuffer/用户资源字段，以及确定的移动、实际布局和清理。201增加下述有限具体callback字段元素；嵌套Store、递归拥有或地址字段不由此自动获得资格。
@@ -1000,9 +1028,9 @@ ConfigReady继续使用本批开始前的不可变声明快照；新类型及其
 
 ### 16.6 有限生成普通枚举（230）
 
-在§16.5同批类型生成上开放无泛型参数、仅Unit/Tuple变体的普通enum，可与同批struct、type alias及普通函数组合。Tuple载荷仍须满足普通枚举已有的有限Copy资格；生成不授予拥有、借用或递归by-value权限。record变体、泛型enum、resource/package/trait/impl、一般Type/Syntax及#emit不在本片范围。
+在§16.5同批类型生成上开放无泛型参数、仅Unit/Tuple变体的普通enum，可与同批struct、type alias及普通函数组合。Tuple载荷满足普通枚举实际已核资格；239–244同批将其扩至§8.1.5的有限完整拥有形状，显式manages字段标记在生成、卫生重写和类型替换中完整保留。生成仅产生普通未核AST，不能把裸资源名/Desc升级为Managed，也不授予借用或递归by-value权限。record变体、泛型enum、resource/package/trait/impl、一般Type/Syntax及#emit不在本片范围。
 
-每轮预绑定全部同批名义类型，私有enum取得确定且彼此独立的卫生身份；构造器、匹配模式、别名、函数签名与载荷类型中的引用一致重写，变体名保持原名。值局部与泛型type binder的遮蔽、真实模块限定路径、重复变体和公开重名沿普通规则。载荷类型中的既有标量常量位按迭代绑定替换，属性仍经过普通校验。ConfigReady不回流、零迭代、冷暖缓存及请求累计预算沿§16.5；新增变体扫描在工作前收费，无enum的旧路径费用保持。须用生成源与普通展开源的O0/O2机器对照、跨轮名义隔离、构造/匹配/遮蔽、非法载荷、raw/Wire及N/N−1/fresh证明有限实现。
+每轮预绑定全部同批名义类型，私有enum取得确定且彼此独立的卫生身份；构造器、匹配模式、别名、函数签名与载荷类型中的引用一致重写，变体名保持原名。值局部与泛型type binder的遮蔽、真实模块限定路径、重复变体和公开重名沿普通规则。载荷类型中的既有标量常量位按迭代绑定替换，属性仍经过普通校验。ConfigReady不回流、零迭代、冷暖缓存及请求累计预算沿§16.5；新增变体扫描在工作前收费，无enum的旧路径费用保持。须用生成源与普通展开源的O0/O2机器对照、跨轮名义隔离、构造/匹配/遮蔽、非法载荷、raw/Wire及N/N−1/fresh证明有限实现。新增拥有载荷还须生成/手写相同源码语义、多个轮次名义隔离、真实活动分支清理与失败路径的O0/O2对照；原bare ByteBuffer载荷非法反例保持，不以接受拥有形状为由升级默认资源模式。
 
 <a id="ZIL-ATTRIBUTE"></a>
 

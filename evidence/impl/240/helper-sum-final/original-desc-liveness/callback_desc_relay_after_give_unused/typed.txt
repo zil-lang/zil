@@ -1,0 +1,169 @@
+TypedModule {
+    schema_version: 30,
+    module_id: ModuleId(
+        0,
+    ),
+    source_fingerprint: Fingerprint(
+        [
+            244,
+            217,
+            83,
+            136,
+            17,
+            212,
+            101,
+            12,
+            162,
+            58,
+            190,
+            157,
+            17,
+            85,
+            195,
+            118,
+            113,
+            110,
+            3,
+            233,
+            97,
+            196,
+            221,
+            146,
+            252,
+            5,
+            192,
+            7,
+            92,
+            59,
+            195,
+            44,
+        ],
+    ),
+    target: TargetProfile {
+        id: "native-llvm",
+        triple: "x86_64-unknown-linux-gnu",
+        pointer_width: 64,
+        endian: Little,
+        backend: "llvm",
+        rule_version: "ZIL-LANG-1.4",
+        checked_arithmetic: true,
+    },
+    functions: [
+        TypedFunction {
+            callable_return_contract: None,
+            callable_contract: None,
+            id: FunctionId(
+                0,
+            ),
+            name: "main",
+            foreign: None,
+            environment: None,
+            parameters: [],
+            return_type: Unit,
+            result_mode: Infer,
+            locals: [],
+            values: [],
+            blocks: [
+                BasicBlock {
+                    id: BlockId(
+                        0,
+                    ),
+                    instructions: [
+                        Instruction {
+                            result: None,
+                            kind: ScopeEnter {
+                                scope: ScopeId(
+                                    0,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 202,
+                                end: 213,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeEnter {
+                                scope: ScopeId(
+                                    1,
+                                ),
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 211,
+                                end: 213,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeExit {
+                                scope: ScopeId(
+                                    1,
+                                ),
+                                kind: Fallthrough,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 211,
+                                end: 213,
+                            },
+                        },
+                        Instruction {
+                            result: None,
+                            kind: ScopeExit {
+                                scope: ScopeId(
+                                    0,
+                                ),
+                                kind: Return,
+                            },
+                            span: Span {
+                                file: FileId(
+                                    0,
+                                ),
+                                start: 211,
+                                end: 213,
+                            },
+                        },
+                    ],
+                    terminator: Return(
+                        None,
+                    ),
+                },
+            ],
+            entry: BlockId(
+                0,
+            ),
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 202,
+                end: 213,
+            },
+        },
+    ],
+    closures: [],
+    resources: [
+        ResourceDefinition {
+            name: "@module0:R",
+            payload: Record {
+                name: "@module0:R",
+                fields: [
+                    (
+                        "n",
+                        I32,
+                    ),
+                ],
+            },
+            teardown: None,
+        },
+    ],
+    unsupported: [],
+}

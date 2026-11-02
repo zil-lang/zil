@@ -1,0 +1,22 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.32s
+     Running tests/review239_generation.rs (/workspace/.zil-env/target-244/debug/deps/review239_generation-1729ef8f1b3c325d)
+
+running 2 tests
+
+thread 'generated_manages_and_handwritten_fields_execute_the_same_declared_order' (256927) panicked at crates/zil-driver/tests/review239_generation.rs:57:13:
+assertion `left == right` failed: {"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-DROP-SIGNATURE","message":"Drop requires a local resource and exactly fn drop(self: Self) returning void","span":{"file":0,"start":54,"end":123},"notes":[]}],"artifacts":{"syntax":"/tmp/review239-generated-dev02/review239-generated-handwritten-O0-256926/phases/syntax.txt"},"input_fingerprint":"b095aac4d0c5177ab91b06646a7dfe0dca7208277e2a063cadc65635bbe6fb24","seconds":0.002938805,"cache_hit":false,"commands":[],"native_codegen":null,"disk_cache":"disabled","query_events":[{"phase":"parse","disposition":"executed"},{"phase":"expand","disposition":"executed"}],"verification_runs":0,"source_files":{"0":"generated239.zil"},"scalar_interfaces":[]}
+  left: SafeReject
+ right: Success
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test generated_manages_and_handwritten_fields_execute_the_same_declared_order ... FAILED
+test generation_preserves_private_iteration_identity_and_closed_payload_profiles ... ok
+
+failures:
+
+failures:
+    generated_manages_and_handwritten_fields_execute_the_same_declared_order
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p zil-driver --test review239_generation`

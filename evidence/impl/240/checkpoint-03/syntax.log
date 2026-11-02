@@ -1,0 +1,27 @@
+   Compiling zil-syntax v0.1.0 (/workspace/zil-240/crates/zil-syntax)
+    Finished `test` profile [unoptimized] target(s) in 1.18s
+     Running tests/impl240_enum_ownership.rs (/workspace/.zil-env/target-240/debug/deps/impl240_enum_ownership-57d0c31b55484c0d)
+
+running 2 tests
+test managed_marker_does_not_become_a_general_type_constructor ... ok
+test ownership_marker_is_an_enum_field_property ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/surface_13.rs (/workspace/.zil-env/target-240/debug/deps/surface_13-5b63249f03609cf1)
+
+running 11 tests
+test closure_tail_normalization_remains_under_the_parser_work_budget ... ok
+test callable_bound_source_parameters_become_internal_args_tuple ... ok
+test closure_tail_uses_tokens_not_comment_or_string_punctuation ... ok
+test explicit_reference_and_option_parentheses_remain_distinct_while_shorthand_is_pending ... ok
+test dot_record_is_explicit_record_without_inventing_an_anonymous_type ... ok
+test legacy_callable_tuple_spelling_has_a_specific_migration_error ... ok
+test loops_defer_and_named_function_blocks_do_not_gain_tail_returns ... ok
+test short_closures_do_not_consume_group_tuple_or_pipeline_boundaries ... ok
+test only_final_if_paths_gain_returns_and_missing_else_has_unit_continuation ... ok
+test short_parameters_move_and_optional_return_annotation_preserve_syntax ... ok
+test authored_and_migrated_conformance_sources_match_the_surface_contract ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

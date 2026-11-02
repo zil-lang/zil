@@ -1,0 +1,15 @@
+{
+  "original_base": "/tmp/review243-layout/fixture-history",
+  "sha256": {
+    "io-original/nominal_different_layout/left.zil": "9cb8867f387b8e193d8c1034bf2b7710357c4622374b1f10d43c9acd433992c9",
+    "io-original/nominal_different_layout/main.zil": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+    "io-original/nominal_different_layout/right.zil": "154e06e4823f6a8191c4401704967bee10ef258cd1801cae90af1294ad76ab29",
+    "io-original/nominal_same_layout/left.zil": "9cb8867f387b8e193d8c1034bf2b7710357c4622374b1f10d43c9acd433992c9",
+    "io-original/nominal_same_layout/main.zil": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+    "io-original/nominal_same_layout/right.zil": "cde9101b2c19b0c15818e5e752e0621c3eb72699d2979d87e236098e724eceb0",
+    "io-original/opaque_app/lib.zil": "61cb5ac4dc11fe04d246551d92b2b244125d7ca1020b552759037d80c042ba23",
+    "io-original/opaque_app/main.zil": "f093016224f306c34f65512d134de916a4cb06f3fae78522b4513e08b6fe613e",
+    "mixed_wide/main.zil": "997f530e18a91c95b7387d83dcecb45612ead42d0a166a6f478a9a319edae913",
+    "nominal_different_layout/right.zil": "4c962b29380ab6338fdb12fbcc7fbb6d3b38340cb0f1a246bcd4112fb9287a7f"
+  }
+}

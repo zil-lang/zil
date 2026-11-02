@@ -1,0 +1,22 @@
+   Compiling zil-expand v0.1.0 (/workspace/zil-240/crates/zil-expand)
+   Compiling impl240-front-probe v0.0.0 (/tmp/impl240-front-probe)
+    Finished `dev` profile [unoptimized] target(s) in 5.30s
+     Running `/workspace/.zil-env/target-240/debug/impl240-front-probe /tmp/240-sources/callback-param.zil`
+Types [
+    Diagnostic {
+        phase: Types,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "one or two finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 62,
+                end: 184,
+            },
+        ),
+        notes: [],
+    },
+]

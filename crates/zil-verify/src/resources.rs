@@ -300,6 +300,11 @@ impl Slots {
         views: &packages::CaptureViews,
         budget: &mut Budget,
     ) -> Check<Self> {
+        if budget.sum_function(f.id) {
+            for ty in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
+                charge_payload(ty, budget)?;
+            }
+        }
         budget.spend(
             f.locals
                 .len()
@@ -329,6 +334,7 @@ impl Slots {
         }
         let mut debt_count = 0usize;
         let mut desc_count = 0usize;
+        let sum_extension = budget.sums;
         let mut slot = |ty: &Type, managed: bool| {
             let count = if managed {
                 &mut debt_count
@@ -338,7 +344,8 @@ impl Slots {
             if matches!(
                 (ty, managed),
                 (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
-            ) || (managed && errors::owned(ty))
+            ) || (managed
+                && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned_enum(ty))))
                 || (managed
                     && matches!(ty, Type::Array { element, length }
                     if *length > 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))))
@@ -409,7 +416,7 @@ impl Slots {
             package_fields[local] = fields
                 .iter()
                 .map(|(_, ty)| {
-                    if packages::owned_field(ty) {
+                    if packages::owned_field(ty, sum_extension) {
                         let next = debt_count;
                         debt_count += 1;
                         Some(next)
@@ -763,6 +770,7 @@ struct Transfer<'a> {
     slots: &'a Slots,
     after: &'a [Vec<Vec<bool>>],
     effects: &'a [BTreeSet<Root>],
+    sum_rows: Option<&'a [Vec<sums::Bridge>]>,
 }
 
 impl Transfer<'_> {
@@ -900,6 +908,88 @@ impl Transfer<'_> {
                 self.write_roots(&state.desc[row], written, span, validate, budget)?;
             }
             match &instruction.kind {
+                InstructionKind::MakeVariant { fields, .. } if result.is_some() => {
+                    budget.spend(fields.len())?;
+                    for &value in fields {
+                        self.consume(state, value, span, validate)?;
+                    }
+                    fresh_result = Some(INPUT);
+                }
+                InstructionKind::VariantTagLocal { local, .. }
+                | InstructionKind::ReadVariantLocal { local, .. } => {
+                    if let Some(debt) = slots.managed_local[local.0 as usize]
+                        && validate
+                        && state.debt[debt] != LIVE
+                    {
+                        return Err(bad(
+                            span,
+                            "Enum observation requires a live complete carrier",
+                        ));
+                    }
+                }
+                InstructionKind::UnpackVariant { local, fields, .. } => {
+                    let source = slots.managed_local[local.0 as usize].expect("typed owned Enum");
+                    budget.spend(fields.len())?;
+                    // Check every destination before changing any debt. Copy
+                    // vacancy and storage are checked by the independent Sum
+                    // and cleanup flows; these are the real owning debts.
+                    if validate {
+                        if state.debt[source] != LIVE {
+                            return Err(bad(span, "Unpack requires a live Enum exactly once"));
+                        }
+                        no_live_description(
+                            state,
+                            &self.after[b][i],
+                            Root::Local(*local),
+                            span,
+                            budget,
+                        )?;
+                        for &target in fields {
+                            if let Some(debt) = slots.managed_local[target.0 as usize] {
+                                let nested = slots.fields(target);
+                                budget.spend(nested.len())?;
+                                if state.debt[debt] & LIVE != 0
+                                    || nested.iter().flatten().any(|&d| state.debt[d] & LIVE != 0)
+                                {
+                                    return Err(bad(
+                                        span,
+                                        "Unpack would overwrite a target responsibility",
+                                    ));
+                                }
+                                no_live_description(
+                                    state,
+                                    &self.after[b][i],
+                                    Root::Local(target),
+                                    span,
+                                    budget,
+                                )?;
+                            }
+                        }
+                    }
+                    state.debt[source] = MOVED;
+                    forget_order(state, source, budget)?;
+                    for &target in fields.iter().rev() {
+                        if let Some(debt) = slots.managed_local[target.0 as usize] {
+                            forget_order(state, debt, budget)?;
+                            for other in 0..slots.local_count {
+                                budget.spend(1)?;
+                                if other != debt
+                                    && !slots.retained(other)
+                                    && state.debt[other] & LIVE != 0
+                                {
+                                    state.newer[other].insert(debt);
+                                }
+                            }
+                            state.debt[debt] = LIVE;
+                            state.fresh[debt] = INPUT;
+                            budget.spend(slots.fields(target).len())?;
+                            for &field in slots.fields(target).iter().flatten() {
+                                state.debt[field] = LIVE;
+                                state.fresh[field] = INPUT;
+                            }
+                        }
+                    }
+                }
                 InstructionKind::OwnedStorePush { value, .. } => {
                     self.consume(state, *value, span, validate)?;
                     fresh_result = Some(INPUT);
@@ -939,7 +1029,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::ErrorTag { value }
-                    if errors::owned(&f.values[value.0 as usize]) =>
+                    if errors::owned(&f.values[value.0 as usize], budget.sums) =>
                 {
                     let debt = slots.managed_value[value.0 as usize].expect("typed owned union");
                     if validate && state.debt[debt] != LIVE {
@@ -1432,6 +1522,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::DropManaged { local }
+                | InstructionKind::DropEnum { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropOwnedArray { local }
@@ -1459,7 +1550,10 @@ impl Transfer<'_> {
                         {
                             return Err(bad(
                                 span,
-                                "automatic cleanup is not in reverse successful initialization order",
+                                format!(
+                                    "automatic cleanup is not in reverse successful initialization order (local {})",
+                                    local.0
+                                ),
                             ));
                         }
                     }
@@ -1703,6 +1797,32 @@ impl Transfer<'_> {
             if !state.product_fresh.is_empty() {
                 slots.product.apply(f, slots, instruction, state, budget)?;
             }
+            if let Some(rows) = self.sum_rows {
+                let bridge = &rows[b][i];
+                if let Some(output) = instruction.result {
+                    if let Some(fresh) = bridge.result
+                        && let Some(debt) = slots.managed_value[output.0 as usize]
+                    {
+                        state.fresh[debt] = fresh;
+                    }
+                    budget.spend(bridge.package.len())?;
+                    for &(index, fresh) in &bridge.package {
+                        state.package_fresh[output.0 as usize][index] = fresh;
+                    }
+                }
+                budget.spend(bridge.unpack.len())?;
+                for &(local, fresh, ref package) in &bridge.unpack {
+                    if let Some(debt) = slots.managed_local[local.0 as usize] {
+                        state.fresh[debt] = fresh;
+                    }
+                    budget.spend(package.len())?;
+                    for &(index, fresh) in package {
+                        if let Some(debt) = slots.fields(local)[index] {
+                            state.fresh[debt] = fresh;
+                        }
+                    }
+                }
+            }
         }
         if let Terminator::Return(value) = f.blocks[b].terminator {
             if let Some(value) = value {
@@ -1781,6 +1901,18 @@ fn run_function(
     validate: bool,
     budget: &mut Budget,
 ) -> Check<BTreeSet<Root>> {
+    run_function_with_sums(module, f, graph, effects, validate, None, budget)
+}
+
+fn run_function_with_sums(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    effects: &[BTreeSet<Root>],
+    validate: bool,
+    sum_rows: Option<&[Vec<sums::Bridge>]>,
+    budget: &mut Budget,
+) -> Check<BTreeSet<Root>> {
     if f.foreign.is_some() {
         return Ok(BTreeSet::new());
     }
@@ -1839,6 +1971,7 @@ fn run_function(
         slots: &slots,
         after: &after,
         effects,
+        sum_rows,
     };
     while let Some(b) = pending.pop_front() {
         queued[b] = false;
@@ -2029,8 +2162,9 @@ pub(super) fn check_module(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<()> {
+    let sum_proofs = sums::check_module(module, graphs, budget)?;
     budget.spend(module.closures.len())?;
-    if module.resources.is_empty() {
+    if module.resources.is_empty() && !budget.sums {
         let mut owning_entry = false;
         for closure in &module.closures {
             budget.spend(closure.captures.len())?;
@@ -2059,7 +2193,19 @@ pub(super) fn check_module(
     // including forwarding and closures. An empty candidate is never authority.
     let effects = infer_effects(module, graphs, budget)?;
     for (function, graph) in module.functions.iter().zip(graphs) {
-        run_function(module, function, graph, &effects, true, budget)?;
+        run_function_with_sums(
+            module,
+            function,
+            graph,
+            &effects,
+            true,
+            sum_proofs
+                .rows
+                .get(function.id.0 as usize)
+                .filter(|rows| !rows.is_empty())
+                .map(Vec::as_slice),
+            budget,
+        )?;
     }
     Ok(())
 }

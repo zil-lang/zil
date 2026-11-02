@@ -1,0 +1,10 @@
+    Checking zil-ir v0.1.0 (/workspace/zil-243/crates/zil-ir)
+    Checking zil-verify v0.1.0 (/workspace/zil-243/crates/zil-verify)
+    Checking zil-backend-llvm v0.1.0 (/workspace/zil-243/crates/zil-backend-llvm)
+    Checking zil-types v0.1.0 (/workspace/zil-243/crates/zil-types)
+    Checking zil-expand v0.1.0 (/workspace/zil-243/crates/zil-expand)
+    Checking zil-lower v0.1.0 (/workspace/zil-243/crates/zil-lower)
+    Checking zil-ct v0.1.0 (/workspace/zil-243/crates/zil-ct)
+    Checking zil-analyze v0.1.0 (/workspace/zil-243/crates/zil-analyze)
+    Checking zil-driver v0.1.0 (/workspace/zil-243/crates/zil-driver)
+    Finished `dev` profile [unoptimized] target(s) in 10.27s

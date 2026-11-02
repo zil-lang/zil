@@ -95,6 +95,9 @@ fn owned(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<
                     )
                 })
         }
+        Type::Enum { .. } | Type::ErrorUnion { .. } => {
+            !budget.sum_functions.is_empty() && resources::sums::owned(ty)
+        }
         _ => false,
     })
 }
@@ -256,7 +259,8 @@ pub(super) fn check(
             if suffix.is_some() {
                 match instruction.kind {
                     InstructionKind::TakeLocal { local } if state.pending.contains_key(&local) => {}
-                    InstructionKind::DropManaged { .. }
+                    InstructionKind::DropEnum { .. }
+                    | InstructionKind::DropManaged { .. }
                     | InstructionKind::DropClosure { .. }
                     | InstructionKind::DropPackage { .. }
                     | InstructionKind::DropErrorUnion { .. }
@@ -332,6 +336,22 @@ pub(super) fn check(
                     state.pending.insert(local, scope);
                     construct(&mut state, local, budget)?;
                 }
+                InstructionKind::UnpackVariant {
+                    local, ref fields, ..
+                } => {
+                    budget.lookup(actions.len(), "Unpack protected action")?;
+                    if actions.contains_key(&local)
+                        || fields.iter().any(|l| actions.contains_key(l))
+                    {
+                        return Err(error("Unpack cannot alias registered action storage"));
+                    }
+                    forget(&mut state, local, budget)?;
+                    for target in fields.iter().rev() {
+                        if owning[target.0 as usize] {
+                            construct(&mut state, *target, budget)?;
+                        }
+                    }
+                }
                 InstructionKind::Store { local, .. } => {
                     budget.lookup(actions.len(), "defer protected store")?;
                     if actions.contains_key(&local) {
@@ -367,7 +387,8 @@ pub(super) fn check(
                         forget(&mut state, local, budget)?;
                     }
                 }
-                InstructionKind::DropManaged { local }
+                InstructionKind::DropEnum { local }
+                | InstructionKind::DropManaged { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }

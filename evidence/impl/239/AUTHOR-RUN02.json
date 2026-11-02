@@ -1,0 +1,298 @@
+{
+  "status": "AuthorComponentChecksPass",
+  "independent_review": "Pending244",
+  "source_checkout_commit": "eb632ab7ba5a5df4c9d4dda88405c2622897f2f9",
+  "source_state": "Final239 authorized dirty source hashes below; commit follows without source changes",
+  "spec_hash": "47e90dcf92adffe3d23696a4b4a7128864b7e667cf47e86a2fb23de33bfa2f52",
+  "normative_hash": "e587b977f43efa4eb4bab75c33b72b25b90619426da41949cb6cbedf493d947e",
+  "changes": [
+    "Schema/Wire/domain30; four bounded raw local Enum opcodes and every operand fingerprinted",
+    "Legacy27/28/29 oracles unchanged, fresh30 Vec oracle and exact223 attack envelope",
+    "Explicit CT VM Forbidden branch, independent raw/Wire ordinary positives before CT refusal for all four new ops",
+    "Driver CT walkers rewrite only inner type, preserving enum field manages/span; no new selection gate",
+    "Generated and handwritten OwnedEnum Managed/Product payloads follow same runtime core; no runtime resource evaluation during declaration generation"
+  ],
+  "checks": [
+    {
+      "name": "IR/base",
+      "passed": 65,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "receipt": "ir/RESULT.json"
+    },
+    {
+      "name": "existing CT suite",
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "receipt": "ct/RESULT.json"
+    },
+    {
+      "name": "new CT raw controls final",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-ct",
+        "--test",
+        "impl239_runtime_enum_ops",
+        "--",
+        "--nocapture"
+      ],
+      "log": "ct/239-ct-runtime-final.log.gz"
+    },
+    {
+      "name": "driver final window on243 a34",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "parts": {
+        "impl239_generated_owned_enums": 6,
+        "review177_public": 5,
+        "review223_replay": 2
+      },
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl239_generated_owned_enums",
+        "--test",
+        "review177_public",
+        "--test",
+        "review223_replay",
+        "--",
+        "--nocapture"
+      ],
+      "log": "driver/239-driver-tests02.log.gz"
+    },
+    {
+      "name": "source fingerprint v30",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "cp34_fingerprint_sources",
+        "--",
+        "--nocapture"
+      ],
+      "log": "fingerprint-source/239-fingerprint-sources01.log.gz"
+    },
+    {
+      "name": "old230 ConfigReady/profile",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 5,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl230_generation",
+        "new_enum_profile_keeps_generation_and_configready_boundaries",
+        "--",
+        "--nocapture"
+      ],
+      "log": "legacy/239-old230-config.log.gz"
+    },
+    {
+      "name": "old230 generation budget",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 5,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl230_generation",
+        "enum_generation_limits_charge_every_iteration_and_warm_replay",
+        "--",
+        "--nocapture"
+      ],
+      "log": "legacy/239-old230-budget.log.gz"
+    },
+    {
+      "name": "oldCopy enum CT",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 15,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl029",
+        "enum029_13_copy_enum_ct_evaluates_and_runtime_pattern_name_stays_runtime",
+        "--",
+        "--nocapture"
+      ],
+      "log": "legacy/239-old-copy-ct.log.gz"
+    }
+  ],
+  "lint": {
+    "IR_base_all_targets": "Pass",
+    "own_CT_driver_all_targets": "Pass",
+    "own_command": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--no-deps",
+      "-p",
+      "zil-ct",
+      "-p",
+      "zil-driver",
+      "--features",
+      "llvm-api",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "own_log": "lint/239-component-clippy-own02.log.gz",
+    "dependency_clippy": "Blocked by four242 Verify sums.rs lint findings, reported to owner; preserved lint/239-component-clippy01.log.gz",
+    "earlier_own_clippy": "Failed E0004 because driver cp34 sources still imported archived29 encoder; authorized path/comment migration to30, archived29 unchanged"
+  },
+  "native": {
+    "final_window_executions": 8,
+    "previous_backend977_window_executions": 8,
+    "actual_executions_across_two_windows": 16,
+    "counting": "Overlapping reruns are not additional independent coverage; final8 reported separately",
+    "backend": "llvm-api",
+    "input_kind": "builder",
+    "fallback": null,
+    "optimization_levels": [
+      "O0",
+      "O2"
+    ],
+    "expected_stdout": {
+      "Managed_generated_and_plain": "A",
+      "Product_generated_and_plain": "BA"
+    },
+    "expected_exit": 0,
+    "allocation_failure_injection_executions": 0
+  },
+  "budgets": {
+    "old230_source_sha256": "3f08482c95dd9995e1194f3c4d65119800ed9a8268601a6553d905c97d648008",
+    "old230_nodes_N": 871,
+    "old230_work_N": 2698,
+    "old230_N_Nminus1_fresh": "Pass, original Q exact limits kept",
+    "new_generation_snapshot_nodes_N": 144,
+    "new_generation_snapshot_work_N": 517,
+    "new_generation_N_Nminus1_fresh": "Pass",
+    "default_limits_changed": false
+  },
+  "CT_ownership_control": {
+    "local_tag_read": "Both valid Copy Enum observations pass ordinary raw+Wire Verify before exact closed-opcode CTForbidden",
+    "owned_unpack_drop": "Both activeEmpty cases still have globally nonCopy Enum; ordinary raw+Wire Verify succeeds, CT rejects nonserializable runtime ownership. Unpack then conditional DropMoved is a successful ordinary positive.",
+    "fixture_failure": "First inactive-owned fixture omitted canonical ByteBuffer ResourceDefinition and was rejected by ordinary Verify as required. Original raw/log kept; fixed only the fixture definition, no production privilege change."
+  },
+  "source_sha256": {
+    "crates/zil-ct/tests/impl239_runtime_enum_ops.rs": "f0a0f7b51a25690bdbf627fb4945312d3bc3a9007a6bfa5124b36e2c7bb80d50",
+    "crates/zil-driver/src/ct_selection/hygiene_types.rs": "be819839616c27bf776f8a0607556ea941ed38a3fc21e91680f1384129feb8e0",
+    "crates/zil-driver/src/ct_selection/materialize.rs": "8a51b93ccfcf9328937d280375dc5ce4b88795c395928d7d4b52eaa6efcede06",
+    "crates/zil-driver/tests/cp34_fingerprint_sources.rs": "e72a9de8c841925ca32119a6a52d9ef9d00b02fdfd041c31facd6be34e021595",
+    "crates/zil-driver/tests/impl239_fixtures/legacy230-widths.zil": "3f08482c95dd9995e1194f3c4d65119800ed9a8268601a6553d905c97d648008",
+    "crates/zil-driver/tests/impl239_generated_owned_enums.rs": "8cce469d514a78463d435b34b48263cb25177f17bb3e0d8ca2e18a0106f5af6b",
+    "crates/zil-ir/src/lib.rs": "4cc9c76ce88ff334a1648fedba7113523c70ef4e2a4bdcfcafc2807b01f751b7"
+  },
+  "artifacts": {
+    "driver": {
+      "files": 243,
+      "archive": "driver/final-artifacts.tar.gz",
+      "archive_sha256": "6e5ceb67684615772f128fce6a6d05b648b1029102aaa700ec19ade00a0cfe05",
+      "manifest": "driver/final-artifacts.json",
+      "manifest_sha256": "34e5fdd653c643237efb0e1d6263f1a5604e01a24c2fa1286f526f2099cda598"
+    },
+    "ct": {
+      "files": 12,
+      "archive": "ct/final-artifacts.tar.gz",
+      "archive_sha256": "d6644e0e6c424269dac387d412d47d5e4d3639f6ceb1929456b9ca9cdf44946e",
+      "manifest": "ct/final-artifacts.json",
+      "manifest_sha256": "b9809dfa09ec12efd045f8bca5d4dbb1f850871e7be74c4ddca09ade5a2aa58b"
+    },
+    "legacy": {
+      "files": 39,
+      "archive": "legacy/final-artifacts.tar.gz",
+      "archive_sha256": "ba15c9c698a8bd7856102031477e2986786e8185b7f3f88d9cc7d2189a38be41",
+      "manifest": "legacy/final-artifacts.json",
+      "manifest_sha256": "8f73ab515f10b5082c71738225fcffe39a76ef2d9b40a81171938a11969f83a9"
+    },
+    "ct-first-owned-failure": {
+      "files": 1,
+      "archive": "ct/first-owned-failure.tar.gz",
+      "archive_sha256": "91e805cff240788fe1a34e404c21e97ab3d1baa2d34b2b7c909d7085896d6b47",
+      "manifest": "ct/first-owned-failure.json",
+      "manifest_sha256": "0335c1e4174e621b6c274f23369220b69867f60a640d088915816c39d5be2d44"
+    },
+    "ct-intermediate-raw": {
+      "files": 6,
+      "archive": "ct/raw-artifacts.tar.gz",
+      "archive_sha256": "7a9fb876be1774c10eaa5ca38674f606afe3f0e86e4a86b68daae51dd224559e",
+      "manifest": "ct/raw-artifacts.json",
+      "manifest_sha256": "9a8d95ffadeb314f45eaf70285c1ec924e9d77cface93bcabeef0cc79d5706f9"
+    },
+    "ct-intermediate-raw-owned02": {
+      "files": 6,
+      "archive": "ct/raw-owned02-artifacts.tar.gz",
+      "archive_sha256": "0980e3125061c239dbf96370980d54a011b96608ccb7d11986edbd97bc58eaf0",
+      "manifest": "ct/raw-owned02-artifacts.json",
+      "manifest_sha256": "ead669a77a949049f3d951d23485726c80e5da59e3b917463349fb2abc31d776"
+    }
+  },
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-239",
+    "CARGO_BUILD_JOBS": 1,
+    "CARGO_INCREMENTAL": 0
+  },
+  "limits": {
+    "full_workspace": "NotRun",
+    "native_windows": "NotRun",
+    "Rust_comparisons": "NotMeasured",
+    "full_language": "NotSatisfied",
+    "product": "NotRun"
+  },
+  "rust_goals_reflection": {
+    "safety": "Bounded raw transport and independent ordinary/CT authority boundaries tested; full safety remains unproven.",
+    "runtime_memory": "Observed finite cleanup order and no implicit allocation introduced by these opcode/interface changes; no runtime/RSS parity measurement.",
+    "expression_maintenance": "Same owned Enum declaration body works generated and handwritten with actual marker preservation; full framework maintenance advantage unmeasured.",
+    "compile_cost": "Old230 exact logical budgets kept and new N/N\u22121/fresh measured; no comparative compilation benchmark.",
+    "breakthrough": "Finite generated/ordinary ownership composition adds a real usable slice; four-goal product conjunction and product net breakthrough remain unestablished."
+  }
+}

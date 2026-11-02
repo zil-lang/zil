@@ -1,0 +1,4 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.01s
+     Running `/workspace/.zil-env/target-240-q-budget/debug/impl240-helper-budget-q /tmp/impl240-helper-budget /tmp/impl240-helper-budget/receipts-q-copy old-copy-enum`
+old-copy-enum Expand N=266 N-1 ResourceLimit, cold/warm/fresh output equal
+old-copy-enum Types N=219 N-1 ResourceLimit, cold/warm/fresh output equal

@@ -1,0 +1,40 @@
+Author follow-up source checkpoint: **b612507ff37ccebb0d259bbc83506a947d871ce8**. Final author budget/qualification observation: **aa375a234207c6a326e1e8a0571013ce14381ff2**, which merges the final normative authority **19111462d25425dc8e75830a758119cc2de78d4e** without further production changes. Spec `a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8`, norm `74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e`. Earlier logs retain their earlier observed source identities; they are not relabeled final acceptance.
+
+The root preflight's real global-resource/helper-binder collision rejection is preserved under `original-nominal-reject`; `601219cbf` repaired the actual declaration scope. Independent 32d unused-template wrong acceptances are under `original-definition-checks`; `7bee27352` repaired complete Enum Copy/linear qualification. `8244e9802` preserved declaration scope through bare descriptions; its independently found expired-Desc wrong acceptances are under `original-desc-liveness`. `b612507ff` closes the actual root/cleanup paths described below. Original inputs and result categories remain unchanged.
+
+A concrete non-generic Enum field resolves in the declaration's lexical scope. Bare Name bindings preserve that scope and borrowed roots without ownership. Only an actual validated give result transfers ownership, and its new local receives a fresh activation token. The old token remains invalid even when a physical local is refilled. Name/Group/If and existing local reference syntax retain roots; different-root conditionals retain both possible roots. Mutable description assignment replaces the actual roots, while branch/loop joins preserve may-invalidated facts. Read/use checks charge each root before checking it. An immutable Rc slice is compiler metadata only: branch states copy references, never deep-clone root contents. Set growth and merges are reserved before allocation, and the additional moved facts are prepaid before snapshots.
+
+Scope cleanup uses a prepaid `(owning local, activation token)` registry rather than the last visible Name mapping. A shadowed owner's token therefore stays live inside its original scope and becomes invalid at the actual scope exit. Managed pattern locals are invalidated at arm exit; body locals at block exit. Deferred observation holds the real root, and a deferred give consumes at registration. None of these facts grants a runtime owner, public IR permission, State/factory eligibility or a new capture profile. The existing factory/State owner condition remains; an already-established Enum source is retained through that condition.
+
+`240-desc-roots-closed-tests.log` contains actual public Parse/Expand/Types tests: front 11 / helper 10. The helper cases include both ordinary R and global F colliding with a helper F binder: Name/Group/multiple aliases, same-root and different-root conditionals, assignment, branch/loop joins, real give relay, fresh activation replacement, block/arm cleanup, shadowed-owner cleanup and defer holds. Legal description reads before give pass; expired reads, alias give, double give, fake callback/resource conversions and Ref payloads reject. `240-desc-roots-closed-clippy.log` is the limited Expand/Types all-target check. These author receipts do not replace independent Analyze/Verify, raw/Wire or native tests on root's common candidate.
+
+Tuple/array qualification was checked with real calls, not inferred from an unused helper's apparent success. Saved `qualification-probes/{tuple,array}-used{,-F}.log` are development observations: all four reached the existing Types non-Copy aggregate rejection before the final definition-time check was tightened. Final `*-concrete` controls bypass generic validation and independently reach those same Types gates. Final generic validation keeps these unsupported positions rejected when a real managed-field Desc is present; there is **no description_fields tree or recursive Copy exception** in the delivered source. Local `&Desc` is different: R/F used sources and `address-direct-used-F` actually reach Types successfully, so the fix preserves only their existing root and lexical referent information. A plain resource-Desc return (`echo`) remains Types Unsupported. These probes establish qualification, not native execution.
+
+The budget harness uses the identical saved source on clean readonly old observation `541f21bbe8cff775cb7341aae3652759a0a65c8d` and the final frontend. Root had separately established the old observation's base/ir/syntax/expand/Cargo dependency equivalence to Q; this receipt does not relabel the whole tree Q. At each exact N, N−1 is ResourceLimit, and cold/warm/fresh retry after a failed request yields identical complete Core/Typed. New used helper checks exercise both Types prepayments (signature validation and template installation); the threshold is the whole public request, not a claim about one private pool alone.
+
+| Profile | Old Expand work/nodes | Final Expand work/nodes | Types work |
+| --- | --- | --- | --- |
+| Copy Enum in unused callable helper | 266 / 116 | 296 / 130 | 219 unchanged |
+| Existing explicit give-resource parameter | 389 / not remeasured | 389 / not remeasured | 544 unchanged |
+| Existing ordinary Package read parameter | 430 / not remeasured | 430 / not remeasured | 711 unchanged |
+| Managed Enum direct give | Earlier 32d work 598 | 618 / not remeasured | 2020 unchanged |
+| Managed Enum give relay | Earlier 32d work 640 | 671 / not remeasured | 2141 unchanged |
+| Root's global F / helper F original source | Rejected | 3482 / not remeasured | 5330 |
+
+The second approved exception adds 30 work and 14 nodes for the exact saved Copy helper: an actual Enum requires the existing paid finite Copy proof, including Product and nested Sum fields, rather than the unsound `!dependent` guess. The first approved exception's Copy generic enum remains 336/126, and old237 remains 5298/1363/depth7 (`240-desc-roots-controls.log`). Default limits and product thresholds are unchanged. The earlier 606/648/3442 observations in `receipts-final` and historical 32d receipts remain separate from the final root-aware 618/671/3482 observations in `receipts-roots`.
+
+Replay uses saved `budget/{current,q}/src/{main.rs,bin/nodes.rs}` and Cargo manifests with the task environment, one job and separate targets. For work/Types:
+
+```
+. /workspace/.zil-env/env.sh
+export CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0
+export CARGO_TARGET_DIR=/workspace/.zil-env/target-240
+cargo run --manifest-path /tmp/impl240-helper-budget/current/Cargo.toml --offline --bin impl240-helper-budget-current -- /tmp/impl240-helper-budget /tmp/impl240-helper-budget/receipts-roots old-give-param old-package-field old-copy-enum sum-direct sum-relay sum-shadow
+cargo run --manifest-path /tmp/impl240-helper-budget/current/Cargo.toml --offline --bin nodes -- /tmp/impl240-helper-budget/old-copy-enum.zil
+export CARGO_TARGET_DIR=/workspace/.zil-env/target-240-q-budget
+cargo run --manifest-path /tmp/impl240-helper-budget/q/Cargo.toml --offline --bin impl240-helper-budget-q -- /tmp/impl240-helper-budget /tmp/impl240-helper-budget/receipts-q-copy old-copy-enum
+```
+
+Root and independent reviewers own the common-candidate/fullchain results. The additionally suggested mutable-owner conditional replacement control was still awaiting its actual qualification judgment when this author checkpoint was delivered; it is not claimed passed by this receipt. No confirmed remaining failure from these fixed root/alias sources is hidden by that distinction.
+
+Rust goals remain bounded: actual lexical/linear frontend defects are repaired, with no runtime representation, allocation or synchronization change. Natural Sum/helper composition improves and budget deltas are attributed. Rust runtime/RSS parity, compile-speed advantage, whole-framework maintenance advantage and the four-goal product conjunction were not measured. The repeatable improvement is legal declaration/description/give composition plus definition-time rejection of actual duplicate or expired ownership observations.

@@ -1,0 +1,1 @@
+resource R{n:i32}fn consume<F:Fn()->i32>(give r:R,callback:F)->i32{return callback()+r.n}fn main()->i32{let r=R{n:2};return consume(give r,()=>3)-5}

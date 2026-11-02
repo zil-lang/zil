@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}fn consume<F:Fn()->i32>(value:P,callback:F)->i32{return callback()+value.r.n}fn main()->i32{return consume(P{r:R{n:2}},()=>3)-5}

@@ -1,0 +1,19 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.35s
+     Running tests/review242_tag_edges.rs (/workspace/.zil-env/target-244/debug/deps/review242_tag_edges-edf470a3725cec4e)
+
+running 1 test
+
+thread 'each_sealed_request_keeps_its_limits_through_shared_wire_clone_and_emission' (258743) panicked at crates/zil-driver/tests/review242_tag_edges.rs:435:82:
+called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Verify, category: ResourceLimit, code: "E-RESOURCE-LIMIT", message: "candidate wire node quota exceeded", span: None, notes: [] }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test each_sealed_request_keeps_its_limits_through_shared_wire_clone_and_emission ... FAILED
+
+failures:
+
+failures:
+    each_sealed_request_keeps_its_limits_through_shared_wire_clone_and_emission
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p zil-driver --test review242_tag_edges`

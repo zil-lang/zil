@@ -1,0 +1,30 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.40s
+     Running tests/review242_capture_profiles.rs (/workspace/.zil-env/target-244/debug/deps/review242_capture_profiles-1bc1c0aae6b240c7)
+
+running 1 test
+
+thread 'unused_error_union_slots_preserve_the_old_managed_success_profile' (315900) panicked at crates/zil-driver/tests/review242_capture_profiles.rs:360:5:
+owned-union-error-managed/raw expected admitted=false, actual=Ok(())
+owned-union-error-managed/wire expected admitted=false, actual=Ok(())
+owned-enum-error-managed/raw expected admitted=false, actual=Ok(())
+owned-enum-error-managed/wire expected admitted=false, actual=Ok(())
+owned-enum-error-managed/analyze expected admitted=false, actual=Ok(())
+owned-union-error-unit/raw expected admitted=false, actual=Ok(())
+owned-union-error-unit/wire expected admitted=false, actual=Ok(())
+unit-error-owned-union-result/raw expected admitted=false, actual=Ok(())
+unit-error-owned-union-result/wire expected admitted=false, actual=Ok(())
+illegal-slot-inside-enum/raw expected admitted=false, actual=Ok(())
+illegal-slot-inside-enum/wire expected admitted=false, actual=Ok(())
+illegal-slot-inside-enum/analyze expected admitted=false, actual=Ok(())
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test unused_error_union_slots_preserve_the_old_managed_success_profile ... FAILED
+
+failures:
+
+failures:
+    unused_error_union_slots_preserve_the_old_managed_success_profile
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-driver --test review242_capture_profiles`

@@ -772,6 +772,7 @@ impl Graph {
                 || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
+                || owned_shapes::enumeration(ty)
                 || packages::ordinary(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)

@@ -17,7 +17,7 @@ fn typed(source: &str) -> TypedModule {
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
-fn rejected(label: &str, module: TypedModule, mut plan: CandidatePlan) {
+fn verify_expected(label: &str, module: TypedModule, mut plan: CandidatePlan, accept: bool) {
     plan.module_fingerprint = module.fingerprint();
     let out = directory(label);
     fs::write(out.join("module.txt"), format!("{module:#?}")).unwrap();
@@ -36,6 +36,10 @@ fn rejected(label: &str, module: TypedModule, mut plan: CandidatePlan) {
         ),
     ] {
         fs::write(out.join(format!("{route}.txt")), format!("{result:#?}")).unwrap();
+        if accept {
+            result.unwrap();
+            continue;
+        }
         let errors = result.expect_err(label);
         assert!(
             errors
@@ -89,11 +93,11 @@ fn unused_mutable_nested_product_parameter_cannot_gain_a_write_capability() {
     for value in &mut f.values {
         replace(value, &product);
     }
-    rejected("mutable-product-parameter", module, plan);
+    verify_expected("mutable-product-parameter", module, plan, false);
 }
 
 #[test]
-fn exact_unit_protocols_cannot_admit_other_or_nested_owning_sums() {
+fn ordinary_product_sums_are_admitted_but_direct_nested_union_stays_closed() {
     let source = include_str!("review223_fixtures/unit_protocols.zil");
     let original = typed(source);
     let plan = zil_analyze::analyze(&original, &Limits::default()).unwrap();
@@ -137,6 +141,13 @@ fn exact_unit_protocols_cannot_admit_other_or_nested_owning_sums() {
         for value in &mut f.values {
             change(value, variant);
         }
-        rejected(&format!("non-unit-sum-{variant}"), module, plan.clone());
+        // §8.1.5 permits Product alternatives, not direct non-Copy
+        // ErrorUnion nesting in an ErrorUnion error slot (variant 2).
+        verify_expected(
+            &format!("non-unit-sum-{variant}"),
+            module,
+            plan.clone(),
+            variant != 2,
+        );
     }
 }

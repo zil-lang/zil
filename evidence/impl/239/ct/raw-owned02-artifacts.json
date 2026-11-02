@@ -1,0 +1,11 @@
+{
+  "original_base": "/workspace/zil-239/evidence/impl/239/ct/raw-owned02",
+  "sha256": {
+    "ct239-244946/owned-false-ct-errors.txt": "0b0feebcd5066d06d861fb6b382b4be5166ee043dded960c871d0509b73e2095",
+    "ct239-244946/owned-false-raw.txt": "82f3e24d49c6c11a78bea510358c1d6349d4d601ae92ece2d338b5c6fefbdfa5",
+    "ct239-244946/owned-false.wire": "e1257b3157d947a490cbd6a881fd046ac73e93c0996c0e058487fb61fac59f71",
+    "ct239-244946/owned-true-ct-errors.txt": "0b0feebcd5066d06d861fb6b382b4be5166ee043dded960c871d0509b73e2095",
+    "ct239-244946/owned-true-raw.txt": "8e8764c42cf87b246fbb1de28f6a191f66383d330bff1578bcd7c5cd0297e585",
+    "ct239-244946/owned-true.wire": "9e39069999049b1880ef37479c7baa97eabffa2046332e1e0d01edfdd73475ee"
+  }
+}

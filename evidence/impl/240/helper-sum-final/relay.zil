@@ -1,0 +1,2 @@
+extern "C" fn putchar(n:i32)->i32;resource F{n:i32}impl Drop for F{fn drop(self:Self){unsafe{putchar(.n)}}}enum E{Empty,Pair(manages F,manages F)}package Wrap{state:E;ready:bool}fn sink(give owner:F){}fn make()->E{return E.Pair(F{n:65},F{n:66})}fn fallible()->void!Wrap{return Wrap{state:make(),ready:true}}fn use_value<F:Fn()->i32>(callback:F,value:E)->i32{let n=callback();match value{E.Empty()=>{return n}
+E.Pair(a,b)=>{let saved=give a;sink(give saved);sink(give b);return n}}}fn main()->i32{return use_value(()=>7,make())-7}

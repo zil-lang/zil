@@ -1,0 +1,353 @@
+CoreModule {
+    schema_version: 30,
+    module_id: ModuleId(
+        0,
+    ),
+    source_fingerprint: Fingerprint(
+        [
+            207,
+            102,
+            8,
+            228,
+            195,
+            208,
+            175,
+            231,
+            246,
+            94,
+            121,
+            219,
+            39,
+            65,
+            154,
+            72,
+            191,
+            47,
+            95,
+            191,
+            240,
+            20,
+            247,
+            218,
+            88,
+            64,
+            237,
+            183,
+            245,
+            82,
+            35,
+            248,
+        ],
+    ),
+    functions: [
+        CoreFunction {
+            type_parameters: [],
+            state_parameters: [],
+            callable_return: None,
+            id: NodeId(
+                3,
+            ),
+            name: "duplicate",
+            callable_parameters: [
+                CoreCallableParameter {
+                    index: 0,
+                    generic_index: 0,
+                    generic_name: "F",
+                    kind: Fn,
+                    parameters: [],
+                    result: I32,
+                },
+            ],
+            foreign: None,
+            parameters: [
+                CoreParameter {
+                    name: "cb",
+                    ty: Named(
+                        "F",
+                    ),
+                    mode: Infer,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 77,
+                        end: 81,
+                    },
+                },
+                CoreParameter {
+                    name: "e",
+                    ty: Named(
+                        "E",
+                    ),
+                    mode: Infer,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 82,
+                        end: 85,
+                    },
+                },
+            ],
+            return_type: I32,
+            result_mode: Infer,
+            body: CoreBlock {
+                statements: [
+                    CoreStatement {
+                        id: NodeId(
+                            5,
+                        ),
+                        kind: Binding {
+                            name: "first",
+                            mutable: false,
+                            ty: None,
+                            initializer: Some(
+                                CoreExpr {
+                                    id: NodeId(
+                                        4,
+                                    ),
+                                    kind: Name(
+                                        "e",
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 102,
+                                        end: 103,
+                                    },
+                                },
+                            ),
+                        },
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 92,
+                            end: 104,
+                        },
+                    },
+                    CoreStatement {
+                        id: NodeId(
+                            7,
+                        ),
+                        kind: Binding {
+                            name: "second",
+                            mutable: false,
+                            ty: None,
+                            initializer: Some(
+                                CoreExpr {
+                                    id: NodeId(
+                                        6,
+                                    ),
+                                    kind: Name(
+                                        "e",
+                                    ),
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 115,
+                                        end: 116,
+                                    },
+                                },
+                            ),
+                        },
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 104,
+                            end: 117,
+                        },
+                    },
+                    CoreStatement {
+                        id: NodeId(
+                            10,
+                        ),
+                        kind: Return(
+                            Some(
+                                CoreExpr {
+                                    id: NodeId(
+                                        9,
+                                    ),
+                                    kind: Call {
+                                        callee: CoreExpr {
+                                            id: NodeId(
+                                                8,
+                                            ),
+                                            kind: Name(
+                                                "cb",
+                                            ),
+                                            span: Span {
+                                                file: FileId(
+                                                    0,
+                                                ),
+                                                start: 124,
+                                                end: 126,
+                                            },
+                                        },
+                                        arguments: [],
+                                    },
+                                    span: Span {
+                                        file: FileId(
+                                            0,
+                                        ),
+                                        start: 124,
+                                        end: 128,
+                                    },
+                                },
+                            ),
+                        ),
+                        span: Span {
+                            file: FileId(
+                                0,
+                            ),
+                            start: 117,
+                            end: 128,
+                        },
+                    },
+                ],
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 91,
+                    end: 129,
+                },
+            },
+            receiver: None,
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 51,
+                end: 129,
+            },
+        },
+        CoreFunction {
+            type_parameters: [],
+            state_parameters: [],
+            callable_return: None,
+            id: NodeId(
+                11,
+            ),
+            name: "main",
+            callable_parameters: [],
+            foreign: None,
+            parameters: [],
+            return_type: Unit,
+            result_mode: Infer,
+            body: CoreBlock {
+                statements: [],
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 138,
+                    end: 140,
+                },
+            },
+            receiver: None,
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 129,
+                end: 140,
+            },
+        },
+    ],
+    aggregates: [
+        CoreAggregate {
+            id: NodeId(
+                0,
+            ),
+            name: "R",
+            kind: Resource,
+            teardown: None,
+            fields: [
+                CoreField {
+                    name: "n",
+                    ty: I32,
+                    public: false,
+                    manages: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 11,
+                        end: 16,
+                    },
+                },
+            ],
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 0,
+                end: 17,
+            },
+        },
+        CoreAggregate {
+            id: NodeId(
+                1,
+            ),
+            name: "P",
+            kind: Package,
+            teardown: None,
+            fields: [
+                CoreField {
+                    name: "r",
+                    ty: Named(
+                        "R",
+                    ),
+                    public: false,
+                    manages: true,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 27,
+                        end: 38,
+                    },
+                },
+            ],
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 17,
+                end: 39,
+            },
+        },
+    ],
+    aggregate_templates: [],
+    aggregate_applications: [],
+    enums: [
+        CoreEnum {
+            id: NodeId(
+                2,
+            ),
+            name: "E",
+            variants: [
+                (
+                    "V",
+                    [
+                        Named(
+                            "P",
+                        ),
+                    ],
+                ),
+            ],
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 39,
+                end: 51,
+            },
+        },
+    ],
+    unsupported: [],
+}

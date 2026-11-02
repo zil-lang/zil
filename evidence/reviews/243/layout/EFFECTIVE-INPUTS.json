@@ -1,0 +1,76 @@
+{
+  "original_oracle_unchanged": true,
+  "original_oracle_sha256": "2e7820e025e6d3a1fd32e2ddd340ebb124aa278c4f365c063c70dc2610cb2153",
+  "fixture_only_changes": [
+    {
+      "file": "sources/nominal_different_layout/right.zil",
+      "original_sha256": "4c962b29380ab6338fdb12fbcc7fbb6d3b38340cb0f1a246bcd4112fb9287a7f",
+      "effective_sha256": "154e06e4823f6a8191c4401704967bee10ef258cd1801cae90af1294ad76ab29",
+      "only_change": "Unsupported i64 numeric suffix removed; declared I64 field/comparison context and numeric value unchanged",
+      "stdout_exit_layout_expectations_changed": false
+    },
+    {
+      "file": "sources/mixed_wide/main.zil",
+      "original_sha256": "997f530e18a91c95b7387d83dcecb45612ead42d0a166a6f478a9a319edae913",
+      "effective_sha256": "b775db16ed73b0382323c118fd5b212a121f04b3c8bd31a99a4513b6895d6aeb",
+      "only_change": "Unsupported i64 numeric suffix removed; declared I64 field/comparison context and numeric value unchanged",
+      "stdout_exit_layout_expectations_changed": false
+    },
+    {
+      "file": "sources/opaque_app/main.zil",
+      "original_sha256": "f093016224f306c34f65512d134de916a4cb06f3fae78522b4513e08b6fe613e",
+      "effective_sha256": "0bf457e78d070aeaa584f84587210a21bc61f80dc76d2d4311eeee955784686b",
+      "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+      "stdout_exit_layout_expectations_changed": false
+    },
+    {
+      "file": "sources/opaque_app/lib.zil",
+      "original_sha256": "61cb5ac4dc11fe04d246551d92b2b244125d7ca1020b552759037d80c042ba23",
+      "effective_sha256": "9d2df740e15cea248b95babf812bfa477ade1bb0993d4b7e42fa2032fb9f06a4",
+      "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+      "stdout_exit_layout_expectations_changed": false
+    },
+    {
+      "file": "sources/nominal_same_layout/main.zil",
+      "original_sha256": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+      "effective_sha256": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+      "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+      "stdout_exit_layout_expectations_changed": false
+    },
+    {
+      "file": "sources/nominal_same_layout/right.zil",
+      "original_sha256": "cde9101b2c19b0c15818e5e752e0621c3eb72699d2979d87e236098e724eceb0",
+      "effective_sha256": "677b2a728217a9223e76c548c6f1fc85028de1b281e3c475b362654db1f4fb25",
+      "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+      "stdout_exit_layout_expectations_changed": false
+    },
+    {
+      "file": "sources/nominal_same_layout/left.zil",
+      "original_sha256": "9cb8867f387b8e193d8c1034bf2b7710357c4622374b1f10d43c9acd433992c9",
+      "effective_sha256": "d6be79f78b811d94c3f54cc19411cba4c56e200d112c6f476fbe74bfda981470",
+      "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+      "stdout_exit_layout_expectations_changed": false
+    },
+    {
+      "file": "sources/nominal_different_layout/main.zil",
+      "original_sha256": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+      "effective_sha256": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2",
+      "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+      "stdout_exit_layout_expectations_changed": false
+    },
+    {
+      "file": "sources/nominal_different_layout/right.zil",
+      "original_sha256": "154e06e4823f6a8191c4401704967bee10ef258cd1801cae90af1294ad76ab29",
+      "effective_sha256": "15bc07e449650f142d87b49469f6ea7b272cd8500f7a80805e420225772fc858",
+      "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+      "stdout_exit_layout_expectations_changed": false
+    },
+    {
+      "file": "sources/nominal_different_layout/left.zil",
+      "original_sha256": "9cb8867f387b8e193d8c1034bf2b7710357c4622374b1f10d43c9acd433992c9",
+      "effective_sha256": "d6be79f78b811d94c3f54cc19411cba4c56e200d112c6f476fbe74bfda981470",
+      "only_change": "Foreign putchar is declared once in shared io module; same scalar emit calls are module qualified",
+      "stdout_exit_layout_expectations_changed": false
+    }
+  ]
+}

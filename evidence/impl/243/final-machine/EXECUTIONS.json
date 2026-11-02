@@ -1,0 +1,720 @@
+[
+  {
+    "directory": "impl243-copy-scratch-Clang-O0-266173-2",
+    "name": "input-",
+    "exit": "Some(0)",
+    "stdin_hex": "",
+    "stdout": "XALQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-copy-scratch-Clang-O2-266173-4",
+    "name": "input-",
+    "exit": "Some(0)",
+    "stdin_hex": "",
+    "stdout": "XALQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-copy-scratch-LlvmApi-O0-266173-7",
+    "name": "input-",
+    "exit": "Some(0)",
+    "stdin_hex": "",
+    "stdout": "XALQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-copy-scratch-LlvmApi-O2-266173-10",
+    "name": "input-",
+    "exit": "Some(0)",
+    "stdin_hex": "",
+    "stdout": "XALQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-entry-Clang-O0-266173-0",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-entry-Clang-O0-266173-0",
+    "name": "input-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-entry-Clang-O2-266173-6",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-entry-Clang-O2-266173-6",
+    "name": "input-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-entry-LlvmApi-O0-266173-9",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-entry-LlvmApi-O0-266173-9",
+    "name": "input-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-entry-LlvmApi-O2-266173-13",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-entry-LlvmApi-O2-266173-13",
+    "name": "input-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-entry-faults-O0-266173-1",
+    "name": "input-0-fail-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SZ",
+    "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":32}\n",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O0-266173-1",
+    "name": "input-0-fail-1",
+    "exit": "Some(1)",
+    "stdin_hex": "30",
+    "stdout": "S",
+    "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O0-266173-1",
+    "name": "input-0-fail-2",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SZ",
+    "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":32}\n",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O0-266173-1",
+    "name": "input-1-fail-0",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SE",
+    "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":33}\n",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 33
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O0-266173-1",
+    "name": "input-1-fail-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "S",
+    "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O0-266173-1",
+    "name": "input-1-fail-2",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "S",
+    "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":32}\n",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O0-266173-1",
+    "name": "input-1-fail-3",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SE",
+    "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":33}\n",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 33
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O2-266173-5",
+    "name": "input-0-fail-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SZ",
+    "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":32}\n",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O2-266173-5",
+    "name": "input-0-fail-1",
+    "exit": "Some(1)",
+    "stdin_hex": "30",
+    "stdout": "S",
+    "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O2-266173-5",
+    "name": "input-0-fail-2",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SZ",
+    "stderr": "{\"alloc_calls\":1,\"allocated\":1,\"frees\":1,\"failures\":0,\"live\":0,\"peak_live\":1,\"peak_bytes\":32}\n",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O2-266173-5",
+    "name": "input-1-fail-0",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SE",
+    "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":33}\n",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 33
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O2-266173-5",
+    "name": "input-1-fail-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "S",
+    "stderr": "{\"alloc_calls\":1,\"allocated\":0,\"frees\":0,\"failures\":1,\"live\":0,\"peak_live\":0,\"peak_bytes\":0}\n",
+    "allocation": {
+      "alloc_calls": 1,
+      "allocated": 0,
+      "frees": 0,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 0,
+      "peak_bytes": 0
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O2-266173-5",
+    "name": "input-1-fail-2",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "S",
+    "stderr": "{\"alloc_calls\":2,\"allocated\":1,\"frees\":1,\"failures\":1,\"live\":0,\"peak_live\":1,\"peak_bytes\":32}\n",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 1,
+      "frees": 1,
+      "failures": 1,
+      "live": 0,
+      "peak_live": 1,
+      "peak_bytes": 32
+    }
+  },
+  {
+    "directory": "impl243-entry-faults-O2-266173-5",
+    "name": "input-1-fail-3",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SE",
+    "stderr": "{\"alloc_calls\":2,\"allocated\":2,\"frees\":2,\"failures\":0,\"live\":0,\"peak_live\":2,\"peak_bytes\":33}\n",
+    "allocation": {
+      "alloc_calls": 2,
+      "allocated": 2,
+      "frees": 2,
+      "failures": 0,
+      "live": 0,
+      "peak_live": 2,
+      "peak_bytes": 33
+    }
+  },
+  {
+    "directory": "impl243-nested-Clang-O0-266173-11",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SACDZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-Clang-O0-266173-11",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "SZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-Clang-O0-266173-11",
+    "name": "input-2",
+    "exit": "Some(0)",
+    "stdin_hex": "32",
+    "stdout": "SAZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-Clang-O0-266173-11",
+    "name": "input-3",
+    "exit": "Some(0)",
+    "stdin_hex": "33",
+    "stdout": "SK",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-Clang-O2-266173-15",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SACDZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-Clang-O2-266173-15",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "SZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-Clang-O2-266173-15",
+    "name": "input-2",
+    "exit": "Some(0)",
+    "stdin_hex": "32",
+    "stdout": "SAZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-Clang-O2-266173-15",
+    "name": "input-3",
+    "exit": "Some(0)",
+    "stdin_hex": "33",
+    "stdout": "SK",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-LlvmApi-O0-266173-19",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SACDZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-LlvmApi-O0-266173-19",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "SZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-LlvmApi-O0-266173-19",
+    "name": "input-2",
+    "exit": "Some(0)",
+    "stdin_hex": "32",
+    "stdout": "SAZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-LlvmApi-O0-266173-19",
+    "name": "input-3",
+    "exit": "Some(0)",
+    "stdin_hex": "33",
+    "stdout": "SK",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-LlvmApi-O2-266173-20",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SACDZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-LlvmApi-O2-266173-20",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "SZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-LlvmApi-O2-266173-20",
+    "name": "input-2",
+    "exit": "Some(0)",
+    "stdin_hex": "32",
+    "stdout": "SAZ",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-LlvmApi-O2-266173-20",
+    "name": "input-3",
+    "exit": "Some(0)",
+    "stdin_hex": "33",
+    "stdout": "SK",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-Clang-O0-266173-12",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "ACDLQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-Clang-O0-266173-12",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "LQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-Clang-O0-266173-12",
+    "name": "input-2",
+    "exit": "Some(0)",
+    "stdin_hex": "32",
+    "stdout": "ALQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-Clang-O0-266173-12",
+    "name": "input-3",
+    "exit": "Some(0)",
+    "stdin_hex": "33",
+    "stdout": "LQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-Clang-O2-266173-16",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "ACDLQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-Clang-O2-266173-16",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "LQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-Clang-O2-266173-16",
+    "name": "input-2",
+    "exit": "Some(0)",
+    "stdin_hex": "32",
+    "stdout": "ALQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-Clang-O2-266173-16",
+    "name": "input-3",
+    "exit": "Some(0)",
+    "stdin_hex": "33",
+    "stdout": "LQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-LlvmApi-O0-266173-18",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "ACDLQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-LlvmApi-O0-266173-18",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "LQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-LlvmApi-O0-266173-18",
+    "name": "input-2",
+    "exit": "Some(0)",
+    "stdin_hex": "32",
+    "stdout": "ALQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-LlvmApi-O0-266173-18",
+    "name": "input-3",
+    "exit": "Some(0)",
+    "stdin_hex": "33",
+    "stdout": "LQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-LlvmApi-O2-266173-21",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "ACDLQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-LlvmApi-O2-266173-21",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "LQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-LlvmApi-O2-266173-21",
+    "name": "input-2",
+    "exit": "Some(0)",
+    "stdin_hex": "32",
+    "stdout": "ALQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-nested-order-LlvmApi-O2-266173-21",
+    "name": "input-3",
+    "exit": "Some(0)",
+    "stdin_hex": "33",
+    "stdout": "LQE",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original03-Clang-O0-266173-3",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SRA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original03-Clang-O0-266173-3",
+    "name": "input-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original03-Clang-O2-266173-8",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SRA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original03-Clang-O2-266173-8",
+    "name": "input-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original03-LlvmApi-O0-266173-14",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SRA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original03-LlvmApi-O0-266173-14",
+    "name": "input-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original03-LlvmApi-O2-266173-17",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SRA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original03-LlvmApi-O2-266173-17",
+    "name": "input-1",
+    "exit": "Some(1)",
+    "stdin_hex": "31",
+    "stdout": "SA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original05-Clang-O0-266173-22",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SRA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original05-Clang-O0-266173-22",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "SR",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original05-Clang-O2-266173-23",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SRA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original05-Clang-O2-266173-23",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "SR",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original05-LlvmApi-O0-266173-24",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SRA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original05-LlvmApi-O0-266173-24",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "SR",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original05-LlvmApi-O2-266173-25",
+    "name": "input-0",
+    "exit": "Some(0)",
+    "stdin_hex": "30",
+    "stdout": "SRA",
+    "stderr": ""
+  },
+  {
+    "directory": "impl243-original05-LlvmApi-O2-266173-25",
+    "name": "input-1",
+    "exit": "Some(0)",
+    "stdin_hex": "31",
+    "stdout": "SR",
+    "stderr": ""
+  }
+]

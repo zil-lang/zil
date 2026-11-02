@@ -1,0 +1,7 @@
+{
+  "compiler_build_commit": "86f7dc3c5e69041f5e605f6cea74da0d7b4532aa",
+  "review_execution_tree": "28d752f0b7430865839d917c1d31ae98c828818d",
+  "source_and_compiler_dependency_diff": "identical",
+  "difference": "Evidence-only merge occurred between CLI build04 and independent native execution",
+  "build_log": "../cli-build04.log"
+}

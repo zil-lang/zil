@@ -1,0 +1,5 @@
+   Compiling impl240-helper-budget-current v0.0.0 (/tmp/impl240-helper-budget/current)
+    Finished `dev` profile [unoptimized] target(s) in 0.21s
+     Running `/workspace/.zil-env/target-240/debug/nodes /tmp/impl240-helper-budget/old-copy-enum.zil`
+cycle0 Expand nodes N=130; N-1 ResourceLimit, fresh equal
+cycle1 Expand nodes N=130; N-1 ResourceLimit, fresh equal

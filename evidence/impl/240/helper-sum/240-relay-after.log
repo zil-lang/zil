@@ -1,0 +1,5 @@
+   Compiling zil-expand v0.1.0 (/workspace/zil-240/crates/zil-expand)
+   Compiling impl240-front-probe v0.0.0 (/tmp/impl240-front-probe)
+    Finished `dev` profile [unoptimized] target(s) in 5.38s
+     Running `/workspace/.zil-env/target-240/debug/impl240-front-probe /tmp/review240-boundaries/results-P/callback_owned_forward/source.zil`
+Types Success

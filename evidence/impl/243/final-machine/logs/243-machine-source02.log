@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-243/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.43s
+     Running tests/impl243_machine.rs (/workspace/.zil-env/target-243/debug/deps/impl243_machine-23e51cd092071d75)
+
+running 2 tests
+test impl243_entry_owned_enum_error_cleans_nested_store_payload ... ok
+test impl243_recursive_match_multi_field_cleanup_and_copy_terminal ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.92s
+

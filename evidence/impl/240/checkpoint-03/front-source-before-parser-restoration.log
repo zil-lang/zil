@@ -1,0 +1,20 @@
+   Compiling impl240-front-probe v0.0.0 (/tmp/impl240-front-probe)
+    Finished `test` profile [unoptimized] target(s) in 0.35s
+     Running tests/front.rs (/workspace/.zil-env/target-240/debug/deps/front-b13af41845c41a5b)
+
+running 11 tests
+test front::ordinary_sum_does_not_acquire_store_element_or_resource_header_permission ... ok
+test front::copy_generic_enum_is_preserved_but_new_owning_generic_enum_is_closed ... ok
+test front::product_sum_fields_and_error_payloads_are_complete_values ... ok
+test front::original_q_sources_reach_types_without_source_changes ... ok
+test front::right_nested_pattern_uses_local_observation_and_real_reverse_dfs_publication ... ok
+test front::resource_field_requires_explicit_ownership_and_cannot_upgrade_ref ... ok
+test front::right_nested_runtime_tags_leave_payloads_in_recursive_declaration_order ... ok
+test front::unused_new_definitions_keep_exact_field_and_variant_names ... ok
+test front::scrutinee_copy_scratch_cleans_before_hidden_owner_registration ... ok
+test front::same_module_sum_crosses_an_actual_project_import ... ok
+Types nested owning Sum exact N=5594; old Product N=418
+test front::old_product_type_budget_and_new_sum_boundary_retry_are_exact ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

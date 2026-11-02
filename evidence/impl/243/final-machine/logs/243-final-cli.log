@@ -1,0 +1,138 @@
+{
+  "candidate": "9411e92db84fa9a71c40dfbe5cc0e67f1cfaa1f4",
+  "status_before": "",
+  "cli_sha256": "09b619241e50d6f06e7bb9b20047c134c045ea1ff50cace6085c67c27d409e51",
+  "commands": [
+    {
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "check",
+        "/workspace/zil-243/tests/impl244/frozen-Q/01-unit-flat/main.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/.zil-env/243-cli-final-checks/01-unit-flat/artifacts",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 0,
+      "seconds": 0.032898664474487305,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    {
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "check",
+        "/workspace/zil-243/tests/impl244/frozen-Q/02-unit-nested-and-owned-error-unit/main.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/.zil-env/243-cli-final-checks/02-unit-nested-and-owned-error-unit/artifacts",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 0,
+      "seconds": 0.04140615463256836,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    {
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "check",
+        "/workspace/zil-243/tests/impl244/frozen-Q/03-unit-store-session/main.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/.zil-env/243-cli-final-checks/03-unit-store-session/artifacts",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 0,
+      "seconds": 0.04590153694152832,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    {
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "check",
+        "/workspace/zil-243/tests/impl244/frozen-Q/04-both-owned-flat/main.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/.zil-env/243-cli-final-checks/04-both-owned-flat/artifacts",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 0,
+      "seconds": 0.04107022285461426,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    {
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "check",
+        "/workspace/zil-243/tests/impl244/frozen-Q/05-owned-option-session/main.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/.zil-env/243-cli-final-checks/05-owned-option-session/artifacts",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 0,
+      "seconds": 0.044808387756347656,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    {
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "check",
+        "/workspace/zil-243/tests/impl244/frozen-Q/06-negative-double-consume/main.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/workspace/.zil-env/243-cli-final-checks/06-negative-double-consume/artifacts",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 1,
+      "seconds": 0.023304462432861328,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0
+    },
+    {
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "build",
+        "/workspace/zil-243/tests/impl244/project/main.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/workspace/.zil-env/243-cli-final-checks/standard-cli-five-module/artifacts",
+        "-o",
+        "/workspace/.zil-env/243-cli-final-checks/standard-cli-five-module/program",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 0,
+      "seconds": 0.9814379215240479,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1
+    }
+  ],
+  "status_after": ""
+}

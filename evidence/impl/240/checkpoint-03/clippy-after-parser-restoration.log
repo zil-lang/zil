@@ -1,0 +1,4 @@
+    Checking zil-syntax v0.1.0 (/workspace/zil-240/crates/zil-syntax)
+    Checking zil-expand v0.1.0 (/workspace/zil-240/crates/zil-expand)
+    Checking zil-types v0.1.0 (/workspace/zil-240/crates/zil-types)
+    Finished `dev` profile [unoptimized] target(s) in 14.40s

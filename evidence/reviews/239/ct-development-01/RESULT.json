@@ -1,0 +1,20 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "production_checkpoint": "1f43ced2abe4290b7cf5ef342986eb23b4a3e174",
+  "reviewer": "/root/review_language_contracts",
+  "schema": 30,
+  "feature": "llvm-api",
+  "production_edited": false,
+  "native_runs": 0,
+  "selected": 1,
+  "passed": 1,
+  "failed": 0,
+  "ordinary_raw_controls": 2,
+  "ct_evaluations": 1,
+  "ct_value": "I32(7)",
+  "ct_forbidden_raw_checks": 2,
+  "ct_forbidden_wire_checks": 2,
+  "checks": "Original Copy Enum source executes through old pure CT operations. Independently mutate one old tag or payload read to new local observer; ordinary Verify accepts, CT raw and CT Wire each reject E-CT-FORBIDDEN. This separates runtime-op admission from non-Copy type rejection.",
+  "test": "crates/zil-driver/tests/review239_generation.rs",
+  "test_sha256": "ff72bd4f94223e087cf0b6d0fa3a575fc3680d10a13ac3f7abdd2d29c7864592"
+}

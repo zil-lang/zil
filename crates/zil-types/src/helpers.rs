@@ -78,7 +78,10 @@ pub(super) fn parameter_mode(ty: &Type, name: &str) -> Option<Option<bool>> {
     }
 }
 
-pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
+pub(super) fn validate_template(
+    function: &CoreFunction,
+    prepay: &mut impl FnMut(&Type, Span) -> R<()>,
+) -> R<()> {
     if owning_factory::template(function) {
         return owning_factory::validate(function);
     }
@@ -183,15 +186,35 @@ pub(super) fn validate_template(function: &CoreFunction) -> R<()> {
             "two-input owning State constructors require finite Copy or direct Managed ordinary parameters",
         ));
     }
-    if function.parameters.iter().enumerate().any(|(i,p)|
-        !bounds.iter().any(|bound| bound.index as usize == i)
-        && !(p.ty.is_copy_value()
-            || matches!(&p.ty, Type::Address { inner, .. } if inner.is_copy_value()
-                || (function.return_type.is_copy_value() && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
+    for (index, p) in function.parameters.iter().enumerate() {
+        if bounds.iter().any(|bound| bound.index as usize == index) {
+            continue;
+        }
+        let old = p.ty.is_copy_value()
+            || matches!(&p.ty,Type::Address{inner,..} if inner.is_copy_value()
+                || (function.return_type.is_copy_value() && matches!(inner.as_ref(),Type::Slice{element} if element.is_copy_value())))
             || packages::supported(&p.ty)
-            || matches!(&p.ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
-            || matches!(p.ty, Type::Managed(_))))
-    { return Err(reject()); }
+            || matches!(&p.ty,Type::Desc(inner) if inner.as_ref()==&Type::ByteBuffer)
+            || matches!(p.ty, Type::Managed(_));
+        if old {
+            continue;
+        }
+        if !owned_state
+            && matches!(p.mode, PassingMode::Infer | PassingMode::Move)
+            && matches!(
+                p.ty,
+                Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Package { .. }
+            )
+        {
+            // Only an old rejected ordinary data position enters the extension.
+            // Reserve the complete tree before either new recursive classifier.
+            prepay(&p.ty, p.span)?;
+            if owned_shapes::sum(&p.ty) || owned_shapes::product_with_sum(&p.ty) {
+                continue;
+            }
+        }
+        return Err(reject());
+    }
     Ok(())
 }
 
@@ -280,7 +303,10 @@ pub(super) fn install(
             || !function.type_parameters.is_empty()
             || !function.state_parameters.is_empty()
         {
-            validate_template(function)?;
+            validate_template(function, &mut |ty, span| {
+                let work = inference::type_snapshot_work(ty, span, limits)?;
+                state.snapshot(work.saturating_mul(2), span)
+            })?;
             store_templates::validate_header(function)?;
             let (snapshot_work, store_shapes) = inference::helper_snapshot_work(function, limits)?;
             state.snapshot(snapshot_work.saturating_mul(2), function.span)?;

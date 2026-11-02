@@ -1,0 +1,17 @@
+[
+  {
+    "name": "01-owned-event-reply",
+    "source_sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+    "frozen_expected_boundary": "Types Unsupported historically; valid desired synchronous owning callback API; no diagnostic invented"
+  },
+  {
+    "name": "02-preserve-f-identity",
+    "source_sha256": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+    "frozen_expected_boundary": "Expand Unsupported historically; valid desired exact F->F forwarding; no implicit wrapper"
+  },
+  {
+    "name": "03-state-store-positive-control",
+    "source_sha256": "28a5b3ac64e700506ca2132b4cbd4f977e18f655653f0b953a6413a9e67a6c63",
+    "frozen_expected_boundary": "Success through Verify once; existing library expression"
+  }
+]

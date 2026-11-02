@@ -851,27 +851,35 @@ impl Resolver<'_> {
                 self.active.insert(name.clone());
                 let result = if let Some(declaration) = self.enum_declarations.get(name).copied() {
                     let mut variants = Vec::new();
+                    let mut owns = false;
                     for (variant, raw_fields) in &declaration.variants {
                         let mut fields = Vec::new();
                         for field in raw_fields {
                             let ty = self.ty(field, depth + 1, declaration.span)?;
-                            if !ty.is_copy_value() {
+                            let copy = ty.is_copy_value();
+                            owns |= !copy;
+                            if !copy && !owned_shapes::value(&ty) {
                                 return Err(unsupported(
                                     declaration.span,
-                                    "enum payload requires a finite Copy value",
+                                    "enum payload requires finite Copy or an ordinary complete owned value",
                                 ));
                             }
                             fields.push(ty);
                         }
                         variants.push((variant.clone(), fields));
                     }
-                    Type::Enum {
+                    let ty = Type::Enum {
                         name: format!("@module{}:{}", self.owners[name], name),
                         variants,
+                    };
+                    if owns {
+                        owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
                     }
+                    ty
                 } else {
                     let d = self.declarations[name];
                     let mut fields = Vec::new();
+                    let mut new_shape = false;
                     for f in &d.fields {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
@@ -891,24 +899,42 @@ impl Resolver<'_> {
                                 && matches!(ty, Type::Managed(_))
                                 && resources::supported(&ty)))
                         {
-                            return Err(unsupported(
-                                f.span,
-                                "aggregate field requires finite Copy, an explicit package manages resource, or a complete fixed Package array",
-                            ));
+                            if d.kind == AggregateKind::Package
+                                && !f.manages
+                                && ((matches!(ty, Type::Package { .. })
+                                    && owned_shapes::value(&ty))
+                                    || owned_shapes::sum(&ty))
+                            {
+                                new_shape = true;
+                            } else {
+                                return Err(unsupported(
+                                    f.span,
+                                    "aggregate field requires finite Copy, explicit manages, or an ordinary complete owned child",
+                                ));
+                            }
                         }
                         fields.push((f.name.clone(), ty));
                     }
                     let name = format!("@module{}:{}", self.owners[name], name);
                     if d.kind == AggregateKind::Package {
                         let ty = Type::Package { name, fields };
-                        if packages::product::nested(&ty) {
+                        if new_shape {
+                            owned_shapes::validate(
+                                &ty,
+                                &mut self.remaining,
+                                self.depth_limit,
+                                span,
+                            )?;
+                        }
+                        if packages::product::nested(&ty) && packages::product::owned_supported(&ty)
+                        {
                             packages::product::validate_owned(
                                 &ty,
                                 &mut self.remaining,
                                 self.depth_limit,
                                 span,
                             )?;
-                        } else if !d.fields.iter().any(|f| f.manages) {
+                        } else if !d.fields.iter().any(|f| f.manages) && !owned_shapes::value(&ty) {
                             return Err(unsupported(
                                 span,
                                 "package requires at least one manages field or complete owning child",
@@ -929,7 +955,16 @@ impl Resolver<'_> {
                 result
             }
             ty @ Type::Package { .. } if packages::product::nested(ty) => {
-                packages::product::validate_owned(ty, &mut self.remaining, self.depth_limit, span)?;
+                if packages::product::owned_supported(ty) {
+                    packages::product::validate_owned(
+                        ty,
+                        &mut self.remaining,
+                        self.depth_limit,
+                        span,
+                    )?;
+                } else {
+                    owned_shapes::validate(ty, &mut self.remaining, self.depth_limit, span)?;
+                }
                 ty.clone()
             }
             Type::OwnedStore { element } => {

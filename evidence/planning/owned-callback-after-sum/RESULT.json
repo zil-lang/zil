@@ -1,0 +1,95 @@
+{
+  "scope": "read-only next-mainline planning; check only, no cargo/native",
+  "own_tree": "/workspace/zil-243",
+  "own_head": "baad307787ebd9a4c007ed696d9a8c7683728215",
+  "cli_sha256": "09b619241e50d6f06e7bb9b20047c134c045ea1ff50cace6085c67c27d409e51",
+  "author_cli_built_from": "9411e92db84fa9a71c40dfbe5cc0e67f1cfaa1f4",
+  "main_head_observed": "e3b8f374e2a96b9ca6b3b6e0de36ee6397235d5e",
+  "own_status_before": "",
+  "runs": [
+    {
+      "name": "01-owned-event-reply",
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "check",
+        "/tmp/next-language-mainline/checks/01-owned-event-reply/main.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/tmp/next-language-mainline/checks/01-owned-event-reply/phases",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "closure parameters require a finite Copy type or one Copy/slice address layer; address parameters require a Copy result",
+          "span": {
+            "file": 0,
+            "start": 261,
+            "end": 341
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "02-preserve-f-identity",
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "check",
+        "/tmp/next-language-mainline/checks/02-preserve-f-identity/main.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/tmp/next-language-mainline/checks/02-preserve-f-identity/phases",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "escaping callable result is not implemented",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 45
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "03-state-store-positive-control",
+      "argv": [
+        "/workspace/.zil-env/target-243/debug/zil",
+        "check",
+        "/tmp/next-language-mainline/checks/03-state-store-positive-control/main.zil",
+        "--stop-after",
+        "verify",
+        "--emit-dir",
+        "/tmp/next-language-mainline/checks/03-state-store-positive-control/phases",
+        "--json"
+      ],
+      "cwd": "/workspace/zil-243",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    }
+  ],
+  "own_status_after": ""
+}

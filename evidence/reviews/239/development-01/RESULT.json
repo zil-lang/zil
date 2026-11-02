@@ -1,0 +1,39 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "reviewer": "/root/review_language_contracts",
+  "production_checkpoint": "1f43ced2abe4290b7cf5ef342986eb23b4a3e174",
+  "schema": 30,
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "feature": "llvm-api",
+  "limits": "default unchanged",
+  "production_edited": false,
+  "selected": 2,
+  "passed": 2,
+  "failed": 0,
+  "source_compiles": 9,
+  "native_builds": 4,
+  "native_runs": 4,
+  "expected_stdout": "AB",
+  "expected_exit": 0,
+  "negative_cases": 5,
+  "checks": [
+    "generated and handwritten manages identity and declaration cleanup order",
+    "private generated names do not escape",
+    "cross-iteration same-source enum names retain distinct nominal identities",
+    "bare ByteBuffer and bare resource do not implicitly gain manages",
+    "generated owning generic enum profile remains closed"
+  ],
+  "development_corrections": [
+    {
+      "run": "dev01",
+      "actual": "test fixture C extern block syntax rejected; no compiler defect"
+    },
+    {
+      "run": "dev02",
+      "actual": "test fixture Drop give self signature rejected; no compiler defect"
+    }
+  ],
+  "test": "crates/zil-driver/tests/review239_generation.rs",
+  "test_sha256": "d7c37b1a792444ac66942381b3bdebff144e1105aec6f8b8af2ccb29ad5f5da6"
+}

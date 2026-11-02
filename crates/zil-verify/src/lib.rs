@@ -73,6 +73,7 @@ mod retained;
 #[cfg(test)]
 mod retained_tests;
 mod slices;
+mod sums;
 pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 
 /// A checked, immutable scalar/readonly-closure CFG, including independently
@@ -81,6 +82,8 @@ pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_byt
 pub struct VerifiedModule {
     inputs: VerifiedInputs,
     fingerprint: Fingerprint,
+    limits: Limits,
+    uses_owned_sum_extension: bool,
 }
 
 // Keep the owned entry allocation-free. Shared entries retain the exact raw
@@ -136,6 +139,15 @@ impl VerifiedModule {
     }
     pub fn fingerprint(&self) -> Fingerprint {
         self.fingerprint
+    }
+    /// Limits used for this successful verification request. Retaining an
+    /// immutable input or a cached candidate never retains an earlier budget.
+    pub fn limits(&self) -> &Limits {
+        &self.limits
+    }
+    /// Enables additional lowering work only; it grants no type permission.
+    pub fn uses_owned_sum_extension(&self) -> bool {
+        self.uses_owned_sum_extension
     }
     /// Only contracts from this independently checked immutable snapshot are
     /// available to an interface publisher or public caller.
@@ -212,11 +224,21 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 
 struct Budget {
     remaining: usize,
+    sums: bool,
+    limits: Limits,
+    sum_functions: Vec<bool>,
+    function_count: usize,
+    current_function: Option<usize>,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            sums: false,
+            limits: limits.clone(),
+            sum_functions: Vec::new(),
+            function_count: 0,
+            current_function: None,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -225,6 +247,23 @@ impl Budget {
             .checked_sub(amount)
             .ok_or_else(|| limit("independent verification work budget exhausted"))?;
         Ok(())
+    }
+    fn mark_sum(&mut self, function: Option<usize>) -> Check<()> {
+        self.sums = true;
+        if let Some(index) = function {
+            if self.sum_functions.is_empty() {
+                self.spend(self.function_count)?;
+                self.sum_functions = vec![false; self.function_count];
+            }
+            self.sum_functions[index] = true;
+        }
+        Ok(())
+    }
+    fn sum_function(&self, function: FunctionId) -> bool {
+        self.sum_functions
+            .get(function.0 as usize)
+            .copied()
+            .unwrap_or(false)
     }
 }
 
@@ -281,9 +320,11 @@ fn verify_inputs(
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
     match check_module(inputs.module(), inputs.plan(), expected_target, limits) {
-        Ok(fingerprint) => Ok(VerifiedModule {
+        Ok((fingerprint, uses_owned_sum_extension)) => Ok(VerifiedModule {
             inputs,
             fingerprint,
+            limits: limits.clone(),
+            uses_owned_sum_extension,
         }),
         Err(diagnostic) => Err(vec![diagnostic]),
     }
@@ -336,7 +377,7 @@ fn check_module(
     plan: &CandidatePlan,
     expected_target: &TargetProfile,
     limits: &Limits,
-) -> Check<Fingerprint> {
+) -> Check<(Fingerprint, bool)> {
     if module.schema_version != SCHEMA_VERSION || plan.schema_version != SCHEMA_VERSION {
         return Err(reject(
             "E-VERIFY-SCHEMA",
@@ -380,6 +421,7 @@ fn check_module(
     }
 
     let mut budget = Budget::new(limits);
+    budget.function_count = module.functions.len();
     resources::check_definitions(module, limits, &mut budget)?;
     for text in [
         &module.target.id,
@@ -391,21 +433,22 @@ fn check_module(
     }
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
-    for ty in module
-        .functions
-        .iter()
-        .flat_map(|f| {
-            std::iter::once(&f.return_type)
-                .chain(f.locals.iter().map(|l| &l.ty))
-                .chain(f.values.iter())
-        })
-        .chain(module.closures.iter().flat_map(|c| {
-            c.captures
-                .iter()
-                .chain(c.parameters.iter())
-                .chain(std::iter::once(&c.result))
-        }))
-    {
+    for (index, function) in module.functions.iter().enumerate() {
+        budget.current_function = Some(index);
+        for ty in std::iter::once(&function.return_type)
+            .chain(function.locals.iter().map(|l| &l.ty))
+            .chain(&function.values)
+        {
+            check_type_shape(ty, &module.target, limits, &mut budget)?;
+        }
+    }
+    budget.current_function = None;
+    for ty in module.closures.iter().flat_map(|c| {
+        c.captures
+            .iter()
+            .chain(c.parameters.iter())
+            .chain(std::iter::once(&c.result))
+    }) {
         check_type_shape(ty, &module.target, limits, &mut budget)?;
     }
     closures::check_definitions(module, limits, &mut budget)?;
@@ -566,7 +609,7 @@ fn check_module(
     helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
-    Ok(fingerprint)
+    Ok((fingerprint, budget.sums))
 }
 
 fn add_count(before: usize, add: usize, maximum: usize, kind: &str) -> Check<usize> {
@@ -581,10 +624,25 @@ fn check_type_shape(
     limits: &Limits,
     budget: &mut Budget,
 ) -> Check<()> {
-    let mut first = Some((ty, 0usize));
+    let mut first = Some((ty, 0usize, 0u8));
     let mut pending = Vec::new();
-    while let Some((ty, depth)) = first.take().or_else(|| pending.pop()) {
+    while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        // Detect the new ordinary profile during the already paid raw-tree
+        // traversal. Old functions do not acquire an extra classifier pass.
+        if (context & 1 != 0
+            && matches!(
+                ty,
+                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+            ))
+            || (context & 8 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))
+            || (context & 32 != 0 && context & 4 != 0 && matches!(ty, Type::Package { .. }))
+            || (context & 2 != 0
+                && context & 16 != 0
+                && matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })))
+        {
+            budget.mark_sum(budget.current_function)?;
+        }
         if depth > limits.max_call_depth {
             return Err(limit("aggregate type nesting exceeds verification limit"));
         }
@@ -599,28 +657,34 @@ fn check_type_shape(
         }
         match ty {
             Type::OwnedStore { element } => {
-                pending.push((element, depth + 1));
+                pending.push((element, depth + 1, context));
             }
             Type::Slice { element } => {
                 slices::target(target)?;
-                pending.push((element, depth + 1));
+                pending.push((element, depth + 1, context));
             }
             Type::Array { element, length } => {
                 budget.spend(*length as usize)?;
-                pending.push((element, depth + 1));
+                pending.push((element, depth + 1, context));
             }
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
                 for ty in fields {
-                    pending.push((ty, depth + 1));
+                    pending.push((ty, depth + 1, context));
                 }
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
                 budget.spend(name.len())?;
                 budget.spend(fields.len())?;
+                let context = context
+                    | if matches!(ty, Type::Package { .. }) {
+                        4 | if context & 4 != 0 { 16 } else { 0 }
+                    } else {
+                        0
+                    };
                 for (name, ty) in fields {
                     budget.spend(name.len())?;
-                    pending.push((ty, depth + 1));
+                    pending.push((ty, depth + 1, context));
                 }
             }
             Type::Enum { name, variants } => {
@@ -628,24 +692,38 @@ fn check_type_shape(
                 for (name, fields) in variants {
                     budget.spend(name.len().saturating_add(fields.len()))?;
                     for ty in fields {
-                        pending.push((ty, depth + 1));
+                        pending.push((
+                            ty,
+                            depth + 1,
+                            context | 1 | if context & 4 != 0 { 8 } else { 0 },
+                        ));
                     }
                 }
             }
             Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
-                pending.push((inner, depth + 1));
+                pending.push((inner, depth + 1, context));
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
-                pending.push((error, depth + 1));
-                pending.push((result, depth + 1));
+                // Record the gate while visiting the existing paid nodes;
+                // do not scan an as-yet-unbounded raw Package field list here.
+                let context = context
+                    | 2
+                    | if context & (4 | 2) != 0 { 8 } else { 0 }
+                    | if **error != Type::Unit && **result != Type::Unit {
+                        32
+                    } else {
+                        0
+                    };
+                pending.push((error, depth + 1, context));
+                pending.push((result, depth + 1, context));
             }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len())?;
-                pending.push((result, depth + 1));
+                pending.push((result, depth + 1, context));
                 for parameter in parameters {
-                    pending.push((parameter, depth + 1));
+                    pending.push((parameter, depth + 1, context));
                 }
             }
             _ => {}
@@ -768,6 +846,9 @@ fn check_function_signature_type(
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
+        Type::Enum { .. } if budget.sums && sums::owned_enum(ty) => {
+            sums::check_type_for(module, ty, span, budget)
+        }
         ty if resources::arrays::is_owned_type(ty) => {
             resources::arrays::check_type_for(module, ty, span, budget)
         }
@@ -813,6 +894,9 @@ fn check_local_type(
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
+        Type::Enum { .. } if budget.sums && sums::owned_enum(ty) => {
+            sums::check_type_for(module, ty, span, budget)
+        }
         ty if resources::arrays::is_owned_type(ty) => {
             resources::arrays::check_type_for(module, ty, span, budget)
         }
@@ -954,6 +1038,22 @@ fn check_function(
                     }
                 }
             }
+            if let InstructionKind::UnpackVariant { ref fields, .. } = instruction.kind {
+                budget.spend(fields.len())?;
+                for target in fields {
+                    let index = target.0 as usize;
+                    if !function.locals[index].mutable {
+                        immutable_stores[index] += 1;
+                        if parameters[index] || immutable_stores[index] > 1 {
+                            return Err(reject(
+                                "E-VERIFY-MUTABILITY",
+                                Some(instruction.span),
+                                "Unpack destination has another immutable initialization site",
+                            ));
+                        }
+                    }
+                }
+            }
         }
         let edges = match &block.terminator {
             Terminator::Jump(target) => vec![*target],
@@ -1058,6 +1158,8 @@ fn check_function(
             }
             match instruction.kind {
                 InstructionKind::Load(local)
+                | InstructionKind::VariantTagLocal { local, .. }
+                | InstructionKind::ReadVariantLocal { local, .. }
                 | InstructionKind::RegisterDefer { local, .. }
                 | InstructionKind::DescribeLocal { local }
                 | InstructionKind::ReadPackageField { local, .. }
@@ -1088,10 +1190,27 @@ fn check_function(
                 | InstructionKind::BindPackageCapture { local, .. } => {
                     initialized[local.0 as usize] = true
                 }
+                InstructionKind::UnpackVariant {
+                    local, ref fields, ..
+                } => {
+                    if !initialized[local.0 as usize] {
+                        return Err(reject(
+                            "E-VERIFY-INITIALIZATION",
+                            Some(instruction.span),
+                            "Unpack source is not initialized",
+                        ));
+                    }
+                    initialized[local.0 as usize] = false;
+                    budget.spend(fields.len())?;
+                    for target in fields {
+                        initialized[target.0 as usize] = true;
+                    }
+                }
                 InstructionKind::TakeLocal { local }
                 | InstructionKind::DropManaged { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
+                | InstructionKind::DropEnum { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::EndPackageCapture { local, .. }
@@ -1211,12 +1330,19 @@ fn check_instruction(
             local_type(function, *local, span)?;
             None
         }
+        InstructionKind::VariantTagLocal { .. }
+        | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::UnpackVariant { .. }
+        | InstructionKind::DropEnum { .. } => {
+            let limits = budget.limits.clone();
+            sums::check_instruction(function, instruction, &limits, budget)?
+        }
         InstructionKind::UnsafeEnter { .. }
         | InstructionKind::UnsafeExit { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => None,
         InstructionKind::TakeErrorUnion { .. } | InstructionKind::DropErrorUnion { .. } => {
-            errors::check_instruction(function, instruction)?
+            errors::check_instruction(function, instruction, budget)?
         }
         InstructionKind::MakeErrorUnion { is_error, value } => {
             let result = instruction.result.ok_or_else(|| {
@@ -1291,7 +1417,7 @@ fn check_instruction(
         )?),
         InstructionKind::Load(local) => {
             let ty = local_type(function, *local, span)?;
-            if errors::owned(ty) {
+            if errors::owned(ty, budget.sums) || (budget.sums && sums::owned_enum(ty)) {
                 return Err(reject(
                     "E-VERIFY-ERROR",
                     span,
@@ -1320,7 +1446,8 @@ fn check_instruction(
                 && !matches!(ty, Type::Closure(_))
                 && !matches!(ty, Type::Managed(_))
                 && !matches!(ty, Type::Package { .. })
-                && !errors::owned(ty)
+                && !errors::owned(ty, budget.sums)
+                && !(budget.sums && sums::owned_enum(ty))
                 && !resources::arrays::is_owned_type(ty)
                 && !closures::owned_type(module, ty, budget)?
             {
@@ -1842,7 +1969,8 @@ fn check_instruction(
             Some(ty.clone())
         }
         InstructionKind::VariantTag { value } => {
-            if !matches!(value_type(function, *value, span)?, Type::Enum { .. }) {
+            let ty = value_type(function, *value, span)?;
+            if !matches!(ty, Type::Enum { .. }) || (budget.sums && sums::owned_enum(ty)) {
                 return Err(reject("E-VERIFY-ENUM", span, "tag requires an enum value"));
             }
             Some(Type::I32)
@@ -1852,13 +1980,21 @@ fn check_instruction(
             variant,
             index,
         } => {
-            let Type::Enum { variants, .. } = value_type(function, *value, span)? else {
+            let source = value_type(function, *value, span)?;
+            let Type::Enum { variants, .. } = source else {
                 return Err(reject(
                     "E-VERIFY-ENUM",
                     span,
                     "payload projection requires an enum value",
                 ));
             };
+            if budget.sums && sums::owned_enum(source) {
+                return Err(reject(
+                    "E-VERIFY-SUM",
+                    span,
+                    "owned Enum observation requires explicit local operations",
+                ));
+            }
             let ty = variants
                 .get(*variant as usize)
                 .and_then(|(_, fields)| fields.get(*index as usize))
@@ -2312,6 +2448,10 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
         InstructionKind::Constant(_)
+        | InstructionKind::VariantTagLocal { .. }
+        | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::UnpackVariant { .. }
+        | InstructionKind::DropEnum { .. }
         | InstructionKind::RegisterDefer { .. }
         | InstructionKind::UnsafeEnter { .. }
         | InstructionKind::UnsafeExit { .. }
@@ -2515,10 +2655,19 @@ fn initialization(
                 | InstructionKind::BindPackageCapture { local, .. } => {
                     outputs[b][local.0 as usize] = true
                 }
+                InstructionKind::UnpackVariant {
+                    local, ref fields, ..
+                } => {
+                    outputs[b][local.0 as usize] = false;
+                    for target in fields {
+                        outputs[b][target.0 as usize] = true;
+                    }
+                }
                 InstructionKind::TakeLocal { local }
                 | InstructionKind::DropManaged { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
+                | InstructionKind::DropEnum { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::EndPackageCapture { local, .. }
@@ -2557,10 +2706,20 @@ fn initialization(
                     | InstructionKind::BindPackageCapture { local, .. } => {
                         out[local.0 as usize] = true
                     }
+                    InstructionKind::UnpackVariant {
+                        local, ref fields, ..
+                    } => {
+                        out[local.0 as usize] = false;
+                        budget.spend(fields.len())?;
+                        for target in fields {
+                            out[target.0 as usize] = true;
+                        }
+                    }
                     InstructionKind::TakeLocal { local }
                     | InstructionKind::DropManaged { local }
                     | InstructionKind::DropClosure { local }
                     | InstructionKind::DropErrorUnion { local }
+                    | InstructionKind::DropEnum { local }
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::DropOwnedArray { local }
                     | InstructionKind::EndPackageCapture { local, .. }

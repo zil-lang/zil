@@ -1,0 +1,107 @@
+{
+  "status": "Pass",
+  "scope": "zil-base/zil-ir tests only; CT and driver semantic execution await dependent owners/exhaustive integration",
+  "tested_worktree": "/workspace/zil-239",
+  "source_checkout_commit": "57b6ea5fc5e1978f3ec0dfdbd88395a8e79f25b8",
+  "source_state": "dirty authorized implementation files, hashes below; no invented tested implementation commit",
+  "public_checkpoint": "f5ac46522b7c3686b843cbe70750a6cc5529bec0",
+  "normative_snapshot": "b8811d6957d3599facdb31aa9c36829efdfc23ae",
+  "spec_hash": "12bffd494b9d1d1165cb7d533628864dc4430ba948e199184d01add3907d3148",
+  "normative_hash": "a603e5b787157ba1ffe3231b922889d781ff541a494a64d4c2dc2a03c2cd9370",
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-base",
+        "-p",
+        "zil-ir"
+      ],
+      "log": "239-ir-tests03.log.gz",
+      "passed": 65,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-ir",
+        "--test",
+        "impl239_fixture_generate"
+      ],
+      "log": "239-fixture-generate.log.gz",
+      "passed": 1,
+      "failed": 0,
+      "note": "Temporary generator retained at fixture-migration/generator.rs, not a delivered test"
+    }
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-239",
+    "CARGO_BUILD_JOBS": 1,
+    "CARGO_INCREMENTAL": 0
+  },
+  "original_failures": [
+    {
+      "log": "239-ir-tests01.log.gz",
+      "reason": "New test incorrectly used255 (existing Unsupported opcode); old state-field test still used now-valid90/91. Test values changed only."
+    },
+    {
+      "log": "239-ir-tests02.log.gz",
+      "reason": "Broad fingerprint case count91 was stale after new variants; corrected to95, one case per variant."
+    }
+  ],
+  "source_sha256": {
+    "crates/zil-base/src/lib.rs": "324fd823be3d25cf540c181a956f4f275a09e9ceefb7553ebd331b9ee15d1c6a",
+    "crates/zil-ct/src/program.rs": "563508687a2114f95007743700ac6670d5b1773721710a8906d091a3c1989bd1",
+    "crates/zil-driver/tests/review177_public.rs": "85c5ff62c9e05d4413452f9e80e421a0f06413903185b77855720daaef08577d",
+    "crates/zil-driver/tests/review223_fixtures/schema30-mutable-product.json": "f159418b5c3a240eb8f7052cdeb2d362b319c9b008e1b1886a0fecbe116d4d60",
+    "crates/zil-driver/tests/review223_fixtures/schema30-mutable-product.wire": "783db64403cec14468080ce9708d4f25a4cbd315aaed36d2f994994f7f70e3c9",
+    "crates/zil-driver/tests/review223_replay.rs": "460e88e79b202c343b891929b6f3f4989713f1d7e837953188e0e4fd239331a3",
+    "crates/zil-ir/src/lib.rs": "0ef283bef7c3a151393e36671cdd33cf5c6a0fa1a392668740c9d0d19ab4faa5",
+    "crates/zil-ir/src/wire.rs": "f7f71da70ee56492bd7096337d3f26a5a5adc53c736ad19166a43784452b460f",
+    "crates/zil-ir/src/wire/owned_sum_tests.rs": "96b5e4da5721fe4cd476d27698a18a6b920039ccb6bb3800c2254e2c8aceadb0",
+    "crates/zil-ir/src/wire/state_field_tests.rs": "67bb3d36c5ca975d7876ff27ba91daf233ad03f1e09532a8170f1d3ab0867d1f",
+    "crates/zil-ir/src/wire/store_tests.rs": "6e0249635449e9e4cef4bfb0aaedffde07fbdd3a8e6df409da06536ebbfd4a69",
+    "crates/zil-ir/tests/cp34_fingerprint.rs": "8c8b4379f9cd7c71d6876faa1fb6100e111996a4c4acad8ba2e1c3beed1a48ab",
+    "crates/zil-ir/tests/support/cp34_instruction_cases.rs": "108ea3979c96a7b6b97c2f21ca371fe68e739421e4e9b372ce26d62de915a172",
+    "crates/zil-ir/tests/support/cp34_legacy_v30.rs": "ac61b15d9b8d05f118f822998e84605ddc229a348071870c4b9754769e175820"
+  },
+  "archived_unchanged": {
+    "crates/zil-ir/tests/support/cp34_legacy_v27.rs": {
+      "sha256": "71e0b62e6770042c91e0d6ef7e207bced51df2b46022a5a304d7ad306a7d370e",
+      "unchanged_from_dispatch": true
+    },
+    "crates/zil-ir/tests/support/cp34_legacy_v28.rs": {
+      "sha256": "b2d0d54a6a36a6bbf1d6840e58b7772c1e6fa83e334153c8b60358ce47628fbe",
+      "unchanged_from_dispatch": true
+    },
+    "crates/zil-ir/tests/support/cp34_legacy_v29.rs": {
+      "sha256": "9016b82fce966e519c0ea6f8901aef78bea34f0b672c6e14e39cdac0ac5c0aca",
+      "unchanged_from_dispatch": true
+    },
+    "crates/zil-driver/tests/review223_fixtures/mutable-product-original.wire": {
+      "sha256": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+      "unchanged_from_dispatch": true
+    },
+    "crates/zil-driver/tests/review223_fixtures/mutable-product-schema29.wire": {
+      "sha256": "3d5bf5e48a6a0856d3fad6c8b7997e8ba5ccb7adfbb0327a2e7e0852d4da4198",
+      "unchanged_from_dispatch": true
+    },
+    "crates/zil-driver/tests/review223_fixtures/mutable-product-schema29.json": {
+      "sha256": "e4ec7ae0449e1bbf7928aa377f22b39899ed8cb2f89eac02cb7243663eaf5972",
+      "unchanged_from_dispatch": true
+    },
+    "crates/zil-driver/tests/review223_fixtures/ORACLE.json": {
+      "sha256": "d4e9dcc8e54b2a3029e9d9820e0ccfe65885a7c19f22eef7193ff00a263ecb94",
+      "unchanged_from_dispatch": true
+    }
+  },
+  "native_executions": 0,
+  "full_workspace": "NotRun"
+}

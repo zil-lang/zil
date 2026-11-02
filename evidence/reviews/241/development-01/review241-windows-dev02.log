@@ -1,0 +1,10 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-244/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.29s
+     Running tests/review241_store_windows.rs (/workspace/.zil-env/target-244/debug/deps/review241_store_windows-d5ea9e8c2ed6fb34)
+
+running 2 tests
+test forged_reserve_cannot_switch_to_the_borrowed_twin_after_sum_unpack ... ok
+test recursive_sum_roundtrip_retains_distinct_store_windows_and_last_use ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+

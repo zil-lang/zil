@@ -1,0 +1,21 @@
+{
+  "reviewer": "/root",
+  "verdict": "PassWithinScope",
+  "scope": "244 independent source-derived CLI/native and selected real allocation failures",
+  "implementation_commit": "28d752f0b7430865839d917c1d31ae98c828818d",
+  "cli_sha256": "f75da5708d1593df866e25dd75ab82a076df9ffe5f235363f694918d28c60e95",
+  "api_builds": 2,
+  "normal_invalid_runs": 74,
+  "real_allocation_failure_runs": 26,
+  "total_native_runs": 100,
+  "all_live_zero": true,
+  "test_oracle_imported": false,
+  "predeclared_sha256": "b4d0b2d0bf17c9a095338755bdbe10698e083a3943eafbbc265000605bfd403d",
+  "source_hashes": {
+    "tests/impl244/project/main.zil": "7dfd2262f9a69936ffb95ae1f2058bd5f077659c4231238658c2fb9db3f0f018",
+    "tests/impl244/project/model.zil": "314afdcd4066b37a24c10043eda04449f031a2668f1cd12a6395cdf5ef23bd4b",
+    "tests/impl244/project/portable.zil": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+    "tests/impl244/project/state.zil": "895d1fa3126aee1bd56daa993efb192707a4415b5df3be99fa8b8ce458b4feec",
+    "tests/impl244/project/storage.zil": "6dfcadb8bc885fbefb87179db748ddb4645036abfda677e27dd3a8b4a72c37e3"
+  }
+}

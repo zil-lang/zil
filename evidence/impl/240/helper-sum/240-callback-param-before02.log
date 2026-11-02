@@ -1,0 +1,20 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.01s
+     Running `/workspace/.zil-env/target-240/debug/impl240-front-probe /tmp/240-sources/callback-param.zil`
+Expand [
+    Diagnostic {
+        phase: Expand,
+        category: Unsupported,
+        code: "E-UNSUPPORTED",
+        message: "generic managed give requires a direct Package manages field",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 152,
+                end: 153,
+            },
+        ),
+        notes: [],
+    },
+]

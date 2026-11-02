@@ -914,6 +914,13 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
         CleanupExitKind::Continue => 4,
     }
 }
+/// One checked step through a real Enum variant payload. It never creates a
+/// view or grants ownership; each selected tag must be independently proved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VariantProjection {
+    pub variant: u32,
+    pub index: u32,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstructionKind {
     /// Construct an empty owning prefix; no allocation. Element metadata is a
@@ -1254,6 +1261,32 @@ pub enum InstructionKind {
         value: ValueId,
         variant: u32,
         index: u32,
+    },
+    /// Observe a complete live local through Enum-only checked projections.
+    /// Empty path observes the root tag; the terminal type must be Enum.
+    VariantTagLocal {
+        local: LocalId,
+        path: Vec<VariantProjection>,
+    },
+    /// Copy a strict finite Copy terminal through a nonempty Enum-only path.
+    /// Every prefix must have the selected active tag; never produces a view.
+    ReadVariantLocal {
+        local: LocalId,
+        path: Vec<VariantProjection>,
+    },
+    /// Atomically consume one complete Enum and initialize all variant fields.
+    /// Fields are exact distinct vacant locals, registered in reverse order;
+    /// this instruction has no SSA result and inherits no cleanup age.
+    UnpackVariant {
+        local: LocalId,
+        variant: u32,
+        fields: Vec<LocalId>,
+    },
+    /// Conditionally close only the actual active variant of an available Enum.
+    /// Storage-live vacant/transferred states are no-ops; an exact all-path
+    /// cleaned duplicate or storage-dead access remains invalid.
+    DropEnum {
+        local: LocalId,
     },
     ExtractIndex {
         aggregate: ValueId,
@@ -1626,7 +1659,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V29\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V30\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2263,6 +2296,37 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, value.0);
             encode_u32(b, *variant);
             encode_u32(b, *index);
+        }
+        InstructionKind::VariantTagLocal { local, path }
+        | InstructionKind::ReadVariantLocal { local, path } => {
+            b.push(if matches!(i, InstructionKind::VariantTagLocal { .. }) {
+                90
+            } else {
+                91
+            });
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+        }
+        InstructionKind::UnpackVariant {
+            local,
+            variant,
+            fields,
+        } => {
+            b.push(92);
+            encode_u32(b, local.0);
+            encode_u32(b, *variant);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::DropEnum { local } => {
+            b.push(93);
+            encode_u32(b, local.0);
         }
         InstructionKind::ExtractField { aggregate, index } => {
             b.push(14);

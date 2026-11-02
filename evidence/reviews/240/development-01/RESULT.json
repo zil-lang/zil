@@ -1,0 +1,32 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "reviewer": "/root/review_language_contracts",
+  "production_checkpoint": "1f43ced2abe4290b7cf5ef342986eb23b4a3e174",
+  "schema": 30,
+  "feature": "llvm-api",
+  "production_edited": false,
+  "selected": 2,
+  "passed": 2,
+  "failed": 0,
+  "native_builds": 4,
+  "native_runs": 4,
+  "source_oracles": [
+    {
+      "exit": "early return from recursive pattern arm",
+      "stdout": "LQACDN",
+      "exit_code": 0
+    },
+    {
+      "exit": "loop continue followed by break from recursive pattern arm",
+      "stdout": "LQACDLQACDN",
+      "exit_code": 0
+    }
+  ],
+  "reason": "Final bindings initialize in reverse DFS D,C,A; then defer Q then late L. Every exiting iteration/function must discharge L,Q,A,C,D exactly once before outer N.",
+  "fixture_corrections": [
+    "dev01 Rust-style let mut syntax parse failure corrected to ZIL binding syntax",
+    "dev02 immutable let assignment rejected; corrected to var, no language/compiler change"
+  ],
+  "test": "crates/zil-driver/tests/review240_match_exits.rs",
+  "test_sha256": "627f5c5e4c4b4dd9203ac1a55aaa7573f8d113d60163cbdb608bc17f00dd00dd"
+}

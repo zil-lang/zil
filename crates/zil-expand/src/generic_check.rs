@@ -65,6 +65,9 @@ pub(super) fn validate_parametric<'l>(
         bounds: traits.bounds(function, budget)?,
         traits,
         next_local: function.params.len(),
+        enum_resource_flow: false,
+        resource_desc_roots: false,
+        resource_root_owners: Vec::new(),
         package_slots: BTreeMap::new(),
         loops: Vec::new(),
         aliases: state_aliases::Tracker::default(),
@@ -121,6 +124,9 @@ pub(super) fn validate_parametric<'l>(
                         ty: p.ty.clone(),
                         mutable: false,
                         owned_resource: false,
+                        declaration_resource: false,
+                        description_roots: None,
+                        description_reference_depth: None,
                     },
                 )
             })
@@ -358,8 +364,12 @@ pub(super) fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
         _ => false,
     }
 }
-fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>, nominals: &BTreeMap<String, &Item>) -> bool {
-    match &group(ty).kind {
+fn known_copy(
+    ty: &TypeRef,
+    vars: &BTreeSet<String>,
+    nominals: &BTreeMap<String, &Item>,
+) -> Option<bool> {
+    Some(match &group(ty).kind {
         // Source Store values are descriptions. The real carrier can only
         // leave an owning position through an explicitly checked give.
         TypeKind::Named { path, .. } if path.as_slice() == ["Store"] => true,
@@ -368,29 +378,52 @@ fn known_copy(ty: &TypeRef, vars: &BTreeSet<String>, nominals: &BTreeMap<String,
         | TypeKind::ForeignFunction { .. } => true,
         TypeKind::Reference { mutable: true, .. } => false,
         // Opaque callable bounds expose an invocation interface, not Copy.
-        // In particular an unused template must not duplicate a FnOnce owner.
         TypeKind::Impl(_) => false,
-        TypeKind::Tuple(ts) => ts.iter().all(|t| known_copy(t, vars, nominals)),
-        TypeKind::Array { element, .. } => known_copy(element, vars, nominals),
+        TypeKind::Tuple(ts) => {
+            for t in ts {
+                if !known_copy(t, vars, nominals)? {
+                    return Some(false);
+                }
+            }
+            true
+        }
+        TypeKind::Array { element, .. } => known_copy(element, vars, nominals)?,
         TypeKind::Error { result, .. } if stores::element(result).is_some() => false,
         TypeKind::Error { error, result } => {
-            known_copy(error, vars, nominals) && known_copy(result, vars, nominals)
+            known_copy(error, vars, nominals)? && known_copy(result, vars, nominals)?
         }
-        TypeKind::Named { path, .. } if matches!(nominals.get(&path.join(".")), Some(Item { kind: ItemKind::Aggregate(a), .. }) if a.kind == AggregateKind::Package) => {
-            false
-        }
+        TypeKind::Named { path, .. } => match nominals.get(&path.join(".")) {
+            Some(Item {
+                kind: ItemKind::Aggregate(a),
+                ..
+            }) if a.kind == AggregateKind::Package => false,
+            // A concrete Enum can now own a complete Product or another Sum.
+            // Its spelling cannot establish Copy. Request the paid finite
+            // structural proof, including nested and non-manages payloads.
+            Some(Item {
+                kind: ItemKind::Enum(_),
+                ..
+            }) => return None,
+            _ => !dependent(ty, vars),
+        },
         _ => !dependent(ty, vars),
-    }
+    })
 }
+
 #[derive(Clone)]
 struct Local {
     id: usize,
     ty: TypeRef,
     mutable: bool,
-    // Only the new two-input State constructor records concrete resources
-    // received by give or produced as real owned locals. A description of a
-    // resource never inherits this capability from its nominal type.
+    // Actual managed Enum fields and the established State/factory producers
+    // record ownership. A description never inherits it from a nominal type.
     owned_resource: bool,
+    // The type came from a concrete declaration field, outside this helper's
+    // binder scope, including through bare descriptions and actual give results.
+    declaration_resource: bool,
+    // Immutable root sets clone only their reference in branch snapshots.
+    description_roots: Option<std::rc::Rc<[usize]>>,
+    description_reference_depth: Option<usize>,
 }
 #[derive(Clone)]
 struct State {
@@ -418,6 +451,9 @@ struct Check<'s, 'b, 'l> {
     bounds: trait_bounds::Bounds,
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
+    enum_resource_flow: bool,
+    resource_desc_roots: bool,
+    resource_root_owners: Vec<(usize, usize)>,
     package_slots: BTreeMap<(usize, String), usize>,
     loops: Vec<loop_control::LoopFrame>,
     aliases: state_aliases::Tracker,
@@ -558,11 +594,10 @@ impl Check<'_, '_, '_> {
         expected
     }
     fn known_copy(&mut self, ty: &TypeRef) -> R<bool> {
-        if known_copy(ty, &self.variables, self.nominals) {
-            return Ok(true);
-        }
-        if !dependent(ty, &self.variables) {
-            return Ok(false);
+        match known_copy(ty, &self.variables, self.nominals) {
+            Some(true) => return Ok(true),
+            Some(false) if !dependent(ty, &self.variables) => return Ok(false),
+            Some(false) | None => {}
         }
         match copy::require(
             ty,
@@ -582,6 +617,9 @@ impl Check<'_, '_, '_> {
         if self.callable.is_none() || dependent(ty, &self.variables) {
             return false;
         }
+        self.declared_resource(ty)
+    }
+    fn declared_resource(&self, ty: &TypeRef) -> bool {
         match &group(ty).kind {
             TypeKind::Named { path, args } if path.as_slice() == ["ByteBuffer"] => args.is_empty(),
             TypeKind::Named { path, args } => matches!(self.nominals.get(&path.join(".")),
@@ -666,6 +704,9 @@ impl Check<'_, '_, '_> {
                 ty,
                 mutable: false,
                 owned_resource: false,
+                declaration_resource: false,
+                description_roots: None,
+                description_reference_depth: None,
             },
         );
         Ok(())
@@ -886,14 +927,15 @@ impl Check<'_, '_, '_> {
         while let ExprKind::Group(inner) = &direct.kind {
             direct = inner;
         }
-        if (self.two_input_state_constructor()
-            || self
-                .callable
-                .as_ref()
-                .is_some_and(|bounds| bounds.owned_factory))
-            && let ExprKind::Name(name) = &direct.kind
+        if let ExprKind::Name(name) = &direct.kind
             && let Some(local) = state.locals.get(name)
-            && self.concrete_helper_resource(&local.ty)
+            && (local.declaration_resource || self.concrete_helper_resource(&local.ty))
+            && (local.owned_resource
+                || self.two_input_state_constructor()
+                || self
+                    .callable
+                    .as_ref()
+                    .is_some_and(|bounds| bounds.owned_factory))
         {
             if !local.owned_resource {
                 return Err(error(
@@ -902,7 +944,13 @@ impl Check<'_, '_, '_> {
                 ));
             }
             self.budget.ty(&local.ty)?;
-            let (id, ty) = (local.id, local.ty.clone());
+            let (id, ty, roots) = (local.id, local.ty.clone(), local.description_roots.clone());
+            if roots.is_some() {
+                self.defer_use(id, true, operand.span)?;
+                self.defer_held(state, id, true, operand.span)?;
+            }
+            self.resource_description_use(roots.as_deref(), state, operand.span)?;
+            self.resource_description_invalidate(roots.as_deref(), state, operand.span)?;
             self.factory_use(id, false, true, operand.span)?;
             if !state.moved.insert(id) {
                 return Err(error(operand.span, "owned resource used after give"));
@@ -1062,10 +1110,18 @@ impl Check<'_, '_, '_> {
         for _ in &state.defer_holds {
             self.budget.node(self.result.span, 0)?;
         }
+        if self.resource_desc_roots {
+            // Fresh root activations also live in moved; reserve their snapshot
+            // before cloning the set. No old profile enters this extra walk.
+            for _ in &state.moved {
+                self.budget.node(self.result.span, 0)?;
+            }
+        }
         Ok(state.clone())
     }
     fn join_states(&mut self, state: &mut State, branches: &[&State], span: Span) -> R<()> {
         self.alias_join(state, branches, span)?;
+        self.resource_description_join(state, branches, span)?;
         state.moved.clear();
         state.invalidated_stores.clear();
         state.store_origins.clear();
@@ -1325,6 +1381,9 @@ impl Check<'_, '_, '_> {
                     return Ok(Some(named("i64", span)));
                 }
                 if let Some(local) = state.locals.get(target) {
+                    if local.description_reference_depth.is_some() {
+                        return Ok(None);
+                    }
                     self.budget.ty(&local.ty)?;
                     let result = if let Some(bound) = self.callable.as_ref().and_then(|bounds| {
                         bounds.bindings().find(|bound| {
@@ -1627,17 +1686,19 @@ impl Check<'_, '_, '_> {
                 let ty = state.locals.get(name).ok_or_else(|| {
                     error(e.span, format!("unknown value {name} in generic body"))
                 })?;
+                self.resource_description_use(ty.description_roots.as_deref(), state, e.span)?;
                 let id = ty.id;
+                let declaration_resource = ty.declaration_resource;
                 self.budget.ty(&ty.ty)?;
                 let ty = ty.ty.clone();
                 let defer_consumes = if self.defer_captures.is_some() {
-                    !borrowing && !self.known_copy(&ty)?
+                    !borrowing && !declaration_resource && !self.known_copy(&ty)?
                 } else {
                     false
                 };
                 self.defer_use(id, defer_consumes, e.span)?;
                 if !self.factory_scopes.is_empty() {
-                    let consumes = !borrowing && !self.known_copy(&ty)?;
+                    let consumes = !borrowing && !declaration_resource && !self.known_copy(&ty)?;
                     self.factory_use(id, false, consumes, e.span)?;
                 }
                 if state.moved.contains(&id) {
@@ -1664,7 +1725,9 @@ impl Check<'_, '_, '_> {
                     .as_ref()
                     .is_some_and(|bound| bound.owned_state)
                     && self.package_local(e, state).is_some();
-                if !borrowing && (!self.known_copy(&ty)? || owning_package) {
+                if !borrowing
+                    && ((!declaration_resource && !self.known_copy(&ty)?) || owning_package)
+                {
                     self.defer_held(state, id, true, e.span)?;
                     self.alias_invalidate(state, id, None, e.span)?;
                     for ((owner, _), field) in &self.package_slots {
@@ -1847,7 +1910,9 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Index { object, .. } => {
                 let (ty, _) = self.place(e, state)?;
-                if !borrowing && !self.known_copy(&ty)? {
+                let actual_description = self.resource_desc_roots
+                    && self.transferred_resource_expression(e, state)?.declaration;
+                if !borrowing && !actual_description && !self.known_copy(&ty)? {
                     // Existing concrete owning arrays transfer complete Package
                     // elements, and Copy-member reads project without a move.
                     // A reference to such an array grants neither operation by
@@ -1924,7 +1989,9 @@ impl Check<'_, '_, '_> {
                 let TypeKind::Reference { inner, .. } = &group(&ty).kind else {
                     return Err(error(e.span, "dereference requires an address"));
                 };
-                if !borrowing && !self.known_copy(inner)? {
+                let actual_description = self.resource_desc_roots
+                    && self.transferred_resource_expression(e, state)?.declaration;
+                if !borrowing && !actual_description && !self.known_copy(inner)? {
                     return Err(needs_bound());
                 }
                 self.alias_read_place(e, state)?;
@@ -2196,6 +2263,12 @@ impl Check<'_, '_, '_> {
                     }
                 };
                 if let Some(local) = state.locals.get(target) {
+                    if local.description_reference_depth.is_some() {
+                        return Err(error(
+                            e.span,
+                            "a declared resource description is not a callable parameter",
+                        ));
+                    }
                     // A factory's visible signature may itself be large. Pay
                     // its full type before cloning the symbolic local.
                     self.budget.ty(&local.ty)?;
@@ -2607,11 +2680,17 @@ impl Check<'_, '_, '_> {
                 let address_local = matches!(&base_expression.kind, ExprKind::Name(name)
                     if state.locals.get(name).is_some_and(|local|
                         matches!(group(&local.ty).kind, TypeKind::Reference { .. })));
+                let declaration_resource = if self.resource_desc_roots {
+                    let flow = self.transferred_resource_expression(object, state)?;
+                    flow.declaration || flow.reference_depth == Some(1)
+                } else {
+                    false
+                };
                 let value = self.expr(
                     object,
                     state,
                     None,
-                    borrowing || package.is_some() || address_local,
+                    borrowing || package.is_some() || address_local || declaration_resource,
                 )?;
                 let (base, through_address) = match &group(&value).kind {
                     TypeKind::Reference { inner, .. } => (group(inner), true),
@@ -2620,6 +2699,9 @@ impl Check<'_, '_, '_> {
                 let TypeKind::Named { path, args } = &base.kind else {
                     return Err(needs_bound());
                 };
+                if !declaration_resource && path.len() == 1 && self.variables.contains(&path[0]) {
+                    return Err(needs_bound());
+                }
                 let Some(Item {
                     kind: ItemKind::Aggregate(aggregate),
                     ..
@@ -2847,6 +2929,7 @@ impl Check<'_, '_, '_> {
         for _ in &state.defer_holds {
             self.budget.node(block.span, 0)?;
         }
+        let first_resource_local = self.next_local;
         let outer_holds = state.defer_holds.clone();
         let mut flow = BlockFlow::NEXT;
         for statement in &block.statements {
@@ -2888,12 +2971,27 @@ impl Check<'_, '_, '_> {
                     }
                     let owns_store = self.owning_store_expression(value, state);
                     let fresh_store = owns_store && self.fresh_store_expression(value, state)?;
-                    let owns_resource = (self.two_input_state_constructor()
+                    let mut resource_flow = if self.enum_resource_flow {
+                        self.transferred_resource_expression(value, state)?
+                    } else {
+                        ResourceFlow::default()
+                    };
+                    if self.two_input_state_constructor()
                         || self
                             .callable
                             .as_ref()
-                            .is_some_and(|bounds| bounds.owned_factory))
-                        && self.owned_resource_expression(value, state)?;
+                            .is_some_and(|bounds| bounds.owned_factory)
+                    {
+                        resource_flow.owns = self.owned_resource_expression(value, state)?;
+                    }
+                    if resource_flow.declaration
+                        && ty.as_ref().is_some_and(|ty| dependent(ty, &self.variables))
+                    {
+                        return Err(error(
+                            statement.span,
+                            "a declaration resource cannot be annotated as a helper type parameter",
+                        ));
+                    }
                     let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
                     self.traits.store_types(
@@ -2912,10 +3010,20 @@ impl Check<'_, '_, '_> {
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
                     self.factory_bind_value(state.locals[n].id, value, state)?;
                     self.alias_bind(state, state.locals[n].id, statement.span)?;
+                    let owns_resource = resource_flow.owns;
+                    let declaration_resource = resource_flow.declaration;
+                    let roots = if declaration_resource && owns_resource {
+                        Some(self.resource_description_root(state.locals[n].id, statement.span)?)
+                    } else {
+                        resource_flow.roots
+                    };
                     let local = state.locals.get_mut(n).expect("just bound");
                     local.mutable = *mutable;
-                    local.owned_resource =
-                        owns_resource && self.concrete_helper_resource(&local.ty);
+                    local.declaration_resource = declaration_resource;
+                    local.description_roots = roots;
+                    local.description_reference_depth = resource_flow.reference_depth;
+                    local.owned_resource = owns_resource
+                        && (declaration_resource || self.concrete_helper_resource(&local.ty));
                     if stores::element(&local.ty).is_some() {
                         if owns_store {
                             state.store_owners.insert(local.id);
@@ -3006,8 +3114,13 @@ impl Check<'_, '_, '_> {
                     } else {
                         None
                     };
+                    let resource_replacement =
+                        self.resource_description_replacement(whole, value, state)?;
                     let actual = self.expr(value, state, Some(&ty), false)?;
                     same(&actual, &ty, value.span, self.budget)?;
+                    if let Some((name, flow)) = resource_replacement {
+                        self.resource_description_replace(&name, flow, state, target.span)?;
+                    }
                     self.alias_replace_place(target, state)?;
                     let mut whole = target;
                     while let ExprKind::Group(inner) = &whole.kind {
@@ -3209,6 +3322,7 @@ impl Check<'_, '_, '_> {
                 }
             }
         }
+        self.resource_description_scope_exit(state, first_resource_local, block.span)?;
         state.defer_holds = outer_holds;
         Ok(flow)
     }
@@ -3225,3 +3339,7 @@ mod places;
 
 #[path = "generic_aliases.rs"]
 mod state_aliases;
+
+#[path = "generic_resource_desc.rs"]
+mod resource_desc;
+use resource_desc::ResourceFlow;

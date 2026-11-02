@@ -1,0 +1,157 @@
+CandidatePlan {
+    schema_version: 30,
+    module_fingerprint: Fingerprint(
+        [
+            168,
+            177,
+            195,
+            10,
+            64,
+            79,
+            105,
+            8,
+            231,
+            48,
+            156,
+            54,
+            166,
+            198,
+            71,
+            2,
+            71,
+            63,
+            194,
+            71,
+            205,
+            28,
+            152,
+            183,
+            181,
+            57,
+            203,
+            245,
+            18,
+            35,
+            159,
+            41,
+        ],
+    ),
+    target_fingerprint: Fingerprint(
+        [
+            205,
+            49,
+            11,
+            211,
+            61,
+            158,
+            160,
+            206,
+            0,
+            177,
+            155,
+            124,
+            142,
+            36,
+            127,
+            255,
+            149,
+            121,
+            131,
+            121,
+            165,
+            196,
+            116,
+            61,
+            206,
+            130,
+            190,
+            234,
+            40,
+            5,
+            28,
+            15,
+        ],
+    ),
+    functions: [
+        FunctionPlan {
+            function: FunctionId(
+                0,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                1,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [
+                        LocalId(
+                            0,
+                        ),
+                    ],
+                    initialized_out: [],
+                },
+            ],
+            holds: [
+                ValueHold {
+                    value: ValueId(
+                        0,
+                    ),
+                    roots: [
+                        Parameter(
+                            0,
+                        ),
+                    ],
+                },
+                ValueHold {
+                    value: ValueId(
+                        1,
+                    ),
+                    roots: [],
+                },
+            ],
+        },
+        FunctionPlan {
+            function: FunctionId(
+                2,
+            ),
+            blocks: [
+                BlockPlan {
+                    block: BlockId(
+                        0,
+                    ),
+                    initialized_in: [],
+                    initialized_out: [],
+                },
+            ],
+            holds: [],
+        },
+    ],
+    origins: [],
+    responsibilities: [],
+    unsupported: [],
+}

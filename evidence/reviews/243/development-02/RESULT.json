@@ -1,0 +1,49 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "production_checkpoint": "627b222ae52e5c4db1f0cd317c8502f1a8fc9082",
+  "worktree_source_commit": "5f055d9fec72b96924dc73e5324db25ee0697f6f",
+  "schema": 30,
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "feature": "llvm-api",
+  "jobs": 1,
+  "limits": "unchanged default",
+  "production_edited_by_reviewer": false,
+  "role": "Independent non-production-author review preparation, awaiting precise final common SHA",
+  "selected": 17,
+  "passed": 17,
+  "failed": 0,
+  "test_targets": {
+    "review239_generation": 3,
+    "review240_match_exits": 4,
+    "review241_freshness": 4,
+    "review241_store_windows": 2,
+    "review242_tag_edges": 4
+  },
+  "additional_native_builds": 10,
+  "additional_native_runs": 10,
+  "ct_evaluations": 1,
+  "ct_result": "I32(7)",
+  "clippy": "six exact new driver test targets with llvm-api -D warnings passed; initial older backend lint failure preserved",
+  "checks": [
+    "generated/handwritten manages order and nominal identity",
+    "CT runtime observers excluded even for Copy Enum",
+    "recursive pattern return/break/continue/defer exits",
+    "actual Desc captures from published leaves; pending defer loan prevents consume",
+    "ordinary Value factories/identity/repacking do not mint Created",
+    "same-type Store roots and last-use/live borrow windows through Sum flip",
+    "nested prefix, same target/opposite edge/bypass/different local/stale loop observer attacks",
+    "owned/shared/program/Wire/clone retain exact current Limits; 512-node emission genuinely rejects after successful Verify/Lower while default works before and after"
+  ],
+  "static_review": [
+    "Each helper key is derived from complete Type; paid equality check confirms memo hit and hash collision rejects instead of granting identity.",
+    "Cleanup helper DAG receives actual pointers, preserves declaration order and active tag; flags clear before call; invalid tag traps.",
+    "Same paid stage budget covers new operations and new-shape use of old cleanup opcodes plus native entry error cleanup.",
+    "Presence and request Limits remain sealed from candidate/Wire; false path retains old profile costs."
+  ],
+  "limitations": [
+    "No final verdict until root exact common candidate.",
+    "No full-workspace run by reviewer.",
+    "No additional Win64 native run claimed."
+  ]
+}

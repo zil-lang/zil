@@ -1,0 +1,26 @@
+[
+  {
+    "case": "original03",
+    "exit": 0,
+    "stdout": "Analyze raw: Success\nAnalyze wire: Success\n",
+    "stderr": ""
+  },
+  {
+    "case": "original05",
+    "exit": 0,
+    "stdout": "Analyze raw: Success\nAnalyze wire: Success\n",
+    "stderr": ""
+  },
+  {
+    "case": "nested",
+    "exit": 4,
+    "stdout": "",
+    "stderr": "Analyze raw: [\n    Diagnostic {\n        phase: Analyze,\n        category: SafeReject,\n        code: \"E-ANALYZE-IR\",\n        message: \"resource closure: cleanup is not reverse successful initialization order\",\n        span: None,\n        notes: [],\n    },\n]\n"
+  },
+  {
+    "case": "product",
+    "exit": 0,
+    "stdout": "Analyze raw: Success\nAnalyze wire: Success\n",
+    "stderr": ""
+  }
+]

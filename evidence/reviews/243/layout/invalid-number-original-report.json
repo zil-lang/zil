@@ -1,0 +1,48 @@
+{
+  "status": "SafeReject",
+  "phase": "lex",
+  "diagnostics": [
+    {
+      "phase": "lex",
+      "category": "SafeReject",
+      "code": "E-LEX-NUMBER",
+      "message": "invalid number spelling, suffix, or separator",
+      "span": {
+        "file": 0,
+        "start": 164,
+        "end": 177
+      },
+      "notes": []
+    },
+    {
+      "phase": "lex",
+      "category": "SafeReject",
+      "code": "E-LEX-NUMBER",
+      "message": "invalid number spelling, suffix, or separator",
+      "span": {
+        "file": 0,
+        "start": 300,
+        "end": 313
+      },
+      "notes": []
+    }
+  ],
+  "artifacts": {},
+  "input_fingerprint": "1a0a6723aed20c2081b4177ee375bdea551d5b1b7284761f6192dc03f87b3021",
+  "seconds": 0.000856178,
+  "cache_hit": false,
+  "commands": [],
+  "native_codegen": null,
+  "disk_cache": "disabled",
+  "query_events": [
+    {
+      "phase": "parse",
+      "disposition": "executed"
+    }
+  ],
+  "verification_runs": 0,
+  "source_files": {
+    "0": "mixed_wide/main.zil"
+  },
+  "scalar_interfaces": []
+}

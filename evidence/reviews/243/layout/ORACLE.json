@@ -1,0 +1,317 @@
+{
+  "reviewer": "/root/ir_defer227",
+  "scope": "243 machine/layout/drop-plan supplement only; does not review the author239 IR",
+  "state": "FrozenExpectationsBeforeExecution",
+  "frozen_at_utc": "2026-11-01T22:13:56.339718+00:00",
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "compiler_executions_so_far": 0,
+  "planned_opts": [
+    "O0",
+    "O2"
+  ],
+  "planned_native_executions": 24,
+  "allocation_failure_matrix": "NotRun:244 owns independent source/allocation matrix",
+  "cases": [
+    {
+      "name": "mixed_i32",
+      "files_sha256": {
+        "main.zil": "a041966e2ef400b8adba0b141040d7b5cdb2c09281ca2deae49e619b1989ce28"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "ACB",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "Both Copy fields are read separately as A/C; the actual middle R payload closes once as B after the arm returns.",
+      "layout": {
+        "payload_offsets": [
+          0,
+          4,
+          8
+        ],
+        "payload_size": 12,
+        "payload_align": 4,
+        "enum_payload_offset": 4,
+        "enum_size": 16,
+        "enum_align": 4,
+        "llvm_enum": "{ i32, [3 x i32] }"
+      },
+      "same_process_context_group": null
+    },
+    {
+      "name": "mixed_wide",
+      "files_sha256": {
+        "main.zil": "997f530e18a91c95b7387d83dcecb45612ead42d0a166a6f478a9a319edae913"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "ACB",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "A and C occupy opposite sides of the aligned resource. R checks its wide/bool fields before emitting B; any X/Y indicates a payload projection error.",
+      "layout": {
+        "R_offsets": [
+          0,
+          8,
+          12
+        ],
+        "R_size": 16,
+        "R_align": 8,
+        "payload_offsets": [
+          0,
+          8,
+          24
+        ],
+        "payload_size": 32,
+        "enum_payload_offset": 8,
+        "enum_size": 40,
+        "enum_align": 8,
+        "llvm_enum": "{ i32, [4 x i64] }"
+      },
+      "same_process_context_group": null
+    },
+    {
+      "name": "managed_header",
+      "files_sha256": {
+        "main.zil": "ac0fae1fd933bff0d1521b36f535062a9faebddabef284430d8478a363000ceb"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "AZC",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "The middle Managed ByteBuffer is its real three-word header. The read length/data require correct ptr/len/cap offsets; cleanup frees the buffer but prints nothing.",
+      "layout": {
+        "header_size": 24,
+        "header_align": 8,
+        "payload_offsets": [
+          0,
+          8,
+          32
+        ],
+        "payload_size": 40,
+        "enum_payload_offset": 8,
+        "enum_size": 48,
+        "enum_align": 8,
+        "llvm_enum": "{ i32, [5 x i64] }"
+      },
+      "same_process_context_group": null
+    },
+    {
+      "name": "nested_sum",
+      "files_sha256": {
+        "main.zil": "99ffc60cc0bd8da45cef517144758f66d66450dc5b7710627ebf0ea24be02293"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "ACB",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "Outer a/z are A/C; recursive selected Inner owns R and closes B. An inactive Inner branch cannot contribute a debt.",
+      "layout": {
+        "inner_size": 8,
+        "inner_align": 4,
+        "outer_payload_offsets": [
+          0,
+          4,
+          12
+        ],
+        "outer_payload_size": 16,
+        "outer_payload_offset": 4,
+        "outer_size": 20,
+        "outer_align": 4,
+        "llvm_outer": "{ i32, [4 x i32] }"
+      },
+      "same_process_context_group": null
+    },
+    {
+      "name": "moved_flags",
+      "files_sha256": {
+        "main.zil": "d6fd82bba1ef5ce4a0a709673d03fa754a8d341e55d08e607a8a3776b04cd041"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "ZLA",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "Self transfer publishes into the same lexical shell without early/double cleanup. Z precedes later L, then original shell A; moved temporary conditional drops print nothing.",
+      "layout": null,
+      "same_process_context_group": null
+    },
+    {
+      "name": "entry_error_enum",
+      "files_sha256": {
+        "main.zil": "884d0bfda33559fd0a943ea07a4f0ffac48d23ec579b41836ff511b5020889b7"
+      },
+      "rows": [
+        {
+          "stdin": "0",
+          "stdout": "L",
+          "exit": 0
+        },
+        {
+          "stdin": "1",
+          "stdout": "LE",
+          "exit": 1
+        }
+      ],
+      "independent_reason": "Local L closes in source main. Only the actual error return transfers E to native entry cleanup, then exits1. The inactive error slot would contain zero-tag Owned, so accidental cleanup on success is observable as an unwanted NUL.",
+      "layout": {
+        "fault_enum_size": 8,
+        "fault_enum_align": 4,
+        "error_union_offsets": [
+          0,
+          4,
+          12
+        ],
+        "error_union_size": 16,
+        "error_union_align": 4,
+        "error_tag": "i1",
+        "enum_tag": "i32"
+      },
+      "same_process_context_group": null
+    },
+    {
+      "name": "opaque_app",
+      "files_sha256": {
+        "lib.zil": "61cb5ac4dc11fe04d246551d92b2b244125d7ca1020b552759037d80c042ba23",
+        "main.zil": "f093016224f306c34f65512d134de916a4cb06f3fae78522b4513e08b6fe613e"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "AZ",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "Private generation40 is copied exactly through two self replacements to42. finish consumes App, closes its actual State/R as A, then caller emits Z. The caller has no source field access.",
+      "layout": {
+        "state_size": 8,
+        "state_align": 4,
+        "App_offsets": [
+          0,
+          8
+        ],
+        "App_size": 12,
+        "App_align": 4
+      },
+      "same_process_context_group": null
+    },
+    {
+      "name": "nominal_same_layout",
+      "files_sha256": {
+        "left.zil": "9cb8867f387b8e193d8c1034bf2b7710357c4622374b1f10d43c9acd433992c9",
+        "right.zil": "cde9101b2c19b0c15818e5e752e0621c3eb72699d2979d87e236098e724eceb0",
+        "main.zil": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "bA",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "Two different modules deliberately use the same short Enum/resource names and physical layout. Right teardown adds32, so reusing the left resource teardown would emit B instead of b. Locals close right then left.",
+      "layout": {
+        "left_enum_size": 8,
+        "right_enum_size": 8,
+        "align": 4
+      },
+      "same_process_context_group": null
+    },
+    {
+      "name": "nominal_different_layout",
+      "files_sha256": {
+        "left.zil": "9cb8867f387b8e193d8c1034bf2b7710357c4622374b1f10d43c9acd433992c9",
+        "right.zil": "4c962b29380ab6338fdb12fbcc7fbb6d3b38340cb0f1a246bcd4112fb9287a7f",
+        "main.zil": "4f404fd8b71a5f7f19d6d6ef0bebb925d35170c99ceda7b29e9ada1219d826d2"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "bA",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "Equal short names do not identify types or layouts. Right leaf is aligned8 with code at8; its Enum is24 bytes, while left is8. Right b precedes left A.",
+      "layout": {
+        "left_enum_size": 8,
+        "left_enum_align": 4,
+        "right_resource_offsets": [
+          0,
+          8
+        ],
+        "right_resource_size": 16,
+        "right_enum_size": 24,
+        "right_enum_align": 8
+      },
+      "same_process_context_group": null
+    },
+    {
+      "name": "context_a",
+      "files_sha256": {
+        "main.zil": "15ccc8270c7431e4aa9f284298edbff8504df75935930db59234b92dc7f249c9"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "A",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "First emission in one process/session has this complete Choice/R type and its actual resource teardown binding.",
+      "layout": null,
+      "same_process_context_group": "same_complete_type_resource_binding"
+    },
+    {
+      "name": "context_b",
+      "files_sha256": {
+        "main.zil": "98aa3295d9e9d3fb0f5c0733d3a069bdbd512ac30a25587e671f0a500f65aceb"
+      },
+      "rows": [
+        {
+          "stdin": "",
+          "stdout": "B",
+          "exit": 0
+        }
+      ],
+      "independent_reason": "Compile immediately after context_a in the same process/session with the same SourceUnit identity. Complete Type remains equal but the inserted function changes the real teardown FunctionId; no stale plan may call the old binding.",
+      "layout": null,
+      "same_process_context_group": "same_complete_type_resource_binding"
+    }
+  ],
+  "negative_source_expectation": {
+    "case": "opaque_app_private_read",
+    "phase": "Types",
+    "code": "E-FIELD-PRIVATE",
+    "verification_runs": 0,
+    "executable": null,
+    "lib_source": "sources/opaque_app/lib.zil"
+  },
+  "raw_LIR_expectations": {
+    "positive": "Source-derived independently VerifiedModule lowered normally must emit",
+    "mutations": [
+      "different_target",
+      "changed_resource_teardown",
+      "changed_enum_local_type",
+      "changed_Unpack_field_mapping",
+      "changed_DropEnum_local",
+      "copied_verified_fingerprint_with_changed_CFG"
+    ],
+    "expected_code": "E-CODEGEN-UNBOUND-LIR",
+    "authority": "Each mutant retains copied fingerprint but fails exact capability binding; no generated machine execution counted."
+  },
+  "illegal_tag_check": "No new source or FFI ability to manufacture an invalid Enum tag is introduced. Check actual emitted trap/unreachable CFG for out-of-range tags before payload access and final cleanup fallthrough; native corruption injection is not claimed as legal ZIL evidence.",
+  "expected_outputs_derived_from": "Source evaluation order, declared payload layout/alignment, actual module resources, reverse local initialization cleanup and recursive declared field cleanup; no compiler/native output read to select these expectations."
+}

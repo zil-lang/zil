@@ -1,0 +1,8 @@
+{
+  "crates/zil-analyze/src/helpers.rs": "4e9bdc4d302485ac02bd47c1ee251ce0d84487a5470ac06caf3e027bb6c1509f",
+  "crates/zil-analyze/src/resources/sums.rs": "166039aa956e7b4737379c5da85a21836ad078604768b6fe4df212172e78b65c",
+  "crates/zil-analyze/src/sum_tests.rs": "63d47ef98f1f5214c998002d0e440858ea4caf31946277c46cab1d780733e8b3",
+  "crates/zil-driver/tests/review240_helper_sum.rs": "8b7be79a0386c4c76ae023c3ab88db194bd542e6687d507710eba7202b6e1dea",
+  "crates/zil-driver/tests/impl206_budget.rs": "4d1ca1d75ba6516ee7da06546ec4413b7864be241353f1da1f26ac638505cd33",
+  "crates/zil-driver/tests/impl235_budget.rs": "e9135f8369990032d360fbe1627e7b33919ee7cf2fa057b2805b63e085f92798"
+}

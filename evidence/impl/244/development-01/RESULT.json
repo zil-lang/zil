@@ -1,0 +1,77 @@
+{
+  "status": "DevelopmentNotFinalAcceptance",
+  "production_checkpoint": "1f43ced2abe4290b7cf5ef342986eb23b4a3e174",
+  "worktree_merge": "e957e8b720235009b1c9af3bab0d3ecc2b8cf721",
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "schema": 30,
+  "source_oracle_changed": false,
+  "production_edited": false,
+  "feature": "llvm-api",
+  "jobs": 1,
+  "limits": "default; unchanged",
+  "runs": [
+    {
+      "log": "consumer244-dev02.log",
+      "selected": 0,
+      "executed": 0,
+      "result": "harness compile failure: undeclared serde_json; no production conclusion"
+    },
+    {
+      "log": "review244-freshness-dev01.log",
+      "checkpoint": "7544dd8850c29a72cc41ee87ccbea1fcd3f0b0ff",
+      "selected": 4,
+      "passed": 2,
+      "failed": 2,
+      "actual": "Verify raw accepted ordinary Value identity/factory Created authority; source/raw/Wire artifacts preserved; no native"
+    },
+    {
+      "log": "review244-freshness-dev02.log",
+      "selected": 4,
+      "passed": 4,
+      "failed": 0,
+      "actual": "7 source-derived cases; 7 Analyze and 7 raw + 7 Wire checks; native 0"
+    },
+    {
+      "log": "consumer244-dev03.log",
+      "selected": 8,
+      "passed": 6,
+      "failed": 2,
+      "original_probes": {
+        "positive_builds": 10,
+        "native_runs": 22,
+        "negative_analyze_rejections": 2,
+        "source_bytes": "frozen Q original"
+      },
+      "five_module": {
+        "build_attempts": 2,
+        "verified": 2,
+        "lowered": 2,
+        "codegen": "ResourceLimit owned Sum layout/drop plan budget exceeded",
+        "native": 0,
+        "actual_allocator_runs": 0,
+        "oracle_adjusted": false
+      }
+    }
+  ],
+  "sha256": {
+    "tests/impl244/ORACLE.json": "e357f2d4f553f87d6b5ba0d3570fcc133d2582895c8708aecd6752fdbcc0b254",
+    "tests/impl244/project/main.zil": "7dfd2262f9a69936ffb95ae1f2058bd5f077659c4231238658c2fb9db3f0f018",
+    "crates/zil-driver/tests/impl244_consumer.rs": "8e979b50b6672520c0db062b806fecaaddaaf1fe33dafa89cb687f0bac9570c6",
+    "crates/zil-driver/tests/review241_freshness.rs": "78924d9e11a68f4e5d29731bc923e9b69075c6d8cd2fd2588fc8bb91360231d1"
+  },
+  "toolchain": [
+    "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+    "Target: x86_64-unknown-linux-gnu",
+    "Thread model: posix",
+    "InstalledDir: /workspace/.zil-env/llvm-23.1.4/bin"
+  ],
+  "rust_goals": {
+    "safety": "Independent ordinary Value freshness negatives and frozen duplicate-use rejection retain nonforgeable ownership.",
+    "performance": "Default budget failure remains real and blocks five-module execution; do not raise limits.",
+    "ergonomics": "Original natural Session/Store enum/error APIs now compile without input edits.",
+    "predictability": "Cleanup/allocation oracle frozen from source before execution; actual matrix remains pending."
+  }
+}

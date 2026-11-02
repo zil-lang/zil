@@ -1,0 +1,54 @@
+{
+  "reviewer": "/root/ir_defer227",
+  "verdict": "Pass",
+  "scope": "One closed Array boundary in242 only; not an overall242 profile verdict or a review of own239",
+  "implementation_commit": "d393f47db2a1e3da23d1d52c875fb142c193ef14",
+  "actual_tested_commit": "7bdb0cfbf7f3435d72e5a1c038b7618e533eb06b",
+  "Verify_production_bytes_same_in_P": true,
+  "spec_hash": "c155bd918e73f365de6a7dc210dd9f08bcd807e402921336498631d54eb8cc72",
+  "normative_hash": "0e3808d47c1a9e7fcd2aeb06733a3d1ab3ed8cd00def193a193a0e0d55526e66",
+  "reviewed_at_utc": "2026-11-01T22:48:34.598313+00:00",
+  "source_control": "Source-derived main()->i32{return0} passes ordinaryVerify before adding raw unused local metadata. Existing canonical ByteBuffer resource definition is exact. Original body/candidate flow claims remain unchanged except fresh module fingerprint.",
+  "positive": "Unused nonzero Array<Package{value:Managed<ByteBuffer>}> passes raw and Wire Verify; original array profile still works.",
+  "negative": "Change only that element Package field to ordinary OwnedEnum{Empty,Some(Managed<ByteBuffer>)}. Array length remains1, local remains neverStorageLive/uninitialized/unused, and no instruction reads or constructs any payload. Both raw and Wire Verify reject.",
+  "exact_negative": {
+    "phase": "Verify",
+    "category": "Unsupported",
+    "code": "E-UNSUPPORTED",
+    "message": "non-Copy type requires another checker"
+  },
+  "no_fingerprint_or_plan_rejection": true,
+  "raw_wire_positive_controls": 2,
+  "raw_wire_negative_observations": 2,
+  "native_executions": 0,
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--manifest-path",
+        "/tmp/review242-profile/Cargo.toml",
+        "--",
+        "--nocapture"
+      ],
+      "log": "run02.log.gz",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    }
+  ],
+  "preliminary_harness_label_note": "run01 printed the generic exploratory string UnexpectedAccept for every Ok including the intended positive control. run02 asserts and labels ExpectedAccept for the control and exact rejection for the negative; same raw IR and compiler, no production change. Both logs retained.",
+  "read_only_gate_notes": {
+    "Array": "resources::arrays::is_owned_type remains Package/Closure-specific; ordinary Sum fields meet a separate old inline layout/type restriction here, as actually observed.",
+    "Managed_resource_header": "resources::check_carrier requires finiteCopy Record payload except explicitly sealed ByteBuffer/Store; module resource definitions separately require unique matching nominalCopy Record. Read-only, not an additional executed mutation.",
+    "StoreElement": "dynamic_store keeps independent element/profile admission; leaf elements require directManaged finiteCopy records/ByteBuffer and callback rules, Product container route has its own check. No global closedness claim from this one Array probe.",
+    "foreign": "foreign::check_declarations has explicit result/parameter C-shape matches separate from ordinary type permission; no native foreignEnum experiment.",
+    "capture_and_State": "Root independently reported the directEnum-capture/ErrorUnion-position leaks under repair. No Pass for their complete recursive capture/State closure is claimed by this supplementary Array sample."
+  },
+  "findings": [],
+  "broader_profile_matrix": "NotRun; root241/242 fixes and244 audit remain authoritative",
+  "artifact_manifest_sha256": "20dffed85c5f9e7433b2455ea65cd857ebe95720b5db5cbbf6fc170076039b10",
+  "archive_sha256": "70158d0b849ce78a30e068df93f607be2fcd4160578419fe0b1a4ecd0f9730fa"
+}

@@ -1,0 +1,29 @@
+{
+  "status": "Pass",
+  "scope": "Existing zil-ct suite before adding pending new-op raw integration test",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-ct"
+  ],
+  "passed": 28,
+  "failed": 0,
+  "ignored": 0,
+  "filtered": 0,
+  "source_checkout_commit": "aaa82b8eb3de4ae99a1666cf6237f902af3f649a",
+  "source_sha256": {
+    "crates/zil-ct/src/program.rs": "563508687a2114f95007743700ac6670d5b1773721710a8906d091a3c1989bd1"
+  },
+  "spec_hash": "d9f3d23f5ebc069d65791adbab0c05943909d57166e46015b6ffb80c75d9391e",
+  "normative_hash": "3148e113b2d20ee7d6b866e63e3f795f2135ccdeed11d02e5e42014097bfee48",
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-239",
+    "CARGO_BUILD_JOBS": 1,
+    "CARGO_INCREMENTAL": 0
+  },
+  "new_runtime_opcode_positive_controls": "Pending242 complete ordinary Verify admission; current protective Unsupported is not CT evidence",
+  "new_test_added_after_run": "crates/zil-ct/tests/impl239_runtime_enum_ops.rs",
+  "native_executions": 0
+}
