@@ -372,6 +372,45 @@ fn consume(
     Ok(slot)
 }
 
+fn call_arguments(
+    module: &TypedModule,
+    f: &TypedFunction,
+    state: &State,
+    instruction: &Instruction,
+    ty: &Type,
+    arguments: &[ValueId],
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    let (id, _) = closure(ty)
+        .ok_or_else(|| bad("forward callback receiver has no concrete callable signature"))?;
+    let definition = &module.closures[id.0 as usize];
+    budget.spend(arguments.len(), "forward ordinary callback arguments")?;
+    budget.type_work(&definition.result, false, "forward actual callback result")?;
+    if arguments.len() != definition.parameters.len()
+        || !(instruction.result.and_then(|v| f.values.get(v.0 as usize))
+            == Some(&definition.result)
+            || (instruction.result.is_none() && definition.result == Type::Unit))
+    {
+        return Err(bad(
+            "forward callback actual argument count or result type differs",
+        ));
+    }
+    for (value, expected) in arguments.iter().zip(&definition.parameters) {
+        budget.type_work(expected, false, "forward actual callback argument type")?;
+        if carrier(&f.values[value.0 as usize]) && state.values[value.0 as usize].origin & 3 != 0 {
+            return Err(bad(
+                "symbolic F cannot enter an ordinary callback data argument",
+            ));
+        }
+        if f.values.get(value.0 as usize) != Some(expected) {
+            return Err(bad(
+                "forward callback actual ordinary argument type differs",
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn transfer(
     module: &TypedModule,
@@ -426,6 +465,28 @@ fn transfer(
             {
                 let slot = state.locals[local.0 as usize];
                 live(slot, check)?;
+                if check {
+                    let declared = &f.locals[local.0 as usize].ty;
+                    budget.type_work(declared, false, "forward position operation exact type")?;
+                    let output = i.result.and_then(|v| f.values.get(v.0 as usize));
+                    let valid = match i.kind {
+                        InstructionKind::Load(_) | InstructionKind::TakeLocal { .. } => {
+                            output == Some(declared)
+                        }
+                        InstructionKind::BorrowLocal { .. }
+                        | InstructionKind::BorrowLocalMut { .. } => {
+                            let write = matches!(i.kind, InstructionKind::BorrowLocalMut { .. });
+                            (!write || f.locals[local.0 as usize].mutable)
+                                && matches!(output, Some(Type::Address { mutable, inner }) if *mutable == write && inner.as_ref() == declared)
+                        }
+                        _ => false,
+                    };
+                    if !valid {
+                        return Err(bad(
+                            "forward position operation changes type or invents write permission",
+                        ));
+                    }
+                }
                 let mut taken = slot;
                 if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
                     state.locals[local.0 as usize].life = MOVED;
@@ -608,10 +669,26 @@ fn transfer(
                     );
                 }
             }
-            InstructionKind::CallClosureShared { callee, .. }
-            | InstructionKind::CallClosureMut { callee, .. } => {
+            InstructionKind::CallClosureShared { callee, arguments }
+            | InstructionKind::CallClosureMut { callee, arguments } => {
                 let slot = state.locals[callee.0 as usize];
                 live(slot, check)?;
+                if check {
+                    if !matches!(f.locals[callee.0 as usize].ty, Type::Closure(_)) {
+                        return Err(bad(
+                            "forward local callback call requires an actual environment position",
+                        ));
+                    }
+                    call_arguments(
+                        module,
+                        f,
+                        state,
+                        i,
+                        &f.locals[callee.0 as usize].ty,
+                        arguments,
+                        budget,
+                    )?;
+                }
                 let wanted = if matches!(i.kind, InstructionKind::CallClosureMut { .. }) {
                     CallableKind::FnMut
                 } else {
@@ -629,11 +706,30 @@ fn transfer(
                     ));
                 }
             }
-            InstructionKind::CallClosure { callee, .. }
-            | InstructionKind::CallClosureOnce { callee, .. }
-            | InstructionKind::CallClosureBorrowed { callee, .. } => {
+            InstructionKind::CallClosure { callee, arguments }
+            | InstructionKind::CallClosureOnce { callee, arguments }
+            | InstructionKind::CallClosureBorrowed {
+                callee, arguments, ..
+            } => {
                 let slot = state.values[callee.0 as usize];
                 live(slot, check)?;
+                if check {
+                    call_arguments(
+                        module,
+                        f,
+                        state,
+                        i,
+                        &f.values[callee.0 as usize],
+                        arguments,
+                        budget,
+                    )?;
+                    if matches!(i.kind, InstructionKind::CallClosure { .. }) && slot.origin & 3 != 0
+                    {
+                        return Err(bad(
+                            "by-value symbolic Fn call would require a Copy permission",
+                        ));
+                    }
+                }
                 let wanted = match i.kind {
                     InstructionKind::CallClosureOnce { .. } => CallableKind::FnOnce,
                     InstructionKind::CallClosureBorrowed { kind, .. } => kind,
