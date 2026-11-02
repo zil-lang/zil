@@ -1,8 +1,86 @@
 //! Source negatives never reach native. A missing positive F-return gate is not
 //! evidence that a particular invalid source was semantically rejected.
 use std::{fs, path::PathBuf};
-use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
+
+fn expected(
+    name: &str,
+) -> (
+    ResultCategory,
+    Phase,
+    &'static str,
+    &'static [&'static str],
+    &'static str,
+) {
+    match name {
+        "external_address_environment" | "external_address_child_environment" => (
+            ResultCategory::Unsupported,
+            Phase::Types,
+            "E-UNSUPPORTED",
+            &[
+                "self-contained environments",
+                "borrowed dependencies cannot escape",
+            ],
+            "Direct and child F environments must be recursively self-contained; this is a closed profile boundary, not proof of a loan conflict.",
+        ),
+        "once_called_then_returned" | "once_mixed_return_path" => (
+            ResultCategory::SafeReject,
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+            &[
+                "used after move",
+                "Copy cannot be inferred from a concrete instance",
+            ],
+            "A reachable FnOnce call consumes the declared input position, which cannot then be returned as live F.",
+        ),
+        "once_declared_actual_fn_copy" => (
+            ResultCategory::SafeReject,
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+            &[
+                "used after move",
+                "Copy cannot be inferred from a concrete instance",
+            ],
+            "An outer symbolic FnOnce position does not gain Copy from its concrete Fn instantiation after keep.",
+        ),
+        "once_declared_actual_fn_twice" | "once_mode_through_loop" => (
+            ResultCategory::SafeReject,
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+            &["callable used after its environment was consumed"],
+            "Direct and loop forwarding preserve the caller's declared FnOnce mode, so a second call is forbidden.",
+        ),
+        "same_closure_id_different_instance" | "same_closure_id_wrong_branch" => (
+            ResultCategory::SafeReject,
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+            &[
+                "return the actual input instance",
+                "not a fresh factory environment",
+            ],
+            "Every normal return must originate in the actual F argument; another instance of the same factory/ClosureId is insufficient.",
+        ),
+        "use_after_transfer" => (
+            ResultCategory::SafeReject,
+            Phase::Analyze,
+            "E-UNINITIALIZED",
+            &["not initialized on every incoming path"],
+            "The original non-Copy owning closure position is moved into keep and cannot be called again.",
+        ),
+        "address_active_window" => (
+            ResultCategory::SafeReject,
+            Phase::Verify,
+            "E-BORROW-CONFLICT",
+            &[
+                "overlaps an active address window",
+                "without its delegated authority",
+            ],
+            "Returning F does not erase the caller's live shared view when a later explicit mutable address call accesses the same scalar.",
+        ),
+        _ => panic!("unregistered current negative source {name}"),
+    }
+}
 
 #[test]
 fn nearest_source_rejections_require_the_actual_mode_origin_or_window_reason() {
@@ -50,16 +128,17 @@ fn nearest_source_rejections_require_the_actual_mode_origin_or_window_reason() {
                 }
                 continue;
             }
-            let environment = name.starts_with("external_address");
-            let accepted_rejection = if environment {
-                report.status == ResultCategory::Unsupported
-                    && report
-                        .diagnostics
-                        .iter()
-                        .any(|d| d.message.to_lowercase().contains("self-contained"))
-            } else {
-                report.status == ResultCategory::SafeReject
-            };
+            let (category, phase, code, fragments, obligation) = expected(name);
+            fs::write(dir.join("expected-diagnostic.json"),format!("{{\"category\":\"{category:?}\",\"phase\":\"{}\",\"code\":\"{code}\",\"message_fragments\":{fragments:?},\"source_obligation\":\"{obligation}\"}}\n",format!("{phase:?}").to_lowercase())).unwrap();
+            let accepted_rejection = report.status == category
+                && report.diagnostics.iter().any(|diagnostic| {
+                    diagnostic.category == category
+                        && diagnostic.phase == phase
+                        && diagnostic.code == code
+                        && fragments
+                            .iter()
+                            .all(|fragment| diagnostic.message.contains(fragment))
+                });
             if !accepted_rejection {
                 failed.push(format!("{name}: {}", report.to_json()));
             }
