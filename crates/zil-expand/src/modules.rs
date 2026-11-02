@@ -607,7 +607,9 @@ impl Visitor<'_, '_, '_> {
                 self.ty(error, types, depth + 1)?;
                 self.ty(result, types, depth + 1)?;
             }
-            TypeKind::MetaEval(e) => self.expr(e, types, &Names::new(), depth + 1)?,
+            TypeKind::MetaEval(e) | TypeKind::MetaSplice(e) => {
+                self.expr(e, types, &Names::new(), depth + 1)?
+            }
             TypeKind::MetaBlock(b) => self.block(b, types, &Names::new(), depth + 1)?,
         }
         Ok(())

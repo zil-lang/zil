@@ -15,6 +15,20 @@ pub(crate) fn module(
     raw: &[Token],
     limits: &Limits,
 ) -> (Module, Vec<Diagnostic>, usize) {
+    let mut parser = make_parser(source, raw, limits);
+    let items = parser.item_list(false);
+    (
+        Module {
+            id: source.module_id,
+            items,
+            span: source.span(),
+        },
+        parser.diagnostics,
+        parser.nodes,
+    )
+}
+
+fn make_parser<'a>(source: &'a SourceUnit, raw: &'a [Token], limits: &'a Limits) -> Parser<'a> {
     let mut tokens = Vec::new();
     for token in raw {
         match token.kind {
@@ -38,7 +52,7 @@ pub(crate) fn module(
             span: Span::new(source.file_id, source.text.len(), source.text.len()),
         });
     }
-    let mut parser = Parser {
+    Parser {
         source,
         raw,
         tokens,
@@ -49,17 +63,7 @@ pub(crate) fn module(
         depth: 0,
         nodes: 0,
         limits,
-    };
-    let items = parser.item_list(false);
-    (
-        Module {
-            id: source.module_id,
-            items,
-            span: source.span(),
-        },
-        parser.diagnostics,
-        parser.nodes,
-    )
+    }
 }
 
 struct Parser<'a> {
@@ -538,4 +542,41 @@ mod tests {
         rejected("fn f() { let mut = 1 }", "E-PARSE-IDENTIFIER");
         rejected("fn f() { let x = 1 := 2 }", "E-PARSE-TERMINATOR");
     }
+}
+
+pub(crate) fn generated(
+    source: &SourceUnit,
+    raw: &[Token],
+    category: SyntaxCategory,
+    limits: &Limits,
+) -> (Option<crate::GeneratedSyntax>, Vec<Diagnostic>, usize) {
+    let mut p = make_parser(source, raw, limits);
+    p.newlines();
+    let syntax = match category {
+        SyntaxCategory::Expr => p.expr(true).map(crate::GeneratedSyntax::Expr),
+        SyntaxCategory::Type => p.ty().map(crate::GeneratedSyntax::Type),
+        SyntaxCategory::ItemList => Ok(crate::GeneratedSyntax::ItemList(p.item_list(false))),
+        SyntaxCategory::StmtList => {
+            let mut statements = Vec::new();
+            p.separators();
+            while p.peek().kind != TokenKind::Eof {
+                let before = p.pos;
+                match p.statement() {
+                    Ok(s) => statements.push(s),
+                    Err(()) => p.recover(before, false),
+                }
+                p.separators();
+            }
+            Ok(crate::GeneratedSyntax::StmtList(statements))
+        }
+    }
+    .ok();
+    p.newlines();
+    if p.peek().kind != TokenKind::Eof {
+        let _: P<()> = p.fail(
+            "E-PARSE-GENERATED-TRAILING",
+            "generated category must consume its complete input",
+        );
+    }
+    (syntax, p.diagnostics, p.nodes)
 }

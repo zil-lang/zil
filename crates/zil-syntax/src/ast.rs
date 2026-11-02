@@ -528,10 +528,16 @@ pub struct QuoteTokenTree {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum QuoteTokenTreeEntry {
-    Token { text: String, span: Span },
+    Token {
+        text: String,
+        span: Span,
+    },
     Tree(QuoteTokenTree),
     /// Index into this quote layer's QuoteTemplate::holes.
-    Hole { index: u32, span: Span },
+    Hole {
+        index: u32,
+        span: Span,
+    },
 }
 
 /// Literal spelling is retained verbatim, including quotes and escape sequences.
