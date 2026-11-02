@@ -133,6 +133,8 @@ enum Fault{NoMemory}
 fn no_memory()->Fault!i32{return Fault.NoMemory}
 fn consume(event:Event)->i32{return event.mark.n+i32(bytes_len(event.bytes))}
 fn describe(mark:Mark)->Mark{return mark}
+fn fresh()->Mark contract{result(create)}{return Mark{n:3}}
+fn relay(give mark:Mark)->Mark contract{result(give)}{return give mark}
 "#;
     const PREPARE: &str = "let mark=Mark{n:3};let bytes=bytes_new();if !bytes_reserve(bytes,1){return no_memory()};bytes_push(bytes,86u8);";
     const EVENT: &str = "let event=Event{mark:give mark,bytes:give bytes};";
@@ -140,6 +142,11 @@ fn describe(mark:Mark)->Mark{return mark}
     for body in [
         format!("{PREPARE}{EVENT}{WITH}"),
         format!("{PREPARE}{EVENT}return consume(event)+f(1)"),
+        format!("{}{EVENT}{WITH}", PREPARE.replace("Mark{n:3}", "fresh()")),
+        format!(
+            "{PREPARE}let transferred=relay(give mark);{}{WITH}",
+            EVENT.replace("give mark", "give transferred")
+        ),
     ] {
         let text =
             format!("{HEAD}fn run<F:FnMut(i32)->i32>(f:&mut F)->Fault!i32{{{body}}}fn main(){{}}");
@@ -157,6 +164,10 @@ fn describe(mark:Mark)->Mark{return mark}
         format!("{PREPARE}{EVENT}let again=Event{{mark:give mark,bytes:bytes_new()}};{WITH}"),
         format!("{PREPARE}{EVENT}let stale=mark.n;{WITH}"),
         format!(
+            "{}{EVENT}{WITH}",
+            PREPARE.replace("return no_memory()", "return Fault.NoMemory")
+        ),
+        format!(
             "{PREPARE}{EVENT}let body=move ()->i32=>consume(event);consume(event);unsafe{{let result=c_with_callback(reg,close,f,body);return result.1}}"
         ),
         format!("{PREPARE}if true{{{EVENT}}}{EVENT}{WITH}"),
@@ -169,5 +180,86 @@ fn describe(mark:Mark)->Mark{return mark}
         let source = SourceUnit::new(FileId(0), ModuleId(0), "local-resource-reject.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         assert!(zil_expand::expand(&source, &parsed).is_err(), "{body}");
+    }
+    for (kind, passing) in [("FnOnce", "F"), ("FnMut", "&mut F")] {
+        let text = format!(
+            "{HEAD}fn shadowed<F:{kind}()->Mark>(fresh:{passing})->i32{{let mark=fresh();let event=Event{{mark:give mark,bytes:bytes_new()}};return consume(event)}}fn main(){{}}"
+        );
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "shadowed-resource-producer.zil",
+            text,
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.code == "E-UNSUPPORTED"
+                && error.message == "generic managed give requires a direct Package manages field"
+                && error
+                    .span
+                    .is_some_and(|span| &source.text[span.start..span.end] == "mark")),
+            "{kind}: {errors:?}"
+        );
+    }
+    for contract in [
+        "",
+        "contract{result(copy)}",
+        "contract{result(create);result(give)}",
+    ] {
+        let prepare = PREPARE.replace("Mark{n:3}", "producer()");
+        let text = format!(
+            "{HEAD}fn producer()->Mark {contract}{{return Mark{{n:3}}}}fn run<F:FnMut(i32)->i32>(f:&mut F)->Fault!i32{{{prepare}{EVENT}{WITH}}}fn main(){{}}"
+        );
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "local-resource-contract-reject.zil",
+            text,
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        assert!(zil_expand::expand(&source, &parsed).is_err(), "{contract}");
+    }
+}
+
+#[test]
+fn concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries() {
+    let scalar = "fn run<F:FnMut(i32)->i32>(f:&mut F)->i32{return f(2)}fn main()->i32{var f=(x:i32)->i32=>x+1;return run(&mut f)}";
+    let owned = "resource R{n:i32}package P{manages r:R}fn consume(p:P)->i32{return p.r.n}fn run<F:FnMut(i32)->i32>(f:&mut F,p:P)->i32{return f(consume(p))}fn main()->i32{var f=(x:i32)->i32=>x+1;let r=R{n:3};let p=P{r:give r};return run(&mut f,p)}";
+    let local = "resource R{n:i32}package P{manages r:R}fn consume(p:P)->i32{return p.r.n}fn run<F:FnMut(i32)->i32>(f:&mut F)->i32{let r=R{n:3};let p=P{r:give r};return f(consume(p))}fn main()->i32{var f=(x:i32)->i32=>x+1;return run(&mut f)}";
+    // Old scalar/owned boundaries were independently measured on fa34160.
+    // The formerly unsupported local preparation pays its actual new work.
+    for (text, work, nodes) in [(scalar, 288, 144), (owned, 554, 279), (local, 558, 281)] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "resource-budget.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let expected = zil_expand::expand(&source, &parsed).unwrap();
+        for (check_work, amount) in [(true, work), (false, nodes)] {
+            let mut limits = zil_base::Limits::default();
+            if check_work {
+                limits.max_analysis_steps = amount;
+            } else {
+                limits.max_nodes = amount;
+            }
+            for _ in 0..2 {
+                assert_eq!(
+                    zil_expand::expand_with_map_limits(&source, &parsed, &limits)
+                        .unwrap()
+                        .core,
+                    expected
+                );
+            }
+            if check_work {
+                limits.max_analysis_steps -= 1;
+            } else {
+                limits.max_nodes -= 1;
+            }
+            let errors = zil_expand::expand_with_map_limits(&source, &parsed, &limits).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .all(|error| error.category == ResultCategory::ResourceLimit),
+                "{errors:?}"
+            );
+        }
     }
 }

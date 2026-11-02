@@ -748,6 +748,62 @@ impl Check<'_, '_, '_> {
             _ => false,
         })
     }
+    /// Concrete resource calls use the existing resource result contract,
+    /// rather than the separate Store-only generic result profile. This only
+    /// classifies a new local; declaration/return validity is checked normally.
+    fn local_resource_producer(&mut self, expression: &Expr, state: &State) -> R<bool> {
+        match &expression.kind {
+            ExprKind::Group(inner) => {
+                self.tick(expression.span)?;
+                self.local_resource_producer(inner, state)
+            }
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => {
+                self.tick(expression.span)?;
+                Ok(self.local_resource_producer(then_value, state)?
+                    && self.local_resource_producer(else_value, state)?)
+            }
+            ExprKind::Call { callee, .. } => {
+                self.tick(expression.span)?;
+                let Some(name) = stores::call_name(callee) else {
+                    return Ok(false);
+                };
+                if state.locals.contains_key(name) {
+                    return Ok(false);
+                }
+                if name == "bytes_new" {
+                    return Ok(true);
+                }
+                let Some(function) = self.signatures.get(name) else {
+                    return Ok(false);
+                };
+                if !function.generics.is_empty() {
+                    return Ok(false);
+                }
+                let [clause] = function.contract.as_slice() else {
+                    return Ok(false);
+                };
+                self.budget.node(clause.span, 0)?;
+                self.budget.text(&clause.name, clause.span)?;
+                let [term] = clause.terms.as_slice() else {
+                    return Ok(false);
+                };
+                self.budget.node(clause.span, 0)?;
+                for part in &term.path {
+                    self.budget.text(part, clause.span)?;
+                }
+                Ok(clause.name == "result"
+                    && term.type_args.is_empty()
+                    && term.arguments.is_empty()
+                    && term.index.is_none()
+                    && matches!(term.path.as_slice(), [mode] if mode == "create" || mode == "give"))
+            }
+            _ => self.owned_resource_expression(expression, state),
+        }
+    }
     fn tick(&mut self, span: Span) -> R<()> {
         // The borrowed preflight checked full AST depth before any cloning.
         self.budget.node(span, 0)
@@ -3124,7 +3180,7 @@ impl Check<'_, '_, '_> {
                         && self.concrete_helper_resource(&actual)
                         && !matches!(value.kind, ExprKind::Name(_))
                     {
-                        resource_flow.owns = self.owned_resource_expression(value, state)?;
+                        resource_flow.owns = self.local_resource_producer(value, state)?;
                     }
                     self.traits.store_types(
                         &actual,
