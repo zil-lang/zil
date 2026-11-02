@@ -502,9 +502,18 @@ pub enum CtInstructionKind {
         aggregate: CtValueId,
         index: CtValueId,
     },
+    ExtractField {
+        aggregate: CtValueId,
+        index: u32,
+    },
     Replace {
         aggregate: CtValueId,
         index: CtValueId,
+        value: CtValueId,
+    },
+    ReplaceField {
+        aggregate: CtValueId,
+        index: u32,
         value: CtValueId,
     },
     Call {
