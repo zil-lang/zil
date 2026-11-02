@@ -136,6 +136,30 @@ class Source:
         self.drop("h")
         raise Failed()
 
+    def capture_result(self):
+        try:
+            captured = self.request()
+        except Failed:
+            # The lambda has not been constructed; ordinary reverse locals.
+            self.drop("h")
+            self.drop("H")
+            raise
+        try:
+            event = self.prepare()
+        except Failed:
+            self.drop("H")
+            self.drop("h")
+            self.free(captured)
+            raise
+        self.emit("C")
+        reply = Event(event.label, captured)
+        # capture_reply first prepares mark A + captured V; its incoming event
+        # still owns only the U buffer, which is independently destroyed.
+        self.free(event.allocation)
+        self.drop("H")
+        self.drop("h")
+        self.render(reply)
+
     def sum(self, empty=False):
         event = None if empty else self.prepare()
         self.emit("C")
@@ -171,6 +195,8 @@ class Source:
                 self.store()
             elif mode == 10:
                 self.body_error()
+            elif mode == 11:
+                self.capture_result()
             else:
                 raise AssertionError(mode)
         except Failed:
@@ -207,7 +233,7 @@ class Source:
 
 def build():
     cases = []
-    for mode in range(11):
+    for mode in range(12):
         normal = Source(0).run(mode)
         cases.append(dict(input=chr(48+mode), normal=normal,
                           allocator=[dict(fail_at=i, **Source(i).run(mode))

@@ -58,6 +58,7 @@ fn unused_public_single_once_definitions_check_the_complete_owned_signature() {
         "{DATA}fn dispatch<F:FnOnce(Event)->Event>(f:F,event:Event)->Event{{return f(event)}}fn main(){{}}"
     );
     typed(&source);
+    typed("resource F{n:i32}package Event{manages leaf:F}fn dispatch<F:FnOnce(Event)->Event>(f:F,event:Event)->Event{return f(event)}fn main(){let f=(event:Event)->Event=>{return event};let result=dispatch(f,Event{leaf:F{n:7}})}");
 }
 
 #[test]
@@ -82,6 +83,10 @@ fn owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles() {
         (
             "store-capture-owning-result",
             "fn main(){let values:Store<Event>=store_new();let f=move(event:Event)->Event=>{store_len(values);return event}}",
+        ),
+        (
+            "shared-product-owning-result",
+            "fn main(){let parent=Event{r:R{n:1},n:2};let view=&parent;let f=move(event:Event)->Event=>{let n=view.n;return event}}",
         ),
     ];
     for (label, tail) in cases {

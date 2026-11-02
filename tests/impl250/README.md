@@ -12,6 +12,9 @@ renderer checks real length and per-element Copy data through a shared window.
 `owned_error_main` uses the same model/dispatch modules with an owning Product
 error payload containing Enum data. It returns that payload through the public
 callback boundary and caller `?`, then the native entry destroys the payload.
+`;` returns a separate captured ByteBuffer through Reply while the consumed
+Event's original ByteBuffer is independently freed. Its renderer requires V
+(86), while Event preparation always writes U (85); leftover H/h still clean.
 
 `frozen-R` preserves the original three planning probes and old failed receipts
 byte for byte. Old Unsupported results are historical failures, never current
