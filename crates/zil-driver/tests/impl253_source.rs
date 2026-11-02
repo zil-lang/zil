@@ -241,3 +241,44 @@ fn checked_project(relative: &str) {
     );
     assert_eq!(report.verification_runs, 0);
 }
+
+#[test]
+fn private_replacement_slots_need_no_helper_edge_even_in_a_closure_body() {
+    let source = include_str!("impl252_fixtures/nested_original.zil");
+    checked(source);
+    // Keep the actual inner instance self-contained while exercising direct
+    // storage rather than an Array1. Moving it must invalidate the old loan.
+    let stale = source
+        .replace("f=f;", "let view=&f;let moved=f;")
+        .replace("let p=f(Event", "let p=view(Event");
+    assert_ne!(source, stale);
+    let module = typed(&stale);
+    let error = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        format!("{error:?}").contains("invalidates a live address window"),
+        "{error:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(
+        &module,
+        &CandidatePlan::empty_for(&module),
+        &Limits::default(),
+    )
+    .unwrap();
+    let raw = zil_ir::wire::decode_module_candidate(&wire, &Limits::default())
+        .unwrap()
+        .0;
+    assert!(zil_analyze::analyze(&raw, &Limits::default()).is_err());
+    if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+        let dir = std::path::PathBuf::from(root).join("nested-stale-source");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("source.zil"), &stale).unwrap();
+        std::fs::write(dir.join("typed.txt"), format!("{module:#?}")).unwrap();
+        std::fs::write(dir.join("diagnostic.txt"), format!("{error:#?}")).unwrap();
+        std::fs::write(dir.join("untrusted.wire"), wire).unwrap();
+    }
+
+    let valid = source
+        .replace("f=f;", "let view=&f;")
+        .replace("let p=f(Event", "let p=view(Event");
+    checked(&valid);
+}
