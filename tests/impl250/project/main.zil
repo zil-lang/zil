@@ -77,6 +77,21 @@ fn store_data()->model.Fault!i32{
     let handler=(event:model.Items)->model.Items=>{model.emit(67);return event}
     return model.render_items(dispatch.items(handler,model.items()?))
 }
+fn body_error()->model.Fault!i32{
+    model.emit(83)
+    defer{model.emit(81)}
+    let active=model.Mark{code:72}
+    let spare=model.Mark{code:104}
+    let handler=move(event:model.Event)->model.Fault!model.Reply=>{
+        model.emit(67)
+        let held=give active
+        let seen=spare.code
+        if event.code==41{return model.Fault.Cancelled}
+        return model.reply(event,1)
+    }
+    let reply=handler(model.prepare(false,65,41)?)?
+    return model.render(reply,42)
+}
 fn main()->model.Fault!i32{
     let mode=model.read()-48
     if mode==0{return once(false)}
@@ -89,5 +104,6 @@ fn main()->model.Fault!i32{
     if mode==7{return store_data()}
     if mode==8{return sum(true)}
     if mode==9{return later(false)}
+    if mode==10{return body_error()}
     return 9
 }

@@ -570,6 +570,104 @@
           "peak_live": 2
         }
       ]
+    },
+    {
+      "input": ":",
+      "normal": {
+        "exit": 1,
+        "stdout": "SCHAhQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 1,
+          "stdout": "SCHAhQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAHhQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SCHAhQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        }
+      ]
+    }
+  ],
+  "owned_error": [
+    {
+      "input": "",
+      "normal": {
+        "exit": 1,
+        "stdout": "SCHhQA",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1
+      },
+      "allocator": [
+        {
+          "fail_at": 0,
+          "exit": 1,
+          "stdout": "SCHhQA",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SAHhQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SCHhQA",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1
+        }
+      ]
     }
   ]
 }
