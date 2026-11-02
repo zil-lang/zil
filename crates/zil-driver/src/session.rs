@@ -550,6 +550,18 @@ impl CompilationSession {
             return Ok(());
         }
 
+        if options.syntax_lock.is_none()
+            && let Some(item) = parsed.module.items.iter().find(|item| {
+                matches!(&item.kind, zil_syntax::ast::ItemKind::Import(import) if import.syntax)
+            }) {
+            return Err(vec![Diagnostic::error(
+                Phase::Expand,
+                "E-SYNTAX-LOCK-MISSING",
+                Some(item.span),
+                "syntax provider use needs an explicit lock",
+            )]);
+        }
+
         let selection_needed = super::ct_selection::needed(source, &parsed);
         let (core, core_snapshot) = self.query(
             key(Phase::Expand, selection_needed),

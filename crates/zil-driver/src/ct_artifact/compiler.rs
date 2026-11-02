@@ -10,6 +10,8 @@ mod domain;
 mod expr;
 #[path = "compiler_quote.rs"]
 mod quote;
+#[path = "compiler_selection.rs"]
+mod selection;
 #[path = "compiler_types.rs"]
 mod types;
 use std::collections::{BTreeMap, VecDeque};
@@ -222,8 +224,8 @@ impl<'a> Compiler<'a> {
         self.active_aliases.push((module, declaration));
         Ok(())
     }
-    fn indexed(modules: &'a [SourceModule<'a>], limits: &'a Limits) -> R<Self> {
-        let mut compiler = Self {
+    fn unindexed(modules: &'a [SourceModule<'a>], limits: &'a Limits) -> Self {
+        Self {
             modules,
             declarations: Vec::new(),
             selected: BTreeMap::new(),
@@ -237,9 +239,16 @@ impl<'a> Compiler<'a> {
             templates: Vec::new(),
             active_aliases: Vec::new(),
             budget: Budget::new(limits),
-        };
-        for (module, input) in modules.iter().enumerate() {
-            compiler.budget.work(1, input.syntax.span)?;
+        }
+    }
+    fn indexed(modules: &'a [SourceModule<'a>], limits: &'a Limits) -> R<Self> {
+        let mut compiler = Self::unindexed(modules, limits);
+        compiler.index()?;
+        Ok(compiler)
+    }
+    fn index(&mut self) -> R<()> {
+        for (module, input) in self.modules.iter().enumerate() {
+            self.budget.work(1, input.syntax.span)?;
             if input.source.module_id != input.syntax.id
                 || !input.syntax.span.is_valid_for(input.source)
             {
@@ -249,18 +258,17 @@ impl<'a> Compiler<'a> {
                 ));
             }
             for import in input.imports {
-                compiler.budget.text(&import.alias, input.syntax.span)?;
+                self.budget.text(&import.alias, input.syntax.span)?;
                 let mut found = 0;
                 for item in &input.syntax.items {
-                    compiler.budget.work(1, item.span)?;
+                    self.budget.work(1, item.span)?;
                     match &item.kind {
                         s::ItemKind::Import(actual) if !actual.syntax => {
                             let alias = actual
                                 .alias
                                 .as_deref()
                                 .or_else(|| actual.path.last().map(String::as_str));
-                            compiler
-                                .budget
+                            self.budget
                                 .work(import.alias.len().saturating_add(1), item.span)?;
                             if alias == Some(import.alias.as_str()) {
                                 let valid = match import.target {
@@ -305,16 +313,16 @@ impl<'a> Compiler<'a> {
                     ));
                 }
                 if let ImportTarget::Module(id) = import.target {
-                    compiler.module_index(id, input.syntax.span)?;
+                    self.module_index(id, input.syntax.span)?;
                 }
             }
             for item in &input.syntax.items {
-                compiler.budget.work(1, item.span)?;
+                self.budget.work(1, item.span)?;
                 if let s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } =
                     &item.kind
                 {
-                    compiler.budget.node(item.span)?;
-                    compiler.declarations.push(Declaration {
+                    self.budget.node(item.span)?;
+                    self.declarations.push(Declaration {
                         module,
                         item,
                         function,
@@ -322,7 +330,7 @@ impl<'a> Compiler<'a> {
                 }
             }
         }
-        Ok(compiler)
+        Ok(())
     }
 
     fn symbol(&mut self, module: usize, span: Span) -> R<CtSymbolId> {
@@ -590,4 +598,16 @@ pub(crate) fn definitions_entry(
     limits.max_nodes = remaining.max_generated_nodes as usize;
     limits.max_source_bytes = remaining.max_temporary_bytes as usize;
     Ok(entry)
+}
+
+/// Select the CT value domain before either producer runs. No errors are used
+/// as a fallback signal. The caller debits the changed remainder even on Err.
+pub(crate) fn uses_ct_domain(
+    modules: &[SourceModule<'_>],
+    module: ModuleId,
+    expression: &s::Expr,
+    parameters: &[(String, CtTy)],
+    limits: &mut Limits,
+) -> R<bool> {
+    selection::uses(modules, module, expression, parameters, limits)
 }

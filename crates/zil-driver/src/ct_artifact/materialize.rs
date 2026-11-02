@@ -1,7 +1,7 @@
 //! Category-directed, transactional project materialization. The caller owns
 //! the cloned AST until every generated list has passed its preflight.
 use super::{
-    compiler::Entry, execute::Environment, input, lock::provider_entry, render::ParsedSyntax,
+    compiler::{self, Entry}, execute::Environment, input, lock::provider_entry, render::ParsedSyntax,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -149,6 +149,20 @@ impl Materializer<'_, '_> {
             .index
             .symbol_at(module, span)
             .or_else(|| inherited.cloned())
+            .or_else(|| {
+                // The old finite #if/#for selector may lift a parsed child
+                // declaration into the selected module. It is still anchored
+                // in its original, frozen meta item; do not mint a new symbol
+                // for a declaration generated in the current batch.
+                let original = self.parsed.iter().find(|parsed| parsed.module.id == module)?;
+                original.module.items.iter().find_map(|item| {
+                    (matches!(item.kind, s::ItemKind::Meta(s::MetaItem::If { .. } | s::MetaItem::For { .. }))
+                        && item.span.file == span.file
+                        && item.span.start <= span.start
+                        && span.end <= item.span.end)
+                        .then(|| self.environment.index.symbol_at(module, item.span)).flatten()
+                })
+            })
             .ok_or_else(|| category("CT expression has no frozen declaration owner", span))
     }
     fn reject_alias_cycle(&self, owner: &CtSymbolId, expression: &s::Expr) -> CompileResult<()> {
@@ -586,6 +600,22 @@ impl Materializer<'_, '_> {
                 }
                 errors
             })
+    }
+    fn uses_ct_domain(&mut self, module: ModuleId, expression: &s::Expr) -> CompileResult<bool> {
+        let syntax = self.parsed.iter().map(|parsed| &parsed.module).collect::<Vec<_>>();
+        let modules = self.environment.index.modules(self.sources, &syntax);
+        let parameters = self.runtime_scopes.iter().flat_map(|scope| scope.iter())
+            .map(|name| (name.clone(), CtTy::Scalar(CtScalarTy::Unit))).collect::<Vec<_>>();
+        let mut limits = self.environment.remaining_limits_for_input();
+        let before = limits.clone();
+        let result = compiler::uses_ct_domain(&modules, module, expression, &parameters, &mut limits);
+        self.environment.budget.reserve_analysis_work(
+            before.max_analysis_steps.saturating_sub(limits.max_analysis_steps) as u64)?;
+        self.environment.budget.reserve_generated_nodes(
+            before.max_nodes.saturating_sub(limits.max_nodes) as u64)?;
+        self.environment.budget.reserve_temporary_bytes(
+            before.max_source_bytes.saturating_sub(limits.max_source_bytes) as u64)?;
+        result
     }
     fn provider(
         &mut self,
@@ -1327,6 +1357,12 @@ impl Materializer<'_, '_> {
                 ));
             }
             s::ExprKind::MetaEval(inner) => {
+                if !self.uses_ct_domain(module, inner)? {
+                    // Ordinary scalar, Copy record, enum and opaque CT values
+                    // retain the established producer and receiving type
+                    // context. Selection happens before either VM runs.
+                    return Ok(());
+                }
                 let value = self.expression_value(module, owner, inner, None)?;
                 let CtValue::Scalar(scalar) = value else {
                     return Err(runtime(

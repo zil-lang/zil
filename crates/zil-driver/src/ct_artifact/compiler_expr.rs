@@ -279,7 +279,15 @@ impl Builder<'_, '_> {
                         | BinaryOp::GreaterEqual
                 );
                 let lhs_expected = if compare { None } else { expected };
-                let lhs = self.expr(left, lhs_expected, depth + 1)?;
+                let hint = if lhs_expected.is_none() {
+                    match self.operand_hint(left, depth + 1)? {
+                        Some(ty) => Some(ty),
+                        None => self.operand_hint(right, depth + 1)?,
+                    }
+                } else {
+                    None
+                };
+                let lhs = self.expr(left, lhs_expected.or(hint.as_ref()), depth + 1)?;
                 let rhs = self.expr(right, Some(&lhs.ty), depth + 1)?;
                 let integer = matches!(
                     lhs.ty,

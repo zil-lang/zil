@@ -220,6 +220,31 @@ impl<'c, 'a> Builder<'c, 'a> {
         }
         Ok(None)
     }
+    pub(super) fn operand_hint(&mut self, expression: &s::Expr, depth: usize) -> R<Option<CtTy>> {
+        self.compiler.budget.depth(depth, expression.span)?;
+        match &expression.kind {
+            s::ExprKind::Name(name) => {
+                for scope in self.scopes.iter().rev() {
+                    for binding in scope.bindings.iter().rev() {
+                        self.compiler.budget.work(1, expression.span)?;
+                        if binding.name == *name {
+                            self.compiler.budget.ty(&binding.ty, 0, expression.span)?;
+                            return Ok(Some(binding.ty.clone()));
+                        }
+                    }
+                }
+                Ok(None)
+            }
+            s::ExprKind::Group(inner) | s::ExprKind::Unary { operand: inner, .. } => {
+                self.operand_hint(inner, depth + 1)
+            }
+            s::ExprKind::Binary { left, right, .. } => match self.operand_hint(left, depth + 1)? {
+                Some(ty) => Ok(Some(ty)),
+                None => self.operand_hint(right, depth + 1),
+            },
+            _ => Ok(None),
+        }
+    }
     pub fn has_local(&mut self, name: &str, span: Span) -> R<bool> {
         for scope in self.scopes.iter().rev() {
             for binding in &scope.bindings {
@@ -759,7 +784,11 @@ impl Builder<'_, '_> {
             right,
         } = &iterable.kind
         {
-            let initial = self.expr(left, None, depth + 1)?;
+            let hint = match self.operand_hint(left, depth + 1)? {
+                Some(ty) => Some(ty),
+                None => self.operand_hint(right, depth + 1)?,
+            };
+            let initial = self.expr(left, hint.as_ref(), depth + 1)?;
             let bound = self.expr(right, Some(&initial.ty), depth + 1)?;
             if !matches!(
                 initial.ty,

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use zil_base::{FileId, Fingerprint, ModuleId, RULE_VERSION, SourceUnit};
-use zil_driver::SyntaxLock;
+use zil_driver::{CompileOptions, ProjectSources, Stage, SyntaxLock, compile_project};
 
 fn lock_for(source: &SourceUnit) -> String {
     let hash = source.fingerprint();
@@ -63,4 +63,20 @@ fn lock_rejects_duplicate_stale_rule_and_grammar() {
         1,
     );
     assert!(SyntaxLock::parse(&stale).is_err());
+}
+
+#[test]
+fn mixed_type_materialization_keeps_ordinary_record_ct_in_its_original_domain() {
+    let modules = vec![
+        SourceUnit::new(FileId(0), ModuleId(0), "main.zil",
+            "import std.meta as meta\nimport model\nfn type_value()->Type=>i32\nfn main()->i32{let p=#(model.make());let x:#(type_value())=1;return p.n+x-2}"),
+        SourceUnit::new(FileId(1), ModuleId(1), "model.zil",
+            "pub struct Point{pub n:i32}pub fn make()->Point=>Point{n:1}"),
+    ];
+    let project = ProjectSources { root: ModuleId(0), modules,
+        paths: BTreeMap::from([(vec!["model".into()], ModuleId(1))]) };
+    let report = compile_project(&project, &CompileOptions { stop_after: Stage::Verify,
+        ..CompileOptions::default() });
+    assert_eq!(report.status, zil_base::ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
 }

@@ -458,18 +458,40 @@ impl CompilationSession {
             .map(|lock| lock.resolve(&project.modules, &syntax_modules, &project.paths))
             .transpose()?;
         let imports = resolve_imports(project, &parsed, &options.limits, locked.as_ref())?;
+        // Finite #if/#for declaration selection is part of Expand even for a
+        // Core stop. Ordinary value #(...) remains a Core CT expression and
+        // is only executed in the later Ct stage.
         let selection_needed = project
             .modules
             .iter()
             .zip(&parsed)
             .any(|(source, parsed)| super::ct_selection::needed(source, parsed));
+        // This is only a cheap candidate filter, never a CT authority or a
+        // classification result. A plain `#` belongs to the existing CT
+        // producer. The artifact materializer uses the source compiler's
+        // bounded domain classifier at each mixed-project expression.
         let artifact_needed = options.syntax_lock.is_some()
-            || parsed.iter().any(|parsed| {
-                parsed.tokens.iter().any(|token| {
-                    matches!(
-                        token.kind,
-                        zil_syntax::token::TokenKind::Symbol(zil_syntax::token::Symbol::Hash)
-                    )
+            || project.modules.iter().zip(&parsed).any(|(source, parsed)| {
+                let standard = parsed.module.items.iter().any(|item| matches!(&item.kind,
+                    ast::ItemKind::Import(import) if matches!(import.path.as_slice(),
+                        [a, b] if a == "std" && (b == "meta" || b == "syntax"))));
+                let typed_hash = {
+                    use zil_syntax::token::{Symbol, TokenKind};
+                    let mut previous = None;
+                    let mut found = false;
+                    for token in parsed.tokens.iter().filter(|token| !token.is_trivia()) {
+                        if token.kind == TokenKind::Symbol(Symbol::Hash)
+                            && matches!(previous, Some(TokenKind::Symbol(Symbol::Colon | Symbol::Arrow))) {
+                            found = true;
+                            break;
+                        }
+                        previous = Some(token.kind);
+                    }
+                    found
+                };
+                standard || typed_hash || parsed.tokens.iter().any(|token| {
+                    token.kind == zil_syntax::token::TokenKind::Identifier
+                        && matches!(token.text(&source.text), "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit")
                 })
             });
         let (raw, expand_snapshot) = self.query(
@@ -945,6 +967,13 @@ fn resolve_imports(
                 }
                 continue;
             }
+            if import.syntax && locked.is_none() {
+                return Err(reject(
+                    "E-SYNTAX-LOCK-MISSING",
+                    Some(item.span),
+                    "syntax provider use needs an explicit lock",
+                ));
+            }
             let id = project.paths.get(&import.path).copied().ok_or_else(|| {
                 reject(
                     "E-MODULE-NOT-FOUND",
@@ -1306,6 +1335,13 @@ fn load_sources(
                 continue;
             };
             unsupported_import(item, import)?;
+            if import.syntax && options.syntax_lock.is_none() {
+                return Err(reject(
+                    "E-SYNTAX-LOCK-MISSING",
+                    Some(item.span),
+                    "syntax provider use needs an explicit lock",
+                ));
+            }
             if import.path.is_empty() || import.path.iter().any(|s| !valid_segment(s)) {
                 return Err(reject(
                     "E-MODULE-PATH",
