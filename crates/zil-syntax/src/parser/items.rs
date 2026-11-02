@@ -55,10 +55,10 @@ impl Parser<'_> {
         } else {
             self.expect_word("import")?;
         }
-        let mut path = vec![self.ident()?];
+        let mut path = vec![self.ident_kind(QuoteNameNamespace::Module, QuoteNameRole::Reference)?];
         while self.eat(Symbol::Dot) {
             self.newlines();
-            path.push(self.ident()?);
+            path.push(self.ident_kind(QuoteNameNamespace::Module, QuoteNameRole::Reference)?);
         }
         if self.at(Symbol::Slash) {
             return self.fail(
@@ -67,7 +67,7 @@ impl Parser<'_> {
             );
         }
         let alias = if self.eat_word("as") {
-            Some(self.ident()?)
+            Some(self.ident_kind(QuoteNameNamespace::Module, QuoteNameRole::Binding)?)
         } else if syntax {
             return self.fail(
                 "E-PARSE-SYNTAX-ALIAS",
