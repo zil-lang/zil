@@ -12,3 +12,21 @@
 
 292施工仅改相关泛型构造上下文及既有功能测试；非作者绑定精确提交审核。
 有用源与精简结果入库，不添加工单命名Cargo目标或原始产物归档。
+
+实现片 `c2e5372e`：共享构造上下文仅在一个名义候选时沿用该侧约束；
+若两侧是同名enum，必须先由显式类型实参或实际payload建立完整类型，
+再按完整类型恰好匹配一侧。不会尝试两侧hint后挑选可用结果。定义检查
+与实际实例化使用同一检查；unused声明仍核查。原四份源字节冻结在
+`tests/generic-error-enum`，旧资源准备中direct Fault原负例按本片合同晋升。
+
+target-292/jobs1限定结果：Expand generics 9/0、既有enum预算2/0，
+driver generics（llvm-api配置）7/0、generic_regressions 9/0；限定Clippy
+`-D warnings`及fmt通过。新原源Expand最小steps522/nodes214，N−1
+均ResourceLimit，N与fresh相同；旧scalar288/144、owned554/279、
+local558/281及enum336/126保持原值。
+
+机器判据直接取源操作：direct Fault、普通helper、显式Fault局部三写法，
+各运行成功/错误两分支；成功输出`7`且exit0，错误无输出且exit1。
+Clang和LLVM API各O0/O2，共24次运行全部符合（重复检查不计新增覆盖）；
+报告backend等于请求，fallback为空。原四份冻结源均VerifySuccess、
+verification_runs=1。无正式全量、公开IR/schema或默认限额变更。
