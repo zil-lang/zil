@@ -68,6 +68,16 @@ fn source_derived_dispatch_roles_and_trace_are_reconstructed() {
         }
     }
     assert!(zil_analyze::analyze(&omitted, &Limits::default()).is_err());
+    let mut wrong_entry = typed(&format!(
+        "{DATA} fn main()->i32{{var n=0;var h=move(e:Event)->Event=>{{n+=1;return e}};let a=h(event(1));return a.r.n}}"
+    ));
+    let definition = wrong_entry
+        .closures
+        .iter_mut()
+        .find(|c| c.kind == CallableKind::FnMut)
+        .unwrap();
+    definition.kind = CallableKind::Fn;
+    assert!(zil_analyze::analyze(&wrong_entry, &Limits::default()).is_err());
 }
 
 #[test]
