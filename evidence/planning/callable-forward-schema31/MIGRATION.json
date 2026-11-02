@@ -1,0 +1,122 @@
+{
+  "status": "PreparedForCandidateAdoption",
+  "scope": "Fourteen current parent cards only; pending integration; historical impl cards untouched",
+  "hashes": {
+    "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+    "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93"
+  },
+  "cards": [
+    {
+      "path": ".task/B0.md",
+      "old_revision": 8,
+      "new_revision": 9,
+      "status": "Doing",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/T01.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/T02.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/T03.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/T04.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/T05.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/T06.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/T07.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/T08.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/T09.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/W1.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/W2.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/W3.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    },
+    {
+      "path": ".task/W4.md",
+      "old_revision": 7,
+      "new_revision": 8,
+      "status": "Planned",
+      "old_spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "old_normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf"
+    }
+  ]
+}
