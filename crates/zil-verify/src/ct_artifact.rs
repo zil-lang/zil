@@ -343,16 +343,6 @@ fn check_templates(raw: &CtArtifactProgram, authority: &impl CtArtifactAuthority
             return Err(reject(None, "CT quote definition is not authenticated"));
         }
         let tree = &template.syntax;
-        if !matches!(
-            tree.category,
-            CtSyntaxCategory::StmtList | CtSyntaxCategory::ItemList
-        ) && tree.roots.len() != 1
-        {
-            return Err(reject(
-                None,
-                "CT expression/type template needs exactly one root",
-            ));
-        }
         for (index, origin) in tree.origins.iter().enumerate() {
             if let Some(parent) = origin.parent
                 && parent.0 as usize >= index
@@ -1610,6 +1600,42 @@ mod tests {
         assert_eq!(p.snapshot.ready, CtReadyStage::Tokens);
         let result = check(p);
         assert!(result.is_ok(), "{result:?}");
+    }
+    #[test]
+    fn lexical_roots_of_expression_template_are_not_ast_count() {
+        let mut p = raw();
+        let span = Span::default();
+        p.templates.push(CtTemplate {
+            definition: symbol(),
+            syntax: CtSyntaxTree {
+                category: CtSyntaxCategory::Expr,
+                nodes: ["x", "+", "1"]
+                    .into_iter()
+                    .map(|text| {
+                        CtSyntaxNode::Token(CtToken {
+                            class: CtTokenClass::Punctuation,
+                            text: text.into(),
+                            origin: CtOriginId(0),
+                            name: None,
+                        })
+                    })
+                    .collect(),
+                roots: vec![CtSyntaxNodeId(0), CtSyntaxNodeId(1), CtSyntaxNodeId(2)],
+                origins: vec![CtOrigin {
+                    span,
+                    parent: None,
+                    role: CtOriginRole::QuoteDefinition,
+                }],
+            },
+            holes: vec![],
+        });
+        assert!(check(p.clone()).is_ok());
+        p.templates[0].syntax.roots[2] = CtSyntaxNodeId(3);
+        assert!(
+            check(p).unwrap_err()[0]
+                .message
+                .contains("root is out of range")
+        );
     }
     #[test]
     fn rejects_query_descriptor_forgery_through_record() {
