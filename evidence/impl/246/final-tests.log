@@ -1,0 +1,127 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-246/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 1.55s
+     Running tests/impl193_slice_arguments.rs (/workspace/.zil-env/target-246/debug/deps/impl193_slice_arguments-617a68e833ca1601)
+
+running 7 tests
+test explicit_mutable_arguments_do_not_upgrade_shared_inputs ... ok
+test helper_actual_capture_and_slice_backing_are_instantiated_together ... ok
+test new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes ... ok
+test current_call_checks_shared_exclusive_and_whole_backing_aliases ... ok
+test original_nineteen_preflight_inputs_now_reach_the_promised_stage_unchanged ... ok
+test slice_parameter_index_and_range_checks_reach_machine_traps ... ok
+test sequential_slice_reborrows_and_dead_last_use_preserve_backing ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/impl194_copy_callable.rs (/workspace/.zil-env/target-246/debug/deps/impl194_copy_callable-f7a75fc4d4937207)
+
+running 19 tests
+test copy_bound_does_not_admit_other_categories_or_resource_descriptions ... ok
+test copy_nested_instance_fix_does_not_change_the_store_element_profile ... ok
+test closure_environment_is_not_inferred_to_be_a_copy_code_pointer ... ok
+test explicit_copy_addresses_and_current_capture_conflicts_use_existing_permissions ... ok
+test borrowed_lending_windows_are_not_extended_by_copy_data ... ok
+test explicit_result_context_can_select_copy_data_without_guessing_from_closure_layout ... ok
+test four_module_instantiation_retains_definition_and_nominal_types ... ok
+test copy_error_results_and_early_returns_keep_environment_and_local_cleanup_order ... ok
+test nested_symbolic_copy_constraints_and_complete_callable_bound_are_substituted ... ok
+test mutable_and_consuming_environments_keep_their_real_cleanup ... ok
+test newly_opened_two_roles_keep_original_definitions_and_exercise_actual_calls ... ok
+test finite_nested_same_nominal_is_not_a_recursive_layout ... ok
+test ordinary_copy_bound_duplicates_only_its_declared_structural_values ... ok
+test same_closure_extra_data_does_not_erase_width_or_nominal_identity ... ok
+test unbounded_data_mixed_modes_and_recursion_remain_closed ... ok
+test uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities ... ok
+test original_audit_map_and_reordered_parameters_reach_native ... ok
+test same_mode_finite_and_flow_nesting_preserves_copy_loop_state ... ok
+test record_enum_tuple_array_error_and_function_pointer_are_real_copy_shapes ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.75s
+
+     Running tests/impl200_state_source.rs (/workspace/.zil-env/target-246/debug/deps/impl200_state_source-cf2ef9e845031602)
+
+running 14 tests
+test field_identity_and_instance_preparation_have_actual_budget_boundaries ... ok
+test actual_copy_can_fill_two_inputs_but_noncopy_cannot_duplicate_responsibility ... ok
+test constructor_arguments_prepare_once_and_only_acquired_values_clean_on_error ... ok
+test lending_fields_keep_independent_output_origins_and_parent_obligations ... ok
+test only_the_new_two_input_constructor_limits_extra_parameters ... ok
+test original_three_inputs_reach_types_unchanged ... ok
+test ordinary_type_families_aliases_and_lexical_callable_names_stay_distinct ... ok
+test original_three_inputs_verify_and_execute_unchanged ... ok
+test uncalled_definitions_and_closed_owning_shapes_do_not_gain_permissions ... ok
+test uncalled_dual_type_constructor_is_accepted_since_203 ... ok
+test uncalled_state_and_replacement_is_accepted_since_205 ... ok
+test once_and_fn_to_once_use_the_selected_field_and_clean_the_other ... ok
+test sibling_fields_remain_disjoint_while_same_field_and_parent_windows_reject ... ok
+test fnmut_fields_keep_distinct_state_through_complete_moves_and_loop_exits ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.34s
+
+     Running tests/impl206_budget.rs (/workspace/.zil-env/target-246/debug/deps/impl206_budget-ab91312425692280)
+
+running 2 tests
+old-flat: Types=418, Analyze=8673
+test old_flat_package_records_exact_phase_boundaries ... ok
+mixed: Types=753, Analyze=21120
+whole: Types=796, Analyze=27114
+wrappers: Types=752, Analyze=26951
+test new_product_leaf_tables_have_exact_fresh_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/impl240_front.rs (/workspace/.zil-env/target-246/debug/deps/impl240_front-5548bb9b4cadafe4)
+
+running 11 tests
+test ordinary_sum_does_not_acquire_store_element_or_resource_header_permission ... ok
+test copy_generic_enum_is_preserved_but_new_owning_generic_enum_is_closed ... ok
+test resource_field_requires_explicit_ownership_and_cannot_upgrade_ref ... ok
+test product_sum_fields_and_error_payloads_are_complete_values ... ok
+test right_nested_pattern_uses_local_observation_and_real_reverse_dfs_publication ... ok
+test same_module_sum_crosses_an_actual_project_import ... ok
+test right_nested_runtime_tags_leave_payloads_in_recursive_declaration_order ... ok
+test original_q_sources_reach_types_without_source_changes ... ok
+test unused_new_definitions_keep_exact_field_and_variant_names ... ok
+test scrutinee_copy_scratch_cleans_before_hidden_owner_registration ... ok
+Types nested owning Sum exact N=5594; old Product N=418
+test old_product_type_budget_and_new_sum_boundary_retry_are_exact ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/impl240_helper_sum.rs (/workspace/.zil-env/target-246/debug/deps/impl240_helper_sum-2afa38dc8708963a)
+
+running 10 tests
+test a_plain_resource_descriptor_parameter_cannot_use_the_enum_ownership_route ... ok
+test managed_store_pattern_relay_preserves_an_incoming_carrier ... ok
+test module_declared_field_ownership_crosses_the_real_helper_instantiation ... ok
+test actual_give_resource_results_retain_ownership_through_local_bindings ... ok
+test old_explicit_give_resource_parameter_control_remains_legal ... ok
+test real_enum_managed_name_binding_remains_owned_in_a_finite_helper ... ok
+test unused_helper_checks_real_marker_and_actual_linear_give ... ok
+test unused_helpers_cannot_duplicate_or_rematch_complete_owned_sums ... ok
+test concrete_enum_field_uses_its_declaration_scope_when_helper_binder_has_same_name ... ok
+test actual_resource_descriptions_keep_live_roots_through_aliases_and_joins ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/impl246_front.rs (/workspace/.zil-env/target-246/debug/deps/impl246_front-19cf34899cb59c48)
+
+running 12 tests
+test a_later_argument_failure_keeps_the_callee_and_first_argument_in_real_cleanup_slots ... ok
+test a_closure_in_an_ordinary_owned_error_result_function_preserves_both_branches ... ok
+test closed_owned_dispatch_crosses_real_model_and_helper_modules ... ok
+test concrete_sum_error_union_and_store_product_signatures_are_real_data ... ok
+test fresh_owned_arguments_do_not_consume_the_fn_or_fnmut_environment ... ok
+test raw_unused_helper_signature_cannot_forge_a_data_or_passing_qualification ... ok
+test owned_signature_does_not_open_addresses_managed_roots_or_capture_profiles ... ok
+test original_three_callback_sources_reach_types_without_changes ... ok
+registered Copy helper Expand 489/Types 420; N-1 and fresh N
+test unused_owned_dispatch_definitions_are_checked_and_can_discard_the_callback ... ok
+test wrapper_data_and_callback_signatures_are_checked_independently ... ok
+registered Copy helper Expand 665/Types 610; N-1 and fresh N
+test registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries ... ok
+owned dispatch Types N=1497, Expand N=1124; N-1 ResourceLimit and fresh N identity
+test dispatch_has_fresh_exact_types_and_expand_work_boundaries ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

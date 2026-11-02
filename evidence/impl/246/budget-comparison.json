@@ -1,0 +1,156 @@
+{
+  "scope": "Standalone source-to-Expand/Types cost evidence; no native callback execution",
+  "baseline_source_identity": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+  "baseline_build": "Root-owned 0140/77b health build, Rust production source unchanged from 81b7ae0c; root confirmed read-only artifact provenance",
+  "candidate_source_commit": "b888bc853c6acef5ac5559850a9ca86f329c13ef",
+  "source": "evidence/impl/246/copy_enum_helper.zil",
+  "source_sha256": "90c3c8f22ea7b635e6af18637e552f8027b1266dbac09d1073cb17b139e2cf90",
+  "probe": "evidence/impl/246/budget_probe.rs",
+  "probe_sha256": "b6865b768394b70d7aef4044e901ecac87617f9547bf7629f5c4f1aec49fa8a7",
+  "runs": [
+    {
+      "label": "baseline",
+      "rlibs": {
+        "zil_base": {
+          "path": "/workspace/.zil-env/target/debug/deps/libzil_base-f8787e05901477bc.rlib",
+          "sha256": "d56d9621014935a2cf655ae5eee183d991dcc2ea907c2633a999313b86941baf"
+        },
+        "zil_ir": {
+          "path": "/workspace/.zil-env/target/debug/deps/libzil_ir-fcef0ed96d262ed9.rlib",
+          "sha256": "003d7b256917a9292b5e6ddfba1f6cfd9f3adbbce99b26763062670e11b0e339"
+        },
+        "zil_expand": {
+          "path": "/workspace/.zil-env/target/debug/deps/libzil_expand-99d8eb937b73e1b3.rlib",
+          "sha256": "fbb9eed4a62d7c67595b2d0d89193fcac4fd68f11d639297a7a30f6d48f9d78a"
+        },
+        "zil_types": {
+          "path": "/workspace/.zil-env/target/debug/deps/libzil_types-571f611b402b80ed.rlib",
+          "sha256": "65adffcd6fc58465a803229a69ee7fa4a75562a0cc0b34a24d93efc07d00be15"
+        },
+        "zil_syntax": {
+          "path": "/workspace/.zil-env/target/debug/deps/libzil_syntax-5e151b39b2246141.rlib",
+          "sha256": "ad7a0e071cdff180eded7266f4ba0dbe20931b964aab5927e87db36d535585ee"
+        }
+      },
+      "compile_command": [
+        "/workspace/.zil-env/cargo/bin/rustc",
+        "--edition=2024",
+        "evidence/impl/246/budget_probe.rs",
+        "-L",
+        "dependency=/workspace/.zil-env/target/debug/deps",
+        "--extern",
+        "zil_base=/workspace/.zil-env/target/debug/deps/libzil_base-f8787e05901477bc.rlib",
+        "--extern",
+        "zil_expand=/workspace/.zil-env/target/debug/deps/libzil_expand-99d8eb937b73e1b3.rlib",
+        "--extern",
+        "zil_types=/workspace/.zil-env/target/debug/deps/libzil_types-571f611b402b80ed.rlib",
+        "--extern",
+        "zil_syntax=/workspace/.zil-env/target/debug/deps/libzil_syntax-5e151b39b2246141.rlib",
+        "-o",
+        "/tmp/zil246-baseline-budget"
+      ],
+      "compile_exit": 0,
+      "execute_command": [
+        "/tmp/zil246-baseline-budget"
+      ],
+      "exit_code": 0,
+      "stdout": "evidence/impl/246/budget-baseline.stdout",
+      "stderr": "evidence/impl/246/budget-baseline.stderr",
+      "results": [
+        {
+          "case": "copy_scalar_helper",
+          "expand": 489,
+          "types": 420,
+          "n_minus_1": "ResourceLimit",
+          "fresh_n": "identical"
+        },
+        {
+          "case": "copy_enum_helper",
+          "expand": 649,
+          "types": 610,
+          "n_minus_1": "ResourceLimit",
+          "fresh_n": "identical"
+        },
+        {
+          "case": "old_flat_product",
+          "expand": 4,
+          "types": 418,
+          "n_minus_1": "ResourceLimit",
+          "fresh_n": "identical"
+        }
+      ]
+    },
+    {
+      "label": "candidate",
+      "rlibs": {
+        "zil_base": {
+          "path": "/workspace/.zil-env/target-246/debug/deps/libzil_base-f8787e05901477bc.rlib",
+          "sha256": "3c371dfab10c5a7545965753252c50bed1902babc9bec234ed6c86e950944b36"
+        },
+        "zil_ir": {
+          "path": "/workspace/.zil-env/target-246/debug/deps/libzil_ir-fcef0ed96d262ed9.rlib",
+          "sha256": "3e30a2879dae40b5d6c182f4db2ea3bb013eb6b95dc5e5592563f365823a2be5"
+        },
+        "zil_expand": {
+          "path": "/workspace/.zil-env/target-246/debug/deps/libzil_expand-99d8eb937b73e1b3.rlib",
+          "sha256": "31bfc4e36a782ebf0964f2c99ec9306ae9db4f37e83b09cf3d7a5278a9391f96"
+        },
+        "zil_types": {
+          "path": "/workspace/.zil-env/target-246/debug/deps/libzil_types-571f611b402b80ed.rlib",
+          "sha256": "0161f670a5c6c812605ccce5460f860ee8f4e9b0dc42c60b447cc84dc3d7dd5e"
+        },
+        "zil_syntax": {
+          "path": "/workspace/.zil-env/target-246/debug/deps/libzil_syntax-5e151b39b2246141.rlib",
+          "sha256": "4b5a2b1ef3f0371ad6449b912251fd156272844dfa0acba5cffcdac841070de4"
+        }
+      },
+      "compile_command": [
+        "/workspace/.zil-env/cargo/bin/rustc",
+        "--edition=2024",
+        "evidence/impl/246/budget_probe.rs",
+        "-L",
+        "dependency=/workspace/.zil-env/target-246/debug/deps",
+        "--extern",
+        "zil_base=/workspace/.zil-env/target-246/debug/deps/libzil_base-f8787e05901477bc.rlib",
+        "--extern",
+        "zil_expand=/workspace/.zil-env/target-246/debug/deps/libzil_expand-99d8eb937b73e1b3.rlib",
+        "--extern",
+        "zil_types=/workspace/.zil-env/target-246/debug/deps/libzil_types-571f611b402b80ed.rlib",
+        "--extern",
+        "zil_syntax=/workspace/.zil-env/target-246/debug/deps/libzil_syntax-5e151b39b2246141.rlib",
+        "-o",
+        "/tmp/zil246-candidate-budget"
+      ],
+      "compile_exit": 0,
+      "execute_command": [
+        "/tmp/zil246-candidate-budget"
+      ],
+      "exit_code": 0,
+      "stdout": "evidence/impl/246/budget-candidate.stdout",
+      "stderr": "evidence/impl/246/budget-candidate.stderr",
+      "results": [
+        {
+          "case": "copy_scalar_helper",
+          "expand": 489,
+          "types": 420,
+          "n_minus_1": "ResourceLimit",
+          "fresh_n": "identical"
+        },
+        {
+          "case": "copy_enum_helper",
+          "expand": 665,
+          "types": 610,
+          "n_minus_1": "ResourceLimit",
+          "fresh_n": "identical"
+        },
+        {
+          "case": "old_flat_product",
+          "expand": 4,
+          "types": 418,
+          "n_minus_1": "ResourceLimit",
+          "fresh_n": "identical"
+        }
+      ]
+    }
+  ]
+}

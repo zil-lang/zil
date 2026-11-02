@@ -1,0 +1,3 @@
+{"case":"copy_scalar_helper","expand":489,"types":420,"n_minus_1":"ResourceLimit","fresh_n":"identical"}
+{"case":"copy_enum_helper","expand":649,"types":610,"n_minus_1":"ResourceLimit","fresh_n":"identical"}
+{"case":"old_flat_product","expand":4,"types":418,"n_minus_1":"ResourceLimit","fresh_n":"identical"}

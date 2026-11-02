@@ -1,0 +1,52 @@
+{
+  "scope": "Development diagnostics retained from tool output; these summaries are not replacements for the final raw logs or original planning rejection receipts.",
+  "cargo_test_nonpassing_invocations": [
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl246_front -- --nocapture",
+      "stage": "first five-test expansion",
+      "exit_code": 101,
+      "tests": {"passed": 3, "failed": 2},
+      "diagnostics": [
+        "Expand Unsupported E-UNSUPPORTED: generic managed give requires an owning State profile",
+        "Expand SafeReject E-GENERIC-ARGUMENT: generic parameter does not match argument type"
+      ],
+      "resolution": "Admitted the single owned FnOnce dispatch's ordinary manages-field flow; represented the ErrorUnion argument as an explicitly typed complete union. Final source regression covers both."
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl246_front -- --nocapture",
+      "stage": "first work-budget fixture compile",
+      "exit_code": 101,
+      "executed_tests": 0,
+      "diagnostic": "Rust E0425: cannot find function expand_with_limits in crate zil_expand",
+      "resolution": "Used the existing expand_with_map_limits API. This fixture compile failure was not a language rejection."
+    },
+    {
+      "command": "cargo test --offline --locked -p zil-driver --test impl246_front -- --nocapture",
+      "stage": "first eleven-test cross-module run",
+      "exit_code": 101,
+      "tests": {"passed": 10, "failed": 1},
+      "diagnostic": "Assertion looked for source name run::<env in normalized helper names after successful source-to-Types checking",
+      "resolution": "Asserted the real published one-role callable contract; implementation names use @moduleN:helperN:envN."
+    }
+  ],
+  "other_findings": [
+    {
+      "origin": "Non-author /root/callback_consumer review of 2aa6d9a78",
+      "finding": "A moved shared Product address capture with an owned callback result was incorrectly accepted",
+      "source_near_neighbor": "resource R{n:i32}package Event{manages r:R;n:i32}fn main(){let parent=Event{r:R{n:1},n:2};let view=&parent;let f=move(event:Event)->Event=>{let n=view.n;return event}}",
+      "resolution": "The new owned-result path independently checks is_shared_package_address as well as directly borrowed Product captures; final rejection is Types Unsupported: shared Product capture environments require Copy results."
+    },
+    {
+      "origin": "Standalone budget probe before sourcing the configured environment",
+      "exit_code": 1,
+      "diagnostic": "could not create home directory: /home/agent/.rustup: Read-only file system",
+      "resolution": "Sourced /workspace/.zil-env/env.sh and reran against exact named read-only baseline rlibs; successful commands and hashes are in budget-comparison.json."
+    },
+    {
+      "origin": "Baseline/current Copy Enum plus ordinary T cost comparison",
+      "finding": "Expand 649 became 665; Types remained 610",
+      "resolution": "Root registered the necessary bounded unused-definition proof in changes/246-250-owned-callback.md. No refunds, skipped validation, cache or raised defaults."
+    }
+  ],
+  "diagnostic_migration": "The early checkpoint rejected two-F owned signatures in Expand; the final checker leaves existing multiple-F Copy fees unchanged and rejects the same closed-profile violation in Types validate_template. Acceptance is unchanged."
+}

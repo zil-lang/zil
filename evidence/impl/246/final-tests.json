@@ -1,0 +1,76 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "impl246_front",
+    "--test",
+    "impl240_front",
+    "--test",
+    "impl240_helper_sum",
+    "--test",
+    "impl194_copy_callable",
+    "--test",
+    "impl193_slice_arguments",
+    "--test",
+    "impl206_budget",
+    "--test",
+    "impl200_state_source",
+    "--",
+    "--nocapture"
+  ],
+  "source_commit": "b888bc853c6acef5ac5559850a9ca86f329c13ef",
+  "started_at": "2026-11-02T08:24:27.196079+00:00",
+  "scope": "246 affected front-end/profile tests; no formal full suite",
+  "exit_code": 0,
+  "elapsed_seconds": 6.504,
+  "test_group_results": [
+    {
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "passed": 14,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    }
+  ],
+  "stdout_stderr": "evidence/impl/246/final-tests.log"
+}
