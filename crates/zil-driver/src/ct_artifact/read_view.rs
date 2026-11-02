@@ -366,6 +366,9 @@ impl CtReadView for FrozenReadView<'_> {
             }
             CtQueryKind::ImplIndex => return Err(phase("ImplIndexReady has not completed for this generation batch")),
             CtQueryKind::Layout => {
+                if self.snapshot.target_fingerprint != Some(self.target.fingerprint()) {
+                    return Err(self.unready("LayoutReady target does not match this immutable CT snapshot"));
+                }
                 let (ty, nominal) = self.nominal_root(args.first().ok_or_else(|| error("E-CT-QUERY-ARG", "layout query needs a type"))?)?;
                 self.nominal(requester, nominal)?;
                 let ready = self.shape.ok_or_else(|| self.unready("LayoutReady has not completed for this generation batch"))?;
