@@ -61,6 +61,7 @@ mod foreign;
 mod helper_tests;
 mod helpers;
 mod native_values;
+mod owned_callbacks;
 #[cfg(test)]
 mod package_tests;
 mod packages;
