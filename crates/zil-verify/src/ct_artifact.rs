@@ -1356,16 +1356,9 @@ fn check_instruction(
             CtTy::Ident
         }
         K::Query { kind, arguments } => {
-            let required_stage = match kind {
-                CtQueryKind::Shape | CtQueryKind::Field => CtReadyStage::Shape,
-                CtQueryKind::ImplIndex => CtReadyStage::ImplIndex,
-                CtQueryKind::Layout => CtReadyStage::Layout,
-            };
             expect(
-                raw.snapshot.ready as u8 >= required_stage as u8
-                    && raw.snapshot.requested_queries.contains(kind)
-                    && authority.authorize_query(&function.definition, *kind),
-                "CT query is not in the frozen stage grant",
+                authority.authorize_query(&function.definition, *kind),
+                "CT query is not permitted at this lexical definition",
             )?;
             expect(
                 !arguments.is_empty() && *value(arguments[0])? == CtTy::Type,
@@ -1574,7 +1567,7 @@ mod tests {
         assert!(check(p).unwrap_err()[0].message.contains("uninitialized"));
     }
     #[test]
-    fn rejects_early_shape_query_even_if_raw_requests_it() {
+    fn admits_unexecuted_late_query_for_runtime_stage_check() {
         let mut p = raw();
         p.functions[0].values[2] = CtTy::ShapeInfo;
         p.functions[0].result_type = CtTy::ShapeInfo;
@@ -1586,7 +1579,9 @@ mod tests {
             arguments: vec![CtValueId(0)],
         };
         p.snapshot.requested_queries.push(CtQueryKind::Shape);
-        assert!(check(p).unwrap_err()[0].message.contains("stage grant"));
+        // This function may be present but uncalled at a Shape-unready stage.
+        // The frozen reader checks stage and grants only when Query executes.
+        assert!(check(p).is_ok());
     }
     #[test]
     fn rejects_query_descriptor_forgery_through_record() {
