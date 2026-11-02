@@ -85,6 +85,56 @@ fn generic_enum_error_injection_preserves_native_error_and_success_arms() {
             }
         }
     }
+    // Preserve the frozen inputs; expose their union return at the native
+    // entry so the observed error tag depends on the generic constructor.
+    for original in [
+        include_str!("../../../tests/generic-error-enum/unique-context.zil"),
+        include_str!("../../../tests/generic-error-enum/unique-context-if.zil"),
+    ] {
+        let main = "fn main()->i32{let f=()->i32=>1;run(f);return 0}";
+        assert_eq!(original.matches(main).count(), 1);
+        let text = original.replace(
+            main,
+            "fn main()->Choice<i32>!i32{let f=()->i32=>1;return run(f)}",
+        );
+        for backend in &backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let out = std::env::temp_dir().join(format!(
+                    "zil-generic-enum-unique-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                fs::create_dir(&out).unwrap();
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        backend: *backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(out.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, *backend);
+                assert!(codegen.fallback.is_none());
+                let actual = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(actual.status.code(), Some(1), "{text}: {actual:?}");
+                assert!(actual.stdout.is_empty(), "{actual:?}");
+                assert!(actual.stderr.is_empty(), "{actual:?}");
+                fs::remove_dir_all(out).unwrap();
+            }
+        }
+    }
 }
 
 static NEXT: AtomicU64 = AtomicU64::new(0);

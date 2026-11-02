@@ -38,3 +38,8 @@ Choice.None（含括号）现在保持上下文，异实例两候选None仍拒�
 同一唯一Choice实例的If两枝沿相同上下文核查；已specialize的首枝名
 不能让第二枝丢失原union上下文。unique-context-if原源也进入Verify控制，
 不新增不同E/T混合条件结果规则。上述限定目标及24机器运行再次重放通过。
+
+最终机器近邻单独新增8次：unique-context与unique-context-if文件字节不变，
+仅派生main返回Choice<i32>!i32并直接return run(f)，Clang/API各O0/O2均
+实际exit1、stdout/stderr为空，backend身份和无fallback断言通过。
+原24场景重放保持，不重复计新增覆盖；限定功能1/0、Clippy/fmt通过。
