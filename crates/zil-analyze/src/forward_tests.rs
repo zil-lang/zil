@@ -418,3 +418,305 @@ fn nested_return_substitutes_actual_source_and_never_upgrades_outer_once() {
     f.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
     rejected(&m);
 }
+
+#[test]
+fn moving_a_returned_callable_cannot_revive_a_borrow_of_its_old_position() {
+    let mut m = base(CallableKind::FnMut);
+    let f = &mut m.functions[1];
+    f.values = vec![
+        Type::Closure(ClosureId(0)),
+        Type::Address {
+            mutable: true,
+            inner: Box::new(Type::Closure(ClosureId(0))),
+        },
+        Type::I32,
+    ];
+    let mut instructions = vec![
+        enter(),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::BorrowLocalMut { local: LocalId(1) },
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::CallClosureBorrowed {
+                callee: ValueId(1),
+                kind: CallableKind::FnMut,
+                arguments: vec![],
+            },
+        ),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::TakeLocal { local: LocalId(1) },
+        ),
+    ];
+    instructions.extend(exit());
+    f.blocks[0].instructions = instructions;
+    f.callable_contract.as_mut().unwrap().traces = CallableTraces::Finite(vec![CallableTrace {
+        calls: vec![CallEvent {
+            parameter: 1,
+            kind: CallableKind::FnMut,
+        }],
+        exit: CallableExit::Return,
+    }]);
+    accepted(&m);
+    m.functions[1].blocks[0].instructions.swap(2, 3);
+    rejected(&m);
+}
+
+fn owned_slot() -> TypedModule {
+    let mut m = base(CallableKind::FnMut);
+    let payload = Type::Record {
+        name: "Token".into(),
+        fields: vec![("n".into(), Type::I32)],
+    };
+    m.resources.push(ResourceDefinition {
+        name: "Token".into(),
+        payload: payload.clone(),
+        teardown: None,
+    });
+    m.closures[0].captures = vec![Type::Managed(Box::new(payload))];
+    let f = &mut m.functions[1];
+    f.callable_return_contract.as_mut().unwrap().cleanup = vec![0];
+    let slot = Type::Array {
+        element: Box::new(Type::Closure(ClosureId(0))),
+        length: 1,
+    };
+    f.locals.push(local(2, slot.clone()));
+    f.values = vec![
+        Type::Closure(ClosureId(0)),
+        slot,
+        Type::Address {
+            mutable: true,
+            inner: Box::new(Type::Closure(ClosureId(0))),
+        },
+        Type::I32,
+        Type::Closure(ClosureId(0)),
+    ];
+    let mut instructions = vec![
+        enter(),
+        op(None, InstructionKind::StorageLive(LocalId(2))),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::TakeLocal { local: LocalId(1) },
+        ),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::MakeOwnedArray {
+                elements: vec![ValueId(0)],
+            },
+        ),
+        op(
+            None,
+            InstructionKind::Store {
+                local: LocalId(2),
+                value: ValueId(1),
+            },
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::BorrowOwnedArrayElement {
+                local: LocalId(2),
+                index: 0,
+                mutable: true,
+            },
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::CallClosureBorrowed {
+                callee: ValueId(2),
+                kind: CallableKind::FnMut,
+                arguments: vec![],
+            },
+        ),
+        op(
+            Some(ValueId(4)),
+            InstructionKind::TakeOwnedArrayElement {
+                local: LocalId(2),
+                index: 0,
+            },
+        ),
+        op(None, InstructionKind::DropOwnedArray { local: LocalId(2) }),
+        op(None, InstructionKind::StorageDead(LocalId(2))),
+    ];
+    instructions.extend(exit());
+    f.blocks[0] = block(0, instructions, Terminator::Return(Some(ValueId(4))));
+    f.callable_contract.as_mut().unwrap().traces = CallableTraces::Finite(vec![CallableTrace {
+        calls: vec![CallEvent {
+            parameter: 1,
+            kind: CallableKind::FnMut,
+        }],
+        exit: CallableExit::Return,
+    }]);
+    m
+}
+
+#[test]
+fn internal_owned_slot_has_per_element_identity_liveness_and_old_position_windows() {
+    let m = owned_slot();
+    accepted(&m);
+    let mut stale = m.clone();
+    stale.functions[1].blocks[0].instructions.swap(6, 7);
+    rejected(&stale);
+    let mut duplicate = m.clone();
+    duplicate.functions[1]
+        .values
+        .push(Type::Closure(ClosureId(0)));
+    duplicate.functions[1].blocks[0].instructions.insert(
+        8,
+        op(
+            Some(ValueId(5)),
+            InstructionKind::TakeOwnedArrayElement {
+                local: LocalId(2),
+                index: 0,
+            },
+        ),
+    );
+    rejected(&duplicate);
+    let mut wrong = m;
+    wrong.functions[1].blocks[0].instructions[7].kind = InstructionKind::TakeOwnedArrayElement {
+        local: LocalId(2),
+        index: 1,
+    };
+    rejected(&wrong);
+}
+
+#[test]
+fn internal_owned_slot_can_restore_across_loop_but_not_replace_parameter_with_fresh_same_type() {
+    let mut m = owned_slot();
+    let f = &mut m.functions[1];
+    f.values.extend([Type::Closure(ClosureId(0)), Type::Bool]);
+    let initial = f.blocks[0].instructions[..5].to_vec();
+    let loop_body = vec![
+        op(
+            Some(ValueId(2)),
+            InstructionKind::BorrowOwnedArrayElement {
+                local: LocalId(2),
+                index: 0,
+                mutable: true,
+            },
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::CallClosureBorrowed {
+                callee: ValueId(2),
+                kind: CallableKind::FnMut,
+                arguments: vec![],
+            },
+        ),
+        op(
+            Some(ValueId(5)),
+            InstructionKind::TakeOwnedArrayElement {
+                local: LocalId(2),
+                index: 0,
+            },
+        ),
+        op(
+            None,
+            InstructionKind::StoreOwnedArrayElement {
+                local: LocalId(2),
+                index: 0,
+                value: ValueId(5),
+            },
+        ),
+    ];
+    let ending = f.blocks[0].instructions[7..].to_vec();
+    f.blocks = vec![
+        block(0, initial, Terminator::Jump(BlockId(1))),
+        block(
+            1,
+            vec![op(Some(ValueId(6)), InstructionKind::Load(LocalId(0)))],
+            Terminator::Branch {
+                condition: ValueId(6),
+                then_block: BlockId(2),
+                else_block: BlockId(3),
+            },
+        ),
+        block(2, loop_body, Terminator::Jump(BlockId(1))),
+        block(3, ending, Terminator::Return(Some(ValueId(4)))),
+    ];
+    f.callable_contract.as_mut().unwrap().traces = CallableTraces::Flow(CallableFlow {
+        entry: 0,
+        nodes: vec![
+            CallableFlowNode {
+                calls: vec![],
+                next: CallableFlowNext::Edges(vec![1]),
+            },
+            CallableFlowNode {
+                calls: vec![],
+                next: CallableFlowNext::Edges(vec![2, 3]),
+            },
+            CallableFlowNode {
+                calls: vec![CallEvent {
+                    parameter: 1,
+                    kind: CallableKind::FnMut,
+                }],
+                next: CallableFlowNext::Edges(vec![1]),
+            },
+            CallableFlowNode {
+                calls: vec![],
+                next: CallableFlowNext::Exit(CallableExit::Return),
+            },
+        ],
+    });
+    accepted(&m);
+    let mut m = owned_slot();
+    let payload = m.resources[0].payload.clone();
+    let f = &mut m.functions[1];
+    f.locals.push(local(3, Type::Closure(ClosureId(0))));
+    f.values.extend([
+        Type::I32,
+        Type::Managed(Box::new(payload)),
+        Type::Closure(ClosureId(0)),
+        Type::Closure(ClosureId(0)),
+    ]);
+    f.blocks[0].instructions.splice(
+        8..8,
+        [
+            op(None, InstructionKind::StorageLive(LocalId(3))),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(3),
+                    value: ValueId(4),
+                },
+            ),
+            op(None, InstructionKind::DropClosure { local: LocalId(3) }),
+            op(None, InstructionKind::StorageDead(LocalId(3))),
+            op(
+                Some(ValueId(5)),
+                InstructionKind::Constant(Constant::I32(7)),
+            ),
+            op(
+                Some(ValueId(6)),
+                InstructionKind::MakeManaged {
+                    fields: vec![ValueId(5)],
+                },
+            ),
+            op(
+                Some(ValueId(7)),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![ValueId(6)],
+                },
+            ),
+            op(
+                None,
+                InstructionKind::StoreOwnedArrayElement {
+                    local: LocalId(2),
+                    index: 0,
+                    value: ValueId(7),
+                },
+            ),
+            op(
+                Some(ValueId(8)),
+                InstructionKind::TakeOwnedArrayElement {
+                    local: LocalId(2),
+                    index: 0,
+                },
+            ),
+        ],
+    );
+    f.blocks[0].terminator = Terminator::Return(Some(ValueId(8)));
+    rejected(&m);
+}

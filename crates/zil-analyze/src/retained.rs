@@ -125,11 +125,9 @@ pub(super) fn check_function(
                     .functions
                     .get(callee.0 as usize)
                     .ok_or_else(|| bad("factory calls an absent function"))?;
-                if target
-                    .callable_return_contract
-                    .as_ref()
-                    .is_some_and(|c| c.closure == contract.closure)
-                {
+                if target.callable_return_contract.as_ref().is_some_and(|c| {
+                    c.closure == contract.closure && c.source == CallableReturnSource::Fresh
+                }) {
                     creations += 1;
                 }
             }
