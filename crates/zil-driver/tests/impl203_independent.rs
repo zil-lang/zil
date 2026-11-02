@@ -1098,6 +1098,7 @@ fn unused_raw_state_bodies_cannot_acquire_fields_or_repeat_a_declared_once_call(
                             id: NodeId(base + 2),
                             span,
                             kind: CoreExprKind::Member {
+                                owner: None,
                                 object: Box::new(CoreExpr {
                                     id: NodeId(base + 3),
                                     span,
@@ -1161,6 +1162,7 @@ fn raw_state_field_take(
                 id: NodeId(base + 1),
                 span,
                 kind: CoreExprKind::Member {
+                    owner: None,
                     object: Box::new(CoreExpr {
                         id: NodeId(base + 2),
                         span,
@@ -1872,7 +1874,7 @@ fn raw_complete_type_application_cannot_relabel_equal_concrete_callback_slots() 
             fields[2].1 = first;
             application += 1;
         }
-        if let CoreExprKind::Member { object, member } = &mut e.kind
+        if let CoreExprKind::Member { object, member, .. } = &mut e.kind
             && matches!(&object.kind,CoreExprKind::Name(name) if name=="next")
         {
             match member.as_str() {
@@ -1907,7 +1909,7 @@ fn raw_record_values_cannot_relabel_equal_concrete_callback_slots() {
         // Expand stages record fields in a Sequence before the final Record.
         // Mutate the actual reads while retaining all NodeIds and evaluation
         // order; these are run's only reads of state.first/state.second.
-        if let CoreExprKind::Member { object, member } = &mut e.kind
+        if let CoreExprKind::Member { object, member, .. } = &mut e.kind
             && matches!(&object.kind,CoreExprKind::Name(name) if name=="state")
         {
             match member.as_str() {

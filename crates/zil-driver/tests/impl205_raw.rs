@@ -139,6 +139,7 @@ impl Ast {
     }
     fn field(&self, field: &str) -> CoreExpr {
         self.expr(CoreExprKind::Member {
+            owner: None,
             object: Box::new(self.name("next")),
             member: field.into(),
         })

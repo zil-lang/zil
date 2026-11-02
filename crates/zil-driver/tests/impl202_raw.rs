@@ -163,6 +163,7 @@ fn unused_store_element_bound_does_not_grant_fields_or_numeric_operations() {
         (
             "field",
             expr(CoreExprKind::Member {
+                owner: None,
                 object: Box::new(name("value")),
                 member: "value".into(),
             }),
