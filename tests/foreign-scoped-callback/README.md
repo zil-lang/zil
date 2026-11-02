@@ -64,3 +64,31 @@ Event and declares the actual Fn mode; the structured call still consumes that
 body once and cleans its remaining capture before close. These exercise both
 responsibility paths without changing the existing exact-kind factory rule or
 the original observable oracle.
+
+Local checkpoint after exact producer `4db36c6e`, Verify `de5849cc` and Analyze
+`f7dd7a81`: the three-module source reaches independent verification, and all
+13 current source rejection controls match their required phase and code.
+The original frozen matrix passes clang and LLVM API at O0/O2: 66 executions
+per backend, including 34 actual allocator failures, 12 beyond-allocation
+controls and four abort controls. All 62 returning executions per backend
+match all six counters, including live=0. The disjoint borrowed-scalar nearby
+control passes two additional clang executions; API validation is recorded
+below when complete. These are bounded functional checks, not a full gate.
+
+Commands use `source /workspace/.zil-env/env.sh`,
+`CARGO_TARGET_DIR=/workspace/.zil-env/target-270 CARGO_BUILD_JOBS=2` and
+`cargo test -p zil-driver --test foreign_scoped_callbacks NAME -- --exact --nocapture`.
+The exact names are `scoped_event_loop_source_reaches_independent_verification`,
+`scoped_callback_source_rejections_bind_the_actual_risk`,
+`scoped_event_loop_matches_source_oracle_at_o0_and_o2` and
+`scoped_body_can_borrow_a_disjoint_scalar_through_an_event_loop`.
+For the API backend add `--features llvm-api` before `--test`; its native
+reports must identify builder input with verification before and after LLVM
+optimization and no fallback.
+
+This slice adds real source-level composition and independently checked
+ownership/borrow controls toward Rust-like safety. Runtime evidence is limited
+to these native executions and allocator counters; no Rust runtime/RSS pairing,
+complete framework maintenance comparison or Rust compile-cost advantage was
+measured. The original default budgets and product gates remain unchanged;
+the four-goal product conjunction and full language remain incomplete.
