@@ -279,10 +279,19 @@ fn frozen_source_operations_and_explicit_provider_locks_are_unchanged() {
 
 #[test]
 fn all_generated_source_projects_reach_real_verify() {
+    verify_sources("generated");
+}
+
+#[test]
+fn handwritten_controls_use_valid_existing_zil_syntax_and_reach_verify() {
+    verify_sources("handwritten");
+}
+
+fn verify_sources(variant: &str) {
     let mut failures = Vec::new();
     for name in names() {
-        let out = directory(&format!("{name}-generated-verify"));
-        let input = materialize(&name, "generated", &out);
+        let out = directory(&format!("{name}-{variant}-verify"));
+        let input = materialize(&name, variant, &out);
         let report = compile_project(
             &input.project,
             &options(&input, &out, Optimization::O0, Stage::Verify),
