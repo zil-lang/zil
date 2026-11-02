@@ -5,8 +5,10 @@ use zil_ir::{BinaryOp, Constant, CtInstructionKind, Type, UnaryOp};
 use zil_verify::VerifiedCTIR;
 
 mod aggregate_metadata;
+mod ct_artifact;
 mod materialize;
 pub use aggregate_metadata::preflight_aggregate_metadata;
+pub use ct_artifact::{CtExecutionBudget, CtReadView, evaluate_ct_artifact};
 mod program;
 mod source;
 pub use program::{CompileTimeValue, ProgramEvaluation, evaluate_program};
@@ -59,7 +61,7 @@ fn fail() -> Vec<Diagnostic> {
         "checked compile-time arithmetic failed",
     )]
 }
-fn convert_integer(value: &Constant, target: &Type) -> CompileResult<Constant> {
+pub(crate) fn convert_integer(value: &Constant, target: &Type) -> CompileResult<Constant> {
     let value = match value {
         Constant::U8(v) => i128::from(*v),
         Constant::U16(v) => i128::from(*v),
@@ -76,7 +78,7 @@ fn convert_integer(value: &Constant, target: &Type) -> CompileResult<Constant> {
     }
 }
 
-fn unary(op: UnaryOp, value: &Constant) -> CompileResult<Constant> {
+pub(crate) fn unary(op: UnaryOp, value: &Constant) -> CompileResult<Constant> {
     match (op, value) {
         (UnaryOp::Not, Constant::Bool(v)) => Ok(Constant::Bool(!v)),
         (UnaryOp::Negate, Constant::U8(v)) => {
@@ -136,7 +138,7 @@ macro_rules! integer_binary {
         value.map(Constant::$variant).ok_or_else(fail)
     }};
 }
-fn binary(op: BinaryOp, left: &Constant, right: &Constant) -> CompileResult<Constant> {
+pub(crate) fn binary(op: BinaryOp, left: &Constant, right: &Constant) -> CompileResult<Constant> {
     match (left, right) {
         (Constant::Unit, Constant::Unit) => match op {
             BinaryOp::Equal => Ok(Constant::Bool(true)),
