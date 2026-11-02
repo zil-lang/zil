@@ -1,0 +1,39 @@
+{
+  "status": "Pass",
+  "checked_at_utc": "2026-11-02T08:15:12.791903+00:00",
+  "scope": "current managed cloud checkout, GitHub transport and offline native toolchain; not a new language acceptance",
+  "environment": {
+    "phase": "running",
+    "connectivity": "connected",
+    "policy": "unrestricted/enforced",
+    "observations_current": true
+  },
+  "github": {
+    "fetch": "Pass via approved network-enabled exec",
+    "push_dry_run": "Pass; no branch created",
+    "root_cause": "ordinary restricted exec cannot connect to proxy:8080; authenticated network-enabled exec works",
+    "actual_archive_push": "Pass; CP245 tag read back independently"
+  },
+  "repairs": [
+    "loaded restored checkout as authoritative main",
+    "fetched missing locked Cargo dependencies",
+    "normalized local env PATH assignment"
+  ],
+  "toolchain": "Rust/Cargo 1.99.1; LLVM/Clang/LLD 23.1.4",
+  "checks": {
+    "cargo_check_offline_locked_zil_cli": 0,
+    "cargo_build_offline_locked_zil_cli": 0,
+    "llvm_toolchain_check": "Pass",
+    "native_O0": 42,
+    "native_O2": 42,
+    "expected_native_exit": 42
+  },
+  "usage": "source /workspace/.zil-env/env.sh; each worker overrides CARGO_TARGET_DIR with its isolated target; cargo --offline --locked",
+  "configuration_published": false,
+  "handoff": {
+    "existing_errors": 1144,
+    "warnings": 0,
+    "current_245_250_errors": 0
+  },
+  "source_note": "native health build before implementation merges; current callback implementation validated separately"
+}
