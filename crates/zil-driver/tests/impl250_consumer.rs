@@ -408,7 +408,11 @@ fn allocator_matrix(entry: &str, selection: &str) {
         fs::write(out.join("link.stderr"), &linked.stderr).unwrap();
         assert!(linked.status.success(), "{linked:?}");
         for case in &expected {
-            let input = std::str::from_utf8(&case.input).unwrap();
+            let input = case
+                .input
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
             let fail = case.fail_at.unwrap();
             execute(
                 &probe,
