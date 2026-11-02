@@ -20,48 +20,159 @@ pub(super) fn category(name: &str) -> Option<CtSyntaxCategory> {
         _ => return None,
     })
 }
-fn ct_only(ty: &s::TypeRef) -> bool {
-    match &ty.kind {
-        s::TypeKind::Named { path, args } => {
-            path.last().is_some_and(|n| {
-                matches!(
-                    n.as_str(),
-                    "Type"
-                        | "Syntax"
-                        | "Ident"
-                        | "TokenTree"
-                        | "TokenCursor"
-                        | "Text"
-                        | "ShapeInfo"
-                        | "FieldInfo"
-                        | "ImplInfo"
-                        | "LayoutInfo"
-                )
-            }) || args
-                .iter()
-                .any(|a| matches!(a, s::GenericArg::Type(t) if ct_only(t)))
-        }
-        s::TypeKind::Tuple(ts) | s::TypeKind::Union(ts) | s::TypeKind::Impl(ts) => {
-            ts.iter().any(ct_only)
-        }
-        s::TypeKind::Group(t)
-        | s::TypeKind::Optional(t)
-        | s::TypeKind::Reference { inner: t, .. }
-        | s::TypeKind::Array { element: t, .. }
-        | s::TypeKind::ForLifetime { inner: t, .. } => ct_only(t),
-        s::TypeKind::Function { params, result }
-        | s::TypeKind::ForeignFunction { params, result, .. } => {
-            params.iter().any(ct_only) || ct_only(result)
-        }
-        s::TypeKind::Error { error, result } => ct_only(error) || ct_only(result),
-        _ => false,
-    }
-}
-pub(super) fn ct_only_function(function: &s::Function) -> bool {
-    function.params.iter().any(|p| ct_only(&p.ty))
-        || function.return_type.as_ref().is_some_and(ct_only)
-}
 impl<'a> Compiler<'a> {
+    pub(super) fn ct_only_function(&mut self, module: usize, function: &s::Function) -> R<bool> {
+        let mut seen = Vec::new();
+        for parameter in &function.params {
+            if self.ct_only_type(module, &parameter.ty, 0, &mut seen)? {
+                return Ok(true);
+            }
+        }
+        match &function.return_type {
+            Some(ty) => self.ct_only_type(module, ty, 0, &mut seen),
+            None => Ok(false),
+        }
+    }
+    fn ct_only_type(
+        &mut self,
+        module: usize,
+        ty: &s::TypeRef,
+        depth: usize,
+        seen: &mut Vec<(usize, Span)>,
+    ) -> R<bool> {
+        self.budget.depth(depth, ty.span)?;
+        match &ty.kind {
+            s::TypeKind::Named { path, args } => {
+                if path.len() == 1
+                    && matches!(
+                        path[0].as_str(),
+                        "Type"
+                            | "Syntax"
+                            | "Ident"
+                            | "TokenTree"
+                            | "TokenCursor"
+                            | "Text"
+                            | "ShapeInfo"
+                            | "FieldInfo"
+                            | "ImplInfo"
+                            | "LayoutInfo"
+                    )
+                {
+                    return Ok(true);
+                }
+                for argument in args {
+                    if let s::GenericArg::Type(ty) = argument
+                        && self.ct_only_type(module, ty, depth + 1, seen)?
+                    {
+                        return Ok(true);
+                    }
+                }
+                if path.len() == 1
+                    && (scalar(&path[0]).is_some()
+                        || matches!(
+                            path[0].as_str(),
+                            "ByteBuffer" | "ForeignHandle" | "CWideString"
+                        ))
+                {
+                    return Ok(false);
+                }
+                let (owner, item) = match self.named_item(module, path, ty.span) {
+                    Ok(found) => found,
+                    Err(errors)
+                        if errors
+                            .iter()
+                            .any(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+                    {
+                        return Err(errors);
+                    }
+                    Err(_) => return Ok(false),
+                };
+                self.budget.work(seen.len(), ty.span)?;
+                if seen.contains(&(owner, item.span)) {
+                    return Ok(false);
+                }
+                self.budget.node(ty.span)?;
+                seen.push((owner, item.span));
+                let result = match &item.kind {
+                    s::ItemKind::TypeAlias(alias) => match &alias.value {
+                        Some(ty) => self.ct_only_type(owner, ty, depth + 1, seen)?,
+                        None => false,
+                    },
+                    s::ItemKind::Aggregate(aggregate) => {
+                        let mut found = false;
+                        for field in &aggregate.fields {
+                            if self.ct_only_type(owner, &field.ty, depth + 1, seen)? {
+                                found = true;
+                                break;
+                            }
+                        }
+                        found
+                    }
+                    s::ItemKind::Enum(enumeration) => {
+                        let mut found = false;
+                        for variant in &enumeration.variants {
+                            match &variant.fields {
+                                s::VariantFields::Unit => {}
+                                s::VariantFields::Tuple(fields) => {
+                                    for field in fields {
+                                        if self.ct_only_type(owner, &field.ty, depth + 1, seen)? {
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                s::VariantFields::Record(fields) => {
+                                    for field in fields {
+                                        if self.ct_only_type(owner, &field.ty, depth + 1, seen)? {
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if found {
+                                break;
+                            }
+                        }
+                        found
+                    }
+                    _ => false,
+                };
+                seen.pop();
+                Ok(result)
+            }
+            s::TypeKind::Tuple(fields) | s::TypeKind::Union(fields) | s::TypeKind::Impl(fields) => {
+                for field in fields {
+                    if self.ct_only_type(module, field, depth + 1, seen)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            s::TypeKind::Reference { inner, .. }
+            | s::TypeKind::Group(inner)
+            | s::TypeKind::Optional(inner)
+            | s::TypeKind::Array { element: inner, .. }
+            | s::TypeKind::ForLifetime { inner, .. } => {
+                self.ct_only_type(module, inner, depth + 1, seen)
+            }
+            s::TypeKind::Function { params, result }
+            | s::TypeKind::ForeignFunction { params, result, .. } => {
+                for ty in params {
+                    if self.ct_only_type(module, ty, depth + 1, seen)? {
+                        return Ok(true);
+                    }
+                }
+                self.ct_only_type(module, result, depth + 1, seen)
+            }
+            s::TypeKind::Error { error, result } => {
+                Ok(self.ct_only_type(module, error, depth + 1, seen)?
+                    || self.ct_only_type(module, result, depth + 1, seen)?)
+            }
+            _ => Ok(false),
+        }
+    }
+
     pub(super) fn named_item(
         &mut self,
         current: usize,

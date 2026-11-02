@@ -150,6 +150,19 @@ impl Builder<'_, '_> {
                 }
             }
             ImportTarget::Syntax => {
+                if name == "parse_ident" {
+                    if !exact(&[CtTy::TokenTree]) {
+                        return Err(error(
+                            span,
+                            "syntax.parse_ident consumes one actual input TokenTree",
+                        ));
+                    }
+                    return self.emit(
+                        CtInstructionKind::ParseIdent { input: ids[0] },
+                        CtTy::Ident,
+                        span,
+                    );
+                }
                 let syntax = match name {
                     "literal" => Some((
                         CtSyntaxBuilder::Literal,
