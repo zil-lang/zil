@@ -74,6 +74,7 @@ mod resources;
 mod retained;
 #[cfg(test)]
 mod retained_tests;
+mod scoped_callback;
 mod slices;
 mod sums;
 pub use ct_artifact::{
@@ -1434,7 +1435,7 @@ fn check_instruction(
             })
         }
         InstructionKind::WithForeignCallback { .. } => {
-            return Err(unsupported("scoped foreign callback verification is not implemented yet", span));
+            scoped_callback::instruction(module, function, instruction, budget)?
         }
         InstructionKind::ForeignCall {
             function: callee,
@@ -2521,7 +2522,9 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::ByteBufferNew
         | InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::Unsupported(_) => ([None, None], &[]),
-        InstructionKind::WithForeignCallback { callback, body, .. } => ([Some(*callback), Some(*body)], &[]),
+        InstructionKind::WithForeignCallback { callback, body, .. } => {
+            ([Some(*callback), Some(*body)], &[])
+        }
         InstructionKind::OwnedStoreReserve { store, capacity } => {
             ([Some(*store), Some(*capacity)], &[])
         }

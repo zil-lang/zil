@@ -508,6 +508,7 @@ fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
         InstructionKind::MakeOwnedArray { elements }
         | InstructionKind::MakePackage { fields: elements } => (None, elements),
         InstructionKind::CallClosureOnce { callee, arguments } => (Some(callee), arguments),
+        InstructionKind::WithForeignCallback { body, .. } => (Some(body), &[]),
         InstructionKind::Call { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::CallClosure { arguments, .. }
@@ -789,6 +790,10 @@ pub(super) fn check(
                 | InstructionKind::CallClosureMut { callee, arguments } => {
                     (locals.get(callee).unwrap_or(&empty), arguments)
                 }
+                InstructionKind::WithForeignCallback { callback, body, .. } => (
+                    &flow.values[body.0 as usize],
+                    std::slice::from_ref(callback),
+                ),
                 InstructionKind::Call { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
                 _ => (&empty, &[]),
@@ -823,6 +828,19 @@ pub(super) fn check(
                 // argument or its captured alias has no later use. Reborrows
                 // delegate only their own roots, never another capture's loan.
                 access.callback_arguments(arguments, facts, budget)?;
+            }
+            if let InstructionKind::WithForeignCallback { callback, body, .. } = instruction.kind {
+                check_pairs(&[callback, body], module, f, &flow, span, apart_ref, budget)?;
+                for value in [callback, body] {
+                    for &loan in &flow.values[value.0 as usize] {
+                        access.check(
+                            &flow.values[value.0 as usize],
+                            &flow.roots[loan],
+                            flow.mutable[loan],
+                            budget,
+                        )?;
+                    }
+                }
             }
             if let Some((buffer, write)) =
                 buffer_effects::access(&instruction.kind, descriptor_origins)

@@ -11,7 +11,7 @@ pub(super) fn check_declarations(module: &TypedModule, budget: &mut Budget) -> C
         };
         let span = Some(function.span);
         if declaration.scoped_callback.is_some() {
-            return Err(unsupported("scoped foreign callback declarations await independent verification", span));
+            scoped_callback::declaration(function, budget)?;
         }
         if declaration.static_callbacks {
             native_values::target(&module.target, span)?;
@@ -139,8 +139,14 @@ pub(super) fn check_call(
     if target.foreign.is_none() || target.environment.is_some() {
         return Err(bad("ForeignCall requires a declared foreign function"));
     }
-    if target.foreign.as_ref().is_some_and(|declaration| declaration.scoped_callback.is_some()) {
-        return Err(bad("scoped callback roles can only be invoked by WithForeignCallback"));
+    if target
+        .foreign
+        .as_ref()
+        .is_some_and(|declaration| declaration.scoped_callback.is_some())
+    {
+        return Err(bad(
+            "scoped callback roles can only be invoked by WithForeignCallback",
+        ));
     }
     if arguments.len() != target.parameters.len() {
         return Err(bad(
@@ -317,7 +323,8 @@ pub(super) fn check_regions(
                         ));
                     }
                 }
-                InstructionKind::ForeignCall { region, .. } | InstructionKind::WithForeignCallback { region, .. } => {
+                InstructionKind::ForeignCall { region, .. }
+                | InstructionKind::WithForeignCallback { region, .. } => {
                     if stack.last() != Some(&region) {
                         return Err(bad(
                             instruction.span,
