@@ -63,6 +63,9 @@ selection=sys.argv[2]
 if selection.startswith('extended:'):
     data={'cases':data['extensions']}
     selection=selection.split(':',1)[1]
+elif selection.startswith('supplement:'):
+    _,group,selection=selection.split(':')
+    data={'cases':data[group]}
 negative=False
 if selection.startswith('frozen:'):
     case=next(c for c in data['frozen'] if c['name']==selection[7:])
@@ -144,6 +147,52 @@ fn project(entry: &str, extended: bool) -> ProjectSources {
             .skip(1)
             .map(|(i, n)| (vec![(*n).into()], ModuleId(i as u32)))
             .collect(),
+    }
+}
+fn matrix_inputs(entry: &str, selection: &str) -> (ProjectSources, Vec<Expected>) {
+    if selection.starts_with("supplement:") {
+        let names = if entry == "ordinary_main" {
+            vec![entry, "model"]
+        } else {
+            assert_eq!(entry, "mixed_main");
+            vec![entry, "model", "relay"]
+        };
+        let modules = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| {
+                let directory = if index == 0 {
+                    "supplement"
+                } else {
+                    "frozen-prep/project"
+                };
+                let path = root().join(format!("tests/impl256/{directory}/{name}.zil"));
+                SourceUnit::new(
+                    FileId(index as u32),
+                    ModuleId(index as u32),
+                    path.to_string_lossy().into_owned(),
+                    fs::read_to_string(&path).unwrap(),
+                )
+            })
+            .collect();
+        let sources = ProjectSources {
+            root: ModuleId(0),
+            modules,
+            paths: names
+                .iter()
+                .enumerate()
+                .skip(1)
+                .map(|(i, n)| (vec![(*n).into()], ModuleId(i as u32)))
+                .collect(),
+        };
+        let (_, expected) = rows(
+            root().join("tests/impl256/supplement/ORACLE.json"),
+            selection,
+        );
+        (sources, expected)
+    } else {
+        let (_, expected) = rows(root().join("tests/impl256/ORACLE.json"), selection);
+        (project(entry, selection.starts_with("extended:")), expected)
     }
 }
 fn assert_builder(report: &zil_driver::CompileReport) {
@@ -336,11 +385,23 @@ fn three_module_predeclared_native_matrix() {
 fn extended_store_address_loop_native_matrix() {
     native_matrix("main", "extended:normal");
 }
+#[test]
+fn supplement_ordinary_private_slot_without_forwarding_native() {
+    native_matrix("ordinary_main", "supplement:ordinary:normal");
+}
+#[test]
+fn supplement_mixed_instance_choice_before_forwarding_native() {
+    native_matrix("mixed_main", "supplement:mixed:normal");
+}
 fn native_matrix(entry: &str, selection: &str) {
-    let p = project(entry, selection.starts_with("extended:"));
-    let (_, expected) = rows(root().join("tests/impl256/ORACLE.json"), selection);
+    let (p, expected) = matrix_inputs(entry, selection);
     for optimization in [Optimization::O0, Optimization::O2] {
-        let out = directory("matrix");
+        let label = if selection.starts_with("supplement:") {
+            format!("supplement-{entry}-matrix")
+        } else {
+            "matrix".into()
+        };
+        let out = directory(&label);
         for module in &p.modules {
             fs::write(
                 out.join(format!("module{}.zil", module.module_id.0)),
@@ -383,18 +444,32 @@ fn extended_store_address_loop_actual_allocator_failures() {
     allocator_matrix("main", "extended:allocator");
 }
 #[cfg(all(unix, feature = "llvm-api"))]
+#[test]
+fn supplement_ordinary_private_slot_actual_allocator_failures() {
+    allocator_matrix("ordinary_main", "supplement:ordinary:allocator");
+}
+#[cfg(all(unix, feature = "llvm-api"))]
+#[test]
+fn supplement_mixed_instance_choice_actual_allocator_controls() {
+    allocator_matrix("mixed_main", "supplement:mixed:allocator");
+}
+#[cfg(all(unix, feature = "llvm-api"))]
 fn allocator_matrix(entry: &str, selection: &str) {
     use std::os::unix::fs::PermissionsExt;
     fn quote(path: &Path) -> String {
         format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
     }
-    let p = project(entry, selection.starts_with("extended:"));
-    let (_, expected) = rows(root().join("tests/impl256/ORACLE.json"), selection);
+    let (p, expected) = matrix_inputs(entry, selection);
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("clang"));
     for optimization in [Optimization::O0, Optimization::O2] {
-        let out = directory("allocator");
+        let label = if selection.starts_with("supplement:") {
+            format!("supplement-{entry}-allocator")
+        } else {
+            "allocator".into()
+        };
+        let out = directory(&label);
         for module in &p.modules {
             fs::write(
                 out.join(format!("module{}.zil", module.module_id.0)),
