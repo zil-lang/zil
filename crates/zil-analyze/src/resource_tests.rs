@@ -721,6 +721,315 @@ fn scoped_helper_with_local_body(kind: CallableKind, borrowed_scalar: bool) -> T
     module
 }
 
+// This independent raw builder neither imports Verify nor uses a frontend
+// ownership certificate. The local body keeps the actual owned capture for
+// With's remaining cleanup, including the registration-null outcome.
+fn scoped_helper_with_local_owner(package: bool) -> (TypedModule, ValueId) {
+    let mut module = scoped_helper_with_local_body(CallableKind::FnOnce, false);
+    let capture_type = if package {
+        Type::Package {
+            name: "LocalOwned".into(),
+            fields: vec![("token".into(), managed())],
+        }
+    } else {
+        managed()
+    };
+    module.resources.push(ResourceDefinition {
+        name: "Token".into(),
+        payload: payload(),
+        teardown: None,
+    });
+    module.closures[1].captures = vec![capture_type.clone()];
+    let f = &mut module.functions[0];
+    let number = ValueId(f.values.len() as u32);
+    f.values.push(Type::I32);
+    let owner = ValueId(f.values.len() as u32);
+    f.values.push(managed());
+    let mut preparation = vec![
+        inst(Some(number), InstructionKind::Constant(Constant::I32(19))),
+        inst(
+            Some(owner),
+            InstructionKind::MakeManaged {
+                fields: vec![number],
+            },
+        ),
+    ];
+    let captured = if package {
+        let value = ValueId(f.values.len() as u32);
+        f.values.push(capture_type.clone());
+        preparation.push(inst(
+            Some(value),
+            InstructionKind::MakePackage {
+                fields: vec![owner],
+            },
+        ));
+        value
+    } else {
+        owner
+    };
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+        .unwrap();
+    let InstructionKind::MakeClosure { captures, .. } = &mut f.blocks[0].instructions[at].kind
+    else {
+        unreachable!()
+    };
+    *captures = vec![captured];
+    f.blocks[0].instructions.splice(at..at, preparation);
+    if package {
+        f.blocks[0].instructions.insert(
+            0,
+            inst(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        );
+        f.blocks[0].instructions.extend([
+            inst(None, InstructionKind::StorageDead(LocalId(0))),
+            inst(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ),
+        ]);
+        let entry = &mut module.functions[2];
+        entry.locals.push(LocalDecl {
+            id: LocalId(0),
+            name: "owned_view".into(),
+            ty: capture_type,
+            mutable: true,
+            span: s(),
+        });
+        entry.blocks[0].instructions.insert(
+            0,
+            inst(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        );
+        entry.blocks[0].instructions.insert(
+            1,
+            inst(
+                None,
+                InstructionKind::BindPackageCapture {
+                    local: LocalId(0),
+                    index: 0,
+                },
+            ),
+        );
+        entry.blocks[0].instructions.extend([
+            inst(
+                None,
+                InstructionKind::EndPackageCapture {
+                    local: LocalId(0),
+                    index: 0,
+                },
+            ),
+            inst(
+                None,
+                InstructionKind::ScopeExit {
+                    scope: ScopeId(0),
+                    kind: CleanupExitKind::Return,
+                },
+            ),
+        ]);
+    }
+    (module, captured)
+}
+
+fn check_scoped_local_owner(module: &TypedModule, message: Option<&str>) {
+    let limits = Limits::default();
+    let raw = analyze(module, &limits);
+    if let Some(message) = message {
+        let errors = raw.as_ref().unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::SafeReject);
+        assert!(errors[0].message.contains(message), "{errors:?}");
+    } else {
+        raw.as_ref().unwrap();
+    }
+    let bytes =
+        zil_ir::wire::encode_module_candidate(module, &CandidatePlan::empty_for(module), &limits)
+            .unwrap();
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    assert_eq!(analyze(&decoded, &limits), raw);
+}
+
+#[test]
+fn scoped_local_owner_preparation_preserves_actual_ownership_through_with() {
+    for package in [false, true] {
+        for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+            let (mut module, _) = scoped_helper_with_local_owner(package);
+            module.closures[1].kind = kind;
+            check_scoped_local_owner(&module, None);
+        }
+        let (mut leaked, _) = scoped_helper_with_local_owner(package);
+        let f = &mut leaked.functions[0];
+        let leak = ValueId(f.values.len() as u32);
+        f.values.push(managed());
+        let InstructionKind::MakeManaged { fields } = f.blocks[0]
+            .instructions
+            .iter()
+            .find(|i| matches!(i.kind, InstructionKind::MakeManaged { .. }))
+            .unwrap()
+            .kind
+            .clone()
+        else {
+            unreachable!()
+        };
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+            .unwrap();
+        f.blocks[0].instructions.insert(
+            at,
+            inst(Some(leak), InstructionKind::MakeManaged { fields }),
+        );
+        check_scoped_local_owner(
+            &leaked,
+            Some("normal return leaves a responsibility unpaid"),
+        );
+    }
+    let (mut duplicated, captured) = scoped_helper_with_local_owner(false);
+    duplicated.closures[1].captures.push(managed());
+    for i in &mut duplicated.functions[0].blocks[0].instructions {
+        if let InstructionKind::MakeClosure { captures, .. } = &mut i.kind {
+            captures.push(captured);
+        }
+    }
+    check_scoped_local_owner(
+        &duplicated,
+        Some("SSA responsibility was already consumed or absent"),
+    );
+}
+
+#[test]
+fn scoped_local_owner_body_cannot_hide_the_actual_callback_alias() {
+    for package in [false, true] {
+        let (mut module, _) = scoped_helper_with_local_owner(package);
+        let address = module.functions[0].values[0].clone();
+        module.closures[1].captures.push(address.clone());
+        let f = &mut module.functions[0];
+        let alias = ValueId(f.values.len() as u32);
+        f.values.push(address);
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+            .unwrap();
+        f.blocks[0].instructions.insert(
+            at,
+            inst(
+                Some(alias),
+                InstructionKind::ReborrowAddress {
+                    address: ValueId(0),
+                    mutable: true,
+                },
+            ),
+        );
+        let InstructionKind::MakeClosure { captures, .. } =
+            &mut f.blocks[0].instructions[at + 1].kind
+        else {
+            unreachable!()
+        };
+        captures.push(alias);
+        check_scoped_local_owner(&module, Some("symbolic F"));
+    }
+}
+
+#[test]
+fn ordinary_helper_local_owner_needs_no_with_permission() {
+    let mut module = scoped_helper(CallableKind::FnOnce);
+    module.resources.push(ResourceDefinition {
+        name: "Token".into(),
+        payload: payload(),
+        teardown: None,
+    });
+    let contract = module.functions[0].callable_contract.as_mut().unwrap();
+    contract.roles.truncate(1);
+    contract.traces = CallableTraces::Finite(vec![CallableTrace {
+        calls: vec![CallEvent {
+            parameter: 0,
+            kind: CallableKind::FnMut,
+        }],
+        exit: CallableExit::Return,
+    }]);
+    let contract = contract.clone();
+    let mut f = Body::new(0);
+    f.0.locals.push(module.functions[0].locals[0].clone());
+    f.0.parameters.push(LocalId(0));
+    f.0.callable_contract = Some(contract);
+    let owned = f.local(managed());
+    let number = f.constant(19);
+    let value = f.value(
+        managed(),
+        InstructionKind::MakeManaged {
+            fields: vec![number],
+        },
+    );
+    f.op(InstructionKind::Store {
+        local: owned,
+        value,
+    });
+    let callback = f.value(f.0.locals[0].ty.clone(), InstructionKind::Load(LocalId(0)));
+    let result = f.value(
+        Type::I32,
+        InstructionKind::CallClosureBorrowed {
+            callee: callback,
+            kind: CallableKind::FnMut,
+            arguments: vec![number],
+        },
+    );
+    f.op(InstructionKind::DropManaged { local: owned });
+    f.op(InstructionKind::StorageDead(owned));
+    module.functions[0] = f.finish(result);
+    check_scoped_local_owner(&module, None);
+    module.functions[0].blocks[0]
+        .instructions
+        .retain(|i| !matches!(i.kind, InstructionKind::DropManaged { .. }));
+    check_scoped_local_owner(&module, Some("storage boundary discards an owned carrier"));
+}
+
+#[test]
+fn scoped_local_owner_work_is_prepaid_and_recovers_fresh() {
+    for package in [false, true] {
+        let (module, _) = scoped_helper_with_local_owner(package);
+        let defaults = Limits::default();
+        let mut budget = Budget::new(&defaults);
+        let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
+        let exact = defaults.max_analysis_steps - budget.remaining();
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &defaults,
+        )
+        .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &defaults).unwrap();
+        for input in [&module, &decoded] {
+            for steps in [exact, exact - 1, exact] {
+                let result = analyze(
+                    input,
+                    &Limits {
+                        max_analysis_steps: steps,
+                        ..defaults.clone()
+                    },
+                );
+                if steps == exact {
+                    assert_eq!(result.unwrap(), expected);
+                } else {
+                    assert!(
+                        result
+                            .unwrap_err()
+                            .iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                    );
+                }
+            }
+        }
+        println!(
+            "local owner package={package} Analyze raw=wire N={exact}; N-1 ResourceLimit; fresh equality"
+        );
+    }
+}
+
 #[test]
 fn scoped_f_only_helper_tracks_local_concrete_body_without_inventing_a_role() {
     for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {

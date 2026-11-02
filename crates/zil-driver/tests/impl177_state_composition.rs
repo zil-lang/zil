@@ -177,7 +177,7 @@ fn give_does_not_grant_ownership_to_copy_callable_or_descriptor_values() {
             "declared manages field",
         ),
         (
-            "let d=R{code:65};let a=give d;return state",
+            "let owner=R{code:65};let d=owner;let a=give d;return state",
             ResultCategory::Unsupported,
             "E-UNSUPPORTED",
             "direct Package manages field",
@@ -199,6 +199,23 @@ fn give_does_not_grant_ownership_to_copy_callable_or_descriptor_values() {
             report.to_json()
         );
     }
+}
+
+#[test]
+fn concrete_resource_creation_in_an_unused_template_establishes_ownership() {
+    // Keep the original pre-273 source: this constructs an owner, not a Desc.
+    let body = "let d=R{code:65};let a=give d;return state";
+    let source = format!(
+        "{MODEL} fn unused<F:FnMut()->i32>(state:State<F>)->State<F>{{{body}}} fn main()->i32=>0"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[test]

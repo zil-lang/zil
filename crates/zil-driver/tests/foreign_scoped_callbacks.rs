@@ -31,6 +31,22 @@ fn root() -> PathBuf {
 fn fixtures() -> PathBuf {
     root().join("tests/foreign-scoped-callback")
 }
+fn preparation_project(group: &str, name: &str) -> ProjectSources {
+    let path = fixtures()
+        .join("local-preparation")
+        .join(group)
+        .join(format!("{name}.zil"));
+    ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            path.to_string_lossy().into_owned(),
+            fs::read_to_string(path).unwrap(),
+        )],
+        paths: BTreeMap::new(),
+    }
+}
 struct Temp(PathBuf, bool);
 impl Temp {
     fn new(label: &str) -> Self {
@@ -145,6 +161,21 @@ fn checked(command: &mut Command) {
     assert!(output.status.success(), "{command:?}: {output:?}");
 }
 fn compile(temporary: &Temp, optimization: Optimization, entry: &str) -> PathBuf {
+    compile_native(
+        temporary,
+        optimization,
+        &project(entry),
+        &fixtures().join("driver.c"),
+        &root().join("tools/language/173/allocator_probe.c"),
+    )
+}
+fn compile_native(
+    temporary: &Temp,
+    optimization: Optimization,
+    sources: &ProjectSources,
+    driver_source: &Path,
+    probe_source: &Path,
+) -> PathBuf {
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| "clang".into());
@@ -155,10 +186,7 @@ fn compile(temporary: &Temp, optimization: Optimization, entry: &str) -> PathBuf
     };
     let driver = temporary.0.join("driver.o");
     let probe = temporary.0.join("allocator.o");
-    for (source, output) in [
-        (fixtures().join("driver.c"), &driver),
-        (root().join("tools/language/173/allocator_probe.c"), &probe),
-    ] {
+    for (source, output) in [(driver_source, &driver), (probe_source, &probe)] {
         checked(
             Command::new(&clang)
                 .args(["-std=c11", "-Wall", "-Wextra", "-Werror", opt, "-c"])
@@ -179,7 +207,7 @@ fn compile(temporary: &Temp, optimization: Optimization, entry: &str) -> PathBuf
     )).unwrap();
     fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
     let report = compile_project(
-        &project(entry),
+        sources,
         &CompileOptions {
             backend: backend(),
             optimization,
@@ -483,4 +511,63 @@ fn scoped_f_only_wrapper_creates_its_own_concrete_body() {
         let program = compile(&temporary, optimization, "local_body_main");
         observe(&program, &temporary, &expected[0]);
     }
+}
+
+#[test]
+fn scoped_local_preparation_frozen_sources_reach_independent_verification() {
+    let mut failures = Vec::new();
+    for (group, name) in [
+        ("frozen", "generic-local"),
+        ("frozen", "concrete-local"),
+        ("frozen", "generic-owned-parameter"),
+        ("observed", "generic-local"),
+    ] {
+        let report = compile_project(
+            &preparation_project(group, name),
+            &CompileOptions::default(),
+        );
+        if report.status != ResultCategory::Success || report.verification_runs != 1 {
+            failures.push(format!("{group}/{name}: {}", report.to_json()));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+fn preparation_native_group(group: &str, names: &[&str], oracle: &str) {
+    let expected = oracle_rows(&format!("local-preparation/{oracle}"));
+    assert_eq!(expected.len(), 6);
+    for name in names {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let temporary = Temp::new(&format!("preparation-{group}-{name}-{optimization:?}"));
+            let program = compile_native(
+                &temporary,
+                optimization,
+                &preparation_project(group, name),
+                &fixtures().join("local-preparation/driver.c"),
+                &root().join("tools/language/foreign-scoped-callback/local_preparation_probe.c"),
+            );
+            for row in &expected {
+                observe(&program, &temporary, row);
+            }
+        }
+    }
+}
+
+#[test]
+fn scoped_local_preparation_frozen_controls_match_native_oracle() {
+    preparation_native_group(
+        "frozen",
+        &["concrete-local", "generic-owned-parameter"],
+        "FROZEN_ORACLE.json",
+    );
+}
+
+#[test]
+fn scoped_local_preparation_generic_source_matches_native_oracle() {
+    preparation_native_group("frozen", &["generic-local"], "FROZEN_ORACLE.json");
+}
+
+#[test]
+fn scoped_local_preparation_preserves_cleanup_and_caller_callback() {
+    preparation_native_group("observed", &["generic-local"], "OBSERVED_ORACLE.json");
 }
