@@ -174,6 +174,16 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             seen[index] = true;
             for instruction in &block.instructions {
                 budget.spend(1, "helper dependency instruction")?;
+                // Local construction needs actual CFG positions, including
+                // captures and later moves; preserve legacy accounting for
+                // helpers which contain no local environment construction.
+                if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
+                    if budget.forward_functions.is_empty() {
+                        budget.spend(count, "concrete helper dependency flags")?;
+                        budget.forward_functions = vec![false; count];
+                    }
+                    budget.forward_functions[caller] = true;
+                }
                 if let InstructionKind::Call {
                     function: callee, ..
                 } = instruction.kind
@@ -264,7 +274,7 @@ fn dependency_order(module: &TypedModule, budget: &mut Budget) -> CompileResult<
 struct Forwarded<'a> {
     traces: &'a CallableTraces,
     /// Each child parameter is replaced at this actual static call site.
-    roles: Vec<(u32, u32)>,
+    roles: Vec<(u32, Option<u32>)>,
 }
 
 fn forwarded<'a>(
@@ -274,6 +284,7 @@ fn forwarded<'a>(
     origins: &[u8],
     roles: &[CallableRole],
     checked: &[bool],
+    concrete: bool,
     budget: &mut Budget,
 ) -> CompileResult<Option<Forwarded<'a>>> {
     let InstructionKind::Call {
@@ -311,7 +322,23 @@ fn forwarded<'a>(
         let value = *arguments
             .get(role.parameter as usize)
             .ok_or_else(|| bad("nested helper role argument is absent"))?;
-        let origin = parameter_invocation(origins[value.0 as usize], true)?
+        let actual = origins[value.0 as usize];
+        // Only the position-sensitive proof may discharge a concrete local
+        // argument. A ClosureId match never supplies a symbolic parent role.
+        if concrete && actual == FACTORY {
+            let (id, _) = env(&function.values[value.0 as usize])
+                .ok_or_else(|| bad("nested concrete argument has no environment"))?;
+            let definition = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| bad("nested concrete environment is absent"))?;
+            if role.closure != id || !super::forward::compatible(definition.kind, role.kind) {
+                return Err(bad("nested concrete helper identity or mode differs"));
+            }
+            substitutions.push((role.parameter, None));
+            continue;
+        }
+        let origin = parameter_invocation(actual, true)?
             .ok_or_else(|| bad("nested helper must forward an actual parent role"))?;
         let parent = roles
             .get(origin)
@@ -323,7 +350,7 @@ fn forwarded<'a>(
         {
             return Err(bad("nested helper role identity or mode differs"));
         }
-        substitutions.push((role.parameter, parent.parameter));
+        substitutions.push((role.parameter, Some(parent.parameter)));
     }
     Ok(Some(Forwarded {
         traces: &claim.traces,

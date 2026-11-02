@@ -438,7 +438,8 @@ fn transfer(
         }
         let call = matches!(
             i.kind,
-            InstructionKind::Call { .. }
+            InstructionKind::MakeClosure { .. }
+                | InstructionKind::Call { .. }
                 | InstructionKind::WithForeignCallback { .. }
                 | InstructionKind::CallClosure { .. }
                 | InstructionKind::CallClosureOnce { .. }

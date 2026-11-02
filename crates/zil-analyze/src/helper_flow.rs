@@ -156,7 +156,7 @@ fn append_child(
 
 fn remap(
     events: &[CallEvent],
-    roles: &[(u32, u32)],
+    roles: &[(u32, Option<u32>)],
     budget: &mut Budget,
 ) -> CompileResult<Vec<CallEvent>> {
     budget.product(
@@ -167,15 +167,17 @@ fn remap(
     )?;
     events
         .iter()
-        .map(|event| {
-            let parameter = roles
-                .iter()
-                .find_map(|(child, parent)| (*child == event.parameter).then_some(*parent))
-                .ok_or_else(|| bad("child event names no actual forwarded role"))?;
-            Ok(CallEvent {
-                parameter,
-                kind: event.kind,
-            })
+        .filter_map(|event| {
+            match roles.iter().find(|(child, _)| *child == event.parameter) {
+                Some((_, Some(parameter))) => Some(Ok(CallEvent {
+                    parameter: *parameter,
+                    kind: event.kind,
+                })),
+                // This child role belongs to an independently checked actual
+                // concrete value, so it contributes no wrapper F event.
+                Some((_, None)) => None,
+                None => Some(Err(bad("child event names no actual forwarded role"))),
+            }
         })
         .collect()
 }
@@ -186,6 +188,7 @@ fn actual_call(
     values: &[u8],
     borrowed_roles: u8,
     roles: &[CallableRole],
+    concrete: bool,
 ) -> CompileResult<Option<CallEvent>> {
     let (origin, kind, address) = match instruction.kind {
         InstructionKind::CallClosure { callee, .. } => {
@@ -215,6 +218,9 @@ fn actual_call(
         }
         _ => return Ok(None),
     };
+    if concrete && origin == FACTORY {
+        return Ok(None);
+    }
     let Some(origin) = parameter_invocation(origin, address)? else {
         return Ok(None);
     };
@@ -235,7 +241,11 @@ fn scoped_event(
     wanted: CallableKind,
     borrowed: bool,
     roles: &[CallableRole],
+    concrete: bool,
 ) -> CompileResult<Option<CallEvent>> {
+    if concrete && origin == FACTORY {
+        return Ok(None);
+    }
     let Some(index) = parameter_invocation(origin, borrowed)? else {
         return Ok(None);
     };
@@ -328,12 +338,22 @@ pub(super) fn check(
         for (position, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1, "helper actual instruction")?;
             let (locals, values) = if let Some(precise) = &precise {
-                if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
-                    continue;
-                }
                 let Some(snapshot) = &precise[index][position] else {
                     continue;
                 };
+                if let InstructionKind::MakeClosure { captures, .. } = &instruction.kind {
+                    budget.spend(captures.len(), "concrete helper capture sources")?;
+                    for value in captures {
+                        if env(&function.values[value.0 as usize]).is_some()
+                            && snapshot.values[value.0 as usize] != FACTORY
+                        {
+                            return Err(bad(
+                                "local environment capture has a symbolic, mixed or unknown callable source",
+                            ));
+                        }
+                    }
+                    continue;
+                }
                 (&snapshot.locals[..], &snapshot.values[..])
             } else {
                 (&locals[..], &values[..])
@@ -345,12 +365,14 @@ pub(super) fn check(
                     CallableKind::FnMut,
                     true,
                     &claim.roles,
+                    precise.is_some(),
                 )?;
                 let b = scoped_event(
                     values[body.0 as usize],
                     CallableKind::FnOnce,
                     false,
                     &claim.roles,
+                    precise.is_some(),
                 )?;
                 if let Some(b) = &b {
                     budget.lookup(scoped_bodies.len(), "scoped actual body role")?;
@@ -391,6 +413,7 @@ pub(super) fn check(
                 values,
                 &claim.roles,
                 checked,
+                precise.is_some(),
                 budget,
             )? {
                 if let InstructionKind::Call {
@@ -422,17 +445,25 @@ pub(super) fn check(
                                 .ok_or_else(|| {
                                     bad("scoped child body has no actual parent role")
                                 })?;
-                            budget.lookup(scoped_bodies.len(), "scoped parent consumed role")?;
-                            scoped_bodies.insert(parent);
+                            if let Some(parent) = parent {
+                                budget
+                                    .lookup(scoped_bodies.len(), "scoped parent consumed role")?;
+                                scoped_bodies.insert(parent);
+                            }
                         }
                     }
                 }
                 let (entry, continuation) = append_child(&mut rows, &child, &mut counts, budget)?;
                 rows[output].end = End::Links(vec![entry]);
                 output = continuation;
-            } else if let Some(event) =
-                actual_call(instruction, locals, values, borrowed_roles, &claim.roles)?
-            {
+            } else if let Some(event) = actual_call(
+                instruction,
+                locals,
+                values,
+                borrowed_roles,
+                &claim.roles,
+                precise.is_some(),
+            )? {
                 counts.add(0, 1, 0, budget)?;
                 rows[output].calls.push(event);
             }
