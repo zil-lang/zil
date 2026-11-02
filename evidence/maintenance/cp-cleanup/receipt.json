@@ -1,0 +1,71 @@
+{
+  "task": "245",
+  "status": "Pass",
+  "scope": "Git research-ref maintenance only; no product integration or performance claim",
+  "audit_baseline": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+  "delivery_parent": "77b1c8209cc80257e38933535a7694517d7684c2",
+  "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+  "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+  "archive": {
+    "tag": "archive/cp-245-20261102",
+    "tag_oid": "3f072a39549a80bf0d5df27de1197f3402bb154b",
+    "archive_commit": "27ccb6d23652dba6cc3461434f5d5c48aced37de",
+    "tree": "8762daab7439a54d867b8fc9b88c1172989719f6",
+    "parents": [
+      "e7b492c6e04128e6106bbf29c0d6c7b381556d77",
+      "a894f8476cd043314113ba40b4a492deaf281895",
+      "8c4fa27f677b992e6d5590493a4ea530b95ae46d",
+      "74142bc822c57b1246c9bf328c019fd364ee150a",
+      "1cb27ac6b907aeef28b8a472d15ee1859b9959c1",
+      "7e7f8083af9361de17793c602bfaa7117e6f47b9",
+      "79bb5348fe426a62aecaae808321f70966cbc24c",
+      "11d88c78037a77d2c188a6684cdaa0300f60b7b9",
+      "df13bc96536c7f775d7227256e45db7fc9e178b2",
+      "b9ccf36aac5720886c9e68b3a812b4f61f841626",
+      "675d1ac9d55ac0d6c9a9ea612c61484c6ad74b17",
+      "9fe23d7180b41830f599128324c769deac37211d",
+      "de0eefdc38e1a25129f219d2a7c7933922790e13",
+      "e739f583b63ba8fa44fa26a937d36afb9cbaea2a"
+    ],
+    "status": "pushed_and_independently_restored_from_remote"
+  },
+  "bundle_extra_attachment": {
+    "path": "research-heads.bundle",
+    "bytes": 57799332,
+    "sha256": "999cee84f00d9ab81da9a6b709fe813627eab9c89051b8c65f003b01a74ebc5e",
+    "prerequisite_source": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+    "extra_attachment": "/workspace/attachments/zil-cp-cleanup-245/research-heads.bundle"
+  },
+  "deleted_remote_count": 13,
+  "deleted_local_count": 1,
+  "kept_remote": {
+    "refs/heads/task/cp25-reactive-session": "e739f583b63ba8fa44fa26a937d36afb9cbaea2a"
+  },
+  "kept_reason": "CP25 is unique unfinished work: authoritative branch card/live record remains Doing, publication/hash verification and independent review are incomplete; only three source patch parts are tracked. No loss of that branch or its source transport.",
+  "retirement_basis": "13 retired heads have archived historical exploratory outcomes and isolated candidates; latest compile7 synthesis records Complete_Exploratory with default NoGo/Hold. They are NOT main ancestors or proven patch-equivalent; archive preserves all unique commits/source/tests/results. The newer explicit CP cleanup authorization supersedes the historical .agent/git-branches.md instruction to keep the former long research line online.",
+  "checks": {
+    "bundle_independent_restore_and_full_fsck": "Pass;14 tips and all reachable objects checked",
+    "remote_tag_independent_full_fetch_and_fsck": "Pass;14 original tip trees and tag/parents exact",
+    "remote_deletion": "Pass; atomic push,13 exact-OID leases, actual before/after refs in retirement.json",
+    "local_deletion": "Pass;5d7c1eeb is baseline ancestor, not checked out; exact-OID update-ref",
+    "workspace": "No research/CP worktree present; all current main/task worktrees retained",
+    "cache": "No preexisting target/.cache/out or ignored CP output found in main; .zil-env toolchain untouched",
+    "temporary_restore_database_removed_bytes": 817425969,
+    "production_source_tests_historical_evidence": "Unchanged; tracked writes limited to evidence/maintenance/cp-cleanup/**",
+    "handoff": "1144 preexisting historical errors,0 warnings,245 errors0 after root77b1c8209; not a global Pass",
+    "formal_full_tests": "NotRun; no production change"
+  },
+  "retained_material": [
+    "All original CP history through remote archive tag",
+    "CP25 remote branch",
+    "Extra differential bundle attachment",
+    "All tracked production/tests/research evidence and toolchain"
+  ],
+  "rust_goals": {
+    "safety": "No compiler behavior change; existing evidence retained",
+    "runtime_memory": "Not measured; no runtime change",
+    "expression_maintenance": "13 online research refs retired with exact recovery manifest",
+    "compile_cost": "Not measured; no speedup claimed",
+    "repeatable_product_breakthrough": "Not established by maintenance; product-gates unchanged"
+  }
+}
