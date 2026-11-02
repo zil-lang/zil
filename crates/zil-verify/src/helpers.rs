@@ -84,6 +84,23 @@ fn environment_origins(
                 edges[origin].push(destination);
                 continue;
             }
+            if let InstructionKind::Call {
+                function,
+                ref arguments,
+            } = instruction.kind
+            {
+                let producer = &module.functions[function.0 as usize];
+                if let Some(contract) = &producer.callable_return_contract {
+                    if let CallableReturnSource::Parameter(position) = contract.source {
+                        let value = arguments.get(position as usize).ok_or_else(|| {
+                            bad(f, "nested callable result names an absent actual parameter")
+                        })?;
+                        budget.spend(1)?;
+                        edges[values_at + value.0 as usize].push(destination);
+                        continue;
+                    }
+                }
+            }
             // All return claims and bodies were independently checked by
             // retained before this pass. Do not infer safety from a type ID or
             // from a producer-supplied empty envelope alone.
@@ -708,9 +725,20 @@ pub(super) fn check_module(
                 "callback role table does not exactly cover actual parameters",
             ));
         }
-        let owning_dispatch = owned_dispatch(module, f, &parameters, claim, budget)?;
+        let forwarding = f
+            .callable_return_contract
+            .as_ref()
+            .is_some_and(|contract| matches!(contract.source, CallableReturnSource::Parameter(_)));
+        // A Parameter result has its own independently checked signature and
+        // instance proof. Old synchronous helper result gates must not turn a
+        // returned F into a Copy result or require a FnOnce owning dispatch.
+        let owning_dispatch = if forwarding {
+            false
+        } else {
+            owned_dispatch(module, f, &parameters, claim, budget)?
+        };
         for (position, local) in f.parameters.iter().enumerate() {
-            if owning_dispatch {
+            if owning_dispatch || forwarding {
                 break;
             }
             if parameters.iter().any(|(p, ..)| *p as usize == position) {
@@ -745,6 +773,7 @@ pub(super) fn check_module(
             }
             let definition = closures::definition(module, *closure, Some(f.span))?;
             if !owning_dispatch
+                && !forwarding
                 && !f.return_type.is_copy_value()
                 && !(parameters.len() == 1
                     && *borrowed
@@ -762,7 +791,7 @@ pub(super) fn check_module(
                     "requested callback bound is not supported by the concrete entry",
                 ));
             }
-            if !borrowed && proposed.kind == CallableKind::FnMut {
+            if !borrowed && proposed.kind == CallableKind::FnMut && !forwarding {
                 return Err(unsupported(
                     "this helper slice takes FnMut through an exclusive environment address",
                     Some(f.span),
@@ -799,7 +828,9 @@ pub(super) fn check_module(
                 hold,
                 call,
                 writes,
-                cleanup: if *borrowed {
+                cleanup: if forwarding {
+                    CallableCleanup::Returned
+                } else if *borrowed {
                     CallableCleanup::Borrowed
                 } else {
                     CallableCleanup::Owned
