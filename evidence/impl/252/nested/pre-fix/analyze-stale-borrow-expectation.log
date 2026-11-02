@@ -1,0 +1,29 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-252/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 0.61s
+     Running tests/impl252_nested.rs (/workspace/.zil-env/target-252/debug/deps/impl252_nested-71a7836cc5681d16)
+
+running 6 tests
+nested252 duplicate move: [Diagnostic { phase: Analyze, category: SafeReject, code: "E-UNINITIALIZED", message: "local 2 is not initialized on every incoming path", span: Some(Span { file: FileId(0), start: 281, end: 282 }), notes: [] }]
+test nested_owned_callback_can_pass_through_the_existing_keep_profile ... ok
+nested252 public pointer: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "closure values cannot escape through scalar signatures, captures or scalar operations", span: Some(Span { file: FileId(0), start: 267, end: 298 }), notes: [] }]
+
+thread 'nested_owned_move_does_not_revive_an_old_borrow_or_retain_external_capture' (227917) panicked at crates/zil-driver/tests/impl252_nested.rs:78:68:
+called `Result::unwrap_err()` on an `Ok` value: CandidatePlan { schema_version: 31, module_fingerprint: Fingerprint([144, 34, 14, 175, 171, 59, 210, 79, 240, 164, 131, 20, 121, 45, 250, 241, 196, 126, 72, 224, 0, 150, 109, 199, 209, 113, 237, 255, 204, 68, 229, 242]), target_fingerprint: Fingerprint([205, 49, 11, 211, 61, 158, 160, 206, 0, 177, 155, 124, 142, 36, 127, 255, 149, 121, 131, 121, 165, 196, 116, 61, 206, 130, 190, 234, 40, 5, 28, 15]), functions: [FunctionPlan { function: FunctionId(0), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }, ValueHold { value: ValueId(1), roots: [] }, ValueHold { value: ValueId(2), roots: [] }] }, FunctionPlan { function: FunctionId(1), blocks: [BlockPlan { block: BlockId(0), initialized_in: [], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }, ValueHold { value: ValueId(1), roots: [] }, ValueHold { value: ValueId(2), roots: [] }, ValueHold { value: ValueId(3), roots: [] }, ValueHold { value: ValueId(4), roots: [] }, ValueHold { value: ValueId(5), roots: [Local(LocalId(2))] }, ValueHold { value: ValueId(6), roots: [Local(LocalId(2))] }, ValueHold { value: ValueId(7), roots: [] }, ValueHold { value: ValueId(8), roots: [Local(LocalId(2))] }, ValueHold { value: ValueId(9), roots: [] }, ValueHold { value: ValueId(10), roots: [] }, ValueHold { value: ValueId(11), roots: [] }, ValueHold { value: ValueId(12), roots: [] }, ValueHold { value: ValueId(13), roots: [] }, ValueHold { value: ValueId(14), roots: [] }, ValueHold { value: ValueId(15), roots: [] }, ValueHold { value: ValueId(16), roots: [] }, ValueHold { value: ValueId(17), roots: [] }, ValueHold { value: ValueId(18), roots: [] }] }, FunctionPlan { function: FunctionId(2), blocks: [BlockPlan { block: BlockId(0), initialized_in: [LocalId(0)], initialized_out: [] }], holds: [ValueHold { value: ValueId(0), roots: [] }, ValueHold { value: ValueId(1), roots: [] }, ValueHold { value: ValueId(2), roots: [] }, ValueHold { value: ValueId(3), roots: [] }, ValueHold { value: ValueId(4), roots: [] }, ValueHold { value: ValueId(5), roots: [] }, ValueHold { value: ValueId(6), roots: [] }, ValueHold { value: ValueId(7), roots: [] }, ValueHold { value: ValueId(8), roots: [] }, ValueHold { value: ValueId(9), roots: [] }] }], origins: [], responsibilities: [], unsupported: [] }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test nested_owned_move_does_not_revive_an_old_borrow_or_retain_external_capture ... FAILED
+test nested_owned_callback_creation_and_move_without_refill_or_call ... ok
+nested252 array: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "address/resource cannot be used in a Copy closure signature or operation", span: Some(Span { file: FileId(0), start: 282, end: 283 }), notes: [] }]
+test nested_owned_environment_is_not_copy_or_a_thin_pointer ... ok
+test original_nested_owned_callback_creates_moves_refills_and_calls ... ok
+nested252 own Types N=1135;N-1 ResourceLimit;fresh N identity
+nested252 copy Types N=148;N-1 ResourceLimit;fresh N identity
+test nested_types_request_budget_and_copy_control_have_exact_fresh_boundaries ... ok
+
+failures:
+
+failures:
+    nested_owned_move_does_not_revive_an_old_borrow_or_retain_external_capture
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p zil-driver --test impl252_nested`

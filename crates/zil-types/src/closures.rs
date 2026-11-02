@@ -2127,7 +2127,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         bound: &CoreCallableParameter,
         mode: Option<bool>,
         depth: usize,
-    ) -> R<()> {
+    ) -> R<LocalType> {
         let span = expression.span;
         self.graph.spend(span)?;
         let value = self.expr(expression, depth)?;
@@ -2139,6 +2139,23 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             )
         };
         match (value, mode) {
+            (LocalType::Nested(index, actual), wanted)
+                if actual == wanted || (actual == Some(true) && wanted == Some(false)) =>
+            {
+                let signature = self.nested_signature(index, span)?;
+                self.graph.reserve_type(&signature, 0, span)?;
+                let Type::FunctionPointer { parameters, result } = signature else {
+                    unreachable!("private nested signature")
+                };
+                if parameters != bound.parameters || result.as_ref() != &bound.result {
+                    return Err(mismatch());
+                }
+                // Capture inference does not grant a bound from this private
+                // signature. Builder checks the actual closure mode and origin.
+                if wanted == Some(true) {
+                    self.mark_address_write(expression, depth)?;
+                }
+            }
             (LocalType::Scalar(variable), None)
             | (LocalType::Address(variable, false), Some(false))
             | (LocalType::Address(variable, true), Some(_)) => {
@@ -2193,7 +2210,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             _ => return Err(mismatch()),
         }
-        Ok(())
+        Ok(value)
     }
     fn known(&mut self, ty: &Type, span: Span) -> R<LocalType> {
         if let Type::Closure(id) = ty {
@@ -2964,6 +2981,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         "closure body call argument count mismatch",
                     ));
                 }
+                let mut nested_result = None;
                 for (index, (argument, parameter)) in
                     arguments.iter().zip(&signature.parameters).enumerate()
                 {
@@ -2974,7 +2992,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         .find(|bound| bound.index as usize == index)
                         && let Some(mode) = helpers::parameter_mode(parameter, &bound.generic_name)
                     {
-                        self.helper_argument(argument, bound, mode, depth + 1)?;
+                        let value = self.helper_argument(argument, bound, mode, depth + 1)?;
+                        if matches!(value, LocalType::Nested(_, None))
+                            && mode.is_none()
+                            && matches!(&signature.result, Type::Named(name) if name == &bound.generic_name)
+                        {
+                            nested_result = Some(value);
+                        }
                         continue;
                     }
                     let variable = self.expr_expected(argument, Some(parameter), depth + 1)?;
@@ -2990,6 +3014,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         self.mark_resource_write(variable, argument.span)?;
                     }
                     variable.bind(&mut self.graph, parameter, argument.span)?;
+                }
+                if let Some(value) = nested_result {
+                    return Ok(value);
                 }
                 self.known(&signature.result, span)
             }
