@@ -1,0 +1,56 @@
+{
+  "status": "source_API_suggestion_pending_public_freeze",
+  "modules": [
+    {
+      "name": "std.syntax",
+      "origin": "compiler-provided closed CT library; matching untrusted file path is not an intrinsic grant",
+      "functions": {
+        "parse_expr": "(TokenTree)->Syntax<Expr>",
+        "parse_type": "(TokenTree)->Syntax<Type>",
+        "parse_stmts": "(TokenTree)->Syntax<StmtList>",
+        "parse_items": "(TokenTree)->Syntax<ItemList>",
+        "parse_ident": "(TokenTree)->Ident; one identifier plus EOF; can be a pure wrapper over TokenCursor/InputName",
+        "literal": "(allowed pure scalar)->Syntax<Expr>",
+        "type_ref": "(Type)->Syntax<Type>",
+        "name_expr": "(Ident)->Syntax<Expr>",
+        "fresh": "(Text)->Ident",
+        "export": "(Text)->Ident; declaration intent only"
+      }
+    },
+    {
+      "name": "std.meta",
+      "origin": "compiler-closed query/type-constructor bindings authenticated by frozen view",
+      "functions": {
+        "array_type": "(Type,i32)->Type; nonnegative canonical u32 cardinality bound, ordinary use remains checked",
+        "field": "(Type,Text)->FieldInfo; no private/opaque leak; FieldInfo.name is Member Ident with owner",
+        "layout": "(Type)->LayoutInfo; LayoutReady target/ABI only"
+      },
+      "projections": {
+        "FieldInfo.ty": "Type",
+        "FieldInfo.name": "Ident(Member,actual owner)",
+        "LayoutInfo.size": "source i64 with checked conversion from canonical metadata size",
+        "LayoutInfo.alignment": "source i64 with checked conversion; no host-usize shortcut"
+      }
+    }
+  ],
+  "special_types": [
+    "Type",
+    "Syntax<Expr>",
+    "Syntax<Type>",
+    "Syntax<StmtList>",
+    "Syntax<ItemList>",
+    "Ident",
+    "TokenTree",
+    "Text",
+    "FieldInfo",
+    "LayoutInfo"
+  ],
+  "notes": [
+    "Plain fn syntax; CT-only signature does not create runtime ABI",
+    "Text is bounded CT-only UTF-8, not runtime ByteBuffer/String",
+    "Only quote/splice/$/CT metadata APIs are proposed new syntax or bindings; normal aggregate/function/import/resource/Drop syntax is existing ZIL",
+    "Source imports require authenticated compiler CT-library binding, not arbitrary filesystem std modules",
+    "Quote resource statements are untrusted source, not CT resource execution"
+  ],
+  "token_parse_envelope_proposal": "Provider TokenTree preserves the invocation outer group. parse_* parses exactly its contents, stripping only that authenticated invocation envelope; nested groups remain grammar input. Outer delimiter/source remains part of registry/preview/cache identity. Must freeze this convention."
+}
