@@ -2345,6 +2345,50 @@ impl Flow<'_> {
                         });
                     }
                 }
+                InstructionKind::WithForeignCallback { callback, body, .. } => {
+                    for (value, consume) in [(*callback, false), (*body, true)] {
+                        let ty = &f.values[value.0 as usize];
+                        if let Some(shape) = self.shapes.get(&Place::Value(value)) {
+                            let fact = copied(state, Place::Value(value), budget)?;
+                            if check {
+                                if shape.owned && !exact(&fact, Life::Available) {
+                                    return Err(error(
+                                        "scoped callback uses a consumed environment",
+                                    ));
+                                }
+                                if shape.description {
+                                    live_sources(state, &fact, budget)?;
+                                }
+                            }
+                            if consume {
+                                let Type::Closure(id) = ty else {
+                                    return Err(error("scoped callback body is not a closure"));
+                                };
+                                let definition = &self.module.closures[id.0 as usize];
+                                if let Some(dependencies) = self.dependencies {
+                                    dependencies.connect(
+                                        definition.function.0 as usize,
+                                        summary_graph::Kind::AnyBorrowed,
+                                        f.id.0 as usize,
+                                        &fact.sources,
+                                        budget,
+                                    )?;
+                                } else {
+                                    let summary = self
+                                        .effects
+                                        .get(definition.function.0 as usize)
+                                        .ok_or_else(|| error("scoped body entry is absent"))?;
+                                    if !summary.borrowed_fields.is_empty() {
+                                        record_write(&fact.sources, effect, shared, check, budget)?;
+                                    }
+                                }
+                            }
+                        }
+                        if consume {
+                            self.consume(state, value, check, budget)?;
+                        }
+                    }
+                }
                 InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
                 | InstructionKind::CallClosureOnce { .. }
@@ -2712,7 +2756,8 @@ fn effect_consumers(
                     }
                     InstructionKind::CallClosure { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
-                    | InstructionKind::CallClosureBorrowed { callee, .. } => {
+                    | InstructionKind::CallClosureBorrowed { callee, .. }
+                    | InstructionKind::WithForeignCallback { body: callee, .. } => {
                         let ty = function
                             .values
                             .get(callee.0 as usize)

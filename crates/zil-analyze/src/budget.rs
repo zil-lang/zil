@@ -30,6 +30,8 @@ pub(super) struct Budget {
     pub(super) parameter_returns: BTreeSet<zil_ir::FunctionId>,
     pub(super) forward_functions: Vec<bool>,
     pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
+    pub(super) scoped_foreign: bool,
+    pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     sum_roots: BTreeSet<usize>,
 }
 
@@ -50,6 +52,8 @@ impl Budget {
             parameter_returns: BTreeSet::new(),
             forward_functions: Vec::new(),
             forward_closures: BTreeSet::new(),
+            scoped_foreign: false,
+            scoped_functions: BTreeSet::new(),
             sum_roots: BTreeSet::new(),
         }
     }
@@ -864,6 +868,10 @@ pub(super) fn preflight(
             }
         }
         if let Some(foreign) = &function.foreign {
+            if foreign.scoped_callback.is_some() {
+                budget.input(1, "scoped foreign role")?;
+                budget.scoped_foreign = true;
+            }
             budget.input(
                 foreign
                     .abi
@@ -928,6 +936,30 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::WithForeignCallback {
+                        register,
+                        close,
+                        callback,
+                        body,
+                        ..
+                    } => {
+                        budget.input(5, "scoped foreign callback operands")?;
+                        if register.0 as usize >= module.functions.len()
+                            || close.0 as usize >= module.functions.len()
+                            || callback.0 as usize >= function.values.len()
+                            || body.0 as usize >= function.values.len()
+                        {
+                            return Err(bad(
+                                "scoped foreign callback operand outside actual tables",
+                            ));
+                        }
+                        budget.lookup(
+                            budget.scoped_functions.len(),
+                            "scoped foreign function insertion",
+                        )?;
+                        budget.scoped_functions.insert(function.id);
+                        budget.scoped_foreign = true;
+                    }
                     InstructionKind::VariantTagLocal { local, path }
                     | InstructionKind::ReadVariantLocal { local, path } => {
                         sum_function = true;
