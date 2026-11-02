@@ -5,8 +5,8 @@
 pub mod ct_selection;
 mod enums;
 mod foreign;
-mod generics;
 mod generated_spans;
+mod generics;
 pub use generated_spans::remap_generated_spans;
 mod mapping;
 mod modules;
@@ -511,6 +511,8 @@ fn expand_inner_project(
 }
 struct Expander<'a> {
     callable_work: usize,
+    member_owner_nodes: usize,
+    member_owner_depth: usize,
     module_id: zil_base::ModuleId,
     project_defaults: Option<&'a ProjectDefaults>,
     generated_imports: BTreeMap<zil_base::ModuleId, CoreImport>,
@@ -552,6 +554,8 @@ impl<'a> Expander<'a> {
             imports_resolved,
             module_id,
             callable_work: limits.max_analysis_steps,
+            member_owner_nodes: limits.max_nodes,
+            member_owner_depth: limits.max_call_depth,
             project_defaults,
             generated_imports: BTreeMap::new(),
             generated_exports: Vec::new(),
@@ -769,16 +773,22 @@ impl Expander<'_> {
                     },
                 )
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
                 let (object, read_object) = self.compound_place(*object, bindings)?;
                 (
                     CoreExprKind::Member {
                         object: Box::new(object),
                         member: member.clone(),
+                        owner: owner.clone(),
                     },
                     CoreExprKind::Member {
                         object: Box::new(read_object),
                         member,
+                        owner,
                     },
                 )
             }
@@ -1105,13 +1115,36 @@ impl Expander<'_> {
                 }
             }
             s::ExprKind::Pipeline { input, target } => return self.pipeline(e.span, input, target),
-            s::ExprKind::Member { object, member } => CoreExprKind::Member {
-                object: Box::new(self.expr(object)),
-                member: match member {
-                    s::MemberName::Name(n) => n.clone(),
-                    s::MemberName::TupleIndex(n) => n.to_string(),
-                },
-            },
+            s::ExprKind::Member { object, member } => {
+                let (name, owner) = match member {
+                    s::MemberName::Name(name) => (name.clone(), None),
+                    s::MemberName::TupleIndex(index) => (index.to_string(), None),
+                    s::MemberName::Constrained { name, owner } => {
+                        let limits = Limits {
+                            max_analysis_steps: self.callable_work / 3,
+                            max_nodes: self.member_owner_nodes,
+                            max_call_depth: self.member_owner_depth,
+                            ..Limits::default()
+                        };
+                        let cost = match ct_selection::type_cost(owner, &limits) {
+                            Ok(cost) => cost,
+                            Err(errors) => {
+                                self.diagnostics.extend(errors);
+                                return self.expr_node(CoreExprKind::Unit, e.span);
+                            }
+                        };
+                        // Prepay traversal, lowering and possible compound-place clone.
+                        self.callable_work -= cost.work * 3;
+                        self.member_owner_nodes -= cost.nodes;
+                        (name.clone(), Some(self.type_ref(owner)))
+                    }
+                };
+                CoreExprKind::Member {
+                    object: Box::new(self.expr(object)),
+                    member: name,
+                    owner,
+                }
+            }
             s::ExprKind::Record { ty, base, fields } => {
                 return self.record(e.span, ty.as_deref(), base.as_deref(), fields, expected);
             }
