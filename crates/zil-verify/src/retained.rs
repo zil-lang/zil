@@ -1,6 +1,8 @@
 //! Opaque callable results are untrusted claims until the concrete environment,
 //! its public boundary and every ordinary return have been checked here.
 use super::*;
+#[path = "retained/provenance.rs"]
+mod provenance;
 
 fn bad(f: &TypedFunction, message: impl Into<String>) -> Diagnostic {
     reject("E-VERIFY-CALLABLE-CONTRACT", Some(f.span), message)
@@ -72,11 +74,8 @@ pub(super) fn check_claim(
             "a callable result requires its independently checkable return contract",
         )
     })?;
-    if c.source != CallableReturnSource::Fresh {
-        return Err(unsupported(
-            "parameter callable returns require an independent instance proof",
-            Some(f.span),
-        ));
+    if let CallableReturnSource::Parameter(parameter) = c.source {
+        return check_parameter_claim(module, f, id, parameter, c, budget);
     }
     if f.foreign.is_some()
         || f.environment.is_some()
@@ -190,6 +189,132 @@ pub(super) fn check_claim(
     Ok(())
 }
 
+/// The public relation names one actual by-value parameter, not a closure
+/// type. The CFG proof below must still establish that every return carries
+/// this invocation's particular value and its remaining responsibility.
+fn check_parameter_claim(
+    module: &TypedModule,
+    f: &TypedFunction,
+    id: ClosureId,
+    parameter: u32,
+    claim: &CallableReturnContract,
+    budget: &mut Budget,
+) -> Check<()> {
+    if f.foreign.is_some() || f.environment.is_some() || f.result_mode != PassingMode::Infer {
+        return Err(bad(
+            f,
+            "callable forwarding requires an ordinary Value function",
+        ));
+    }
+    let index = parameter as usize;
+    let local = f
+        .parameters
+        .get(index)
+        .and_then(|id| f.locals.get(id.0 as usize))
+        .ok_or_else(|| {
+            bad(
+                f,
+                "forwarded parameter index is outside the actual signature",
+            )
+        })?;
+    if local.ty != Type::Closure(id)
+        || f.parameters
+            .iter()
+            .filter(|local| {
+                matches!(
+                    f.locals.get(local.0 as usize).map(|l| &l.ty),
+                    Some(Type::Closure(_))
+                )
+            })
+            .count()
+            != 1
+    {
+        return Err(bad(
+            f,
+            "forwarding requires exactly one actual by-value callable parameter",
+        ));
+    }
+    let roles = &f
+        .callable_contract
+        .as_ref()
+        .ok_or_else(|| {
+            bad(
+                f,
+                "forwarding requires an independently checked callable role",
+            )
+        })?
+        .roles;
+    let [role] = roles.as_slice() else {
+        return Err(bad(f, "forwarding requires exactly one callable role"));
+    };
+    let definition = closures::definition(module, id, Some(f.span))?;
+    if role.parameter != parameter
+        || role.closure != id
+        || role.cleanup != CallableCleanup::Returned
+        || claim.closure != id
+        || claim.kind != role.kind
+        || !closures::supports(definition.kind, role.kind)
+        || !claim.hold.is_empty()
+        || !claim.call.is_empty()
+        || !claim.writes.is_empty()
+        || !claim.lending_captures.is_empty()
+        || !definition.lending_captures.is_empty()
+    {
+        return Err(bad(
+            f,
+            "forwarded source, declared mode or self-contained envelope differs from the actual role",
+        ));
+    }
+    closures::self_contained(module, id, budget)?;
+    budget.spend(f.parameters.len())?;
+    for (position, parameter_local) in f.parameters.iter().enumerate() {
+        if position == index {
+            continue;
+        }
+        let ty = &f
+            .locals
+            .get(parameter_local.0 as usize)
+            .ok_or_else(|| bad(f, "forwarding companion is outside the local table"))?
+            .ty;
+        if owned_callbacks::root(ty) {
+            owned_callbacks::value(module, ty, Some(f.span), budget)?;
+        } else {
+            let work = closures::type_layout_work(ty, budget)?;
+            budget.spend(work)?;
+            check_type(ty, Some(f.span))?;
+        }
+    }
+    budget.spend(definition.captures.len())?;
+    let mut cleanup = Vec::new();
+    for (index, ty) in definition.captures.iter().enumerate() {
+        match ty {
+            Type::Managed(_) => cleanup.push(index as u32),
+            Type::Package { .. } => {
+                packages::check_capture_type(module, ty, Some(f.span), budget)?;
+                cleanup.push(index as u32);
+            }
+            Type::Closure(child) => {
+                closures::self_contained(module, *child, budget)?;
+                cleanup.push(index as u32);
+            }
+            ty if ty.is_copy_value() => {}
+            _ => {
+                return Err(unsupported(
+                    "forwarded environment has an external capture dependency",
+                    Some(f.span),
+                ));
+            }
+        }
+    }
+    if claim.cleanup != cleanup {
+        return Err(bad(
+            f,
+            "forwarded cleanup does not match actual owned capture fields",
+        ));
+    }
+    Ok(())
+}
+
 /// General SSA typing and responsibility checking still establish exact value
 /// types and one transfer at Return. This only checks the finite factory scope;
 /// it does not replace those independent checks with a producer summary.
@@ -203,6 +328,9 @@ pub(super) fn check_body(
         return Ok(());
     };
     check_dependencies(module, f, budget)?;
+    if let CallableReturnSource::Parameter(parameter) = contract.source {
+        return provenance::check(module, f, graph, parameter, budget);
+    }
     let mut creations = 0usize;
     let mut returns = 0usize;
     for (b, block) in f.blocks.iter().enumerate() {
