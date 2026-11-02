@@ -1,0 +1,18 @@
+{
+  "status": "Pass",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "synthetic_checkout": "b59b9f1a98de0fd06b2820c98aad1dcba356337f",
+  "tree": "e07b048aa5495c06e007e9fb6a118caaade66b0a",
+  "run_ids": [
+    41363882129,
+    41363882134
+  ],
+  "receipts": [
+    "41363882129/RESULT.json",
+    "41363882134/RESULT.json"
+  ],
+  "all_native_blobs_reverified_by_root": true,
+  "all_current_source_files_rehashed_against_Git": 4092,
+  "replays_not_added": true,
+  "artifact_uploads": "Unavailable; complete verified log recovery used"
+}

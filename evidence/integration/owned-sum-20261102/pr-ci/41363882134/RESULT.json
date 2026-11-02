@@ -1,0 +1,56 @@
+{
+  "status": "Pass",
+  "scope": "Root verified completed PR CI source, all archived blobs and exact complete test counts",
+  "run_id": 41363882134,
+  "url": "https://github.com/zil-lang/zil/actions/runs/41363882134",
+  "workflow": "Research LLVM verification",
+  "head": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "actual_checkout": "b59b9f1a98de0fd06b2820c98aad1dcba356337f",
+  "tree": "e07b048aa5495c06e007e9fb6a118caaade66b0a",
+  "tree_identical_to_candidate": true,
+  "source_files_rehashed_against_Git": 4092,
+  "tests": {
+    "workspace": {
+      "passed": 3575,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "reference": {
+      "passed": 3474,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "text-reference": {
+      "passed": 64,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    }
+  },
+  "consumer209_status": "Pass",
+  "archive": {
+    "path": "/tmp/owned-sum-pr-ci/R-15498f14/41363882134/evidence-recovery.tar.zst",
+    "bytes": 81917018,
+    "sha256": "9831bb03746376605a34283843034449db7101647e7a951785fe214e3dbd20c0",
+    "files": 147669,
+    "all_indexed_blobs_reverified_by_root": true
+  },
+  "artifact_api_total_count": 0,
+  "upload_outcomes": {
+    "disk_checkpoint": "failure",
+    "recovery_final": "failure",
+    "reference_native": "failure",
+    "reference_receipts": "failure",
+    "toolchain_checkpoint": "failure",
+    "workspace_native": "failure",
+    "workspace_receipts": "failure"
+  },
+  "recovery_note": "Artifact uploads were unavailable; full log transport was downloaded and every indexed blob verified. Action success alone was not acceptance.",
+  "replays_not_added": true
+}
