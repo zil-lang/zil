@@ -1,0 +1,92 @@
+{
+  "task": 254,
+  "status": "isolated_verify_pass",
+  "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "schema_version": 31,
+  "commits": {
+    "verify_implementation": "1a3b6510208b2e2cd09771985ca07708f7678757",
+    "frontend_source": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
+    "analyze_source": "0fd3904b71a953e73d73de5bc18c14db4ff32435",
+    "extended_source": "56cbd4822a4e543114b580929edaf5b7bb7385e9"
+  },
+  "environment": {
+    "setup": "source /workspace/.zil-env/env.sh",
+    "target_dir": "/workspace/.zil-env/target-254",
+    "cargo_flags": "--offline --locked -j 2",
+    "limits": "default unchanged"
+  },
+  "commands": [
+    {
+      "command": "cargo check -p zil-verify --offline --locked -j 2",
+      "passed": true,
+      "log": "check.log"
+    },
+    {
+      "command": "cargo test -p zil-verify --lib --offline --locked -j 2 --quiet",
+      "passed": 316,
+      "failed": 0,
+      "log": "verify-unit.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl254_source --test impl254_wire --offline --locked -j 2 --quiet",
+      "source_passed": 6,
+      "wire_generator_passed": 1,
+      "failed": 0,
+      "log": "verify-source-wire.log"
+    },
+    {
+      "command": "cargo test -p zil-verify --lib helper_tests::forward::forward_raw_wire_budget --offline --locked -j 2 -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "log": "budget.log"
+    }
+  ],
+  "source_controls": {
+    "frozen_and_extended_three_module_verify": "passed",
+    "six_copy_and_owned_callback_signatures": "passed",
+    "fn_to_mut_actual_call_then_return": "passed: outer Fn declaration remains usable after nested FnMut actual call",
+    "fn_to_mut_test": "crates/zil-driver/tests/impl254_source.rs::stronger_fn_survives_nested_mutable_call_and_return"
+  },
+  "raw_wire_boundaries": {
+    "positive": "same parameter instance across direct/local/branch/loop/internal singleton slot and nested keep",
+    "negative": [
+      "same ClosureId fresh replacement",
+      "same ClosureId different slot",
+      "duplicate take",
+      "wrong slot index",
+      "forged Parameter index or cleanup",
+      "child bound upgrade",
+      "FnOnce called then returned",
+      "direct and singleton-slot old borrowed address used after move"
+    ],
+    "raw_declaration_scope": "The public role kind is checked as the raw candidate's declaration; original source fidelity is checked by frontend source-to-Types tests."
+  },
+  "budget": {
+    "source_metadata_logical_units": { "Fresh": 2, "Parameter": 4 },
+    "raw_N": 419,
+    "wire_N": 419,
+    "N_minus_1": 418,
+    "N_minus_1_result": "ResourceLimit",
+    "fresh_N_result": "Pass",
+    "default_limit_raised": false
+  },
+  "loan_counterexample": {
+    "historical_wire30": {
+      "path": "evidence/impl/248/loan_revival.wire",
+      "sha256": "9c32b0267f43de2037bc1579264f114386a0ecc9c9d7cfe9471c964280ca7b9f",
+      "bytes": 3713,
+      "current_result": "E-WIRE-VERSION"
+    },
+    "wire31": {
+      "path": "tests/impl254/loan_revival_v31.wire",
+      "sha256": "4d8d183a5f905c5095519f7b3c6f26f0f13aaab155a7769218e3e0511c590664",
+      "bytes": 4669,
+      "generator": "crates/zil-driver/tests/impl254_wire.rs",
+      "control_source": "tests/impl254/loan_control.zil",
+      "mutation": "TakeLocal(other) -> TakeLocal(e) at the actual callback argument, leaving the later view use unchanged; retain analyzed plan and update typed fingerprint",
+      "raw_result": "E-BORROW-CONFLICT",
+      "wire_result": "E-BORROW-CONFLICT"
+    }
+  },
+  "native_scope": "Separate backend and consumer evidence; no native run claimed by this Verify slice."
+}

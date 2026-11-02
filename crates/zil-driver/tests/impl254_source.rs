@@ -1,5 +1,6 @@
 //! Frozen and independent source inputs through the Verify boundary.
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
+use zil_ir::{LocalDecl, LocalId, Type};
 
 fn checked(name: &str, text: &str) {
     let limits = Limits::default();
@@ -8,6 +9,19 @@ fn checked(name: &str, text: &str) {
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &ast).unwrap();
     let typed = zil_types::check(&core, &target, &limits).unwrap();
+    if name.starts_with("slot_") {
+        let main = typed.functions.iter().find(|f| f.name == "main").unwrap();
+        assert!(
+            main.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(
+                    i.kind,
+                    zil_ir::InstructionKind::TakeOwnedArrayElement { .. }
+                )),
+            "{name} must exercise the internal single slot"
+        );
+    }
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed, plan, &target, &limits)
         .unwrap_or_else(|errors| panic!("{name}: {errors:?}"));
@@ -25,6 +39,93 @@ fn fnmut_and_loop_forwarding_reach_verify() {
         "branch_loop",
         include_str!("../../../tests/impl254/branch_loop.zil"),
     );
+}
+
+#[test]
+fn stronger_fn_survives_nested_mutable_call_and_return() {
+    checked(
+        "fn_to_mut",
+        "fn step<F:FnMut(i32)->i32>(f:F)->F{var current=f;current(1);return current}fn relay<F:Fn(i32)->i32>(f:F)->F{return step(f)}fn main()->i32{let f=(n:i32)=>n+1;let current=relay(f);return current(2)-3}",
+    );
+}
+
+#[test]
+fn owning_event_callback_in_ordinary_caller_internal_slot_reaches_verify() {
+    checked(
+        "owned_event_caller",
+        include_str!("impl253_fixtures/owned_event_caller.zil"),
+    );
+}
+
+#[test]
+fn owning_event_callback_can_leave_mutable_slot_for_new_local() {
+    let prelude = "resource R{n:i32}package Event{manages bytes:ByteBuffer;n:i32}package Reply{manages bytes:ByteBuffer;n:i32}fn keep<F:FnOnce(Event)->Reply>(f:F)->F{return f}";
+    for (name, binding) in [
+        ("into_let", "let g=keep(f)"),
+        ("into_var", "var g=keep(f)"),
+        ("slot_into_let", "f=keep(f);let g=keep(f)"),
+        ("slot_into_var", "f=keep(f);var g=keep(f)"),
+    ] {
+        let source = format!(
+            "{prelude}fn main()->i32{{let r=R{{n:7}};var f=move(e:Event)->Reply=>{{return Reply{{bytes:give e.bytes,n:e.n+r.n}}}};{binding};let p=g(Event{{bytes:bytes_new(),n:3}});return p.n-10}}"
+        );
+        checked(name, &source);
+    }
+}
+
+#[test]
+fn unrelated_same_type_owning_slot_cannot_borrow_a_module_wide_permission() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned_slot_raw.zil",
+        include_str!("impl253_fixtures/owned_event_caller.zil"),
+    );
+    let ast = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand(&source, &ast).unwrap();
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let main = typed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let slot = main
+        .locals
+        .iter()
+        .find(|l| {
+            matches!(&l.ty,
+                Type::Array { element, length: 1 } if matches!(element.as_ref(), Type::Closure(_))
+            )
+        })
+        .unwrap()
+        .ty
+        .clone();
+    let id = LocalId(main.locals.len() as u32);
+    main.locals.push(LocalDecl {
+        id,
+        name: "unrelated_slot".into(),
+        ty: slot,
+        mutable: true,
+        span: main.span,
+    });
+    plan.module_fingerprint = typed.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(typed, plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+    ] {
+        assert_eq!(errors[0].code, "E-UNSUPPORTED", "{errors:?}");
+        assert!(
+            errors[0]
+                .message
+                .contains("container and opaque callback profiles"),
+            "{errors:?}"
+        );
+    }
 }
 
 #[test]
