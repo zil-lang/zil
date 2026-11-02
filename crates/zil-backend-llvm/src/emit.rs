@@ -4,6 +4,7 @@ mod constant_divisors;
 mod drop_plan;
 mod dynamic_store;
 mod enums;
+pub use enums::ct_layout_of_checked_type;
 mod errors;
 mod foreign;
 mod owned_sums;

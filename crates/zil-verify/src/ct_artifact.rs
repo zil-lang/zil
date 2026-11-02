@@ -22,6 +22,9 @@ pub trait CtArtifactAuthority {
     fn source_fingerprint(&self) -> Fingerprint;
     fn snapshot(&self) -> &CtSnapshotRequest;
     fn authenticate_input_table(&self, input: &CtInputTable) -> bool;
+    /// Bind all referenced constants/templates to the trusted source compiler
+    /// output. Function-body equality alone does not protect indexed tables.
+    fn authenticate_artifact(&self, artifact: &CtArtifactProgram) -> bool;
     /// Compare with a trusted compilation of the frozen source definition;
     /// a raw body cannot inherit another definition's private query rights.
     fn authenticate_function(&self, function: &CtFunction) -> bool;
@@ -59,7 +62,8 @@ pub fn verify_ct_artifact(
     authority: &impl CtArtifactAuthority,
 ) -> CompileResult<VerifiedCTArtifactProgram> {
     preflight(&raw, limits)?;
-    if raw.source_fingerprint != authority.source_fingerprint()
+    if !authority.authenticate_artifact(&raw)
+        || raw.source_fingerprint != authority.source_fingerprint()
         || raw.snapshot != *authority.snapshot()
         || !authority.authenticate_input_table(&raw.input_tokens)
     {
@@ -350,10 +354,10 @@ fn check_templates(raw: &CtArtifactProgram, authority: &impl CtArtifactAuthority
             ));
         }
         for (index, origin) in tree.origins.iter().enumerate() {
-            if let Some(parent) = origin.parent {
-                if parent.0 as usize >= index {
-                    return Err(reject(None, "CT origin parent is not an earlier node"));
-                }
+            if let Some(parent) = origin.parent
+                && parent.0 as usize >= index
+            {
+                return Err(reject(None, "CT origin parent is not an earlier node"));
             }
         }
         for root in &tree.roots {
@@ -1290,7 +1294,7 @@ fn check_instruction(
         }
         K::Text { op, arguments } => {
             use CtTextOp as T;
-            let ty = match op {
+            match op {
                 T::Equal
                     if arguments.len() == 2
                         && arguments
@@ -1320,8 +1324,7 @@ fn check_instruction(
                     CtTy::Text
                 }
                 _ => return Err(reject(span, "CT text operation has wrong operands")),
-            };
-            ty
+            }
         }
         K::SyntaxBuild { kind, arguments } => {
             let required = match kind {
@@ -1353,16 +1356,9 @@ fn check_instruction(
             CtTy::Ident
         }
         K::Query { kind, arguments } => {
-            let required_stage = match kind {
-                CtQueryKind::Shape | CtQueryKind::Field => CtReadyStage::Shape,
-                CtQueryKind::ImplIndex => CtReadyStage::ImplIndex,
-                CtQueryKind::Layout => CtReadyStage::Layout,
-            };
             expect(
-                raw.snapshot.ready as u8 >= required_stage as u8
-                    && raw.snapshot.requested_queries.contains(kind)
-                    && authority.authorize_query(&function.definition, *kind),
-                "CT query is not in the frozen stage grant",
+                authority.authorize_query(&function.definition, *kind),
+                "CT query is not permitted at this lexical definition",
             )?;
             expect(
                 !arguments.is_empty() && *value(arguments[0])? == CtTy::Type,
@@ -1432,6 +1428,7 @@ mod tests {
     struct Authority {
         snapshot: CtSnapshotRequest,
         expected: Option<CtFunction>,
+        expected_artifact: Option<CtArtifactProgram>,
     }
     impl CtArtifactAuthority for Authority {
         fn source_fingerprint(&self) -> Fingerprint {
@@ -1442,6 +1439,11 @@ mod tests {
         }
         fn authenticate_input_table(&self, input: &CtInputTable) -> bool {
             input.invocation_fingerprint == Fingerprint::ZERO && input.tokens.is_empty()
+        }
+        fn authenticate_artifact(&self, artifact: &CtArtifactProgram) -> bool {
+            self.expected_artifact
+                .as_ref()
+                .is_none_or(|expected| expected == artifact)
         }
         fn authenticate_function(&self, function: &CtFunction) -> bool {
             self.expected
@@ -1539,6 +1541,7 @@ mod tests {
         let authority = Authority {
             snapshot: raw.snapshot.clone(),
             expected: None,
+            expected_artifact: None,
         };
         verify_ct_artifact(raw, &Limits::default(), &authority)
     }
@@ -1564,7 +1567,7 @@ mod tests {
         assert!(check(p).unwrap_err()[0].message.contains("uninitialized"));
     }
     #[test]
-    fn rejects_early_shape_query_even_if_raw_requests_it() {
+    fn admits_unexecuted_late_query_for_runtime_stage_check() {
         let mut p = raw();
         p.functions[0].values[2] = CtTy::ShapeInfo;
         p.functions[0].result_type = CtTy::ShapeInfo;
@@ -1576,7 +1579,9 @@ mod tests {
             arguments: vec![CtValueId(0)],
         };
         p.snapshot.requested_queries.push(CtQueryKind::Shape);
-        assert!(check(p).unwrap_err()[0].message.contains("stage grant"));
+        // This function may be present but uncalled at a Shape-unready stage.
+        // The frozen reader checks stage and grants only when Query executes.
+        assert!(check(p).is_ok());
     }
     #[test]
     fn rejects_query_descriptor_forgery_through_record() {
@@ -1603,11 +1608,102 @@ mod tests {
         let authority = Authority {
             snapshot: p.snapshot.clone(),
             expected: Some(expected),
+            expected_artifact: None,
         };
         assert!(
             verify_ct_artifact(p, &Limits::default(), &authority).unwrap_err()[0]
                 .message
                 .contains("definition")
         );
+    }
+    #[test]
+    fn rejects_replaced_constant_table_under_unchanged_function() {
+        let expected = raw();
+        let mut forged = expected.clone();
+        forged.constants[0] = CtConstant::Scalar(Constant::I32(99));
+        let authority = Authority {
+            snapshot: forged.snapshot.clone(),
+            expected: None,
+            expected_artifact: Some(expected),
+        };
+        assert!(
+            verify_ct_artifact(forged, &Limits::default(), &authority).unwrap_err()[0]
+                .message
+                .contains("source or frozen snapshot")
+        );
+    }
+    #[test]
+    fn rejects_input_name_with_unbound_namespace() {
+        let mut p = raw();
+        p.templates.push(CtTemplate {
+            definition: symbol(),
+            syntax: CtSyntaxTree {
+                category: CtSyntaxCategory::Expr,
+                nodes: vec![CtSyntaxNode::Token(CtToken {
+                    class: CtTokenClass::Identifier,
+                    text: "x".into(),
+                    origin: CtOriginId(0),
+                    name: Some(CtIdent {
+                        text: "x".into(),
+                        namespace: CtNameNamespace::Unbound,
+                        source: CtNameSource::Input(CtInputTokenId(0)),
+                        member_owner: None,
+                        member_owner_type: None,
+                    }),
+                })],
+                roots: vec![CtSyntaxNodeId(0)],
+                origins: vec![CtOrigin {
+                    span: Span::default(),
+                    parent: None,
+                    role: CtOriginRole::Input,
+                }],
+            },
+            holes: Vec::new(),
+        });
+        assert!(
+            check(p).unwrap_err()[0]
+                .message
+                .contains("unbound namespace")
+        );
+    }
+    #[test]
+    fn rejects_bare_type_in_syntax_type_hole() {
+        let mut p = raw();
+        p.functions[0].values = vec![CtTy::Type, CtTy::Syntax(CtSyntaxCategory::Type)];
+        p.functions[0].result_type = CtTy::Syntax(CtSyntaxCategory::Type);
+        p.functions[0].blocks[0].instructions = vec![
+            CtInstruction {
+                result: Some(CtValueId(0)),
+                kind: CtInstructionKind::TypePrimitive(CtScalarTy::I32),
+                span: Span::default(),
+            },
+            CtInstruction {
+                result: Some(CtValueId(1)),
+                kind: CtInstructionKind::Quote {
+                    template: CtTemplateId(0),
+                    holes: vec![CtValueId(0)],
+                },
+                span: Span::default(),
+            },
+        ];
+        p.functions[0].blocks[0].terminator = CtTerminator::Return(Some(CtValueId(1)));
+        p.templates.push(CtTemplate {
+            definition: symbol(),
+            syntax: CtSyntaxTree {
+                category: CtSyntaxCategory::Type,
+                nodes: vec![CtSyntaxNode::Hole {
+                    index: 0,
+                    origin: CtOriginId(0),
+                }],
+                roots: vec![CtSyntaxNodeId(0)],
+                origins: vec![CtOrigin {
+                    span: Span::default(),
+                    parent: None,
+                    role: CtOriginRole::QuoteDefinition,
+                }],
+            },
+            holes: vec![CtHoleKind::Type],
+        });
+        assert!(check(p).unwrap_err()[0].message.contains("hole"));
     }
 }
