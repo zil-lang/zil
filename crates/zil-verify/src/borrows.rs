@@ -920,6 +920,9 @@ pub(super) fn check_module(
         .zip(graphs)
         .zip(&facts)
     {
+        // Only the new parameter-capture lane adds a whole-invocation
+        // obligation. Ordinary local captures retain their existing cost.
+        let mut captured_parameters = std::collections::BTreeSet::new();
         if facts.product_captures {
             // Origins are the kernel's final private facts, reconstructed after
             // the whole-module return frontier. Candidate Hold rows are not read.
@@ -947,13 +950,31 @@ pub(super) fn check_module(
                             ));
                         }
                         for root in roots {
-                            let Root::Local(local) = root else {
-                                return Err(unsupported(
-                                    "shared Product capture requires proven ordinary local Product origins",
-                                    Some(instruction.span),
-                                ));
+                            let actual = match root {
+                                Root::Local(local) => &function.locals[local.0 as usize].ty,
+                                Root::Parameter(index) => {
+                                    let local = function.parameters[*index as usize];
+                                    let Type::Address {
+                                        mutable: false,
+                                        inner,
+                                    } = &function.locals[local.0 as usize].ty
+                                    else {
+                                        return Err(unsupported(
+                                            "shared Product capture requires a checked shared Product parameter",
+                                            Some(instruction.span),
+                                        ));
+                                    };
+                                    budget.spend(captured_parameters.len().saturating_add(1))?;
+                                    captured_parameters.insert(*index);
+                                    inner.as_ref()
+                                }
+                                _ => {
+                                    return Err(unsupported(
+                                        "shared Product capture requires proven ordinary local Product origins",
+                                        Some(instruction.span),
+                                    ));
+                                }
                             };
-                            let actual = &function.locals[local.0 as usize].ty;
                             if !matches!(actual, Type::Package { .. }) {
                                 return Err(unsupported(
                                     "shared Product capture requires proven ordinary local Product origins",
@@ -1067,7 +1088,7 @@ pub(super) fn check_module(
             false,
             budget,
         )?;
-        let required = loans::check(
+        let mut required = loans::check(
             module,
             function,
             graph,
@@ -1082,6 +1103,31 @@ pub(super) fn check_module(
             descriptor_origins,
             budget,
         )?;
+        if !captured_parameters.is_empty() {
+            // Captured Product parameters may denote Store elements. Their
+            // parent remains symbolic here, so every possible write during
+            // this call must be disjoint, even after the closure's final read.
+            // The existing independently reconstructed effects include finite
+            // prefixes and transitive static/callback invocations. No public
+            // Hold row or candidate summary supplies this requirement.
+            budget.spend(captured_parameters.len())?;
+            for parameter in captured_parameters {
+                budget.spend(effects[function.id.0 as usize].len())?;
+                for (source, write) in &effects[function.id.0 as usize] {
+                    if *write {
+                        buffer_effects::instantiate(
+                            module,
+                            function,
+                            &[Root::Parameter(parameter)],
+                            &[source.position()],
+                            &mut required,
+                            function.span,
+                            budget,
+                        )?;
+                    }
+                }
+            }
+        }
         if has_buffers {
             apart.push(required);
         }

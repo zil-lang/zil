@@ -6,6 +6,7 @@ use zil_base::{FileId, ModuleId};
 
 mod captures;
 mod fields;
+mod shared_product;
 mod sums;
 
 fn span() -> Span {
