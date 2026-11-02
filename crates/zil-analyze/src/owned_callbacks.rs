@@ -90,6 +90,31 @@ pub(super) fn signature(
             return Err(bad("owned callback actual parameter type differs"));
         }
     }
+    budget.spend(entry.blocks.len(), "owned callback capture access blocks")?;
+    for block in &entry.blocks {
+        budget.spend(
+            block.instructions.len(),
+            "owned callback capture access instructions",
+        )?;
+        for instruction in &block.instructions {
+            if let InstructionKind::WriteCapture { index, value } = instruction.kind {
+                let ty = definition
+                    .captures
+                    .get(index as usize)
+                    .ok_or_else(|| bad("owned callback capture write index is absent"))?;
+                budget.type_work(ty, true, "owned callback capture write type")?;
+                if definition.kind == CallableKind::Fn
+                    || !ty.is_copy_value()
+                    || entry.values.get(value.0 as usize) != Some(ty)
+                    || instruction.result.is_some()
+                {
+                    return Err(bad(
+                        "owned callback capture write requires a mutable entry and exact Copy field",
+                    ));
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -122,6 +147,29 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         for b in &f.blocks {
             budget.spend(b.instructions.len(), "owned callback call instructions")?;
             for i in &b.instructions {
+                if let InstructionKind::MakeClosure { closure, captures } = &i.kind {
+                    budget.lookup(
+                        budget.owned_callbacks.len(),
+                        "owned callback construction lookup",
+                    )?;
+                    if budget.owned_callbacks.contains(closure) {
+                        let definition = &module.closures[closure.0 as usize];
+                        budget.spend(captures.len(), "owned callback actual captures")?;
+                        if captures.len() != definition.captures.len()
+                            || i.result.and_then(|v| f.values.get(v.0 as usize))
+                                != Some(&Type::Closure(*closure))
+                        {
+                            return Err(bad("owned callback construction signature differs"));
+                        }
+                        for (value, ty) in captures.iter().zip(&definition.captures) {
+                            budget.type_work(ty, false, "owned callback actual capture type")?;
+                            if f.values.get(value.0 as usize) != Some(ty) {
+                                return Err(bad("owned callback actual capture type differs"));
+                            }
+                        }
+                    }
+                    continue;
+                }
                 if let InstructionKind::Call {
                     function,
                     arguments,
@@ -195,6 +243,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 )?;
                 if !budget.owned_callbacks.contains(id) {
                     continue;
+                }
+                if let InstructionKind::CallClosureMut { callee, .. } = i.kind
+                    && !f.locals[callee.0 as usize].mutable
+                {
+                    return Err(bad(
+                        "owned callback FnMut requires an actual writable environment",
+                    ));
                 }
                 budget.spend(arguments.len(), "owned callback actual arguments")?;
                 budget.type_work(&c.result, false, "owned callback actual result")?;
