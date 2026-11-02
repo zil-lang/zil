@@ -3112,6 +3112,20 @@ impl Check<'_, '_, '_> {
                     }
                     let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
+                    // A concrete local resource can establish an owning place
+                    // only from an actual create/give producer. Callable bounds
+                    // and a later With do not supply that ownership fact. Keep
+                    // the established factory/State path and its fees intact.
+                    if !self.two_input_state_constructor()
+                        && !self
+                            .callable
+                            .as_ref()
+                            .is_some_and(|bounds| bounds.owned_factory)
+                        && self.concrete_helper_resource(&actual)
+                        && !matches!(value.kind, ExprKind::Name(_))
+                    {
+                        resource_flow.owns = self.owned_resource_expression(value, state)?;
+                    }
                     self.traits.store_types(
                         &actual,
                         &self.bounds,

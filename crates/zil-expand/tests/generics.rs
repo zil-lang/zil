@@ -121,3 +121,53 @@ fn sample() -> i32 => 0
         .validate(&[source], &zil_base::Limits::default())
         .unwrap();
 }
+
+#[test]
+fn concrete_local_resource_producers_keep_owned_positions_in_callable_helpers() {
+    const HEAD: &str = r#"
+extern "C" fn reg(cb:extern "C" fn(c_handle,i32)->i64,data:c_handle)->c_handle contract{provides(static_callbacks(),scoped_callback_register());effects(ffi);};
+extern "C" fn close(token:c_handle) contract{provides(static_callbacks(),scoped_callback_close());effects(ffi);};
+resource Mark{n:i32}
+package Event{manages mark:Mark;manages bytes:ByteBuffer}
+enum Fault{NoMemory}
+fn no_memory()->Fault!i32{return Fault.NoMemory}
+fn consume(event:Event)->i32{return event.mark.n+i32(bytes_len(event.bytes))}
+fn describe(mark:Mark)->Mark{return mark}
+"#;
+    const PREPARE: &str = "let mark=Mark{n:3};let bytes=bytes_new();if !bytes_reserve(bytes,1){return no_memory()};bytes_push(bytes,86u8);";
+    const EVENT: &str = "let event=Event{mark:give mark,bytes:give bytes};";
+    const WITH: &str = "let body=move ()->i32=>consume(event);unsafe{let result=c_with_callback(reg,close,f,body);return result.1}";
+    for body in [
+        format!("{PREPARE}{EVENT}{WITH}"),
+        format!("{PREPARE}{EVENT}return consume(event)+f(1)"),
+    ] {
+        let text =
+            format!("{HEAD}fn run<F:FnMut(i32)->i32>(f:&mut F)->Fault!i32{{{body}}}fn main(){{}}");
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "local-resource.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{body}: {errors:?}"));
+    }
+    for body in [
+        format!(
+            "{PREPARE}let alias=mark;let event=Event{{mark:give alias,bytes:give bytes}};{WITH}"
+        ),
+        format!(
+            "{PREPARE}let alias=describe(mark);let event=Event{{mark:give alias,bytes:give bytes}};{WITH}"
+        ),
+        format!("{PREPARE}{EVENT}let again=Event{{mark:give mark,bytes:bytes_new()}};{WITH}"),
+        format!("{PREPARE}{EVENT}let stale=mark.n;{WITH}"),
+        format!(
+            "{PREPARE}{EVENT}let body=move ()->i32=>consume(event);consume(event);unsafe{{let result=c_with_callback(reg,close,f,body);return result.1}}"
+        ),
+        format!("{PREPARE}if true{{{EVENT}}}{EVENT}{WITH}"),
+        format!(
+            "{PREPARE}{EVENT}let body=move ()->i32=>{{f(1);return consume(event)}};unsafe{{let result=c_with_callback(reg,close,f,body);return result.1}}"
+        ),
+    ] {
+        let text =
+            format!("{HEAD}fn run<F:FnMut(i32)->i32>(f:&mut F)->Fault!i32{{{body}}}fn main(){{}}");
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "local-resource-reject.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        assert!(zil_expand::expand(&source, &parsed).is_err(), "{body}");
+    }
+}
