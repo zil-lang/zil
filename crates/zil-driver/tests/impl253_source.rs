@@ -16,6 +16,15 @@ fn checked(text: &str) -> TypedModule {
         .unwrap()
         .0;
     assert_eq!(zil_analyze::analyze(&raw, &limits).unwrap(), plan);
+    if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
+        let dir =
+            std::path::PathBuf::from(root).join(format!("source-{}", module.source_fingerprint));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("source.zil"), text).unwrap();
+        std::fs::write(dir.join("typed.txt"), format!("{module:#?}")).unwrap();
+        std::fs::write(dir.join("candidate.txt"), format!("{plan:#?}")).unwrap();
+        std::fs::write(dir.join("candidate.wire"), wire).unwrap();
+    }
     module
 }
 #[test]
@@ -64,6 +73,116 @@ fn six_frozen_callback_signatures_reach_analyze() {
 }
 
 #[test]
+fn concrete_caller_can_replace_an_owning_event_callback_through_keep_in_a_loop() {
+    checked(include_str!("impl253_fixtures/owned_event_caller.zil"));
+}
+
+#[test]
+fn source_forward_has_an_exact_fresh_request_budget() {
+    let module = typed(include_str!("impl252_fixtures/original.zil"));
+    let defaults = Limits::default();
+    let expected = zil_analyze::analyze(&module, &defaults).unwrap();
+    let (mut low, mut high) = (0, defaults.max_analysis_steps);
+    while low + 1 < high {
+        let steps = low + (high - low) / 2;
+        let r = zil_analyze::analyze(
+            &module,
+            &Limits {
+                max_analysis_steps: steps,
+                ..defaults.clone()
+            },
+        );
+        match r {
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                high = steps;
+            }
+            Err(ds) => {
+                assert!(
+                    ds.iter()
+                        .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                );
+                low = steps;
+            }
+        }
+    }
+    for steps in [high, high - 1, high] {
+        let r = zil_analyze::analyze(
+            &module,
+            &Limits {
+                max_analysis_steps: steps,
+                ..defaults.clone()
+            },
+        );
+        if steps == high {
+            assert_eq!(r.unwrap(), expected);
+        } else {
+            assert!(
+                r.unwrap_err()
+                    .iter()
+                    .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+            );
+        }
+    }
+    let count = module
+        .functions
+        .iter()
+        .filter(|f| f.callable_return_contract.is_some())
+        .count();
+    println!(
+        "253 original source Analyze N={high}; Parameter contracts={count}; N-1 ResourceLimit only; fresh N identical"
+    );
+}
+
+#[test]
+fn fn_parent_can_forward_through_a_called_fnmut_child_and_recover_fn() {
+    checked(
+        "fn step<F:FnMut(i32)->i32>(f:F)->F{var current=f;current(1);return current} fn relay<F:Fn(i32)->i32>(f:F)->F{return step(f)} fn main()->i32{let f=(n:i32)=>n+1;let current=relay(f);return current(2)-3}",
+    );
+}
+
+#[test]
+fn source_derived_cleanup_and_return_metadata_cannot_discharge_or_replace_the_input() {
+    let source = "resource R{n:i32} package Data{manages bytes:ByteBuffer} fn keep<F:FnOnce(i32)->i32>(data:Data,f:F)->F{return f} fn main()->i32{let r=R{n:3};let f=move(n:i32)=>r.n+n;let current=keep(Data{bytes:bytes_new()},f);return current(1)-4}";
+    let module = checked(source);
+    let helper = module
+        .functions
+        .iter()
+        .position(|f| {
+            f.callable_return_contract
+                .as_ref()
+                .is_some_and(|c| matches!(c.source, CallableReturnSource::Parameter(_)))
+        })
+        .unwrap();
+    let mut missing = module.clone();
+    let mut removed = 0;
+    for block in &mut missing.functions[helper].blocks {
+        let old = block.instructions.len();
+        block
+            .instructions
+            .retain(|i| !matches!(i.kind, InstructionKind::DropPackage { .. }));
+        removed += old - block.instructions.len();
+    }
+    assert!(removed > 0);
+    assert!(zil_analyze::analyze(&missing, &Limits::default()).is_err());
+    let mut wrong = module.clone();
+    wrong.functions[helper]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .source = CallableReturnSource::Parameter(0);
+    assert!(zil_analyze::analyze(&wrong, &Limits::default()).is_err());
+    let mut wrong = module;
+    wrong.functions[helper]
+        .callable_contract
+        .as_mut()
+        .unwrap()
+        .roles[0]
+        .cleanup = CallableCleanup::Owned;
+    assert!(zil_analyze::analyze(&wrong, &Limits::default()).is_err());
+}
+
+#[test]
 fn frozen_cross_module_source_reaches_analyze_without_verify() {
     checked_project("frozen-prep/project");
 }
@@ -99,13 +218,21 @@ fn checked_project(relative: &str) {
         .into_iter()
         .collect(),
     };
+    let report_dir = std::env::var_os("ZIL_TEST_REPORT_DIR")
+        .map(std::path::PathBuf::from)
+        .map(|root| root.join(relative.replace('/', "-")));
     let report = compile_project(
         &project,
         &CompileOptions {
             stop_after: Stage::Analyze,
+            emit_dir: report_dir.as_ref().map(|dir| dir.join("phases")),
             ..CompileOptions::default()
         },
     );
+    if let Some(dir) = report_dir {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("report.json"), report.to_json()).unwrap();
+    }
     assert_eq!(
         report.status,
         zil_base::ResultCategory::Success,
