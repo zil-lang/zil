@@ -1151,7 +1151,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         enums: &'a BTreeMap<String, Type>,
         budget: &'b mut Budget<'c>,
     ) -> R<Self> {
-        if !(function.callable_return.is_some()
+        let old_result = function.callable_return.is_some()
             || function.type_parameters.first().is_some_and(|parameter| {
                 store_templates::symbolic_type(&function.return_type, &parameter.name)
             })
@@ -1161,8 +1161,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             || packages::ordinary(&function.return_type)
             || owned_shapes::enumeration(&function.return_type)
             || packages::owned_array_supported(&function.return_type)
-            || resources::supported(&function.return_type))
-        {
+            || resources::supported(&function.return_type);
+        if !old_result {
+            // A closure in an ordinary function must not narrow the already
+            // admitted owned error boundary. Reserve before the new walk.
+            validate_type(&function.return_type, 0, function.span, budget)?;
+        }
+        if !old_result && !errors::supported(&function.return_type) {
             return Err(unsupported(
                 function.span,
                 "non-scalar function result in closure inference",
@@ -3777,14 +3782,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 return_type,
                 body,
             } => {
-                if return_type
-                    .as_ref()
-                    .is_some_and(|t| !(t.is_copy_value() || lending::supported_result(t) || closures::owned_signature_head(t)))
-                    || parameters.iter().any(|p| {
-                        p.ty.as_ref()
-                            .is_some_and(|t| !closures::signature_parameter(t) && !closures::owned_signature_head(t))
+                if return_type.as_ref().is_some_and(|t| {
+                    !(t.is_copy_value()
+                        || lending::supported_result(t)
+                        || closures::owned_signature_head(t))
+                }) || parameters.iter().any(|p| {
+                    p.ty.as_ref().is_some_and(|t| {
+                        !closures::signature_parameter(t) && !closures::owned_signature_head(t)
                     })
-                {
+                }) {
                     return Err(unsupported(
                         span,
                         "closure parameters require a finite Copy type or one Copy/slice address layer; address parameters require a Copy result",
