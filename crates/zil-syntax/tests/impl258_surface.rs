@@ -1,6 +1,43 @@
 // Untouched consumer262 source checkpoint8754ae0b8b6db182bc1cd438fc39e59b92068304.
 // Syntax parsing only; CT typing, hygiene and execution remain separate.
 use zil_base::{FileId, ModuleId, SourceUnit};
+
+#[test]
+fn type_meta_candidates_follow_type_productions_in_every_position() {
+    for text in [
+        "type Word=#(i64)",
+        "type Word=#splice(make_type())",
+        "type Word=#{yield i64}",
+        "fn f(x:#(i64))->#(i64){let y:#(i64)=x;return y}",
+        "struct S { value: [&#(i64); 4] }",
+        "enum E { Value(#(i64)) }",
+        "type F=fn(#(i64))->i64",
+        "type R=Box<(i32,#(i64))>",
+        "fn f<T:#(Bound)>() where T:#(Other) {}",
+        "impl #(Trait) for #(Target) {}",
+        "fn f(){let q=quote<Type>{#(i64)}}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "candidate.zil", text);
+        let parsed = zil_syntax::parse(&source);
+        assert!(parsed.is_ok(), "{text}: {:?}", parsed.diagnostics);
+        assert!(parsed.type_meta_candidate, "{text}");
+    }
+    for text in [
+        "type Word=i64",
+        "fn f(){let x=#(old())}",
+        "fn f(){let x=#splice(old())}",
+        "fn f(){let x=#{yield old()}}",
+        "type A=[i64;#(old())]",
+        "fn f(){let s=\"type Word=#(i64)\"}",
+        "// type Word=#(i64)\nfn f(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "candidate.zil", text);
+        let parsed = zil_syntax::parse(&source);
+        assert!(parsed.is_ok(), "{text}: {:?}", parsed.diagnostics);
+        assert!(!parsed.type_meta_candidate, "{text}");
+    }
+}
+
 #[test]
 fn frozen_consumer_surface_parses_without_rewriting_source() {
     let files = [

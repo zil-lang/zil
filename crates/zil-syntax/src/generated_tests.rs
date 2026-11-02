@@ -3,11 +3,18 @@ use crate::{ast::SyntaxCategory, token::TokenKind};
 use zil_base::{FileId, ModuleId};
 #[test]
 fn generated_categories_preserve_exact_token_contexts() {
-    for (category, text) in [
-        (SyntaxCategory::Expr, "x+1"),
-        (SyntaxCategory::Type, "[i32;4]"),
-        (SyntaxCategory::StmtList, "let x=1;work(x);"),
-        (SyntaxCategory::ItemList, "pub fn f()->i32{return 1}"),
+    for (category, text, type_meta_candidate) in [
+        (SyntaxCategory::Expr, "x+1", false),
+        (SyntaxCategory::Type, "[i32;4]", false),
+        (SyntaxCategory::StmtList, "let x=1;work(x);", false),
+        (SyntaxCategory::ItemList, "pub fn f()->i32{return 1}", false),
+        (SyntaxCategory::Type, "#(i64)", true),
+        (SyntaxCategory::Type, "#splice(t)", true),
+        (SyntaxCategory::Type, "#{yield i64}", true),
+        (SyntaxCategory::Expr, "#(old())", false),
+        (SyntaxCategory::StmtList, "let x=#(old());", false),
+        (SyntaxCategory::StmtList, "let x:#(i64)=1;", true),
+        (SyntaxCategory::ItemList, "type Word=#(i64)", true),
     ] {
         let source = SourceUnit::new(FileId(4), ModuleId(2), "generated.zil", text);
         let tokens = lexer::lex(&source).tokens;
@@ -27,6 +34,37 @@ fn generated_categories_preserve_exact_token_contexts() {
             .unwrap();
         assert_eq!(result.context, context);
         assert_eq!(result.tokens, tokens);
+        assert_eq!(result.type_meta_candidate, type_meta_candidate, "{text}");
+        let n = result.usage.nodes_required;
+        let exact = Limits {
+            max_nodes: n,
+            ..Limits::default()
+        };
+        let fresh = parse_generated(&source, category, &context, &exact);
+        assert!(
+            fresh.diagnostics.is_empty(),
+            "{text}: {:?}",
+            fresh.diagnostics
+        );
+        assert_eq!(fresh.syntax, result.syntax);
+        assert_eq!(fresh.usage, result.usage);
+        assert_eq!(fresh.type_meta_candidate, type_meta_candidate);
+        let below = parse_generated(
+            &source,
+            category,
+            &context,
+            &Limits {
+                max_nodes: n - 1,
+                ..exact
+            },
+        );
+        assert!(
+            below
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-RESOURCE-LIMIT"),
+            "{text}"
+        );
         assert!(matches!(
             (category, result.syntax.unwrap()),
             (SyntaxCategory::Expr, GeneratedSyntax::Expr(_))
