@@ -7,6 +7,7 @@ use zil_base::{
     Fingerprint, FingerprintBuilder, ModuleId, NodeId, SCHEMA_VERSION, Span, TargetProfile,
 };
 
+pub mod ct_artifact;
 mod program;
 pub mod wire;
 pub use program::*;

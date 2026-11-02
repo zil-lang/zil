@@ -183,6 +183,15 @@
       "identity": "Parameter binds the successfully prepared actual argument instance. Concrete Copy arguments use original independent-copy semantics; symbolic F has no implicit Copy. Caller result preserves the actual argument declaration mode and live state, never blindly upgrades to concrete closure kind.",
       "responsibility": "Preserve real environment remainder and call poststate through local/SSA/CFG and nested helper relations; complete result before other cleanup; no fresh or private Created authority reconstructed.",
       "independence": "Types, Analyze and Verify independently reconstruct every reachable normal return; no ClosureId-only or global provenance-union proof; all work prepaid."
+    },
+    "ct_type_syntax_257_262": {
+      "authority": "_zil_design.md §16.7 and §18.2",
+      "state": "ContractToImplement",
+      "representation": "zil_ir::ct_artifact raw CT-only types/values/CFG, schema1; ordinary runtime schema/Wire31 unchanged; no Unit erasure overlay",
+      "source": "ordinary fn; quote<Expr|Type|StmtList|ItemList>, typed $(...) holes; explicit #splice and #emit; explicit std.meta/std.syntax imports; locked multi-provider",
+      "trust": "independent VerifiedCTArtifactProgram; real project source/symbol/visibility and frozen query binding; all generated output undergoes ordinary semantic checks",
+      "budget": "One remaining request ledger; max_steps/temporary_bytes/generated_nodes/depth/instances/analysis_work/live_cells derive from existing max_ct_steps/max_source_bytes/max_nodes/max_call_depth/max_functions/max_analysis_steps/max_values; prepay, warm charge, no default increase",
+      "integration": "257 public schema, bounded wire and common integration; 258 syntax/parser; 259 CT verifier/VM; 260 source CT type attribution and CFG; 261 project registry/snapshots/hygienic materialization/CLI; 262 frozen consumer and independent oracle"
     }
   },
   "schemas": [

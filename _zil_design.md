@@ -998,6 +998,7 @@ GC 存活不代替文件/锁/订阅等责任结算，不代替原生地址窗口
 | `#if (cond) { ... } else { ... }` | 声明或语句位置的编译期分支；两支均词法/语法正确，只物化并检查选中分支 |
 | `#for (x in values) { ... }` | 声明或语句位置的有限生成；按迭代序发射，导出同名冲突报错 |
 | `#emit expr` | 插入带卫生与类别信息的声明或语句列表；完整产物重新检查 |
+| `#splice(expr)` | 显式物化对应类别的表达式或类型Syntax；不改变#求值结果的含义 |
 
 不接受裸 `#call()`、把 `#[1,2]` 当数组、空 `#[]` 或 `#![...]`。编译期数组写 `#([1, 2])`。`#` 后的分发 token 必须在同一逻辑行，定界符内部允许换行。普通字符串中的 `#` 无特殊含义。编译期表达式不隐式发射语法，普通函数运行成功也不授予已核 IR 的构造权。
 
@@ -1065,6 +1066,24 @@ ConfigReady继续使用本批开始前的不可变声明快照；新类型及其
 在§16.5同批类型生成上开放无泛型参数、仅Unit/Tuple变体的普通enum，可与同批struct、type alias及普通函数组合。Tuple载荷满足普通枚举实际已核资格；239–244同批将其扩至§8.1.5的有限完整拥有形状，显式manages字段标记在生成、卫生重写和类型替换中完整保留。生成仅产生普通未核AST，不能把裸资源名/Desc升级为Managed，也不授予借用或递归by-value权限。record变体、泛型enum、resource/package/trait/impl、一般Type/Syntax及#emit不在本片范围。
 
 每轮预绑定全部同批名义类型，私有enum取得确定且彼此独立的卫生身份；构造器、匹配模式、别名、函数签名与载荷类型中的引用一致重写，变体名保持原名。值局部与泛型type binder的遮蔽、真实模块限定路径、重复变体和公开重名沿普通规则。载荷类型中的既有标量常量位按迭代绑定替换，属性仍经过普通校验。ConfigReady不回流、零迭代、冷暖缓存及请求累计预算沿§16.5；新增变体扫描在工作前收费，无enum的旧路径费用保持。须用生成源与普通展开源的O0/O2机器对照、跨轮名义隔离、构造/匹配/遮蔽、非法载荷、raw/Wire及N/N−1/fresh证明有限实现。新增拥有载荷还须生成/手写相同源码语义、多个轮次名义隔离、真实活动分支清理与失败路径的O0/O2对照；原bare ByteBuffer载荷非法反例保持，不以接受拥有形状为由升级默认资源模式。
+
+### 16.7 Type、Syntax 与具名扩展（257–262）
+
+Type与Syntax使用普通函数、局部、分支、循环和调用语法，只在CT域传返；不建立第二种函数语言。Type/Syntax/Ident/TokenTree/Text及反射描述均为有界CT数据，无运行期ABI、地址、资源或验证权限。既有纯标量CT路径继续有效；新值由独立CTIR核验后执行同一目标数值规则，不能借宿主求值或Unit擦除伪装为已核标量程序。
+
+构造写`quote<Expr|Type|StmtList|ItemList>{…}`，模板洞写`$(ct_expr)`；quote是此固定外形的上下文词，`$`只在模板洞位置有效。洞按表达式、类型、列表或名字槽核类别，列表洞不隐式增加块；字符串内的符号不作洞。嵌套quote有自己的洞层。`#splice(expr)`在表达式/类型位置分别显式消费Syntax<Expr>/Syntax<Type>；原`#(expr)`的Syntax结果仍只是数据。类型位置`#(expr)`只消费Type。`#emit expr`在语句/声明位置分别消费Syntax<StmtList>/Syntax<ItemList>，空列表合法，各类别不隐式转换。全部产物仍是未核语法，进入普通Expand、Types、Analyze、独立Verify与机器生成。
+
+类型名可在CT值位置解析为Type；真实值词法绑定优先，不按文本或布局猜名义身份。`import std.meta as meta`与`import std.syntax as syntax`选择固定的CT标准接口，按真实模块身份识别，不按局部变量字符串授信。meta提供类型构造、只读field/shape/impl/layout查询；syntax提供literal/type_ref/name_expr、fresh/export、保留来源的token遍历及四类别parse。接口通过显式导入使用，无任意文件、时钟、网络或运行期资源访问。标准模块名保留，用户同名文件不得冒充。
+
+输入名字保留真实调用点绑定；模板新声明及其引用在每次物化取得确定的新作用域；自由库引用按模板定义点身份解析。Ident是CT名字句柄；fresh产生新绑定，export仅表达目标声明命名空间的导出意图，不能读取调用点环境。成员名保留owner身份。复用一个Syntax值必须重新实例化其新绑定槽，输入/定义点身份保持；两个生成位置的同布局声明不合并名义身份。来源/预览不是权限，原始ID、scope、span和模板洞都必须按实际源码与项目索引检查。
+
+`syntax use path as alias`绑定锁清单中的具名provider；alias!选择明确default，alias.entry!选择具名入口，每入口固定输出类别及允许定界符。provider使用普通已核CT函数接收无损TokenTree并返回对应Syntax，可跨模块、多provider组合；不按导入顺序抢占token。锁包含逻辑模块/导出、源实现内容哈希、语法版本/哈希及CT规则版本；缺失、重复、过期或与实际源码不符时拒绝，不自动更新锁。CLI以显式`--syntax-lock PATH`提供锁，内存项目由请求选项提供同等数据；锁内容进入构建输入。未知扩展保留原token用于诊断、格式化输入及展开预览。
+
+Type传递不携可见性授权。反射按执行函数的真实词法定义上下文查询不可变快照；shape只含可见字段并明确是否完整，隐藏字段不能当不存在或作为Copy证明。layout另绑定target/ABI，成员偏移只对应获准成员。Config/Shape/ImplIndex/Layout/Contract/VerifiedCTBody分别就绪；本批发射的声明和impl不反向修改本批已查询集合。尚未就绪或依赖环明确拒绝，不循环重试；普通未知名仍是名字错误。后期生成import/syntax use不能暗改已封存发现图。ItemList可生成普通手写源码已支持的声明，不另设仅函数/单节点白名单，也不扩大手写语言权限。
+
+CT artifact使用独立schema与编码版本1，普通runtime schema/Wire31不变。解析/反序列化仅产生raw；VerifiedCTArtifactProgram只能由独立核构造，运行期Verify不依赖CT生成器的证明。新路径在增长前扣同一请求余额：步骤、临时字节、生成节点、深度、实例及核验工作分别计量。默认上限分别取现有Limits的max_ct_steps、max_source_bytes、max_nodes、max_call_depth、max_functions、max_analysis_steps；live cells上限取max_values。旧路径默认值与精确费用不变，各阶段传剩余额度，不按provider/模块/调用重置。缓存键绑定实际源码、锁/实现、真实查询依赖、规则、额度和必要target；命中仍扣原逻辑费用。发射先完成类别、名字、结构和预算预检，再原子发布；失败不留下半个声明、impl或可运行产物。
+
+验收覆盖Type传返/构造/反射、四类别、多模块多provider、名字影子/一次求值/名义不合并、可见性与阶段环、CT-only与类别反例、raw编码及独立核、冷暖N/N−1/fresh，以及生成与手写等价程序的O0/O2和真实失败清理。单provider表达式纵切仅用于早期联通，不替代本节完整范围。
 
 <a id="ZIL-ATTRIBUTE"></a>
 
