@@ -1,0 +1,420 @@
+//! Hand-authored raw kernel cases; source evidence is kept in impl253_source.
+use super::*;
+use zil_base::{FileId, Fingerprint, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
+
+fn s() -> Span {
+    Span::new(FileId(0), 0, 1)
+}
+fn op(result: Option<ValueId>, kind: InstructionKind) -> Instruction {
+    Instruction {
+        result,
+        kind,
+        span: s(),
+    }
+}
+fn local(id: u32, ty: Type) -> LocalDecl {
+    LocalDecl {
+        id: LocalId(id),
+        name: format!("l{id}"),
+        ty,
+        mutable: true,
+        span: s(),
+    }
+}
+fn block(id: u32, instructions: Vec<Instruction>, terminator: Terminator) -> BasicBlock {
+    BasicBlock {
+        id: BlockId(id),
+        instructions,
+        terminator,
+    }
+}
+fn enter() -> Instruction {
+    op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) })
+}
+fn exit() -> Vec<Instruction> {
+    vec![
+        op(None, InstructionKind::StorageDead(LocalId(1))),
+        op(None, InstructionKind::StorageDead(LocalId(0))),
+        op(
+            None,
+            InstructionKind::ScopeExit {
+                scope: ScopeId(0),
+                kind: CleanupExitKind::Return,
+            },
+        ),
+    ]
+}
+fn base(kind: CallableKind) -> TypedModule {
+    let closure = Type::Closure(ClosureId(0));
+    let callback = TypedFunction {
+        callable_return_contract: None,
+        callable_contract: None,
+        id: FunctionId(0),
+        name: "callback".into(),
+        foreign: None,
+        environment: Some(ClosureId(0)),
+        parameters: vec![],
+        return_type: Type::I32,
+        result_mode: PassingMode::Infer,
+        locals: vec![],
+        values: vec![Type::I32],
+        blocks: vec![block(
+            0,
+            vec![op(
+                Some(ValueId(0)),
+                InstructionKind::Constant(Constant::I32(7)),
+            )],
+            Terminator::Return(Some(ValueId(0))),
+        )],
+        entry: BlockId(0),
+        span: s(),
+    };
+    let mut instructions = vec![
+        enter(),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::TakeLocal { local: LocalId(1) },
+        ),
+    ];
+    instructions.extend(exit());
+    let keep = TypedFunction {
+        callable_return_contract: Some(CallableReturnContract {
+            source: CallableReturnSource::Parameter(1),
+            closure: ClosureId(0),
+            kind,
+            hold: vec![],
+            call: vec![],
+            writes: vec![],
+            cleanup: vec![],
+            lending_captures: vec![],
+        }),
+        callable_contract: Some(CallableParameterContract {
+            roles: vec![CallableRole {
+                parameter: 1,
+                closure: ClosureId(0),
+                kind,
+                hold: vec![],
+                call: vec![],
+                writes: vec![],
+                cleanup: CallableCleanup::Returned,
+            }],
+            traces: CallableTraces::Finite(vec![CallableTrace {
+                calls: vec![],
+                exit: CallableExit::Return,
+            }]),
+        }),
+        id: FunctionId(1),
+        name: "keep".into(),
+        foreign: None,
+        environment: None,
+        parameters: vec![LocalId(0), LocalId(1)],
+        return_type: closure.clone(),
+        result_mode: PassingMode::Infer,
+        locals: vec![local(0, Type::Bool), local(1, closure.clone())],
+        values: vec![closure],
+        blocks: vec![block(0, instructions, Terminator::Return(Some(ValueId(0))))],
+        entry: BlockId(0),
+        span: s(),
+    };
+    TypedModule {
+        schema_version: SCHEMA_VERSION,
+        module_id: ModuleId(0),
+        source_fingerprint: Fingerprint::ZERO,
+        target: TargetProfile::host_llvm(),
+        functions: vec![callback, keep],
+        closures: vec![ClosureDefinition {
+            id: ClosureId(0),
+            function: FunctionId(0),
+            captures: vec![],
+            parameters: vec![],
+            result: Type::I32,
+            kind: if kind == CallableKind::FnOnce {
+                CallableKind::Fn
+            } else {
+                kind
+            },
+            lending_captures: vec![],
+        }],
+        resources: vec![],
+        unsupported: vec![],
+    }
+}
+fn accepted(module: &TypedModule) {
+    let limits = Limits::default();
+    let expected = analyze(module, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(module, &expected, &limits).unwrap();
+    let raw = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+        .unwrap()
+        .0;
+    assert_eq!(analyze(&raw, &limits).unwrap(), expected);
+}
+fn rejected(module: &TypedModule) {
+    let limits = Limits::default();
+    assert!(analyze(module, &limits).is_err());
+    let bytes =
+        zil_ir::wire::encode_module_candidate(module, &CandidatePlan::empty_for(module), &limits)
+            .unwrap();
+    let raw = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+        .unwrap()
+        .0;
+    assert!(analyze(&raw, &limits).is_err());
+}
+
+#[test]
+fn parameter_return_proves_nonzero_index_and_each_mode_raw_wire() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        accepted(&base(kind));
+    }
+}
+
+#[test]
+fn parameter_return_rejects_wrong_index_cleanup_copy_and_same_type_new_instance() {
+    let m = base(CallableKind::FnOnce);
+    let mut bad = m.clone();
+    bad.functions[1]
+        .callable_return_contract
+        .as_mut()
+        .unwrap()
+        .source = CallableReturnSource::Parameter(0);
+    rejected(&bad);
+    let mut bad = m.clone();
+    bad.functions[1].callable_contract.as_mut().unwrap().roles[0].cleanup = CallableCleanup::Owned;
+    rejected(&bad);
+    let mut bad = m.clone();
+    bad.functions[1].blocks[0].instructions[1].kind = InstructionKind::Load(LocalId(1));
+    rejected(&bad);
+    let mut bad = m;
+    bad.functions[1].blocks[0].instructions[1].kind = InstructionKind::MakeClosure {
+        closure: ClosureId(0),
+        captures: vec![],
+    };
+    rejected(&bad);
+}
+
+#[test]
+fn repeatable_calls_before_return_preserve_mode_and_once_call_consumes_instance() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut] {
+        let mut m = base(kind);
+        let f = &mut m.functions[1];
+        f.values.push(Type::I32);
+        let call = if kind == CallableKind::Fn {
+            InstructionKind::CallClosureShared {
+                callee: LocalId(1),
+                arguments: vec![],
+            }
+        } else {
+            InstructionKind::CallClosureMut {
+                callee: LocalId(1),
+                arguments: vec![],
+            }
+        };
+        f.blocks[0]
+            .instructions
+            .insert(1, op(Some(ValueId(1)), call));
+        f.callable_contract.as_mut().unwrap().traces =
+            CallableTraces::Finite(vec![CallableTrace {
+                calls: vec![CallEvent { parameter: 1, kind }],
+                exit: CallableExit::Return,
+            }]);
+        accepted(&m);
+    }
+    let mut m = base(CallableKind::FnOnce);
+    let f = &mut m.functions[1];
+    f.values.push(Type::I32);
+    f.blocks[0].instructions.insert(
+        2,
+        op(
+            Some(ValueId(1)),
+            InstructionKind::CallClosureOnce {
+                callee: ValueId(0),
+                arguments: vec![],
+            },
+        ),
+    );
+    f.callable_contract.as_mut().unwrap().traces = CallableTraces::Finite(vec![CallableTrace {
+        calls: vec![CallEvent {
+            parameter: 1,
+            kind: CallableKind::FnOnce,
+        }],
+        exit: CallableExit::Return,
+    }]);
+    rejected(&m);
+}
+
+#[test]
+fn branch_and_loop_keep_the_same_position_without_global_origin_union() {
+    for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+        let mut m = base(kind);
+        let f = &mut m.functions[1];
+        f.values = vec![
+            Type::Bool,
+            Type::Closure(ClosureId(0)),
+            Type::Closure(ClosureId(0)),
+        ];
+        let mut yes = vec![op(
+            Some(ValueId(1)),
+            InstructionKind::TakeLocal { local: LocalId(1) },
+        )];
+        yes.extend(exit());
+        let mut no = vec![op(
+            Some(ValueId(2)),
+            InstructionKind::TakeLocal { local: LocalId(1) },
+        )];
+        no.extend(exit());
+        f.blocks = vec![
+            block(
+                0,
+                vec![
+                    enter(),
+                    op(Some(ValueId(0)), InstructionKind::Load(LocalId(0))),
+                ],
+                Terminator::Branch {
+                    condition: ValueId(0),
+                    then_block: BlockId(1),
+                    else_block: BlockId(2),
+                },
+            ),
+            block(1, yes, Terminator::Return(Some(ValueId(1)))),
+            block(2, no, Terminator::Return(Some(ValueId(2)))),
+        ];
+        accepted(&m);
+        m.functions[1].blocks[2].instructions[0].kind = InstructionKind::MakeClosure {
+            closure: ClosureId(0),
+            captures: vec![],
+        };
+        rejected(&m);
+        let mut m = base(kind);
+        let f = &mut m.functions[1];
+        f.values = vec![Type::Bool, Type::I32, Type::Closure(ClosureId(0))];
+        let calls = if kind == CallableKind::FnOnce {
+            vec![]
+        } else {
+            vec![CallEvent { parameter: 1, kind }]
+        };
+        let body = if kind == CallableKind::FnOnce {
+            vec![]
+        } else {
+            vec![op(
+                Some(ValueId(1)),
+                if kind == CallableKind::Fn {
+                    InstructionKind::CallClosureShared {
+                        callee: LocalId(1),
+                        arguments: vec![],
+                    }
+                } else {
+                    InstructionKind::CallClosureMut {
+                        callee: LocalId(1),
+                        arguments: vec![],
+                    }
+                },
+            )]
+        };
+        let mut end = vec![op(
+            Some(ValueId(2)),
+            InstructionKind::TakeLocal { local: LocalId(1) },
+        )];
+        end.extend(exit());
+        f.blocks = vec![
+            block(0, vec![enter()], Terminator::Jump(BlockId(1))),
+            block(
+                1,
+                vec![op(Some(ValueId(0)), InstructionKind::Load(LocalId(0)))],
+                Terminator::Branch {
+                    condition: ValueId(0),
+                    then_block: BlockId(2),
+                    else_block: BlockId(3),
+                },
+            ),
+            block(2, body, Terminator::Jump(BlockId(1))),
+            block(3, end, Terminator::Return(Some(ValueId(2)))),
+        ];
+        f.callable_contract.as_mut().unwrap().traces = CallableTraces::Flow(CallableFlow {
+            entry: 0,
+            nodes: vec![
+                CallableFlowNode {
+                    calls: vec![],
+                    next: CallableFlowNext::Edges(vec![1]),
+                },
+                CallableFlowNode {
+                    calls: vec![],
+                    next: CallableFlowNext::Edges(vec![2, 3]),
+                },
+                CallableFlowNode {
+                    calls,
+                    next: CallableFlowNext::Edges(vec![1]),
+                },
+                CallableFlowNode {
+                    calls: vec![],
+                    next: CallableFlowNext::Exit(CallableExit::Return),
+                },
+            ],
+        });
+        accepted(&m);
+    }
+}
+
+#[test]
+fn nested_return_substitutes_actual_source_and_never_upgrades_outer_once() {
+    let mut m = base(CallableKind::FnOnce);
+    let mut wrapper = m.functions[1].clone();
+    wrapper.id = FunctionId(2);
+    wrapper.name = "wrapper".into();
+    wrapper.values = vec![
+        Type::Closure(ClosureId(0)),
+        Type::Bool,
+        Type::Closure(ClosureId(0)),
+    ];
+    wrapper.callable_return_contract.as_mut().unwrap().kind = CallableKind::Fn;
+    wrapper.callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::Fn;
+    let mut instructions = vec![
+        enter(),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::TakeLocal { local: LocalId(1) },
+        ),
+        op(Some(ValueId(1)), InstructionKind::Load(LocalId(0))),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::Call {
+                function: FunctionId(1),
+                arguments: vec![ValueId(1), ValueId(0)],
+            },
+        ),
+    ];
+    instructions.extend(exit());
+    wrapper.blocks = vec![block(0, instructions, Terminator::Return(Some(ValueId(2))))];
+    m.functions.push(wrapper);
+    accepted(&m);
+    let f = &mut m.functions[2];
+    f.callable_return_contract.as_mut().unwrap().kind = CallableKind::FnOnce;
+    f.callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::FnOnce;
+    f.locals.push(local(2, Type::Closure(ClosureId(0))));
+    f.values.extend([Type::I32, Type::Closure(ClosureId(0))]);
+    f.blocks[0].instructions.splice(
+        4..4,
+        [
+            op(None, InstructionKind::StorageLive(LocalId(2))),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(2),
+                    value: ValueId(2),
+                },
+            ),
+            op(
+                Some(ValueId(3)),
+                InstructionKind::CallClosureShared {
+                    callee: LocalId(2),
+                    arguments: vec![],
+                },
+            ),
+            op(
+                Some(ValueId(4)),
+                InstructionKind::TakeLocal { local: LocalId(2) },
+            ),
+            op(None, InstructionKind::StorageDead(LocalId(2))),
+        ],
+    );
+    f.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+    rejected(&m);
+}
