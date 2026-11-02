@@ -76,7 +76,7 @@ fn actual_parameter_indices_and_declared_modes_survive_raw_and_wire() {
                 f.callable_return_contract.is_some()
                     && sources
                         .get(f.span.file.0 as usize)
-                        .and_then(|s| s.text.get(f.span.start as usize..f.span.end as usize))
+                        .and_then(|s| s.text.get(f.span.start..f.span.end))
                         .is_some_and(|source| source.contains(&format!("fn {name}<")))
             })
             .collect::<Vec<_>>();
