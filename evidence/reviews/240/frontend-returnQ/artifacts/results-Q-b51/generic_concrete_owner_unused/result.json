@@ -1,0 +1,1 @@
+{"phase":"Expand","accepted":false,"diagnostics":"[Diagnostic { phase: Expand, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"enum fields require finite Value layout\", span: Some(Span { file: FileId(0), start: 51, end: 52 }), notes: [] }]"}

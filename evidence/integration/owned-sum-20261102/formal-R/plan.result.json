@@ -1,0 +1,10 @@
+{
+  "commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "command": [
+    "python3",
+    "tools/check-plan.py",
+    "--self-test"
+  ],
+  "exit": 0,
+  "seconds": 0.07432230800623074
+}

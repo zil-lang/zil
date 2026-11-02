@@ -1,0 +1,19 @@
+{
+  "status": "PassWithinPreflightScope",
+  "candidate_overall": "Returned by subsequent independent owner-join finding",
+  "implementation_commit": "b51dc2043ae51ec42c1bec964bec0623df152431",
+  "test_targets": 4,
+  "passed": 11,
+  "failed": 0,
+  "ignored": 0,
+  "filtered": 0,
+  "helper_native_runs": 14,
+  "full_acceptance": false,
+  "archive": {
+    "path": "raw.tar.gz",
+    "bytes": 777358,
+    "files": 435,
+    "sha256": "2261a015e2c69557f293c03ccfd1f39746df4319fd920d1967b6f80306edbcd0",
+    "all_members_reverified": true
+  }
+}

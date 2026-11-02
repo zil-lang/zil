@@ -1,0 +1,1 @@
+{"phase":"Expand","accepted":false,"diagnostics":"[Diagnostic { phase: Expand, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"generic managed give requires a direct Package manages field\", span: Some(Span { file: FileId(0), start: 135, end: 136 }), notes: [] }]"}

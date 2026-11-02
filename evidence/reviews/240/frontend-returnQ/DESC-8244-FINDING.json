@@ -1,0 +1,55 @@
+{
+  "scope": "Independent 240 frontend supplemental near-neighbors, separate from frozen54",
+  "source_commit": "8244e9802ca970b4140ea27934e0bdc73c344200",
+  "harness_stage": "Parse/Expand/Types only; not Analyze/Verify/native",
+  "source_snapshot": "desc8244-source exact git archive",
+  "log": "run-8244-desc.log",
+  "cases": [
+    {
+      "name": "callback_desc_before_give_control",
+      "expected_accepted": true,
+      "actual": {
+        "phase": "Types",
+        "accepted": true,
+        "diagnostics": ""
+      },
+      "source_sha256": "3211d26fa26c6fbe42937de4946410fc01d7a50e5894e3b5671ce19a97dbb242"
+    },
+    {
+      "name": "callback_desc_after_give_unused",
+      "expected_accepted": false,
+      "actual": {
+        "phase": "Types",
+        "accepted": true,
+        "diagnostics": ""
+      },
+      "source_sha256": "2bfc2ce927d7c933c1f1a3afb7c58f2dba9cc815349957155a40f1c10559e779"
+    },
+    {
+      "name": "callback_desc_chain_after_give_unused",
+      "expected_accepted": false,
+      "actual": {
+        "phase": "Types",
+        "accepted": true,
+        "diagnostics": ""
+      },
+      "source_sha256": "652e394d0bb9b904d89dc106e78c24dc918e1cc59daa3232bfe33f0df63036ce"
+    },
+    {
+      "name": "callback_desc_relay_after_give_unused",
+      "expected_accepted": false,
+      "actual": {
+        "phase": "Types",
+        "accepted": true,
+        "diagnostics": ""
+      },
+      "source_sha256": "f4d9538811d4650ca23abe9d1155c376716e03e961c4dd92fc05c0075c3bc32c"
+    }
+  ],
+  "finding": "Unused ordinary Enum Value F-helper descriptions retain declaration identity but not invalidated owner roots; description reads after give of original or relayed owner accepted. Before-give Copy read remains valid.",
+  "reported_to": [
+    "root",
+    "impl_product_store235"
+  ],
+  "status": "Pending root contract ruling and owner repair; no machine unsafety claim"
+}

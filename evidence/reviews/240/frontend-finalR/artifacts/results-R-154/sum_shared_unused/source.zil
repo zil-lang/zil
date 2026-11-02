@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{V(manages R),Nil}package P{state:E}fn unused(e:&E){}fn main(){}

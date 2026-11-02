@@ -1,0 +1,1 @@
+type B=i32;enum E{V(manages B)}fn main(){}

@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"capture requires a finite Copy value, finite resource, explicit-move Package or one address layer\", span: Some(Span { file: FileId(0), start: 112, end: 113 }), notes: [] }]"}

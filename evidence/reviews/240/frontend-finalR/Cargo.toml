@@ -1,0 +1,12 @@
+[package]
+name = "review240-boundaries"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+zil-base = { path = "/workspace/zil-core/crates/zil-base" }
+zil-ir = { path = "/workspace/zil-core/crates/zil-ir" }
+zil-syntax = { path = "/workspace/zil-core/crates/zil-syntax" }
+zil-expand = { path = "/workspace/zil-core/crates/zil-expand" }
+zil-types = { path = "/workspace/zil-core/crates/zil-types" }
+zil-analyze = { path = "/workspace/zil-core/crates/zil-analyze" }

@@ -1,0 +1,171 @@
+{
+  "bare_unused": {
+    "source.zil": "357d05109be88766c38e2b1c95b89200005a81ba6500d3dfc19e16f88271156d"
+  },
+  "borrowed_param_into_manages": {
+    "source.zil": "b274eeb0a7e4b312ce71005d7a048c955cd738ae06b13f00f9be6b435e49bbe2"
+  },
+  "callback_bare_alias": {
+    "source.zil": "5caca1e90cba8b1ec7a33f1df3080f8de33fa2f9457a056cb1cebcb9d25049be"
+  },
+  "callback_bare_resource": {
+    "source.zil": "e37bab7ca7808b4ec2d403e92588ac3ac30c499c97279d3f44e7eff33feb5da3"
+  },
+  "callback_duplicate_copy_enum_control": {
+    "source.zil": "a4d01f69819b15e8d6ad601bc63fae4f216432fb002e230553f04dd713d24bd2"
+  },
+  "callback_duplicate_enum_unused": {
+    "source.zil": "81aa12957972eceb3162f02b74399326cca8697a6c0e6d9402f681598e8a1afd"
+  },
+  "callback_duplicate_enum_used": {
+    "source.zil": "f56a17dc14553930243e25fca7204e354c3b7700b882cbf98af405e976e4652f"
+  },
+  "callback_duplicate_nested_enum_unused": {
+    "source.zil": "cf6608e4c3d0afe7f65e79db27419a48bf2f5fbff014f7da5840edb7f55223f8"
+  },
+  "callback_duplicate_package_control": {
+    "source.zil": "7256108b03d135fe61d085b9cdadc3e8c0d4dea09f968ed3db0e79ef5bf2dce0"
+  },
+  "callback_duplicate_union_unused": {
+    "source.zil": "9e27eb14c087b8b1bfb13c88525108636db376d4f23067d532ae43724c319db3"
+  },
+  "callback_forward_unused": {
+    "source.zil": "4bd3b72208593e8a675d304dd6cb0fdfd30e5f5b7fd55f9b640a37a76016ed15"
+  },
+  "callback_owned_forward": {
+    "source.zil": "bff8cb5c34ba17c5de9e312ee1d083aaefdaa7cc7e0d4a1d343a314fb1d36798"
+  },
+  "callback_owned_signature_closed": {
+    "source.zil": "5a2712beba6954336b017343a77b0f77631ac0195fdbaa53a40a4cbde44de579"
+  },
+  "callback_owned_value_unused": {
+    "source.zil": "571ae3a75ac5021a088008b5e9929bf2f803f31424a38fcb944d378d45850a30"
+  },
+  "callback_owned_value_used": {
+    "source.zil": "16291c797bc692b0e1fcdb889341ca9cd213a74ecdc544cc04a6aadb19780769"
+  },
+  "callback_read_after_give": {
+    "source.zil": "aed8cbc0f3b8b87c181fb280d3a7b47c790daa172f55716e321ab965b852b3fe"
+  },
+  "callback_ref_resource": {
+    "source.zil": "e7e6fd075678da17eefca011fbeba6ea83d3a798eacd3004a008a44437173e2d"
+  },
+  "callback_rematch_enum_unused": {
+    "source.zil": "753a0032f1f712f17ad02f2cf36af5a98ac39543e5bc765a5c10e1bd1078f38c"
+  },
+  "callback_repeat_give": {
+    "source.zil": "a355e7f5e4b37d6ab5ace4e30cdabf37e6c18f699a6fc3dcfd938ebba2957e2d"
+  },
+  "copy_generic_actual": {
+    "source.zil": "3c9d940f2bd3c51f15f88dbfedc64cd1067c98b6f9a428d98d058d59f8d9c41c"
+  },
+  "explicit_unused": {
+    "source.zil": "e70d4bec0552fb44f8176bdc55a2c6b3a2fb0a5721a6a2b0b9226e24a6c9ba6a"
+  },
+  "generic_actual_owner": {
+    "source.zil": "59881c1db28dfdcf10d396e76363035c131259dc0cd4f423678e9e52b9c051be"
+  },
+  "generic_concrete_owner_unused": {
+    "source.zil": "cf1435fa66454ae9a54a889ddf091fc45daec2d35cd9d57170c80e240b47bcf7"
+  },
+  "generic_decl_manages_unused": {
+    "source.zil": "5948977b1a8afccd5c40611d81e119caa7a79c7a9cd5e13fb70c4b963181307a"
+  },
+  "generic_phantom_owner": {
+    "source.zil": "e32ac906daccf26b97fac3a456bbea3e249f46d1f2b10737c9643c65d877b6cb"
+  },
+  "manages_copy_alias": {
+    "source.zil": "15d9c6f7c80ef2090207c7512e5fc6ad8e79cfbfab7be14e0511a8d00508275d"
+  },
+  "manages_ref_alias": {
+    "source.zil": "d4c4bdc88ad3d035b6691ba7c52574b3c41d472269c35215c26540b4d0f9b8fe"
+  },
+  "manages_ref_unused": {
+    "source.zil": "033695fec6e017ce62802d428aed926fc4c24d663a1a48e4164aa83a99eff1e3"
+  },
+  "manages_resource_alias": {
+    "source.zil": "bbda612eea7a58c924e1d6ed0d184fb33e37fcc041de75a83470a24002b55954"
+  },
+  "owned_param_into_manages": {
+    "source.zil": "d24920f94123276dda3ff2eac784ee2c66202e58553db02ff6c1690f314cecee"
+  },
+  "product_sum_array": {
+    "source.zil": "ab6e9cae38e3b0c5a077783f4df46b524bb320b5450df9883a5c16c2e9e45c3b"
+  },
+  "product_sum_capture": {
+    "source.zil": "c6fad6013e703a78d5d96665a651973a86d6e16e721fe36fededbaf44bb262e5"
+  },
+  "product_sum_shared_unused": {
+    "source.zil": "d445b228d07b4459c8d89f63ec4bf15a01e584e85f87403a7f60a66b24d8cddf"
+  },
+  "project_callback_bare": {
+    "api.zil": "972dfcf9eff4e98ac562555c598447b19999c7b44f01c8e1ab65dbbe32861b82",
+    "main.zil": "d27c083d7ad3bd8807e9310a37148420939a6c1d8d431b163e8d89be707806ad"
+  },
+  "project_callback_owned_unused": {
+    "api.zil": "9845fff89a5fda80e73d081a984e67ada91119967d33438aa42f1b12ce0d12e5",
+    "main.zil": "2bf888bda142b25e3822a03d29a5e89129fa865237bf6d7fb01decfc186cb2a4"
+  },
+  "project_callback_owned_used": {
+    "api.zil": "9845fff89a5fda80e73d081a984e67ada91119967d33438aa42f1b12ce0d12e5",
+    "main.zil": "d27c083d7ad3bd8807e9310a37148420939a6c1d8d431b163e8d89be707806ad"
+  },
+  "project_callback_ref": {
+    "api.zil": "ae5fa0bc8b0e55c3cb428d046db37a8d878e57d82a08e6d6c17347f12ae09150",
+    "main.zil": "d27c083d7ad3bd8807e9310a37148420939a6c1d8d431b163e8d89be707806ad"
+  },
+  "project_callback_repeat": {
+    "api.zil": "a740f4d069e5107b68659b88bf310d736ae111b3bb09137390127d2ffa36c4cb",
+    "main.zil": "d27c083d7ad3bd8807e9310a37148420939a6c1d8d431b163e8d89be707806ad"
+  },
+  "project_opaque_private_read": {
+    "api.zil": "bb22f4f5366c47e536680ffb05aa24bd36a8d59d707da1211ba296280509941b",
+    "main.zil": "62c29d1a3256c9922b87bfd8cf66eb6db571d25b5e91dd0ad356c9bcc64481a5"
+  },
+  "project_opaque_replacement": {
+    "api.zil": "bb22f4f5366c47e536680ffb05aa24bd36a8d59d707da1211ba296280509941b",
+    "main.zil": "5d0de5d53b2c87b701fc08d9042c0d0355b7a12c2a7c4712af8bc5af946f4d5a"
+  },
+  "raw_hidden_field": {
+    "raw-core.txt": "7fad55545919fc1385b2362e911ff55d5ef749797c11d8bec0d04833da49e3aa"
+  },
+  "raw_managed_address": {
+    "raw-core.txt": "a03d70387ef1a7060e44fe6c4fbe410f1b83ef246ca6070564d311f28824f48d"
+  },
+  "ref_param_into_manages": {
+    "source.zil": "9587ac3ce1953bb491fc0f42647c6f32951b91c088a2dc62e2ae847a68f929a7"
+  },
+  "ref_unused": {
+    "source.zil": "11897d6f7fa5d91447d4d6ab713f06c4b51ddac9613e03b1e05c7dccc6a0fc7e"
+  },
+  "resource_sum_header_unused": {
+    "source.zil": "fd2ccc80fe2a779de49cbf36c01cf40a3114804754213f212d456265c47a3511"
+  },
+  "sum_array": {
+    "source.zil": "1e1f8f6e4421059ff359d532fda3b1d99eeb39b4c11a83257b610b7df020306d"
+  },
+  "sum_capture": {
+    "source.zil": "f436f33ac6785da47c46e5793b1c41fbe04b5c0377e82a0f22bba98c5270ba6f"
+  },
+  "sum_ffi_unused": {
+    "source.zil": "58e93c2f19c398427b7fd2192e37d5c8e3d4a84cb2fb4fb8073cb95667086459"
+  },
+  "sum_replacement_valid": {
+    "source.zil": "a2133517c55c79c0260d227ead4e02596a918a8f0f9daf40b9fa1d725188d6c1"
+  },
+  "sum_shadow_binding": {
+    "source.zil": "d078555d3f4d0ae25d868ffcfcd8532942f31f262e497e93aec852bdd09116b1"
+  },
+  "sum_shared_unused": {
+    "source.zil": "6b7b087e28caf8398bc3abceb4ab6aa939285ad9209433cedb8c0b32d7ec7ba3"
+  },
+  "sum_store_element_unused": {
+    "source.zil": "450a77ebb8213a68b6725c6659efa7365eb01d09659cabb180e17aa055e55f0d"
+  },
+  "unused_recursive_enum": {
+    "source.zil": "52145c7e90ab55ecfd536830150792c0a879abb4ab9a635ab9dd14291d3aba3f"
+  },
+  "unused_recursive_product": {
+    "source.zil": "8df8a2acd2bf4b7180efa0a00f15e244d9c958f00066ecbe34506ff7be252cf6"
+  }
+}

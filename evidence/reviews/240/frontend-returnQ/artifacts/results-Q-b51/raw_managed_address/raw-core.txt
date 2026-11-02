@@ -1,0 +1,141 @@
+CoreModule {
+    schema_version: 30,
+    module_id: ModuleId(
+        0,
+    ),
+    source_fingerprint: Fingerprint(
+        [
+            231,
+            13,
+            75,
+            236,
+            5,
+            82,
+            251,
+            68,
+            248,
+            23,
+            107,
+            220,
+            85,
+            162,
+            198,
+            179,
+            162,
+            251,
+            10,
+            87,
+            33,
+            166,
+            162,
+            176,
+            185,
+            34,
+            110,
+            36,
+            166,
+            201,
+            186,
+            106,
+        ],
+    ),
+    functions: [
+        CoreFunction {
+            type_parameters: [],
+            state_parameters: [],
+            callable_return: None,
+            id: NodeId(
+                2,
+            ),
+            name: "main",
+            callable_parameters: [],
+            foreign: None,
+            parameters: [],
+            return_type: Unit,
+            result_mode: Infer,
+            body: CoreBlock {
+                statements: [],
+                span: Span {
+                    file: FileId(
+                        0,
+                    ),
+                    start: 46,
+                    end: 48,
+                },
+            },
+            receiver: None,
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 37,
+                end: 48,
+            },
+        },
+    ],
+    aggregates: [
+        CoreAggregate {
+            id: NodeId(
+                0,
+            ),
+            name: "R",
+            kind: Resource,
+            teardown: None,
+            fields: [
+                CoreField {
+                    name: "n",
+                    ty: I32,
+                    public: false,
+                    manages: false,
+                    span: Span {
+                        file: FileId(
+                            0,
+                        ),
+                        start: 11,
+                        end: 16,
+                    },
+                },
+            ],
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 0,
+                end: 17,
+            },
+        },
+    ],
+    aggregate_templates: [],
+    aggregate_applications: [],
+    enums: [
+        CoreEnum {
+            id: NodeId(
+                1,
+            ),
+            name: "E",
+            variants: [
+                (
+                    "V",
+                    [
+                        Managed(
+                            Address {
+                                mutable: false,
+                                inner: Named(
+                                    "R",
+                                ),
+                            },
+                        ),
+                    ],
+                ),
+            ],
+            span: Span {
+                file: FileId(
+                    0,
+                ),
+                start: 17,
+                end: 37,
+            },
+        },
+    ],
+    unsupported: [],
+}

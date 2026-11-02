@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{V(manages R),Nil}package P{state:E}fn relay(e:E)->E{return e}fn main(){var x=E.V(R{n:1});x=relay(x);}

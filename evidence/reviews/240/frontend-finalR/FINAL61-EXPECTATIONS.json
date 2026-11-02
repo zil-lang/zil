@@ -1,0 +1,241 @@
+{
+  "case_count": 61,
+  "cases": {
+    "bare_unused": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "borrowed_param_into_manages": {
+      "accepted": false,
+      "code": "E-GIVE-DESCRIPTOR"
+    },
+    "callback_bare_alias": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "callback_bare_resource": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "callback_desc_after_give_unused": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT",
+      "message": "outlived"
+    },
+    "callback_desc_before_give_control": {
+      "accepted": true
+    },
+    "callback_desc_chain_after_give_unused": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT",
+      "message": "outlived"
+    },
+    "callback_desc_relay_after_give_unused": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT",
+      "message": "outlived"
+    },
+    "callback_duplicate_copy_enum_control": {
+      "accepted": true
+    },
+    "callback_duplicate_enum_unused": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT",
+      "message": "used after move"
+    },
+    "callback_duplicate_enum_used": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT",
+      "message": "used after move"
+    },
+    "callback_duplicate_nested_enum_unused": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT",
+      "message": "used after move"
+    },
+    "callback_duplicate_package_control": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT"
+    },
+    "callback_duplicate_union_unused": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT",
+      "message": "used after move"
+    },
+    "callback_forward_unused": {
+      "accepted": true
+    },
+    "callback_owned_forward": {
+      "accepted": true
+    },
+    "callback_owned_signature_closed": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "callback_owned_value_unused": {
+      "accepted": true
+    },
+    "callback_owned_value_used": {
+      "accepted": true
+    },
+    "callback_read_after_give": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT"
+    },
+    "callback_ref_resource": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "callback_rematch_enum_unused": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT",
+      "message": "used after move"
+    },
+    "callback_repeat_give": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT"
+    },
+    "copy_generic_actual": {
+      "accepted": true
+    },
+    "explicit_unused": {
+      "accepted": true
+    },
+    "generic_actual_owner": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT"
+    },
+    "generic_concrete_owner_unused": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "generic_decl_manages_unused": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "generic_phantom_owner": {
+      "accepted": true
+    },
+    "manages_copy_alias": {
+      "accepted": false,
+      "code": "E-RESOURCE-TYPE"
+    },
+    "manages_ref_alias": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT"
+    },
+    "manages_ref_unused": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "manages_resource_alias": {
+      "accepted": true
+    },
+    "owned_param_into_manages": {
+      "accepted": true
+    },
+    "postfix_new_description_after_branch": {
+      "accepted": true
+    },
+    "postfix_old_description_after_branch": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT",
+      "message": "outlived"
+    },
+    "postfix_owner_branch_current": {
+      "accepted": true
+    },
+    "product_sum_array": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "product_sum_capture": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "product_sum_shared_unused": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "project_callback_bare": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "project_callback_owned_unused": {
+      "accepted": true
+    },
+    "project_callback_owned_used": {
+      "accepted": true
+    },
+    "project_callback_ref": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "project_callback_repeat": {
+      "accepted": false,
+      "code": "E-GENERIC-ARGUMENT"
+    },
+    "project_opaque_private_read": {
+      "accepted": false,
+      "code": "E-FIELD-PRIVATE"
+    },
+    "project_opaque_replacement": {
+      "accepted": true
+    },
+    "raw_hidden_field": {
+      "accepted": false,
+      "code": "E-FIELD-TYPE"
+    },
+    "raw_managed_address": {
+      "accepted": false,
+      "code": "E-RESOURCE-TYPE"
+    },
+    "ref_param_into_manages": {
+      "accepted": false,
+      "code": "E-GIVE-DESCRIPTOR"
+    },
+    "ref_unused": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "resource_sum_header_unused": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "sum_array": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "sum_capture": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "sum_ffi_unused": {
+      "accepted": false,
+      "code": "E-FFI-DECLARATION"
+    },
+    "sum_replacement_valid": {
+      "accepted": true
+    },
+    "sum_shadow_binding": {
+      "accepted": true
+    },
+    "sum_shared_unused": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "sum_store_element_unused": {
+      "accepted": false,
+      "code": "E-UNSUPPORTED"
+    },
+    "unused_recursive_enum": {
+      "accepted": false,
+      "code": "E-INFINITE-LAYOUT"
+    },
+    "unused_recursive_product": {
+      "accepted": false,
+      "code": "E-INFINITE-LAYOUT"
+    }
+  },
+  "note": "54 old frozen expectations unchanged, separate Desc4 and owner3 groups; frozen before successor execution."
+}

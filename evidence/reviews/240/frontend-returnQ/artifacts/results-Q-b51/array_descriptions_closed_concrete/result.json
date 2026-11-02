@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: SafeReject, code: \"E-TYPE-MISMATCH\", message: \"expected Managed(Record { name: \\\"@module0:R\\\", fields: [(\\\"n\\\", I32)] }), found Desc(Record { name: \\\"@module0:R\\\", fields: [(\\\"n\\\", I32)] })\", span: Some(Span { file: FileId(0), start: 145, end: 146 }), notes: [] }]"}

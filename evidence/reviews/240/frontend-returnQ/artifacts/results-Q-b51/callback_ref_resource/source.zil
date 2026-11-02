@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}enum E{V(Ref<R>)}fn consume<F:Fn()->i32>(value:E,cb:F)->i32{match value{E.V(r)=>{let p=P{r:give r};return cb()}}}fn main(){}

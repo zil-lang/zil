@@ -1,0 +1,20 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.01s
+     Running `/workspace/.zil-env/target-240/debug/impl240-front-probe /tmp/240-owner-join/old-desc.zil`
+Expand [
+    Diagnostic {
+        phase: Expand,
+        category: SafeReject,
+        code: "E-GENERIC-ARGUMENT",
+        message: "resource description outlived its actual owned local",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 202,
+                end: 203,
+            },
+        ),
+        notes: [],
+    },
+]

@@ -1,0 +1,46 @@
+{
+  "candidate": "b51dc2043ae51ec42c1bec964bec0623df152431",
+  "note": "Frozen before this common-Q execution; concrete non-generic body compiles actual statements so Types qualification is observable. No Analyze/Verify/native invoked.",
+  "sources": {
+    "shadowed_owner_scope_exit_helper": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{var d=a;if flag{let saved=give b;d=saved;let saved=0;}return cb()+d.n}}}fn main(){}",
+      "sha256": "6bda67ec3a150f2419d35c581f7a88e69548b3a6a5b2ad44d211171a3481c357"
+    },
+    "shadowed_owner_scope_exit_concrete": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value(e:E,flag:bool)->i32{let cb=()=>0;match e{E.V(a,b)=>{var d=a;if flag{let saved=give b;d=saved;let saved=0;}return cb()+d.n}}}fn main(){}",
+      "sha256": "4d425e54b64e0a8d23ac6deaab4542ecadaaa4b9662d7b210f352f6f724a3a60"
+    },
+    "owner_branch_replacement_current_helper": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{var saved=give a;if flag{saved=give b}else{}return cb()+saved.n}}}fn main(){}",
+      "sha256": "661fd81bb09468c326db3930ccc4e939b95c90bcdc0c1d02f612689d64ca151e"
+    },
+    "owner_branch_replacement_current_concrete": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value(e:E,flag:bool)->i32{let cb=()=>0;match e{E.V(a,b)=>{var saved=give a;if flag{saved=give b}else{}return cb()+saved.n}}}fn main(){}",
+      "sha256": "a791d0f6028b5dd324b1f9fac63cb74635c87397f07be2f9aa4da14918edce65"
+    },
+    "tuple_descriptions_closed_helper": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{let tuple=(a,b);return cb()+tuple.0.n+tuple.1.n}}}fn main(){}",
+      "sha256": "821ef57d858907f7e72f96cb0aacfeeb98f517ec3c27991411402807ab94f071"
+    },
+    "tuple_descriptions_closed_concrete": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value(e:E,flag:bool)->i32{let cb=()=>0;match e{E.V(a,b)=>{let tuple=(a,b);return cb()+tuple.0.n+tuple.1.n}}}fn main(){}",
+      "sha256": "495895e6cb87daad427de67c04602cbf4e2c5bb4e48953ef31a9c7184ff05743"
+    },
+    "array_descriptions_closed_helper": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{let array=[a,b];return cb()+array[0].n}}}fn main(){}",
+      "sha256": "186b1bb49c92b6e00c7846a03ec26564b30b3d70abfdfc4d3970c48fd9c2e8a2"
+    },
+    "array_descriptions_closed_concrete": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value(e:E,flag:bool)->i32{let cb=()=>0;match e{E.V(a,b)=>{let array=[a,b];return cb()+array[0].n}}}fn main(){}",
+      "sha256": "c90c3afa2237d69d8d76ad3712d780ac3ff7c322606b552f4f078d340b8dbb19"
+    },
+    "address_description_before_give_helper": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{let d=&a;let n=(*d).n;let p=P{r:give a};return cb()+n}}}fn main(){}",
+      "sha256": "acca3e7749923ae97e03d1d5d9af4169ea97e05f876c241dd29a93a0d956388e"
+    },
+    "address_description_before_give_concrete": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value(e:E,flag:bool)->i32{let cb=()=>0;match e{E.V(a,b)=>{let d=&a;let n=(*d).n;let p=P{r:give a};return cb()+n}}}fn main(){}",
+      "sha256": "0ea3d7fd4f3bc903fbdf23edc544f8b6d41641f69bfb116d636ef1c88f0e96be"
+    }
+  }
+}

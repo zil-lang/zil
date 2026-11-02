@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"one or two finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented\", span: Some(Span { file: FileId(0), start: 37, end: 98 }), notes: [] }]"}

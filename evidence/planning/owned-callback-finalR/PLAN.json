@@ -1,0 +1,37 @@
+[
+  {
+    "name": "event-reply",
+    "original_source": "/tmp/q-owned-callback-precheck/02_owned_event_reply_dispatch/source.zil",
+    "source_sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+    "expected_status": "Unsupported",
+    "expected_phase": "types"
+  },
+  {
+    "name": "event-copy-result",
+    "original_source": "/tmp/q-owned-callback-precheck/03_owned_event_copy_reply_direct/source.zil",
+    "source_sha256": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+    "expected_status": "Unsupported",
+    "expected_phase": "types"
+  },
+  {
+    "name": "owned-result",
+    "original_source": "/tmp/q-owned-callback-precheck/04_owned_reply_from_once_capture/source.zil",
+    "source_sha256": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+    "expected_status": "Unsupported",
+    "expected_phase": "types"
+  },
+  {
+    "name": "f-identity",
+    "original_source": "/tmp/next-language-mainline/checks/02-preserve-f-identity/main.zil",
+    "source_sha256": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+    "expected_status": "Unsupported",
+    "expected_phase": "expand"
+  },
+  {
+    "name": "state-store-control",
+    "original_source": "/tmp/next-language-mainline/checks/03-state-store-positive-control/main.zil",
+    "source_sha256": "28a5b3ac64e700506ca2132b4cbd4f977e18f655653f0b953a6413a9e67a6c63",
+    "expected_status": "Success",
+    "expected_phase": "verify"
+  }
+]

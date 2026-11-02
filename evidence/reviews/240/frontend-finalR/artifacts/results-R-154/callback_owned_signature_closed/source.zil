@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{V(manages R)}fn consume<F:Fn(E)->i32>(value:E,cb:F)->i32{return cb(value)}fn main(){}

@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: SafeReject, code: \"E-INFINITE-LAYOUT\", message: \"recursive by-value aggregate has infinite layout\", span: Some(Span { file: FileId(0), start: 17, end: 29 }), notes: [] }]"}

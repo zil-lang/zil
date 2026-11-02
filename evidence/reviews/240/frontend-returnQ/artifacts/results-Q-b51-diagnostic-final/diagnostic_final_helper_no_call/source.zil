@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{var saved=give a;if flag{saved=give b}else{}return saved.n}}}fn main(){}

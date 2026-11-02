@@ -1,0 +1,8 @@
+{
+  "path": "evidence/reviews/239/integrationQ/raw.tar.gz",
+  "sha256": "c2661fffeccf21fd7a0fae4ea64e46011ea9c0b909ae280708fcc26c03bba498",
+  "bytes": 16644891,
+  "members": 6206,
+  "artifact_manifest_sha256": "0cac61e22faf486b1955b2baa34f154f4e6df8665183770c385364c7b1cd1eea",
+  "source_directory": "/tmp/final-owned-sum-Q-review"
+}

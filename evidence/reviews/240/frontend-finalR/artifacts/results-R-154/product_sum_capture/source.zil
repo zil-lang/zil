@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{V(manages R),Nil}package P{state:E}fn main(){let p=P{state:E.V(R{n:1})};let f=move()=>{let value=p;};f()}

@@ -1,0 +1,136 @@
+{
+  "status": "SupersededQCancelledLogsArchived",
+  "head": "b51dc2043ae51ec42c1bec964bec0623df152431",
+  "runs": [
+    {
+      "status": "CancelledRunLogsRecoveredFullArchiveUnavailable",
+      "run_id": 41363020187,
+      "conclusion": "cancelled",
+      "expected_pr_head": "b51dc2043ae51ec42c1bec964bec0623df152431",
+      "workflow": "Main source verification",
+      "artifacts_reported": 0,
+      "all_indexed_blobs_verified": false,
+      "full_native_archive_recovered": false,
+      "candidate_accepted": false,
+      "reason": "CI pack refused changed evidence inventory after cancellation; no log-transport records were emitted. There are zero API artifacts. All retrievable run logs are retained; missing native bytes are not reconstructed or silently ignored.",
+      "cancelled_not_test_failure": true,
+      "source_snapshot_reported_in_log": [
+        {
+          "status": "Pass",
+          "commit": "2950beec60646b8ce4e86940e2ee16c47c819792",
+          "git_object_format": "sha1",
+          "scope": "All tracked non-evidence/ current files; full history and historical evidence require exact GitHub commit",
+          "excluded_prefix": "evidence/",
+          "excluded_entries": 91148,
+          "excluded_blob_bytes": 1487893809,
+          "checkout_before": "ActualBytesTypesAndGitModesMatchHEAD",
+          "checkout_after": "ActualBytesTypesAndGitModesMatchHEAD",
+          "archive_bytes": 6659839,
+          "archive_sha256": "d0179bafcb99a90179bdf54eb8841f31a6eb6556e4aeca4f5f0be8de16637be6",
+          "input_files": 4092,
+          "input_blob_bytes": 26583325
+        }
+      ],
+      "source_bytes_independently_verified": false,
+      "partial_completed_test_result_lines": {
+        "passed": 2201,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0,
+        "lines": 210
+      },
+      "count_scope": "Only completed result lines before cancellation, never a full-workspace result",
+      "recoverer_note": "First local metadata output capture bug was fixed before downloading any evidence; original failure/retry logs retained. It did not cause the upstream CI pack inventory failure.",
+      "logs": {
+        "run.log": {
+          "bytes": 548717,
+          "sha256": "fa1bdd66406f4f00bc881c6e2d8560a568f6b100a28118ee1657973674ae9c2c"
+        },
+        "logs.zip": {
+          "bytes": 191229,
+          "sha256": "35385bf2009597d520529ffe86849410749db9fb5b1e52e48c96c871b8486cf9"
+        },
+        "run.json": {
+          "bytes": 5976,
+          "sha256": "8a23b8fcdcd8afaf9152089ba4b95470814c52a13f49135200fac2a67b69dc8f"
+        },
+        "artifacts.json": {
+          "bytes": 42,
+          "sha256": "f7417e1fb877d3f5934f143cc38ad9e2905476e8f5ac6776507d09441efcd6f6"
+        }
+      },
+      "no_extra_test_execution": true
+    },
+    {
+      "status": "CancelledRunLogsRecoveredFullArchiveUnavailable",
+      "run_id": 41363020270,
+      "conclusion": "cancelled",
+      "expected_pr_head": "b51dc2043ae51ec42c1bec964bec0623df152431",
+      "workflow": "Research LLVM verification",
+      "artifacts_reported": 0,
+      "all_indexed_blobs_verified": false,
+      "full_native_archive_recovered": false,
+      "candidate_accepted": false,
+      "reason": "CI pack refused changed evidence inventory after cancellation; no log-transport records were emitted. There are zero API artifacts. All retrievable run logs are retained; missing native bytes are not reconstructed or silently ignored.",
+      "cancelled_not_test_failure": true,
+      "source_snapshot_reported_in_log": [
+        {
+          "status": "Pass",
+          "commit": "2950beec60646b8ce4e86940e2ee16c47c819792",
+          "git_object_format": "sha1",
+          "scope": "All tracked non-evidence/ current files; full history and historical evidence require exact GitHub commit",
+          "excluded_prefix": "evidence/",
+          "excluded_entries": 91148,
+          "excluded_blob_bytes": 1487893809,
+          "checkout_before": "ActualBytesTypesAndGitModesMatchHEAD",
+          "checkout_after": "ActualBytesTypesAndGitModesMatchHEAD",
+          "archive_bytes": 6659839,
+          "archive_sha256": "d0179bafcb99a90179bdf54eb8841f31a6eb6556e4aeca4f5f0be8de16637be6",
+          "input_files": 4092,
+          "input_blob_bytes": 26583325
+        }
+      ],
+      "source_bytes_independently_verified": false,
+      "partial_completed_test_result_lines": {
+        "passed": 1431,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0,
+        "lines": 133
+      },
+      "count_scope": "Only completed result lines before cancellation, never a full-workspace result",
+      "recoverer_note": "First local metadata output capture bug was fixed before downloading any evidence; original failure/retry logs retained. It did not cause the upstream CI pack inventory failure.",
+      "logs": {
+        "run.log": {
+          "bytes": 401916,
+          "sha256": "be99d57c6b8a8610998618538e9b6fdcc668f1fb45c9a6a13fac814e85d06ef1"
+        },
+        "logs.zip": {
+          "bytes": 142493,
+          "sha256": "f7876bc456b7a8ebae29422f7f50233215d758464b92839e1b8e3e91ca4908d7"
+        },
+        "run.json": {
+          "bytes": 6347,
+          "sha256": "8a48eb23c49cdf0d02fc8761b546131c513b80d35ccc60256e42ccd959b6c70b"
+        },
+        "artifacts.json": {
+          "bytes": 42,
+          "sha256": "f7417e1fb877d3f5934f143cc38ad9e2905476e8f5ac6776507d09441efcd6f6"
+        }
+      },
+      "no_extra_test_execution": true
+    }
+  ],
+  "ci_test_failure_claimed": false,
+  "complete_native_evidence_recovered": false,
+  "reason": "Both upstream pack operations refused evidence changing after cancellation and emitted no transport chunks; artifacts API zero. Complete retrievable job logs and metadata preserved.",
+  "successor": {
+    "head": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+    "runs": [
+      41363882129,
+      41363882134
+    ],
+    "directory": "/tmp/owned-sum-pr-ci/R-15498f14"
+  },
+  "scope": "No rerun, cancellation request, PR mutation, core mutation or artifact deletion."
+}

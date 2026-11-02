@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"manages enum field requires a resource nominal type, not a borrowed type\", span: Some(Span { file: FileId(0), start: 26, end: 40 }), notes: [] }]"}

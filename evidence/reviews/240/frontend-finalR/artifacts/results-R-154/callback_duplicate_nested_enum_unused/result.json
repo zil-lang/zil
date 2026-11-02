@@ -1,0 +1,1 @@
+{"phase":"Expand","accepted":false,"diagnostics":"[Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"generic value used after move; Copy cannot be inferred from a concrete instance\", span: Some(Span { file: FileId(0), start: 115, end: 116 }), notes: [] }]"}

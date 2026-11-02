@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"Store elements require nonzero complete direct-Managed Packages\", span: Some(Span { file: FileId(0), start: 69, end: 84 }), notes: [] }]"}

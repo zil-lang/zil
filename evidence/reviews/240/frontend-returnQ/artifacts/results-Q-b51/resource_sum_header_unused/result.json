@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"aggregate field requires finite Copy, explicit manages, or an ordinary complete owned child\", span: Some(Span { file: FileId(0), start: 72, end: 79 }), notes: [] }]"}

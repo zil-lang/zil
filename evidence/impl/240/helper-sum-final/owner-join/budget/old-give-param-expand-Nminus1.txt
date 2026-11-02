@@ -1,0 +1,18 @@
+[
+    Diagnostic {
+        phase: Expand,
+        category: ResourceLimit,
+        code: "E-RESOURCE-LIMIT",
+        message: "generic metadata budget exceeded",
+        span: Some(
+            Span {
+                file: FileId(
+                    0,
+                ),
+                start: 100,
+                end: 103,
+            },
+        ),
+        notes: [],
+    },
+]

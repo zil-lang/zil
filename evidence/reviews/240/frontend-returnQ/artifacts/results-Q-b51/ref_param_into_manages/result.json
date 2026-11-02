@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: SafeReject, code: \"E-GIVE-DESCRIPTOR\", message: \"a descriptor does not own the resource carrier\", span: Some(Span { file: FileId(0), start: 68, end: 74 }), notes: [] }]"}

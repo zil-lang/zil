@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: SafeReject, code: \"E-FIELD-PRIVATE\", message: \"record field is private to its declaring module\", span: Some(Span { file: FileId(0), start: 86, end: 91 }), notes: [] }]"}

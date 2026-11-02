@@ -1,0 +1,7 @@
+{
+  "diagnostic_owner_branch_main": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn main()->i32{let e=E.V(R{n:1},R{n:2});let cb=()=>0;let flag=true;match e{E.V(a,b)=>{var saved=give a;if flag{saved=give b}else{}return cb()+saved.n}}}",
+  "diagnostic_owner_branch_move_parameter": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value(move e:E,flag:bool)->i32{let cb=()=>0;match e{E.V(a,b)=>{var saved=give a;if flag{saved=give b}else{}return cb()+saved.n}}}fn main(){}",
+  "diagnostic_address_description_main": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn main()->i32{let e=E.V(R{n:1},R{n:2});let cb=()=>0;let flag=true;match e{E.V(a,b)=>{let d=&a;let n=(*d).n;let p=P{r:give a};return cb()+n}}}",
+  "diagnostic_address_description_move_parameter": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value(move e:E,flag:bool)->i32{let cb=()=>0;match e{E.V(a,b)=>{let d=&a;let n=(*d).n;let p=P{r:give a};return cb()+n}}}fn main(){}",
+  "diagnostic_plain_parameter_give": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value(e:E)->i32{match e{E.V(a,b)=>{let p=P{r:give a};return b.n}}}fn main(){}"
+}

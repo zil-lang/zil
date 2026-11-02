@@ -1,0 +1,1 @@
+pub resource R{pub n:i32}pub package P{tag:i32;manages r:R}pub enum E{V(P)}pub fn make()->E{return E.V(P{tag:7,r:R{n:1}})}pub fn relay(e:E)->E{return e}

@@ -1,0 +1,142 @@
+{
+  "reviewer": "/root/review_language_contracts",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "schema": 30,
+  "wire": 30,
+  "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+  "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+  "candidate_verdict": "PassBounded",
+  "candidate_failure": null,
+  "independence": {
+    "reviewer_authored_production": false,
+    "reviewer_authored_consumer244_and_review_tests": true,
+    "consumer244_independent_oracle_reviewer": "/root",
+    "core_tree_readonly": true,
+    "full_workspace": "NotRun by this reviewer; root owns formal runs",
+    "author_results_not_added_to_reviewer_counts": true
+  },
+  "execution": {
+    "cwd": "/workspace/zil-core",
+    "cargo_target": "/workspace/.zil-env/target-review-sum-Q",
+    "target_provenance": "Created cold for b51 Q, only core cwd; reused for R at same absolute cwd. Earlier cross-tree target244 observations classified invalid and retained separately.",
+    "features": [
+      "llvm-api"
+    ],
+    "jobs": 1,
+    "locked": true,
+    "selected_test_targets": 16,
+    "selected_Rust_tests": 138,
+    "executed_Rust_tests": 138,
+    "passed": 138,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "independent_and_consumer_tests": 29,
+    "legacy_migration_tests": 109,
+    "clippy": "same16targets -D warnings passed",
+    "commands": "COMMAND.txt, clippy.log, exact owner-join rustc-command.json for R",
+    "logs": "cargo.log plus full raw archive",
+    "source_dependency_blobs_before_after_equal": true,
+    "HEAD_clean_before_after": true,
+    "evidence_reuse": "All138 tests actually rerun at this exact candidate. Prior author/protocol/source-only evidence is identified separately."
+  },
+  "levels": {
+    "production_source": "Original six probes, five-module consumer, generated/handwritten enum, exits/defer, callback helper; full stage artifacts retained.",
+    "source_derived_raw": "Freshness, Store windows, unused capture and ErrorUnion metadata attacks; public Typed/raw/Wire inputs, without native claims.",
+    "handmade_raw": "Tag-edge/loop and actual-request controls use public candidates and empty Hold/initialization plumbing. Verify is invoked before Analyze; no trusted certificate fabricated.",
+    "CT": "Pure Copy Enum positive evaluates I32(7); new local observers rejected even when payload Copy, raw and Wire. No owned runtime resource evaluation permitted.",
+    "native": "x86_64 Linux actual LLVM API builder; no parse fallback; O0 and O2 where native specified.",
+    "product_comparison": "NotRun; no full-language completion, fullZUI, cross-platform or Rust performance claim."
+  },
+  "native_counts": {
+    "consumer_builds": 14,
+    "consumer_executions": 476,
+    "original_frozen_probe_executions": 22,
+    "five_module_normal_invalid_executions": 74,
+    "actual_allocator_probe_executions": 380,
+    "actual_allocation_failure_executions": 252,
+    "all_live_allocations_after_failures": 0,
+    "independent_generation_match_helper_builds": 24,
+    "independent_generation_match_helper_executions": 24,
+    "main_matrix_total_builder_builds": 38,
+    "main_matrix_counted_native_executions": 500,
+    "R_owner_join_extra_builds": 4,
+    "R_owner_join_extra_native_executions": 4,
+    "total_counted_native_executions": 504,
+    "legacy_native": "Separate artifacts preserved; no aggregate legacy native total included. Repeated Q/R executions are not presented as new distinct scenarios."
+  },
+  "frozen_consumer": {
+    "source_checkpoint": "33590ffe8",
+    "first_source_checkpoint": "ec3580d86",
+    "oracle": "tests/impl244/ORACLE.json",
+    "oracle_unchanged": true,
+    "original03_sha256": "711e96d70a4225254168ec1134d678baeb5f934a5fb75dbe0fe7d98adeaa434c",
+    "original05_sha256": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+    "original_unsupported_promoted_to_native": true,
+    "sixth_probe_duplicate_consume_still_rejected": true,
+    "ordinary_matrix": 32,
+    "invalid_inputs": 5,
+    "allocator_inputs": "190 per optimization,126 actual failed allocations per optimization; calls/frees/allocations/live compared to predeclared source-derived closed forms",
+    "first_failure_history": "ec358 qualified Unit pattern omitted (), fixture-only syntax correction335; subsequent actual Analyze/Verify/Codegen resource-limit failures fixed by implementations without changing sources/oracles/limits."
+  },
+  "legacy_migration_review": {
+    "author_commit": "2f73305a502c9450141f9598b901d01bb099866f",
+    "independently_reviewed": true,
+    "source_and_raw_constructor_inputs_unchanged": true,
+    "scope": "Only ordinary Sum and mutable whole-Sum combinations promoted; capture/shared/array/StoreElement/ownership-mode controls remain negative.",
+    "native_166_oracle": "Original source yields AZB/0 at O0/O2: commit cleans oldA, laterZ precedes original-shell newB cleanup.",
+    "direct_nested_union_negative": "review223 raw variant2 remains rejection; variants0,1,3 promoted.",
+    "raw183_note": "Separate raw183 historical shape diagnostic was root/242 responsibility; it is not one of these16 targets and is not counted as this reviewer execution."
+  },
+  "budget": {
+    "default_limits_unchanged": true,
+    "consumer_passes_default_limits": true,
+    "actual_request": "Sealed VerifiedModule limits/presence tested through owned/shared/program/Wire/current clone; Lower/emission inherit current small request, no default reset.",
+    "qualified_old_profile_exceptions": [
+      "Copy generic Enum actual instantiated field proof: Expand331/124 ->336/126 (+5work/+2nodes)",
+      "Actual Enum/ErrorUnion Copy/linear qualification in unused generic helpers: Expand266/116 ->296/130 (+30work/+14nodes); Types219 unchanged"
+    ],
+    "exceptions_author_measurements": "Explicit current normative registration; not added to reviewer test counts. NonSum old profiles stay on prior path.",
+    "no_timing_claim": true
+  },
+  "R_owner_join_review": {
+    "production_commit": "1246dd29cbdd68887fa7d8798a262528dd5eccaf",
+    "production_delta": "Only generic_resource_desc.rs27 lines plus4 author testcase lines; other Q->R changes cards/evidence.",
+    "static": "Current local is matched by actual id; every continuing branch must keep actual owned/declaration mode, unmoved local and roots. Only unequal actual root sets create a fresh joint owner activation. Existing borrowed descriptions retain old tokens, and moved-token sets still union. Root comparisons and new activation storage are prepaid. No new raw permission/schema/budget reset.",
+    "source_checks": 14,
+    "positive_Analyze": 9,
+    "negative_Expand": 5,
+    "native": "true/false xO0/O2 real AB/0",
+    "final_raw": "owner-join/results04",
+    "fixture_development": "Two reviewer harness errors retained and excluded; successful replay03 is not added to final counts."
+  },
+  "historical_failures_preserved": [
+    "P exact d393: independent helper ordinary Enum reaches Analyze Unsupported, original sources/oracles unchanged; evidence/reviews/241/integrationP",
+    "P new ordinary capture and direct-owned nested ErrorUnion false accepts retained in profile-supplement-P; root/242 discovery credited to authors",
+    "Q b51:138 tests pass but kernel actual current-owner branch join positive fails; Q verdict remains Fail",
+    "Invalid target244 cross-tree stale-dep observations are not used for acceptance/rejection conclusions",
+    "Reviewer owner-join harness expectation/Parse fixture errors retained separately"
+  ],
+  "rust_goals": {
+    "safety": "Independent kernels reject hostile source/raw/Wire cases, freshness laundering, stale tag/Desc/window/capture/profile attacks; actual allocation failures clean live resources to zero. This finite evidence does not prove full language safety.",
+    "runtime_memory": "Ordinary inline Sum cleanup reaches real native behavior without hidden RC/boxing. Allocation balance measured; no comparative runtime/RSS benchmark.",
+    "ergonomics_maintenance": "Original03/05 owning Store/error compositions and finite helper API now work; entire generic/lending/capture/framework maintenance scope remains incomplete.",
+    "compile_cost": "Default request budgets pass with explicitly paid sharing/memo, two declared old fees. No comparative compiler speed or memory result.",
+    "breakthrough": "Bounded language capability: frozen previously Unsupported owning Sum consumer sources03/05 now compile and run unchanged in O0/O2. No product net-win conclusion."
+  },
+  "limitations": [
+    "Finite acyclic ordinary owned shapes only, explicit manages markers; no general owning generic Enum, capture/shared/StoreElement/array/FFI/async permission expansion.",
+    "No full workspace execution by this reviewer; root formal run is separate.",
+    "Not fullZUI, language1.4 completion, or product/Rust-goals net-win acceptance.",
+    "Our own244 authored consumer is independent test evidence for production239–243; root supplies independent244 audit."
+  ],
+  "raw_archive": {
+    "path": "evidence/reviews/239/integrationR/raw.tar.gz",
+    "sha256": "e8c611fe803f114be558f43e2c49b3d064aca1d8cad00df0e97ec21579298d83",
+    "bytes": 28245139,
+    "members": 6722,
+    "artifact_manifest_sha256": "2c3ff0c1dea48f63e7392a3872d69218050cc2dcff3338abb11787cb64a09817",
+    "source_directory": "/tmp/final-owned-sum-R-review"
+  },
+  "created_at": "2026-11-01T23:53:07.274708+00:00"
+}

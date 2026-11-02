@@ -1,0 +1,1 @@
+{"phase":"Parse","accepted":false,"diagnostics":"[Diagnostic { phase: Parse, category: SafeReject, code: \"E-PARSE-IDENTIFIER\", message: \"expected an identifier\", span: Some(Span { file: FileId(0), start: 82, end: 86 }), notes: [] }]"}

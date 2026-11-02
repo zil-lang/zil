@@ -1,0 +1,30 @@
+{
+  "origin": "local formal execution",
+  "checkout": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "roots": [
+    "native",
+    "source",
+    "workspace.command.json",
+    "workspace.result.json",
+    "workspace.log",
+    "fmt.command.json",
+    "fmt.result.json",
+    "fmt.log",
+    "clippy.command.json",
+    "clippy.result.json",
+    "clippy.log",
+    "text-reference.command.json",
+    "text-reference.result.json",
+    "text-reference.log",
+    "toolchain.txt",
+    "llvm-toolchain.json"
+  ],
+  "files": 76280,
+  "bytes": 74202470,
+  "sha256": "a40994b43e05835be67080cc37bcfe91ae049fcdeefd961c5ed1e15ae474a628",
+  "archive": "/workspace/.zil-env/formal-owned-sum-R-workspace.tar.zst",
+  "every_archive_blob_rehashed": true,
+  "original_inventory_rechecked": true,
+  "native_released_after_verified_archive": true,
+  "reproducible_debug_cache_released": true
+}

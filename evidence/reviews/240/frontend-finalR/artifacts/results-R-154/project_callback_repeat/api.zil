@@ -1,0 +1,1 @@
+pub resource R{pub n:i32}pub package P{manages r:R}pub enum E{V(manages R)}pub fn consume<F:Fn()->i32>(value:E,cb:F)->i32{match value{E.V(r)=>{let p=P{r:give r};let q=P{r:give r};return cb()+p.r.n}}}

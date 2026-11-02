@@ -1,0 +1,8 @@
+{
+  "path": "evidence/reviews/239/integrationR/raw.tar.gz",
+  "sha256": "e8c611fe803f114be558f43e2c49b3d064aca1d8cad00df0e97ec21579298d83",
+  "bytes": 28245139,
+  "members": 6722,
+  "artifact_manifest_sha256": "2c3ff0c1dea48f63e7392a3872d69218050cc2dcff3338abb11787cb64a09817",
+  "source_directory": "/tmp/final-owned-sum-R-review"
+}

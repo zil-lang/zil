@@ -1,0 +1,1 @@
+resource R{n:i32}enum E<T>{V(manages R,T)}fn main(){}

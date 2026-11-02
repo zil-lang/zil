@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{V(manages R),Nil}package P{state:E}extern "C" fn send(e:E);fn main(){}

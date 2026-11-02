@@ -1,0 +1,1 @@
+resource R{n:i32}enum E{V(R)}fn main(){}

@@ -1,0 +1,1 @@
+{"phase":"Expand","accepted":false,"diagnostics":"[Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"unknown type in alias target\", span: Some(Span { file: FileId(0), start: 24, end: 30 }), notes: [] }]"}

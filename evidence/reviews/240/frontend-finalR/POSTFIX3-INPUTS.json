@@ -1,0 +1,28 @@
+{
+  "frozen_after_Q_finding_before_fix": "b51dc2043ae51ec42c1bec964bec0623df152431",
+  "sources": {
+    "postfix_owner_branch_current": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{var saved=give a;if flag{saved=give b}else{}return saved.n}}}fn main(){}",
+      "sha256": "adddd40f32ddcab732d1ae391c658bff830e97013845f1265533c8c5e7e5b63f",
+      "expected": {
+        "accepted": true
+      }
+    },
+    "postfix_old_description_after_branch": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{var saved=give a;let old=saved;if flag{saved=give b}else{}return old.n}}}fn main(){}",
+      "sha256": "36612b187a96648633c8f4e70ee1c5bcf0c166bbf87f8b449175138f0c262166",
+      "expected": {
+        "accepted": false,
+        "code": "E-GENERIC-ARGUMENT",
+        "message": "outlived"
+      }
+    },
+    "postfix_new_description_after_branch": {
+      "source": "resource R{n:i32}package P{manages r:R}enum E{V(manages R,manages R)}fn use_value<F:Fn()->i32>(cb:F,e:E,flag:bool)->i32{match e{E.V(a,b)=>{var saved=give a;if flag{saved=give b}else{}let current=saved;return current.n}}}fn main(){}",
+      "sha256": "42091ada86bf19f0820669f29966012d3d05f18590827a66c8d1ea21851b1883",
+      "expected": {
+        "accepted": true
+      }
+    }
+  }
+}

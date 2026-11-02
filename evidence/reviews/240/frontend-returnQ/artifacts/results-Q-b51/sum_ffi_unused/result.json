@@ -1,0 +1,1 @@
+{"phase":"Types","accepted":false,"diagnostics":"[Diagnostic { phase: Types, category: SafeReject, code: \"E-FFI-DECLARATION\", message: \"C value parameters require integer/handle/static-string values or a static callback with static_callbacks enabled\", span: Some(Span { file: FileId(0), start: 70, end: 83 }), notes: [] }]"}
