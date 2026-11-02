@@ -32,8 +32,11 @@ fn fixtures() -> PathBuf {
     root().join("tests/foreign-scoped-callback")
 }
 fn preparation_project(group: &str, name: &str) -> ProjectSources {
+    fixture_project("local-preparation", group, name)
+}
+fn fixture_project(directory: &str, group: &str, name: &str) -> ProjectSources {
     let path = fixtures()
-        .join("local-preparation")
+        .join(directory)
         .join(group)
         .join(format!("{name}.zil"));
     ProjectSources {
@@ -534,17 +537,28 @@ fn scoped_local_preparation_frozen_sources_reach_independent_verification() {
 }
 
 fn preparation_native_group(group: &str, names: &[&str], oracle: &str) {
-    let expected = oracle_rows(&format!("local-preparation/{oracle}"));
+    native_fixture_group(
+        "local-preparation",
+        group,
+        names,
+        oracle,
+        "local_preparation_probe.c",
+    );
+}
+fn native_fixture_group(directory: &str, group: &str, names: &[&str], oracle: &str, probe: &str) {
+    let expected = oracle_rows(&format!("{directory}/{oracle}"));
     assert_eq!(expected.len(), 6);
     for name in names {
         for optimization in [Optimization::O0, Optimization::O2] {
-            let temporary = Temp::new(&format!("preparation-{group}-{name}-{optimization:?}"));
+            let temporary = Temp::new(&format!("{directory}-{group}-{name}-{optimization:?}"));
             let program = compile_native(
                 &temporary,
                 optimization,
-                &preparation_project(group, name),
-                &fixtures().join("local-preparation/driver.c"),
-                &root().join("tools/language/foreign-scoped-callback/local_preparation_probe.c"),
+                &fixture_project(directory, group, name),
+                &fixtures().join(directory).join("driver.c"),
+                &root()
+                    .join("tools/language/foreign-scoped-callback")
+                    .join(probe),
             );
             for row in &expected {
                 observe(&program, &temporary, row);
@@ -570,4 +584,72 @@ fn scoped_local_preparation_generic_source_matches_native_oracle() {
 #[test]
 fn scoped_local_preparation_preserves_cleanup_and_caller_callback() {
     preparation_native_group("observed", &["generic-local"], "OBSERVED_ORACLE.json");
+}
+
+const COMPOSITION_CONTROLS: [&str; 4] = [
+    "body-dispatch-local-concrete",
+    "body-dispatch-capture-concrete",
+    "body-factory-simple-concrete",
+    "nested-helper-propagate",
+];
+const COMPOSITION_HANDLERS: [&str; 2] = ["body-dispatch-local", "body-dispatch-capture"];
+const COMPOSITION_FACTORIES: [&str; 2] = ["body-factory-simple", "body-dispatch-factory"];
+
+#[test]
+fn scoped_concrete_composition_sources_reach_independent_verification() {
+    let mut failures = Vec::new();
+    for (group, names) in [
+        ("frozen", COMPOSITION_CONTROLS.as_slice()),
+        ("frozen", COMPOSITION_HANDLERS.as_slice()),
+        ("frozen", COMPOSITION_FACTORIES.as_slice()),
+        ("observed", COMPOSITION_HANDLERS.as_slice()),
+        ("observed", COMPOSITION_FACTORIES.as_slice()),
+        ("frozen", ["handler-without-with"].as_slice()),
+    ] {
+        for name in names {
+            let report = compile_project(
+                &fixture_project("callable-composition", group, name),
+                &CompileOptions::default(),
+            );
+            if report.status != ResultCategory::Success || report.verification_runs != 1 {
+                failures.push(format!("{group}/{name}: {}", report.to_json()));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+fn composition_native_group(group: &str, names: &[&str], oracle: &str) {
+    native_fixture_group(
+        "callable-composition",
+        group,
+        names,
+        oracle,
+        "composition_probe.c",
+    );
+}
+
+#[test]
+fn scoped_concrete_composition_existing_controls_match_native_oracle() {
+    composition_native_group("frozen", &COMPOSITION_CONTROLS, "FROZEN_ORACLE.json");
+}
+
+#[test]
+fn scoped_concrete_composition_local_handlers_match_native_oracle() {
+    composition_native_group("frozen", &COMPOSITION_HANDLERS, "FROZEN_ORACLE.json");
+}
+
+#[test]
+fn scoped_concrete_composition_factory_bodies_match_native_oracle() {
+    composition_native_group("frozen", &COMPOSITION_FACTORIES, "FROZEN_ORACLE.json");
+}
+
+#[test]
+fn scoped_concrete_composition_handlers_preserve_remaining_cleanup_and_callback_access() {
+    composition_native_group("observed", &COMPOSITION_HANDLERS, "OBSERVED_ORACLE.json");
+}
+
+#[test]
+fn scoped_concrete_composition_factory_bodies_preserve_remaining_cleanup_and_callback_access() {
+    composition_native_group("observed", &COMPOSITION_FACTORIES, "OBSERVED_ORACLE.json");
 }

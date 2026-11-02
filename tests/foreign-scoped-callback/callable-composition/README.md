@@ -28,6 +28,12 @@ checked after success. The direct generic `return Fault.NoMemory` spelling
 still has a separate old Expand/E-GENERIC-ARGUMENT context gap; these sources
 use no_memory() in the generic branch and do not claim to fix that issue.
 
+The separately probed `handler-without-with.zil` calls F normally, creates the
+same concrete Event->Reply handler, and dispatches/renders without any With.
+It hits the same old Expand/E-UNSUPPORTED gate at 1137..1171 on the baseline.
+Its source acceptance is a separate positive control: With's presence must
+not grant closure permissions. It is included in source verification only.
+
 Before implementation, that nested-helper control and the concrete local
 handler control passed 32 actual native runs in a temporary probe: clang/API
 O0/O2, success/null/reserve-failure/beyond-point, 16 per backend, four actual
@@ -58,3 +64,23 @@ This first input checkpoint adds no new Cargo target and changes no prior
 ORACLE or expectation. It establishes no acceptance for the rejected source
 groups. Validation will use the existing foreign_scoped_callbacks functional
 target with target-280/jobs2 and explicit backend/O0/O2 separation.
+
+The first real source-target run preserves all four existing controls and
+reproduces the two original handler Expand gates and two original factory
+Verify gates, plus the matching four observed variants. Unsupported/Reject
+is recorded as the original failure of a legal source, not a passing negative.
+The new functional native-control group passes 48 clang executions (four
+controls, six rows, O0/O2), including 16 actual reserve failures and 16 beyond
+controls, all live=0. This supersets the earlier exploratory control cases;
+replays are not additional coverage.
+
+Commands source `/workspace/.zil-env/env.sh` and set
+`CARGO_TARGET_DIR=/workspace/.zil-env/target-280 CARGO_BUILD_JOBS=2`.
+Use `cargo test -p zil-driver --test foreign_scoped_callbacks SELECTOR --
+--exact --nocapture` for one test; add `--features llvm-api` for API. Source
+verification uses `scoped_concrete_composition_sources_reach_independent_verification`.
+Native tests are grouped by existing controls, local handlers, factory bodies,
+and observed handler/factory bodies under `scoped_concrete_composition_`.
+The separate observed groups allow each producer/kernel checkpoint to be
+tested before the other one is ready. Existing functional tests share the
+same target and preserve their original oracles and assertions.

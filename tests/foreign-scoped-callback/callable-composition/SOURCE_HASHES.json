@@ -8,6 +8,7 @@
     "body-factory-simple": "201189b55c50a8723ce621e790f233f40c3c3968b450f16bc9e9f43e44512003",
     "body-factory-simple-concrete": "9412a553dba028e060c9a65f82c88f8d7da56f060497899e8d514bb35bdb8b47",
     "body-dispatch-factory": "ed4f5c2c05e0c0f66b3787cf6d97a6ecd49eeca24cabb05159063415fa46b745",
-    "nested-helper-propagate": "eb72e9f67e3c42a2df648fcbd34c3da012c6f851f39fa00243bbe8d3849394e9"
+    "nested-helper-propagate": "eb72e9f67e3c42a2df648fcbd34c3da012c6f851f39fa00243bbe8d3849394e9",
+    "handler-without-with": "fd3e7a0f367a7517e48e2b17a53df6a4354a29433afec387e3d2bbb782dab893"
   }
 }
