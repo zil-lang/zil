@@ -10,5 +10,6 @@ mod read_view;
 mod render;
 mod input;
 mod execute;
+mod ordinary_type;
 
 pub use lock::SyntaxLock;

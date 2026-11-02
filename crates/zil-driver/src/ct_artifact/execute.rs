@@ -3,7 +3,7 @@
 use super::{authority::FrozenAuthority, compiler::{self, CompileRequest, Entry}, read_view::FrozenReadView, snapshot::{self, ShapeSnapshot}, source_index::SourceIndex};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, Span, TargetProfile};
+use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Span, TargetProfile};
 use zil_ct::CtExecutionBudget;
 use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::{ParseResult, ast as s};
@@ -17,32 +17,38 @@ pub(super) struct Environment<'a> {
     parsed: &'a [Arc<ParseResult>],
     pub index: SourceIndex,
     pub shape: Option<ShapeSnapshot>,
+    shape_failure: Option<Vec<Diagnostic>>,
     snapshot: CtSnapshotRequest,
     limits: Limits,
     pub budget: CtExecutionBudget,
     source_fingerprint: Fingerprint,
+    target: &'a TargetProfile,
 }
 
 impl<'a> Environment<'a> {
     pub(super) fn new(
         sources: &'a [SourceUnit], parsed: &'a [Arc<ParseResult>], paths: &BTreeMap<Vec<String>, ModuleId>,
         imports: &[Vec<CoreImport>], root: ModuleId, fingerprint: Fingerprint,
-        target: &TargetProfile, limits: &Limits,
+        target: &'a TargetProfile, limits: &Limits,
     ) -> CompileResult<Self> {
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let index = SourceIndex::freeze(sources, &syntax, paths)?;
         // This batch contains only prior, independent ordinary declarations.
         // Failure makes the view unavailable; a query reports the exact phase
         // boundary, while final ordinary checking still diagnoses the source.
-        let shape = snapshot::freeze_shapes(sources, &syntax, imports, root, fingerprint, target, limits).ok();
-        let ready = if shape.is_some() { CtReadyStage::Shape } else { CtReadyStage::Config };
+        let (shape, shape_failure) = match snapshot::freeze_shapes(sources, &syntax, imports, root, fingerprint, target, limits) {
+            Ok(shape) => (Some(shape), None),
+            Err(errors) if errors.iter().all(|error| matches!(error.category, ResultCategory::SafeReject | ResultCategory::Unsupported)) => (None, Some(errors)),
+            Err(errors) => return Err(errors),
+        };
+        let ready = if shape.is_some() { CtReadyStage::Layout } else { CtReadyStage::Config };
         let mut identity = b"zil/ct-project-snapshot/v1\0".to_vec();
         identity.extend_from_slice(&fingerprint.0);
         identity.extend_from_slice(&target.fingerprint().0);
         identity.push(ready as u8);
         let snapshot = CtSnapshotRequest { fingerprint: Fingerprint::of(&identity), ready,
             target_fingerprint: Some(target.fingerprint()),
-            requested_queries: if shape.is_some() { vec![CtQueryKind::Shape, CtQueryKind::Field] } else { Vec::new() } };
+            requested_queries: if shape.is_some() { vec![CtQueryKind::Shape, CtQueryKind::Field, CtQueryKind::Layout] } else { Vec::new() } };
         let declared = CtDeclaredBudget {
             max_steps: limits.max_ct_steps,
             max_call_depth: u32::try_from(limits.max_call_depth).unwrap_or(u32::MAX),
@@ -52,7 +58,7 @@ impl<'a> Environment<'a> {
             max_instances: limits.max_functions as u64,
             max_analysis_work: limits.max_analysis_steps as u64,
         };
-        Ok(Self { sources, parsed, index, shape, snapshot, limits: limits.clone(), budget: CtExecutionBudget::new(declared), source_fingerprint: fingerprint })
+        Ok(Self { sources, parsed, index, shape, shape_failure, snapshot, limits: limits.clone(), budget: CtExecutionBudget::new(declared), source_fingerprint: fingerprint, target })
     }
 
     fn remaining_limits(&self) -> Limits {
@@ -90,7 +96,7 @@ impl<'a> Environment<'a> {
             input: input_tokens, index: &self.index, expected_functions: &expected.functions, expected_artifact: &expected };
         let verified = zil_verify::verify_ct_artifact(raw, &selected_limits, &authority)?;
         let reader = FrozenReadView { index: &self.index, sources: self.sources, syntax: &syntax,
-            shape: self.shape.as_ref(), input, limits: &selected_limits };
+            shape: self.shape.as_ref(), shape_failure: self.shape_failure.as_deref(), input, limits: &selected_limits, target: self.target, snapshot: &self.snapshot };
         let (value, _usage) = zil_ct::evaluate_ct_artifact(&verified, arguments, &reader, &mut self.budget)
             .map_err(|mut errors| { for diagnostic in &mut errors { if diagnostic.span.is_none() { diagnostic.span = Some(span); } } errors })?;
         self.budget.release_temporary_bytes(copied_bytes);
@@ -104,5 +110,29 @@ impl<'a> Environment<'a> {
         bytes.extend_from_slice(&span.start.to_le_bytes());
         bytes.extend_from_slice(&span.end.to_le_bytes());
         Ok(CtInputTable { invocation_fingerprint: Fingerprint::of(&bytes), tokens: Vec::new() })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::FileId;
+
+    #[test]
+    fn source_function_passes_frozen_authority_independent_verify_and_vm() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "ct.zil", "fn identity(t:Type)->Type{return t}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let mut environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()], ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        let item = &parsed[0].module.items[0];
+        let symbol = environment.index.symbol_at(ModuleId(0), item.span).unwrap();
+        let input = environment.empty_input(item.span).unwrap();
+        let argument = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
+        let result = environment.evaluate(Entry::Function(symbol), &input, None, &[argument.clone()], item.span).unwrap();
+        assert_eq!(result, argument);
     }
 }

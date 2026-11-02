@@ -16,7 +16,7 @@ pub(super) struct FrozenAuthority<'a> {
     pub expected_artifact: &'a CtArtifactProgram,
 }
 
-fn stage_allows(stage: CtReadyStage, kind: CtQueryKind) -> bool {
+pub(super) fn stage_allows(stage: CtReadyStage, kind: CtQueryKind) -> bool {
     let reached = match stage {
         CtReadyStage::Tokens => 0,
         CtReadyStage::Config => 1,
@@ -49,8 +49,7 @@ impl CtArtifactAuthority for FrozenAuthority<'_> {
         self.index.visible(requester, symbol)
     }
     fn authorize_query(&self, requester: &CtSymbolId, kind: CtQueryKind) -> bool {
+        let _ = kind;
         self.index.contains(requester)
-            && self.snapshot.requested_queries.contains(&kind)
-            && stage_allows(self.snapshot.ready, kind)
     }
 }
