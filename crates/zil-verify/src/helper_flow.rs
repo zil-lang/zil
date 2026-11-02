@@ -221,7 +221,14 @@ pub(super) fn reconstruct(
                         ]));
                         break;
                     }
-                    if matches!(instruction.kind, InstructionKind::MakeClosure { .. }) {
+                    if matches!(instruction.kind, InstructionKind::MakeClosure { .. })
+                        && !instruction.result.is_some_and(|result| {
+                            origins
+                                .local_bodies
+                                .as_ref()
+                                .is_some_and(|bodies| bodies[origins.values_at + result.0 as usize])
+                        })
+                    {
                         return Err(unsupported(
                             "helper-local nested environments require an additional contract",
                             Some(instruction.span),
@@ -306,14 +313,21 @@ pub(super) fn reconstruct(
                 let parameter = match mark {
                     1 => origins.parameters.first().copied(),
                     2 => origins.parameters.get(1).copied(),
+                    16 if stage == 1 => None,
                     _ => None,
+                };
+                if parameter.is_none() && !(mark == 16 && stage == 1) {
+                    return Err(bad(
+                        f,
+                        "scoped callback operand is not one actual helper role",
+                    ));
                 }
-                .ok_or_else(|| bad(f, "scoped callback operand is not one actual helper role"))?;
                 budget.spend(roles.len().saturating_add(1))?;
-                if !roles
-                    .iter()
-                    .any(|role| role.parameter == parameter && closures::supports(role.kind, kind))
-                {
+                if parameter.is_some_and(|parameter| {
+                    !roles.iter().any(|role| {
+                        role.parameter == parameter && closures::supports(role.kind, kind)
+                    })
+                }) {
                     return Err(bad(
                         f,
                         "scoped callback event exceeds the original declared permission",
@@ -355,7 +369,9 @@ pub(super) fn reconstruct(
                     ],
                 };
                 (
-                    vec![CallEvent { parameter, kind }],
+                    parameter
+                        .map(|parameter| vec![CallEvent { parameter, kind }])
+                        .unwrap_or_default(),
                     Destination::Sites(sites),
                 )
             }
