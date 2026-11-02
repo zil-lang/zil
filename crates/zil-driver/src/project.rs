@@ -1543,7 +1543,9 @@ mod discovery158_tests {
         };
         match load_sources(&mut p, path, options, session)? {
             LoadedProject::Parsed(syntax) => Ok(syntax),
-            LoadedProject::Semantic(_) => panic!("this control expects ordinary syntax discovery"),
+            LoadedProject::Prepared(_, _) | LoadedProject::Semantic(_) => {
+                panic!("this control expects ordinary syntax discovery")
+            }
         }
     }
     fn discover_candidate(
