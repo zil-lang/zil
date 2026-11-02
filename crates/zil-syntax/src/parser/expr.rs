@@ -66,7 +66,8 @@ impl Parser<'_> {
                 if !p.at(Symbol::RParen) {
                     loop {
                         let start = p.peek().span;
-                        let name = p.ident()?;
+                        let name =
+                            p.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
                         let ty = if p.eat(Symbol::Colon) {
                             Some(p.ty()?)
                         } else {
@@ -87,7 +88,7 @@ impl Parser<'_> {
             })?
         } else {
             let param_start = self.peek().span;
-            let name = self.ident()?;
+            let name = self.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?;
             vec![ClosureParam {
                 name,
                 ty: None,
