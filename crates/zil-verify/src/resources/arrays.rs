@@ -196,7 +196,7 @@ pub(crate) fn check_internal_slot_uses(
     budget.spend(
         slots
             .len()
-            .saturating_mul(3)
+            .saturating_mul(2)
             .saturating_add(values.len().saturating_mul(3))
             .saturating_add(f.parameters.len()),
     )?;
@@ -218,7 +218,6 @@ pub(crate) fn check_internal_slot_uses(
             .checked_add(f.blocks.len().saturating_mul(2))
             .ok_or_else(|| limit("private callback slot preflight overflow"))?,
     )?;
-    let mut initialized = vec![false; slots.len()];
     let mut stored = vec![false; values.len()];
     for block in &f.blocks {
         if let Terminator::Return(Some(value)) = block.terminator
@@ -280,27 +279,13 @@ pub(crate) fn check_internal_slot_uses(
                         "private callback array must be stored in a matching local cell",
                     ));
                 }
-                initialized[local.0 as usize] = true;
                 stored[value.0 as usize] = true;
             }
         }
     }
-    if let Some((index, _)) = slots
-        .iter()
-        .enumerate()
-        .find(|(i, slot)| **slot && !initialized[*i])
-    {
-        if let Type::Array { element, .. } = &f.locals[index].ty
-            && let Type::Closure(id) = element.as_ref()
-            && let Err(old_gate) =
-                closures::old_container_signature(module, *id, Some(f.span), budget)
-        {
-            return Err(old_gate);
-        }
-        return Err(bad(
-            "private callback array must have an actual local carrier",
-        ));
-    }
+    // A declared but uninitialized private local has no callable instance or
+    // cleanup debt. It needs no construction or forwarding witness. An owned
+    // Array SSA, however, must still transfer into a checked local below.
     if values
         .iter()
         .enumerate()
