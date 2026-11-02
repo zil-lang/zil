@@ -555,6 +555,21 @@ pub(super) fn functions(
             visit(ty, &mut found, &mut seen, &mut budget, false, 0)?;
         }
     }
+    // Callback data ABI creates typed aggregate parameters and results even
+    // when a value does not appear in an ordinary function's local table.
+    // Prepay those complete trees in this same machine planning budget and
+    // provide their active-branch cleanup helpers before emission begins.
+    for closure in lir.closures {
+        for ty in std::iter::once(&closure.result).chain(closure.parameters.iter()) {
+            if matches!(
+                ty,
+                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && !ty.is_copy_value()
+            {
+                visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
+            }
+        }
+    }
     // Entry error extraction, storage, typed cleanup GEPs and helper names
     // are emitted outside the ordinary instruction loop, once per module.
     if let Some(entry) = lir.functions.iter().find(|f| match entry {
