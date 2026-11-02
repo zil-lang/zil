@@ -416,3 +416,26 @@ fn empty_explicit_ct_array_retains_its_element_type() {
         })
     );
 }
+
+#[test]
+fn direct_source_alias_cycles_fail_before_recursive_attribution() {
+    std::thread::Builder::new().stack_size(2 * 1024 * 1024).spawn(|| {
+    for source in [
+        "type Recursive=Recursive;fn build()->Type{return Recursive}",
+        "import std.meta as meta;type Recursive=#(meta.array_type(i32,i32(meta.layout(Recursive).size)));fn build()->Type{return Recursive}",
+        "type A=B;type B=A;fn build(value:A)->Type{return i32}",
+    ] {
+        let errors = try_build(source, "build").unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.code == "E-CT-PHASE-CYCLE"),
+            "{errors:?}"
+        );
+    }
+    let raw = build(
+        "type A=i64;type B=A;fn build()->Type{let first=B;return A}",
+        "build",
+    );
+    assert_eq!(raw.functions[raw.entry.0 as usize].result_type, CtTy::Type);
+    assert_eq!(build("type Unused=Unused;fn build()->Type{return i32}", "build").functions[0].result_type, CtTy::Type);
+    }).unwrap().join().unwrap();
+}

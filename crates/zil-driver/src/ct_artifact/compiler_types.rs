@@ -285,13 +285,15 @@ impl<'a> Compiler<'a> {
                 }
                 let (owner, item) = self.named_item(module, path, ty.span)?;
                 match &item.kind {
-                    s::ItemKind::TypeAlias(alias) => self.ty(
-                        owner,
-                        alias.value.as_ref().ok_or_else(|| {
+                    s::ItemKind::TypeAlias(alias) => {
+                        let actual = alias.value.as_ref().ok_or_else(|| {
                             error(ty.span, "CT alias has no actual type definition")
-                        })?,
-                        depth + 1,
-                    )?,
+                        })?;
+                        self.enter_alias(owner, item.span, ty.span)?;
+                        let result = self.ty(owner, actual, depth + 1);
+                        self.active_aliases.pop();
+                        result?
+                    }
                     s::ItemKind::Aggregate(a) => {
                         if a.kind != s::AggregateKind::Struct || !a.generics.is_empty() {
                             return Err(forbidden(

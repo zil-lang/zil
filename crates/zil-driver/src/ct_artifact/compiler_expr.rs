@@ -557,14 +557,17 @@ impl Builder<'_, '_> {
     fn type_name(&mut self, path: &[String], span: Span, depth: usize) -> R<Value> {
         let (owner, item) = self.compiler.named_item(self.module, path, span)?;
         if let s::ItemKind::TypeAlias(alias) = &item.kind {
-            return self.type_ref(
-                owner,
-                alias
-                    .value
-                    .as_ref()
-                    .ok_or_else(|| error(span, "CT alias has no actual definition"))?,
-                depth + 1,
-            );
+            let actual = alias
+                .value
+                .as_ref()
+                .ok_or_else(|| error(span, "CT alias has no actual definition"))?;
+            self.compiler.enter_alias(owner, item.span, span)?;
+            let previous_module = self.module;
+            self.module = owner;
+            let result = self.type_ref(owner, actual, depth + 1);
+            self.module = previous_module;
+            self.compiler.active_aliases.pop();
+            return result;
         }
         let symbol = self.compiler.symbol(owner, item.span)?;
         self.emit(CtInstructionKind::TypeName(symbol), CtTy::Type, span)
