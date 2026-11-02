@@ -170,18 +170,34 @@ fn container_profile(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
 // A compiler replacement slot has no public container permission. Reconstruct
 // its complete operation boundary before exempting its root type from the
 // general container exclusion; a call edge to a helper grants nothing here.
-fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
-    fn candidate(ty: &Type, budget: &Budget) -> bool {
-        super::forward::internal_slot(ty).is_some_and(|id| {
-            budget.owned_callbacks.contains(&id) || budget.forward_closures.contains(&id)
-        })
+fn private_slot_candidate(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    let Some(id) = super::forward::internal_slot(ty) else {
+        return Ok(false);
+    };
+    budget.lookup(
+        budget.owned_callbacks.len(),
+        "private slot owned signature lookup",
+    )?;
+    if budget.owned_callbacks.contains(&id) {
+        return Ok(true);
     }
+    budget.lookup(
+        budget.forward_closures.len(),
+        "private slot forward signature lookup",
+    )?;
+    Ok(budget.forward_closures.contains(&id))
+}
+
+fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
     budget.spend(f.parameters.len(), "private callable slot public boundary")?;
-    if f.parameters
-        .iter()
-        .any(|l| candidate(&f.locals[l.0 as usize].ty, budget))
-        || candidate(&f.return_type, budget)
-    {
+    for local in &f.parameters {
+        if private_slot_candidate(&f.locals[local.0 as usize].ty, budget)? {
+            return Err(bad(
+                "private callable slot cannot be a public parameter or result",
+            ));
+        }
+    }
+    if private_slot_candidate(&f.return_type, budget)? {
         return Err(bad(
             "private callable slot cannot be a public parameter or result",
         ));
@@ -229,15 +245,14 @@ fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
             };
             if let InstructionKind::UnpackVariant { fields, .. } = &i.kind {
                 budget.spend(fields.len(), "private callable slot unpack targets")?;
-                if fields
-                    .iter()
-                    .any(|l| candidate(&f.locals[l.0 as usize].ty, budget))
-                {
-                    return Err(bad("private callable slot cannot be an unpack target"));
+                for local in fields {
+                    if private_slot_candidate(&f.locals[local.0 as usize].ty, budget)? {
+                        return Err(bad("private callable slot cannot be an unpack target"));
+                    }
                 }
             }
             if let Some(local) = local
-                && candidate(&f.locals[local.0 as usize].ty, budget)
+                && private_slot_candidate(&f.locals[local.0 as usize].ty, budget)?
                 && let Some(id) = super::forward::internal_slot(&f.locals[local.0 as usize].ty)
             {
                 let ty = &f.locals[local.0 as usize].ty;
@@ -277,7 +292,9 @@ fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
                     ));
                 }
             }
-            if output.is_some_and(|ty| candidate(ty, budget)) {
+            if let Some(ty) = output
+                && private_slot_candidate(ty, budget)?
+            {
                 let valid = match &i.kind {
                     InstructionKind::MakeOwnedArray { elements } if elements.len() == 1 => {
                         let Some(Type::Array { element, .. }) = output else {
@@ -302,7 +319,7 @@ fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
                     .values
                     .get(value.0 as usize)
                     .ok_or_else(|| bad("private slot operand is absent"))?;
-                if candidate(ty, budget)
+                if private_slot_candidate(ty, budget)?
                     && !matches!(&i.kind, InstructionKind::Store { local, value: stored }
                     if *stored == value && &f.locals[local.0 as usize].ty == ty)
                 {
@@ -319,7 +336,7 @@ fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
         };
         if let Some(value) = terminal {
             budget.spend(1, "private callable slot terminator boundary")?;
-            if candidate(&f.values[value.0 as usize], budget) {
+            if private_slot_candidate(&f.values[value.0 as usize], budget)? {
                 return Err(bad("private callable slot cannot escape through return"));
             }
         }
@@ -330,9 +347,7 @@ fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
 fn local_profiles(f: &TypedFunction, budget: &mut Budget) -> CompileResult<bool> {
     let mut private = false;
     for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
-        let slot = super::forward::internal_slot(ty).is_some_and(|id| {
-            budget.owned_callbacks.contains(&id) || budget.forward_closures.contains(&id)
-        });
+        let slot = private_slot_candidate(ty, budget)?;
         if slot {
             // Same charged type traversal as the general container exclusion.
             budget.type_work(ty, false, "private callable slot root type")?;
