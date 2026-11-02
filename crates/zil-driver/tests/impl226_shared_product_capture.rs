@@ -1,5 +1,7 @@
 //! Author regression evidence for explicit synchronous shared Product address
 //! captures. These executable checks are not a non-author review receipt.
+#[path = "shared_product_parameter/mod.rs"]
+mod parameter_capture;
 use std::{
     fs,
     path::PathBuf,
@@ -155,18 +157,12 @@ fn dynamic_store_origins_do_not_acquire_capture_permission() {
     );
 }
 #[test]
-fn incoming_product_address_remains_conservatively_closed() {
+fn incoming_product_address_supports_a_local_synchronous_capture() {
     let source = SOURCE.replace(
         "fn main()",
         "fn read(p: &Item) -> i32 { let cb = () => p.tag; return cb() }\nfn main()",
     );
-    let module = typed(&source);
-    let d = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
-    assert!(
-        d.iter()
-            .any(|d| d.message.contains("ordinary local Product origins")),
-        "{d:?}"
-    );
+    verified("incoming-parameter", &source);
 }
 
 #[test]

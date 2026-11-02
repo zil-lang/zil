@@ -1,0 +1,14 @@
+# name	sha256	expected_verify	native_exit	independent_reason
+different-store-direct	a987cb9424076a603a0d2fdadc118c76de30039b1728ff2d48b057e520169b72	success	0	reserve affects the other Store; borrowed count remains 7, yielding zero.
+different-store	55619bc593e22be83a8278615f0af74f553da8c88a156d1a8e98ddecc0c62890	success	0	reserve affects the other Store; borrowed count remains 7, yielding zero.
+inside-call-last-use-direct	e281e88ae80c5e1319e3d6fca3cac52ac54c0a488d572558c000efcb8a6e1f8a	borrow-conflict	-	Whole-call may effects remain conservative even after the callee last read.
+inside-call-last-use	05ff71ed6e36736abba087994b3e045415ad4734df1c5630b3ec2c2ad69c04cb	borrow-conflict	-	Whole-call may effects remain conservative even after the callee last read.
+local-last-use-direct	080d195035159db1be3f20dec9c91d316c7df639967c274e49b4b07f481a753d	success	0	render reads 7 before caller writes 9; 7+9-16=0.
+local-last-use	9f2bfc6c116b4936b35f269248ef3140f9ac890395d607ae0b9afff63c229cc3	success	0	render reads 7 before caller writes 9; 7+9-16=0.
+original-local	2630a5eccc454058828c11e8bd4aeec1d902d6c147188cfe87cd074bae6bd27b	success	0	The original local Panel count is zero; render returns zero.
+same-store-pop-direct	4cad638eb2f403cb11473615d986ecbda23b1d126e1ad86cc52b9f301a663ffc	borrow-conflict	-	Same Store removes the element while the captured parameter is still read.
+same-store-pop	33d9863e2b7c578e8517eef91048dba91a82c84a2c31da808127de069dc68b8d	borrow-conflict	-	Same Store removes the element while the captured parameter is still read.
+same-store-reserve-direct	14b4b6a2425093f81ffa9999a03be3e47006270c53fb1f4e526e2c31ef35666e	borrow-conflict	-	Same Store may relocate while the captured parameter is still read.
+same-store-reserve	050716fc9ba85fe3d9e172a701d6f56911215aa07ede772a2a66de12ad8a4725	borrow-conflict	-	Same Store may relocate while the captured parameter is still read.
+store-last-use-direct	af7fe7d8d2c74ba0a7780752aad732b49003c5a61d820e27ca4dc49c501a8067	success	0	render reads 7 before caller reserve/pop; 7-7=0.
+store-last-use	477e2d0a47403c70a7e4324d0d79261feb1d56c22cbfe059aad3844f1e2852ad	success	0	render reads 7 before caller reserve/pop; 7-7=0.
