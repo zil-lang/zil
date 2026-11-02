@@ -58,7 +58,7 @@ pub(super) fn unknown_pairs(
 
 /// Instantiate a callee's required separation. Equal possible roots cannot
 /// satisfy it; unequal input roots become the caller's own explicit obligation.
-fn instantiate(
+pub(super) fn instantiate(
     module: &TypedModule,
     function: &TypedFunction,
     left: &[Root],

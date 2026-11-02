@@ -254,7 +254,7 @@ fn live_shared_capture_rejects_owner_move_and_child_replacement() {
     }
 }
 #[test]
-fn mutable_product_capture_and_unknown_incoming_roots_remain_closed() {
+fn shared_parameter_capture_preserves_mutable_and_owning_boundaries() {
     let written = SOURCE
         .replace("let item = Item", "var item = Item")
         .replace(
@@ -285,15 +285,8 @@ fn mutable_product_capture_and_unknown_incoming_roots_remain_closed() {
         "fn main()",
         "fn read(p: &Item) -> i32 { let cb = () => p.tag; return cb() }\nfn main()",
     );
-    let module = typed(&source).unwrap();
-    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
-    assert!(
-        errors
-            .iter()
-            .any(|d| d.category == ResultCategory::Unsupported
-                && d.message.contains("ordinary local Product origins")),
-        "{errors:?}"
-    );
+    // This keeps the original source, whose main does not call read.
+    verified("shared-parameter", &source);
 }
 #[test]
 fn identical_product_types_keep_distinct_capture_roots() {

@@ -212,9 +212,16 @@ fn whole_consumption_and_uncalled_shared_environment_keep_cleanup() {
 }
 
 #[test]
-fn parameter_outer_capture_and_escaping_environment_remain_closed() {
+fn shared_parameter_capture_preserves_owning_outer_and_escape_boundaries() {
+    // Preserve the original uncalled helper source: this proves source/raw/Wire
+    // admission, while the shared-parameter consumer exercises actual calls.
+    control(
+        "address-parameter",
+        &format!(
+            "{MODEL}fn read(p:&Item)->i32{{let callback=()=>p.child.value;return callback()}}fn main()->i32=>0"
+        ),
+    );
     for (label, body) in [
-        ("address-parameter", "fn read(p:&Item)->i32{let callback=()=>p.child.value;return callback()}fn main()->i32=>0".to_owned()),
         ("owning-parameter", "fn read(p:Item)->i32{let callback=()=>p.child.value;return callback()}fn main()->i32=>0".to_owned()),
         ("outer-capture", format!("fn main()->i32{{let owner={FIRST};let outer=move()=>{{let inner=()=>owner.child.value;return inner()}};return outer()-7}}")),
         ("escaping-local", format!("fn make()->impl Fn()->i32{{let owner={FIRST};return ()=>owner.child.value}}fn main()->i32{{let callback=make();return callback()-7}}")),
