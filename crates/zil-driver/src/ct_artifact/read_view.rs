@@ -499,7 +499,7 @@ impl FrozenReadView<'_> {
             }
             s::TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => {
                 match path[0].as_str() {
-                    "Unit" => CtTypeNode::Primitive(CtScalarTy::Unit), "bool" => CtTypeNode::Primitive(CtScalarTy::Bool),
+                    "Unit" | "void" => CtTypeNode::Primitive(CtScalarTy::Unit), "bool" => CtTypeNode::Primitive(CtScalarTy::Bool),
                     "u8" => CtTypeNode::Primitive(CtScalarTy::U8), "u16" => CtTypeNode::Primitive(CtScalarTy::U16),
                     "i32" => CtTypeNode::Primitive(CtScalarTy::I32), "i64" => CtTypeNode::Primitive(CtScalarTy::I64),
                     "ByteBuffer" => CtTypeNode::Builtin(CtBuiltinType::ByteBuffer),
@@ -525,14 +525,65 @@ impl FrozenReadView<'_> {
                 }
                 CtTypeNode::Nominal { symbol, arguments }
             }
+            s::TypeKind::Tuple(parts) if parts.is_empty() => CtTypeNode::Primitive(CtScalarTy::Unit),
             s::TypeKind::Tuple(parts) => {
                 budget.reserve_temporary_bytes((parts.len() as u64).saturating_mul(8))?;
                 CtTypeNode::Tuple(parts.iter().map(|inner| self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1)).collect::<CompileResult<Vec<_>>>()?)
             }
+            s::TypeKind::Array { element, length } => {
+                let inner = self.append_source_type(requester, module, element, substitutions, nodes, budget, depth + 1)?;
+                if let Some(length) = length {
+                    let s::ExprKind::Literal(s::Literal::Integer(text)) = &length.kind else {
+                        return Err(self.unready("nonliteral array length has no completed CT Type lineage"));
+                    };
+                    budget.reserve_analysis_work(text.len() as u64)?;
+                    budget.reserve_temporary_bytes(text.len() as u64)?;
+                    let length = text.replace('_', "").parse::<u32>()
+                        .map_err(|_| self.unready("array length is not a bounded integer constant"))?;
+                    budget.release_temporary_bytes(text.len() as u64);
+                    CtTypeNode::Array { element: inner, length }
+                } else { CtTypeNode::Slice(inner) }
+            }
+            s::TypeKind::Function { params, result } => {
+                budget.reserve_temporary_bytes((params.len() as u64).saturating_mul(8))?;
+                let parameters = params.iter().map(|param| self.append_source_type(requester, module, param, substitutions, nodes, budget, depth + 1))
+                    .collect::<CompileResult<Vec<_>>>()?;
+                let result = self.append_source_type(requester, module, result, substitutions, nodes, budget, depth + 1)?;
+                CtTypeNode::FunctionPointer { parameters, result }
+            }
+            s::TypeKind::ForeignFunction { abi, params, result } if abi == "\"C\"" => {
+                budget.reserve_temporary_bytes((params.len() as u64).saturating_mul(8))?;
+                let parameters = params.iter().map(|param| self.append_source_type(requester, module, param, substitutions, nodes, budget, depth + 1))
+                    .collect::<CompileResult<Vec<_>>>()?;
+                let result = self.append_source_type(requester, module, result, substitutions, nodes, budget, depth + 1)?;
+                CtTypeNode::ForeignCallback { parameters, result }
+            }
+            s::TypeKind::Error { error, result } => CtTypeNode::ErrorUnion {
+                error: self.append_source_type(requester, module, error, substitutions, nodes, budget, depth + 1)?,
+                result: self.append_source_type(requester, module, result, substitutions, nodes, budget, depth + 1)?,
+            },
             s::TypeKind::Reference { mutable, inner, .. } => CtTypeNode::Address { mutable: *mutable,
                 inner: self.append_source_type(requester, module, inner, substitutions, nodes, budget, depth + 1)? },
             _ => return Err(self.unready("nested generic field type has no completed CT lineage")),
         };
+        if let CtTypeNode::Nominal { symbol, arguments } = &node
+            && let ItemKind::TypeAlias(alias) = &self.nominal(requester, symbol)?.kind {
+            let rhs = alias.value.as_ref().ok_or_else(|| self.unready("nested type alias has no checked right hand side"))?;
+            if arguments.len() != alias.generics.len() {
+                return Err(error("E-CT-TYPE-ARITY", "nested alias argument count differs from frozen declaration"));
+            }
+            let charge = (arguments.len() as u64).saturating_mul(32);
+            budget.reserve_temporary_bytes(charge)?;
+            let substitutions = alias.generics.iter().zip(arguments).map(|(parameter, argument)| {
+                match (&parameter.kind, argument) {
+                    (s::GenericParamKind::Type(_), CtTypeArgument::Type(actual)) => Ok((parameter.name.as_str(), *actual)),
+                    _ => Err(self.unready("nested alias has a non-Type formal without completed CT lineage")),
+                }
+            }).collect::<CompileResult<Vec<_>>>()?;
+            let result = self.append_source_type(requester, symbol.module, rhs, &substitutions, nodes, budget, depth + 1);
+            budget.release_temporary_bytes(charge);
+            return result;
+        }
         budget.reserve_generated_nodes(1)?;
         budget.reserve_temporary_bytes(96)?;
         let id = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| error("E-CT-TYPE-LIMIT", "generic field Type DAG exceeds identity range"))?);
@@ -571,6 +622,56 @@ impl FrozenReadView<'_> {
             .ok_or_else(|| phase("checked generic field instance has no frozen declaration"))?;
         if symbol != &expected { return Err(phase("checked generic field instance differs from source lineage")); }
         Self::compact_type_ref(CtTypeRef { nodes, root }, budget)
+    }
+    fn matches_checked_type(&self, checked: &Type, value: &CtTypeRef, id: CtTypeNodeId,
+        derived: &ShapeSnapshot, budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<bool> {
+        if depth >= self.limits.max_call_depth.min(128) { return Err(self.unready("checked alias type exceeds CT depth")); }
+        budget.reserve_analysis_work(1)?;
+        let node = value.nodes.get(id.0 as usize).ok_or_else(|| error("E-CT-TYPE-LIMIT", "alias Type DAG node is absent"))?;
+        let matches = match (checked, node) {
+            (Type::Unit, CtTypeNode::Primitive(CtScalarTy::Unit))
+            | (Type::Bool, CtTypeNode::Primitive(CtScalarTy::Bool))
+            | (Type::U8, CtTypeNode::Primitive(CtScalarTy::U8))
+            | (Type::U16, CtTypeNode::Primitive(CtScalarTy::U16))
+            | (Type::I32, CtTypeNode::Primitive(CtScalarTy::I32))
+            | (Type::I64, CtTypeNode::Primitive(CtScalarTy::I64))
+            | (Type::ByteBuffer, CtTypeNode::Builtin(CtBuiltinType::ByteBuffer))
+            | (Type::ForeignHandle, CtTypeNode::Builtin(CtBuiltinType::ForeignHandle))
+            | (Type::CWideString, CtTypeNode::Builtin(CtBuiltinType::CWideString)) => true,
+            (Type::Record { name, .. } | Type::Package { name, .. } | Type::Enum { name, .. }, CtTypeNode::Nominal { symbol, .. }) =>
+                derived.core.modules.iter().any(|module| {
+                    module.core.aggregates.iter().any(|candidate| {
+                        (name == &candidate.name || name == &format!("@module{}:{}", module.core.module_id.0, candidate.name))
+                            && self.index.symbol_at(module.core.module_id, candidate.span).as_ref() == Some(symbol)
+                    }) || module.core.enums.iter().any(|candidate| {
+                        (name == &candidate.name || name == &format!("@module{}:{}", module.core.module_id.0, candidate.name))
+                            && self.index.symbol_at(module.core.module_id, candidate.span).as_ref() == Some(symbol)
+                    })
+                }),
+            (Type::Tuple(types), CtTypeNode::Tuple(ids)) if types.len() == ids.len() => {
+                let mut valid = true;
+                for (ty, id) in types.iter().zip(ids) { valid &= self.matches_checked_type(ty, value, *id, derived, budget, depth + 1)?; }
+                valid
+            }
+            (Type::Array { element, length }, CtTypeNode::Array { element: actual, length: count }) if length == count =>
+                self.matches_checked_type(element, value, *actual, derived, budget, depth + 1)?,
+            (Type::Slice { element }, CtTypeNode::Slice(actual)) =>
+                self.matches_checked_type(element, value, *actual, derived, budget, depth + 1)?,
+            (Type::Address { mutable, inner }, CtTypeNode::Address { mutable: actual, inner: id }) if mutable == actual =>
+                self.matches_checked_type(inner, value, *id, derived, budget, depth + 1)?,
+            (Type::FunctionPointer { parameters, result }, CtTypeNode::FunctionPointer { parameters: ids, result: id })
+            | (Type::ForeignCallback { parameters, result }, CtTypeNode::ForeignCallback { parameters: ids, result: id })
+                if parameters.len() == ids.len() => {
+                let mut valid = self.matches_checked_type(result, value, *id, derived, budget, depth + 1)?;
+                for (ty, id) in parameters.iter().zip(ids) { valid &= self.matches_checked_type(ty, value, *id, derived, budget, depth + 1)?; }
+                valid
+            }
+            (Type::ErrorUnion { error, result }, CtTypeNode::ErrorUnion { error: left, result: right }) =>
+                self.matches_checked_type(error, value, *left, derived, budget, depth + 1)?
+                    && self.matches_checked_type(result, value, *right, derived, budget, depth + 1)?,
+            _ => false,
+        };
+        Ok(matches)
     }
     fn alias_value(&self, requester: &CtSymbolId, alias: &CtSymbolId,
         handle: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
@@ -620,25 +721,7 @@ impl FrozenReadView<'_> {
         let value = if let Some(next) = next_alias {
             self.alias_value_inner(requester, &next, &value, budget, depth + 1)?
         } else { value };
-        let matching = match (checked, value.nodes.get(value.root.0 as usize)) {
-            (Type::Unit, Some(CtTypeNode::Primitive(CtScalarTy::Unit)))
-            | (Type::Bool, Some(CtTypeNode::Primitive(CtScalarTy::Bool)))
-            | (Type::U8, Some(CtTypeNode::Primitive(CtScalarTy::U8)))
-            | (Type::U16, Some(CtTypeNode::Primitive(CtScalarTy::U16)))
-            | (Type::I32, Some(CtTypeNode::Primitive(CtScalarTy::I32)))
-            | (Type::I64, Some(CtTypeNode::Primitive(CtScalarTy::I64))) => true,
-            (Type::Record { name, .. } | Type::Package { name, .. } | Type::Enum { name, .. },
-                Some(CtTypeNode::Nominal { symbol, .. })) => derived.core.modules.iter().any(|module| {
-                    module.core.aggregates.iter().any(|candidate| {
-                        (name == &candidate.name || name == &format!("@module{}:{}", module.core.module_id.0, candidate.name))
-                            && self.index.symbol_at(module.core.module_id, candidate.span).as_ref() == Some(symbol)
-                    }) || module.core.enums.iter().any(|candidate| {
-                        (name == &candidate.name || name == &format!("@module{}:{}", module.core.module_id.0, candidate.name))
-                            && self.index.symbol_at(module.core.module_id, candidate.span).as_ref() == Some(symbol)
-                    })
-                }),
-            _ => false,
-        };
+        let matching = self.matches_checked_type(checked, &value, value.root, &derived, budget, 0)?;
         if !matching { return Err(self.unready("alias Type lineage differs from checked ordinary type")); }
         budget.release_temporary_bytes(bytes);
         Ok(value)
