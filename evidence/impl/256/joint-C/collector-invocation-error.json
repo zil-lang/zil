@@ -1,0 +1,6 @@
+{
+  "status": "Infrastructure invocation error; not a compiler or test failure",
+  "reason": "First collector invocation omitted source env.sh, so rustc was absent from PATH after actual tests had completed.",
+  "native_or_test_execution_repeated": false,
+  "corrected_by": "source /workspace/.zil-env/env.sh before collection"
+}

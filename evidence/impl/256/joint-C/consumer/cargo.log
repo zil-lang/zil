@@ -1,0 +1,25 @@
+   Compiling zil-verify v0.1.0 (/workspace/zil-256/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/zil-256/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/zil-256/crates/zil-ct)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-256/crates/zil-backend-llvm)
+   Compiling zil-lower v0.1.0 (/workspace/zil-256/crates/zil-lower)
+   Compiling zil-expand v0.1.0 (/workspace/zil-256/crates/zil-expand)
+   Compiling zil-driver v0.1.0 (/workspace/zil-256/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 27.85s
+     Running tests/impl256_consumer.rs (/workspace/.zil-env/target-256/debug/deps/impl256_consumer-398be91c245795c0)
+
+running 11 tests
+test fn_copy_signature ... ok
+test fn_owned_signature ... ok
+test fnmut_copy_signature ... ok
+test fnmut_owned_signature ... ok
+test fnonce_copy_signature ... ok
+test fnonce_owned_signature ... ok
+test original_identity_probe ... ok
+test extended_store_address_loop_native_matrix ... ok
+test extended_store_address_loop_actual_allocator_failures ... ok
+test three_module_predeclared_native_matrix ... ok
+test three_module_actual_allocator_failures_follow_the_frozen_source_oracle ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.31s
+
