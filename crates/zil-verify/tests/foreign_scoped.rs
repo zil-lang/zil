@@ -131,6 +131,103 @@ fn f_only_wrapper_constructs_actual_concrete_with_body() {
     }
 }
 #[test]
+fn concrete_local_owners_reach_with_and_remaining_cleanup_without_role_claims() {
+    for package in [false, true] {
+        for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+            let (mut m, p) = fixture::local_owned_body(package);
+            m.closures[1].kind = kind;
+            check(m, p, None);
+        }
+    }
+}
+#[test]
+fn ordinary_helper_local_owner_needs_no_with_permission() {
+    let (m, p) = fixture::ordinary_local_owner();
+    check(m, p, None);
+    let (mut m, p) = fixture::ordinary_local_owner();
+    m.functions[4].blocks[0]
+        .instructions
+        .retain(|i| !matches!(i.kind, InstructionKind::DropManaged { .. }));
+    check(m, p, Some("E-VERIFY-RESOURCE"));
+}
+#[test]
+fn local_owned_preparation_leaks_and_duplicate_captures_reach_resource_kernel() {
+    for package in [false, true] {
+        let (mut m, mut p) = fixture::local_owned_body(package);
+        let f = &mut m.functions[4];
+        let leak = ValueId(f.values.len() as u32);
+        f.values.push(f.values[5].clone());
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+            .unwrap();
+        f.blocks[0].instructions.insert(
+            at,
+            fixture::instruction(
+                Some(leak.0),
+                InstructionKind::MakeManaged {
+                    fields: vec![ValueId(4)],
+                },
+            ),
+        );
+        p.functions[4].holds.push(ValueHold {
+            value: leak,
+            roots: vec![],
+        });
+        check(m, p, Some("E-VERIFY-RESOURCE"));
+    }
+    let (mut m, p) = fixture::local_owned_body(false);
+    let captured = m.closures[1].captures[0].clone();
+    m.closures[1].captures.push(captured);
+    for instruction in &mut m.functions[4].blocks[0].instructions {
+        if let InstructionKind::MakeClosure { captures, .. } = &mut instruction.kind {
+            captures.push(ValueId(5));
+        }
+    }
+    check(m, p, Some("E-VERIFY-RESOURCE"));
+}
+#[test]
+fn local_owned_body_still_cannot_capture_the_actual_f_root() {
+    for package in [false, true] {
+        let (mut m, mut p) = fixture::local_owned_body(package);
+        let address = m.functions[4].values[0].clone();
+        m.closures[1].captures.push(address.clone());
+        let f = &mut m.functions[4];
+        let alias = ValueId(f.values.len() as u32);
+        f.values.push(address);
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+            .unwrap();
+        f.blocks[0].instructions.insert(
+            at,
+            fixture::instruction(
+                Some(alias.0),
+                InstructionKind::ReborrowAddress {
+                    address: ValueId(0),
+                    mutable: true,
+                },
+            ),
+        );
+        let InstructionKind::MakeClosure { captures, .. } =
+            &mut f.blocks[0].instructions[at + 1].kind
+        else {
+            unreachable!()
+        };
+        captures.push(alias);
+        p.functions[4].holds.push(ValueHold {
+            value: alias,
+            roots: vec![HoldRoot::Parameter(0)],
+        });
+        for value in [1, 3] {
+            p.functions[4].holds[value].roots = vec![HoldRoot::Parameter(0)];
+        }
+        check(m, p, Some("E-BORROW-CONFLICT"));
+    }
+}
+#[test]
 fn local_body_actual_capture_roots_keep_callback_exclusion_and_disjoint_borrows() {
     let (m, p) = fixture::local_body_capture_wrapper(false);
     check(m, p, None);
@@ -280,55 +377,69 @@ fn preparation_cannot_read_or_move_the_exclusively_held_callback() {
 }
 #[test]
 fn scoped_raw_and_wire_work_have_exact_fresh_boundaries() {
-    for (name, (m, mut p)) in [
+    for (name, (m, p)) in [
         ("direct", fixture::fixture()),
         ("borrowed", fixture::borrowed_scalar_body()),
         ("wrapper", fixture::wrapper()),
         ("local_body_wrapper", fixture::local_body_wrapper(true)),
     ] {
-        p.module_fingerprint = m.fingerprint();
-        let bytes = wire::encode_module_candidate(&m, &p, &Limits::default()).unwrap();
-        for wire in [false, true] {
-            let run = |steps| {
-                let limits = Limits {
-                    max_analysis_steps: steps,
-                    ..Limits::default()
-                };
-                if wire {
-                    zil_verify::verify_module_bytes(&bytes, &m.target, &limits)
-                } else {
-                    zil_verify::verify_module(m.clone(), p.clone(), &m.target, &limits)
-                }
+        exact_work_boundary(name, m, p);
+    }
+}
+
+#[test]
+fn local_owned_preparation_raw_wire_work_has_exact_fresh_boundaries() {
+    for (name, (m, p)) in [
+        ("local_managed", fixture::local_owned_body(false)),
+        ("local_package", fixture::local_owned_body(true)),
+        ("ordinary_local_owner", fixture::ordinary_local_owner()),
+    ] {
+        exact_work_boundary(name, m, p);
+    }
+}
+fn exact_work_boundary(name: &str, m: TypedModule, mut p: CandidatePlan) {
+    p.module_fingerprint = m.fingerprint();
+    let bytes = wire::encode_module_candidate(&m, &p, &Limits::default()).unwrap();
+    for wire in [false, true] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
             };
-            let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
-            let expected = run(high).unwrap().fingerprint();
-            while low + 1 < high {
-                let mid = low + (high - low) / 2;
-                match run(mid) {
-                    Ok(v) => {
-                        assert_eq!(v.fingerprint(), expected);
-                        high = mid
-                    }
-                    Err(e) => {
-                        assert!(
-                            e.iter()
-                                .all(|d| d.category == ResultCategory::ResourceLimit),
-                            "{e:?}"
-                        );
-                        low = mid
-                    }
+            if wire {
+                zil_verify::verify_module_bytes(&bytes, &m.target, &limits)
+            } else {
+                zil_verify::verify_module(m.clone(), p.clone(), &m.target, &limits)
+            }
+        };
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        let expected = run(high).unwrap().fingerprint();
+        while low + 1 < high {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(v) => {
+                    assert_eq!(v.fingerprint(), expected);
+                    high = mid
+                }
+                Err(e) => {
+                    assert!(
+                        e.iter()
+                            .all(|d| d.category == ResultCategory::ResourceLimit),
+                        "{e:?}"
+                    );
+                    low = mid
                 }
             }
-            assert_eq!(run(high).unwrap().fingerprint(), expected);
-            assert!(
-                run(high - 1)
-                    .unwrap_err()
-                    .iter()
-                    .all(|d| d.category == ResultCategory::ResourceLimit)
-            );
-            assert_eq!(run(high).unwrap().fingerprint(), expected);
-            println!("scoped {name} wire={wire} N={high}; N-1=ResourceLimit; fresh N=Pass");
         }
+        assert_eq!(run(high).unwrap().fingerprint(), expected);
+        assert!(
+            run(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.category == ResultCategory::ResourceLimit)
+        );
+        assert_eq!(run(high).unwrap().fingerprint(), expected);
+        println!("scoped {name} wire={wire} N={high}; N-1=ResourceLimit; fresh N=Pass");
     }
 }
 #[test]
