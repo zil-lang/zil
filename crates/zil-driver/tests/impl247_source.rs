@@ -70,6 +70,55 @@ fn source_derived_dispatch_roles_and_trace_are_reconstructed() {
     assert!(zil_analyze::analyze(&omitted, &Limits::default()).is_err());
 }
 
+#[test]
+fn owned_source_analysis_budget_has_exact_and_fresh_boundaries() {
+    let module = typed(include_str!("impl246_fixtures/event_reply.zil"));
+    let defaults = Limits::default();
+    let expected = zil_analyze::analyze(&module, &defaults).unwrap();
+    let mut low = 0;
+    let mut high = defaults.max_analysis_steps;
+    while low + 1 < high {
+        let n = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: n,
+            ..defaults.clone()
+        };
+        match zil_analyze::analyze(&module, &limits) {
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                high = n;
+            }
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                );
+                low = n;
+            }
+        }
+    }
+    let limits = Limits {
+        max_analysis_steps: high,
+        ..defaults.clone()
+    };
+    assert_eq!(zil_analyze::analyze(&module, &limits).unwrap(), expected);
+    let too_small = Limits {
+        max_analysis_steps: high - 1,
+        ..defaults.clone()
+    };
+    assert!(
+        zil_analyze::analyze(&module, &too_small)
+            .unwrap_err()
+            .iter()
+            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+    );
+    assert_eq!(zil_analyze::analyze(&module, &limits).unwrap(), expected);
+    println!(
+        "impl247 original event_reply source Analyze N={high}; N-1 ResourceLimit; fresh N exact output equality"
+    );
+}
+
 const DATA: &str = "resource R{n:i32} package Event{manages r:R} enum Fault{Cancel} fn event(n:i32)->Event{let r=R{n:n};return Event{r:give r}}";
 
 #[test]
