@@ -4,7 +4,10 @@
 //! data, not authority: the LLVM backend rebinds it to this same capability.
 
 use zil_base::{CompileResult, Diagnostic, Phase, SCHEMA_VERSION};
-use zil_ir::{CallableKind, LirModule, LirView, ScalarLayout, Type};
+use zil_ir::{
+    CallableCleanup, CallableKind, CallableReturnSource, LirModule, LirView, ScalarLayout, Type,
+    TypedFunction,
+};
 use zil_verify::VerifiedModule;
 mod owned_sums;
 
@@ -116,6 +119,13 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         }
     }
     for function in &module.functions {
+        if !forwarded_callable_signature(function) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Lower,
+                "forwarded callable result requires the same actual by-value parameter and Returned role",
+                Some(function.span),
+            )]);
+        }
         let old_return = function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resource_type(&function.return_type, &module.resources)
@@ -369,6 +379,44 @@ fn callable_parameter_type(ty: &Type, closures: &[zil_ir::ClosureDefinition]) ->
     closures
         .get(id.0 as usize)
         .is_some_and(|definition| definition.id == *id)
+}
+
+// Fresh factories retain their existing admission. A Parameter claim is
+// transport metadata, not a new layout: the verified CFG must still carry the
+// actual live value into Return. Lower keeps that CFG unchanged and checks the
+// machine boundary against its actual parameter slot and declared role.
+fn forwarded_callable_signature(function: &TypedFunction) -> bool {
+    let Some(contract) = &function.callable_return_contract else {
+        return true;
+    };
+    let CallableReturnSource::Parameter(index) = contract.source else {
+        return true;
+    };
+    if function.foreign.is_some() || function.environment.is_some() {
+        return false;
+    }
+    let Some(parameter) = function.parameters.get(index as usize) else {
+        return false;
+    };
+    let Some(local) = function.locals.get(parameter.0 as usize) else {
+        return false;
+    };
+    let Some(roles) = function
+        .callable_contract
+        .as_ref()
+        .map(|c| c.roles.as_slice())
+    else {
+        return false;
+    };
+    let [role] = roles else {
+        return false;
+    };
+    matches!((&local.ty, &function.return_type),
+        (Type::Closure(input), Type::Closure(output)) if input == output && *input == contract.closure)
+        && role.parameter == index
+        && role.closure == contract.closure
+        && role.kind == contract.kind
+        && role.cleanup == CallableCleanup::Returned
 }
 
 // Callback data is complete ordinary Product/Sum, never a naked resource,
