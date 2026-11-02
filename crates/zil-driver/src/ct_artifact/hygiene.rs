@@ -32,6 +32,7 @@ impl Renamer<'_> {
             && token.span.end <= span.end && self.rendered.source.text.get(token.span.start..token.span.end) == Some(text))
     }
     fn bind(&mut self, text: &mut String, span: Span) -> CompileResult<()> {
+        if text == "self" { return Ok(()); }
         let Some(token) = self.token(span, text) else { return Err(error(span, "generated binding has no exact token origin")); };
         if token.name.is_some() { return Ok(()); }
         let region = self.region(token.origin);

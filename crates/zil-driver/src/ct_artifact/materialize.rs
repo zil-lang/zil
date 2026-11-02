@@ -102,36 +102,48 @@ impl Materializer<'_, '_> {
         self.environment.evaluate(Entry::Function(entry.symbol.clone()), &tokens, Some(&input_tree), &[CtValue::TokenTree(input_tree.clone())], span)
     }
     fn parsed(&mut self, value: CtValue, expected: CtSyntaxCategory, span: Span) -> CompileResult<GeneratedSyntax> {
-        let CtValue::Syntax(tree) = value else { return Err(category("compile-time result is not Syntax", span)); };
+        let CtValue::Syntax(mut tree) = value else { return Err(category("compile-time result is not Syntax", span)); };
         if tree.category != expected { return Err(category("Syntax category differs from the receiving slot", span)); }
-        let ParsedSyntax { rendered, parsed, names: _ } = self.environment.parse_tree(&tree, span)?;
         let caller = self.sources.iter().find(|source| source.file_id == span.file)
             .map(|source| source.module_id).ok_or_else(|| category("generated caller module is absent", span))?;
-        self.environment.budget.reserve_analysis_work(rendered.tokens.len() as u64)?;
-        for pair in rendered.tokens.windows(2) {
-            let first = &pair[0];
-            if rendered.source.text.get(pair[1].span.start..pair[1].span.end) != Some(".") { continue; }
-            let Some(origin) = tree.origins.get(first.origin.0 as usize) else { return Err(category("generated origin is absent", span)); };
-            if origin.role != CtOriginRole::QuoteDefinition { continue; }
-            let Some(provider_index) = self.sources.iter().position(|source| source.file_id == origin.span.file) else { continue; };
-            let alias = &rendered.source.text[first.span.start..first.span.end];
-            let source_import = self.parsed[provider_index].module.items.iter().find_map(|item| match &item.kind {
-                s::ItemKind::Import(import) if !import.syntax && import.alias.as_deref().or_else(|| import.path.last().map(String::as_str)) == Some(alias) => Some(import),
-                _ => None,
-            });
-            let Some(source_import) = source_import else { continue; };
-            let Some(target) = self.paths.get(&source_import.path) else { continue; };
-            let conflicting = self.parsed_source(caller)?.1.module.items.iter().any(|item| match &item.kind {
-                s::ItemKind::Import(import) => import.alias.as_deref().or_else(|| import.path.last().map(String::as_str)) == Some(alias)
-                    && self.paths.get(&import.path) != Some(target),
-                _ => false,
-            });
-            if conflicting { return Err(category("definition-site module alias collides with a caller binding", span)); }
-            if !self.required_imports.iter().any(|(module, import)| *module == caller && import.alias == alias && import.module == *target) {
-                self.environment.budget.reserve_generated_nodes(1)?;
-                self.required_imports.push((caller, CoreImport { alias: alias.to_owned(), module: *target, span }));
+        let mut sequences = vec![tree.roots.clone()];
+        for node in &tree.nodes { if let CtSyntaxNode::Group { children, .. } = node { sequences.push(children.clone()); } }
+        self.environment.budget.reserve_analysis_work(tree.nodes.len() as u64)?;
+        let mut alias_sites = Vec::new();
+        for sequence in &sequences {
+            for pair in sequence.windows(2) {
+                if matches!(tree.nodes.get(pair[1].0 as usize), Some(CtSyntaxNode::Token(token)) if token.text == ".") {
+                    alias_sites.push(pair[0]);
+                }
             }
         }
+        for site in alias_sites {
+            let Some(CtSyntaxNode::Token(token)) = tree.nodes.get(site.0 as usize) else { continue; };
+            if token.name.is_some() { continue; }
+            let Some(origin) = tree.origins.get(token.origin.0 as usize) else { return Err(category("generated origin is absent", span)); };
+            if origin.role != CtOriginRole::QuoteDefinition { continue; }
+            let Some(provider_index) = self.sources.iter().position(|source| source.file_id == origin.span.file) else { continue; };
+            let source_import = self.parsed[provider_index].module.items.iter().find_map(|item| match &item.kind {
+                s::ItemKind::Import(import) if !import.syntax && import.alias.as_deref().or_else(|| import.path.last().map(String::as_str)) == Some(token.text.as_str()) => Some((item.span, import)),
+                _ => None,
+            });
+            let Some((import_span, source_import)) = source_import else { continue; };
+            let Some(target) = self.paths.get(&source_import.path) else { continue; };
+            let alias = format!("__zil_ct_mod{}_{}_{}", provider_index, target.0, span.start);
+            let symbol = self.environment.index.symbol_at(self.sources[provider_index].module_id, import_span)
+                .ok_or_else(|| category("definition-site module import has no frozen symbol", span))?;
+            self.environment.budget.reserve_temporary_bytes(alias.len() as u64)?;
+            if let Some(CtSyntaxNode::Token(token)) = tree.nodes.get_mut(site.0 as usize) {
+                token.text = alias.clone();
+                token.name = Some(CtIdent { text: alias.clone(), namespace: CtNameNamespace::Module,
+                    source: CtNameSource::Definition(symbol), member_owner: None, member_owner_type: None });
+            }
+            if !self.required_imports.iter().any(|(module, import)| *module == caller && import.alias == alias && import.module == *target) {
+                self.environment.budget.reserve_generated_nodes(1)?;
+                self.required_imports.push((caller, CoreImport { alias, module: *target, span }));
+            }
+        }
+        let ParsedSyntax { rendered, parsed, names: _ } = self.environment.parse_tree(&tree, span)?;
         let mut syntax = parsed.syntax.ok_or_else(|| category("generated parser returned no category", span))?;
         super::hygiene::rename(&mut syntax, &rendered, &tree.origins, span)?;
         let limits = self.environment.remaining_limits_for_input();
