@@ -1,0 +1,21 @@
+   Compiling zil-verify v0.1.0 (/workspace/.zil-env/forward-review-254/snapshot-ac53b026/crates/zil-verify)
+    Finished `test` profile [unoptimized] target(s) in 9.67s
+     Running unittests src/lib.rs (/workspace/.zil-env/forward-review-254/target-ac53b026/debug/deps/zil_verify-59420611778c2949)
+
+running 1 test
+review254 overwritten bridge wire=0: UNEXPECTED ACCEPT
+review254 overwritten bridge wire=1: UNEXPECTED ACCEPT
+
+thread 'helper_tests::owned_values::review254_slot_permission_cannot_follow_overwritten_local' (187383) panicked at crates/zil-verify/src/helper_tests/owned_values.rs:441:5:
+review254 slot qualification followed overwritten bridge local; accepted=[0, 1]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test helper_tests::owned_values::review254_slot_permission_cannot_follow_overwritten_local ... FAILED
+
+failures:
+
+failures:
+    helper_tests::owned_values::review254_slot_permission_cannot_follow_overwritten_local
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 325 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p zil-verify --lib`

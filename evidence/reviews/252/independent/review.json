@@ -1,0 +1,40 @@
+{
+  "task": "252",
+  "reviewer": "/root/callback_backend_fallback",
+  "verdict": "Pass",
+  "implementation_commit": "9a07018620a15740e964551dca169633622b443b",
+  "production_commit": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
+  "integration_snapshot": "bb8e6f2bd4faaa9aee023a0a3e6d1b4a861c450a",
+  "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "scope": "Independent review of the author's zil-expand and zil-types F-forwarding production diff and affected source/budget controls only. The integration snapshot has byte-identical frontend files to the production commit. This does not review Analyze, Verify, Lower, LLVM, native behavior or the full product gate.",
+  "checks": [
+    "Definition admission requires one direct by-value F binder, no ordinary type parameter, nonlending existing callable signature, closed ordinary companions and a bare same-binder F result. Companion closure/opaque, Address/Desc and mixed F profiles remain closed.",
+    "Instantiated return contract uses Parameter(k) with the actual parameter index, same closure and declared kind; the role is Returned. Concrete Copy caller values can remain reusable while an unqualified symbolic F in the helper is taken/moved.",
+    "Declared Fn/FnMut/FnOnce modes are tracked across nested keep and internal single-slot local moves; no upgrade of an outer weaker declaration was found. FnMut readonly local call is a SafeReject only for the admitted forwarding profile.",
+    "Each source return is checked against the F origin; the independent two-normal-return probe preserved Parameter(1), and moved-old-position/wrong-branch probes were rejected. Independent Analyze and Verify proofs remain separate obligations.",
+    "The ErrorUnion conditional hint only selects a matching nominal payload of the existing union when branch nominal names differ; the frozen Meta!Packet source reaches Types. Existing expression tick/type work boundaries and source exact N/N-1 tests were exercised.",
+    "No new default budget or implicit Box/RC/Copy permission was introduced in the reviewed diff."
+  ],
+  "independent_probes": {
+    "source": "/workspace/.zil-env/forward-review-252/independent-probes.rs",
+    "sha256": "52b713fae60444019743085a295552861f70a694f89aac2b2a5f752490536692",
+    "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo test -p zil-driver --test impl252_independent_review --offline --locked -j 2 -- --nocapture",
+    "passed": 4,
+    "failed": 0,
+    "probe_file_removed_from_snapshot_after_run": true
+  },
+  "affected_source_tests": {
+    "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo test -p zil-driver --test impl252_front --offline --locked -j 2 -- --nocapture",
+    "passed": 14,
+    "failed": 0,
+    "original_forward_exact_budget": {"expand_N": 305, "types_N": 472, "N_minus_1": "ResourceLimit", "fresh_N": "identical"}
+  },
+  "old_profile_controls": {
+    "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo test -p zil-driver --offline --locked -j 2 --test impl194_copy_callable --test impl206_budget --test impl218_factory_budget -- --nocapture",
+    "passed": 24,
+    "failed": 0,
+    "old_flat_product": {"types_N": 418, "analyze_N": 8673},
+    "fresh_factory_checks": "six named old factory sources retained exact N, N-1 ResourceLimit and fresh N identities in their respective Expand/Types phases"
+  },
+  "limitations": "The independent probes are source-to-Types tests on this pinned frontend snapshot. Their source hash is preserved outside the repository because the review did not change production or test files. The author evidence and 256 integration/native oracles provide broader but separately owned results."
+}

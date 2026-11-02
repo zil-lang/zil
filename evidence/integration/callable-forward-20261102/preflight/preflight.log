@@ -1,0 +1,92 @@
+   Compiling typenum v1.20.1
+   Compiling cpufeatures v0.3.1
+   Compiling cfg-if v1.0.5
+   Compiling zil-llvm-api v0.1.0 (/workspace/zil-251/crates/zil-llvm-api)
+   Compiling hybrid-array v0.4.15
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.1
+   Compiling zil-base v0.1.0 (/workspace/zil-251/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/zil-251/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/zil-251/crates/zil-syntax)
+   Compiling zil-verify v0.1.0 (/workspace/zil-251/crates/zil-verify)
+   Compiling zil-types v0.1.0 (/workspace/zil-251/crates/zil-types)
+   Compiling zil-ct v0.1.0 (/workspace/zil-251/crates/zil-ct)
+   Compiling zil-lower v0.1.0 (/workspace/zil-251/crates/zil-lower)
+   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-251/crates/zil-backend-llvm)
+   Compiling zil-expand v0.1.0 (/workspace/zil-251/crates/zil-expand)
+   Compiling zil-analyze v0.1.0 (/workspace/zil-251/crates/zil-analyze)
+   Compiling zil-db v0.1.0 (/workspace/zil-251/crates/zil-db)
+   Compiling zil-driver v0.1.0 (/workspace/zil-251/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 50.46s
+     Running tests/impl248_source.rs (/workspace/.zil-env/target-251/debug/deps/impl248_source-ce0aaed12062bfc1)
+
+running 7 tests
+test callback_return_does_not_revive_a_borrowed_input_window ... ok
+test copy_callback_can_feed_an_owned_helper_result ... ok
+test callback_transfer_keeps_equal_typed_sibling_roots_distinct ... ok
+test repeated_fn_and_fnmut_calls_each_consume_a_new_owned_argument ... ok
+test owning_dispatch_can_have_independent_copy_input_and_result ... ok
+test later_argument_failure_retains_prepared_argument_cleanup ... ok
+test original_owned_callback_sources_reach_verify ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/impl253_source.rs (/workspace/.zil-env/target-251/debug/deps/impl253_source-a10460bb023dd630)
+
+running 8 tests
+test fn_parent_can_forward_through_a_called_fnmut_child_and_recover_fn ... ok
+test concrete_caller_can_replace_an_owning_event_callback_through_keep_in_a_loop ... ok
+test original_and_copy_and_mutable_sources_reach_analyze ... ok
+test source_derived_cleanup_and_return_metadata_cannot_discharge_or_replace_the_input ... ok
+test six_frozen_callback_signatures_reach_analyze ... ok
+test source_forward_has_an_exact_fresh_request_budget ... ok
+test extended_store_address_and_owning_loop_source_reaches_analyze_without_verify ... ok
+test frozen_cross_module_source_reaches_analyze_without_verify ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running tests/impl254_capture_probe.rs (/workspace/.zil-env/target-251/debug/deps/impl254_capture_probe-c476ab8ba9f5bc16)
+
+running 1 test
+test returned_parent_capture_old_position_window_is_checked_with_or_without_a_consumer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/impl254_source.rs (/workspace/.zil-env/target-251/debug/deps/impl254_source-a90efa2566926266)
+
+running 9 tests
+test complete_error_union_store_companion_reaches_verify ... ok
+test original_source_bytes_reach_verify ... ok
+test fnmut_and_loop_forwarding_reach_verify ... ok
+test owning_event_callback_in_ordinary_caller_internal_slot_reaches_verify ... ok
+test stronger_fn_survives_nested_mutable_call_and_return ... ok
+test frozen_six_copy_and_owned_signatures_reach_verify ... ok
+test unrelated_same_type_owning_slot_cannot_borrow_a_module_wide_permission ... ok
+test owning_event_callback_can_leave_mutable_slot_for_new_local ... ok
+test frozen_and_extended_three_module_sources_reach_verify ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+     Running tests/impl254_wire.rs (/workspace/.zil-env/target-251/debug/deps/impl254_wire-2d0d2d0396cfcea3)
+
+running 1 test
+test control_and_minimal_transfer_mutation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/impl256_boundaries.rs (/workspace/.zil-env/target-251/debug/deps/impl256_boundaries-23edec1a8685dbf8)
+
+running 1 test
+test nearest_source_rejections_require_the_actual_mode_origin_or_window_reason ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/impl256_contracts.rs (/workspace/.zil-env/target-251/debug/deps/impl256_contracts-ec28686beed4243f)
+
+running 1 test
+test actual_parameter_indices_and_declared_modes_survive_raw_and_wire ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+

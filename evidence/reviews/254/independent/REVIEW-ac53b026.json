@@ -1,0 +1,79 @@
+{
+  "status": "Fail",
+  "scope": "independent_non_author_verify254_review",
+  "candidate": "ac53b0262e8affba01c3ccde0287b01b95851152",
+  "production": "4cedf9753ce40f59ea58b4b6e1fbc8e7a0847e29",
+  "production_modified": false,
+  "uses_types_or_analyze_for_raw_authority": false,
+  "findings": [
+    {
+      "id": "254-R1",
+      "severity": "blocking_profile_admission",
+      "file": "crates/zil-verify/src/resources/arrays.rs",
+      "lines": [
+        193,
+        202,
+        306
+      ],
+      "problem": "ordinary Array1 qualification conflates different values stored at the same local; A never reaches keep but a static path through an overwritten bridge local grants the slot permission",
+      "trace": "slot(A) -> TakeOwnedArrayElement(A) -> Store bridge(A) -> DropClosure bridge -> MakeClosure(B same ClosureId) -> Store bridge(B) -> TakeLocal bridge(B) -> keep(B)",
+      "positive_control": "same raw fixture without dropping A and replacing bridge with B: raw and Wire accepted",
+      "expected_negative": "Unsupported or SafeReject because original slot instance never reaches a Parameter-return call",
+      "actual_negative": {
+        "raw": "accepted",
+        "current_wire": "accepted"
+      },
+      "independent_fixture": "R1-overwritten-local.wire",
+      "probe": "R1-probes.rs",
+      "log": "R1-raw-wire-ac53b026.log"
+    }
+  ],
+  "raw_test_execution": {
+    "latest_combined_selected": 9,
+    "latest_combined_passed": 8,
+    "latest_combined_failed": 1,
+    "confirmation_selected": 1,
+    "confirmation_failed": 1,
+    "fixture_construction_failures_retained": 2
+  },
+  "other_controls": {
+    "parent_capture_no_consumer": "raw/Wire positive passes; stale old capture address E-BORROW-CONFLICT",
+    "parent_capture_consumer": "raw/Wire positive passes; stale old capture address E-BORROW-CONFLICT",
+    "modes_origin_hash": "7 prior independent tests replay passed",
+    "source_mutable_slot_leaves_for_new_let_or_var": {
+      "tests": 1,
+      "cases": 4,
+      "result": "Pass",
+      "log": "ordinary-source-ac53b026.log"
+    },
+    "forward_suite": {
+      "tests": 23,
+      "result": "Pass",
+      "log": "forward-ac53b026.log"
+    },
+    "old_container_public_parameter_result_capture_gate": {
+      "tests": 1,
+      "result": "Pass",
+      "log": "old-container-gate-ac53b026.log"
+    },
+    "budget": {
+      "raw_N": 422,
+      "wire_N": 422,
+      "N_minus_1": "ResourceLimit",
+      "fresh_N": "Pass"
+    }
+  },
+  "artifact_sha256": {
+    "R1-probes.rs": "a4a136eb19d90b8a5c11cc9a8d9f8552fdb9461de79dce4fd9fde037d50521f0",
+    "R1-overwritten-local.wire": "cbe785a0a181173ba955153edbc22bb1a5cb06d92e4cf54e23d4d87e6405c402",
+    "R1-raw-wire-ac53b026.log": "adb32944a6a2fc02465dc68e1c1696f3e98ce40b25985bbdb66f4cd9914eddc9",
+    "independent-ac53b026.log": "d3359bfb34e1c427d5aa76cc982d657416383a3827b6ee97eb913031d33029c2",
+    "slot-origin-ac53b026.log": "f4d463800001c45f3920961b3b4640d93cdaf9834ff0e4b9aba297facaad2ef8",
+    "slot-origin-ac53b026-corrected.log": "fe032ef641bfaf6842e4859dfefb26e3fa50f21c50b5522438c83aab6e398636",
+    "ordinary-source-ac53b026.log": "3d18f386501d55b319043f07dab1fbfddf65eca3dee30d8fbb8f313a80f4e6e8",
+    "forward-ac53b026.log": "8912a3e3dc6e4b458fa847e488fd461768d54910c5d01870807af730006f40f6",
+    "old-container-gate-ac53b026.log": "32dfb945706d63c12b91c359931a3e994c569e21b83a48de7a6dcc9821da7d96"
+  },
+  "candidate_cargo_invocations": 7,
+  "candidate_failed_invocations": 4
+}
