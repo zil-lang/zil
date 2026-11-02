@@ -6,5 +6,6 @@ mod source_index;
 mod authority;
 mod snapshot;
 mod type_ref;
+mod read_view;
 
 pub use lock::SyntaxLock;

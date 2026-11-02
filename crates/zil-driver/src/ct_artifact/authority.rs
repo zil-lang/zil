@@ -2,7 +2,7 @@
 //! The raw artifact's copied table and snapshot are compared to these values.
 use super::source_index::SourceIndex;
 use zil_base::Fingerprint;
-use zil_ir::ct_artifact::{CtInputTable, CtQueryKind, CtReadyStage, CtSnapshotRequest, CtSymbolId};
+use zil_ir::ct_artifact::{CtFunction, CtInputTable, CtQueryKind, CtReadyStage, CtSnapshotRequest, CtSymbolId};
 use zil_verify::{CtArtifactAuthority, CtSymbolUsage};
 
 pub(super) struct FrozenAuthority<'a> {
@@ -10,6 +10,9 @@ pub(super) struct FrozenAuthority<'a> {
     pub snapshot: &'a CtSnapshotRequest,
     pub input: &'a CtInputTable,
     pub index: &'a SourceIndex,
+    /// Reattributed from the immutable source request by the driver. This
+    /// comparison authenticates definition-site provenance, not CT correctness.
+    pub expected_functions: &'a [CtFunction],
 }
 
 fn stage_allows(stage: CtReadyStage, kind: CtQueryKind) -> bool {
@@ -34,6 +37,10 @@ impl CtArtifactAuthority for FrozenAuthority<'_> {
     fn source_fingerprint(&self) -> Fingerprint { self.source_fingerprint }
     fn snapshot(&self) -> &CtSnapshotRequest { self.snapshot }
     fn authenticate_input_table(&self, input: &CtInputTable) -> bool { input == self.input }
+    fn authenticate_function(&self, function: &CtFunction) -> bool {
+        self.index.contains(&function.definition)
+            && self.expected_functions.iter().any(|expected| expected == function)
+    }
     fn authorize_symbol(&self, requester: &CtSymbolId, symbol: &CtSymbolId, _usage: CtSymbolUsage) -> bool {
         self.index.visible(requester, symbol)
     }
