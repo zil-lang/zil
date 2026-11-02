@@ -1,0 +1,46 @@
+{
+  "scope": "Live handoff record integrity; not language correctness, review quality or full task acceptance.",
+  "status": "Fail",
+  "authority": {
+    "method": "git-main-worktree",
+    "task_root": ".task",
+    "current_is_main": false,
+    "main_tree_now": "/workspace/zil"
+  },
+  "current_head": "25382eb9ad6744aef125cd89d52b0cc6e803010e",
+  "main_head": "1500b52634525cbea82846a0b86a1cdbe5172943",
+  "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+  "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+  "command": [
+    "node",
+    "tools/handoff.mjs",
+    "--check"
+  ],
+  "exit_code": 1,
+  "total_errors": 1144,
+  "current_245_250_errors": [],
+  "raw_sha256": "0652fc959ad13e5a184b71ba3f3b4ebe5b7fd690edba75eb257774cf3d24a558",
+  "historical_examples": [
+    {
+      "id": "B0",
+      "reason": "baseline must identify an existing complete commit."
+    },
+    {
+      "id": "B0",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/B0/20261022T141438Z-245fbe4c/result.json"
+    },
+    {
+      "id": "B0",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/B0/20261022T162636Z-530fb128/result.json"
+    },
+    {
+      "id": "B0",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/round03-protocol-B0.json"
+    },
+    {
+      "id": "T01",
+      "reason": "Evidence is missing, empty, or uncommitted: evidence/T01/20261022T141443Z-6f935e0b/result.json"
+    }
+  ],
+  "interpretation": "Historical baseline errors remain external to 246; authority and current 245–250 error subset recorded separately"
+}

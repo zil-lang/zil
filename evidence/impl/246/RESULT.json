@@ -1,0 +1,132 @@
+{
+  "task": "246",
+  "author": "/root/callback_frontend",
+  "status": "ReadyForIndependentReview",
+  "tested_source_commit": "b888bc853c6acef5ac5559850a9ca86f329c13ef",
+  "metadata_merge_commit": "25382eb9ad6744aef125cd89d52b0cc6e803010e",
+  "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+  "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+  "source_reuse": {
+    "command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "b888bc853c6acef5ac5559850a9ca86f329c13ef",
+      "HEAD",
+      "--",
+      "crates/zil-expand",
+      "crates/zil-types",
+      "crates/zil-driver/tests/impl246_front.rs",
+      "crates/zil-driver/tests/impl246_fixtures"
+    ],
+    "exit_code": 0,
+    "reason": "Only root-approved archive/fee metadata merged after tests; source and tests byte-identical"
+  },
+  "inputs_sha256": {
+    "crates/zil-driver/tests/impl246_fixtures/copy_enum_helper.zil": "90c3c8f22ea7b635e6af18637e552f8027b1266dbac09d1073cb17b139e2cf90",
+    "crates/zil-driver/tests/impl246_fixtures/event_copy_result.zil": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+    "crates/zil-driver/tests/impl246_fixtures/event_reply.zil": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+    "crates/zil-driver/tests/impl246_fixtures/owned_result.zil": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+    "crates/zil-driver/tests/impl246_front.rs": "dee5835bc335498d5cab74ab4370c0b590d029dd123007f57e414b16574fcf8e",
+    "crates/zil-expand/src/generic_check.rs": "616b49c82027e6e0e91613b00a38a6f0a0fa43d843c26cbf502ee58270a51db4",
+    "crates/zil-types/src/closures.rs": "834627fe602b7db0ec903626735a77a23cb2747c8f1c688d1232b27b55cf092e",
+    "crates/zil-types/src/helpers.rs": "f8c92f208d5ecc525f87c47a259c8b9e38d3b17831b25f1e891e70a6fabc1670",
+    "crates/zil-types/src/inference.rs": "41597cb1ad88289d7d2e807bd57d7bbe134d84b221301c0a4cc1ba3ea45ce482",
+    "crates/zil-types/src/lib.rs": "f98b7ce9684ae9a773c5a5fb55c10516c44e05bbf80b6ee2d0fc44dbb061c247"
+  },
+  "originals": [
+    {
+      "planning_source": "evidence/planning/owned-callback-finalR/event-reply/source.zil",
+      "test_source": "crates/zil-driver/tests/impl246_fixtures/event_reply.zil",
+      "source_sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+      "original_rejection": "evidence/planning/owned-callback-finalR/event-reply/stdout.json",
+      "now": "Success at source-to-Types; unchanged bytes"
+    },
+    {
+      "planning_source": "evidence/planning/owned-callback-finalR/event-copy-result/source.zil",
+      "test_source": "crates/zil-driver/tests/impl246_fixtures/event_copy_result.zil",
+      "source_sha256": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+      "original_rejection": "evidence/planning/owned-callback-finalR/event-copy-result/stdout.json",
+      "now": "Success at source-to-Types; unchanged bytes"
+    },
+    {
+      "planning_source": "evidence/planning/owned-callback-finalR/owned-result/source.zil",
+      "test_source": "crates/zil-driver/tests/impl246_fixtures/owned_result.zil",
+      "source_sha256": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+      "original_rejection": "evidence/planning/owned-callback-finalR/owned-result/stdout.json",
+      "now": "Success at source-to-Types; unchanged bytes"
+    }
+  ],
+  "evidence": {
+    "final_tests": "evidence/impl/246/final-tests.json",
+    "final_test_log": "evidence/impl/246/final-tests.log",
+    "clippy": "evidence/impl/246/clippy.json",
+    "budget_comparison": "evidence/impl/246/budget-comparison.json",
+    "handoff": "evidence/impl/246/handoff-check.json"
+  },
+  "actual_final_commands": {
+    "cargo_test_invocations": 1,
+    "selected_test_binaries": 7,
+    "executed_tests": 75,
+    "passed": 75,
+    "failed": 0,
+    "ignored": 0,
+    "clippy_invocations": 1,
+    "standalone_budget_compilations": 2,
+    "standalone_budget_executions": 2,
+    "handoff_invocations": 1
+  },
+  "development_cargo_test_history": {
+    "invocations_including_final": 13,
+    "nonpassing_invocations": 3,
+    "note": "Two test-failure invocations and one fixture API compile error; repeated runs are not added to final coverage. Earlier tool-output diagnostics summarized in development-failures.json."
+  },
+  "budgets": {
+    "owned_dispatch": {
+      "types": 1497,
+      "expand": 1124,
+      "n_minus_1": "ResourceLimit",
+      "fresh_n": "identical"
+    },
+    "old_scalar_copy_helper": {
+      "expand": 489,
+      "types": 420,
+      "unchanged": true
+    },
+    "old_copy_enum_plus_t_helper": {
+      "baseline_expand": 649,
+      "candidate_expand": 665,
+      "types": 610,
+      "registration": "changes/246-250-owned-callback.md root fee registration; mandatory definition-time proof, no refund/default increase"
+    },
+    "old_flat": {
+      "types": 418,
+      "analyze": 8673,
+      "unchanged": true
+    },
+    "old_nested_sum_types": 5594
+  },
+  "toolchain": {
+    "rustc_vv": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+    "build_environment": {
+      "CARGO_TARGET_DIR": "/workspace/.zil-env/target-246",
+      "CARGO_BUILD_JOBS": "2",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "CARGO_INCREMENTAL": "0",
+      "network": "offline --locked"
+    }
+  },
+  "scope": {
+    "proven": "Author source-to-Types, raw Core signature rejection, preparation cleanup IR, affected legacy profiles, exact bounded costs",
+    "new_callback_native_runs_by_this_slice": 0,
+    "independent_kernel_wire_native": "Owned by 247/248/249/250; not claimed by this receipt",
+    "formal_full_suite": "NotRun by implementer",
+    "main_merge_push": "Not performed"
+  },
+  "limitations": [
+    "Historical handoff errors remain outside 246; current 245–250 subset recorded separately",
+    "No Rust runtime/RSS/compile-speed or full-language/product-gate comparison"
+  ]
+}
