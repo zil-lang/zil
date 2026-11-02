@@ -1,0 +1,9 @@
+{
+  "base": "ac178ba73",
+  "patch": "old-position-loan.patch.gz",
+  "patch_sha256": "ea60bd84fde5b75c26a8a7e0adef9d287597df7a0ec6eabd25fe95d238241ce5",
+  "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-253 CARGO_BUILD_JOBS=2 cargo test -p zil-analyze --offline --locked --lib moving_a_returned_callable -- --nocapture",
+  "exit_code": 101,
+  "actual": "positive control accepted; invalid old-position borrow after F move also accepted; test assertion failed",
+  "log": "old-position-loan.log"
+}

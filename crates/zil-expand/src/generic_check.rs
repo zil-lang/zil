@@ -868,6 +868,17 @@ impl Check<'_, '_, '_> {
         let fresh = owns && self.fresh_store_expression(expression, state)?;
         let expected = self.result.clone();
         let actual = self.expr(expression, state, Some(&expected), false)?;
+        if self
+            .callable
+            .as_ref()
+            .is_some_and(|bounds| bounds.forwarded)
+            && callable::opaque_signature(&actual).is_some()
+        {
+            return Err(error(
+                expression.span,
+                "callable forwarding must return the actual input instance, not a fresh factory environment",
+            ));
+        }
         if self.factory_scopes.is_empty()
             && self
                 .callable
@@ -2528,6 +2539,23 @@ impl Check<'_, '_, '_> {
                         };
                         found.insert(param.name.clone(), ty.clone());
                     }
+                }
+                if self.callable.as_ref().is_some_and(|bounds| {
+                    bounds.forwarded
+                        && expected.is_some_and(|ty| {
+                            bounds.single_generic().is_some_and(|name| {
+                                callable::parameter_mode(ty, name) == Some(None)
+                            })
+                        })
+                }) && function
+                    .return_type
+                    .as_ref()
+                    .is_some_and(|ty| callable::opaque_signature(ty).is_some())
+                {
+                    return Err(error(
+                        e.span,
+                        "callable forwarding must return the actual input instance, not a fresh factory environment",
+                    ));
                 }
                 if let (Some(result), Some(expected)) = (&function.return_type, expected)
                     && !self.callable.as_ref().is_some_and(|bounds| {

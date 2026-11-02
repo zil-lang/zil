@@ -108,27 +108,11 @@ fn address_signature_and_independent_store_and_union_companions_are_closed_data(
     );
 }
 
-#[test]
-fn frozen_three_module_consumer_reaches_types() {
+fn checked_project(main: &str, model: &str, relay: &str) -> TypedProgram {
     let sources = [
-        SourceUnit::new(
-            FileId(0),
-            ModuleId(0),
-            "main.zil",
-            include_str!("../../../tests/impl256/frozen-prep/project/main.zil"),
-        ),
-        SourceUnit::new(
-            FileId(1),
-            ModuleId(1),
-            "model.zil",
-            include_str!("../../../tests/impl256/frozen-prep/project/model.zil"),
-        ),
-        SourceUnit::new(
-            FileId(2),
-            ModuleId(2),
-            "relay.zil",
-            include_str!("../../../tests/impl256/frozen-prep/project/relay.zil"),
-        ),
+        SourceUnit::new(FileId(0), ModuleId(0), "main.zil", main),
+        SourceUnit::new(FileId(1), ModuleId(1), "model.zil", model),
+        SourceUnit::new(FileId(2), ModuleId(2), "relay.zil", relay),
     ];
     let ast = sources
         .iter()
@@ -158,5 +142,104 @@ fn frozen_three_module_consumer_reaches_types() {
         source_fingerprint: modules[0].core.source_fingerprint,
         modules,
     };
-    zil_types::check_program(&program, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
+    zil_types::check_program(&program, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
+}
+
+#[test]
+fn frozen_three_module_consumer_reaches_types() {
+    checked_project(
+        include_str!("../../../tests/impl256/frozen-prep/project/main.zil"),
+        include_str!("../../../tests/impl256/frozen-prep/project/model.zil"),
+        include_str!("../../../tests/impl256/frozen-prep/project/relay.zil"),
+    );
+}
+#[test]
+fn owning_environment_loop_uses_a_real_slot_and_keeps_parameter_origin() {
+    let module = checked_project(
+        include_str!("../../../tests/impl256/extended/main.zil"),
+        include_str!("../../../tests/impl256/extended/model.zil"),
+        include_str!("../../../tests/impl256/extended/relay.zil"),
+    )
+    .module;
+    assert!(module.functions.iter().any(|f| {
+        f.callable_return_contract
+            .as_ref()
+            .is_some_and(|c| matches!(c.source, CallableReturnSource::Parameter(_)))
+            && f.blocks.iter().flat_map(|b| &b.instructions).any(|i| {
+                matches!(
+                    i.kind,
+                    InstructionKind::TakeOwnedArrayElement { index: 0, .. }
+                )
+            })
+    }));
+}
+#[test]
+fn frozen_same_type_fresh_factory_returns_are_real_safe_rejections() {
+    for text in [
+        include_str!(
+            "../../../tests/impl256/frozen-prep/negative/same_closure_id_different_instance.zil"
+        ),
+        include_str!(
+            "../../../tests/impl256/frozen-prep/negative/same_closure_id_wrong_branch.zil"
+        ),
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "fresh252.zil", text);
+        let ast = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &ast).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == zil_base::ResultCategory::SafeReject
+                    && d.message.contains("actual input instance")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn raw_unused_parameter_definition_checks_mutable_position_before_any_instance() {
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "raw252.zil",
+        "fn keep<F:FnMut(i32)->i32>(f:F)->F{return f}fn main(){}",
+    );
+    let ast = zil_syntax::parse(&source).into_result().unwrap();
+    let mut core = zil_expand::expand(&source, &ast).unwrap();
+    let function = core
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "keep")
+        .unwrap();
+    let span = function.span;
+    let callee = CoreExpr {
+        id: zil_base::NodeId(900),
+        span,
+        kind: CoreExprKind::Name("f".into()),
+    };
+    let value = CoreExpr {
+        id: zil_base::NodeId(901),
+        span,
+        kind: CoreExprKind::Integer("1".into()),
+    };
+    let call = CoreExpr {
+        id: zil_base::NodeId(902),
+        span,
+        kind: CoreExprKind::Call {
+            callee: Box::new(callee),
+            arguments: vec![value],
+        },
+    };
+    function.body.statements.insert(
+        0,
+        CoreStatement {
+            id: zil_base::NodeId(903),
+            span,
+            kind: CoreStatementKind::Expression(call),
+        },
+    );
+    assert!(
+        zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).is_err(),
+        "unused raw FnMut called through immutable F parameter"
+    );
 }
