@@ -322,7 +322,7 @@ fn rejection(entry: &str) -> (Phase, &'static str, &'static [&'static str]) {
         "neg_duplicate_owned_input_main.zil" => {
             (Phase::Analyze, "E-UNINITIALIZED", &["not initialized"])
         }
-        "neg_runtime_read_in_ct_main.zil" => (Phase::Ct, "E-CT-SOURCE", &["runtime"]),
+        "neg_runtime_read_in_ct_main.zil" => (Phase::Ct, "E-CT-RUNTIME", &["runtime binding"]),
         "neg_unknown_provider_export_main.zil" => (Phase::Expand, "E-SYNTAX-LOCK-ENTRY", &[]),
         "neg_member_owner_main.zil" => (
             Phase::Types,
