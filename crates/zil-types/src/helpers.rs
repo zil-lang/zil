@@ -10,6 +10,10 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 use zil_base::{ModuleId, NodeId};
 
+#[cfg(test)]
+#[path = "helper_capture_tests.rs"]
+mod capture_tests;
+
 pub(super) type TemplateKey = (ModuleId, NodeId);
 pub(super) type Tables = BTreeMap<ModuleId, BTreeMap<String, Signature>>;
 /// The finite two-type profile uses a fixed ordered binding vector. Empty
@@ -1209,11 +1213,13 @@ fn environment_origins(
             }
             values[result.0 as usize] = match &instruction.kind {
                 InstructionKind::MakeClosure { .. } => {
+                    // With body provenance does not grant permission to hide
+                    // either supplied role inside a local environment.
+                    state.snapshot(1, instruction.span)?;
+                    concrete_captures.push(instruction);
                     if scoped_bodies.as_ref().unwrap().contains(&result) {
                         16
                     } else {
-                        state.snapshot(1, instruction.span)?;
-                        concrete_captures.push(instruction);
                         32
                     }
                 }
