@@ -286,6 +286,173 @@ fn internal_slot_rejects_fresh_substitution_and_repeated_take() {
     };
     *index = 1;
     wrong_index.reject("index");
+
+    let mut wrong_slot = slot_fixture();
+    let function = &mut wrong_slot.module.functions[0];
+    function.locals.push(LocalDecl {
+        id: LocalId(2),
+        name: "other_slot".into(),
+        ty: slot_type(),
+        mutable: true,
+        span: span(),
+    });
+    function.values.extend([Type::I32, env(), slot_type()]);
+    let first_store = function.blocks[0]
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.kind,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    function.blocks[0].instructions.splice(
+        first_store + 1..first_store + 1,
+        [
+            op(None, InstructionKind::StorageLive(LocalId(2))),
+            op(
+                Some(ValueId(5)),
+                InstructionKind::Constant(Constant::I32(4)),
+            ),
+            op(
+                Some(ValueId(6)),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![ValueId(5)],
+                },
+            ),
+            op(
+                Some(ValueId(7)),
+                InstructionKind::MakeOwnedArray {
+                    elements: vec![ValueId(6)],
+                },
+            ),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(2),
+                    value: ValueId(7),
+                },
+            ),
+        ],
+    );
+    let last_take = function.blocks[0]
+        .instructions
+        .iter_mut()
+        .rev()
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                InstructionKind::TakeOwnedArrayElement { .. }
+            )
+        })
+        .unwrap();
+    let InstructionKind::TakeOwnedArrayElement { local, .. } = &mut last_take.kind else {
+        unreachable!()
+    };
+    *local = LocalId(2);
+    let drop_other = function.blocks[0]
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(instruction.kind, InstructionKind::StorageDead(LocalId(1)))
+        })
+        .unwrap();
+    function.blocks[0].instructions.splice(
+        drop_other..drop_other,
+        [
+            op(None, InstructionKind::DropOwnedArray { local: LocalId(2) }),
+            op(None, InstructionKind::StorageDead(LocalId(2))),
+        ],
+    );
+    wrong_slot.reject("instance");
+}
+
+#[test]
+fn internal_slot_take_invalidates_its_prior_borrowed_callable_address() {
+    let mut raw = keep(CallableKind::FnMut, CallableKind::FnMut);
+    let function = &mut raw.module.functions[0];
+    function.locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "slot".into(),
+        ty: slot_type(),
+        mutable: true,
+        span: span(),
+    });
+    function.values = vec![env(), slot_type(), address(env(), true), Type::I32, env()];
+    function.blocks[0].instructions = vec![
+        op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        op(None, InstructionKind::StorageLive(LocalId(1))),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::TakeLocal { local: LocalId(0) },
+        ),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::MakeOwnedArray {
+                elements: vec![ValueId(0)],
+            },
+        ),
+        op(
+            None,
+            InstructionKind::Store {
+                local: LocalId(1),
+                value: ValueId(1),
+            },
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::BorrowOwnedArrayElement {
+                local: LocalId(1),
+                index: 0,
+                mutable: true,
+            },
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::CallClosureBorrowed {
+                callee: ValueId(2),
+                kind: CallableKind::FnMut,
+                arguments: vec![],
+            },
+        ),
+        op(
+            Some(ValueId(4)),
+            InstructionKind::TakeOwnedArrayElement {
+                local: LocalId(1),
+                index: 0,
+            },
+        ),
+        op(None, InstructionKind::DropOwnedArray { local: LocalId(1) }),
+        op(None, InstructionKind::StorageDead(LocalId(1))),
+        op(None, InstructionKind::StorageDead(LocalId(0))),
+        op(
+            None,
+            InstructionKind::ScopeExit {
+                scope: ScopeId(0),
+                kind: CleanupExitKind::Return,
+            },
+        ),
+    ];
+    function.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+    function.callable_contract.as_mut().unwrap().traces =
+        CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnMut,
+            }],
+            exit: CallableExit::Return,
+        }]);
+    raw.holds.insert((0, 2), vec![HoldRoot::Local(LocalId(1))]);
+    raw.accept();
+
+    let mut stale = raw.clone();
+    stale.module.functions[0].blocks[0].instructions.swap(6, 7);
+    stale.reject("BORROW-CONFLICT");
 }
 
 #[test]
@@ -340,6 +507,48 @@ fn fnmut_call_preserves_instance_but_fnonce_call_consumes_it() {
     ];
     function.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
     consumed.reject("initialization");
+}
+
+#[test]
+fn moved_f_cannot_leave_a_borrow_of_its_old_position_callable() {
+    let mut raw = keep(CallableKind::FnMut, CallableKind::FnMut);
+    raw.module.resources.clear();
+    let function = &mut raw.module.functions[0];
+    function.locals[0].mutable = true;
+    function.values = vec![address(env(), true), Type::I32, env()];
+    function.blocks[0].instructions = vec![
+        op(
+            Some(ValueId(0)),
+            InstructionKind::BorrowLocalMut { local: LocalId(0) },
+        ),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::CallClosureBorrowed {
+                callee: ValueId(0),
+                kind: CallableKind::FnMut,
+                arguments: vec![],
+            },
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::TakeLocal { local: LocalId(0) },
+        ),
+    ];
+    function.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+    function.callable_contract.as_mut().unwrap().traces =
+        CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnMut,
+            }],
+            exit: CallableExit::Return,
+        }]);
+    raw.holds.insert((0, 0), vec![HoldRoot::Local(LocalId(0))]);
+    raw.accept();
+
+    let mut stale = raw.clone();
+    stale.module.functions[0].blocks[0].instructions.swap(1, 2);
+    stale.reject("BORROW-CONFLICT");
 }
 
 #[test]
