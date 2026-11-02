@@ -1472,9 +1472,11 @@ fn product_may_store_write(
                         _ => &[],
                     };
                     budget.spend(uncertain.len(), "Product callable unknown arguments")?;
-                    effect |= uncertain
-                        .iter()
-                        .any(|value| dynamic_store::is_carrier(&function.values[value.0 as usize]));
+                    for value in uncertain {
+                        let ty = &function.values[value.0 as usize];
+                        effect |= dynamic_store::is_carrier(ty)
+                            || product_owned_store_dependency(ty, store_closures, budget)?;
+                    }
                     let target = match instruction.kind {
                         InstructionKind::CallClosureShared { callee, .. }
                         | InstructionKind::CallClosureMut { callee, .. } => {
@@ -1908,11 +1910,14 @@ fn parameter_product_windows(
                     "Product unknown call Store operands",
                 )?;
                 for value in uncertain_arguments {
-                    if !dynamic_store::is_carrier(&f.values[value.0 as usize]) {
+                    let ty = &f.values[value.0 as usize];
+                    let owned = product_owned_store_dependency(ty, &store_closures, budget)?;
+                    if !dynamic_store::is_carrier(ty) && !owned {
                         continue;
                     }
                     let actual_roots = roots(index, *value)?;
-                    unknown_effects[index] |= actual_roots.is_empty();
+                    unknown_effects[index] |=
+                        actual_roots.is_empty() || (owned && !owned_known[index][value.0 as usize]);
                     for root in actual_roots {
                         budget.spend(1, "Product unknown call Store origin")?;
                         unknown_effects[index] |= matches!(root.position(), Root::Capture(_));
@@ -2725,6 +2730,31 @@ mod product_parameter_dependency_tests {
         assert_eq!(
             product_may_store_write(&module, &[], &mut Budget::new(&limits)).unwrap(),
             vec![true, true]
+        );
+        module.functions[0].values.push(Type::Package {
+            name: "Owner".into(),
+            fields: vec![(
+                "items".into(),
+                Type::Managed(Box::new(Type::OwnedStore {
+                    element: Box::new(Type::I32),
+                })),
+            )],
+        });
+        module.functions[0].blocks[0].instructions[0].kind = InstructionKind::CallIndirect {
+            callee: ValueId(1),
+            arguments: vec![ValueId(2)],
+        };
+        assert_eq!(
+            product_may_store_write(&module, &[], &mut Budget::new(&limits)).unwrap(),
+            vec![true, true]
+        );
+        module.functions[0].blocks[0].instructions[0].kind = InstructionKind::CallIndirect {
+            callee: ValueId(1),
+            arguments: vec![ValueId(1)],
+        };
+        assert_eq!(
+            product_may_store_write(&module, &[], &mut Budget::new(&limits)).unwrap(),
+            vec![false, false]
         );
     }
 }
