@@ -101,7 +101,7 @@ fn copied(state: &State, place: Place, budget: &mut Budget) -> CompileResult<Fac
     let fact = state
         .cells
         .get(&place)
-        .ok_or_else(|| error("missing typed resource cell"))?;
+        .ok_or_else(|| error(&format!("missing typed resource cell {place:?}")))?;
     fact_cost(fact, budget)?;
     Ok(fact.clone())
 }
@@ -2414,6 +2414,26 @@ impl Flow<'_> {
                     }
                     if let InstructionKind::CallClosureOnce { callee, .. } = i.kind {
                         self.consume(state, callee, check, budget)?;
+                    }
+                    if budget.owned_callbacks.contains(id) {
+                        let arguments = match &i.kind {
+                            InstructionKind::CallClosure { arguments, .. }
+                            | InstructionKind::CallClosureShared { arguments, .. }
+                            | InstructionKind::CallClosureMut { arguments, .. }
+                            | InstructionKind::CallClosureOnce { arguments, .. }
+                            | InstructionKind::CallClosureBorrowed { arguments, .. } => arguments,
+                            _ => unreachable!(),
+                        };
+                        for value in arguments {
+                            self.consume(state, *value, check, budget)?;
+                        }
+                        if out_shape.is_some_and(|s| s.owned) {
+                            produced = Some(Fact {
+                                life: BTreeSet::from([Life::Available]),
+                                sources: BTreeSet::new(),
+                                birth: BTreeSet::from([Birth::Incoming]),
+                            });
+                        }
                     }
                 }
                 _ => {}
