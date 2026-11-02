@@ -393,6 +393,38 @@ fn supplement_ordinary_private_slot_without_forwarding_native() {
 fn supplement_mixed_instance_choice_before_forwarding_native() {
     native_matrix("mixed_main", "supplement:mixed:normal");
 }
+#[test]
+fn supplement_source_projects_reach_verify() {
+    let mut failures = Vec::new();
+    for (entry, selection) in [
+        ("ordinary_main", "supplement:ordinary:normal"),
+        ("mixed_main", "supplement:mixed:normal"),
+    ] {
+        let (project, _) = matrix_inputs(entry, selection);
+        let out = directory(&format!("supplement-{entry}-verify"));
+        for module in &project.modules {
+            fs::write(
+                out.join(format!("module{}.zil", module.module_id.0)),
+                &module.text,
+            )
+            .unwrap();
+        }
+        let report = compile_project(
+            &project,
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                emit_dir: Some(out.join("phases")),
+                ..CompileOptions::default()
+            },
+        );
+        fs::write(out.join("report.json"), report.to_json()).unwrap();
+        assert!(!report.artifacts.contains_key("executable"));
+        if report.status != ResultCategory::Success || report.verification_runs != 1 {
+            failures.push(format!("{entry}: {}", report.to_json()));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
 fn native_matrix(entry: &str, selection: &str) {
     let (p, expected) = matrix_inputs(entry, selection);
     for optimization in [Optimization::O0, Optimization::O2] {
