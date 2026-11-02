@@ -323,6 +323,27 @@ fn owned_callback_signature_does_not_extend_state_array_store_or_opaque_factory(
     let mut raw = dispatch();
     raw.module.functions[2].locals.push(LocalDecl {
         id: LocalId(0),
+        name: "public_array".into(),
+        ty: Type::Array {
+            element: Box::new(env()),
+            length: 1,
+        },
+        mutable: false,
+        span: span(),
+    });
+    raw.module.functions[2].parameters.push(LocalId(0));
+    raw.reject("container and opaque callback profiles do not admit owning data signatures");
+
+    let mut raw = dispatch();
+    raw.module.functions[2].return_type = Type::Array {
+        element: Box::new(env()),
+        length: 1,
+    };
+    raw.reject("container and opaque callback profiles do not admit owning data signatures");
+
+    let mut raw = dispatch();
+    raw.module.functions[2].locals.push(LocalDecl {
+        id: LocalId(0),
         name: "unused_array".into(),
         ty: Type::Array {
             element: Box::new(env()),

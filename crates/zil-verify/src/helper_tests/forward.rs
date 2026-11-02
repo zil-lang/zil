@@ -114,6 +114,51 @@ fn raw_companion_cannot_hide_f_or_an_external_address() {
     }
 }
 
+#[test]
+fn symbolic_f_cannot_enter_state_and_also_return_the_same_ssa() {
+    let mut raw = keep(CallableKind::Fn, CallableKind::FnOnce);
+    let token = owned();
+    let state = Type::Package {
+        name: "State".into(),
+        fields: vec![("token".into(), token.clone()), ("callback".into(), env())],
+    };
+    let function = &mut raw.module.functions[0];
+    function.values = vec![env(), Type::I32, token, state];
+    function.blocks[0].instructions = vec![
+        op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::TakeLocal { local: LocalId(0) },
+        ),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::Constant(Constant::I32(3)),
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::MakeManaged {
+                fields: vec![ValueId(1)],
+            },
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::MakePackage {
+                fields: vec![ValueId(2), ValueId(0)],
+            },
+        ),
+        op(None, InstructionKind::StorageDead(LocalId(0))),
+        op(
+            None,
+            InstructionKind::ScopeExit {
+                scope: ScopeId(0),
+                kind: CleanupExitKind::Return,
+            },
+        ),
+    ];
+    function.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
+    raw.reject("unsupported value operation");
+}
+
 fn slot_type() -> Type {
     Type::Array {
         element: Box::new(env()),

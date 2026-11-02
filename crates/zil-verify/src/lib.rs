@@ -604,6 +604,7 @@ fn check_module(
             ));
         }
         let graph = check_function(module, function, function_plan, &mut budget, limits)?;
+        resources::arrays::check_internal_slot_uses(module, function, &graph, &mut budget)?;
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
@@ -899,7 +900,7 @@ fn check_local_type(
             sums::check_type_for(module, ty, span, budget)
         }
         ty if resources::arrays::is_owned_type(ty) => {
-            resources::arrays::check_type_for(module, ty, span, budget)
+            resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget)
         }
         _ => check_type(ty, span),
     }
