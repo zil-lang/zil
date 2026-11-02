@@ -175,12 +175,16 @@ impl<'a> Environment<'a> {
         render::parse(tree, span.file, module, &aliases, &self.limits, &mut self.budget)
     }
 
-    pub(super) fn type_syntax(&mut self, ty: CtTypeRef) -> CompileResult<CtSyntaxTree> {
+    pub(super) fn type_syntax(&mut self, ty: &CtTypeRef) -> CompileResult<CtSyntaxTree> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView { index: &self.index, sources: self.sources, syntax: &syntax,
             shape: self.shape.as_ref(), shape_failure: self.shape_failure.as_deref(), input: None,
             limits: &self.limits, target: self.target, snapshot: &self.snapshot };
-        reader.build_syntax(CtSyntaxBuilder::TypeRef, &[CtValue::Type(ty)], &mut self.budget)
+        let clone_charge = (ty.nodes.len() as u64).saturating_mul(96);
+        self.budget.reserve_temporary_bytes(clone_charge)?;
+        let result = reader.build_syntax(CtSyntaxBuilder::TypeRef, &[CtValue::Type(ty.clone())], &mut self.budget);
+        self.budget.release_temporary_bytes(clone_charge);
+        result
     }
 }
 

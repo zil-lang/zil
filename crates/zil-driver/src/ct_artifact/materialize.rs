@@ -168,6 +168,13 @@ impl Materializer<'_, '_> {
     fn parsed(&mut self, value: CtValue, expected: CtSyntaxCategory, span: Span) -> CompileResult<GeneratedSyntax> {
         let CtValue::Syntax(mut tree) = value else { return Err(category("compile-time result is not Syntax", span)); };
         if tree.category != expected { return Err(category("Syntax category differs from the receiving slot", span)); }
+        let retained_bytes = 16u64.saturating_add((tree.nodes.len() as u64).saturating_mul(80))
+            .saturating_add((tree.origins.len() as u64).saturating_mul(32))
+            .saturating_add(tree.nodes.iter().fold(0u64, |total, node| match node {
+                CtSyntaxNode::Token(token) => total.saturating_add(token.text.len() as u64),
+                _ => total,
+            }));
+        let mut renamed_bytes = 0u64;
         let caller = self.sources.iter().find(|source| source.file_id == span.file)
             .map(|source| source.module_id).ok_or_else(|| category("generated caller module is absent", span))?;
         let mut sequences = vec![tree.roots.clone()];
@@ -197,6 +204,7 @@ impl Materializer<'_, '_> {
             let symbol = self.environment.index.symbol_at(self.sources[provider_index].module_id, import_span)
                 .ok_or_else(|| category("definition-site module import has no frozen symbol", span))?;
             self.environment.budget.reserve_temporary_bytes(alias.len() as u64)?;
+            renamed_bytes = renamed_bytes.saturating_add(alias.len() as u64);
             if let Some(CtSyntaxNode::Token(token)) = tree.nodes.get_mut(site.0 as usize) {
                 token.text = alias.clone();
                 token.name = Some(CtIdent { text: alias.clone(), namespace: CtNameNamespace::Module,
@@ -213,6 +221,7 @@ impl Materializer<'_, '_> {
         let limits = self.environment.remaining_limits_for_input();
         let work = zil_expand::remap_generated_spans(&mut syntax, span, &limits)?;
         self.environment.budget.reserve_analysis_work(work as u64)?;
+        self.environment.budget.release_temporary_bytes(retained_bytes.saturating_add(renamed_bytes));
         self.previews.push(Preview { invocation: span, category: expected, text: rendered.source.text,
             tokens: rendered.tokens, origins: tree.origins });
         Ok(syntax)
@@ -353,7 +362,8 @@ impl Materializer<'_, '_> {
                 self.reject_alias_cycle(owner, expression)?;
                 let value = self.expression_value(module, owner, expression, Some(CtTy::Type))?;
                 let CtValue::Type(value) = value else { return Err(category("type #(...) needs Type value", ty.span)); };
-                let syntax = self.environment.type_syntax(value)?;
+                let syntax = self.environment.type_syntax(&value)?;
+                self.environment.budget.release_value(&CtValue::Type(value));
                 let GeneratedSyntax::Type(replacement) = self.parsed(CtValue::Syntax(syntax), CtSyntaxCategory::Type, ty.span)? else { return Err(category("Type value did not reify to Type syntax", ty.span)); };
                 *ty = replacement;
             }
@@ -393,6 +403,7 @@ impl Materializer<'_, '_> {
                     zil_ir::Constant::Unit => s::ExprKind::Tuple(Vec::new()),
                     _ => return Err(runtime("CT result has no ordinary scalar literal", expression.span)),
                 };
+                self.environment.budget.release_temporary_bytes(16);
             }
             s::ExprKind::MetaBlock(_) => {},
             s::ExprKind::Group(e) | s::ExprKind::Try(e) | s::ExprKind::Unary { operand: e, .. } => self.expr(module, e, owner, depth + 1)?,
