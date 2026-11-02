@@ -1464,7 +1464,7 @@ mod tests {
                 max_temporary_bytes: 1024,
                 max_generated_nodes: 100,
                 max_instances: 10,
-                max_analysis_work: 100,
+                max_analysis_work: 1000,
             },
         }
     }

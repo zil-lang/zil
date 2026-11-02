@@ -319,7 +319,7 @@ impl MoveWalk<'_, '_> {
                     Vec::new()
                 }
             }
-            CoreExprKind::Member { object, member } if projection => {
+            CoreExprKind::Member { object, member, .. } if projection => {
                 let Shape::Address(base) = self.shape(object)? else {
                     unreachable!()
                 };
@@ -466,7 +466,7 @@ impl MoveWalk<'_, '_> {
                 }
                 found
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 let base = self.position(object, depth + 1)?;
                 let shape = self.shape(object)?;
                 let shape = if let Shape::Address(inner) = &shape {
@@ -1670,7 +1670,7 @@ impl Walk<'_, '_> {
                     table.get(name)
                 }
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 if let CoreExprKind::Name(alias) = &object.kind {
                     self.state.snapshot(
                         alias
@@ -1950,7 +1950,7 @@ impl Walk<'_, '_> {
                 }
                 shape
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member { object, member, .. } => {
                 let base = self.expr(object, depth + 1)?;
                 let base = if let Shape::Address(inner) = &base {
                     inner.as_ref()

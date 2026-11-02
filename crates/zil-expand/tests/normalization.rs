@@ -50,10 +50,16 @@ fn initializer<'a>(function: &'a CoreFunction, name: &str) -> &'a CoreExpr {
         .expect("binding initializer")
 }
 fn self_field(value: &CoreExpr, field: &str) {
-    let CoreExprKind::Member { object, member } = &value.kind else {
+    let CoreExprKind::Member {
+        object,
+        member,
+        owner,
+    } = &value.kind
+    else {
         panic!("member: {value:?}");
     };
     assert_eq!(member, field);
+    assert_eq!(owner, &None);
     assert!(matches!(&object.kind, CoreExprKind::Name(name) if name == "self"));
 }
 

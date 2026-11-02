@@ -625,8 +625,13 @@ impl<'a> Budget<'a> {
             }
             ExprKind::Member { object, member } => {
                 self.expr(object, depth + 1, subs)?;
-                if let MemberName::Name(s) = member {
-                    self.text(s, e.span)?;
+                match member {
+                    MemberName::Name(name) => self.text(name, e.span)?,
+                    MemberName::Constrained { name, owner } => {
+                        self.text(name, e.span)?;
+                        self.ty_at(owner, depth + 1, subs)?;
+                    }
+                    MemberName::TupleIndex(_) => {}
                 }
             }
             ExprKind::TypeApply { callee, arguments } => {

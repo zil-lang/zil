@@ -921,7 +921,7 @@ impl Check<'_, '_, '_> {
             ExprKind::Group(inner) => self.store_origins(inner, state),
             ExprKind::Member {
                 object,
-                member: MemberName::Name(member),
+                member: MemberName::Name(member) | MemberName::Constrained { name: member, .. },
             } => {
                 if let Some(owner) = self.package_local(object, state) {
                     let slot = self.field_slot(owner, member, expression.span)?;
@@ -975,7 +975,7 @@ impl Check<'_, '_, '_> {
     fn existing_field_slot(&mut self, expression: &Expr, state: &State) -> R<Option<usize>> {
         let ExprKind::Member {
             object,
-            member: MemberName::Name(member),
+            member: MemberName::Name(member) | MemberName::Constrained { name: member, .. },
         } = &expression.kind
         else {
             return Ok(None);
@@ -1045,7 +1045,7 @@ impl Check<'_, '_, '_> {
         }
         let ExprKind::Member {
             object,
-            member: MemberName::Name(member),
+            member: MemberName::Name(member) | MemberName::Constrained { name: member, .. },
         } = &operand.kind
         else {
             return Err(unsupported(
@@ -1369,7 +1369,8 @@ impl Check<'_, '_, '_> {
                     ) => fields.get(*index as usize),
                     (
                         ExprKind::Member {
-                            member: MemberName::Name(member),
+                            member:
+                                MemberName::Name(member) | MemberName::Constrained { name: member, .. },
                             ..
                         },
                         TypeKind::Named { path, args },
@@ -1418,7 +1419,7 @@ impl Check<'_, '_, '_> {
                 }
                 if let ExprKind::Member {
                     object,
-                    member: MemberName::Name(name),
+                    member: MemberName::Name(name) | MemberName::Constrained { name, .. },
                 } = &callee.kind
                 {
                     if name == "len"
@@ -2230,7 +2231,7 @@ impl Check<'_, '_, '_> {
                 }
                 if let ExprKind::Member {
                     object,
-                    member: MemberName::Name(name),
+                    member: MemberName::Name(name) | MemberName::Constrained { name, .. },
                 } = &callee.kind
                 {
                     if let Some(result) = self.state_field_call(callee, arguments, state)? {
@@ -2760,7 +2761,7 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Member {
                 object,
-                member: MemberName::Name(member),
+                member: MemberName::Name(member) | MemberName::Constrained { name: member, .. },
             } => {
                 let package = self.package_local(object, state);
                 // A known Address local is accessed, not consumed, to project a
@@ -2790,6 +2791,13 @@ impl Check<'_, '_, '_> {
                     TypeKind::Reference { inner, .. } => (group(inner), true),
                     _ => (group(&value), false),
                 };
+                if let ExprKind::Member {
+                    member: MemberName::Constrained { owner, .. },
+                    ..
+                } = &e.kind
+                {
+                    same(base, group(owner), e.span, self.budget)?;
+                }
                 let TypeKind::Named { path, args } = &base.kind else {
                     return Err(needs_bound());
                 };
@@ -2907,7 +2915,7 @@ impl Check<'_, '_, '_> {
         let dual = bounds.dual_names().is_some();
         let ExprKind::Member {
             object,
-            member: MemberName::Name(member),
+            member: MemberName::Name(member) | MemberName::Constrained { name: member, .. },
         } = &callee.kind
         else {
             return Ok(None);
@@ -3180,7 +3188,9 @@ impl Check<'_, '_, '_> {
                             )),
                             ExprKind::Member {
                                 object,
-                                member: MemberName::Name(member),
+                                member:
+                                    MemberName::Name(member)
+                                    | MemberName::Constrained { name: member, .. },
                             } => self
                                 .package_local(object, state)
                                 .map(|owner| self.field_slot(owner, member, target.span))

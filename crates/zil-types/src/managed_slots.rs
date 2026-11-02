@@ -225,6 +225,7 @@ impl Rewriter<'_> {
             e.kind = CoreExprKind::Member {
                 object: Box::new(e.clone()),
                 member: FIELD.into(),
+                owner: None,
             };
             return Ok(());
         }

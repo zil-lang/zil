@@ -904,6 +904,7 @@ fn unused_raw_template_metadata_cannot_borrow_another_binder_or_target() {
             };
             let kind = if attack == "unearned-field-in-unused-identity" {
                 CoreExprKind::Member {
+                    owner: None,
                     object: Box::new(value),
                     member: "secret".into(),
                 }

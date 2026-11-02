@@ -236,3 +236,81 @@ fn quote_receipt_exact_n_minus_one_and_fresh_limits() {
         println!("quote parser N={n}, N-1=ResourceLimit, fresh=N");
     }
 }
+#[test]
+fn unknown_island_keeps_raw_dollars_comments_delimiters_and_utf8() {
+    let raw = "{  $(unknown)\t/* 保留\r\n /* nested */ */ [\"$()\",{x}] }";
+    let text = format!("fn f(){{let value=missing.tokens!{raw}}}");
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "island.zil", &text);
+    let module = parse(&source).into_result().unwrap();
+    let ItemKind::Function(f) = &module.items[0].kind else {
+        panic!()
+    };
+    let FunctionBody::Block(b) = &f.body else {
+        panic!()
+    };
+    let StmtKind::Binding { value, .. } = &b.statements[0].kind else {
+        panic!()
+    };
+    let ExprKind::SyntaxIsland { tree, .. } = &value.kind else {
+        panic!()
+    };
+    assert_eq!(&text[tree.span.start..tree.span.end], raw);
+    let formatted = crate::format::format(&source).unwrap();
+    assert!(formatted.contains(raw));
+    assert!(
+        parse(&SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "formatted.zil",
+            formatted
+        ))
+        .is_ok()
+    );
+}
+#[test]
+fn standard_syntax_alias_can_be_shadowed_by_parameter_or_local_before_ct_checks() {
+    for (text, parameter) in [
+        (
+            "import std.syntax as syntax; fn bad(syntax:i32)->Syntax<Expr>{return syntax.literal(1)}",
+            true,
+        ),
+        (
+            "import std.syntax as syntax; fn bad()->Syntax<Expr>{let syntax=0;return syntax.literal(1)}",
+            false,
+        ),
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "shadow.zil", text);
+        let parsed = parse(&source).into_result().unwrap();
+        let ItemKind::Function(function) = &parsed.items[1].kind else {
+            panic!()
+        };
+        if parameter {
+            assert_eq!(function.params[0].name, "syntax");
+        }
+        let FunctionBody::Block(body) = &function.body else {
+            panic!()
+        };
+        if !parameter {
+            let StmtKind::Binding { pattern, .. } = &body.statements[0].kind else {
+                panic!()
+            };
+            assert_eq!(pattern.kind, PatternKind::Name("syntax".into()));
+        }
+        let StmtKind::Return(Some(Expr {
+            kind: ExprKind::Call { callee, .. },
+            ..
+        })) = &body.statements.last().unwrap().kind
+        else {
+            panic!()
+        };
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(member),
+        } = &callee.kind
+        else {
+            panic!()
+        };
+        assert_eq!(object.kind, ExprKind::Name("syntax".into()));
+        assert_eq!(member, "literal");
+    }
+}

@@ -99,6 +99,19 @@ impl SourceIndex {
         result
     }
 
+    pub(super) fn imported_module(&self, requester: ModuleId, alias: &str) -> Option<ModuleId> {
+        let index = self.module_ids.iter().position(|module| *module == requester)?;
+        self.imports[index].iter().find_map(|import| match &import.target {
+            ImportTarget::Module(target) if import.alias == alias => Some(*target),
+            _ => None,
+        })
+    }
+
+    pub(super) fn alias_taken(&self, requester: ModuleId, alias: &str) -> bool {
+        self.module_ids.iter().position(|module| *module == requester)
+            .is_some_and(|index| self.imports[index].iter().any(|import| import.alias == alias))
+    }
+
     pub(super) fn modules<'a>(&'a self, sources: &'a [SourceUnit], syntax: &'a [&s::Module]) -> Vec<SourceModule<'a>> {
         sources.iter().zip(syntax).enumerate().map(|(index, (source, module))| SourceModule { source, syntax: module, imports: &self.imports[index], symbols: &self.symbols[index] }).collect()
     }

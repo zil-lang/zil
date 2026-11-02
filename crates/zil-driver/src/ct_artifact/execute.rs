@@ -1,6 +1,6 @@
 //! One request ledger and frozen source authority for raw CT compilation,
 //! independent admission, and VM execution.
-use super::{authority::FrozenAuthority, compiler::{self, CompileRequest, Entry}, read_view::FrozenReadView, render::{self, ParsedSyntax}, snapshot::{self, ShapeSnapshot}, source_index::SourceIndex};
+use super::{authority::FrozenAuthority, compiler::{self, CompileRequest, Entry}, read_view::FrozenReadView, render::{self, ParsedSyntax}, snapshot::{self, ImplSnapshot, ShapeSnapshot}, source_index::SourceIndex};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Span, TargetProfile};
@@ -17,6 +17,7 @@ pub(super) struct Environment<'a> {
     parsed: &'a [Arc<ParseResult>],
     pub index: SourceIndex,
     pub shape: Option<ShapeSnapshot>,
+    pub impl_index: Option<ImplSnapshot>,
     shape_failure: Option<Vec<Diagnostic>>,
     snapshot: CtSnapshotRequest,
     limits: Limits,
@@ -42,14 +43,26 @@ impl<'a> Environment<'a> {
             Err(errors) if errors.iter().all(|error| matches!(error.category, ResultCategory::SafeReject | ResultCategory::Unsupported)) => (None, Some(errors)),
             Err(errors) => return Err(errors),
         };
+        let impl_index = if let Some(shape) = &shape {
+            match snapshot::freeze_impls(sources, &syntax, imports, root, fingerprint, target, limits, shape) {
+                Ok(index) => Some(index),
+                Err(errors) if errors.iter().all(|error| matches!(error.category, ResultCategory::SafeReject | ResultCategory::Unsupported)) => None,
+                Err(errors) => return Err(errors),
+            }
+        } else { None };
         let ready = if shape.is_some() { CtReadyStage::Layout } else { CtReadyStage::Config };
         let mut identity = b"zil/ct-project-snapshot/v1\0".to_vec();
         identity.extend_from_slice(&fingerprint.0);
         identity.extend_from_slice(&target.fingerprint().0);
         identity.push(ready as u8);
+        identity.push(u8::from(impl_index.is_some()));
         let snapshot = CtSnapshotRequest { fingerprint: Fingerprint::of(&identity), ready,
             target_fingerprint: Some(target.fingerprint()),
-            requested_queries: if shape.is_some() { vec![CtQueryKind::Shape, CtQueryKind::Field, CtQueryKind::Layout] } else { Vec::new() } };
+            requested_queries: if shape.is_some() {
+                let mut queries = vec![CtQueryKind::Shape, CtQueryKind::Field, CtQueryKind::Layout];
+                if impl_index.is_some() { queries.push(CtQueryKind::ImplIndex); }
+                queries
+            } else { Vec::new() } };
         let declared = CtDeclaredBudget {
             max_steps: limits.max_ct_steps,
             max_call_depth: u32::try_from(limits.max_call_depth).unwrap_or(u32::MAX),
@@ -59,7 +72,7 @@ impl<'a> Environment<'a> {
             max_instances: limits.max_functions as u64,
             max_analysis_work: limits.max_analysis_steps as u64,
         };
-        Ok(Self { sources, parsed, index, shape, shape_failure, snapshot, limits: limits.clone(), budget: CtExecutionBudget::new(declared),
+        Ok(Self { sources, parsed, index, shape, impl_index, shape_failure, snapshot, limits: limits.clone(), budget: CtExecutionBudget::new(declared),
             ct_only: Vec::new(), source_fingerprint: fingerprint, target })
     }
 
@@ -147,7 +160,7 @@ impl<'a> Environment<'a> {
         self.budget.reserve_analysis_work(meter.spent())?;
         let verified = result?;
         let reader = FrozenReadView { index: &self.index, sources: self.sources, syntax: &syntax,
-            shape: self.shape.as_ref(), shape_failure: self.shape_failure.as_deref(), input, limits: &selected_limits, target: self.target, snapshot: &self.snapshot };
+            shape: self.shape.as_ref(), impl_index: self.impl_index.as_ref(), shape_failure: self.shape_failure.as_deref(), input, limits: &selected_limits, target: self.target, snapshot: &self.snapshot };
         let (value, _usage) = zil_ct::evaluate_ct_artifact(&verified, arguments, &reader, &mut self.budget)
             .map_err(|mut errors| { for diagnostic in &mut errors {
                 if diagnostic.span.is_none() { diagnostic.span = Some(span); }
@@ -168,19 +181,24 @@ impl<'a> Environment<'a> {
         Ok(CtInputTable { invocation_fingerprint: Fingerprint::of(&bytes), tokens: Vec::new() })
     }
 
-    pub(super) fn parse_tree(&mut self, tree: &CtSyntaxTree, span: Span) -> CompileResult<ParsedSyntax> {
+    pub(super) fn parse_tree(&mut self, tree: &CtSyntaxTree, span: Span, extra_aliases: &[(ModuleId, String)]) -> CompileResult<ParsedSyntax> {
         let module = self.sources.iter().find(|source| source.file_id == span.file)
             .map_or(ModuleId(0), |source| source.module_id);
-        let aliases = self.index.aliases(module);
+        let mut aliases = self.index.aliases(module);
+        for (target, alias) in extra_aliases { aliases.insert(*target, alias.clone()); }
         render::parse(tree, span.file, module, &aliases, &self.limits, &mut self.budget)
     }
 
-    pub(super) fn type_syntax(&mut self, ty: CtTypeRef) -> CompileResult<CtSyntaxTree> {
+    pub(super) fn type_syntax(&mut self, ty: &CtTypeRef) -> CompileResult<CtSyntaxTree> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView { index: &self.index, sources: self.sources, syntax: &syntax,
-            shape: self.shape.as_ref(), shape_failure: self.shape_failure.as_deref(), input: None,
+            shape: self.shape.as_ref(), impl_index: self.impl_index.as_ref(), shape_failure: self.shape_failure.as_deref(), input: None,
             limits: &self.limits, target: self.target, snapshot: &self.snapshot };
-        reader.build_syntax(CtSyntaxBuilder::TypeRef, &[CtValue::Type(ty)], &mut self.budget)
+        let clone_charge = (ty.nodes.len() as u64).saturating_mul(96);
+        self.budget.reserve_temporary_bytes(clone_charge)?;
+        let result = reader.build_syntax(CtSyntaxBuilder::TypeRef, &[CtValue::Type(ty.clone())], &mut self.budget);
+        self.budget.release_temporary_bytes(clone_charge);
+        result
     }
 }
 
@@ -205,5 +223,44 @@ mod tests {
         let argument = CtValue::Type(CtTypeRef { nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)], root: CtTypeNodeId(0) });
         let result = environment.evaluate(Entry::Function(symbol), &input, None, &[argument.clone()], item.span).unwrap();
         assert_eq!(result, argument);
+    }
+
+    #[test]
+    fn impl_index_exposes_only_checked_pregeneration_impls() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "traits.zil",
+            "trait Marker{fn mark(self:&Self)->i32;}struct Point{x:i32}impl Marker for Point{fn mark()->i32=>.x}fn main(){}");
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let sources = vec![source];
+        let parsed = vec![parsed];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let environment = Environment::new(&sources, &parsed, &BTreeMap::new(), &[Vec::new()],
+            ModuleId(0), sources[0].fingerprint(), &target, &limits).unwrap();
+        assert!(environment.impl_index.is_some(), "ordinary implementation was not ready");
+        let items = &parsed[0].module.items;
+        let subject = environment.index.symbol_at(ModuleId(0), items[1].span).unwrap();
+        let requester = environment.index.symbol_at(ModuleId(0), items[3].span).unwrap();
+        let value = CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Nominal { symbol: subject, arguments: Vec::new() }],
+            root: CtTypeNodeId(0),
+        });
+        let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let mut reader = FrozenReadView { index: &environment.index, sources: &sources, syntax: &syntax,
+            shape: environment.shape.as_ref(), impl_index: environment.impl_index.as_ref(),
+            shape_failure: None, input: None, limits: &limits, target: &target,
+            snapshot: &environment.snapshot };
+        let mut budget = CtExecutionBudget::new(environment.budget.remaining());
+        let (result, receipt) = reader.query(&requester, CtQueryKind::ImplIndex, &[value.clone()], &mut budget).unwrap();
+        assert!(matches!(&result, CtValue::List(values) if values.len() == 1 && matches!(values[0], CtValue::ImplInfo(_))), "{result:?}");
+        assert_eq!(receipt.kind, CtQueryKind::ImplIndex);
+        let mut missing_grant = environment.snapshot.clone();
+        missing_grant.requested_queries.retain(|kind| *kind != CtQueryKind::ImplIndex);
+        let mut wrong_stage = environment.snapshot.clone();
+        wrong_stage.ready = CtReadyStage::Shape;
+        reader.snapshot = &missing_grant;
+        assert!(reader.query(&requester, CtQueryKind::ImplIndex, &[value.clone()], &mut budget).is_err());
+        reader.snapshot = &wrong_stage;
+        assert!(reader.query(&requester, CtQueryKind::ImplIndex, &[value], &mut budget).is_err());
     }
 }

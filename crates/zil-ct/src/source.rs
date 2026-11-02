@@ -195,7 +195,11 @@ impl<'a> SourceProgramContext<'a> {
         };
         let (module, name) = match &callee.kind {
             CoreExprKind::Name(name) => (module, name.as_str()),
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner: None,
+            } => {
                 let CoreExprKind::Name(alias) = &object.kind else {
                     return None;
                 };
@@ -947,7 +951,14 @@ impl<'a> Walker<'a> {
                 }
                 self.unchanged_expr(callee, None, depth + 1)?;
             }
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
+                if let Some(owner) = owner {
+                    self.pattern_type_shape(owner, depth + 1, e.span)?;
+                }
                 self.text(member, Some(e.span))?;
                 self.unchanged_expr(object, None, depth + 1)?;
             }
@@ -1588,11 +1599,19 @@ impl<'a> Walker<'a> {
                     .map(|i| self.expr(i, None, depth + 1))
                     .collect::<CompileResult<_>>()?,
             ),
-            CoreExprKind::Member { object, member } => {
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } => {
+                if let Some(owner) = owner {
+                    self.pattern_type_shape(owner, depth + 1, e.span)?;
+                }
                 self.text(member, Some(e.span))?;
                 CoreExprKind::Member {
                     object: Box::new(self.expr(object, None, depth + 1)?),
                     member: member.clone(),
+                    owner: owner.clone(),
                 }
             }
             CoreExprKind::Record { ty, fields } => {
@@ -1913,7 +1932,12 @@ impl<'a> Walker<'a> {
             }
         } else {
             let enum_fields = (|| {
-                let CoreExprKind::Member { object, member } = &callee.kind else {
+                let CoreExprKind::Member {
+                    object,
+                    member,
+                    owner: None,
+                } = &callee.kind
+                else {
                     return None;
                 };
                 let CoreExprKind::Name(name) = &object.kind else {
