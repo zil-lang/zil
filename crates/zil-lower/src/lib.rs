@@ -43,11 +43,48 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             None,
         )]);
     }
+    let use_sum_extension = verified.uses_owned_sum_extension();
+    let mut sum_budget = owned_sums::Budget::new(verified.limits());
     for closure in &module.closures {
+        // An owning callback signature is an ordinary complete data boundary.
+        // Charge its actual type trees to the same request budget used by
+        // ordinary function signatures. Capture admission remains separate.
+        let owning_result = if matches!(
+            closure.result,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        ) && !closure.result.is_copy_value()
+        {
+            sum_budget.admits(&closure.result, &module.resources, 0)?
+        } else {
+            false
+        };
+        let mut owning_parameters = false;
+        let mut complete_parameters = true;
+        for ty in &closure.parameters {
+            if ty.is_copy_value() {
+                continue;
+            }
+            if !matches!(
+                ty,
+                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) {
+                complete_parameters = false;
+                break;
+            }
+            owning_parameters = true;
+            let admitted = sum_budget.admits(ty, &module.resources, 0)?;
+            if !admitted {
+                complete_parameters = false;
+                break;
+            }
+        }
+        let owning_signature = (owning_result || owning_parameters)
+            && complete_parameters
+            && (closure.result.is_copy_value() || owning_result);
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(closure.result.is_copy_value()
+        ) || !(owning_signature || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
@@ -68,7 +105,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                         && !package_array_fields(ty))
             })
             || !closure.parameters.iter().all(|ty| {
-                ty.is_copy_value()
+                owning_signature || ty.is_copy_value()
                     || (closure.result.is_copy_value()
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
@@ -80,9 +117,6 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             )]);
         }
     }
-    let mut sum_budget = verified
-        .uses_owned_sum_extension()
-        .then(|| owned_sums::Budget::new(verified.limits()));
     for function in &module.functions {
         let old_return = function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
@@ -94,8 +128,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 && function.callable_return_contract.is_some());
         let extra_return = if old_return {
             false
-        } else if let Some(budget) = &mut sum_budget {
-            budget.admits(&function.return_type, &module.resources, 0)?
+        } else if use_sum_extension {
+            sum_budget.admits(&function.return_type, &module.resources, 0)?
         } else {
             false
         };
@@ -117,8 +151,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 || callable_parameter_type(ty, &module.closures);
             let extra = if old {
                 false
-            } else if let Some(budget) = &mut sum_budget {
-                budget.admits(ty, &module.resources, 0)?
+            } else if use_sum_extension {
+                sum_budget.admits(ty, &module.resources, 0)?
             } else {
                 false
             };
@@ -146,8 +180,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 && !package_value_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)
                 && !owned_array_type(ty, &module.resources)
-                && !if let Some(budget) = &mut sum_budget {
-                    budget.admits(ty, &module.resources, 0)?
+                && !if use_sum_extension {
+                    sum_budget.admits(ty, &module.resources, 0)?
                 } else {
                     false
                 }
