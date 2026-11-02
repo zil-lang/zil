@@ -280,13 +280,11 @@ impl Selection<'_, '_> {
                 let mut found = self.condition(module, condition, locals, depth + 1)?
                     || self.block(module, then_body, locals, depth + 1)?;
                 locals.truncate(start);
-                if !found {
-                    if let Some(branch) = else_body {
-                        found = match branch {
-                            s::ElseBranch::Block(b) => self.block(module, b, locals, depth + 1)?,
-                            s::ElseBranch::If(s) => self.statement(module, s, locals, depth + 1)?,
-                        };
-                    }
+                if !found && let Some(branch) = else_body {
+                    found = match branch {
+                        s::ElseBranch::Block(b) => self.block(module, b, locals, depth + 1)?,
+                        s::ElseBranch::If(s) => self.statement(module, s, locals, depth + 1)?,
+                    };
                 }
                 found
             }
@@ -420,10 +418,10 @@ impl Selection<'_, '_> {
                             found = domain;
                         } else {
                             found = self.standard(module, &path, callee.span)?;
-                            if !found {
-                                if let Some((_, index)) = self.target(module, &path, callee.span)? {
-                                    found = self.function(index, depth + 1)?;
-                                }
+                            if !found
+                                && let Some((_, index)) = self.target(module, &path, callee.span)?
+                            {
+                                found = self.function(index, depth + 1)?;
                             }
                         }
                     } else {
