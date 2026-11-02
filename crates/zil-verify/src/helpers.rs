@@ -497,9 +497,9 @@ fn two_type_state_constructor(
     Ok(true)
 }
 
-// The first public by-value FnOnce boundary transports one concrete closed
-// signature. Rebuild it from actual parameter locals and the environment
-// definition before the ordinary role/traces checker examines the real CFG.
+// The public by-value FnOnce boundary admits independently checked ordinary
+// data inputs and results. Actual invocation operands are checked against the
+// concrete entry by the instruction checker, while roles/traces come from CFG.
 fn owned_dispatch(
     module: &TypedModule,
     function: &TypedFunction,
@@ -507,46 +507,36 @@ fn owned_dispatch(
     claim: &CallableParameterContract,
     budget: &mut Budget,
 ) -> Check<bool> {
-    let [(position, id, false, _)] = parameters else {
+    let [(_, id, false, _)] = parameters else {
         return Ok(false);
     };
     let definition = closures::definition(module, *id, Some(function.span))?;
     if !definition.parameters.iter().any(owned_callbacks::root)
         && !owned_callbacks::root(&definition.result)
+        && !owned_callbacks::root(&function.return_type)
     {
         return Ok(false);
     }
     if claim.roles.len() != 1
         || claim.roles[0].kind != CallableKind::FnOnce
-        || function.return_type != definition.result
-        || function.parameters.len() != definition.parameters.len().saturating_add(1)
         || !definition.lending_captures.is_empty()
     {
         return Err(bad(
             function,
-            "owning dispatch requires one by-value FnOnce role and its exact closed data signature",
+            "owning dispatch requires one by-value FnOnce role with a closed data signature",
         ));
     }
     budget.spend(function.parameters.len().saturating_mul(2))?;
-    let mut argument = 0;
     for (index, local) in function.parameters.iter().enumerate() {
-        if index == *position as usize {
+        if index == parameters[0].0 as usize {
             continue;
         }
         let actual = &function.locals[local.0 as usize].ty;
-        if actual != &definition.parameters[argument] {
-            return Err(bad(
-                function,
-                "owning dispatch data parameter differs from its concrete callback",
-            ));
-        }
         if owned_callbacks::root(actual) {
             owned_callbacks::value(module, actual, Some(function.span), budget)?;
         } else {
-            resources::charge_payload(actual, budget)?;
-            check_type(actual, Some(function.span))?;
+            check_function_signature_type(module, actual, Some(function.span), budget)?;
         }
-        argument += 1;
     }
     if owned_callbacks::root(&function.return_type) {
         owned_callbacks::value(module, &function.return_type, Some(function.span), budget)?;
