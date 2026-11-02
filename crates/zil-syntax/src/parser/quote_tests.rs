@@ -267,3 +267,50 @@ fn unknown_island_keeps_raw_dollars_comments_delimiters_and_utf8() {
         .is_ok()
     );
 }
+#[test]
+fn standard_syntax_alias_can_be_shadowed_by_parameter_or_local_before_ct_checks() {
+    for (text, parameter) in [
+        (
+            "import std.syntax as syntax; fn bad(syntax:i32)->Syntax<Expr>{return syntax.literal(1)}",
+            true,
+        ),
+        (
+            "import std.syntax as syntax; fn bad()->Syntax<Expr>{let syntax=0;return syntax.literal(1)}",
+            false,
+        ),
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "shadow.zil", text);
+        let parsed = parse(&source).into_result().unwrap();
+        let ItemKind::Function(function) = &parsed.items[1].kind else {
+            panic!()
+        };
+        if parameter {
+            assert_eq!(function.params[0].name, "syntax");
+        }
+        let FunctionBody::Block(body) = &function.body else {
+            panic!()
+        };
+        if !parameter {
+            let StmtKind::Binding { pattern, .. } = &body.statements[0].kind else {
+                panic!()
+            };
+            assert_eq!(pattern.kind, PatternKind::Name("syntax".into()));
+        }
+        let StmtKind::Return(Some(Expr {
+            kind: ExprKind::Call { callee, .. },
+            ..
+        })) = &body.statements.last().unwrap().kind
+        else {
+            panic!()
+        };
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(member),
+        } = &callee.kind
+        else {
+            panic!()
+        };
+        assert_eq!(object.kind, ExprKind::Name("syntax".into()));
+        assert_eq!(member, "literal");
+    }
+}
