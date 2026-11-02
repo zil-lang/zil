@@ -544,6 +544,9 @@ pub enum CtInstructionKind {
         category: CtSyntaxCategory,
         input: CtValueId,
     },
+    ParseIdent {
+        input: CtValueId,
+    },
     TokenInspect {
         source: CtValueId,
         projection: CtTokenProjection,
