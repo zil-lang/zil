@@ -87,7 +87,7 @@ fn callback_return_does_not_revive_a_borrowed_input_window() {
     let limits = Limits::default();
     // Keep the historical bytes intact; version rejection is distinct from
     // the current source-derived semantic counterexample in impl254_wire.
-    let archived = include_bytes!("../../../evidence/impl/248/loan_revival.wire");
+    let archived = include_bytes!("../../../tests/fixtures/wire/loan-revival-v30.wire");
     assert_eq!(
         zil_ir::wire::decode_module_candidate(archived, &limits).unwrap_err()[0].code,
         "E-WIRE-VERSION"

@@ -37,6 +37,7 @@ test('default reports use unique ignored run directories and preserve verdict va
         assert.ok(file.startsWith(path.join(root, 'out/runs/tool-reports') + path.sep));
         assert.deepEqual(JSON.parse(fs.readFileSync(file)), {status: 'Fail', executed: 3});
         outputs.push(file);
+        t.after(() => fs.rmSync(path.dirname(file), {recursive: true, force: true}));
     }
     assert.notEqual(outputs[0], outputs[1]);
 });
@@ -58,16 +59,14 @@ test('configured directory refuses overwrite and handoff-specific file still win
     assert.equal(JSON.parse(chosen.stdout).file, explicit);
 });
 
-test('actual model runner keeps its 23 anchors and leaves historical receipt unchanged', t => {
-    const f = fixture(t), historical = path.join(root, 'evidence/impl/004/model-check.json');
-    const before = fs.readFileSync(historical);
+test('actual model runner executes its 23 anchors into a temporary report', t => {
+    const f = fixture(t);
     const directory = path.join(f.directory, 'model');
     const result = f.run(process.execPath, ['--experimental-transform-types', '--import', './tools/roam/register.mjs', 'tests/oracle/model-check.mjs'], {ZIL_TEST_REPORT_DIR: directory});
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.equal(report.status, 'Pass'); assert.equal(report.executed, 23); assert.equal(report.assertions, 26);
     assert.equal(report.report_path, path.join(directory, 'model-check.json'));
-    assert.deepEqual(fs.readFileSync(historical), before);
 });
 
 test('explicit summary publication preserves raw failure and rejects receipt reuse', t => {
@@ -102,10 +101,11 @@ print(json.dumps({'status':'Pass','scope':'Publication fixture only; no gate exe
 
 test('conflicting legacy raw root and summary publication reject before a run starts', t => {
     const f = fixture(t), rootPath = path.join(root, 'evidence/validation');
-    const before = fs.readdirSync(rootPath).sort();
+    const inventory = () => fs.existsSync(rootPath) ? fs.readdirSync(rootPath).sort() : null;
+    const before = inventory();
     const result = f.run(process.env.PYTHON ?? 'python3', ['tools/validate-draft.py', '--out-root', 'evidence/validation', '--publish-summary']);
     assert.equal(result.status, 2);
     assert.match(result.stderr, /raw output root distinct/);
     assert.equal(result.stdout, '');
-    assert.deepEqual(fs.readdirSync(rootPath).sort(), before);
+    assert.deepEqual(inventory(), before);
 });

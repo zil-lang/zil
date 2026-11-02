@@ -867,7 +867,7 @@ fn owned_environment_returns_its_remaining_responsibility() {
 
 #[test]
 fn historical_loan_wire30_stays_rejected_without_reencoding() {
-    let original = include_bytes!("../../../../evidence/impl/248/loan_revival.wire");
+    let original = include_bytes!("../../../../tests/fixtures/wire/loan-revival-v30.wire");
     let errors =
         verify_module_bytes(original, &TargetProfile::host_llvm(), &Limits::default()).unwrap_err();
     assert!(format!("{errors:?}").contains("version"), "{errors:?}");

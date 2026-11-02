@@ -9,10 +9,8 @@ use std::{
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 static NEXT: AtomicUsize = AtomicUsize::new(0);
-const ORIGINAL03: &str =
-    include_str!("../../../evidence/impl/243/original_q_sources/03-unit-store-session.zil");
-const ORIGINAL05: &str =
-    include_str!("../../../evidence/impl/243/original_q_sources/05-owned-option-session.zil");
+const ORIGINAL03: &str = include_str!("../../../tests/fixtures/ownership/unit-store-session.zil");
+const ORIGINAL05: &str = include_str!("../../../tests/fixtures/ownership/owned-option-session.zil");
 const NESTED: &str = r#"
 extern "C" fn getchar()->i32;
 extern "C" fn putchar(code:i32)->i32;
