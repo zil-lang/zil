@@ -80,7 +80,10 @@ impl Materializer<'_, '_> {
         let CtValue::Syntax(tree) = value else { return Err(category("compile-time result is not Syntax", span)); };
         if tree.category != expected { return Err(category("Syntax category differs from the receiving slot", span)); }
         let ParsedSyntax { rendered, parsed, names: _ } = self.environment.parse_tree(&tree, span)?;
-        let syntax = parsed.syntax.ok_or_else(|| category("generated parser returned no category", span))?;
+        let mut syntax = parsed.syntax.ok_or_else(|| category("generated parser returned no category", span))?;
+        let limits = self.environment.remaining_limits_for_input();
+        let work = zil_expand::remap_generated_spans(&mut syntax, span, &limits)?;
+        self.environment.budget.reserve_analysis_work(work as u64)?;
         self.previews.push(Preview { invocation: span, category: expected, text: rendered.source.text, tokens: rendered.tokens });
         Ok(syntax)
     }
