@@ -1,0 +1,20 @@
+{
+  "reviewer": "/root/callback_backend_fallback",
+  "verdict": "Pass for public representation bootstrap; no forwarding language acceptance claimed",
+  "reviewed_implementation_commit": "d7d52dea8121dd462dc419f4cd555b3d849dccc5",
+  "reviewed_baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
+  "authority": "_zil_design.md §9.4.2 and changes/251-256-callable-forward.md",
+  "checks": [
+    "CallableReturnSource::Fresh and Parameter(u32) are separate untrusted relations; Parameter carries an actual parameter index, with no new permission bit.",
+    "CallableCleanup::Returned has a distinct role tag. Existing producers emit Fresh; Analyze and Verify reject Parameter until their independent implementations arrive.",
+    "Typed fingerprint domain is 31, callable return domain is 3, role domain is 4; source and cleanup tags participate in their respective encodings.",
+    "Wire version is 31; reader rejects unknown source and cleanup tags and older versions; writer encodes source tag plus u32 parameter index through the existing bounded primitives.",
+    "Review found no public representation defect or required field addition for Lower/LLVM inline aggregate transfer."
+  ],
+  "test": {
+    "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 cargo test -p zil-ir --offline --locked -j 2",
+    "exit_code": 0,
+    "scope": "zil-ir unit, integration and doc tests; public transport/fingerprint checks only"
+  },
+  "limitations": "This review does not review the 255 Lower/LLVM implementation or establish source/native forwarding acceptance."
+}
