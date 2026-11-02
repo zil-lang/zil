@@ -249,6 +249,14 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                         "defer is forbidden during compile-time execution",
                     )]);
                 }
+                InstructionKind::WithForeignCallback { .. } => {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(instruction.span),
+                        "scoped foreign callbacks are forbidden during compile-time execution",
+                    )]);
+                }
                 InstructionKind::ScopeEnter { .. } | InstructionKind::ScopeExit { .. } => None,
                 InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
                     frame.locals[local.0 as usize] = None;

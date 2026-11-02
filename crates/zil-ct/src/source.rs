@@ -1077,6 +1077,9 @@ impl<'a> Walker<'a> {
             }
             if let Some(foreign) = &f.foreign {
                 self.charge(0, f.span)?;
+                if foreign.scoped_callback.is_some() {
+                    self.charge(0, f.span)?;
+                }
                 self.text(&foreign.abi, Some(f.span))?;
                 self.text(&foreign.symbol, Some(f.span))?;
                 for _ in &foreign.noescape_parameters {
@@ -2464,6 +2467,84 @@ mod tests {
             left: Box::new(a),
             right: Box::new(b),
         })
+    }
+    #[test]
+    fn scoped_foreign_roles_survive_source_normalization_with_conditional_budget() {
+        let target = TargetProfile::default();
+        let limits = Limits::default();
+        let mut core = module(number("42"), Type::I32);
+        core.functions[0].body.statements.clear();
+        core.functions[0].foreign = Some(ForeignDeclaration {
+            abi: "C".into(),
+            symbol: "external_callback".into(),
+            noescape_parameters: vec![],
+            static_callbacks: true,
+            scoped_callback: None,
+        });
+        let (ordinary, old_usage) =
+            evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();
+        assert_eq!(ordinary, core);
+        assert_eq!(old_usage, SourceEvaluationUsage { nodes: 4, steps: 0 });
+        let old_exact = Limits {
+            max_nodes: 4,
+            max_analysis_steps: 26,
+            ..limits.clone()
+        };
+        assert_eq!(
+            evaluate_source_constants(&core, &target, &old_exact).unwrap(),
+            core
+        );
+        for role in [ScopedCallbackRole::Register, ScopedCallbackRole::Close] {
+            core.functions[0].foreign.as_mut().unwrap().scoped_callback = Some(role);
+            let (normalized, usage) =
+                evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();
+            assert_eq!(normalized, core);
+            assert_eq!(usage.nodes, old_usage.nodes + 1);
+            assert_eq!(usage.steps, old_usage.steps);
+            let exact = Limits {
+                max_nodes: usage.nodes,
+                max_analysis_steps: 27,
+                ..limits.clone()
+            };
+            for _ in 0..2 {
+                let (fresh, fresh_usage) =
+                    evaluate_source_constants_with_usage(&core, &target, &exact).unwrap();
+                assert_eq!(fresh, core);
+                assert_eq!(fresh_usage, usage);
+                assert_eq!(
+                    validate_unchanged_source(&core, &target, &exact, None)
+                        .unwrap()
+                        .unwrap(),
+                    usage
+                );
+            }
+            assert_eq!(
+                evaluate_source_constants(
+                    &core,
+                    &target,
+                    &Limits {
+                        max_nodes: usage.nodes - 1,
+                        ..exact
+                    }
+                )
+                .unwrap_err()[0]
+                    .category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            assert_eq!(
+                evaluate_source_constants(
+                    &core,
+                    &target,
+                    &Limits {
+                        max_analysis_steps: 26,
+                        ..limits.clone()
+                    }
+                )
+                .unwrap_err()[0]
+                    .category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+        }
     }
     #[test]
     fn bytes083_standalone_scalar_hints_are_symmetric_and_cumulatively_bounded() {
