@@ -89,6 +89,13 @@ foreign_scoped_callbacks NAME -- --exact --nocapture`; add `--features llvm-api`
 for the API backend. Native checks assert the actual backend, no fallback,
 and API builder input, parse_ns=0 and verification before/after optimization.
 
+The targeted API Clippy command `cargo clippy -p zil-driver --features llvm-api
+--test foreign_scoped_callbacks -- -D warnings` passes, as do rustfmt for the
+consumer Rust file and git whitespace checks. Both new oracle files exactly
+match independent model regeneration; all three frozen sources still match
+the original probe bytes and the recorded hashes. The original callback
+ORACLE and project source files have no changes from the baseline.
+
 The concrete generic-local preparation previously rejected at Expand now
 composes ordinary owned resources, an Event and a consumed body through real
 native execution. This is an expression/composition improvement with limited
