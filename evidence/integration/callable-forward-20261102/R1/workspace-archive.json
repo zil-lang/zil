@@ -1,0 +1,11 @@
+{
+  "phase": "workspace",
+  "source_commit": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+  "status": "Pass",
+  "archive": "/workspace/.zil-env/forward/R1/workspace.tar.zst",
+  "archive_bytes": 67135340,
+  "archive_sha256": "fc6708ccd6d53f5ca72a05590b3168e555be563ccf06fe939c6268b1922f3b54",
+  "files": 79441,
+  "logical_bytes": 3813330811,
+  "verification": "All indexed archive blobs hashed; exact original path/size/mode/SHA256 set rechecked before release"
+}

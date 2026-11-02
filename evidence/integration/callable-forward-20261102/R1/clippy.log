@@ -1,0 +1,29 @@
+    Checking zil-verify v0.1.0 (/workspace/zil-251/crates/zil-verify)
+    Checking zil-analyze v0.1.0 (/workspace/zil-251/crates/zil-analyze)
+    Checking zil-types v0.1.0 (/workspace/zil-251/crates/zil-types)
+    Checking zil-backend-llvm v0.1.0 (/workspace/zil-251/crates/zil-backend-llvm)
+    Checking zil-ct v0.1.0 (/workspace/zil-251/crates/zil-ct)
+    Checking zil-lower v0.1.0 (/workspace/zil-251/crates/zil-lower)
+    Checking zil-driver v0.1.0 (/workspace/zil-251/crates/zil-driver)
+    Checking zil-ide v0.1.0 (/workspace/zil-251/crates/zil-ide)
+    Checking zil-cli v0.1.0 (/workspace/zil-251/crates/zil-cli)
+error: casting to the same type is unnecessary (`usize` -> `usize`)
+  --> crates/zil-driver/tests/impl256_contracts.rs:79:50
+   |
+79 |                         .and_then(|s| s.text.get(f.span.start as usize..f.span.end as usize))
+   |                                                  ^^^^^^^^^^^^^^^^^^^^^ help: try: `f.span.start`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#unnecessary_cast
+   = note: `-D clippy::unnecessary-cast` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::unnecessary_cast)]`
+
+error: casting to the same type is unnecessary (`usize` -> `usize`)
+  --> crates/zil-driver/tests/impl256_contracts.rs:79:73
+   |
+79 |                         .and_then(|s| s.text.get(f.span.start as usize..f.span.end as usize))
+   |                                                                         ^^^^^^^^^^^^^^^^^^^ help: try: `f.span.end`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#unnecessary_cast
+
+error: could not compile `zil-driver` (test "impl256_contracts") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

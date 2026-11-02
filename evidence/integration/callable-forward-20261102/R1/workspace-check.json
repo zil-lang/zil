@@ -1,0 +1,25 @@
+{
+  "source_commit": "b05a70b2ce834ff2ea93618035eec35ff136b622",
+  "name": "workspace",
+  "command": [
+    "cargo",
+    "test",
+    "--offline",
+    "--locked",
+    "--workspace",
+    "--no-fail-fast"
+  ],
+  "exit_code": 0,
+  "timeout": false,
+  "elapsed_seconds": 591.239,
+  "log_sha256": "f0cbeb2ce35d4549ad91eae0fde36ce71cab180e20fa3640ae28845fc450d0c3",
+  "test_summaries": 414,
+  "totals": {
+    "passed": 3733,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "status": "Pass"
+}
