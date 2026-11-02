@@ -1,0 +1,15 @@
+81b7ae0c9ce5e7245613ed536b4702c419fe99bd	refs/heads/main
+192b45c051a4c938659eb8ff5c0029a24a671900	refs/heads/task/227
+edb044089592ff73832040ed52057f78eb9b419b	refs/heads/task/235
+566396accaa3b1df90ee4c3ff478615df518b073	refs/heads/task/236
+33b1514c9b8c7adbd1a547f57b5bbcea3f040661	refs/heads/task/237
+1b7572807d8948ac255312b035f8fc063d314995	refs/heads/task/238
+0b6b9e99632191283d67f6ee78292fddbe634ef1	refs/heads/task/238-privacy
+541f21bbe8cff775cb7341aae3652759a0a65c8d	refs/heads/task/238-regression
+47840ac983746590c7d754a0fb41b9aa144f12b9	refs/heads/task/240
+027847a2ca4fc8c04a65240be20fe4fe5ce5b27a	refs/heads/task/241
+2f73305a502c9450141f9598b901d01bb099866f	refs/heads/task/243
+e739f583b63ba8fa44fa26a937d36afb9cbaea2a	refs/heads/task/cp25-reactive-session
+15498f14af8f11d3a3bf4b198fe69208be5913ce	refs/heads/task/owned-sum-20261102
+7e515d3d526ee6900882fcd181103ef82fd3efb8	refs/heads/task/owned-sum-evidence-20261102
+e92508be996a190fa188d08319d37cc8b522bae6	refs/heads/task/zui-core-20261102
