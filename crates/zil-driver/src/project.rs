@@ -31,6 +31,7 @@ pub(super) struct ExpandedProject {
     core: Arc<CoreProgram>,
     maps: Vec<SourceMap>,
     selection: super::ct_selection::Receipt,
+    ct_usage: Option<zil_ir::ct_artifact::CtUsageReceipt>,
     pub(super) syntax: Arc<ProjectSyntax>,
 }
 
@@ -457,8 +458,12 @@ impl CompilationSession {
             .iter()
             .zip(&parsed)
             .any(|(source, parsed)| super::ct_selection::needed(source, parsed));
+        let artifact_needed = options.syntax_lock.is_some() || parsed.iter().any(|parsed| {
+            parsed.tokens.iter().any(|token| matches!(token.kind,
+                zil_syntax::token::TokenKind::Symbol(zil_syntax::token::Symbol::Hash)))
+        });
         let (raw, expand_snapshot) = self.query(
-            key(Phase::Expand, selection_needed),
+            key(Phase::Expand, selection_needed || artifact_needed),
             &dependencies,
             options,
             report,
@@ -483,7 +488,18 @@ impl CompilationSession {
                 let materialized = selected
                     .as_ref()
                     .map(|selected| selected.modules.iter().collect::<Vec<_>>());
-                let syntax = materialized.as_deref().unwrap_or(&syntax);
+                let selected_syntax = materialized.as_deref().unwrap_or(&syntax);
+                let ct_result = if artifact_needed {
+                    let mut remaining = selected.as_ref().map_or_else(|| Ok(options.limits.clone()),
+                        |selected| selected.receipt.remaining(&options.limits))?;
+                    remaining.max_ct_steps = remaining.max_ct_steps.min(options.limits.max_ct_steps);
+                    Some(super::ct_artifact::materialize(
+                        &project.modules, &parsed, selected_syntax, &project.paths, &imports,
+                        project.root, fingerprint, &options.target, &remaining, locked.as_ref(),
+                    )?)
+                } else { None };
+                let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
+                let syntax = generated_syntax.as_deref().unwrap_or(selected_syntax);
                 for (module, map) in zil_expand::expand_program_with_limits(
                     &project.modules,
                     syntax,
@@ -504,6 +520,7 @@ impl CompilationSession {
                         .map_or_else(super::ct_selection::Receipt::default, |selected| {
                             selected.receipt
                         }),
+                    ct_usage: ct_result.map(|result| result.usage),
                     syntax: Arc::new(ProjectSyntax {
                         root: (root.file_id, root.module_id, root.path.clone()),
                         entries: dependencies
@@ -545,6 +562,12 @@ impl CompilationSession {
                     zil_types::infer_shared_program_for_ct(&expanded.core, &options.limits)?;
                 let inferred = inference.program();
                 let mut remaining = expanded.selection.remaining(&options.limits)?;
+                if let Some(usage) = &expanded.ct_usage {
+                    remaining.max_ct_steps = remaining.max_ct_steps.checked_sub(usage.steps)
+                        .ok_or_else(|| vec![Diagnostic::limit(Phase::Ct, "Type/Syntax CT step budget exceeded", None)])?;
+                    remaining.max_nodes = remaining.max_nodes.checked_sub(usage.generated_nodes as usize)
+                        .ok_or_else(|| vec![Diagnostic::limit(Phase::Ct, "Type/Syntax CT generated node budget exceeded", None)])?;
+                }
                 let context = zil_ct::SourceProgramContext::new(inferred, &remaining)?;
                 let initial_remaining = remaining.clone();
                 let mut unchanged = true;

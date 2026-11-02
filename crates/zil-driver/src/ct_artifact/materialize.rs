@@ -17,7 +17,7 @@ fn late_import(span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(Phase::Expand, "E-CT-LATE-IMPORT", Some(span), "generated import would change the sealed module/provider graph")]
 }
 
-pub(super) struct Materialized {
+pub(crate) struct Materialized {
     pub modules: Vec<s::Module>,
     pub previews: Vec<Preview>,
     pub usage: CtUsageReceipt,
@@ -256,7 +256,7 @@ impl Materializer<'_, '_> {
     }
 }
 
-pub(super) fn materialize(
+pub(crate) fn materialize(
     sources: &[SourceUnit], parsed: &[Arc<ParseResult>], modules: &[&s::Module], paths: &BTreeMap<Vec<String>, ModuleId>,
     imports: &[Vec<CoreImport>], root: ModuleId, fingerprint: Fingerprint,
     target: &TargetProfile, limits: &Limits, registry: Option<&CtLockedProviderRegistry>,
