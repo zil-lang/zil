@@ -414,7 +414,7 @@ fn explicit_provider_locks_fail_closed_without_repair_or_order_fallback() {
             fs::write(directory.join("request.lock"), &generated.stdout).unwrap();
             let text = String::from_utf8(generated.stdout).unwrap();
             let parsed = SyntaxLock::parse(&text);
-            if matches!(name, "duplicate_entry" | "wrong_rule") {
+            if matches!(name, "duplicate_entry" | "wrong_rule" | "wrong_grammar") {
                 let diagnostics = parsed.unwrap_err();
                 fs::write(
                     directory.join("parse-diagnostics.txt"),
