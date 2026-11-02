@@ -4,7 +4,7 @@
   "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
   "schema_version": 31,
   "commits": {
-    "verify_implementation": "6d68133cb06db9be8740011cc03061355820e3be",
+    "verify_implementation": "4faeab893c88b1b88efdef52c0afe5f7c669c0ea",
     "frontend_source": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
     "analyze_source": "b5e44e3cd6802065a6c8597ddafaf4ddd44eb857",
     "extended_source": "56cbd4822a4e543114b580929edaf5b7bb7385e9"
@@ -53,6 +53,17 @@
       "passed": 1,
       "failed": 0,
       "log": "b-budget-old.log"
+    },
+    {
+      "command": "cargo clippy -p zil-verify --all-targets --offline --locked -j 2 -- -D warnings",
+      "passed": true,
+      "log": "clippy-final.log"
+    },
+    {
+      "command": "cargo test -p zil-verify --lib helper_tests::forward --offline --locked -j 2 --quiet",
+      "passed": 17,
+      "failed": 0,
+      "log": "clippy-helper-tests.log"
     }
   ],
   "source_controls": {
