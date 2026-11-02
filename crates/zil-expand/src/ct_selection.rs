@@ -521,8 +521,13 @@ pub fn walk_expression<V: Visitor + ?Sized>(
         }
         s::ExprKind::Member { object, member } => {
             v.expression(object, depth + 1)?;
-            if let s::MemberName::Name(n) = member {
-                v.text(n, e.span)?;
+            match member {
+                s::MemberName::Name(n) => v.text(n, e.span)?,
+                s::MemberName::Constrained { name, owner } => {
+                    v.text(name, e.span)?;
+                    v.ty(owner, depth + 1)?;
+                }
+                s::MemberName::TupleIndex(_) => {}
             }
         }
         s::ExprKind::TypeApply { callee, arguments } => {
@@ -674,6 +679,14 @@ pub fn item_cost(item: &s::Item, limits: &Limits) -> CompileResult<SyntaxCost> {
     };
     c.item(item, 0)?;
     Ok(c.cost)
+}
+pub(crate) fn type_cost(ty: &s::TypeRef, limits: &Limits) -> CompileResult<SyntaxCost> {
+    let mut counter = Counter {
+        limits,
+        cost: SyntaxCost::default(),
+    };
+    counter.ty(ty, 0)?;
+    Ok(counter.cost)
 }
 pub fn expression_cost(expression: &s::Expr, limits: &Limits) -> CompileResult<SyntaxCost> {
     let mut c = Counter {

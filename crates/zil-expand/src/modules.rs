@@ -1039,7 +1039,10 @@ impl Visitor<'_, '_, '_> {
                 self.expr(input, types, values, depth + 1)?;
                 self.expr(target, types, values, depth + 1)?;
             }
-            ExprKind::Member { object, .. } => {
+            ExprKind::Member { object, member } => {
+                if let MemberName::Constrained { owner, .. } = member {
+                    self.ty(owner, types, depth + 1)?;
+                }
                 self.binder_namespace(object, types, values, depth + 1)?;
                 self.expr(object, types, values, depth + 1)?;
             }

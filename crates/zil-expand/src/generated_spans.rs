@@ -608,8 +608,13 @@ fn walk_expression<V: Visitor + ?Sized>(
         }
         s::ExprKind::Member { object, member } => {
             v.expression(object, depth + 1)?;
-            if let s::MemberName::Name(n) = member {
-                v.text(n, e.span)?;
+            match member {
+                s::MemberName::Name(n) => v.text(n, e.span)?,
+                s::MemberName::Constrained { name, owner } => {
+                    v.text(name, e.span)?;
+                    v.ty(owner, depth + 1)?;
+                }
+                s::MemberName::TupleIndex(_) => {}
             }
         }
         s::ExprKind::TypeApply { callee, arguments } => {
@@ -769,6 +774,7 @@ mod tests {
         let insertion = Span::new(FileId(0), 10, 20);
         let n =
             remap_generated_spans(&mut original.clone(), insertion, &Limits::default()).unwrap();
+        println!("generated span remap N={n}, N-1=ResourceLimit/unchanged, fresh=N");
         let exact = Limits {
             max_analysis_steps: n,
             ..Limits::default()
