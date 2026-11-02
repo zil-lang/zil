@@ -51,6 +51,7 @@ pub(super) struct ProjectSyntax {
 struct LoadedSyntax {
     parsed: Arc<ParseResult>,
     reused: bool,
+    snapshot: Option<Arc<QuerySnapshot>>,
     // Present only when filesystem discovery supplied a lossless canonical
     // identity for the explicit closed-executable trial.
     stable_module_key: Option<Arc<str>>,
@@ -60,6 +61,7 @@ struct LoadedSyntax {
 /// Ordinary discovery still owns syntax; neither variant carries Verify authority.
 enum LoadedProject {
     Parsed(Vec<LoadedSyntax>),
+    Prepared(Vec<LoadedSyntax>, CompileReport),
     Semantic(Box<(TypedProgram, CandidatePlan)>),
 }
 
@@ -71,21 +73,7 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
     let standard = parsed.module.items.iter().any(|item| matches!(&item.kind,
         ast::ItemKind::Import(import) if matches!(import.path.as_slice(),
             [a, b] if a == "std" && (b == "meta" || b == "syntax"))));
-    let typed_hash = {
-        use zil_syntax::token::{Symbol, TokenKind};
-        let mut previous = None;
-        let mut found = false;
-        for token in parsed.tokens.iter().filter(|token| !token.is_trivia()) {
-            if token.kind == TokenKind::Symbol(Symbol::Hash)
-                && matches!(previous, Some(TokenKind::Symbol(Symbol::Colon | Symbol::Arrow))) {
-                found = true;
-                break;
-            }
-            previous = Some(token.kind);
-        }
-        found
-    };
-    standard || typed_hash || parsed.tokens.iter().any(|token| {
+    standard || parsed.type_meta_candidate || parsed.tokens.iter().any(|token| {
         token.kind == zil_syntax::token::TokenKind::Identifier
             && matches!(token.text(&source.text), "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit")
     })
@@ -93,12 +81,14 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
 
 impl CompilationSession {
     pub(super) fn compile_source_artifact_project(
-        &mut self, source: &SourceUnit, parsed: Arc<ParseResult>,
-        options: &CompileOptions, observer: &mut dyn FnMut(&QueryEvent),
+        &mut self, source: &SourceUnit, parsed: Arc<ParseResult>, snapshot: Arc<QuerySnapshot>,
+        options: &CompileOptions, observer: &mut dyn FnMut(&QueryEvent), report: CompileReport,
     ) -> CompileReport {
         let project = ProjectSources { root: source.module_id, modules: vec![source.clone()], paths: BTreeMap::new() };
         self.compile_project_request(&project, options, observer,
-            Some(LoadedProject::Parsed(vec![LoadedSyntax { parsed, reused: false, stable_module_key: None }])))
+            Some(LoadedProject::Prepared(vec![LoadedSyntax {
+                parsed, reused: true, snapshot: Some(snapshot), stable_module_key: None,
+            }], report)))
     }
     pub fn compile_project(
         &mut self,
@@ -142,12 +132,13 @@ impl CompilationSession {
             .iter()
             .find(|m| m.module_id == project.root)
             .unwrap_or(&fallback);
-        let mut report = CompileReport::new(root);
-        let (loaded_syntax, preloaded_semantic) = match loaded {
-            Some(LoadedProject::Parsed(syntax)) => (Some(syntax), None),
-            Some(LoadedProject::Semantic(pair)) => (None, Some(*pair)),
-            None => (None, None),
+        let (loaded_syntax, preloaded_semantic, prepared_report) = match loaded {
+            Some(LoadedProject::Parsed(syntax)) => (Some(syntax), None, None),
+            Some(LoadedProject::Prepared(syntax, report)) => (Some(syntax), None, Some(report)),
+            Some(LoadedProject::Semantic(pair)) => (None, Some(*pair), None),
+            None => (None, None, None),
         };
+        let mut report = prepared_report.unwrap_or_else(|| CompileReport::new(root));
         let function_checkpoint = self.function_types.clone();
         if let Err(errors) = self.project_pipeline(
             project,
@@ -196,7 +187,7 @@ impl CompilationSession {
             }
         }
         self.trim_history();
-        report.seconds = start.elapsed().as_secs_f64();
+        report.seconds += start.elapsed().as_secs_f64();
         report
     }
 
@@ -432,6 +423,17 @@ impl CompilationSession {
             // conservative project quota, including trivia and EOF tokens.
             parse_options.limits.max_tokens = remaining.max_tokens.min(remaining.max_nodes);
             let loaded = loaded_syntax.map(|syntax| &syntax[index]);
+            if let Some(loaded) = loaded
+                && let Some(snapshot) = &loaded.snapshot
+            {
+                // The single-source bridge has already executed this exact
+                // Parse query and recorded its observer event. Reuse the real
+                // published dependency without a second query or event.
+                charge_frontend(&mut remaining, &loaded.parsed)?;
+                parsed.push(loaded.parsed.clone());
+                dependencies.push(snapshot.clone());
+                continue;
+            }
             let (parse_key, borrowed) = if loaded.is_none() {
                 self.project_parse_input(source, &parse_options, retained_syntax.as_deref())?
             } else {
@@ -1435,6 +1437,7 @@ fn load_sources(
         syntax.push(LoadedSyntax {
             parsed,
             reused,
+            snapshot: None,
             stable_module_key,
         });
         index += 1;

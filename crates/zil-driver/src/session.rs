@@ -42,6 +42,12 @@ pub(super) struct ProjectFrontend {
     pub typed: Arc<TypedProgram>,
     pub snapshot: Arc<QuerySnapshot>,
 }
+struct SourceParse {
+    parsed: Arc<ParseResult>,
+    snapshot: Arc<QuerySnapshot>,
+    artifacts: ArtifactPlan,
+    identity: QueryKey,
+}
 impl TypedInput {
     fn module(&self) -> &TypedModule {
         match self {
@@ -247,11 +253,12 @@ impl CompilationSession {
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> CompileReport {
-        // Single-source Type/Syntax uses the same frozen project pipeline as a
-        // one-module ProjectSources request. Keep the ordinary source path and
-        // its Parse-only behavior intact. This text test only avoids parsing
-        // old sources twice; the parsed AST decides whether the bridge applies.
-        if options.stop_after != Stage::Parse
+        let start = Instant::now();
+        let mut report = CompileReport::new(source);
+        // The text gate only avoids project work on ordinary source. The
+        // existing Parse query performs all parsing and owns its observer event.
+        // The parsed AST then decides whether the project bridge applies.
+        let candidate = options.stop_after != Stage::Parse
             && (options.syntax_lock.is_some()
                 || source.text.contains("std.")
                 || source.text.contains("syntax use")
@@ -266,21 +273,31 @@ impl CompilationSession {
                 || source.text.contains("->#")
                 || source.text.contains("-> #")
                 || source.text.contains("=#")
-                || source.text.contains("= #"))
-        {
-            let parsed = zil_syntax::parse_with_limits(source, &options.limits);
-            if parsed.diagnostics.is_empty()
-                && (options.syntax_lock.is_some()
-                    || super::project::artifact_candidate(source, &parsed))
-            {
-                return self.compile_source_artifact_project(
-                    source, Arc::new(parsed), options, observer,
-                );
+                || source.text.contains("= #"));
+        let prepared = if candidate {
+            match self.source_parse_stage(source, options, &mut report, observer) {
+                Ok(prepared) => Some(prepared),
+                Err(errors) => {
+                    report.fail(errors);
+                    self.trim_history();
+                    report.seconds = start.elapsed().as_secs_f64();
+                    return report;
+                }
             }
+        } else {
+            None
+        };
+        if let Some(ref parsed) = prepared
+            && (options.syntax_lock.is_some()
+                || super::project::artifact_candidate(source, &parsed.parsed))
+        {
+            report.seconds = start.elapsed().as_secs_f64();
+            return self.compile_source_artifact_project(
+                source, parsed.parsed.clone(), parsed.snapshot.clone(),
+                options, observer, report,
+            );
         }
-        let start = Instant::now();
-        let mut report = CompileReport::new(source);
-        if let Err(errors) = self.pipeline(source, options, &mut report, observer) {
+        if let Err(errors) = self.pipeline(source, options, &mut report, observer, prepared) {
             report.fail(errors);
         }
         self.trim_history();
@@ -528,55 +545,56 @@ impl CompilationSession {
         Ok(Some(ProjectFrontend { typed, snapshot }))
     }
 
+    fn source_parse_stage(
+        &mut self,
+        source: &SourceUnit,
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+    ) -> CompileResult<SourceParse> {
+        options.cancellation.check(Phase::Driver).map_err(|error| vec![error])?;
+        if options.profile == ExecutionProfile::Managed {
+            return Err(vec![Diagnostic::unsupported(Phase::Driver,
+                "managed execution profile and host bridge are not implemented", None)]);
+        }
+        if source.text.len() > options.limits.max_source_bytes {
+            return Err(vec![Diagnostic::limit(Phase::Parse,
+                "source byte budget exceeded", Some(source.span()))]);
+        }
+        let artifacts = ArtifactPlan::new(source, options)?;
+        let identity = query_key(source, options, Phase::Parse, false);
+        disk_source(source, options, report, &identity)?;
+        let parse_key = self.parse_key(source, options);
+        let (raw, snapshot) = self.query(parse_key, &[], options, report, observer, || {
+            let parsed = zil_syntax::parse_with_limits(source, &options.limits);
+            if !parsed.diagnostics.is_empty() { return Err(parsed.diagnostics); }
+            Ok(RawSnapshot::Parse(Arc::new(parsed)))
+        })?;
+        let RawSnapshot::Parse(parsed) = raw else {
+            return Err(infra("E-QUERY-KIND", "parse query returned another snapshot kind"));
+        };
+        report.phase = Phase::Parse;
+        artifacts.dump_lazy(report, options, "syntax", |_| format!("{parsed:#?}"))?;
+        Ok(SourceParse { parsed, snapshot, artifacts, identity })
+    }
+
     fn pipeline(
         &mut self,
         source: &SourceUnit,
         options: &CompileOptions,
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
+        prepared: Option<SourceParse>,
     ) -> CompileResult<()> {
-        options
-            .cancellation
-            .check(Phase::Driver)
-            .map_err(|error| vec![error])?;
-        if options.profile == ExecutionProfile::Managed {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Driver,
-                "managed execution profile and host bridge are not implemented",
-                None,
-            )]);
-        }
-        if source.text.len() > options.limits.max_source_bytes {
-            return Err(vec![Diagnostic::limit(
-                Phase::Parse,
-                "source byte budget exceeded",
-                Some(source.span()),
-            )]);
-        }
-        let artifacts = ArtifactPlan::new(source, options)?;
-        let identity = query_key(source, options, Phase::Parse, false);
-        disk_source(source, options, report, &identity)?;
+        let SourceParse { parsed, snapshot: parse_snapshot, artifacts, identity } =
+            match prepared {
+                Some(prepared) => prepared,
+                None => self.source_parse_stage(source, options, report, observer)?,
+            };
         // These immutable identities describe this request, not a proof. Reuse
         // them vertically instead of rehashing source bytes for every phase.
         let target = options.target.fingerprint();
         let key = |phase, depends_on_target| phase_key(&identity, phase, depends_on_target, target);
-        let parse_key = self.parse_key(source, options);
-        let (parsed, parse_snapshot) =
-            self.query(parse_key.clone(), &[], options, report, observer, || {
-                let parsed = zil_syntax::parse_with_limits(source, &options.limits);
-                if !parsed.diagnostics.is_empty() {
-                    return Err(parsed.diagnostics);
-                }
-                Ok(RawSnapshot::Parse(Arc::new(parsed)))
-            })?;
-        let RawSnapshot::Parse(parsed) = parsed else {
-            return Err(infra(
-                "E-QUERY-KIND",
-                "parse query returned another snapshot kind",
-            ));
-        };
-        report.phase = Phase::Parse;
-        artifacts.dump_lazy(report, options, "syntax", |_| format!("{parsed:#?}"))?;
         if options.stop_after == Stage::Parse {
             return Ok(());
         }
