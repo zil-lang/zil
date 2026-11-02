@@ -24,3 +24,7 @@ different-owner-db	03e33935da1b44b41a17e537d2d3a87a7900acc71702c5913961f30566a39
 different-owner-db-direct	8dda007cb1ed36025269d89f8c9ef2f52705f36144e876b588cca29a5eaf6d0a	success	verify	0	The direct reader borrows DB A while independent DB B is transferred and cleaned.
 move-owner-db	b6aa59289b633d70e79fb872adde12b45e8c2ddb95648684f9dc406b115fe7f7	borrow-conflict	analyze	-	The complete transferred DB owns the left Store whose element is still needed.
 move-owner-db-direct	aa6376132e93f8ca298d6e74d2adf2113b562a2fa06135a9b5192fb5c25fe803	borrow-conflict	verify	-	The direct reader still needs the element inside the complete transferred DB.
+inline-db-give	a8645f591cf4d8d5267541d6f242421346b03422782719ff6c73187d55a3f518	borrow-conflict	analyze	-	The temporary DB takes the Store that still owns this call's borrowed element.
+inline-db-disjoint	b64340d16270ab47b19155198f3c22ddb4a657c9811e6b8e708ca1a6d5bdde64	success	verify	0	The borrowed element stays in left; the temporary DB owns only distinct third/right Stores, so count remains 7.
+inline-db-give-direct	df999bbe8aaf0f61eac34e6d0979e42535cc39fb4c180e1e39e86918a6b24c42	borrow-conflict	verify	-	The temporary DB takes the Store that still owns this call's borrowed element.
+inline-db-disjoint-direct	c3128389d5e3cabf65aaaed03bca01e6ad3753abe4142f7ce360c674d443a620	success	verify	0	The borrowed element stays in left; the temporary DB owns only distinct third/right Stores, so count remains 7.

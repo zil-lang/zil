@@ -62,6 +62,10 @@ fn cases() -> Vec<Case> {
                 "different-owner-db-direct" => source!("different-owner-db-direct"),
                 "move-owner-db" => source!("move-owner-db"),
                 "move-owner-db-direct" => source!("move-owner-db-direct"),
+                "inline-db-give" => source!("inline-db-give"),
+                "inline-db-give-direct" => source!("inline-db-give-direct"),
+                "inline-db-disjoint" => source!("inline-db-disjoint"),
+                "inline-db-disjoint-direct" => source!("inline-db-disjoint-direct"),
                 "different-store-direct" => source!("different-store-direct"),
                 "same-store-reserve" => source!("same-store-reserve"),
                 "same-store-reserve-direct" => source!("same-store-reserve-direct"),
@@ -125,8 +129,8 @@ fn record(case: &Case, route: &str, result: &str) {
 #[test]
 fn source_oracles_are_frozen() {
     let cases = cases();
-    assert_eq!(cases.len(), 25);
-    assert_eq!(cases.iter().filter(|case| case.success).count(), 14);
+    assert_eq!(cases.len(), 29);
+    assert_eq!(cases.iter().filter(|case| case.success).count(), 16);
 }
 
 #[test]
@@ -337,6 +341,7 @@ fn field_and_owner_raw_wire_boundaries_are_independent_of_analyze() {
         ("different-store-fields", "same-store-field"),
         ("give-different-store", "give-same-store"),
         ("different-owner-db", "move-owner-db"),
+        ("inline-db-disjoint", "inline-db-give"),
     ] {
         for (name, expected_success) in [(positive, true), (negative, false)] {
             let case = cases.iter().find(|case| case.name == name).unwrap();
