@@ -1,9 +1,9 @@
 //! Closed CT services over the pre-generation source snapshot. Host callbacks
 //! return pure data and never execute a provider or grant ordinary Verify.
 use super::{snapshot::ShapeSnapshot, source_index::SourceIndex, type_ref::from_checked_type};
-use zil_base::{CompileResult, Diagnostic, Fingerprint, Phase, SourceUnit};
+use zil_base::{CompileResult, Diagnostic, Fingerprint, Phase, SourceUnit, Span};
 use zil_ct::{CtExecutionBudget, CtReadView};
-use zil_ir::{Type, ct_artifact::*};
+use zil_ir::{Constant, ct_artifact::*};
 use zil_syntax::ast::{self as s, ItemKind};
 
 fn error(code: &str, message: impl Into<String>) -> Vec<Diagnostic> {
@@ -20,6 +20,163 @@ pub(super) struct FrozenReadView<'a> {
 }
 
 impl FrozenReadView<'_> {
+    fn type_spelling(&self, ty: &CtTypeRef, node: CtTypeNodeId, out: &mut Vec<(String, CtTokenClass, Option<CtIdent>)>, depth: usize) -> CompileResult<()> {
+        if depth > 128 { return Err(error("E-CT-TYPE-PHASE", "type syntax nesting exceeds budget")); }
+        let actual = ty.nodes.get(node.0 as usize).ok_or_else(|| error("E-CT-TYPE-PHASE", "type node is out of range"))?;
+        let punctuation = |out: &mut Vec<_>, text: &str| out.push((text.to_owned(), CtTokenClass::Punctuation, None));
+        match actual {
+            CtTypeNode::Primitive(scalar) => out.push((match scalar {
+                CtScalarTy::Unit => "Unit", CtScalarTy::Bool => "bool", CtScalarTy::U8 => "u8", CtScalarTy::U16 => "u16", CtScalarTy::I32 => "i32", CtScalarTy::I64 => "i64",
+            }.into(), CtTokenClass::Identifier, None)),
+            CtTypeNode::Nominal { symbol, arguments } => {
+                let (text, namespace) = self.text_name(symbol)?;
+                out.push((text.clone(), CtTokenClass::Identifier, Some(CtIdent { text, namespace, source: CtNameSource::Definition(symbol.clone()), member_owner: None })));
+                if !arguments.is_empty() {
+                    punctuation(out, "<");
+                    for (index, argument) in arguments.iter().enumerate() {
+                        if index != 0 { punctuation(out, ","); }
+                        match argument {
+                            CtTypeArgument::Type(id) => self.type_spelling(ty, *id, out, depth + 1)?,
+                            CtTypeArgument::Scalar(value) => out.push((format!("{value:?}"), CtTokenClass::Integer, None)),
+                        }
+                    }
+                    punctuation(out, ">");
+                }
+            }
+            CtTypeNode::Array { element, length } => {
+                punctuation(out, "["); self.type_spelling(ty, *element, out, depth + 1)?;
+                punctuation(out, ";"); out.push((length.to_string(), CtTokenClass::Integer, None)); punctuation(out, "]");
+            }
+            CtTypeNode::Tuple(items) => {
+                punctuation(out, "(");
+                for (index, item) in items.iter().enumerate() { if index != 0 { punctuation(out, ","); } self.type_spelling(ty, *item, out, depth + 1)?; }
+                punctuation(out, ")");
+            }
+            _ => return Err(phase("this checked Type constructor has no materializable source spelling")),
+        }
+        Ok(())
+    }
+    fn syntax_tokens(category: CtSyntaxCategory, parts: Vec<(String, CtTokenClass, Option<CtIdent>)>, budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
+        let count = u64::try_from(parts.len()).map_err(|_| error("E-CT-SYNTAX-LIMIT", "syntax node count overflow"))?;
+        let bytes = parts.iter().map(|(text, _, _)| text.len() as u64).sum::<u64>();
+        budget.reserve_analysis_work(count.saturating_add(1))?;
+        budget.reserve_generated_nodes(count.saturating_add(1))?;
+        budget.reserve_temporary_bytes(bytes)?;
+        let origin = CtOriginId(0);
+        let mut tree = CtSyntaxTree { category, nodes: Vec::with_capacity(parts.len()), roots: Vec::with_capacity(parts.len()),
+            origins: vec![CtOrigin { span: Span::default(), parent: None, role: CtOriginRole::Generated }] };
+        for (text, class, name) in parts {
+            let id = CtSyntaxNodeId(u32::try_from(tree.nodes.len()).map_err(|_| error("E-CT-SYNTAX-LIMIT", "syntax node identity overflow"))?);
+            tree.nodes.push(CtSyntaxNode::Token(CtToken { class, text, origin, name }));
+            tree.roots.push(id);
+        }
+        Ok(tree)
+    }
+    fn instantiate(template: &CtTemplate, holes: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
+        if holes.len() != template.holes.len() { return Err(error("E-CT-QUOTE-HOLE", "quote hole count differs from verified template")); }
+        let mut needed_nodes = template.syntax.nodes.len() as u64;
+        let mut needed_origins = template.syntax.origins.len() as u64;
+        let mut needed_bytes = 0u64;
+        for node in &template.syntax.nodes {
+            match node {
+                CtSyntaxNode::Token(token) => needed_bytes = needed_bytes.saturating_add(token.text.len() as u64),
+                CtSyntaxNode::Hole { index, .. } => match holes.get(*index as usize) {
+                    Some(CtValue::Syntax(tree)) => {
+                        needed_nodes = needed_nodes.saturating_add(tree.nodes.len() as u64);
+                        needed_origins = needed_origins.saturating_add(tree.origins.len() as u64);
+                        for node in &tree.nodes { if let CtSyntaxNode::Token(token) = node { needed_bytes = needed_bytes.saturating_add(token.text.len() as u64); } }
+                    }
+                    Some(CtValue::Ident(ident)) => {
+                        needed_nodes = needed_nodes.saturating_add(1);
+                        needed_origins = needed_origins.saturating_add(1);
+                        needed_bytes = needed_bytes.saturating_add(ident.text.len() as u64);
+                    }
+                    _ => return Err(error("E-CT-QUOTE-HOLE", "quote hole value is not Syntax or Ident")),
+                },
+                _ => {}
+            }
+        }
+        budget.reserve_analysis_work(needed_nodes.saturating_add(needed_origins))?;
+        budget.reserve_generated_nodes(needed_nodes.saturating_add(needed_origins))?;
+        budget.reserve_temporary_bytes(needed_bytes)?;
+        let mut out = CtSyntaxTree { category: template.syntax.category, nodes: Vec::new(), roots: Vec::new(), origins: template.syntax.origins.clone() };
+        let mut map = Vec::<Vec<CtSyntaxNodeId>>::with_capacity(template.syntax.nodes.len());
+        for node in &template.syntax.nodes {
+            let mapped = match node {
+                CtSyntaxNode::Token(token) => {
+                    let id = CtSyntaxNodeId(u32::try_from(out.nodes.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote node identity overflow"))?);
+                    out.nodes.push(CtSyntaxNode::Token(token.clone()));
+                    vec![id]
+                }
+                CtSyntaxNode::Group { delimiter, children, origin } => {
+                    let mut mapped_children = Vec::new();
+                    for child in children {
+                        mapped_children.extend(map.get(child.0 as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote child is not earlier than its group"))?.iter().copied());
+                    }
+                    let id = CtSyntaxNodeId(u32::try_from(out.nodes.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote node identity overflow"))?);
+                    out.nodes.push(CtSyntaxNode::Group { delimiter: *delimiter, children: mapped_children, origin: *origin });
+                    vec![id]
+                }
+                CtSyntaxNode::Hole { index, origin } => {
+                    let value = holes.get(*index as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote hole index is out of range"))?;
+                    let expected = template.holes.get(*index as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote hole kind is missing"))?;
+                    match (expected, value) {
+                        (CtHoleKind::Ident(namespace), CtValue::Ident(ident)) if namespace == &ident.namespace => {
+                            let new_origin = CtOriginId(u32::try_from(out.origins.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote origin identity overflow"))?);
+                            let span = out.origins.get(origin.0 as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote hole origin is missing"))?.span;
+                            out.origins.push(CtOrigin { span, parent: Some(*origin), role: CtOriginRole::Splice });
+                            let id = CtSyntaxNodeId(u32::try_from(out.nodes.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote node identity overflow"))?);
+                            out.nodes.push(CtSyntaxNode::Token(CtToken { class: CtTokenClass::Identifier, text: ident.text.clone(), origin: new_origin, name: Some(ident.clone()) }));
+                            vec![id]
+                        }
+                        (CtHoleKind::Expr, CtValue::Syntax(tree)) if tree.category == CtSyntaxCategory::Expr => Self::graft(&mut out, tree, *origin)?,
+                        (CtHoleKind::Type, CtValue::Syntax(tree)) if tree.category == CtSyntaxCategory::Type => Self::graft(&mut out, tree, *origin)?,
+                        (CtHoleKind::StmtList, CtValue::Syntax(tree)) if tree.category == CtSyntaxCategory::StmtList => Self::graft(&mut out, tree, *origin)?,
+                        (CtHoleKind::ItemList, CtValue::Syntax(tree)) if tree.category == CtSyntaxCategory::ItemList => Self::graft(&mut out, tree, *origin)?,
+                        _ => return Err(error("E-CT-QUOTE-HOLE", "quote hole category or name namespace differs")),
+                    }
+                }
+            };
+            map.push(mapped);
+        }
+        for root in &template.syntax.roots {
+            out.roots.extend(map.get(root.0 as usize).ok_or_else(|| error("E-CT-QUOTE-HOLE", "quote root is out of range"))?.iter().copied());
+        }
+        Ok(out)
+    }
+    fn graft(out: &mut CtSyntaxTree, tree: &CtSyntaxTree, parent: CtOriginId) -> CompileResult<Vec<CtSyntaxNodeId>> {
+        let origin_base = u32::try_from(out.origins.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote origin identity overflow"))?;
+        for origin in &tree.origins {
+            let parent = match origin.parent { Some(id) => Some(CtOriginId(origin_base.checked_add(id.0).ok_or_else(|| error("E-CT-QUOTE-LIMIT", "quote origin identity overflow"))?)), None => Some(parent) };
+            out.origins.push(CtOrigin { span: origin.span, parent, role: origin.role });
+        }
+        let mut map = Vec::with_capacity(tree.nodes.len());
+        for node in &tree.nodes {
+            let mapped = match node {
+                CtSyntaxNode::Token(token) => {
+                    let mut token = token.clone();
+                    token.origin = CtOriginId(origin_base.checked_add(token.origin.0).ok_or_else(|| error("E-CT-QUOTE-LIMIT", "quote origin identity overflow"))?);
+                    CtSyntaxNode::Token(token)
+                }
+                CtSyntaxNode::Group { delimiter, children, origin } => CtSyntaxNode::Group {
+                    delimiter: *delimiter,
+                    children: children.iter().map(|id| map.get(id.0 as usize).copied().ok_or_else(|| error("E-CT-QUOTE-HOLE", "spliced syntax has invalid child"))).collect::<CompileResult<Vec<_>>>()?,
+                    origin: CtOriginId(origin_base.checked_add(origin.0).ok_or_else(|| error("E-CT-QUOTE-LIMIT", "quote origin identity overflow"))?),
+                },
+                CtSyntaxNode::Hole { .. } => return Err(error("E-CT-QUOTE-HOLE", "evaluated Syntax still contains a hole")),
+            };
+            let id = CtSyntaxNodeId(u32::try_from(out.nodes.len()).map_err(|_| error("E-CT-QUOTE-LIMIT", "quote node identity overflow"))?);
+            out.nodes.push(mapped);
+            map.push(id);
+        }
+        tree.roots.iter().map(|id| map.get(id.0 as usize).copied().ok_or_else(|| error("E-CT-QUOTE-HOLE", "spliced syntax has invalid root"))).collect()
+    }
+    fn token_tree(&self) -> CompileResult<&CtTokenTree> {
+        self.input.ok_or_else(|| error("E-CT-INPUT", "no authenticated provider token input exists"))
+    }
+    fn token_fingerprint(tree: &CtTokenTree) -> Fingerprint {
+        Fingerprint::of(format!("zil/ct-token-cursor/v1\0{tree:?}").as_bytes())
+    }
     fn declaration(&self, symbol: &CtSymbolId) -> Option<&s::Item> {
         self.syntax.iter().find(|module| module.id == symbol.module)?.items.get(symbol.declaration.0 as usize)
     }
@@ -146,13 +303,84 @@ impl CtReadView for FrozenReadView<'_> {
         let dependency = Self::dependency(kind, args, &value);
         Ok((value, dependency))
     }
-    fn build_syntax(&self, _kind: CtSyntaxBuilder, _args: &[CtValue], _budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
-        Err(phase("generated syntax construction has not been materialized"))
+    fn build_syntax(&self, kind: CtSyntaxBuilder, args: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
+        match (kind, args) {
+            (CtSyntaxBuilder::Literal, [CtValue::Scalar(value)]) => {
+                let (text, class) = match value {
+                    Constant::Unit => ("()".into(), CtTokenClass::Punctuation),
+                    Constant::Bool(value) => (value.to_string(), CtTokenClass::Keyword),
+                    Constant::U8(value) => (value.to_string(), CtTokenClass::Integer),
+                    Constant::U16(value) => (value.to_string(), CtTokenClass::Integer),
+                    Constant::I32(value) => (value.to_string(), CtTokenClass::Integer),
+                    Constant::I64(value) => (value.to_string(), CtTokenClass::Integer),
+                    _ => return Err(error("E-CT-SYNTAX-LITERAL", "runtime value is not a CT literal")),
+                };
+                Self::syntax_tokens(CtSyntaxCategory::Expr, vec![(text, class, None)], budget)
+            }
+            (CtSyntaxBuilder::Literal, [CtValue::Text(value)]) => Self::syntax_tokens(CtSyntaxCategory::Expr,
+                vec![(format!("{value:?}"), CtTokenClass::String, None)], budget),
+            (CtSyntaxBuilder::TypeRef, [CtValue::Type(ty)]) => {
+                let mut parts = Vec::new();
+                self.type_spelling(ty, ty.root, &mut parts, 0)?;
+                Self::syntax_tokens(CtSyntaxCategory::Type, parts, budget)
+            }
+            (CtSyntaxBuilder::NameExpr, [CtValue::Ident(ident)]) if ident.namespace == CtNameNamespace::Value => {
+                Self::syntax_tokens(CtSyntaxCategory::Expr, vec![(ident.text.clone(), CtTokenClass::Identifier, Some(ident.clone()))], budget)
+            }
+            _ => Err(error("E-CT-SYNTAX-BUILD", "syntax builder arguments or name namespace are invalid")),
+        }
     }
-    fn instantiate_quote(&self, _template: &CtTemplate, _holes: &[CtValue], _budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
-        Err(phase("quote hygienic instantiation has not completed"))
+    fn instantiate_quote(&self, template: &CtTemplate, holes: &[CtValue], budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
+        Self::instantiate(template, holes, budget)
     }
-    fn token_inspect(&self, _source: &CtValue, _projection: CtTokenProjection, _index: Option<i64>, _budget: &mut CtExecutionBudget) -> CompileResult<CtValue> {
-        Err(phase("provider token cursor is not connected to authenticated input"))
+    fn token_inspect(&self, source: &CtValue, projection: CtTokenProjection, index: Option<i64>, budget: &mut CtExecutionBudget) -> CompileResult<CtValue> {
+        use CtTokenProjection as P;
+        let tree = self.token_tree()?;
+        budget.reserve_analysis_work(1)?;
+        let indexed = || -> CompileResult<usize> {
+            usize::try_from(index.ok_or_else(|| error("E-CT-TOKEN-INDEX", "token projection needs an index"))?)
+                .map_err(|_| error("E-CT-TOKEN-INDEX", "token projection index is negative"))
+        };
+        let cursor = |node: CtTokenNodeId, budget: &mut CtExecutionBudget| -> CompileResult<CtValue> {
+            budget.reserve_generated_nodes(1)?;
+            Ok(CtValue::TokenCursor(CtTokenCursor { tree_fingerprint: Self::token_fingerprint(tree), node }))
+        };
+        match (source, projection) {
+            (CtValue::TokenTree(actual), P::RootCount) if actual == tree => Ok(CtValue::Scalar(Constant::I64(i64::try_from(tree.roots.len()).map_err(|_| error("E-CT-TOKEN-LIMIT", "token root count exceeds target integer"))?))),
+            (CtValue::TokenTree(actual), P::RootAt) if actual == tree => {
+                let node = *tree.roots.get(indexed()?).ok_or_else(|| error("E-CT-TOKEN-INDEX", "token root index is out of range"))?;
+                cursor(node, budget)
+            }
+            (CtValue::TokenCursor(actual), projection) if actual.tree_fingerprint == Self::token_fingerprint(tree) => {
+                let node = tree.nodes.get(actual.node.0 as usize).ok_or_else(|| error("E-CT-TOKEN-INDEX", "token cursor node is out of range"))?;
+                match (node, projection) {
+                    (CtTokenNode::Token(token), P::Class) => Ok(CtValue::Scalar(Constant::I32(token.class as i32))),
+                    (CtTokenNode::Group { .. }, P::Class) => Ok(CtValue::Scalar(Constant::I32(5))),
+                    (CtTokenNode::Group { delimiter, .. }, P::Delimiter) => Ok(CtValue::Scalar(Constant::I32(*delimiter as i32))),
+                    (CtTokenNode::Token(_), P::Delimiter) => Err(error("E-CT-TOKEN-KIND", "token has no delimiter")),
+                    (CtTokenNode::Token(token), P::Text) => {
+                        budget.reserve_temporary_bytes(token.text.len() as u64)?;
+                        Ok(CtValue::Text(token.text.clone()))
+                    }
+                    (CtTokenNode::Group { .. }, P::Text) => Err(error("E-CT-TOKEN-KIND", "group has no token text")),
+                    (CtTokenNode::Group { children, .. }, P::ChildCount) => Ok(CtValue::Scalar(Constant::I64(i64::try_from(children.len()).map_err(|_| error("E-CT-TOKEN-LIMIT", "token child count exceeds target integer"))?))),
+                    (CtTokenNode::Token(_), P::ChildCount) => Ok(CtValue::Scalar(Constant::I64(0))),
+                    (CtTokenNode::Group { children, .. }, P::ChildAt) => {
+                        let node = *children.get(indexed()?).ok_or_else(|| error("E-CT-TOKEN-INDEX", "token child index is out of range"))?;
+                        cursor(node, budget)
+                    }
+                    (CtTokenNode::Token(_), P::ChildAt) => Err(error("E-CT-TOKEN-KIND", "token has no child")),
+                    (CtTokenNode::Token(token), P::InputName) => {
+                        let ident = token.name.as_ref().ok_or_else(|| error("E-CT-TOKEN-NAME", "token is not an input identifier"))?;
+                        budget.reserve_generated_nodes(1)?;
+                        budget.reserve_temporary_bytes(ident.text.len() as u64)?;
+                        Ok(CtValue::Ident(ident.clone()))
+                    }
+                    (CtTokenNode::Group { .. }, P::InputName) => Err(error("E-CT-TOKEN-NAME", "group is not an input identifier")),
+                    _ => Err(error("E-CT-TOKEN-KIND", "token projection does not match this node")),
+                }
+            }
+            _ => Err(error("E-CT-INPUT", "token cursor is not bound to the authenticated provider input")),
+        }
     }
 }
