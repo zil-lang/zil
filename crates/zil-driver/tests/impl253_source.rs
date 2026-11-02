@@ -65,9 +65,17 @@ fn six_frozen_callback_signatures_reach_analyze() {
 
 #[test]
 fn frozen_cross_module_source_reaches_analyze_without_verify() {
+    checked_project("frozen-prep/project");
+}
+#[test]
+fn extended_store_address_and_owning_loop_source_reaches_analyze_without_verify() {
+    checked_project("extended");
+}
+fn checked_project(relative: &str) {
     use zil_driver::{CompileOptions, ProjectSources, Stage, compile_project};
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/impl256/frozen-prep/project");
+        .join("../../tests/impl256")
+        .join(relative);
     let names = ["main", "model", "relay"];
     let project = ProjectSources {
         root: ModuleId(0),
