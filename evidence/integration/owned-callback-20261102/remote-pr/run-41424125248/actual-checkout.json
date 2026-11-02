@@ -1,0 +1,40 @@
+{
+  "sha": "52bb49492eb1638ad77eb399e6cd2820c493dad2",
+  "node_id": "C_kwDOVXdqJNoAKDUyYmI0OTQ5MmViMTYzOGFkNzdlYjM5OWU2Y2QyODIwYzQ5M2RhZDI",
+  "url": "https://api.github.com/repos/zil-lang/zil/git/commits/52bb49492eb1638ad77eb399e6cd2820c493dad2",
+  "html_url": "https://github.com/zil-lang/zil/commit/52bb49492eb1638ad77eb399e6cd2820c493dad2",
+  "author": {
+    "name": "cicin",
+    "email": "dsscicin@163.com",
+    "date": "2026-11-02T09:51:57Z"
+  },
+  "committer": {
+    "name": "GitHub",
+    "email": "noreply@github.com",
+    "date": "2026-11-02T09:51:57Z"
+  },
+  "tree": {
+    "sha": "ffa33e4762765f83f0a525690d7aedd347527f8d",
+    "url": "https://api.github.com/repos/zil-lang/zil/git/trees/ffa33e4762765f83f0a525690d7aedd347527f8d"
+  },
+  "message": "Merge aebc4a6006150e2da6be3e544eab67c2dc0c2a75 into 81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+  "parents": [
+    {
+      "sha": "81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/81b7ae0c9ce5e7245613ed536b4702c419fe99bd",
+      "html_url": "https://github.com/zil-lang/zil/commit/81b7ae0c9ce5e7245613ed536b4702c419fe99bd"
+    },
+    {
+      "sha": "aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+      "url": "https://api.github.com/repos/zil-lang/zil/git/commits/aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
+      "html_url": "https://github.com/zil-lang/zil/commit/aebc4a6006150e2da6be3e544eab67c2dc0c2a75"
+    }
+  ],
+  "verification": {
+    "verified": true,
+    "reason": "valid",
+    "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq6F09CRC1aQ7uu5UhlAAANN0QAKrUabMpejTFUXyWhxAhm95e\na1RNRLUOS/scJ1OtUpCkWBA659qoQrSeBq4jty3WumjSKzqHsFumEWP31JXFZTtA\nS08jYCdJBL87/sSVBipJ0EVTvLJzVa5EKqRp5iKv7QFvOp/vngLOo5fZ9teh+pZx\n8zl5vVcBkmTR3KmJjhgkGBHRNBz1+Xn6Pq8iyXeJNYok2/4+wZ2txtr9WosyiPAf\nmnbDsPBiHSvnJss5ShoeoArjWmmrRZX565MyTjnhedqEnQqp2c+gidgJMZBIySvM\nDj2UAqHoF9W+HflmPz64WHKHrL9+qAoJDn+Gt+JCWSncvXOPInujB8B9ovKKaqaz\npLPC35Z7nF+key7WqsWnW0UP31t+5y4OfP0MahLIM4RvFxMH8nRaygBNm5wGQgNE\nmSp22ak4PkM7l7ayEIP1VIJ5bdCdbedv0pij+uOzCi7nglJ1X4qBeOBIV8DXCa6r\nS5z06LxpcBAaeaejZy6zk3/mWlgE1M8RaIOz/1a/mhBT0ODuF1LNt/Y/AgRv90GM\nIURe+Kq6Gv7NPqXZgudFVCsuXFl5mgiGGsiFZByRd/WvYs8lL+Bvc7HT3x+3i3QB\nOOBWbM18p0hW5CT5fLSWafBqfy8rgocqWlhjDUxM7CQzfbfS/9ZBcpEHsLBALJ14\nb2dWSwsgkhzbZ3llYZGc\n=dNFl\n-----END PGP SIGNATURE-----\n",
+    "payload": "tree ffa33e4762765f83f0a525690d7aedd347527f8d\nparent 81b7ae0c9ce5e7245613ed536b4702c419fe99bd\nparent aebc4a6006150e2da6be3e544eab67c2dc0c2a75\nauthor cicin <dsscicin@163.com> 1793613117 +0000\ncommitter GitHub <noreply@github.com> 1793613117 +0000\n\nMerge aebc4a6006150e2da6be3e544eab67c2dc0c2a75 into 81b7ae0c9ce5e7245613ed536b4702c419fe99bd\n",
+    "verified_at": "2026-11-02T09:51:57Z"
+  }
+}

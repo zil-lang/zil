@@ -1,0 +1,23 @@
+{
+  "status": "OperationalWithVerifiedLogFallback",
+  "at_utc": "2026-11-02T10:49:16.113257+00:00",
+  "github_transport": "Fetch/push/readback/PR merge pass",
+  "github_cli": {
+    "old": "2.46.0",
+    "issue": "Deprecated Projects Classic field broke gh pr edit",
+    "new": "2.103.3",
+    "official_archive_sha256": "4c806978ffce1cec70853302a56d70ac6da4f19bae7adca4e1a8ab00633dd91d",
+    "validated": "gh pr view and gh pr edit same body succeed",
+    "installation": "/workspace/.zil-env/tools/gh-2.103.3/gh; source /workspace/.zil-env/env.sh",
+    "system_install_changed": false
+  },
+  "artifact_quota": "Still exhausted; no billing change or remote evidence deletion",
+  "complete_recovered_runs": [
+    41424125248,
+    41424125171
+  ],
+  "evidence": "evidence/integration/owned-callback-20261102/remote-pr/E2-REMOTE-ACCEPTANCE.json",
+  "cache_cleanup": "11.4 GiB rebuildable reference Cargo cache removed after SHA validation of retained complete native archive",
+  "toolchain": "Rust1.99.1 LLVM23.1.4; locked dependencies remain available offline",
+  "configuration_published": false
+}
