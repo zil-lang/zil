@@ -68,45 +68,48 @@ fn frozen_six_copy_and_owned_signatures_reach_verify() {
 }
 
 #[test]
-fn frozen_three_module_source_reaches_verify() {
+fn frozen_and_extended_three_module_sources_reach_verify() {
     use zil_driver::{CompileOptions, ProjectSources, Stage, compile_project};
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/impl256/frozen-prep/project");
-    let names = ["main", "model", "relay"];
-    let project = ProjectSources {
-        root: ModuleId(0),
-        modules: names
-            .iter()
-            .enumerate()
-            .map(|(index, name)| {
-                let path = root.join(format!("{name}.zil"));
-                SourceUnit::new(
-                    FileId(index as u32),
-                    ModuleId(index as u32),
-                    path.to_string_lossy().into_owned(),
-                    std::fs::read_to_string(path).unwrap(),
-                )
-            })
+    for directory in ["frozen-prep/project", "extended"] {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/impl256")
+            .join(directory);
+        let names = ["main", "model", "relay"];
+        let project = ProjectSources {
+            root: ModuleId(0),
+            modules: names
+                .iter()
+                .enumerate()
+                .map(|(index, name)| {
+                    let path = root.join(format!("{name}.zil"));
+                    SourceUnit::new(
+                        FileId(index as u32),
+                        ModuleId(index as u32),
+                        path.to_string_lossy().into_owned(),
+                        std::fs::read_to_string(path).unwrap(),
+                    )
+                })
+                .collect(),
+            paths: [
+                (vec!["model".into()], ModuleId(1)),
+                (vec!["relay".into()], ModuleId(2)),
+            ]
+            .into_iter()
             .collect(),
-        paths: [
-            (vec!["model".into()], ModuleId(1)),
-            (vec!["relay".into()], ModuleId(2)),
-        ]
-        .into_iter()
-        .collect(),
-    };
-    let report = compile_project(
-        &project,
-        &CompileOptions {
-            stop_after: Stage::Verify,
-            ..CompileOptions::default()
-        },
-    );
-    assert_eq!(
-        report.status,
-        zil_base::ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.verification_runs, 1);
+        };
+        let report = compile_project(
+            &project,
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{directory}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
 }

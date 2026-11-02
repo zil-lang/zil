@@ -114,6 +114,180 @@ fn raw_companion_cannot_hide_f_or_an_external_address() {
     }
 }
 
+fn slot_type() -> Type {
+    Type::Array {
+        element: Box::new(env()),
+        length: 1,
+    }
+}
+
+fn slot_fixture() -> Raw {
+    let mut raw = keep(CallableKind::Fn, CallableKind::FnOnce);
+    let mut child = raw.module.functions[0].clone();
+    child.id = FunctionId(2);
+    child.name = "nested_keep".into();
+    raw.module.functions.push(child);
+    let function = &mut raw.module.functions[0];
+    function.locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "slot".into(),
+        ty: slot_type(),
+        mutable: true,
+        span: span(),
+    });
+    function.values = vec![env(), slot_type(), env(), env(), env()];
+    function.blocks[0].instructions = vec![
+        op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        op(None, InstructionKind::StorageLive(LocalId(1))),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::TakeLocal { local: LocalId(0) },
+        ),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::MakeOwnedArray {
+                elements: vec![ValueId(0)],
+            },
+        ),
+        op(
+            None,
+            InstructionKind::Store {
+                local: LocalId(1),
+                value: ValueId(1),
+            },
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::TakeOwnedArrayElement {
+                local: LocalId(1),
+                index: 0,
+            },
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::Call {
+                function: FunctionId(2),
+                arguments: vec![ValueId(2)],
+            },
+        ),
+        op(
+            None,
+            InstructionKind::DropOwnedArrayElement {
+                local: LocalId(1),
+                index: 0,
+            },
+        ),
+        op(
+            None,
+            InstructionKind::StoreOwnedArrayElement {
+                local: LocalId(1),
+                index: 0,
+                value: ValueId(3),
+            },
+        ),
+        op(
+            Some(ValueId(4)),
+            InstructionKind::TakeOwnedArrayElement {
+                local: LocalId(1),
+                index: 0,
+            },
+        ),
+        op(None, InstructionKind::DropOwnedArray { local: LocalId(1) }),
+        op(None, InstructionKind::StorageDead(LocalId(1))),
+        op(None, InstructionKind::StorageDead(LocalId(0))),
+        op(
+            None,
+            InstructionKind::ScopeExit {
+                scope: ScopeId(0),
+                kind: CleanupExitKind::Return,
+            },
+        ),
+    ];
+    function.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+    raw
+}
+
+#[test]
+fn internal_single_slot_keeps_exact_instance_across_nested_forwarding() {
+    let raw = slot_fixture();
+    raw.accept();
+}
+
+#[test]
+fn internal_slot_rejects_fresh_substitution_and_repeated_take() {
+    let mut fresh = slot_fixture();
+    let function = &mut fresh.module.functions[0];
+    function.values.extend([Type::I32, env()]);
+    let refill = function.blocks[0]
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.kind,
+                InstructionKind::StoreOwnedArrayElement { .. }
+            )
+        })
+        .unwrap();
+    function.blocks[0].instructions.splice(
+        refill..refill,
+        [
+            op(
+                Some(ValueId(5)),
+                InstructionKind::Constant(Constant::I32(9)),
+            ),
+            op(
+                Some(ValueId(6)),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![ValueId(5)],
+                },
+            ),
+        ],
+    );
+    let InstructionKind::StoreOwnedArrayElement { value, .. } =
+        &mut function.blocks[0].instructions[refill + 2].kind
+    else {
+        unreachable!()
+    };
+    *value = ValueId(6);
+    fresh.reject("instance");
+
+    let mut repeated = slot_fixture();
+    let function = &mut repeated.module.functions[0];
+    function.values.push(env());
+    let first_take = function.blocks[0]
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.kind,
+                InstructionKind::TakeOwnedArrayElement { .. }
+            )
+        })
+        .unwrap();
+    function.blocks[0].instructions.insert(
+        first_take + 1,
+        op(
+            Some(ValueId(5)),
+            InstructionKind::TakeOwnedArrayElement {
+                local: LocalId(1),
+                index: 0,
+            },
+        ),
+    );
+    repeated.reject("absent");
+
+    let mut wrong_index = slot_fixture();
+    let function = &mut wrong_index.module.functions[0];
+    let InstructionKind::TakeOwnedArrayElement { index, .. } =
+        &mut function.blocks[0].instructions[first_take].kind
+    else {
+        unreachable!()
+    };
+    *index = 1;
+    wrong_index.reject("index");
+}
+
 #[test]
 fn fnmut_call_preserves_instance_but_fnonce_call_consumes_it() {
     let mut permitted = keep(CallableKind::FnMut, CallableKind::FnMut);
