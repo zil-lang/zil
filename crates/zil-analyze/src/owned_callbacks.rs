@@ -53,6 +53,17 @@ pub(super) fn signature(
     definition: &ClosureDefinition,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    budget.spend(module.functions.len(), "owned callback factory exclusion")?;
+    if module.functions.iter().any(|function| {
+        function
+            .callable_return_contract
+            .as_ref()
+            .is_some_and(|contract| contract.closure == definition.id)
+    }) {
+        return Err(bad(
+            "owned callback signature does not grant an opaque factory profile",
+        ));
+    }
     let entry = module
         .functions
         .get(definition.function.0 as usize)
@@ -118,9 +129,58 @@ pub(super) fn signature(
     Ok(())
 }
 
+fn container_profile(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    budget.type_work(ty, false, "owned callback container profile exclusion")?;
+    fn contained(ty: &Type, nested: bool, owned: &BTreeSet<ClosureId>) -> bool {
+        match ty {
+            Type::Closure(id) => nested && owned.contains(id),
+            Type::Tuple(fields) => fields.iter().any(|ty| contained(ty, true, owned)),
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                fields.iter().any(|(_, ty)| contained(ty, true, owned))
+            }
+            Type::Enum { variants, .. } => variants
+                .iter()
+                .any(|(_, fields)| fields.iter().any(|ty| contained(ty, true, owned))),
+            Type::ErrorUnion { error, result } => {
+                contained(error, true, owned) || contained(result, true, owned)
+            }
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::OwnedStore { element }
+            | Type::Managed(element)
+            | Type::Opaque {
+                hidden: element, ..
+            } => contained(element, true, owned),
+            // A borrowed direct environment remains a concrete call
+            // position; an address does not turn it into a container.
+            Type::Address { inner, .. } | Type::Desc(inner) => contained(inner, nested, owned),
+            _ => false,
+        }
+    }
+    if contained(ty, false, &budget.owned_callbacks) {
+        return Err(bad(
+            "owned callback signature does not grant a State, array or container profile",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
     if budget.owned_callbacks.is_empty() && budget.owned_callback_helpers.is_empty() {
         return Ok(());
+    }
+    budget.spend(
+        module.closures.len(),
+        "owned callback capture container profiles",
+    )?;
+    for definition in &module.closures {
+        budget.spend(
+            definition.captures.len(),
+            "owned callback capture container slots",
+        )?;
+        for ty in &definition.captures {
+            container_profile(ty, budget)?;
+        }
     }
     budget.spend(
         module.functions.len(),
@@ -143,6 +203,15 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     }
     budget.spend(module.functions.len(), "owned callback call functions")?;
     for f in &module.functions {
+        for ty in f
+            .locals
+            .iter()
+            .map(|local| &local.ty)
+            .chain(&f.values)
+            .chain(std::iter::once(&f.return_type))
+        {
+            container_profile(ty, budget)?;
+        }
         budget.spend(f.blocks.len(), "owned callback call blocks")?;
         for b in &f.blocks {
             budget.spend(b.instructions.len(), "owned callback call instructions")?;
