@@ -111,5 +111,105 @@
     }
   ],
   "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
-  "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+  "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+  "replay_after_248_combined_checkpoint": {
+    "checkpoint": "931a34afaf59a02af3b023e3b87f759c54938da4",
+    "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-249 ZIL_TEST_REPORT_DIR=/tmp/impl249-final-run cargo test -p zil-driver --test impl249_machine --offline --locked -j 2 -- --nocapture",
+    "selected": 1,
+    "passed": 1,
+    "source_compilations": 6,
+    "native_executions": 6,
+    "cases": [
+      {
+        "case": "event-copy-result-O0",
+        "source_sha256": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "typed_sha256": "a944983a5f583e0c1e49305e633bb221a864c579babd09a5b7a27bfc0f8a60cc",
+        "verified_sha256": "5e9c39af5caf46ac2e0a5211f245ebf0fef944c8c790abe67e04f34fe20b2258",
+        "lir_sha256": "bf31ed14aa68c2420b5c6b384811db58c9d86a5451d13febdbec7a27aced0ccb",
+        "llvm_sha256": "1b8c8d3951808560d8102980b126eba9563f4fbff710d77a60ec4932fd4102ba"
+      },
+      {
+        "case": "event-copy-result-O2",
+        "source_sha256": "a6102dec3f96f5772ee881a99b89ad19b331caf291067e6094aff82a07d238ac",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "typed_sha256": "a944983a5f583e0c1e49305e633bb221a864c579babd09a5b7a27bfc0f8a60cc",
+        "verified_sha256": "5e9c39af5caf46ac2e0a5211f245ebf0fef944c8c790abe67e04f34fe20b2258",
+        "lir_sha256": "bf31ed14aa68c2420b5c6b384811db58c9d86a5451d13febdbec7a27aced0ccb",
+        "llvm_sha256": "1b8c8d3951808560d8102980b126eba9563f4fbff710d77a60ec4932fd4102ba"
+      },
+      {
+        "case": "event-reply-O0",
+        "source_sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "typed_sha256": "1af37b401f56c51c2902f97375f46865a51779c39fcd5dab928fed304fabd4e7",
+        "verified_sha256": "b2a2387a3d245f9be8eaf65bbe2b4d1a0afeae47c65bc85b228a33257e02e2d0",
+        "lir_sha256": "8f6a65e0f1e797a2d6f2ed292930313d762c694d1d7404e909c58a7f173fc8b7",
+        "llvm_sha256": "b1f549148c5cb67f9a8b61e7d02eb3815c903a75d2270e9ff4e8f0f4ad32570d"
+      },
+      {
+        "case": "event-reply-O2",
+        "source_sha256": "d8e5847a333b3084c00e40a6793d3cd6e19f0bec4f01ee055dde5a1b4fefbb2f",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "typed_sha256": "1af37b401f56c51c2902f97375f46865a51779c39fcd5dab928fed304fabd4e7",
+        "verified_sha256": "b2a2387a3d245f9be8eaf65bbe2b4d1a0afeae47c65bc85b228a33257e02e2d0",
+        "lir_sha256": "8f6a65e0f1e797a2d6f2ed292930313d762c694d1d7404e909c58a7f173fc8b7",
+        "llvm_sha256": "b1f549148c5cb67f9a8b61e7d02eb3815c903a75d2270e9ff4e8f0f4ad32570d"
+      },
+      {
+        "case": "owned-result-O0",
+        "source_sha256": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "typed_sha256": "0e83e11891985e569ec050a0c8e18f975a2b8e99df3ebb85d4ce7cf970644d1a",
+        "verified_sha256": "e854b7477ef58324a971960de797204c3a33adee6257ec5b2374c70350651d2c",
+        "lir_sha256": "0e6adf094004d68e280e60f5d45a4bea75af082f1919e74fa9ec18b5ea8be95f",
+        "llvm_sha256": "e25041c1d968fd8d0460c60f206f7a4dd38427ac603d0a145b506ff1617694aa"
+      },
+      {
+        "case": "owned-result-O2",
+        "source_sha256": "b2cfa4f5058678c86b7547b15af432fdccd0360f80bd49f57c0960064addf3bd",
+        "status": "Success",
+        "phase": "link",
+        "verification_runs": 1,
+        "fallback": null,
+        "exit": 0,
+        "stdout": "",
+        "stderr": "",
+        "typed_sha256": "0e83e11891985e569ec050a0c8e18f975a2b8e99df3ebb85d4ce7cf970644d1a",
+        "verified_sha256": "e854b7477ef58324a971960de797204c3a33adee6257ec5b2374c70350651d2c",
+        "lir_sha256": "0e6adf094004d68e280e60f5d45a4bea75af082f1919e74fa9ec18b5ea8be95f",
+        "llvm_sha256": "e25041c1d968fd8d0460c60f206f7a4dd38427ac603d0a145b506ff1617694aa"
+      }
+    ]
+  }
 }
