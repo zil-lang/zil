@@ -1284,7 +1284,7 @@ impl<'a> Engine<'a> {
             expected.filter(|ty| matches!(grouped(ty).kind, TypeKind::Error { .. }));
         let store_success_context = expected.filter(|ty| stores::success(ty).is_some());
         let expected = expected.filter(|ty| !matches!(grouped(ty).kind, TypeKind::Error { .. }));
-        if let Some(ty) = self.enum_expression(e, env, expected, depth)? {
+        if let Some(ty) = self.enum_expression(e, env, expected.or(error_context), depth)? {
             return Ok(Some(ty));
         }
         let result = match &mut e.kind {
@@ -1317,7 +1317,7 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
-                self.expr_expected(inner, env, expected.or(store_success_context), depth + 1)?
+                self.expr_expected(inner, env, expected.or(error_context), depth + 1)?
             }
             ExprKind::Unary { op, operand } => {
                 let hint = if matches!(op, UnaryOp::Negate | UnaryOp::BitNot) {

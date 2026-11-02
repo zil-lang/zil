@@ -21,12 +21,17 @@
 
 target-292/jobs1限定结果：Expand generics 9/0、既有enum预算2/0，
 driver generics（llvm-api配置）7/0、generic_regressions 9/0；限定Clippy
-`-D warnings`及fmt通过。新原源Expand最小steps522/nodes214，N−1
+`-D warnings`及fmt通过。新原源Expand最小steps624/nodes242，N−1
 均ResourceLimit，N与fresh相同；旧scalar288/144、owned554/279、
 local558/281及enum336/126保持原值。
 
 机器判据直接取源操作：direct Fault、普通helper、显式Fault局部三写法，
 各运行成功/错误两分支；成功输出`7`且exit0，错误无输出且exit1。
 Clang和LLVM API各O0/O2，共24次运行全部符合（重复检查不计新增覆盖）；
-报告backend等于请求，fallback为空。原四份冻结源均VerifySuccess、
+报告backend等于请求，fallback为空。原四份及unique-context独审近邻冻结源均VerifySuccess、
 verification_runs=1。无正式全量、公开IR/schema或默认限额变更。
+
+独审近邻补片恢复Engine原本先过滤掉的E!T上下文，仅传给enum检查及透明
+括号路径；普通泛型调用仍不从E/T竞争推导。唯一Choice<i32>!i32中的
+Choice.None（含括号）现在保持上下文，异实例两候选None仍拒。恢复实例
+实际核查后的原源费用为上述624/242；限定9+2+7+9及24机器运行重放通过。
