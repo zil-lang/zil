@@ -583,17 +583,50 @@ fn bind_lir(
     }
     // The public LIR has now been exactly rebound. The sealed bit only
     // enables payment; qualification and actual layouts are still rebuilt.
+    let callback_owned_data = lir.closures.iter().any(|closure| {
+        std::iter::once(&closure.result)
+            .chain(closure.parameters.iter())
+            .any(|ty| {
+                matches!(
+                    ty,
+                    Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) && !ty.is_copy_value()
+            })
+    });
     let sum_helpers = drop_plan::functions(
         lir,
         verified.limits(),
-        verified.uses_owned_sum_extension(),
+        verified.uses_owned_sum_extension() || callback_owned_data,
         entry,
     )?;
     for closure in lir.closures {
+        // Complete ordinary owning data travels through the same aggregate
+        // argument/result ABI as a direct call. Keep capture qualification and
+        // the older Copy/address callable profile independent of this path.
+        let owning_result = matches!(
+            closure.result,
+            Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        ) && !closure.result.is_copy_value()
+            && drop_plan::value_type(&closure.result, lir.resources);
+        let owning_parameters = closure.parameters.iter().any(|ty| {
+            matches!(
+                ty,
+                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && !ty.is_copy_value()
+        });
+        let owning_signature = (owning_result || owning_parameters)
+            && (closure.result.is_copy_value() || owning_result)
+            && closure.parameters.iter().all(|ty| {
+                ty.is_copy_value()
+                    || (matches!(
+                        ty,
+                        Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                    ) && drop_plan::value_type(ty, lir.resources))
+            });
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(closure.result.is_copy_value()
+        ) || !(owning_signature || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
@@ -613,7 +646,7 @@ fn bind_lir(
                     || packages::supported_capture_type(ty, lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
-                ty.is_copy_value()
+                owning_signature || ty.is_copy_value()
                     || (closure.result.is_copy_value()
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
