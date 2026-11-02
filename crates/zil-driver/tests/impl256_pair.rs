@@ -7,7 +7,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 
 #[test]
@@ -60,7 +60,16 @@ fn fnmut_returned_parameter_requires_writable_position_and_keeps_poststate() {
             fs::write(dir.join("report.json"), report.to_json()).unwrap();
             if !positive {
                 assert!(!report.artifacts.contains_key("executable"));
-                if report.status != ResultCategory::SafeReject {
+                if report.status != ResultCategory::SafeReject
+                    || !report.diagnostics.iter().any(|diagnostic| {
+                        diagnostic.category == ResultCategory::SafeReject
+                            && diagnostic.phase == Phase::Expand
+                            && diagnostic.code == "E-GENERIC-ARGUMENT"
+                            && diagnostic
+                                .message
+                                .contains("FnMut forwarding call requires a mutable binding")
+                    })
+                {
                     failed.push(report.to_json());
                 }
                 continue;

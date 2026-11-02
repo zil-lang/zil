@@ -1,0 +1,438 @@
+{
+  "verdict": "Pass narrow review repair",
+  "tested_compiler_commit": "431fc7ce418f7765e5f3786bf86b15268b093da7",
+  "tested_source_parent_commit": "7f0d0ba9183ff47d0e40e056954651729257023b",
+  "scope": "Only diagnostic obligations in existing source tests changed; no source fixture, native oracle, compiler or schema changes.",
+  "tests": {
+    "selected": 2,
+    "executed": 2,
+    "passed": 2,
+    "failed": 0
+  },
+  "source_compile_attempts": 15,
+  "current_boundary_checks_with_phase_code_and_reason": 11,
+  "pair_negative_checks_with_phase_code_and_reason": 1,
+  "historical_gap_observations": 1,
+  "historical_gap_semantic_pass_count": 0,
+  "native_runs": 2,
+  "native_run_interpretation": "Repeated existing var-pair O0/O2 control only; never added to the 256-case unified candidate count.",
+  "commands": [
+    "source /workspace/.zil-env/env.sh; rustfmt --edition 2024 crates/zil-driver/tests/impl256_boundaries.rs crates/zil-driver/tests/impl256_pair.rs",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-256 CARGO_BUILD_JOBS=2 ZIL_TEST_REPORT_DIR=/tmp/impl256-review-negative cargo test -p zil-driver --offline --locked -j2 --features llvm-api --test impl256_boundaries --test impl256_pair -- --nocapture"
+  ],
+  "all_frozen_hashes_preserved": true,
+  "oracle_sha256": "78af8b1cf33b06744e9bc70c3e965392cf14da1015b99138370465973d26f4b8",
+  "rows": [
+    {
+      "case": "address_active_window",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "verify",
+        "diagnostics": [
+          {
+            "phase": "verify",
+            "category": "SafeReject",
+            "code": "E-BORROW-CONFLICT",
+            "message": "access overlaps an active address window without its delegated authority",
+            "span": {
+              "file": 0,
+              "start": 305,
+              "end": 310
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "SafeReject",
+        "phase": "verify",
+        "code": "E-BORROW-CONFLICT",
+        "message_fragments": [
+          "overlaps an active address window",
+          "without its delegated authority"
+        ],
+        "source_obligation": "Returning F does not erase the caller's live shared view when a later explicit mutable address call accesses the same scalar."
+      }
+    },
+    {
+      "case": "external_address_child_environment",
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape",
+            "span": {
+              "file": 0,
+              "start": 130,
+              "end": 135
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED",
+        "message_fragments": [
+          "self-contained environments",
+          "borrowed dependencies cannot escape"
+        ],
+        "source_obligation": "Direct and child F environments must be recursively self-contained; this is a closed profile boundary, not proof of a loan conflict."
+      }
+    },
+    {
+      "case": "external_address_environment",
+      "actual": {
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape",
+            "span": {
+              "file": 0,
+              "start": 129,
+              "end": 136
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "Unsupported",
+        "phase": "types",
+        "code": "E-UNSUPPORTED",
+        "message_fragments": [
+          "self-contained environments",
+          "borrowed dependencies cannot escape"
+        ],
+        "source_obligation": "Direct and child F environments must be recursively self-contained; this is a closed profile boundary, not proof of a loan conflict."
+      }
+    },
+    {
+      "case": "mut_declared_actual_fn_shared_call",
+      "actual": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
+            "span": {
+              "file": 0,
+              "start": 74,
+              "end": 77
+            },
+            "notes": []
+          }
+        ]
+      },
+      "historical_gap": {
+        "classification": "historical B0 gap; not a current semantic rejection Pass",
+        "original_expected": "SafeReject",
+        "actual": "Unsupported",
+        "source_and_original_expectation_preserved": true,
+        "root_registrations": [
+          "5b6b609e5",
+          "b113"
+        ]
+      },
+      "current_semantic_pass": false
+    },
+    {
+      "case": "once_called_then_returned",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+            "span": {
+              "file": 0,
+              "start": 45,
+              "end": 46
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "SafeReject",
+        "phase": "expand",
+        "code": "E-GENERIC-ARGUMENT",
+        "message_fragments": [
+          "used after move",
+          "Copy cannot be inferred from a concrete instance"
+        ],
+        "source_obligation": "A reachable FnOnce call consumes the declared input position, which cannot then be returned as live F."
+      }
+    },
+    {
+      "case": "once_declared_actual_fn_copy",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+            "span": {
+              "file": 0,
+              "start": 147,
+              "end": 154
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "SafeReject",
+        "phase": "expand",
+        "code": "E-GENERIC-ARGUMENT",
+        "message_fragments": [
+          "used after move",
+          "Copy cannot be inferred from a concrete instance"
+        ],
+        "source_obligation": "An outer symbolic FnOnce position does not gain Copy from its concrete Fn instantiation after keep."
+      }
+    },
+    {
+      "case": "once_declared_actual_fn_twice",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "generic callable used after its environment was consumed",
+            "span": {
+              "file": 0,
+              "start": 132,
+              "end": 142
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "SafeReject",
+        "phase": "expand",
+        "code": "E-GENERIC-ARGUMENT",
+        "message_fragments": [
+          "callable used after its environment was consumed"
+        ],
+        "source_obligation": "Direct and loop forwarding preserve the caller's declared FnOnce mode, so a second call is forbidden."
+      }
+    },
+    {
+      "case": "once_mixed_return_path",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "generic value used after move; Copy cannot be inferred from a concrete instance",
+            "span": {
+              "file": 0,
+              "start": 63,
+              "end": 64
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "SafeReject",
+        "phase": "expand",
+        "code": "E-GENERIC-ARGUMENT",
+        "message_fragments": [
+          "used after move",
+          "Copy cannot be inferred from a concrete instance"
+        ],
+        "source_obligation": "A reachable FnOnce call consumes the declared input position, which cannot then be returned as live F."
+      }
+    },
+    {
+      "case": "once_mode_through_loop",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "generic callable used after its environment was consumed",
+            "span": {
+              "file": 0,
+              "start": 243,
+              "end": 253
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "SafeReject",
+        "phase": "expand",
+        "code": "E-GENERIC-ARGUMENT",
+        "message_fragments": [
+          "callable used after its environment was consumed"
+        ],
+        "source_obligation": "Direct and loop forwarding preserve the caller's declared FnOnce mode, so a second call is forbidden."
+      }
+    },
+    {
+      "case": "same_closure_id_different_instance",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "callable forwarding must return the actual input instance, not a fresh factory environment",
+            "span": {
+              "file": 0,
+              "start": 183,
+              "end": 191
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "SafeReject",
+        "phase": "expand",
+        "code": "E-GENERIC-ARGUMENT",
+        "message_fragments": [
+          "return the actual input instance",
+          "not a fresh factory environment"
+        ],
+        "source_obligation": "Every normal return must originate in the actual F argument; another instance of the same factory/ClosureId is insufficient."
+      }
+    },
+    {
+      "case": "same_closure_id_wrong_branch",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "callable forwarding must return the actual input instance, not a fresh factory environment",
+            "span": {
+              "file": 0,
+              "start": 226,
+              "end": 234
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "SafeReject",
+        "phase": "expand",
+        "code": "E-GENERIC-ARGUMENT",
+        "message_fragments": [
+          "return the actual input instance",
+          "not a fresh factory environment"
+        ],
+        "source_obligation": "Every normal return must originate in the actual F argument; another instance of the same factory/ClosureId is insufficient."
+      }
+    },
+    {
+      "case": "use_after_transfer",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-UNINITIALIZED",
+            "message": "local 2 is not initialized on every incoming path",
+            "span": {
+              "file": 0,
+              "start": 168,
+              "end": 177
+            },
+            "notes": []
+          }
+        ]
+      },
+      "expected": {
+        "category": "SafeReject",
+        "phase": "analyze",
+        "code": "E-UNINITIALIZED",
+        "message_fragments": [
+          "not initialized on every incoming path"
+        ],
+        "source_obligation": "The original non-Copy owning closure position is moved into keep and cannot be called again."
+      }
+    },
+    {
+      "case": "fnmut_return_current_let-O0",
+      "actual": {
+        "status": "SafeReject",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "SafeReject",
+            "code": "E-GENERIC-ARGUMENT",
+            "message": "FnMut forwarding call requires a mutable binding",
+            "span": {
+              "file": 0,
+              "start": 111,
+              "end": 121
+            },
+            "notes": []
+          }
+        ]
+      }
+    },
+    {
+      "case": "fnmut_return_current_var-O0",
+      "actual": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": []
+      },
+      "stdout": "123M",
+      "exit": "Some(0)"
+    },
+    {
+      "case": "fnmut_return_current_var-O2",
+      "actual": {
+        "status": "Success",
+        "phase": "link",
+        "diagnostics": []
+      },
+      "stdout": "123M",
+      "exit": "Some(0)"
+    }
+  ]
+}
