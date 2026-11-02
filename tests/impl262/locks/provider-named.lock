@@ -1,0 +1,4 @@
+zil-syntax-lock 1
+rule ZIL-LANG-1.4
+provider providers.expressions default expand Expr paren,bracket,brace 6380f7fe12aa685969871cbeefb2eb14ba26d5e613f7b301d648817b21d8508a 43234433784630ec941ed5e1b088016d6fa2981a62d3e7e7a11a26d44b96c2fc
+provider providers.expressions named expand Expr paren,bracket,brace 6380f7fe12aa685969871cbeefb2eb14ba26d5e613f7b301d648817b21d8508a 43234433784630ec941ed5e1b088016d6fa2981a62d3e7e7a11a26d44b96c2fc
