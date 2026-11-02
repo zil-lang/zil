@@ -53,6 +53,7 @@ pub enum Symbol {
     Ellipsis,
     ColonColon,
     Hash,
+    Dollar,
     Question,
     Arrow,
     FatArrow,

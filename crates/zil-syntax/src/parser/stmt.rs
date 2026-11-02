@@ -170,6 +170,14 @@ impl Parser<'_> {
                 "attributes cannot attach to an executable statement",
             );
         }
+        if self.in_quote() && self.quote_list_hole_ahead()? {
+            self.quote_hole(QuoteHoleKind::StmtList)?;
+            self.end()?;
+            return Ok(Stmt {
+                kind: StmtKind::Expression(self.quote_dummy(self.span_from(start))),
+                span: self.span_from(start),
+            });
+        }
         let kind = if self.at_word("let") || self.at_word("var") {
             let mutable = self.eat_word("var");
             if !mutable {
@@ -348,7 +356,9 @@ impl Parser<'_> {
     pub(super) fn pattern(&mut self) -> P<Pattern> {
         self.nested(|p| {
             let start = p.peek().span;
-            let kind = if let Some(value) = p.literal() {
+            let kind = if p.at(Symbol::Dollar) && p.in_quote() {
+                PatternKind::Name(p.ident_kind(QuoteNameNamespace::Value, QuoteNameRole::Binding)?)
+            } else if let Some(value) = p.literal() {
                 PatternKind::Literal(value)
             } else if p.eat_word("_") {
                 PatternKind::Wildcard
