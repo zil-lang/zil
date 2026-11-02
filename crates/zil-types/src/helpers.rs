@@ -106,7 +106,38 @@ pub(super) fn validate_template(
         return Err(reject());
     }
     let owned_state = callable_fields::template(function);
+    // Only a new non-Copy data signature enters this branch; legacy helper
+    // accounting and every existing State/lending profile stay unchanged.
+    let owned_data = !owned_state && bounds.iter().any(|bound| {
+        !closures::supported_signature(&bound.parameters, &bound.result)
+    }) || (!owned_state && !function.return_type.is_copy_value()
+        && !lending::supported_result(&function.return_type));
+    if owned_data {
+        if bounds.len() != 1 || !function.type_parameters.is_empty()
+            || bounds[0].kind != CallableKind::FnOnce
+            || parameter_mode(&function.parameters.get(bounds[0].index as usize)
+                .ok_or_else(reject)?.ty, &bounds[0].generic_name) != Some(None)
+            || function.result_mode != PassingMode::Infer
+        {
+            return Err(reject());
+        }
+        for ty in bounds[0].parameters.iter().chain(std::iter::once(&bounds[0].result))
+            .chain(std::iter::once(&function.return_type))
+        {
+            prepay(ty, function.span)?;
+            if !closures::owned_signature_value(ty) { return Err(reject()); }
+        }
+        for (index, parameter) in function.parameters.iter().enumerate() {
+            if index != bounds[0].index as usize {
+                prepay(&parameter.ty, parameter.span)?;
+                if !matches!(parameter.mode, PassingMode::Infer | PassingMode::Copy | PassingMode::Move)
+                    || !closures::owned_signature_value(&parameter.ty)
+                { return Err(reject()); }
+            }
+        }
+    }
     if !(function.return_type.is_copy_value()
+        || owned_data
         || (bounds.len() == 1 && lending::supported_result(&function.return_type))
         || (owned_state
             && callable_fields::placeholder_package(
@@ -121,7 +152,8 @@ pub(super) fn validate_template(
         if bound.generic_index >= 2
             || bound.generic_name.is_empty()
             || bound.kind == CallableKind::FunctionPointer
-            || !closures::supported_signature(&bound.parameters, &bound.result)
+            || !(closures::supported_signature(&bound.parameters, &bound.result)
+                || (owned_data && closures::value_signature(&bound.parameters, &bound.result)))
             || (bounds.len() > 1 && !owned_state && !bound.result.is_copy_value())
         {
             return Err(reject());
