@@ -15,14 +15,14 @@ fn pure()->i32{
 }
 fn owning(mode:i32)->model.Fault!i32{
     var f=model.handler(model.prepare(65)?)
-    let result=bridge.run(&mut f,model.body(model.prepare(66)?,0,i32(-2147483648i64)))
+    let result=bridge.run(&mut f,model.body(model.prepare(66)?,0,i32(-2147483648)))
     if bridge.roots()!=0{return 105}
     if mode==2{
         if result.0||result.1!=0||f(4)!=5{return 106}
     }else if mode==3{
         if result.0||result.1!=0||f(4)!=6{return 107}
     }else{
-        if !result.0||result.1!=i32(-2147483648i64)||f(4)!=8{return 108}
+        if !result.0||result.1!=i32(-2147483648)||f(4)!=8{return 108}
     }
     return 0
 }
@@ -48,7 +48,7 @@ fn boundaries()->i32{
     var f=(value:i32)->i32=>{bridge.hit(70);return value}
     let body=()->i32=>{
         bridge.body()
-        if bridge.pump(i32(-2147483648i64))!=i32(-2147483648i64){return 114}
+        if bridge.pump(i32(-2147483648))!=i32(-2147483648){return 114}
         if bridge.pump(-1)!= -1{return 115}
         if bridge.pump(0)!=0{return 116}
         if bridge.pump(2147483647)!=2147483647{return 117}
