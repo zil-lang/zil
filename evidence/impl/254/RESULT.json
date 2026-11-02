@@ -4,9 +4,9 @@
   "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
   "schema_version": 31,
   "commits": {
-    "verify_implementation": "1a3b6510208b2e2cd09771985ca07708f7678757",
+    "verify_implementation": "4cedf9753ce40f59ea58b4b6e1fbc8e7a0847e29",
     "frontend_source": "c16e3331f2b6533b4123a0f5c66021ecf889c295",
-    "analyze_source": "0fd3904b71a953e73d73de5bc18c14db4ff32435",
+    "analyze_source": "b5e44e3cd6802065a6c8597ddafaf4ddd44eb857",
     "extended_source": "56cbd4822a4e543114b580929edaf5b7bb7385e9"
   },
   "environment": {
@@ -19,33 +19,35 @@
     {
       "command": "cargo check -p zil-verify --offline --locked -j 2",
       "passed": true,
-      "log": "check.log"
+      "log": "final-2.log"
     },
     {
       "command": "cargo test -p zil-verify --lib --offline --locked -j 2 --quiet",
-      "passed": 316,
+      "passed": 317,
       "failed": 0,
-      "log": "verify-unit.log"
+      "log": "final-0.log"
     },
     {
-      "command": "cargo test -p zil-driver --test impl254_source --test impl254_wire --offline --locked -j 2 --quiet",
-      "source_passed": 6,
+      "command": "cargo test -p zil-driver --test impl254_source --test impl254_wire --test impl254_capture_probe --offline --locked -j 2 --quiet",
+      "source_passed": 9,
       "wire_generator_passed": 1,
+      "capture_probe_passed": 1,
       "failed": 0,
-      "log": "verify-source-wire.log"
+      "log": "final-1.log"
     },
     {
       "command": "cargo test -p zil-verify --lib helper_tests::forward::forward_raw_wire_budget --offline --locked -j 2 -- --nocapture",
       "passed": 1,
       "failed": 0,
-      "log": "budget.log"
+      "log": "final-budget.log"
     }
   ],
   "source_controls": {
     "frozen_and_extended_three_module_verify": "passed",
     "six_copy_and_owned_callback_signatures": "passed",
     "fn_to_mut_actual_call_then_return": "passed: outer Fn declaration remains usable after nested FnMut actual call",
-    "fn_to_mut_test": "crates/zil-driver/tests/impl254_source.rs::stronger_fn_survives_nested_mutable_call_and_return"
+    "fn_to_mut_test": "crates/zil-driver/tests/impl254_source.rs::stronger_fn_survives_nested_mutable_call_and_return",
+    "owning_event_local_transfer": "var f; f=keep(f) forces internal singleton slot; let/var g=keep(f) then g(Event) passes with original f slot empty"
   },
   "raw_wire_boundaries": {
     "positive": "same parameter instance across direct/local/branch/loop/internal singleton slot and nested keep",
@@ -57,15 +59,16 @@
       "forged Parameter index or cleanup",
       "child bound upgrade",
       "FnOnce called then returned",
-      "direct and singleton-slot old borrowed address used after move"
+      "direct and singleton-slot old borrowed address used after move",
+      "returned parent BorrowCapture old position used after TakeCapture, with and without a consumer edge"
     ],
     "raw_declaration_scope": "The public role kind is checked as the raw candidate's declaration; original source fidelity is checked by frontend source-to-Types tests."
   },
   "budget": {
     "source_metadata_logical_units": { "Fresh": 2, "Parameter": 4 },
-    "raw_N": 419,
-    "wire_N": 419,
-    "N_minus_1": 418,
+    "raw_N": 422,
+    "wire_N": 422,
+    "N_minus_1": 421,
     "N_minus_1_result": "ResourceLimit",
     "fresh_N_result": "Pass",
     "default_limit_raised": false
@@ -87,6 +90,17 @@
       "raw_result": "E-BORROW-CONFLICT",
       "wire_result": "E-BORROW-CONFLICT"
     }
+  },
+  "returned_capture_probe": {
+    "test": "crates/zil-driver/tests/impl254_capture_probe.rs",
+    "valid_no_consumer_fixture": "tests/impl254/parent_valid_no_call_edge.wire",
+    "valid_no_consumer_sha256": "00da438922c953a82c87c990d1584b610aa93670a65500ac6ddb64c21754eecc",
+    "valid_consumer_fixture": "tests/impl254/parent_valid_with_call_edge.wire",
+    "valid_consumer_sha256": "36a665d488656a9ea007767387c678916f66a3c2b1bd9db80f0f855667a2ffd1",
+    "mutation": "swap parent TakeCapture before old CallClosureBorrowed, preserve candidate plan, update module fingerprint",
+    "positive": "raw/Wire accepted with or without consumer edge",
+    "negative": "raw/Wire E-BORROW-CONFLICT with or without consumer edge",
+    "runtime_analyze_dependency": false
   },
   "native_scope": "Separate backend and consumer evidence; no native run claimed by this Verify slice."
 }

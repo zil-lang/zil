@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized] target(s) in 0.02s
+     Running unittests src/lib.rs (/workspace/.zil-env/target-254/debug/deps/zil_verify-59420611778c2949)
+
+running 1 test
+forward254 wire=false N=422; N-1=ResourceLimit; fresh N=Pass
+forward254 wire=true N=422; N-1=ResourceLimit; fresh N=Pass
+test helper_tests::forward::forward_raw_wire_budget_has_exact_fresh_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 316 filtered out; finished in 0.02s
+
