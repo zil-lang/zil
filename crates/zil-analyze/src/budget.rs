@@ -29,6 +29,7 @@ pub(super) struct Budget {
     pub(super) owned_callback_window_functions: Vec<bool>,
     pub(super) parameter_returns: BTreeSet<zil_ir::FunctionId>,
     pub(super) forward_functions: Vec<bool>,
+    pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
     sum_roots: BTreeSet<usize>,
 }
 
@@ -48,6 +49,7 @@ impl Budget {
             owned_callback_window_functions: Vec::new(),
             parameter_returns: BTreeSet::new(),
             forward_functions: Vec::new(),
+            forward_closures: BTreeSet::new(),
             sum_roots: BTreeSet::new(),
         }
     }
