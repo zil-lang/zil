@@ -91,3 +91,15 @@ fn body_responsibility_cannot_be_consumed_twice() {
     });
     check(m, p, Some("E-VERIFY-RESOURCE"));
 }
+#[test]
+fn body_can_borrow_unrelated_scalar_and_distinct_same_typed_closure() {
+    let (m, p) = fixture::borrowed_scalar_body();
+    check(m, p, None);
+    let (m, p) = fixture::borrowed_closure_body(false);
+    check(m, p, None);
+}
+#[test]
+fn body_cannot_capture_a_reborrow_of_the_actual_callback_position() {
+    let (m, p) = fixture::borrowed_closure_body(true);
+    check(m, p, Some("E-BORROW-CONFLICT"));
+}

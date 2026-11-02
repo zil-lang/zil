@@ -214,3 +214,188 @@ pub fn fixture() -> (TypedModule, CandidatePlan) {
         .collect();
     (module, plan)
 }
+/// Same concrete F type in two distinct positions; only the chosen capture
+/// source changes when `alias` is true. The body really calls its captured g.
+pub fn borrowed_closure_body(alias: bool) -> (TypedModule, CandidatePlan) {
+    let (mut m, mut p) = fixture();
+    let address = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::Closure(ClosureId(0))),
+    };
+    m.closures[1].captures = vec![address.clone()];
+    m.functions[3].values = vec![address.clone(), Type::I32, Type::I32];
+    m.functions[3].blocks[0].instructions = vec![
+        instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
+        instruction(Some(1), InstructionKind::Constant(Constant::I32(9))),
+        instruction(
+            Some(2),
+            InstructionKind::CallClosureBorrowed {
+                callee: ValueId(0),
+                kind: CallableKind::FnMut,
+                arguments: vec![ValueId(1)],
+            },
+        ),
+    ];
+    m.functions[3].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+    p.functions[3].holds = vec![
+        ValueHold {
+            value: ValueId(0),
+            roots: vec![HoldRoot::Capture(0)],
+        },
+        ValueHold {
+            value: ValueId(1),
+            roots: vec![],
+        },
+        ValueHold {
+            value: ValueId(2),
+            roots: vec![],
+        },
+    ];
+    m.functions[4].locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "g".into(),
+        ty: Type::Closure(ClosureId(0)),
+        mutable: true,
+        span: span(),
+    });
+    m.functions[4]
+        .values
+        .extend([Type::Closure(ClosureId(0)), address]);
+    let borrowed = if alias {
+        InstructionKind::ReborrowAddress {
+            address: ValueId(1),
+            mutable: true,
+        }
+    } else {
+        InstructionKind::BorrowLocalMut { local: LocalId(1) }
+    };
+    m.functions[4].blocks[0].instructions.splice(
+        4..4,
+        [
+            instruction(None, InstructionKind::StorageLive(LocalId(1))),
+            instruction(
+                Some(4),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![],
+                },
+            ),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(4),
+                },
+            ),
+            instruction(Some(5), borrowed),
+        ],
+    );
+    if let InstructionKind::MakeClosure { captures, .. } =
+        &mut m.functions[4].blocks[0].instructions[8].kind
+    {
+        *captures = vec![ValueId(5)]
+    }
+    let root = HoldRoot::Local(LocalId(if alias { 0 } else { 1 }));
+    p.functions[4].holds[2].roots = vec![root];
+    p.functions[4].holds.extend([
+        ValueHold {
+            value: ValueId(4),
+            roots: vec![],
+        },
+        ValueHold {
+            value: ValueId(5),
+            roots: vec![root],
+        },
+    ]);
+    p.functions[4].blocks[0].initialized_out.push(LocalId(1));
+    (m, p)
+}
+pub fn borrowed_scalar_body() -> (TypedModule, CandidatePlan) {
+    let (mut m, mut p) = fixture();
+    let address = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::I32),
+    };
+    m.closures[1].captures = vec![address.clone()];
+    m.functions[3].values = vec![address.clone(), Type::I32, Type::I32, Type::I32];
+    m.functions[3].blocks[0].instructions = vec![
+        instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
+        instruction(
+            Some(1),
+            InstructionKind::ReadAddress {
+                address: ValueId(0),
+            },
+        ),
+        instruction(Some(2), InstructionKind::Constant(Constant::I32(1))),
+        instruction(
+            Some(3),
+            InstructionKind::Binary {
+                op: BinaryOp::Add,
+                left: ValueId(1),
+                right: ValueId(2),
+            },
+        ),
+        instruction(
+            None,
+            InstructionKind::WriteAddress {
+                address: ValueId(0),
+                value: ValueId(3),
+            },
+        ),
+    ];
+    m.functions[3].blocks[0].terminator = Terminator::Return(Some(ValueId(3)));
+    p.functions[3].holds = (0..4)
+        .map(|i| ValueHold {
+            value: ValueId(i),
+            roots: if i == 0 {
+                vec![HoldRoot::Capture(0)]
+            } else {
+                vec![]
+            },
+        })
+        .collect();
+    m.functions[4].locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "x".into(),
+        ty: Type::I32,
+        mutable: true,
+        span: span(),
+    });
+    m.functions[4].values.extend([Type::I32, address]);
+    m.functions[4].blocks[0].instructions.splice(
+        4..4,
+        [
+            instruction(None, InstructionKind::StorageLive(LocalId(1))),
+            instruction(Some(4), InstructionKind::Constant(Constant::I32(20))),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(4),
+                },
+            ),
+            instruction(
+                Some(5),
+                InstructionKind::BorrowLocalMut { local: LocalId(1) },
+            ),
+        ],
+    );
+    if let InstructionKind::MakeClosure { captures, .. } =
+        &mut m.functions[4].blocks[0].instructions[8].kind
+    {
+        *captures = vec![ValueId(5)]
+    }
+    p.functions[4].holds[2].roots = vec![HoldRoot::Local(LocalId(1))];
+    p.functions[4].holds.extend([
+        ValueHold {
+            value: ValueId(4),
+            roots: vec![],
+        },
+        ValueHold {
+            value: ValueId(5),
+            roots: vec![HoldRoot::Local(LocalId(1))],
+        },
+    ]);
+    p.functions[4].blocks[0].initialized_out.push(LocalId(1));
+    (m, p)
+}

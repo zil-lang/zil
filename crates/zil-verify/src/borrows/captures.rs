@@ -351,37 +351,48 @@ impl Context<'_> {
         locals: &'a State,
         budget: &mut Budget,
     ) -> Check<Option<Invocation<'a>>> {
-        let (function, arguments, environment) = match &instruction.kind {
-            InstructionKind::Call {
-                function,
-                arguments,
-            } => (*function, arguments, None),
-            InstructionKind::CallClosure { callee, arguments }
-            | InstructionKind::CallClosureOnce { callee, arguments }
-            | InstructionKind::CallClosureBorrowed {
-                callee, arguments, ..
-            } => {
-                let (id, _) = helpers::parameter_type(&self.function.values[callee.0 as usize])
-                    .expect("independently checked concrete call type");
-                (
-                    self.module.closures[id.0 as usize].function,
+        let (function, arguments, environment): (FunctionId, &[ValueId], Option<&Slots>) =
+            match &instruction.kind {
+                InstructionKind::Call {
+                    function,
                     arguments,
-                    Some(&self.facts.values[callee.0 as usize]),
-                )
-            }
-            InstructionKind::CallClosureShared { callee, arguments }
-            | InstructionKind::CallClosureMut { callee, arguments } => {
-                let (id, _) = helpers::parameter_type(&self.function.locals[callee.0 as usize].ty)
-                    .expect("independently checked concrete local call type");
-                lookup(budget, locals.len())?;
-                (
-                    self.module.closures[id.0 as usize].function,
-                    arguments,
-                    locals.get(callee),
-                )
-            }
-            _ => return Ok(None),
-        };
+                } => (*function, arguments, None),
+                InstructionKind::CallClosure { callee, arguments }
+                | InstructionKind::CallClosureOnce { callee, arguments }
+                | InstructionKind::CallClosureBorrowed {
+                    callee, arguments, ..
+                } => {
+                    let (id, _) = helpers::parameter_type(&self.function.values[callee.0 as usize])
+                        .expect("independently checked concrete call type");
+                    (
+                        self.module.closures[id.0 as usize].function,
+                        arguments,
+                        Some(&self.facts.values[callee.0 as usize]),
+                    )
+                }
+                InstructionKind::WithForeignCallback { body, .. } => {
+                    let (id, _) = helpers::parameter_type(&self.function.values[body.0 as usize])
+                        .expect("independently checked scoped body type");
+                    (
+                        self.module.closures[id.0 as usize].function,
+                        &[],
+                        Some(&self.facts.values[body.0 as usize]),
+                    )
+                }
+                InstructionKind::CallClosureShared { callee, arguments }
+                | InstructionKind::CallClosureMut { callee, arguments } => {
+                    let (id, _) =
+                        helpers::parameter_type(&self.function.locals[callee.0 as usize].ty)
+                            .expect("independently checked concrete local call type");
+                    lookup(budget, locals.len())?;
+                    (
+                        self.module.closures[id.0 as usize].function,
+                        arguments,
+                        locals.get(callee),
+                    )
+                }
+                _ => return Ok(None),
+            };
         Ok(Some(Invocation {
             function,
             arguments,
@@ -554,6 +565,18 @@ impl Context<'_> {
                     id,
                     &captures.values[callee.0 as usize],
                     arguments,
+                    instruction.span,
+                    budget,
+                )?;
+            }
+            InstructionKind::WithForeignCallback { body, .. } => {
+                let (id, _) = helpers::parameter_type(&f.values[body.0 as usize]).unwrap();
+                // The callback F is independently self-contained. Only the
+                // body can carry external descriptor/address effects here.
+                row = self.callback(
+                    id,
+                    &captures.values[body.0 as usize],
+                    &[],
                     instruction.span,
                     budget,
                 )?;

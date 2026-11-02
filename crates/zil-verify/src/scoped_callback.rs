@@ -67,6 +67,12 @@ pub(super) fn instruction(
         unreachable!()
     };
     let span = Some(instruction.span);
+    if caller.callable_contract.is_some() {
+        return Err(unsupported(
+            "scoped helper callable traces await independent reconstruction",
+            span,
+        ));
+    }
     budget.spend(5)?;
     for (id, role) in [
         (register, ScopedCallbackRole::Register),
@@ -150,18 +156,6 @@ pub(super) fn instruction(
             "body must admit one consuming zero-argument i32 invocation",
         ));
     }
-    // Transitional checkpoint: borrowed body effects are added separately.
-    // Until that independent transfer is complete, do not admit such bodies.
-    closures::self_contained(module, *body_id, budget).map_err(|error| {
-        if error.category == zil_base::ResultCategory::ResourceLimit {
-            error
-        } else {
-            unsupported(
-                "borrowed scoped body captures await independent effect verification",
-                span,
-            )
-        }
-    })?;
     budget.spend(3)?;
     Ok(Some(Type::Tuple(vec![Type::Bool, Type::I32])))
 }
