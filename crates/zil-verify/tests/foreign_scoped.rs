@@ -357,7 +357,10 @@ fn local_owned_body_still_cannot_capture_the_actual_f_root() {
         for value in [1, 3] {
             p.functions[4].holds[value].roots = vec![HoldRoot::Parameter(0)];
         }
-        check(m, p, Some("E-BORROW-CONFLICT"));
+        // This helper captures its supplied role. The role-origin audit now
+        // rejects it before ordinary alias checking; direct With aliases below
+        // still exercise the independent borrow conflict path.
+        check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
     }
 }
 #[test]
@@ -365,7 +368,7 @@ fn local_body_actual_capture_roots_keep_callback_exclusion_and_disjoint_borrows(
     let (m, p) = fixture::local_body_capture_wrapper(false);
     check(m, p, None);
     let (m, p) = fixture::local_body_capture_wrapper(true);
-    check(m, p, Some("E-BORROW-CONFLICT"));
+    check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
     let (mut m, mut p) = fixture::local_body_wrapper(true);
     m.functions[4]
         .values
@@ -490,6 +493,13 @@ fn local_handler_cannot_hide_supplied_roles_in_unopened_aggregate_captures() {
     }
 }
 #[test]
+fn with_local_body_cannot_hide_a_supplied_fn_once_role() {
+    for twice in [false, true] {
+        let (m, p) = fixture::supplied_body_hidden_in_with(twice);
+        check(m, p, Some("E-VERIFY-CALLABLE-CONTRACT"));
+    }
+}
+#[test]
 fn wrapper_keeps_original_kind_and_rejects_forged_trace() {
     let (mut m, p) = fixture::wrapper();
     m.functions[4].callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::FnOnce;
@@ -591,6 +601,7 @@ fn local_handler_raw_wire_work_has_exact_fresh_boundaries() {
             fixture::captured_local_handler(true),
         ),
         ("local_child_handler", fixture::local_child_handler()),
+        ("factory_child_handler", fixture::factory_child_handler()),
     ] {
         exact_work_boundary(name, m, p);
     }

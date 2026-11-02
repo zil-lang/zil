@@ -102,7 +102,8 @@ fn scoped_local_bodies(f: &TypedFunction, budget: &mut Budget) -> Check<Option<V
 /// Independent provenance graph. Edges describe only actual local/SSA
 /// transfers; type equality never supplies an edge. The finite marks are
 /// roles (1 and 2), verified self-contained factory (4), other producer (8),
-/// and an actual local With body construction (16).
+/// an actual local With body construction (16), and another concrete local
+/// construction (32). Both construction classes must preserve capture roles.
 fn environment_origins(
     module: &TypedModule,
     f: &TypedFunction,
@@ -212,16 +213,17 @@ fn environment_origins(
             };
             marks[destination] = if factory {
                 4
-            } else if matches!(instruction.kind, InstructionKind::MakeClosure { .. })
-                && local_bodies
-                    .as_ref()
-                    .is_some_and(|bodies| bodies[destination])
-            {
-                16
             } else if let InstructionKind::MakeClosure { ref captures, .. } = instruction.kind {
                 budget.spend(1)?;
                 concrete_captures.push(captures);
-                32
+                if local_bodies
+                    .as_ref()
+                    .is_some_and(|bodies| bodies[destination])
+                {
+                    16
+                } else {
+                    32
+                }
             } else {
                 8
             };

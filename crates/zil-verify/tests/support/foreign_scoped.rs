@@ -1329,3 +1329,87 @@ pub fn wrapped_role_capture(union: bool) -> (TypedModule, CandidatePlan) {
     }
     (m, p)
 }
+
+/// A source FnOnce B must not be hidden by a With-body construction, even
+/// when its actual concrete environment happens to support Copy shared calls.
+pub fn supplied_body_hidden_in_with(twice: bool) -> (TypedModule, CandidatePlan) {
+    let (mut m, mut p) = wrapper();
+    m.closures[1].kind = CallableKind::Fn;
+    let mut entry = function(5, vec![], Type::I32, Some(ClosureId(2)));
+    entry.values = vec![Type::Closure(ClosureId(1)), Type::I32, Type::I32];
+    entry.blocks = vec![BasicBlock {
+        id: BlockId(0),
+        instructions: vec![
+            instruction(Some(0), InstructionKind::TakeCapture { index: 0 }),
+            instruction(
+                Some(1),
+                InstructionKind::CallClosure {
+                    callee: ValueId(0),
+                    arguments: vec![],
+                },
+            ),
+            instruction(
+                Some(2),
+                if twice {
+                    InstructionKind::CallClosure {
+                        callee: ValueId(0),
+                        arguments: vec![],
+                    }
+                } else {
+                    InstructionKind::Constant(Constant::I32(0))
+                },
+            ),
+        ],
+        terminator: Terminator::Return(Some(ValueId(2))),
+    }];
+    m.functions.push(entry);
+    m.closures.push(ClosureDefinition {
+        id: ClosureId(2),
+        function: FunctionId(5),
+        kind: CallableKind::FnOnce,
+        captures: vec![Type::Closure(ClosureId(1))],
+        parameters: vec![],
+        result: Type::I32,
+        lending_captures: vec![],
+    });
+    let f = &mut m.functions[4];
+    f.values.push(Type::Closure(ClosureId(2)));
+    f.blocks[0].instructions.insert(
+        2,
+        instruction(
+            Some(3),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(2),
+                captures: vec![ValueId(1)],
+            },
+        ),
+    );
+    for instruction in &mut f.blocks[0].instructions {
+        if let InstructionKind::WithForeignCallback { body, .. } = &mut instruction.kind {
+            *body = ValueId(3);
+        }
+    }
+    let CallableTraces::Flow(flow) = &mut f.callable_contract.as_mut().unwrap().traces else {
+        unreachable!()
+    };
+    flow.nodes[2].calls.clear();
+    p.functions[4].holds.push(ValueHold {
+        value: ValueId(3),
+        roots: vec![],
+    });
+    p.functions.push(FunctionPlan {
+        function: FunctionId(5),
+        blocks: vec![BlockPlan {
+            block: BlockId(0),
+            initialized_in: vec![],
+            initialized_out: vec![],
+        }],
+        holds: (0..3)
+            .map(|value| ValueHold {
+                value: ValueId(value),
+                roots: vec![],
+            })
+            .collect(),
+    });
+    (m, p)
+}
