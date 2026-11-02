@@ -1,0 +1,1387 @@
+{
+  "status": "Draft oracle only; no native executions",
+  "evidence_level": "independent source-operation model",
+  "original_identity_source_sha256": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+  "original_native_if_implemented": {
+    "exit": 0,
+    "stdout": ""
+  },
+  "cases": [
+    {
+      "input": "0",
+      "normal": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "forwarded_instance_trace": [
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "nested",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": false
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SaaABQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "nested",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": false
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 0,
+          "stdout": "SaaABQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "nested",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": "1",
+      "normal": {
+        "exit": 0,
+        "stdout": "SaaABQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "forwarded_instance_trace": [
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "marker-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "nested",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": true
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SaaABQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "nested",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": true
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 0,
+          "stdout": "SaaABQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "marker-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "nested",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": "2",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCCCQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "forwarded_instance_trace": [
+          {
+            "identity": "prepared-copy-input",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "prepared-copy-input",
+            "inside_bound": "FnOnce",
+            "helper": "branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "prepared-copy-input",
+            "inside_bound": "FnOnce",
+            "helper": "nested",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": false
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCCCQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "prepared-copy-input",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "prepared-copy-input",
+              "inside_bound": "FnOnce",
+              "helper": "branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "prepared-copy-input",
+              "inside_bound": "FnOnce",
+              "helper": "nested",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": false
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 0,
+          "stdout": "SCCCQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "prepared-copy-input",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "prepared-copy-input",
+              "inside_bound": "FnOnce",
+              "helper": "branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "prepared-copy-input",
+              "inside_bound": "FnOnce",
+              "helper": "nested",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": "3",
+      "normal": {
+        "exit": 0,
+        "stdout": "S123MQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "mutable-instance-M",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnMut",
+            "return_mode": "FnMut",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "S123MQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "mutable-instance-M",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnMut",
+              "return_mode": "FnMut",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SMQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "S123MQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "mutable-instance-M",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnMut",
+              "return_mode": "FnMut",
+              "branch": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": "4",
+      "normal": {
+        "exit": 0,
+        "stdout": "SDHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "forwarded_instance_trace": [
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_nested",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": false
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SDHhQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2,
+          "forwarded_instance_trace": [
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_nested",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": false
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "ShHQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SDHhQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 3,
+          "exit": 0,
+          "stdout": "SDHhQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2,
+          "forwarded_instance_trace": [
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_nested",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": "5",
+      "normal": {
+        "exit": 0,
+        "stdout": "SDCHhRAQ",
+        "alloc_calls": 3,
+        "allocated": 3,
+        "frees": 3,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "forwarded_instance_trace": [
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_identity",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_branch",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": null
+          },
+          {
+            "identity": "once-input-instance",
+            "inside_bound": "FnOnce",
+            "helper": "owned_nested",
+            "caller_mode": "FnOnce",
+            "return_mode": "FnOnce",
+            "branch": true
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SDCHhRAQ",
+          "alloc_calls": 3,
+          "allocated": 3,
+          "frees": 3,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2,
+          "forwarded_instance_trace": [
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_nested",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": true
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "ShHQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SDHhQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 3,
+          "exit": 1,
+          "stdout": "SDAHhQ",
+          "alloc_calls": 3,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 2,
+          "forwarded_instance_trace": [
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_nested",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": true
+            }
+          ]
+        },
+        {
+          "fail_at": 4,
+          "exit": 0,
+          "stdout": "SDCHhRAQ",
+          "alloc_calls": 3,
+          "allocated": 3,
+          "frees": 3,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2,
+          "forwarded_instance_trace": [
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_identity",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_branch",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": null
+            },
+            {
+              "identity": "once-input-instance",
+              "inside_bound": "FnOnce",
+              "helper": "owned_nested",
+              "caller_mode": "FnOnce",
+              "return_mode": "FnOnce",
+              "branch": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": "6",
+      "normal": {
+        "exit": 1,
+        "stdout": "SDHhQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 2,
+        "forwarded_instance_trace": []
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 1,
+          "stdout": "SDHhQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "ShHQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SDHhQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 3,
+          "exit": 1,
+          "stdout": "SDHhQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 2,
+          "forwarded_instance_trace": []
+        }
+      ]
+    },
+    {
+      "input": "7",
+      "normal": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "union-caller-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SDaAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "union-caller-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SDAQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "SDaAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "union-caller-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": "8",
+      "normal": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "union-caller-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SDaAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "union-caller-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SDAQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "SDaAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "union-caller-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": "9",
+      "normal": {
+        "exit": 0,
+        "stdout": "SCRACRBNQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "owned-argument-instance-N",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SCRACRBNQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "owned-argument-instance-N",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SANQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "owned-argument-instance-N",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "SCRABNQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "owned-argument-instance-N",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 3,
+          "exit": 0,
+          "stdout": "SCRACRBNQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "owned-argument-instance-N",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": ":",
+      "normal": {
+        "exit": 0,
+        "stdout": "S1RA2RBNQ",
+        "alloc_calls": 2,
+        "allocated": 2,
+        "frees": 2,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "owned-argument-instance-N",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "FnMut",
+            "return_mode": "FnMut",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "S1RA2RBNQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "owned-argument-instance-N",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnMut",
+              "return_mode": "FnMut",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SANQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "owned-argument-instance-N",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnMut",
+              "return_mode": "FnMut",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 2,
+          "exit": 1,
+          "stdout": "S1RABNQ",
+          "alloc_calls": 2,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "owned-argument-instance-N",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnMut",
+              "return_mode": "FnMut",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 3,
+          "exit": 0,
+          "stdout": "S1RA2RBNQ",
+          "alloc_calls": 2,
+          "allocated": 2,
+          "frees": 2,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "owned-argument-instance-N",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "FnMut",
+              "return_mode": "FnMut",
+              "branch": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": ";",
+      "normal": {
+        "exit": 0,
+        "stdout": "SaaAQ",
+        "alloc_calls": 0,
+        "allocated": 0,
+        "frees": 0,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 0,
+        "forwarded_instance_trace": [
+          {
+            "identity": "declared-Fn-instance-A",
+            "inside_bound": "FnOnce",
+            "helper": "identity",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SaaAQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "declared-Fn-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 0,
+          "stdout": "SaaAQ",
+          "alloc_calls": 0,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": [
+            {
+              "identity": "declared-Fn-instance-A",
+              "inside_bound": "FnOnce",
+              "helper": "identity",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": "<",
+      "normal": {
+        "exit": 0,
+        "stdout": "SDaAQ",
+        "alloc_calls": 1,
+        "allocated": 1,
+        "frees": 1,
+        "failures": 0,
+        "live": 0,
+        "peak_live": 1,
+        "forwarded_instance_trace": [
+          {
+            "identity": "product-caller-A",
+            "inside_bound": "FnOnce",
+            "helper": "with_product",
+            "caller_mode": "Fn",
+            "return_mode": "Fn",
+            "branch": null
+          }
+        ]
+      },
+      "allocator_if_source_implemented": [
+        {
+          "fail_at": 0,
+          "exit": 0,
+          "stdout": "SDaAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "product-caller-A",
+              "inside_bound": "FnOnce",
+              "helper": "with_product",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        },
+        {
+          "fail_at": 1,
+          "exit": 1,
+          "stdout": "SDAQ",
+          "alloc_calls": 1,
+          "allocated": 0,
+          "frees": 0,
+          "failures": 1,
+          "live": 0,
+          "peak_live": 0,
+          "forwarded_instance_trace": []
+        },
+        {
+          "fail_at": 2,
+          "exit": 0,
+          "stdout": "SDaAQ",
+          "alloc_calls": 1,
+          "allocated": 1,
+          "frees": 1,
+          "failures": 0,
+          "live": 0,
+          "peak_live": 1,
+          "forwarded_instance_trace": [
+            {
+              "identity": "product-caller-A",
+              "inside_bound": "FnOnce",
+              "helper": "with_product",
+              "caller_mode": "Fn",
+              "return_mode": "Fn",
+              "branch": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "source_sha256": {
+    "frozen-original/source.zil": "0db389515acb0a63d0e13ac6a79e4118b831e0d39388fd249dfb98bc01d30266",
+    "negative/external_address_environment.zil": "999ceefd10d1e980ecfb0949663394c774962578f66e2ffba6fb51c3015959d5",
+    "negative/mut_declared_actual_fn_shared_call.zil": "faa31288a9ff9948f6af919b3556d502ad6bb154bf515c2108032d798cad8e17",
+    "negative/once_declared_actual_fn_copy.zil": "22361b10f0acb9b5efc71fd976c04ed41ded11f7fc8c135370ff75e0701b7c0f",
+    "negative/once_declared_actual_fn_twice.zil": "a9b18780630b93ccb0e8edd36cfcdb6b9ceed8edf829b2e710e7bce9a94b68c7",
+    "negative/same_closure_id_different_instance.zil": "130fa4b1fed0d24e806ba8b14e4e90bb244e88932fd56ad7c9a24884cfe9df33",
+    "negative/same_closure_id_wrong_branch.zil": "4f4079d3971acb0df7084a32c68aef39e3526e410f3f82c0bbd2dfdd37bf1ef2",
+    "negative/use_after_transfer.zil": "343b09e22b8666809e7b8c667ff50f87bf0a63241cb7c94886c37ff39c7dd45a",
+    "probes/fn-copy.zil": "c48be51cc7f89e3e3c6b87ed78d3ef5b484c48ab8deb12a386997c681fa18f20",
+    "probes/fn-owned.zil": "601ba197054506f41bd55c142936bcbed08e54480fd43d042ab4dc57010e857a",
+    "probes/fnmut-copy.zil": "99278121664127a6ddf8d331576caf8abda0ca4881a381c334cb000eefe5db00",
+    "probes/fnmut-owned.zil": "020ddb603fcd8db9c12bc3fd71924f562720ef25440e861369d0d1c3e98135c2",
+    "probes/fnonce-copy.zil": "b017bf3162a51a4a4cf8394f0b15bd7e4d1ba4fee6a483d8eb33075c87a9e62f",
+    "probes/fnonce-owned.zil": "b6ebd3423e1e01936329d7bdac7a8416b2334d879507975384993e6f99810871",
+    "project/main.zil": "5f44149b429bd51d001f0fed680a345548c68a9677c23820793f663ed0566b20",
+    "project/model.zil": "1b29c235b7840891dc944ead06b110cbe846136ca5b3463f6b2427bbdac63fba",
+    "project/relay.zil": "806db69ff6335b85e830a3f13691158def357dad560d82fa769a8c17772a1b80"
+  }
+}
