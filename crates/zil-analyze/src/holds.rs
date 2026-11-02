@@ -77,6 +77,7 @@ fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
 
 /// Validate against this invocation's private precise roots. The exported
 /// candidate coarsens Field into Local and is deliberately not read here.
+#[allow(clippy::too_many_arguments)]
 fn store_window_transition(
     module: &TypedModule,
     f: &TypedFunction,
