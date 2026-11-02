@@ -1,0 +1,68 @@
+{
+  "verdict": "Pass source through Verify only; final native pending",
+  "compiler_commit": "b831f62af435df33086381d2410c46ba379a03fc",
+  "source_oracle_commit": "de6f0a8888b643f5809743ee8093ad6a7866b6ee",
+  "source_oracle_sha256": "53afb4f450d42604e259f4b6247e0dd3e30fbcb3ba5cbe642181c02b57861116",
+  "frozen_core_oracle_sha256": "78af8b1cf33b06744e9bc70c3e965392cf14da1015b99138370465973d26f4b8",
+  "command": "source /workspace/.zil-env/env.sh; ZIL_TEST_REPORT_DIR=/tmp/impl256-b831-verify CARGO_TARGET_DIR=/workspace/.zil-env/target-256 cargo test -p zil-driver --features llvm-api --test impl256_consumer supplement_source_projects_reach_verify --offline --locked -j 2 -- --exact --nocapture",
+  "tests": {
+    "executed": 1,
+    "passed": 1,
+    "failed": 0,
+    "filtered": 15
+  },
+  "source_compiles": 2,
+  "verification_runs": 2,
+  "native_runs": 0,
+  "allocator_runs": 0,
+  "oracle_modified": false,
+  "reports": [
+    {
+      "project": "consumer256-supplement-mixed_main-verify-242089-1",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native_codegen": null,
+      "source_sha256": {
+        "module0.zil": "a4ad86bf1c7fb844875137f21af6ab0944bf1826ccb2fee4c90b08f70519e26a",
+        "module1.zil": "1b29c235b7840891dc944ead06b110cbe846136ca5b3463f6b2427bbdac63fba",
+        "module2.zil": "806db69ff6335b85e830a3f13691158def357dad560d82fa769a8c17772a1b80"
+      },
+      "artifacts": {
+        "candidate": "/tmp/impl256-b831-verify/consumer256-supplement-mixed_main-verify-242089-1/phases/candidate.txt",
+        "core": "/tmp/impl256-b831-verify/consumer256-supplement-mixed_main-verify-242089-1/phases/core.txt",
+        "ct-core": "/tmp/impl256-b831-verify/consumer256-supplement-mixed_main-verify-242089-1/phases/ct-core.txt",
+        "interfaces": "/tmp/impl256-b831-verify/consumer256-supplement-mixed_main-verify-242089-1/phases/interfaces.txt",
+        "source-map": "/tmp/impl256-b831-verify/consumer256-supplement-mixed_main-verify-242089-1/phases/source-map.txt",
+        "syntax": "/tmp/impl256-b831-verify/consumer256-supplement-mixed_main-verify-242089-1/phases/syntax.txt",
+        "typed": "/tmp/impl256-b831-verify/consumer256-supplement-mixed_main-verify-242089-1/phases/typed.txt",
+        "verified": "/tmp/impl256-b831-verify/consumer256-supplement-mixed_main-verify-242089-1/phases/verified.txt",
+        "verified-interfaces": "/tmp/impl256-b831-verify/consumer256-supplement-mixed_main-verify-242089-1/phases/verified-interfaces.txt"
+      }
+    },
+    {
+      "project": "consumer256-supplement-ordinary_main-verify-242089-0",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native_codegen": null,
+      "source_sha256": {
+        "module0.zil": "94a88e9f04f8ed453a673431340c5cf272e26a04bcd3e759a53348b7e448b858",
+        "module1.zil": "1b29c235b7840891dc944ead06b110cbe846136ca5b3463f6b2427bbdac63fba"
+      },
+      "artifacts": {
+        "candidate": "/tmp/impl256-b831-verify/consumer256-supplement-ordinary_main-verify-242089-0/phases/candidate.txt",
+        "core": "/tmp/impl256-b831-verify/consumer256-supplement-ordinary_main-verify-242089-0/phases/core.txt",
+        "ct-core": "/tmp/impl256-b831-verify/consumer256-supplement-ordinary_main-verify-242089-0/phases/ct-core.txt",
+        "interfaces": "/tmp/impl256-b831-verify/consumer256-supplement-ordinary_main-verify-242089-0/phases/interfaces.txt",
+        "source-map": "/tmp/impl256-b831-verify/consumer256-supplement-ordinary_main-verify-242089-0/phases/source-map.txt",
+        "syntax": "/tmp/impl256-b831-verify/consumer256-supplement-ordinary_main-verify-242089-0/phases/syntax.txt",
+        "typed": "/tmp/impl256-b831-verify/consumer256-supplement-ordinary_main-verify-242089-0/phases/typed.txt",
+        "verified": "/tmp/impl256-b831-verify/consumer256-supplement-ordinary_main-verify-242089-0/phases/verified.txt",
+        "verified-interfaces": "/tmp/impl256-b831-verify/consumer256-supplement-ordinary_main-verify-242089-0/phases/verified-interfaces.txt"
+      }
+    }
+  ]
+}
