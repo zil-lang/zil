@@ -1378,10 +1378,7 @@ fn check_instruction(
                 }
                 CtQueryKind::ImplIndex => CtTy::List(Box::new(CtTy::ImplInfo)),
                 CtQueryKind::Layout => {
-                    expect(
-                        arguments.len() == 1 && raw.snapshot.target_fingerprint.is_some(),
-                        "layout query needs target",
-                    )?;
+                    expect(arguments.len() == 1, "layout query needs Type")?;
                     CtTy::LayoutInfo
                 }
             }
@@ -1451,7 +1448,7 @@ mod tests {
                 .is_none_or(|actual| actual == function)
         }
         fn authorize_symbol(&self, _: &CtSymbolId, symbol: &CtSymbolId, _: CtSymbolUsage) -> bool {
-            symbol.module == ModuleId(0) && symbol.declaration == NodeId(1)
+            symbol.module == ModuleId(0) && matches!(symbol.declaration, NodeId(1) | NodeId(2))
         }
         fn authorize_query(&self, _: &CtSymbolId, _: CtQueryKind) -> bool {
             true
@@ -1567,7 +1564,7 @@ mod tests {
         assert!(check(p).unwrap_err()[0].message.contains("uninitialized"));
     }
     #[test]
-    fn admits_unexecuted_late_query_for_runtime_stage_check() {
+    fn admits_late_query_statically_for_runtime_stage_check() {
         let mut p = raw();
         p.functions[0].values[2] = CtTy::ShapeInfo;
         p.functions[0].result_type = CtTy::ShapeInfo;
@@ -1581,7 +1578,38 @@ mod tests {
         p.snapshot.requested_queries.push(CtQueryKind::Shape);
         // This function may be present but uncalled at a Shape-unready stage.
         // The frozen reader checks stage and grants only when Query executes.
-        assert!(check(p).is_ok());
+        let result = check(p);
+        assert!(result.is_ok(), "{result:?}");
+    }
+    #[test]
+    fn unused_layout_helper_does_not_raise_entry_stage() {
+        let mut p = raw();
+        let span = Span::default();
+        let mut helper = p.functions[0].clone();
+        helper.id = CtFunctionId(1);
+        helper.definition.declaration = NodeId(2);
+        helper.result_type = CtTy::LayoutInfo;
+        helper.values = vec![CtTy::Type, CtTy::LayoutInfo];
+        helper.blocks[0].instructions = vec![
+            CtInstruction {
+                result: Some(CtValueId(0)),
+                kind: CtInstructionKind::TypePrimitive(CtScalarTy::I32),
+                span,
+            },
+            CtInstruction {
+                result: Some(CtValueId(1)),
+                kind: CtInstructionKind::Query {
+                    kind: CtQueryKind::Layout,
+                    arguments: vec![CtValueId(0)],
+                },
+                span,
+            },
+        ];
+        helper.blocks[0].terminator = CtTerminator::Return(Some(CtValueId(1)));
+        p.functions.push(helper);
+        assert_eq!(p.snapshot.ready, CtReadyStage::Tokens);
+        let result = check(p);
+        assert!(result.is_ok(), "{result:?}");
     }
     #[test]
     fn rejects_query_descriptor_forgery_through_record() {

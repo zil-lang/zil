@@ -297,7 +297,6 @@ fn keyword(text: &str) -> bool {
             | "continue"
             | "defer"
             | "import"
-            | "syntax"
             | "use"
             | "as"
             | "pub"
