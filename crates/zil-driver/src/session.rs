@@ -255,49 +255,29 @@ impl CompilationSession {
     ) -> CompileReport {
         let start = Instant::now();
         let mut report = CompileReport::new(source);
-        // The text gate only avoids project work on ordinary source. The
-        // existing Parse query performs all parsing and owns its observer event.
-        // The parsed AST then decides whether the project bridge applies.
-        let candidate = options.stop_after != Stage::Parse
-            && (options.syntax_lock.is_some()
-                || source.text.contains("std.")
-                || source.text.contains("syntax use")
-                || source.text.contains("quote")
-                || source.text.contains("splice")
-                || source.text.contains("emit")
-                || source.text.contains("Type")
-                || source.text.contains("Syntax")
-                || source.text.contains("Ident")
-                || source.text.contains(":#")
-                || source.text.contains(": #")
-                || source.text.contains("->#")
-                || source.text.contains("-> #")
-                || source.text.contains("=#")
-                || source.text.contains("= #"));
-        let prepared = if candidate {
-            match self.source_parse_stage(source, options, &mut report, observer) {
-                Ok(prepared) => Some(prepared),
-                Err(errors) => {
-                    report.fail(errors);
-                    self.trim_history();
-                    report.seconds = start.elapsed().as_secs_f64();
-                    return report;
-                }
+        // Every source request already needs Parse. Make the domain decision
+        // from that published syntax, so whitespace and comments around a
+        // type-level # cannot change which pipeline owns the request.
+        let prepared = match self.source_parse_stage(source, options, &mut report, observer) {
+            Ok(prepared) => prepared,
+            Err(errors) => {
+                report.fail(errors);
+                self.trim_history();
+                report.seconds = start.elapsed().as_secs_f64();
+                return report;
             }
-        } else {
-            None
         };
-        if let Some(ref parsed) = prepared
+        if options.stop_after != Stage::Parse
             && (options.syntax_lock.is_some()
-                || super::project::artifact_candidate(source, &parsed.parsed))
+                || super::project::artifact_candidate(source, &prepared.parsed))
         {
             report.seconds = start.elapsed().as_secs_f64();
             return self.compile_source_artifact_project(
-                source, parsed.parsed.clone(), parsed.snapshot.clone(),
+                source, prepared.parsed.clone(), prepared.snapshot.clone(),
                 options, observer, report,
             );
         }
-        if let Err(errors) = self.pipeline(source, options, &mut report, observer, prepared) {
+        if let Err(errors) = self.pipeline(source, options, &mut report, observer, Some(prepared)) {
             report.fail(errors);
         }
         self.trim_history();

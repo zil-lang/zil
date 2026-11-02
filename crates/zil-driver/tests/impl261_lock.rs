@@ -100,13 +100,15 @@ fn single_source_type_and_syntax_use_the_project_pipeline() {
 
 #[test]
 fn type_alias_meta_candidate_does_not_select_plain_value_ct() {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "main.zil",
-        "type Word=#(i64);fn main()->i32{let n:Word=5000000000;if n==5000000000{return 0}return 1}");
     let options = CompileOptions { stop_after: Stage::Verify, ..CompileOptions::default() };
-    for report in [compile_source(&source, &options),
-        compile_project(&ProjectSources { root: source.module_id,
-            modules: vec![source.clone()], paths: BTreeMap::new() }, &options)] {
-        assert_eq!(report.status, zil_base::ResultCategory::Success, "{}", report.to_json());
+    for type_value in ["#(i64)", "  #(i64)", "/*comment*/#(i64)"] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "main.zil",
+            format!("type Word={type_value};fn main()->i32{{let n:Word=5000000000;if n==5000000000{{return 0}}return 1}}"));
+        for report in [compile_source(&source, &options),
+            compile_project(&ProjectSources { root: source.module_id,
+                modules: vec![source.clone()], paths: BTreeMap::new() }, &options)] {
+            assert_eq!(report.status, zil_base::ResultCategory::Success, "{}", report.to_json());
+        }
     }
     let ordinary = SourceUnit::new(FileId(1), ModuleId(1), "old.zil",
         "type Word=i64;fn main()->i32{let n=#(41);if n==41{return 0}return 1}");
