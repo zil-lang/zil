@@ -413,7 +413,6 @@ pub(super) fn check(
                 values,
                 &claim.roles,
                 checked,
-                precise.is_some(),
                 budget,
             )? {
                 if let InstructionKind::Call {

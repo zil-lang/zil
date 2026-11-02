@@ -2045,3 +2045,727 @@ fn private_empty_slot_permission_does_not_discharge_an_unstored_owned_ssa() {
         .0;
     assert!(analyze(&raw, &Limits::default()).is_err());
 }
+
+// 282: concrete local callable composition in an ordinary symbolic helper.
+// These raw values are constructed independently of Types and Verify.
+fn local_composition_282(child: bool, captured: bool) -> TypedModule {
+    let mut module = scoped_helper_with_local_body(CallableKind::FnOnce, false);
+    let f = &mut module.functions[0];
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::WithForeignCallback { .. }))
+        .unwrap();
+    let InstructionKind::WithForeignCallback { callback, body, .. } =
+        f.blocks[0].instructions[at].kind
+    else {
+        unreachable!()
+    };
+    let arg = ValueId(f.values.len() as u32);
+    let called_f = ValueId(arg.0 + 1);
+    f.values.extend([Type::I32, Type::I32]);
+    f.blocks[0].instructions.splice(
+        at..at,
+        [
+            inst(Some(arg), InstructionKind::Constant(Constant::I32(1))),
+            inst(
+                Some(called_f),
+                InstructionKind::CallClosureBorrowed {
+                    callee: callback,
+                    kind: CallableKind::FnMut,
+                    arguments: vec![arg],
+                },
+            ),
+        ],
+    );
+    let at = at + 2;
+    let result = f.blocks[0].instructions[at].result.unwrap();
+    f.values[result.0 as usize] = Type::I32;
+    let mut actual = body;
+    if captured {
+        let made = ValueId(f.values.len() as u32);
+        f.values.push(Type::Closure(ClosureId(2)));
+        f.blocks[0].instructions.insert(
+            at,
+            inst(
+                Some(made),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(2),
+                    captures: vec![body],
+                },
+            ),
+        );
+        actual = made;
+        let mut entry = Body::new(5);
+        entry.0.environment = Some(ClosureId(2));
+        let taken = entry.value(
+            Type::Closure(ClosureId(1)),
+            InstructionKind::TakeCapture { index: 0 },
+        );
+        let result = entry.value(
+            Type::I32,
+            InstructionKind::CallClosureOnce {
+                callee: taken,
+                arguments: vec![],
+            },
+        );
+        module.functions.push(entry.finish(result));
+        module.closures.push(ClosureDefinition {
+            id: ClosureId(2),
+            function: FunctionId(5),
+            captures: vec![Type::Closure(ClosureId(1))],
+            parameters: vec![],
+            result: Type::I32,
+            kind: CallableKind::FnOnce,
+            lending_captures: vec![],
+        });
+    }
+    let f = &mut module.functions[0];
+    f.blocks[0].instructions[at + usize::from(captured)].kind = if child {
+        InstructionKind::Call {
+            function: FunctionId(5),
+            arguments: vec![actual],
+        }
+    } else {
+        InstructionKind::CallClosureOnce {
+            callee: actual,
+            arguments: vec![],
+        }
+    };
+    f.blocks[0].instructions.retain(|i| {
+        !matches!(
+            i.kind,
+            InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. }
+        )
+    });
+    f.callable_contract.as_mut().unwrap().traces = CallableTraces::Finite(vec![CallableTrace {
+        calls: vec![CallEvent {
+            parameter: 0,
+            kind: CallableKind::FnMut,
+        }],
+        exit: CallableExit::Return,
+    }]);
+    if child {
+        assert!(!captured);
+        let mut entry = Body::new(5);
+        entry.0.locals.push(LocalDecl {
+            id: LocalId(0),
+            name: "handler".into(),
+            ty: Type::Closure(ClosureId(1)),
+            mutable: false,
+            span: s(),
+        });
+        entry.0.parameters.push(LocalId(0));
+        let actual = entry.value(
+            Type::Closure(ClosureId(1)),
+            InstructionKind::TakeLocal { local: LocalId(0) },
+        );
+        let result = entry.value(
+            Type::I32,
+            InstructionKind::CallClosureOnce {
+                callee: actual,
+                arguments: vec![],
+            },
+        );
+        entry.0.callable_contract = Some(CallableParameterContract {
+            roles: vec![CallableRole {
+                parameter: 0,
+                closure: ClosureId(1),
+                kind: CallableKind::FnOnce,
+                hold: vec![],
+                call: vec![],
+                writes: vec![],
+                cleanup: CallableCleanup::Owned,
+            }],
+            traces: CallableTraces::Finite(vec![CallableTrace {
+                calls: vec![CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::FnOnce,
+                }],
+                exit: CallableExit::Return,
+            }]),
+        });
+        module.functions.push(entry.finish(result));
+    }
+    module
+}
+
+fn result_wire_282(module: &TypedModule, accepted: bool) {
+    let limits = Limits::default();
+    let actual = analyze(module, &limits);
+    assert_eq!(actual.is_ok(), accepted, "{actual:?}");
+    let bytes =
+        zil_ir::wire::encode_module_candidate(module, &CandidatePlan::empty_for(module), &limits)
+            .unwrap();
+    let decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+        .unwrap()
+        .0;
+    assert_eq!(analyze(&decoded, &limits), actual);
+}
+
+#[test]
+fn concrete_local_282_calls_child_and_capture_do_not_invent_f_events_raw_wire() {
+    for (child, captured) in [(false, false), (true, false), (false, true)] {
+        let module = local_composition_282(child, captured);
+        result_wire_282(&module, true);
+        let mut forged = module.clone();
+        let CallableTraces::Finite(paths) = &mut forged.functions[0]
+            .callable_contract
+            .as_mut()
+            .unwrap()
+            .traces
+        else {
+            unreachable!()
+        };
+        paths[0].calls.clear();
+        result_wire_282(&forged, false);
+        let mut invented = module.clone();
+        let CallableTraces::Finite(paths) = &mut invented.functions[0]
+            .callable_contract
+            .as_mut()
+            .unwrap()
+            .traces
+        else {
+            unreachable!()
+        };
+        paths[0].calls.push(CallEvent {
+            parameter: 0,
+            kind: CallableKind::FnOnce,
+        });
+        result_wire_282(&invented, false);
+    }
+}
+
+#[test]
+fn concrete_local_282_rejects_actual_f_capture_and_local_reuse_raw_wire() {
+    let mut hidden = local_composition_282(false, true);
+    let f = &mut hidden.functions[0];
+    let callback = ValueId(0);
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| {
+            matches!(
+                i.kind,
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(2),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let InstructionKind::MakeClosure { captures, .. } = &mut f.blocks[0].instructions[at].kind
+    else {
+        unreachable!()
+    };
+    *captures = vec![callback];
+    hidden.closures[2].captures = vec![f.values[callback.0 as usize].clone()];
+    result_wire_282(&hidden, false);
+
+    let mut reused = local_composition_282(true, false);
+    let f = &mut reused.functions[0];
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| {
+            matches!(
+                i.kind,
+                InstructionKind::Call {
+                    function: FunctionId(5),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let mut second = f.blocks[0].instructions[at].clone();
+    second.result = Some(ValueId(f.values.len() as u32));
+    f.values.push(Type::I32);
+    f.blocks[0].instructions.insert(at + 1, second);
+    result_wire_282(&reused, false);
+
+    let mut upgraded = local_composition_282(true, false);
+    upgraded.functions[5]
+        .callable_contract
+        .as_mut()
+        .unwrap()
+        .roles[0]
+        .kind = CallableKind::Fn;
+    result_wire_282(&upgraded, false);
+}
+
+#[test]
+fn concrete_local_282_work_is_prepaid_n_minus_one_and_fresh_raw_wire() {
+    for module in [
+        local_composition_282(false, false),
+        local_composition_282(true, false),
+        local_composition_282(false, true),
+    ] {
+        let defaults = Limits::default();
+        let mut budget = Budget::new(&defaults);
+        let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
+        let exact = defaults.max_analysis_steps - budget.remaining();
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &defaults,
+        )
+        .unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&bytes, &defaults)
+            .unwrap()
+            .0;
+        for input in [&module, &decoded] {
+            for steps in [exact, exact - 1, exact] {
+                let actual = analyze(
+                    input,
+                    &Limits {
+                        max_analysis_steps: steps,
+                        ..defaults.clone()
+                    },
+                );
+                if steps == exact {
+                    assert_eq!(actual.unwrap(), expected);
+                } else {
+                    assert_eq!(
+                        actual.unwrap_err()[0].category,
+                        zil_base::ResultCategory::ResourceLimit
+                    );
+                }
+            }
+        }
+        println!(
+            "282 {} raw=Wire N={exact}; N-1 ResourceLimit; fresh equality",
+            module.functions.len()
+        );
+    }
+}
+
+#[test]
+fn concrete_local_282_child_mixed_roles_preserve_actual_f_order_raw_wire() {
+    let mut module = local_composition_282(true, false);
+    let callback_type = module.functions[0].locals[0].ty.clone();
+    let f = &mut module.functions[0];
+    let call = f.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| {
+            matches!(
+                i.kind,
+                InstructionKind::Call {
+                    function: FunctionId(5),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let InstructionKind::Call { arguments, .. } = &mut call.kind else {
+        unreachable!()
+    };
+    arguments.insert(0, ValueId(0));
+    let CallableTraces::Finite(paths) = &mut f.callable_contract.as_mut().unwrap().traces else {
+        unreachable!()
+    };
+    paths[0].calls.push(CallEvent {
+        parameter: 0,
+        kind: CallableKind::FnMut,
+    });
+    let mut entry = Body::new(5);
+    entry.0.locals = vec![
+        LocalDecl {
+            id: LocalId(0),
+            name: "f".into(),
+            ty: callback_type.clone(),
+            mutable: false,
+            span: s(),
+        },
+        LocalDecl {
+            id: LocalId(1),
+            name: "h".into(),
+            ty: Type::Closure(ClosureId(1)),
+            mutable: false,
+            span: s(),
+        },
+    ];
+    entry.0.parameters = vec![LocalId(0), LocalId(1)];
+    let callback = entry.value(callback_type, InstructionKind::Load(LocalId(0)));
+    let number = entry.constant(1);
+    entry.value(
+        Type::I32,
+        InstructionKind::CallClosureBorrowed {
+            callee: callback,
+            kind: CallableKind::FnMut,
+            arguments: vec![number],
+        },
+    );
+    let handler = entry.value(
+        Type::Closure(ClosureId(1)),
+        InstructionKind::TakeLocal { local: LocalId(1) },
+    );
+    let result = entry.value(
+        Type::I32,
+        InstructionKind::CallClosureOnce {
+            callee: handler,
+            arguments: vec![],
+        },
+    );
+    let mut roles = module.functions[0]
+        .callable_contract
+        .as_ref()
+        .unwrap()
+        .roles
+        .clone();
+    let mut h = module.functions[5]
+        .callable_contract
+        .as_ref()
+        .unwrap()
+        .roles[0]
+        .clone();
+    h.parameter = 1;
+    roles.push(h);
+    entry.0.callable_contract = Some(CallableParameterContract {
+        roles,
+        traces: CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![
+                CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::FnMut,
+                },
+                CallEvent {
+                    parameter: 1,
+                    kind: CallableKind::FnOnce,
+                },
+            ],
+            exit: CallableExit::Return,
+        }]),
+    });
+    module.functions[5] = entry.finish(result);
+    result_wire_282(&module, true);
+    let CallableTraces::Finite(paths) = &mut module.functions[0]
+        .callable_contract
+        .as_mut()
+        .unwrap()
+        .traces
+    else {
+        unreachable!()
+    };
+    paths[0].calls.pop();
+    result_wire_282(&module, false);
+}
+
+#[test]
+fn concrete_local_282_once_formal_keeps_declared_consumption_raw_wire() {
+    let mut module = local_composition_282(false, false);
+    let f = &mut module.functions[0];
+    f.locals[0].ty = Type::Closure(ClosureId(0));
+    f.values[0] = f.locals[0].ty.clone();
+    f.blocks[0].instructions[0].kind = InstructionKind::TakeLocal { local: LocalId(0) };
+    // Locate by producer, rather than relying on the local construction prefix.
+    let call = f.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::CallClosureBorrowed { .. }))
+        .unwrap();
+    let InstructionKind::CallClosureBorrowed {
+        callee, arguments, ..
+    } = &call.kind
+    else {
+        unreachable!()
+    };
+    call.kind = InstructionKind::CallClosureOnce {
+        callee: *callee,
+        arguments: arguments.clone(),
+    };
+    let role = &mut f.callable_contract.as_mut().unwrap().roles[0];
+    role.kind = CallableKind::FnOnce;
+    role.cleanup = CallableCleanup::Owned;
+    let CallableTraces::Finite(paths) = &mut f.callable_contract.as_mut().unwrap().traces else {
+        unreachable!()
+    };
+    paths[0].calls[0].kind = CallableKind::FnOnce;
+    result_wire_282(&module, true);
+    let f = &mut module.functions[0];
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| {
+            matches!(
+                i.kind,
+                InstructionKind::CallClosureOnce {
+                    callee: ValueId(0),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let mut twice = f.blocks[0].instructions[at].clone();
+    twice.result = Some(ValueId(f.values.len() as u32));
+    f.values.push(Type::I32);
+    f.blocks[0].instructions.insert(at + 1, twice);
+    result_wire_282(&module, false);
+}
+
+#[test]
+fn concrete_local_282_unknown_and_cfg_mixed_capture_sources_fail_raw_wire() {
+    let mut unknown = local_composition_282(false, true);
+    let f = &mut unknown.functions[0];
+    let made = f.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| {
+            matches!(
+                i.kind,
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(1),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    made.kind = InstructionKind::ReadCapture { index: 0 };
+    let error = analyze(&unknown, &Limits::default()).unwrap_err();
+    assert_eq!(
+        error[0].message,
+        "local environment capture has a symbolic, mixed or unknown callable source"
+    );
+    result_wire_282(&unknown, false);
+
+    let mut mixed = local_composition_282(false, true);
+    let f = &mut mixed.functions[0];
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::TakeLocal { local: LocalId(1) }))
+        .unwrap();
+    let tail = f.blocks[0].instructions.split_off(at);
+    let original_exit = f.blocks[0].terminator.clone();
+    let condition = ValueId(f.values.len() as u32);
+    let unknown = ValueId(condition.0 + 1);
+    f.values.extend([Type::Bool, Type::Closure(ClosureId(1))]);
+    f.blocks[0].instructions.push(inst(
+        Some(condition),
+        InstructionKind::Constant(Constant::Bool(true)),
+    ));
+    f.blocks[0].terminator = Terminator::Branch {
+        condition,
+        then_block: BlockId(1),
+        else_block: BlockId(2),
+    };
+    f.blocks.extend([
+        BasicBlock {
+            id: BlockId(1),
+            instructions: vec![],
+            terminator: Terminator::Jump(BlockId(3)),
+        },
+        BasicBlock {
+            id: BlockId(2),
+            instructions: vec![
+                inst(Some(unknown), InstructionKind::ReadCapture { index: 0 }),
+                inst(
+                    None,
+                    InstructionKind::Store {
+                        local: LocalId(1),
+                        value: unknown,
+                    },
+                ),
+            ],
+            terminator: Terminator::Jump(BlockId(3)),
+        },
+        BasicBlock {
+            id: BlockId(3),
+            instructions: tail,
+            terminator: original_exit,
+        },
+    ]);
+    let error = analyze(&mixed, &Limits::default()).unwrap_err();
+    assert_eq!(
+        error[0].message,
+        "local environment capture has a symbolic, mixed or unknown callable source"
+    );
+    result_wire_282(&mixed, false);
+}
+
+#[test]
+fn concrete_local_282_legacy_cost_controls() {
+    for (name, module, expected_cost) in [
+        ("ordinary", fixture(CallableKind::Fn, false, 1), 1548),
+        ("helper-no-local", scoped_helper(CallableKind::Fn), 1219),
+        (
+            "scoped-local-borrow",
+            scoped_helper_with_local_body(CallableKind::FnOnce, true),
+            2352,
+        ),
+    ] {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        analyze_budgeted(&module, &limits, &mut budget, None).unwrap();
+        let exact = limits.max_analysis_steps - budget.remaining();
+        assert_eq!(exact, expected_cost, "{name}");
+        for steps in [exact, exact - 1, exact] {
+            let actual = analyze(
+                &module,
+                &Limits {
+                    max_analysis_steps: steps,
+                    ..limits.clone()
+                },
+            );
+            if steps == exact {
+                actual.unwrap();
+            } else {
+                assert_eq!(
+                    actual.unwrap_err()[0].category,
+                    zil_base::ResultCategory::ResourceLimit
+                );
+            }
+        }
+        println!("282 legacy {name} N={exact}");
+    }
+}
+
+fn same_closure_distinct_roots_282() -> TypedModule {
+    let mut module = scoped_fixture(0);
+    module.closures[1].kind = CallableKind::Fn;
+    let mut f = Body::new(0);
+    f.0.locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "formal".into(),
+        ty: Type::Closure(ClosureId(1)),
+        mutable: false,
+        span: s(),
+    });
+    f.0.parameters.push(LocalId(0));
+    let formal = f.value(
+        Type::Closure(ClosureId(1)),
+        InstructionKind::TakeLocal { local: LocalId(0) },
+    );
+    f.value(
+        Type::I32,
+        InstructionKind::CallClosureOnce {
+            callee: formal,
+            arguments: vec![],
+        },
+    );
+    let concrete = f.value(
+        Type::Closure(ClosureId(1)),
+        InstructionKind::MakeClosure {
+            closure: ClosureId(1),
+            captures: vec![],
+        },
+    );
+    let result = f.value(
+        Type::I32,
+        InstructionKind::CallClosureOnce {
+            callee: concrete,
+            arguments: vec![],
+        },
+    );
+    f.0.callable_contract = Some(CallableParameterContract {
+        roles: vec![CallableRole {
+            parameter: 0,
+            closure: ClosureId(1),
+            kind: CallableKind::FnOnce,
+            hold: vec![],
+            call: vec![],
+            writes: vec![],
+            cleanup: CallableCleanup::Owned,
+        }],
+        traces: CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![CallEvent {
+                parameter: 0,
+                kind: CallableKind::FnOnce,
+            }],
+            exit: CallableExit::Return,
+        }]),
+    });
+    module.functions[0] = f.finish(result);
+    module
+}
+
+#[test]
+fn concrete_local_282_same_closure_id_never_revives_or_merges_actual_roots_raw_wire() {
+    let module = same_closure_distinct_roots_282();
+    result_wire_282(&module, true);
+    let mut reused = module.clone();
+    reused.functions[0].blocks[0].instructions[3].kind = InstructionKind::CallClosureOnce {
+        callee: ValueId(0),
+        arguments: vec![],
+    };
+    result_wire_282(&reused, false);
+
+    // Both branches store the exact same ClosureId. Only one alternative is
+    // the incoming symbolic F; the other is this construction's actual value.
+    let mut mixed = module;
+    let f = &mut mixed.functions[0];
+    f.locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "selected".into(),
+        ty: Type::Closure(ClosureId(1)),
+        mutable: true,
+        span: s(),
+    });
+    f.values.push(Type::Bool);
+    let mut prefix = f.blocks[0].instructions.clone();
+    prefix.remove(1); // Do not consume the formal before selecting a branch.
+    prefix.truncate(2); // Take formal, then construct concrete.
+    prefix.push(inst(None, InstructionKind::StorageLive(LocalId(1))));
+    prefix.push(inst(
+        Some(ValueId(4)),
+        InstructionKind::Constant(Constant::Bool(true)),
+    ));
+    f.values.push(Type::Closure(ClosureId(1)));
+    f.blocks = vec![
+        BasicBlock {
+            id: BlockId(0),
+            instructions: prefix,
+            terminator: Terminator::Branch {
+                condition: ValueId(4),
+                then_block: BlockId(1),
+                else_block: BlockId(2),
+            },
+        },
+        BasicBlock {
+            id: BlockId(1),
+            instructions: vec![inst(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(0),
+                },
+            )],
+            terminator: Terminator::Jump(BlockId(3)),
+        },
+        BasicBlock {
+            id: BlockId(2),
+            instructions: vec![inst(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(2),
+                },
+            )],
+            terminator: Terminator::Jump(BlockId(3)),
+        },
+        BasicBlock {
+            id: BlockId(3),
+            instructions: vec![
+                inst(
+                    Some(ValueId(5)),
+                    InstructionKind::TakeLocal { local: LocalId(1) },
+                ),
+                inst(
+                    Some(ValueId(3)),
+                    InstructionKind::CallClosureOnce {
+                        callee: ValueId(5),
+                        arguments: vec![],
+                    },
+                ),
+                inst(None, InstructionKind::StorageDead(LocalId(1))),
+            ],
+            terminator: Terminator::Return(Some(ValueId(3))),
+        },
+    ];
+    let error = analyze(&mixed, &Limits::default()).unwrap_err();
+    assert_eq!(
+        error[0].message,
+        "callable instance source is missing or mixed at this CFG position"
+    );
+    result_wire_282(&mixed, false);
+}

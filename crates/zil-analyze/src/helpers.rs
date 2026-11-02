@@ -284,7 +284,6 @@ fn forwarded<'a>(
     origins: &[u8],
     roles: &[CallableRole],
     checked: &[bool],
-    concrete: bool,
     budget: &mut Budget,
 ) -> CompileResult<Option<Forwarded<'a>>> {
     let InstructionKind::Call {
@@ -325,7 +324,13 @@ fn forwarded<'a>(
         let actual = origins[value.0 as usize];
         // Only the position-sensitive proof may discharge a concrete local
         // argument. A ClosureId match never supplies a symbolic parent role.
-        if concrete && actual == FACTORY {
+        if actual == FACTORY
+            && budget
+                .forward_functions
+                .get(function.id.0 as usize)
+                .copied()
+                .unwrap_or(false)
+        {
             let (id, _) = env(&function.values[value.0 as usize])
                 .ok_or_else(|| bad("nested concrete argument has no environment"))?;
             let definition = module
