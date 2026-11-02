@@ -7,8 +7,8 @@
       "title": "正式最小流水线、公共接口与验收入口",
       "status": "Doing",
       "task_revision": 8,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": "c9ee2e81de661bb0789ac6a0c6a130d864c4d5a9",
       "blocked_by": [],
       "requirements": [
@@ -129,6 +129,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -148,8 +156,8 @@
       "title": "完整固定语法、无损树与表面归一化",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -250,6 +258,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -269,8 +285,8 @@
       "title": "名字、类型、接收者、闭包形状与 trait",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -398,6 +414,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -417,8 +441,8 @@
       "title": "已核编译期执行、属性和生成调度",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "T01",
@@ -506,6 +530,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -525,8 +557,8 @@
       "title": "数据库、模块驱动、CLI/IDE与native脚本",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -624,6 +656,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -643,8 +683,8 @@
       "title": "独立核验器与已核访问能力",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -734,6 +774,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -753,8 +801,8 @@
       "title": "来源、顺序别名、管理路由与准确责任",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "T02",
@@ -848,6 +896,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -867,8 +923,8 @@
       "title": "LLVM主路径、布局和最小内存运行原语",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "T05"
@@ -957,6 +1013,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -976,8 +1040,8 @@
       "title": "完整CFG、闭包、析构及图容器",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "W1"
@@ -1125,6 +1189,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -1144,8 +1216,8 @@
       "title": "挂起帧、取消、同步与真实完成根",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "W1",
@@ -1240,6 +1312,14 @@
             "spec_hash": "41b9b97c1a87b89cf116b189bd4059555e91ae99eaa35304ea71c8a628bf58cb",
             "normative_hash": "0e29785f66264a1bd461a3b0b2d1b8363e1a8dd6f0cff03adbc3101e360880e7"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -1259,8 +1339,8 @@
       "title": "两模块资源管理源码贯通",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "T01",
@@ -1348,6 +1428,14 @@
             "spec_hash": "a3090faec2b8574b99e9cb76a1709e5ab98051541ed3ab5b441455db7a32e684",
             "normative_hash": "4d1450748aed24ca6c23e537ae2a8ed32863fa603aed3eefe5e83d0f2b3548ef"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -1367,8 +1455,8 @@
       "title": "语法、闭包和图演进端到端",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "W1",
@@ -1455,6 +1543,14 @@
             "spec_hash": "a3090faec2b8574b99e9cb76a1709e5ab98051541ed3ab5b441455db7a32e684",
             "normative_hash": "4d1450748aed24ca6c23e537ae2a8ed32863fa603aed3eefe5e83d0f2b3548ef"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -1474,8 +1570,8 @@
       "title": "真实系统I/O、取消与外部回调贯通",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "T09",
@@ -1550,6 +1646,14 @@
             "spec_hash": "a3090faec2b8574b99e9cb76a1709e5ab98051541ed3ab5b441455db7a32e684",
             "normative_hash": "4d1450748aed24ca6c23e537ae2a8ed32863fa603aed3eefe5e83d0f2b3548ef"
           }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
+          }
         }
       ],
       "normative_migrations": [
@@ -1569,8 +1673,8 @@
       "title": "同语义产品对照与发布验收",
       "status": "Planned",
       "task_revision": 7,
-      "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
-      "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e",
+      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
+      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
       "base_revision": null,
       "blocked_by": [
         "W2",
@@ -1643,6 +1747,14 @@
           "previous": {
             "spec_hash": "a3090faec2b8574b99e9cb76a1709e5ab98051541ed3ab5b441455db7a32e684",
             "normative_hash": "4d1450748aed24ca6c23e537ae2a8ed32863fa603aed3eefe5e83d0f2b3548ef"
+          }
+        },
+        {
+          "date": "2026-11-02",
+          "reason": "246–250 synchronous owning callback value contract; formal task state, write set and product gates unchanged",
+          "previous": {
+            "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
+            "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
         }
       ],
