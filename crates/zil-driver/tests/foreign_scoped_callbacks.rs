@@ -206,7 +206,8 @@ fn compile(temporary: &Temp, optimization: Optimization, entry: &str) -> PathBuf
                 .object_reports
                 .iter()
                 .all(|r| r.contains("\"input_kind\":\"builder\"")
-                    && r.contains("\"verify_before_after\":true"))
+                    && r.contains("\"verify_before_after\":true")
+                    && r.contains("\"parse_ns\":0,"))
         );
     }
     report.artifacts["executable"].clone()
@@ -219,12 +220,16 @@ fn observe(program: &Path, temporary: &Temp, expected: &Expected) {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = command.spawn().unwrap();
-    child
+    let write = child
         .stdin
         .take()
         .unwrap()
-        .write_all(&[expected.input])
-        .unwrap();
+        .write_all(&[expected.input]);
+    if let Err(error) = write {
+        // Nearby controls need no input and can exit before this write. Their
+        // exact exit status, events and counters are still checked below.
+        assert_eq!(error.kind(), std::io::ErrorKind::BrokenPipe, "{error}");
+    }
     let deadline = Instant::now() + Duration::from_secs(5);
     while child.try_wait().unwrap().is_none() {
         if Instant::now() >= deadline {
