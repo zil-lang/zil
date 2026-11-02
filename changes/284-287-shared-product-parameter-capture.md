@@ -66,3 +66,7 @@ N−1 ResourceLimit，fresh N 一致）。后续仍须独立审查及替换近�
 
 字段写入复核时预付本地表和每个字段项的遍历，含空项；费用以当前
 实现的 raw/Wire N/N−1/fresh 重新测量，旧 Local 路径 N=17355 保持。
+
+最终集成迁移两处232旧共享参数反例：原源码字节不变，改为Analyze及
+独立Verify raw/Wire通过；原main未调用该helper，不计新native覆盖。
+同组拥有参数、可变Product、外层捕获与逃逸环境拒绝保持。
