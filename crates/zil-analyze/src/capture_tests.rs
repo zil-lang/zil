@@ -412,3 +412,254 @@ fn borrowed_environment_calls_delegate_the_position_without_writing_its_dependen
         assert_eq!(analyze(&decoded, &limits).unwrap(), expected);
     }
 }
+
+fn field_callback_argument(same_field: bool, after_last: bool) -> TypedModule {
+    let mut module = super::fixture(CallableKind::Fn, false, 0);
+    let package = Type::Package {
+        name: "Fields".into(),
+        fields: vec![
+            ("token".into(), managed()),
+            ("x".into(), Type::I32),
+            ("y".into(), Type::I32),
+        ],
+    };
+    let shared = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::I32),
+    };
+    let exclusive = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::I32),
+    };
+    let mut main = Body::new(0);
+    main.op(InstructionKind::ScopeEnter { scope: ScopeId(0) });
+    let owner = main.local(package.clone());
+    let one = main.constant(1);
+    let token = main.value(
+        managed(),
+        InstructionKind::MakeManaged { fields: vec![one] },
+    );
+    let made = main.value(
+        package,
+        InstructionKind::MakePackage {
+            fields: vec![token, one, one],
+        },
+    );
+    main.op(InstructionKind::Store {
+        local: owner,
+        value: made,
+    });
+    let captured = main.value(
+        shared.clone(),
+        InstructionKind::BorrowPackageField {
+            local: owner,
+            index: 1,
+            mutable: false,
+        },
+    );
+    let environment = main.local(Type::Closure(ClosureId(0)));
+    let closure = main.value(
+        Type::Closure(ClosureId(0)),
+        InstructionKind::MakeClosure {
+            closure: ClosureId(0),
+            captures: vec![captured],
+        },
+    );
+    main.op(InstructionKind::Store {
+        local: environment,
+        value: closure,
+    });
+    let argument = main.value(
+        exclusive.clone(),
+        InstructionKind::BorrowPackageField {
+            local: owner,
+            index: if same_field && !after_last { 1 } else { 2 },
+            mutable: true,
+        },
+    );
+    let result = main.value(
+        Type::I32,
+        InstructionKind::CallClosureShared {
+            callee: environment,
+            arguments: vec![argument],
+        },
+    );
+    if after_last {
+        let address = main.value(
+            exclusive.clone(),
+            InstructionKind::BorrowPackageField {
+                local: owner,
+                index: 1,
+                mutable: true,
+            },
+        );
+        main.op(InstructionKind::WriteAddress {
+            address,
+            value: one,
+        });
+    }
+    main.op(InstructionKind::StorageDead(environment));
+    main.op(InstructionKind::DropPackage { local: owner });
+    main.op(InstructionKind::StorageDead(owner));
+    main.op(InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Return,
+    });
+    module.functions[0] = main.finish(result);
+
+    let mut entry = Body::new(1);
+    entry.0.environment = Some(ClosureId(0));
+    entry.0.locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "p".into(),
+        ty: exclusive.clone(),
+        mutable: false,
+        span: s(),
+    });
+    entry.0.parameters.push(LocalId(0));
+    let argument = entry.value(exclusive.clone(), InstructionKind::Load(LocalId(0)));
+    let old = entry.value(
+        Type::I32,
+        InstructionKind::ReadAddress { address: argument },
+    );
+    let one = entry.constant(1);
+    let incremented = entry.value(
+        Type::I32,
+        InstructionKind::Binary {
+            op: BinaryOp::Add,
+            left: old,
+            right: one,
+        },
+    );
+    entry.op(InstructionKind::WriteAddress {
+        address: argument,
+        value: incremented,
+    });
+    let captured = entry.value(shared.clone(), InstructionKind::ReadCapture { index: 0 });
+    let read = entry.value(
+        Type::I32,
+        InstructionKind::ReadAddress { address: captured },
+    );
+    let sum = entry.value(
+        Type::I32,
+        InstructionKind::Binary {
+            op: BinaryOp::Add,
+            left: read,
+            right: incremented,
+        },
+    );
+    module.functions[1] = entry.finish(sum);
+    module.closures[0].captures = vec![shared];
+    module.closures[0].parameters = vec![exclusive];
+    module
+}
+
+#[test]
+fn captured_copy_fields_keep_actual_siblings_and_whole_parent_windows_raw_wire() {
+    for (same, after_last) in [(false, false), (true, false), (true, true)] {
+        let module = field_callback_argument(same, after_last);
+        let limits = Limits::default();
+        let expected = analyze(&module, &limits);
+        if same && !after_last {
+            assert_eq!(expected.as_ref().unwrap_err()[0].code, "E-BORROW-CONFLICT");
+        } else {
+            expected.as_ref().unwrap();
+        }
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &limits,
+        )
+        .unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&bytes, &limits)
+            .unwrap()
+            .0;
+        assert_eq!(analyze(&decoded, &limits), expected);
+    }
+    let mut whole = field_callback_argument(false, false);
+    let f = &mut whole.functions[0];
+    let at = f.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::CallClosureShared { .. }))
+        .unwrap();
+    let value = ValueId(f.values.len() as u32);
+    f.values.push(f.locals[0].ty.clone());
+    f.blocks[0].instructions.insert(
+        at,
+        inst(
+            Some(value),
+            InstructionKind::TakeLocal { local: LocalId(0) },
+        ),
+    );
+    f.blocks[0].instructions.insert(
+        at + 1,
+        inst(
+            None,
+            InstructionKind::Store {
+                local: LocalId(0),
+                value,
+            },
+        ),
+    );
+    let defaults = Limits::default();
+    let bytes =
+        zil_ir::wire::encode_module_candidate(&whole, &CandidatePlan::empty_for(&whole), &defaults)
+            .unwrap();
+    let decoded = zil_ir::wire::decode_module_candidate(&bytes, &defaults)
+        .unwrap()
+        .0;
+    for input in [&whole, &decoded] {
+        assert_eq!(
+            analyze(input, &defaults).unwrap_err()[0].code,
+            "E-BORROW-CONFLICT"
+        );
+    }
+}
+
+#[test]
+fn captured_copy_field_work_is_exact_and_fresh_raw_wire() {
+    for (same, after_last) in [(false, false), (true, false), (true, true)] {
+        let module = field_callback_argument(same, after_last);
+        let defaults = Limits::default();
+        let mut budget = Budget::new(&defaults);
+        let expected = analyze_budgeted(&module, &defaults, &mut budget, None);
+        if same && !after_last {
+            assert_eq!(expected.as_ref().unwrap_err()[0].code, "E-BORROW-CONFLICT");
+        } else {
+            expected.as_ref().unwrap();
+        }
+        let exact = defaults.max_analysis_steps - budget.remaining();
+        let bytes = zil_ir::wire::encode_module_candidate(
+            &module,
+            &CandidatePlan::empty_for(&module),
+            &defaults,
+        )
+        .unwrap();
+        let decoded = zil_ir::wire::decode_module_candidate(&bytes, &defaults)
+            .unwrap()
+            .0;
+        for input in [&module, &decoded] {
+            for steps in [exact, exact - 1, exact] {
+                let actual = analyze(
+                    input,
+                    &Limits {
+                        max_analysis_steps: steps,
+                        ..defaults.clone()
+                    },
+                );
+                if steps == exact {
+                    assert_eq!(actual, expected);
+                } else {
+                    assert_eq!(
+                        actual.unwrap_err()[0].category,
+                        zil_base::ResultCategory::ResourceLimit
+                    );
+                }
+            }
+        }
+        println!(
+            "288 copy-field same={same} after-last={after_last}: N={exact} raw/Wire N-1/fresh"
+        );
+    }
+}
