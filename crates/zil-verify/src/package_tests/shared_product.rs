@@ -314,6 +314,92 @@ fn shared_product_parameter_call_window_uses_actual_store_and_transitive_may_wri
 }
 
 #[test]
+fn shared_product_parameter_distinguishes_owned_package_store_fields() {
+    for case in 0..4 {
+        let same = case == 1;
+        let (mut module, _) = stores(false, false, false);
+        let outer = Type::Package {
+            name: "Stores".into(),
+            fields: vec![
+                ("a".into(), Type::Managed(Box::new(store_payload()))),
+                ("b".into(), Type::Managed(Box::new(store_payload()))),
+            ],
+        };
+        let mut caller = Body::new(Type::I32);
+        caller.0.id = FunctionId(2);
+        caller.0.name = "caller".into();
+        let owner = caller.parameter(outer.clone());
+        let moved = (case >= 2).then(|| caller.storage(outer.clone()));
+        let first = caller.value(
+            store_desc(),
+            InstructionKind::DescribePackageField {
+                local: owner,
+                index: 0,
+            },
+        );
+        let second = caller.value(
+            store_desc(),
+            InstructionKind::DescribePackageField {
+                local: owner,
+                index: u32::from(!same),
+            },
+        );
+        let index = caller.value(Type::I64, InstructionKind::Constant(Constant::I64(0)));
+        let view = caller.value(
+            address(),
+            InstructionKind::OwnedStoreBorrow {
+                store: first,
+                index,
+            },
+        );
+        if case == 2 {
+            let value = caller.value(outer.clone(), InstructionKind::TakeLocal { local: owner });
+            caller.op(InstructionKind::Store {
+                local: moved.unwrap(),
+                value,
+            });
+        }
+        let result = caller.value(
+            Type::I32,
+            InstructionKind::Call {
+                function: FunctionId(0),
+                arguments: vec![view, second],
+            },
+        );
+        if case == 3 {
+            let value = caller.value(outer, InstructionKind::TakeLocal { local: owner });
+            caller.op(InstructionKind::Store {
+                local: moved.unwrap(),
+                value,
+            });
+        }
+        caller.op(InstructionKind::DropPackage {
+            local: moved.unwrap_or(owner),
+        });
+        module.functions[2] = caller.finish(Some(result), CleanupExitKind::Return);
+        let mut plan = resource_tests::plan(&module);
+        for hold in plan.functions[0].holds.iter_mut().take(3) {
+            hold.roots = vec![HoldRoot::Parameter(0)];
+        }
+        for hold in plan.functions[1].holds.iter_mut().take(2) {
+            hold.roots = vec![HoldRoot::Capture(0)];
+        }
+        plan.functions[0].holds[4].roots = vec![HoldRoot::Parameter(1)];
+        for value in [first, second, view] {
+            plan.functions[2].holds[value.0 as usize].roots = vec![HoldRoot::Local(owner)];
+        }
+        for result in both(module, plan) {
+            if same || case == 2 {
+                let ds = result.unwrap_err();
+                assert!(ds.iter().any(|d| d.code == "E-BORROW-CONFLICT"), "{ds:?}");
+            } else {
+                result.unwrap();
+            }
+        }
+    }
+}
+
+#[test]
 fn shared_product_parameter_does_not_open_outer_capture_or_direct_store_capture() {
     let (mut module, mut plan) = fixture(0);
     module.functions[0].environment = Some(ClosureId(1));
