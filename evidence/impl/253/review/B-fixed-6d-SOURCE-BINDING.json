@@ -1,0 +1,15 @@
+{
+  "head": "6d4e8016fc4714cf3111fcfb6a6e766ea2209839",
+  "full_tree": "6471cffe6882de536ced51a72f93eafc31a8e578",
+  "analyze_tree": "2df4f100c79d985e20693efb4a1845327780df2d",
+  "probe_sha256": "1084536930a20163ef2441966bfba0d6fdf8ad3d202f5ee80f042df8e4b51f3e",
+  "input_source_sha256": "36b9029e66295a477de85574489ea13f1f28ca6c459cfc53a073ccffe04e2236",
+  "crate_trees": {
+    "zil-base": "36c3c18f62ef753772983a493ce624bd9718dfa0",
+    "zil-ir": "0b67e07721793ab58e418df91c0e7818a418c9fa",
+    "zil-analyze": "2df4f100c79d985e20693efb4a1845327780df2d",
+    "zil-syntax": "71fabb52a8fe321fb346ab887ab6b0e338687175",
+    "zil-expand": "bdb707bd8feffe17410d9fad8276196254ee4ef7",
+    "zil-types": "41f3c4b092d39c33d3bc85b260f92c8dcdb47888"
+  }
+}

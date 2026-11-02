@@ -1,0 +1,282 @@
+{
+  "status": "Pass",
+  "binding": {
+    "head": "6d4e8016fc4714cf3111fcfb6a6e766ea2209839",
+    "full_tree": "6471cffe6882de536ced51a72f93eafc31a8e578",
+    "analyze_tree": "2df4f100c79d985e20693efb4a1845327780df2d",
+    "probe_sha256": "1084536930a20163ef2441966bfba0d6fdf8ad3d202f5ee80f042df8e4b51f3e",
+    "input_source_sha256": "36b9029e66295a477de85574489ea13f1f28ca6c459cfc53a073ccffe04e2236",
+    "crate_trees": {
+      "zil-base": "36c3c18f62ef753772983a493ce624bd9718dfa0",
+      "zil-ir": "0b67e07721793ab58e418df91c0e7818a418c9fa",
+      "zil-analyze": "2df4f100c79d985e20693efb4a1845327780df2d",
+      "zil-syntax": "71fabb52a8fe321fb346ab887ab6b0e338687175",
+      "zil-expand": "bdb707bd8feffe17410d9fad8276196254ee4ef7",
+      "zil-types": "41f3c4b092d39c33d3bc85b260f92c8dcdb47888"
+    }
+  },
+  "returncode": 0,
+  "checks": {
+    "reject_slot_drop_old_loan/raw": true,
+    "reject_slot_drop_old_loan/raw/window_diagnostic": true,
+    "reject_slot_drop_old_loan/wire": true,
+    "reject_slot_drop_old_loan/wire/window_diagnostic": true,
+    "control_nested_no_keep/raw": true,
+    "control_nested_no_keep/wire": true,
+    "reject_direct_drop_old_loan/raw": true,
+    "reject_direct_drop_old_loan/raw/window_diagnostic": true,
+    "reject_direct_drop_old_loan/wire": true,
+    "reject_direct_drop_old_loan/wire/window_diagnostic": true,
+    "reject_direct_take_old_loan/raw": true,
+    "reject_direct_take_old_loan/raw/window_diagnostic": true,
+    "reject_direct_take_old_loan/wire": true,
+    "reject_direct_take_old_loan/wire/window_diagnostic": true,
+    "reject_carrier_package_escape/raw": true,
+    "reject_carrier_package_escape/wire": true,
+    "control_branch_no_keep/raw": true,
+    "control_branch_no_keep/wire": true,
+    "control_loop_no_keep/raw": true,
+    "control_loop_no_keep/wire": true,
+    "control_uninvoked_body/raw": true,
+    "control_uninvoked_body/wire": true,
+    "control_slot_borrow/raw": true,
+    "control_slot_borrow/wire": true,
+    "reject_carrier_call_escape/raw": true,
+    "reject_carrier_call_escape/wire": true,
+    "reject_carrier_store_escape/raw": true,
+    "reject_carrier_store_escape/wire": true,
+    "reject_carrier_capture_escape/raw": true,
+    "reject_carrier_capture_escape/wire": true,
+    "reject_slot_take_refill_old_loan/raw": true,
+    "reject_slot_take_refill_old_loan/raw/window_diagnostic": true,
+    "reject_slot_take_refill_old_loan/wire": true,
+    "reject_slot_take_refill_old_loan/wire/window_diagnostic": true,
+    "control_direct_borrow/raw": true,
+    "control_direct_borrow/wire": true,
+    "reject_carrier_return_escape/raw": true,
+    "reject_carrier_return_escape/wire": true,
+    "exact_budget_boundary": true
+  },
+  "observations": [
+    {
+      "case": "control_nested_no_keep",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_nested_no_keep",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_uninvoked_body",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_uninvoked_body",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_branch_no_keep",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_branch_no_keep",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_loop_no_keep",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_loop_no_keep",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_direct_borrow",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_direct_borrow",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "reject_direct_drop_old_loan",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_direct_drop_old_loan",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_direct_take_old_loan",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_direct_take_old_loan",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_slot_take_refill_old_loan",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_slot_take_refill_old_loan",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "control_slot_borrow",
+      "channel": "raw",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "control_slot_borrow",
+      "channel": "wire",
+      "outcome": "ACCEPT",
+      "diagnostic": "None"
+    },
+    {
+      "case": "reject_slot_drop_old_loan",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_slot_drop_old_loan",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"owned storage transition invalidates a live address window\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_call_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_call_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_package_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"package requires finite Copy/complete array fields and at least one explicit Managed resource\", span: Some(Span { file: FileId(0), start: 140, end: 346 }), notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_package_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"package requires finite Copy/complete array fields and at least one explicit Managed resource\", span: Some(Span { file: FileId(0), start: 140, end: 346 }), notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_capture_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_capture_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_store_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_store_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot escapes its local replacement boundary\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_return_escape",
+      "channel": "raw",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot cannot escape through return\", span: None, notes: [] }])"
+    },
+    {
+      "case": "reject_carrier_return_escape",
+      "channel": "wire",
+      "outcome": "REJECT",
+      "diagnostic": "Some([Diagnostic { phase: Analyze, category: SafeReject, code: \"E-ANALYZE-IR\", message: \"private callable slot cannot escape through return\", span: None, notes: [] }])"
+    }
+  ],
+  "budget_N": 14136,
+  "scope": "253-B increment; no Parameter/Fresh contract in any tested module; source -> Types -> independent raw/Wire Analyze; no Verify/native/full suite",
+  "artifacts": {
+    "SOURCE-BINDING.json": "5c9d71d886fe0b0d035e521eba56524eed5e8a0587cbe7b22a38a14b0a1f931f",
+    "reject_carrier_return_escape.wire": "bdac8ad737d55440acd006638c50201fe0e03e7041f11e5d55991608bb722e0a",
+    "reject_direct_take_old_loan.wire": "8b04928c27cef64d61d541975cded810a0567f2cc043a705dd9cb205c8d445c8",
+    "reject_slot_take_refill_old_loan.typed.txt": "4a0b4288dddeb67d93693ad8690d31f3d00ee4151c82010ddf649e4b0e3b196e",
+    "control_direct_borrow.wire": "f0df9849e598881a3f52a0cb6c8fda77e3b5afd2e65abc0309aaef8561df7d72",
+    "reject_slot_take_refill_old_loan.wire": "aa069ffb8cf3212e929841a429bae4fa0834792931cc4ef1456d5b3b0aed294c",
+    "reject_carrier_call_escape.typed.txt": "3c1fcdef4868c1ed8d22b9f57b0aaa8d90d2e1b2d7b4f73aeb9737b52adf4b59",
+    "reject_carrier_package_escape.wire": "95b61f8de4c2ea2138bc1c0a3fb52553c610aad0926476b5ea8e4df62c2cc1d3",
+    "reject_carrier_capture_escape.wire": "31cd807c97d27b2d1c84713376d8a1043bd0908c9077075bea6ea929f959b03d",
+    "reject_carrier_package_escape.typed.txt": "0be58fc9e34681895c4d10bb03abeece58faad0a434e99e76dad4b547a90a59c",
+    "control_uninvoked_body.wire": "5aa4be1fe0709cc7b4650b194be55972e1e3911412bb378e25cb56b6e6675e4f",
+    "reject_carrier_store_escape.typed.txt": "8248e75643afec4eadd0387ca0913fb8ebcc8cc4aef3e37790e4a6aca090a260",
+    "reject_carrier_return_escape.typed.txt": "b6f7f8ca9b4efbfdb15361e97e3908432dd0ddaaa4bdcbc018fc8d8612b125ef",
+    "control_direct_borrow.typed.txt": "bb29fa887f4dc39f22f533085d27c58417738ed0b4d4da8aa816ecb233cb71b4",
+    "control_nested_no_keep.wire": "6552f4d8d8ef1d7a39ae80001f012a30101c507650f868b3c52160514e163f83",
+    "reject_direct_drop_old_loan.typed.txt": "5861b31caee5e30de0eade075972d5c2a72f82f255a59efb0f63412a5b5c0952",
+    "control_slot_borrow.wire": "ebdbace517f042833cb7218ddf3b38f5ce579c23014b65b104d1a40bdff159c8",
+    "reject_carrier_call_escape.wire": "e197010fbff26fa33361e9efc03e74cb182b70b0f334733227af4646205d642b",
+    "control_loop_no_keep.typed.txt": "9febb388eabd4152791c44cf279c4890ef0fbe54d00677396bcacf2fcc07ba5a",
+    "reject_direct_drop_old_loan.wire": "93f1c98146b4bfaa7a9fc14448a4fa9015cf58289c8ab0a4c593df923e011f23",
+    "control_nested_no_keep.typed.txt": "306fedf76dd4efe40e7b23d00e9faa1135bb0c924ed8ba8bd93dab9ad59f895b",
+    "reject_slot_drop_old_loan.typed.txt": "911ebb34a23fa30d709a27f9906163b21ee4bd9e64bc97e8c96be0fece20de48",
+    "control_branch_no_keep.wire": "46e988185d2bbdc56db533dfc72c491291f0c46f52bb4950eba56bf70d8bab99",
+    "reject_direct_take_old_loan.typed.txt": "f966784fe44fa96192f710b5cc7ff41f72f0bcba23a27b79f9acbbc7871c8247",
+    "reject_slot_drop_old_loan.wire": "611d4616b3d44917e0868aab1108b71bebdb724d83c09753ea2870f825b226ab",
+    "reject_carrier_capture_escape.typed.txt": "0cdb3c314d7ede7bf814db536940fa58b0c3c77ccc4ef24ace69f5e5e6efa89b",
+    "reject_carrier_store_escape.wire": "1c2831ff42bfc20edfe659ca19a9827c19ce3a634bda3e223ff64db11fafa37c",
+    "control_uninvoked_body.typed.txt": "94bdcbeb40f8a6ffaa14141c3d52be80c1bb80ed859791a9e642ca4294c4b492",
+    "control_slot_borrow.typed.txt": "a145261c194de8f487bfe6c86e151dd124d49f6b40236bdd98a43bc97ae18999",
+    "probe.log": "86c1a7308f77e1efc9dbe6cdae7dd6915fe082075c1f8cc9ac697c696dadbd15",
+    "control_loop_no_keep.wire": "e9c1bd4c8636d0b9299ff8f506d6b8cc0e14abe85e5c4652b807a56ba3ed54fc",
+    "control_branch_no_keep.typed.txt": "3235b19361b0b01f59b46dd08f7b773c59ba520e67b19c35e71c47eaa12c965e",
+    "probe/Cargo.toml": "75fcc6f6c2c063a77c1f18f9de9a78045b8e186fd25412aa109585d896323ece",
+    "probe/Cargo.lock": "86783dc3f1dd10802915378ac0185b239e3d1e8d215877c1c3ddf6716630eeba",
+    "probe/src/main.rs": "1084536930a20163ef2441966bfba0d6fdf8ad3d202f5ee80f042df8e4b51f3e",
+    "probe/src/nested-original.zil": "36b9029e66295a477de85574489ea13f1f28ca6c459cfc53a073ccffe04e2236"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "slice": 253,
-  "status": "author bounded validation pass; 253-B budget review repair pending independent revalidation",
+  "status": "author bounded validation pass; independent 883 baseline and 6d incremental review pass; unified root acceptance pending",
   "production_commit": "6d4e8016fc4714cf3111fcfb6a6e766ea2209839",
   "production_analyze_tree": "2df4f100c79d985e20693efb4a1845327780df2d",
   "baseline": "8d06d0c0c597295775a61c5e05c3d16a6cae2966",
@@ -226,7 +226,12 @@
     "review/ANALYZE253-CORRECTION-AND-R3.json": "dd74f34f2de4a1e0e197ff5804d2e48af12e9866d627082582e4a1739c94c414",
     "review/ANALYZE253-PASS-883f55c64.json": "590f80d5d126c6b4bb44c69f8866de4952de032e9810e32a6ea0234d8c950ef8",
     "review/ANALYZE253-REVIEW-6c1cf564c.json": "6f59f539e987b073f91569e46bab3f285c404acfa90c30e45d938fdde3a72d01",
+    "review/ANALYZE253B-PASS-6d4e8016f.json": "658a5136f6d1fdb98be84046219ea6bdf735abd906485b36ad749c4ba971492e",
     "review/ANALYZE253B-REVIEW-c8b130848.json": "869d70cc068d1a5b955399a482671dafed24a29e9026aa3e3f415f04e074b439",
+    "review/B-fixed-6d-RESULT.json": "cd404317a9ea49fc63fba9407cedb161ffe02e0d72ebc31069b1562a8dea8a4b",
+    "review/B-fixed-6d-SOURCE-BINDING.json": "5c9d71d886fe0b0d035e521eba56524eed5e8a0587cbe7b22a38a14b0a1f931f",
+    "review/B-fixed-6d-artifacts.tar.gz": "2c290f313ae6d71d75bb8355a216302b4a586820c7d142a720f6dc5cbe9b9612",
+    "review/B-fixed-6d-probe.log": "86c1a7308f77e1efc9dbe6cdae7dd6915fe082075c1f8cc9ac697c696dadbd15",
     "review/fixed-883-RESULT.json": "aada5705a2bb53ab565d24a196d2feebf4486bf16632ce2fdab4f14d7b8c5271",
     "review/fixed-883-probe.log": "ef9c85b8004877fac3ec2a057d2d2c0af4c68c095881cc8f610b79c78ac397b7",
     "review/original-operands-fail.log": "b69f1515d86ce3aa5152b3173b12ebc906d01ad637ce56ee231b19828b4496b1"
@@ -297,5 +302,23 @@
       "old_flat_Types": 418,
       "old_flat_Analyze": 8673
     }
+  },
+  "independent_incremental_review": {
+    "status": "Pass",
+    "production_commit": "6d4e8016fc4714cf3111fcfb6a6e766ea2209839",
+    "report": "review/ANALYZE253B-PASS-6d4e8016f.json",
+    "report_sha256": "658a5136f6d1fdb98be84046219ea6bdf735abd906485b36ad749c4ba971492e",
+    "fixture_count": 15,
+    "raw_wire_observations": 30,
+    "Verify_invoked": false,
+    "old_22_observations_rerun": false,
+    "full_suite": false,
+    "N": 14136,
+    "previous_c8_N": 14112,
+    "delta": 24,
+    "N_minus_1": "ResourceLimit only",
+    "fresh_N": "same CandidatePlan",
+    "limitation": "Package escape rejected by earlier aggregate type admission (Unsupported), not new operand guard",
+    "artifacts": "review/B-fixed-6d-artifacts.tar.gz"
   }
 }

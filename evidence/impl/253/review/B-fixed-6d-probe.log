@@ -1,0 +1,40 @@
+   Compiling zil-base v0.1.0 (/workspace/.zil-env/forward-review-253/B/snapshot-6d4e8016f/crates/zil-base)
+   Compiling zil-ir v0.1.0 (/workspace/.zil-env/forward-review-253/B/snapshot-6d4e8016f/crates/zil-ir)
+   Compiling zil-syntax v0.1.0 (/workspace/.zil-env/forward-review-253/B/snapshot-6d4e8016f/crates/zil-syntax)
+   Compiling zil-analyze v0.1.0 (/workspace/.zil-env/forward-review-253/B/snapshot-6d4e8016f/crates/zil-analyze)
+   Compiling zil-types v0.1.0 (/workspace/.zil-env/forward-review-253/B/snapshot-6d4e8016f/crates/zil-types)
+   Compiling zil-expand v0.1.0 (/workspace/.zil-env/forward-review-253/B/snapshot-6d4e8016f/crates/zil-expand)
+   Compiling independent-forward-253b-review v0.0.0 (/workspace/.zil-env/forward-review-253/B/runs/fixed-6d4e8016f/probe)
+    Finished `dev` profile [unoptimized] target(s) in 23.79s
+     Running `/workspace/.zil-env/forward-review-253/B/target/debug/independent-forward-253b-review`
+control_nested_no_keep raw: ACCEPT None
+control_nested_no_keep wire: ACCEPT None
+control_uninvoked_body raw: ACCEPT None
+control_uninvoked_body wire: ACCEPT None
+control_branch_no_keep raw: ACCEPT None
+control_branch_no_keep wire: ACCEPT None
+control_loop_no_keep raw: ACCEPT None
+control_loop_no_keep wire: ACCEPT None
+control_direct_borrow raw: ACCEPT None
+control_direct_borrow wire: ACCEPT None
+reject_direct_drop_old_loan raw: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }])
+reject_direct_drop_old_loan wire: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }])
+reject_direct_take_old_loan raw: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }])
+reject_direct_take_old_loan wire: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }])
+reject_slot_take_refill_old_loan raw: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }])
+reject_slot_take_refill_old_loan wire: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }])
+control_slot_borrow raw: ACCEPT None
+control_slot_borrow wire: ACCEPT None
+reject_slot_drop_old_loan raw: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }])
+reject_slot_drop_old_loan wire: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "owned storage transition invalidates a live address window", span: None, notes: [] }])
+reject_carrier_call_escape raw: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "private callable slot escapes its local replacement boundary", span: None, notes: [] }])
+reject_carrier_call_escape wire: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "private callable slot escapes its local replacement boundary", span: None, notes: [] }])
+reject_carrier_package_escape raw: REJECT Some([Diagnostic { phase: Analyze, category: Unsupported, code: "E-UNSUPPORTED", message: "package requires finite Copy/complete array fields and at least one explicit Managed resource", span: Some(Span { file: FileId(0), start: 140, end: 346 }), notes: [] }])
+reject_carrier_package_escape wire: REJECT Some([Diagnostic { phase: Analyze, category: Unsupported, code: "E-UNSUPPORTED", message: "package requires finite Copy/complete array fields and at least one explicit Managed resource", span: Some(Span { file: FileId(0), start: 140, end: 346 }), notes: [] }])
+reject_carrier_capture_escape raw: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "private callable slot escapes its local replacement boundary", span: None, notes: [] }])
+reject_carrier_capture_escape wire: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "private callable slot escapes its local replacement boundary", span: None, notes: [] }])
+reject_carrier_store_escape raw: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "private callable slot escapes its local replacement boundary", span: None, notes: [] }])
+reject_carrier_store_escape wire: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "private callable slot escapes its local replacement boundary", span: None, notes: [] }])
+reject_carrier_return_escape raw: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "private callable slot cannot escape through return", span: None, notes: [] }])
+reject_carrier_return_escape wire: REJECT Some([Diagnostic { phase: Analyze, category: SafeReject, code: "E-ANALYZE-IR", message: "private callable slot cannot escape through return", span: None, notes: [] }])
+BUDGET PASS: N=14136; N-1 ResourceLimit only; fresh N same candidate

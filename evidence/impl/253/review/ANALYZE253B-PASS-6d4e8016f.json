@@ -1,0 +1,70 @@
+{
+  "status": "Pass",
+  "reviewer": "/root/assess_delivery_process",
+  "independent_non_author": true,
+  "production_commit": "6d4e8016fc4714cf3111fcfb6a6e766ea2209839",
+  "production_tree": "6471cffe6882de536ced51a72f93eafc31a8e578",
+  "analyze_tree": "2df4f100c79d985e20693efb4a1845327780df2d",
+  "scope": "253-B increment relative to 883f55c640f8c5674ef73149f43e52702a64a091 Pass; same original forward identity proof retained; no new full acceptance claim",
+  "baseline_pass": "../ANALYZE253-PASS-883f55c64.json",
+  "previous_B_review": "runs/c8b130848/ANALYZE253B-REVIEW-c8b130848.json",
+  "closed_finding": {
+    "id": "AN253B-R1",
+    "resolution": "All new private carrier eligibility checks share private_slot_candidate. Each growing owned_callbacks/forward_closures BTreeSet.contains is preceded by budget.lookup, with the same short-circuit order. Fallible loops preserve the previous structural boundary decisions."
+  },
+  "semantic_increment_review": "Private Array<Closure;1> admission reconstructs public boundaries, exact value producers, exact local operation/slot index/type/mutability, operand Store destination and terminator nonescape. Admission no longer depends on a helper call edge. Real owned callback entries and actual private carrier bodies seed strong address-window flags; existing graph propagation and resource checker enforce liveness/cleanup.",
+  "independent_results": {
+    "fixture_count": 15,
+    "raw_wire_observations": 30,
+    "all_expected": true,
+    "positive_controls": [
+      "real-source nested no-keep",
+      "real-source branch",
+      "real-source loop",
+      "uninvoked nested body with root main stubbed",
+      "direct borrowed invocation",
+      "private-slot borrowed invocation"
+    ],
+    "negative_controls": [
+      "uninvoked body direct Take old loan",
+      "uninvoked body direct Drop old loan",
+      "Array1 Take/refill old loan",
+      "Array1 Drop old loan",
+      "carrier Call escape",
+      "carrier Return escape",
+      "carrier MakeClosure escape",
+      "carrier Package escape",
+      "carrier wrong-type Store escape"
+    ],
+    "no_callable_return_contract": true,
+    "verify_invoked": false,
+    "native_executed": false,
+    "full_suite_run": false
+  },
+  "budget": {
+    "fixture": "actual nested source, private owning callback carrier, no callable-return contract, no external consumer invocation edge",
+    "before_c8_N": 14112,
+    "after_6d_N": 14136,
+    "delta": 24,
+    "N_minus_1": "ResourceLimit only",
+    "fresh_N": "same CandidatePlan"
+  },
+  "author_only_budget_receipts_not_rerun_by_reviewer": {
+    "owning_raw_slot": "2163 -> 2193 (+30)",
+    "no_slot_source": 995,
+    "old_Fresh_raw": 880,
+    "old_flat": 8673,
+    "receipt_commit": "89335d1df"
+  },
+  "limits": [
+    "Package escape rejects at earlier aggregate type admission (Unsupported), not specifically new operand-guard diagnostic.",
+    "Old 22-observation forward matrix was not rerun.",
+    "Root final unified R still needs exact source binding; this Pass binds 6d4e8016fc4714cf3111fcfb6a6e766ea2209839."
+  ],
+  "preservation": "All c8 archived evidence digests unchanged; 15 regenerated Wire modules byte-identical; original 883 Pass, b5/6c Fail and corrections, CI preparation untouched.",
+  "result": "runs/fixed-6d4e8016f/RESULT.json",
+  "result_sha256": "cd404317a9ea49fc63fba9407cedb161ffe02e0d72ebc31069b1562a8dea8a4b",
+  "log": "runs/fixed-6d4e8016f/probe.log",
+  "log_sha256": "86c1a7308f77e1efc9dbe6cdae7dd6915fe082075c1f8cc9ac697c696dadbd15",
+  "production_modified_by_reviewer": false
+}
