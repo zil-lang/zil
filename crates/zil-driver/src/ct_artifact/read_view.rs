@@ -286,6 +286,23 @@ impl CtReadView for FrozenReadView<'_> {
         budget.reserve_temporary_bytes(text.len() as u64)?;
         Ok(CtIdent { text, namespace, source: CtNameSource::Definition(symbol.clone()), member_owner: None, member_owner_type: None })
     }
+    fn parse_ident(&self, input: &CtTokenTree, budget: &mut CtExecutionBudget) -> CompileResult<CtIdent> {
+        if self.input != Some(input) { return Err(error("E-CT-INPUT", "identifier parser needs the authenticated provider input")); }
+        let [root] = input.roots.as_slice() else { return Err(error("E-CT-CATEGORY", "identifier input needs one outer delimiter")); };
+        let Some(CtTokenNode::Group { children, .. }) = input.nodes.get(root.0 as usize) else {
+            return Err(error("E-CT-CATEGORY", "identifier input needs one outer delimiter"));
+        };
+        let [child] = children.as_slice() else { return Err(error("E-CT-CATEGORY", "identifier input must contain exactly one name")); };
+        let Some(CtTokenNode::Token(token)) = input.nodes.get(child.0 as usize) else {
+            return Err(error("E-CT-CATEGORY", "identifier input must contain one token"));
+        };
+        if token.class != CtTokenClass::Identifier { return Err(error("E-CT-CATEGORY", "identifier input token is not a name")); }
+        let ident = token.name.as_ref().ok_or_else(|| error("E-CT-INPUT", "identifier has no authenticated input name"))?;
+        budget.reserve_analysis_work(2)?;
+        budget.reserve_generated_nodes(1)?;
+        budget.reserve_temporary_bytes(ident.text.len() as u64)?;
+        Ok(ident.clone())
+    }
     fn parse(&self, _category: CtSyntaxCategory, _input: &CtTokenTree, _budget: &mut CtExecutionBudget) -> CompileResult<CtSyntaxTree> {
         Err(phase("generated syntax parser is not connected to the frozen input view"))
     }
