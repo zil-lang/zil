@@ -28,6 +28,14 @@ fn fnmut_and_loop_forwarding_reach_verify() {
 }
 
 #[test]
+fn stronger_fn_survives_nested_mutable_call_and_return() {
+    checked(
+        "fn_to_mut",
+        "fn step<F:FnMut(i32)->i32>(f:F)->F{var current=f;current(1);return current}fn relay<F:Fn(i32)->i32>(f:F)->F{return step(f)}fn main()->i32{let f=(n:i32)=>n+1;let current=relay(f);return current(2)-3}",
+    );
+}
+
+#[test]
 fn complete_error_union_store_companion_reaches_verify() {
     checked(
         "owned_companion",
