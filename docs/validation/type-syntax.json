@@ -1,6 +1,6 @@
 {
   "source": "bea1e95b0826dd3e695396cac1665d6a74ad38ec",
-  "status": "Pass: local scoped Type/Syntax acceptance",
+  "status": "Pass: merged scoped Type/Syntax acceptance",
   "toolchain": {
     "rust": "1.99.1",
     "llvm": "23.1.4",
@@ -235,10 +235,26 @@
     "note": "Replays are not summed as distinct coverage"
   },
   "limitations": [
-    "GitHub candidate CI pending",
     "Full ZIL 1.4 and all ZUI prerequisites not completed",
     "External callback lifecycle belongs to next phase 266–272",
     "Native Windows and Rust product comparisons not run"
   ],
-  "storage": "Generated logs and machine artifacts are ignored and disposable; retained source fixtures and exact commands reproduce checks. No permanent raw archive required."
+  "storage": "Generated logs and machine artifacts are ignored and disposable; retained source fixtures and exact commands reproduce checks. No permanent raw archive required.",
+  "integration": {
+    "pull_request": "https://github.com/zil-lang/zil/pull/20",
+    "head": "7129a4687194a8b3f15ef3f8672ea2430f256ff6",
+    "merge": "fd5fb8a49c8b7d71f9f22536236acc73e9e2db7d",
+    "tree": "e252f663ee131e95158a1a90e8f4ef0611a71afd",
+    "remote_checks": [
+      {
+        "run": 41506493927,
+        "conclusion": "Success"
+      },
+      {
+        "run": 41506494329,
+        "conclusion": "Success"
+      }
+    ],
+    "identity": "PR head and resulting main tree are exactly equal"
+  }
 }

@@ -1,6 +1,6 @@
 # Type/Syntax 阶段验收
 
-受测源码 `bea1e95b0826dd3e695396cac1665d6a74ad38ec` 已通过本地正式验收和限定独立审查；远端 CI 尚待执行。runtime schema/Wire31、CT artifact schema1，Rust1.99.1、LLVM23.1.4。[精简结果与命令](validation/type-syntax.json)。
+受测源码 `bea1e95b0826dd3e695396cac1665d6a74ad38ec` 已通过本地正式验收、限定独立审查和两套远端 CI，经 [PR20](https://github.com/zil-lang/zil/pull/20) 合入 `fd5fb8a49c8b7d71f9f22536236acc73e9e2db7d`；合入树与候选完全相同。runtime schema/Wire31、CT artifact schema1，Rust1.99.1、LLVM23.1.4。[精简结果与命令](validation/type-syntax.json)。
 
 本批接通普通 CT 函数的 Type/Syntax 值、四类 quote 和 typed holes、锁定 provider、卫生作用域、标准反射与普通代码物化。Member 保留实际名义 owner，生成代码仍经过普通类型、所有权及独立核验。旧标量/聚合 CT、`#if/#for` 与新路径按静态依赖选择；Parse/Core 停点、取消、共享预算及实际查询复用保留。
 
