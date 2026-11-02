@@ -159,6 +159,133 @@ fn symbolic_f_cannot_enter_state_and_also_return_the_same_ssa() {
     raw.reject("unsupported value operation");
 }
 
+#[test]
+fn symbolic_f_cannot_enter_general_array_and_also_return_the_same_ssa() {
+    let mut raw = keep(CallableKind::Fn, CallableKind::FnOnce);
+    let function = &mut raw.module.functions[0];
+    function.values = vec![
+        env(),
+        Type::I32,
+        env(),
+        Type::Array {
+            element: Box::new(env()),
+            length: 2,
+        },
+    ];
+    function.blocks[0].instructions = vec![
+        op(
+            Some(ValueId(0)),
+            InstructionKind::TakeLocal { local: LocalId(0) },
+        ),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::Constant(Constant::I32(3)),
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(0),
+                captures: vec![ValueId(1)],
+            },
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::MakeOwnedArray {
+                elements: vec![ValueId(0), ValueId(2)],
+            },
+        ),
+    ];
+    function.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
+    raw.reject("existing internal single-element owning slot");
+}
+
+#[test]
+fn symbolic_f_cannot_enter_state_field_and_also_return_the_same_ssa() {
+    let mut raw = keep(CallableKind::Fn, CallableKind::FnOnce);
+    let state = Type::Package {
+        name: "State".into(),
+        fields: vec![("token".into(), owned()), ("callback".into(), env())],
+    };
+    let function = &mut raw.module.functions[0];
+    function.locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "state".into(),
+        ty: state.clone(),
+        mutable: true,
+        span: span(),
+    });
+    function.values = vec![Type::I32, owned(), Type::I32, env(), state, env()];
+    function.blocks[0].instructions = vec![
+        op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        op(None, InstructionKind::StorageLive(LocalId(1))),
+        op(
+            Some(ValueId(0)),
+            InstructionKind::Constant(Constant::I32(3)),
+        ),
+        op(
+            Some(ValueId(1)),
+            InstructionKind::MakeManaged {
+                fields: vec![ValueId(0)],
+            },
+        ),
+        op(
+            Some(ValueId(2)),
+            InstructionKind::Constant(Constant::I32(7)),
+        ),
+        op(
+            Some(ValueId(3)),
+            InstructionKind::MakeClosure {
+                closure: ClosureId(0),
+                captures: vec![ValueId(2)],
+            },
+        ),
+        op(
+            Some(ValueId(4)),
+            InstructionKind::MakePackage {
+                fields: vec![ValueId(1), ValueId(3)],
+            },
+        ),
+        op(
+            None,
+            InstructionKind::Store {
+                local: LocalId(1),
+                value: ValueId(4),
+            },
+        ),
+        op(
+            None,
+            InstructionKind::DropPackageField {
+                local: LocalId(1),
+                index: 1,
+            },
+        ),
+        op(
+            Some(ValueId(5)),
+            InstructionKind::TakeLocal { local: LocalId(0) },
+        ),
+        op(
+            None,
+            InstructionKind::StorePackageField {
+                local: LocalId(1),
+                index: 1,
+                value: ValueId(5),
+            },
+        ),
+        op(None, InstructionKind::DropPackage { local: LocalId(1) }),
+        op(None, InstructionKind::StorageDead(LocalId(1))),
+        op(None, InstructionKind::StorageDead(LocalId(0))),
+        op(
+            None,
+            InstructionKind::ScopeExit {
+                scope: ScopeId(0),
+                kind: CleanupExitKind::Return,
+            },
+        ),
+    ];
+    function.blocks[0].terminator = Terminator::Return(Some(ValueId(5)));
+    raw.reject("unsupported value operation");
+}
+
 fn slot_type() -> Type {
     Type::Array {
         element: Box::new(env()),
