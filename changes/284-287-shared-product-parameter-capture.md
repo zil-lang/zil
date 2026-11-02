@@ -40,8 +40,8 @@ may 写入图在当前请求内预付收敛：只读 Store 不被误记为写，
 
 Analyze 本地测量（target-285/jobs1，TypedModule raw/Wire；N−1 为
 ResourceLimit，重新请求 N 与首次结果相同）：原参数普通 Local 源 N=8271，
-参数来自 Store 的最后使用源 N=13063；不同 Store N=13334、同父不同 Store
-字段 N=22232、不同 owner Product N=38853、give 不同 Store N=14076。旧普通
+参数来自 Store 的最后使用源 N=13071；不同 Store N=13341、同父不同 Store
+字段 N=22244、不同 owner Product N=38873、give 不同 Store N=14084。旧普通
 Local 捕获 `examples/mainline/shared_product_capture226/local.zil` 的冻结基线
 与新路径均 N=17355。独立source-derived raw/Wire 复核同Store reserve/pop、
 调用内部先读后失效、同父同字段、普通嵌套调用和先move再give/整Product
@@ -50,7 +50,7 @@ move及inline构造等9个反例均 E-BORROW-CONFLICT；伪造空参数来源与
 
 独立审查另发现组装 Product 后提取字段丢失原 Store 父来源；逐字段传播
 构造、整体移动及字段替换来源，未知来源保守拒绝。同字段两个反例 raw/Wire
-拒绝，不同 Store 和先组装后借用的相邻字段正控通过（N=33921/25059，
+拒绝，不同 Store 和先组装后借用的相邻字段正控通过（N=33941/25073，
 N−1 ResourceLimit，fresh N 一致）。后续仍须独立审查及替换近邻验证。
 
 此前把先借 left、再 give left 组装 Product、最后消费 right 的源误记为
@@ -60,6 +60,9 @@ N−1 ResourceLimit，fresh N 一致）。后续仍须独立审查及替换近�
 
 合法直线交换字段后才开始借用的源此前误拒；单直线无循环内，先由
 活窗口检查逐操作确认，再按当前拥有字段位置判断，并核实所有拥有字段
-写入的 Store 来源。交换正控 raw/Wire N=39384、N−1 ResourceLimit、fresh
+写入的 Store 来源。交换正控 raw/Wire N=39408、N−1 ResourceLimit、fresh
 一致；交换后借用同一字段、先借后移动和同源重填近邻均 E-BORROW-CONFLICT。
 分支/循环及未知写入来源不通过此快捷路径，仍须独立审查。
+
+字段写入复核时预付本地表和每个字段项的遍历，含空项；费用以当前
+实现的 raw/Wire N/N−1/fresh 重新测量，旧 Local 路径 N=17355 保持。

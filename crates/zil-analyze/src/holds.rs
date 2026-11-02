@@ -1925,7 +1925,9 @@ fn parameter_product_windows(
             }
         }
         if current_field_positions {
+            budget.spend(field_stores.len(), "Product current field locals")?;
             for assignments in &field_stores {
+                budget.spend(assignments.len(), "Product current field entries")?;
                 for values_in_field in assignments.values() {
                     budget.spend(values_in_field.len(), "Product current field source proof")?;
                     for value in values_in_field {
