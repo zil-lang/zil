@@ -1,0 +1,155 @@
+   Compiling zil-driver v0.1.0 (/workspace/zil-252/crates/zil-driver)
+    Finished `test` profile [unoptimized] target(s) in 3.51s
+     Running tests/impl193_slice_arguments.rs (/workspace/.zil-env/target-252/debug/deps/impl193_slice_arguments-617a68e833ca1601)
+
+running 7 tests
+test explicit_mutable_arguments_do_not_upgrade_shared_inputs ... ok
+test new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes ... ok
+test helper_actual_capture_and_slice_backing_are_instantiated_together ... ok
+test current_call_checks_shared_exclusive_and_whole_backing_aliases ... ok
+test original_nineteen_preflight_inputs_now_reach_the_promised_stage_unchanged ... ok
+test slice_parameter_index_and_range_checks_reach_machine_traps ... ok
+test sequential_slice_reborrows_and_dead_last_use_preserve_backing ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+
+     Running tests/impl194_copy_callable.rs (/workspace/.zil-env/target-252/debug/deps/impl194_copy_callable-f7a75fc4d4937207)
+
+running 19 tests
+test copy_bound_does_not_admit_other_categories_or_resource_descriptions ... ok
+test copy_nested_instance_fix_does_not_change_the_store_element_profile ... ok
+test closure_environment_is_not_inferred_to_be_a_copy_code_pointer ... ok
+test explicit_copy_addresses_and_current_capture_conflicts_use_existing_permissions ... ok
+test borrowed_lending_windows_are_not_extended_by_copy_data ... ok
+test explicit_result_context_can_select_copy_data_without_guessing_from_closure_layout ... ok
+test four_module_instantiation_retains_definition_and_nominal_types ... ok
+test copy_error_results_and_early_returns_keep_environment_and_local_cleanup_order ... ok
+test nested_symbolic_copy_constraints_and_complete_callable_bound_are_substituted ... ok
+test mutable_and_consuming_environments_keep_their_real_cleanup ... ok
+test newly_opened_two_roles_keep_original_definitions_and_exercise_actual_calls ... ok
+test ordinary_copy_bound_duplicates_only_its_declared_structural_values ... ok
+test finite_nested_same_nominal_is_not_a_recursive_layout ... ok
+test same_closure_extra_data_does_not_erase_width_or_nominal_identity ... ok
+test original_audit_map_and_reordered_parameters_reach_native ... ok
+test unbounded_data_mixed_modes_and_recursion_remain_closed ... ok
+test uninstantiated_templates_do_not_gain_numeric_member_or_forged_capabilities ... ok
+test same_mode_finite_and_flow_nesting_preserves_copy_loop_state ... ok
+test record_enum_tuple_array_error_and_function_pointer_are_real_copy_shapes ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.45s
+
+     Running tests/impl206_budget.rs (/workspace/.zil-env/target-252/debug/deps/impl206_budget-ab91312425692280)
+
+running 2 tests
+old-flat: Types=418, Analyze=8673
+test old_flat_package_records_exact_phase_boundaries ... ok
+mixed: Types=753, Analyze=21120
+whole: Types=796, Analyze=27114
+wrappers: Types=752, Analyze=26951
+test new_product_leaf_tables_have_exact_fresh_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+     Running tests/impl218_factory_budget.rs (/workspace/.zil-env/target-252/debug/deps/impl218_factory_budget-76b50b246e1be677)
+
+running 3 tests
+{"case":"conditional","expand_work":818,"types_work":978,"types_locals":14,"types_functions":5,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+test conditional_capture_transfer_has_a_fresh_exact_budget ... ok
+{"case":"owning","expand_work":724,"types_work":770,"types_locals":12,"types_functions":5,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+{"case":"helper","expand_work":586,"types_work":421,"types_locals":6,"types_functions":4,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+{"case":"state","expand_work":829,"types_work":1441,"types_locals":8,"types_functions":4,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+{"case":"forwarding","expand_work":1438,"types_work":1556,"types_locals":18,"types_functions":7,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+test owning_factory_and_forwarded_nested_capture_exact_boundaries ... ok
+{"case":"opaque","expand_work":3,"types_work":462,"types_locals":7,"types_functions":3,"checks":"default == N == fresh N; N-1 phase-specific ResourceLimit"}
+
+test legacy_helper_state_and_opaque_exact_boundaries ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/impl218_factory_types.rs (/workspace/.zil-env/target-252/debug/deps/impl218_factory_types-cc01785a48e47450)
+
+running 15 tests
+test bare_function_pointer_signatures_keep_the_existing_copy_rule ... ok
+test copy_actual_argument_retains_the_callers_original_position ... ok
+test borrowed_direct_or_nested_input_cannot_become_self_contained ... ok
+test declared_once_survives_nested_capture_and_actual_mutable_input ... ok
+test complete_environment_identity_and_runtime_instances_remain_distinct ... ok
+test input_may_be_consumed_or_dropped_without_capture ... ok
+test factory_body_can_forward_a_grounded_new_factory_result ... ok
+test managed_capture_fields_distinguish_consumption_and_refill ... ok
+test one_grounded_result_can_be_selected_on_both_paths ... ok
+test real_owned_uses_preserve_existing_default_capture_inference ... ok
+test same_concrete_type_does_not_share_declaration_mode ... ok
+test ordinary_managed_package_product_and_leaf_store_companions ... ok
+test declared_once_survives_conditional_transfer_inside_the_returned_environment ... ok
+test public_factory_instances_keep_defining_module_context ... ok
+test three_declared_modes_create_real_owned_boundaries ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/impl246_front.rs (/workspace/.zil-env/target-252/debug/deps/impl246_front-19cf34899cb59c48)
+
+running 12 tests
+test a_later_argument_failure_keeps_the_callee_and_first_argument_in_real_cleanup_slots ... ok
+test closed_owned_dispatch_crosses_real_model_and_helper_modules ... ok
+test fresh_owned_arguments_do_not_consume_the_fn_or_fnmut_environment ... ok
+test a_closure_in_an_ordinary_owned_error_result_function_preserves_both_branches ... ok
+test original_three_callback_sources_reach_types_without_changes ... ok
+test concrete_sum_error_union_and_store_product_signatures_are_real_data ... ok
+test owned_signature_does_not_open_addresses_managed_roots_or_capture_profiles ... ok
+test raw_unused_helper_signature_cannot_forge_a_data_or_passing_qualification ... ok
+registered Copy helper Expand 489/Types 420; N-1 and fresh N
+test wrapper_data_and_callback_signatures_are_checked_independently ... ok
+test unused_owned_dispatch_definitions_are_checked_and_can_discard_the_callback ... ok
+registered Copy helper Expand 665/Types 610; N-1 and fresh N
+test registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries ... ok
+owned dispatch Types N=1497, Expand N=1124; N-1 ResourceLimit and fresh N identity
+test dispatch_has_fresh_exact_types_and_expand_work_boundaries ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/impl252_front.rs (/workspace/.zil-env/target-252/debug/deps/impl252_front-170e4df80e31926f)
+
+running 14 tests
+test frozen_same_type_fresh_factory_returns_are_real_safe_rejections ... ok
+test caller_declared_once_or_mutable_position_cannot_upgrade_after_forwarding ... ok
+test in_scope_forward_fnmut_let_call_is_safe_rejected_and_var_call_preserves_state ... ok
+test mutable_owned_environment_can_be_called_then_forwarded ... ok
+test nested_forwarding_accepts_a_stronger_fn_through_mutable_adaptation ... ok
+test address_signature_and_independent_store_and_union_companions_are_closed_data ... ok
+test nonzero_parameter_and_loop_moves_keep_the_actual_role ... ok
+test original_concrete_copy_and_generic_declared_modes_remain_distinct ... ok
+test original_forward_source_reaches_types_without_changes ... ok
+test raw_unused_parameter_definition_checks_mutable_position_before_any_instance ... ok
+test unused_declarations_cannot_copy_consume_then_return_or_change_the_instance ... ok
+test frozen_three_module_consumer_reaches_types ... ok
+252 original forward Expand N=305, Types N=472; N-1 ResourceLimit/fresh N identity
+test original_forward_has_exact_fresh_types_and_expand_work_boundaries ... ok
+test owning_environment_loop_uses_a_real_slot_and_keeps_parameter_origin ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/impl252_nested.rs (/workspace/.zil-env/target-252/debug/deps/impl252_nested-71a7836cc5681d16)
+
+running 6 tests
+test nested_owned_callback_can_pass_through_the_existing_keep_profile ... ok
+nested252 duplicate move: [Diagnostic { phase: Analyze, category: SafeReject, code: "E-UNINITIALIZED", message: "local 2 is not initialized on every incoming path", span: Some(Span { file: FileId(0), start: 281, end: 282 }), notes: [] }]
+test nested_owned_callback_creation_and_move_without_refill_or_call ... ok
+nested252 public pointer: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "closure values cannot escape through scalar signatures, captures or scalar operations", span: Some(Span { file: FileId(0), start: 267, end: 298 }), notes: [] }]
+test original_nested_owned_callback_creates_moves_refills_and_calls ... ok
+nested252 array: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "address/resource cannot be used in a Copy closure signature or operation", span: Some(Span { file: FileId(0), start: 282, end: 283 }), notes: [] }]
+test nested_owned_environment_is_not_copy_or_a_thin_pointer ... ok
+nested252 stale borrow: [Diagnostic { phase: Verify, category: SafeReject, code: "E-BORROW-CONFLICT", message: "write or storage change overlaps a shared address still required by a later use", span: Some(Span { file: FileId(0), start: 289, end: 290 }), notes: [] }]
+nested252 external capture: [Diagnostic { phase: Types, category: Unsupported, code: "E-UNSUPPORTED", message: "owned nested closure captures require self-contained environments; borrowed dependencies cannot escape", span: Some(Span { file: FileId(0), start: 333, end: 334 }), notes: [] }]
+test nested_owned_move_does_not_revive_an_old_borrow_or_retain_external_capture ... ok
+nested252 own Types N=1135;N-1 ResourceLimit;fresh N identity
+nested252 copy Types N=148;N-1 ResourceLimit;fresh N identity
+test nested_types_request_budget_and_copy_control_have_exact_fresh_boundaries ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

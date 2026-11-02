@@ -8,6 +8,11 @@ fn typed(text: &str) -> zil_ir::TypedModule {
 #[test]
 fn original_nested_owned_callback_creates_moves_refills_and_calls() {
     let module = typed(include_str!("impl252_fixtures/nested_original.zil"));
+    if let Some(root) = std::env::var_os("ZIL252_NESTED_OUT") {
+        let root = std::path::PathBuf::from(root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("original.typed.txt"), format!("{module:#?}")).unwrap();
+    }
     assert!(module.functions.iter().filter(|f|f.environment.is_some()).any(|f|f.locals.iter().any(|l|matches!(&l.ty,zil_ir::Type::Array{element,length:1} if matches!(element.as_ref(),zil_ir::Type::Closure(_))))));
 }
 
