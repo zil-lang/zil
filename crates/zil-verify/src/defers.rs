@@ -77,10 +77,8 @@ fn is_owner(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool>
     budget.spend(1)?;
     Ok(match ty {
         Type::Managed(_) | Type::Package { .. } => true,
-        Type::ErrorUnion { error, result } => {
-            matches!(error.as_ref(), Type::Package { .. })
-                || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_))
-        }
+        Type::ErrorUnion { .. } => errors::owned(ty, budget.sums),
+        Type::Enum { .. } => budget.sums && sums::owned_enum(ty),
         Type::Array { element, length } => {
             *length != 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
         }
@@ -142,6 +140,7 @@ fn suffix(
                 cursor += 2;
             }
             InstructionKind::DropManaged { .. }
+            | InstructionKind::DropEnum { .. }
             | InstructionKind::DropClosure { .. }
             | InstructionKind::DropPackage { .. }
             | InstructionKind::DropErrorUnion { .. }
@@ -317,6 +316,17 @@ pub(super) fn check(
                         state.born(index, budget)?;
                     }
                 }
+                InstructionKind::UnpackVariant {
+                    local, ref fields, ..
+                } => {
+                    state.retire(local.0 as usize, budget)?;
+                    budget.spend(fields.len())?;
+                    for target in fields.iter().rev() {
+                        if owning[target.0 as usize] {
+                            state.born(target.0 as usize, budget)?;
+                        }
+                    }
+                }
                 InstructionKind::RegisterDefer { scope, local } => {
                     let index = local.0 as usize;
                     if state.stack.last() != Some(&scope)
@@ -349,6 +359,7 @@ pub(super) fn check(
                     }
                 }
                 InstructionKind::DropManaged { local }
+                | InstructionKind::DropEnum { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }

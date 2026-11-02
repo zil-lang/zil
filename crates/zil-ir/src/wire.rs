@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 29;
+pub const WIRE_VERSION: u32 = 30;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -1076,6 +1076,39 @@ impl<'a> Writer<'a> {
                 self.u32(value.0)?;
                 self.u32(*variant)?;
                 self.u32(*index)?;
+            }
+            InstructionKind::VariantTagLocal { local, path }
+            | InstructionKind::ReadVariantLocal { local, path } => {
+                self.u8(
+                    if matches!(&instruction.kind, InstructionKind::VariantTagLocal { .. }) {
+                        90
+                    } else {
+                        91
+                    },
+                )?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    self.u32(step.variant)?;
+                    self.u32(step.index)?;
+                }
+            }
+            InstructionKind::UnpackVariant {
+                local,
+                variant,
+                fields,
+            } => {
+                self.u8(92)?;
+                self.u32(local.0)?;
+                self.u32(*variant)?;
+                self.count(fields.len(), self.limits.max_locals)?;
+                for field in fields {
+                    self.u32(field.0)?;
+                }
+            }
+            InstructionKind::DropEnum { local } => {
+                self.u8(93)?;
+                self.u32(local.0)?;
             }
             InstructionKind::ExtractField { aggregate, index } => {
                 self.u8(14)?;
@@ -2474,6 +2507,39 @@ impl<'a> Reader<'a> {
             43 => InstructionKind::DropClosure {
                 local: LocalId(self.u32()?),
             },
+            opcode @ (90 | 91) => {
+                let local = LocalId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 8)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(VariantProjection {
+                        variant: self.u32()?,
+                        index: self.u32()?,
+                    });
+                }
+                if opcode == 90 {
+                    InstructionKind::VariantTagLocal { local, path }
+                } else {
+                    InstructionKind::ReadVariantLocal { local, path }
+                }
+            }
+            92 => {
+                let local = LocalId(self.u32()?);
+                let variant = self.u32()?;
+                let count = self.count(self.limits.max_locals, 4)?;
+                let mut fields = Vec::with_capacity(count);
+                for _ in 0..count {
+                    fields.push(LocalId(self.u32()?));
+                }
+                InstructionKind::UnpackVariant {
+                    local,
+                    variant,
+                    fields,
+                }
+            }
+            93 => InstructionKind::DropEnum {
+                local: LocalId(self.u32()?),
+            },
             89 => InstructionKind::RegisterDefer {
                 scope: ScopeId(self.u32()?),
                 local: LocalId(self.u32()?),
@@ -2719,3 +2785,6 @@ mod state_field_tests;
 
 #[cfg(test)]
 mod flow_tests;
+
+#[cfg(test)]
+mod owned_sum_tests;

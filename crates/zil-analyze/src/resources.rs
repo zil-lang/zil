@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 pub(super) mod product;
 mod summary_graph;
+pub(crate) mod sums;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Place {
@@ -54,6 +55,7 @@ struct State {
     // producers keep Incoming; packaging itself never creates a resource.
     package_values: PackageValues,
     product_births: product::Origins,
+    sums: sums::Facts,
 }
 #[derive(Clone, Copy)]
 struct Shape {
@@ -70,8 +72,8 @@ pub(super) type Live = BTreeSet<Place>;
 
 pub(super) fn owned_error(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
-        if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)))
+        if matches!(error.as_ref(), Type::Package { .. }) || sums::owned(error)
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)) || sums::owned(result))
 }
 
 fn managed_success(ty: &Type) -> bool {
@@ -127,6 +129,7 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
         budget.spend(birth.len(), "Package SSA birth clone")?;
     }
     product::copy_cost(&state.product_births, budget)?;
+    state.sums.cost(budget)?;
     Ok(state.clone())
 }
 fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
@@ -167,6 +170,7 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
         changed |= before != target.len();
     }
     changed |= product::join(&mut to.product_births, &from.product_births, budget)?;
+    changed |= to.sums.join(&from.sums, budget)?;
     Ok(changed)
 }
 
@@ -253,6 +257,10 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 description: false,
             }
         }
+        Type::Enum { .. } if budget.sum_type(ty)? => Shape {
+            owned: true,
+            description: false,
+        },
         Type::Desc(_) => Shape {
             owned: false,
             description: true,
@@ -294,11 +302,18 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
         },
     })
 }
-fn package_owned_field(ty: &Type) -> bool {
-    matches!(
+fn package_owned_field(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+        if budget.sum_functions.is_empty() {
+            return Ok(false);
+        }
+        budget.type_work(ty, false, "ordinary Sum field ownership classification")?;
+        return Ok(sums::owned(ty));
+    }
+    Ok(matches!(
         ty,
         Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
-    ) || matches!(ty, Type::Array { element, length } if *length > 0 && matches!(element.as_ref(), Type::Package { .. }))
+    ) || matches!(ty,Type::Array { element,length } if *length>0 && matches!(element.as_ref(),Type::Package { .. })))
 }
 
 fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Shapes> {
@@ -318,7 +333,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
         if let (Place::Local(local), Type::Package { fields, .. }) = (place, ty) {
             budget.spend(fields.len(), "package field shapes")?;
             for (index, (_, field)) in fields.iter().enumerate() {
-                if package_owned_field(field) {
+                if package_owned_field(field, budget)? {
                     budget.lookup(result.len(), "package field shape insertion")?;
                     result.insert(
                         Place::PackageField {
@@ -376,7 +391,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             if let Type::Package { fields, .. } = ty {
                 budget.spend(fields.len(), "capture Package field shapes")?;
                 for (field, (_, ty)) in fields.iter().enumerate() {
-                    if package_owned_field(ty) {
+                    if package_owned_field(ty, budget)? {
                         budget.lookup(result.len(), "capture Package field insertion")?;
                         result.insert(
                             Place::CaptureField {
@@ -472,6 +487,10 @@ fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
         | InstructionKind::ReadVariant { value, .. } => (Some(*value), None, &[]),
         InstructionKind::ByteBufferNew
         | InstructionKind::RegisterDefer { .. }
+        | InstructionKind::VariantTagLocal { .. }
+        | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::UnpackVariant { .. }
+        | InstructionKind::DropEnum { .. }
         | InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::Constant(_)
         | InstructionKind::Load(_)
@@ -758,7 +777,7 @@ fn package_transition(
     budget.spend(count, "owned aggregate slot lifecycle")?;
     for index in 0..count {
         let place = if let Some(fields) = fields {
-            if !package_owned_field(&fields[index].1) {
+            if !package_owned_field(&fields[index].1, budget)? {
                 continue;
             }
             Place::PackageField {
@@ -848,6 +867,7 @@ struct Flow<'a> {
     effects: &'a [Effect],
     views: &'a BTreeMap<LocalId, u32>,
     dependencies: Option<&'a summary_graph::Dependencies>,
+    sums: Option<&'a sums::Plan>,
 }
 impl Flow<'_> {
     fn package_source(
@@ -961,6 +981,101 @@ impl Flow<'_> {
                 )?;
             }
             match &i.kind {
+                InstructionKind::VariantTagLocal { local, .. }
+                | InstructionKind::ReadVariantLocal { local, .. } => {
+                    if check
+                        && self.shapes.contains_key(&Place::Local(*local))
+                        && !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error("Sum observation needs a live local"));
+                    }
+                }
+                InstructionKind::UnpackVariant {
+                    local,
+                    variant,
+                    fields,
+                } => {
+                    let plan = self
+                        .sums
+                        .ok_or_else(|| error("Unpack has no finite Sum plan"))?;
+                    plan.validate_unpack(f, i, &state.sums, check, budget)?;
+                    let mut source = copied(state, Place::Local(*local), budget)?;
+                    if check {
+                        if !exact(&source, Life::Available) {
+                            return Err(error("Unpack source is not a complete live owner"));
+                        }
+                        no_later_use(
+                            state,
+                            &self.after[b][position],
+                            Source::Head(*local),
+                            budget,
+                        )?;
+                        for target in fields {
+                            if self.shapes.contains_key(&Place::Local(*target))
+                                && copied(state, Place::Local(*target), budget)?
+                                    .life
+                                    .contains(&Life::Available)
+                            {
+                                return Err(error("Unpack overwrites a live target"));
+                            }
+                            no_later_use(
+                                state,
+                                &self.after[b][position],
+                                Source::Head(*target),
+                                budget,
+                            )?;
+                        }
+                    }
+                    source.life = BTreeSet::from([Life::Transferred]);
+                    replace(state, Place::Local(*local), source, budget)?;
+                    forget_order(state, *local, budget)?;
+                    for (index, target) in fields.iter().enumerate().rev() {
+                        if self
+                            .shapes
+                            .get(&Place::Local(*target))
+                            .is_some_and(|s| s.owned)
+                        {
+                            let birth = state.sums.unpack_birth(*local, *variant, index, budget)?;
+                            forget_order(state, *target, budget)?;
+                            for (place, fact) in &state.cells {
+                                budget.spend(1, "Unpack actual initialization order")?;
+                                if let Place::Local(older) = place
+                                    && older != target
+                                    && fact.life.contains(&Life::Available)
+                                {
+                                    budget.lookup(state.later.len(), "Unpack order insertion")?;
+                                    state.later.insert((*older, *target));
+                                }
+                            }
+                            replace(
+                                state,
+                                Place::Local(*target),
+                                Fact {
+                                    life: BTreeSet::from([Life::Available]),
+                                    birth,
+                                    sources: BTreeSet::new(),
+                                },
+                                budget,
+                            )?;
+                            package_transition(f, state, *target, Life::Available, false, budget)?;
+                        }
+                    }
+                }
+                InstructionKind::MakeVariant { fields, .. }
+                    if out_shape.is_some_and(|s| s.owned) =>
+                {
+                    for value in fields {
+                        self.consume(state, *value, check, budget)?;
+                    }
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Incoming]),
+                        sources: BTreeSet::new(),
+                    });
+                }
                 InstructionKind::OwnedStorePush { value, .. } => {
                     self.consume(state, *value, check, budget)?;
                     produced = Some(Fact {
@@ -1052,7 +1167,7 @@ impl Flow<'_> {
                     };
                     budget.spend(fields.len(), "Package capture binding fields")?;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !package_owned_field(ty) {
+                        if !package_owned_field(ty, budget)? {
                             continue;
                         }
                         let source = Place::CaptureField {
@@ -1114,7 +1229,7 @@ impl Flow<'_> {
                     };
                     budget.spend(fields.len(), "Package capture end fields")?;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !package_owned_field(ty) {
+                        if !package_owned_field(ty, budget)? {
                             continue;
                         }
                         let source = Place::PackageField {
@@ -1466,11 +1581,8 @@ impl Flow<'_> {
                             }
                         }
                     } else if let InstructionKind::StorePackageField { value, .. } = i.kind {
-                        budget.type_work(
-                            ty,
-                            !package_owned_field(ty),
-                            "package field store type checks",
-                        )?;
+                        let owns_field = package_owned_field(ty, budget)?;
+                        budget.type_work(ty, !owns_field, "package field store type checks")?;
                         if !decl.mutable
                             || i.result.is_some()
                             || f.values.get(value.0 as usize) != Some(ty)
@@ -1479,7 +1591,7 @@ impl Flow<'_> {
                                 "package field store requires a mutable shell and matching value",
                             ));
                         }
-                        if package_owned_field(ty) {
+                        if owns_field {
                             let place = Place::PackageField {
                                 local: *local,
                                 index: *index,
@@ -1531,7 +1643,7 @@ impl Flow<'_> {
                             ));
                         }
                     } else {
-                        if !package_owned_field(ty) {
+                        if !package_owned_field(ty, budget)? {
                             return Err(error(
                                 "package ownership operation requires an owning field",
                             ));
@@ -1638,7 +1750,7 @@ impl Flow<'_> {
                             ));
                         }
                         for (index, (_, field)) in fields.iter().enumerate() {
-                            if package_owned_field(field)
+                            if package_owned_field(field, budget)?
                                 && !exact(
                                     &copied(
                                         state,
@@ -1940,7 +2052,8 @@ impl Flow<'_> {
                         replace(state, Place::Local(*local), source, budget)?;
                     }
                 }
-                InstructionKind::DropManaged { local }
+                InstructionKind::DropEnum { local }
+                | InstructionKind::DropManaged { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropOwnedArray { local }
@@ -1988,9 +2101,10 @@ impl Flow<'_> {
                                     .life
                                     .contains(&Life::Available)
                             {
-                                return Err(error(
-                                    "cleanup is not reverse successful initialization order",
-                                ));
+                                return Err(error(&format!(
+                                    "cleanup is not reverse successful initialization order: local {} precedes live {} in {} block {}",
+                                    local.0, later.0, f.name, b
+                                )));
                             }
                         }
                     }
@@ -2304,6 +2418,13 @@ impl Flow<'_> {
                 }
                 _ => {}
             }
+            if let Some(plan) = self.sums
+                && let Some(birth) =
+                    plan.apply(self.module, f, i, &mut state.sums, check, budget)?
+                && let Some(produced) = &mut produced
+            {
+                produced.birth = birth;
+            }
             if let (Some(place), Some(s)) = (output, out_shape) {
                 let fact = produced
                     .ok_or_else(|| error("instruction cannot produce the claimed resource kind"))?;
@@ -2363,8 +2484,9 @@ fn analyze_function_with_dependencies(
     if f.foreign.is_some() {
         return Ok(Effect::default());
     }
+    let sums = sums::Plan::new(f, budget)?;
     let shapes = shapes(module, f, budget)?;
-    if shapes.is_empty() {
+    if shapes.is_empty() && sums.is_none() {
         return Ok(Effect::default());
     }
     // Summary inference never consumes description liveness: all uses of
@@ -2379,6 +2501,11 @@ fn analyze_function_with_dependencies(
     let mut initial = State {
         package_values,
         product_births,
+        sums: sums
+            .as_ref()
+            .map(|p| p.initial(f, budget))
+            .transpose()?
+            .unwrap_or_default(),
         ..State::default()
     };
     for (place, s) in &shapes {
@@ -2456,6 +2583,7 @@ fn analyze_function_with_dependencies(
         effects,
         views: &views,
         dependencies,
+        sums: sums.as_ref(),
     };
     let mut effect = Effect::default();
     while let Some(b) = stack.pop() {
@@ -2464,10 +2592,20 @@ fn analyze_function_with_dependencies(
         flow.run(b, &mut state, &mut effect, false, budget)?;
         for successor in next(&f.blocks[b]) {
             budget.spend(1, "resource diagnostic edge")?;
-            let changed = if let Some(previous) = &mut input[successor] {
-                join(previous, &state, budget)?
+            let edge_state = if let Some(plan) = &sums {
+                let mut edge = clone_state(&state, budget)?;
+                if !plan.edge(f, b, successor, &mut edge.sums, budget)? {
+                    continue;
+                }
+                Some(edge)
             } else {
-                input[successor] = Some(clone_state(&state, budget)?);
+                None
+            };
+            let state = edge_state.as_ref().unwrap_or(&state);
+            let changed = if let Some(previous) = &mut input[successor] {
+                join(previous, state, budget)?
+            } else {
+                input[successor] = Some(clone_state(state, budget)?);
                 true
             };
             if changed && !queued[successor] {
@@ -2691,6 +2829,11 @@ pub(super) fn check_module(
                 function.locals.len().saturating_add(function.values.len()),
                 "owning array presence",
             )?;
+            owning_entry |= budget
+                .sum_functions
+                .get(function.id.0 as usize)
+                .copied()
+                .unwrap_or(false);
             owning_entry |= function.locals.iter().map(|l| &l.ty).chain(&function.values)
                 .any(|ty| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))));
         }
@@ -2721,8 +2864,9 @@ fn analyze_function_eager_reference(
     if f.foreign.is_some() {
         return Ok(Effect::default());
     }
+    let sums = sums::Plan::new(f, budget)?;
     let shapes = shapes(module, f, budget)?;
-    if shapes.is_empty() {
+    if shapes.is_empty() && sums.is_none() {
         return Ok(Effect::default());
     }
     let after = afters(f, reachable, &shapes, budget)?;
@@ -2730,6 +2874,11 @@ fn analyze_function_eager_reference(
     let mut initial = State {
         package_values,
         product_births,
+        sums: sums
+            .as_ref()
+            .map(|p| p.initial(f, budget))
+            .transpose()?
+            .unwrap_or_default(),
         ..State::default()
     };
     for (place, s) in &shapes {
@@ -2807,6 +2956,7 @@ fn analyze_function_eager_reference(
         effects,
         views: &views,
         dependencies: None,
+        sums: sums.as_ref(),
     };
     let mut effect = Effect::default();
     while let Some(b) = stack.pop() {
@@ -2815,10 +2965,20 @@ fn analyze_function_eager_reference(
         flow.run(b, &mut state, &mut effect, false, budget)?;
         for successor in next(&f.blocks[b]) {
             budget.spend(1, "resource diagnostic edge")?;
-            let changed = if let Some(previous) = &mut input[successor] {
-                join(previous, &state, budget)?
+            let edge_state = if let Some(plan) = &sums {
+                let mut edge = clone_state(&state, budget)?;
+                if !plan.edge(f, b, successor, &mut edge.sums, budget)? {
+                    continue;
+                }
+                Some(edge)
             } else {
-                input[successor] = Some(clone_state(&state, budget)?);
+                None
+            };
+            let state = edge_state.as_ref().unwrap_or(&state);
+            let changed = if let Some(previous) = &mut input[successor] {
+                join(previous, state, budget)?
+            } else {
+                input[successor] = Some(clone_state(state, budget)?);
                 true
             };
             if changed && !queued[successor] {

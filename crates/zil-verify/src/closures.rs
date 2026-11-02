@@ -158,7 +158,16 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            if errors::owned(ty) {
+            if budget.sums && matches!(ty, Type::Enum { .. }) {
+                resources::charge_payload(ty, budget)?;
+                if sums::owned_enum(ty) {
+                    return Err(unsupported(
+                        "owning Enum capture is outside the finite closure profile",
+                        None,
+                    ));
+                }
+            }
+            if errors::owned(ty, budget.sums) {
                 return Err(unsupported(
                     "owning error-union captures are outside the finite closure profile",
                     None,

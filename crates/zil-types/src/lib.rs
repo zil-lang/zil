@@ -24,11 +24,14 @@ pub use incremental::{FunctionSession, FunctionStats};
 mod lending;
 mod managed_slots;
 mod names;
+mod owned_enums;
+mod owned_shapes;
 mod owning_factory;
 mod packages;
 mod preparation;
 mod product_replacement;
 mod program;
+mod sum_slots;
 pub use preparation::{
     InferredProgram, PreparedProgram, check_prepared_program, infer_program_for_ct,
     infer_shared_program_for_ct,
@@ -123,7 +126,26 @@ fn signatures(
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
         }
-        if let Err(diagnostic) = helpers::validate_template(f) {
+        if let Err(diagnostic) = helpers::validate_template(f, &mut |ty, span| {
+            let work = inference::type_snapshot_work(
+                ty,
+                span,
+                &Limits {
+                    max_analysis_steps: foreign_work,
+                    ..limits.clone()
+                },
+            )?;
+            foreign_work = foreign_work
+                .checked_sub(work.saturating_mul(2))
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "ordinary Sum helper parameter qualification budget exceeded",
+                        Some(span),
+                    )
+                })?;
+            Ok(())
+        }) {
             errors.push(diagnostic);
         }
         if let Err(diagnostic) = store_templates::validate_header(f) {
@@ -212,6 +234,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || f.return_type.is_scalar_or_address()
         || packages::ordinary(&f.return_type)
         || errors::supported(&f.return_type)
+        || owned_shapes::enumeration(&f.return_type)
         || packages::owned_array_supported(&f.return_type)
         || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
     {
@@ -254,6 +277,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
             || resources::supported(&p.ty)
             || packages::ordinary(&p.ty)
             || errors::supported(&p.ty)
+            || owned_shapes::enumeration(&p.ty)
             || packages::owned_array_supported(&p.ty))
         {
             errors.push(unsupported(
@@ -454,6 +478,7 @@ struct Builder<'a, 'c> {
     managed_slot_work: usize,
     managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
     replacement_input: Option<LocalId>,
+    sum_slots: BTreeMap<LocalId, Type>,
 }
 struct LoopContext {
     continue_target: BlockId,
@@ -530,6 +555,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             sequenced_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
             replacement_input: None,
+            sum_slots: BTreeMap::new(),
             managed_slot_work: limits.max_analysis_steps,
             managed_rebindings: managed_slots::reassigned_bindings(&f.body, limits)?,
         };
@@ -986,6 +1012,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                     return self.managed_slot(name, t, v, s.span);
                 }
                 if *mutable
+                    && owned_shapes::sum(&t)
+                    && self
+                        .managed_rebindings
+                        .contains(&(s.id, s.span, name.clone()))
+                {
+                    return self.sum_slot(name, t, v, s.span);
+                }
+                if *mutable
                     && self.owned_closure(&t)
                     && self
                         .managed_rebindings
@@ -1033,6 +1067,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                         target.span,
                         format!("{name} is not mutable"),
                     ));
+                }
+                if self.replace_sum_slot(l, value, s.span)? {
+                    return Ok(());
                 }
                 if self.replace_product(l, &d.ty, value, s.span)? {
                     return Ok(());
@@ -1436,6 +1473,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                     if self.closure_slots.contains_key(&local) {
                         return self.take_closure_slot(local, e.span);
                     }
+                    if let Some(value) = self.take_sum_slot(local, expected, e.span, false)? {
+                        return Ok(value);
+                    }
                     let ty = self.function.locals[local.0 as usize].ty.clone();
                     if let Type::Managed(payload) = ty {
                         let desc = Type::Desc(payload);
@@ -1453,6 +1493,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     } else if matches!(ty, Type::Package { .. })
                         || packages::owned_array_supported(&ty)
                         || errors::owned(&ty)
+                        || owned_shapes::enumeration(&ty)
                     {
                         InstructionKind::TakeLocal { local }
                     } else {
@@ -1962,6 +2003,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .get(&id)
                         .cloned()
                         .or_else(|| self.closure_slots.get(&id).copied().map(Type::Closure))
+                        .or_else(|| self.sum_slots.get(&id).cloned())
                         .unwrap_or_else(|| self.function.locals[id.0 as usize].ty.clone())
                 })
                 .or_else(|| self.signatures.get(name).and_then(Signature::pointer_type)),

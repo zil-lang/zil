@@ -54,6 +54,24 @@ fn contains_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
         }
         return Ok(false);
     }
+    if !budget.sum_functions.is_empty()
+        && let Type::Enum { variants, .. } = ty
+    {
+        budget.spend(variants.len(), "ordinary Sum Store alternatives")?;
+        for (_, fields) in variants {
+            budget.spend(fields.len(), "ordinary Sum Store fields")?;
+            for t in fields {
+                if contains_owned_store(t, budget)? {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    if !budget.sum_functions.is_empty()
+        && let Type::ErrorUnion { error, result } = ty
+    {
+        return Ok(contains_owned_store(error, budget)? || contains_owned_store(result, budget)?);
+    }
     Ok(false)
 }
 
@@ -78,7 +96,9 @@ fn store_window_transition(
         {
             Some(Root::Capture(index))
         }
-        InstructionKind::TakeLocal { local }
+        InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::DropEnum { local }
+        | InstructionKind::TakeLocal { local }
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropPackage { local }
             if contains_owned_store(&f.locals[local.0 as usize].ty, budget)? =>
@@ -108,6 +128,13 @@ fn store_window_transition(
     if let Some(root) = single {
         budget.spend(1, "captured Store transition root")?;
         changed.insert(root);
+    }
+    if let InstructionKind::UnpackVariant { fields, .. } = &instruction.kind {
+        budget.spend(fields.len(), "Unpack target window roots")?;
+        for local in fields {
+            budget.spend(1, "Unpack target window insertion")?;
+            changed.insert(Root::Local(*local));
+        }
     }
     if let InstructionKind::OwnedStoreReserve { store, .. }
     | InstructionKind::OwnedStorePush { store, .. }
@@ -361,7 +388,15 @@ fn infer(
                             state.insert(*local, source.clone());
                         }
                     }
-                    InstructionKind::StorageLive(local)
+                    InstructionKind::UnpackVariant { local, fields, .. } => {
+                        budget.spend(fields.len().saturating_add(1), "Unpack Hold local reset")?;
+                        state.remove(local);
+                        for local in fields {
+                            state.remove(local);
+                        }
+                    }
+                    InstructionKind::DropEnum { local }
+                    | InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local)
                     | InstructionKind::BindPackageCapture { local, .. }
                     | InstructionKind::EndPackageCapture { local, .. }
