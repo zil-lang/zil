@@ -104,8 +104,14 @@ fn unused_generic_definition_cannot_substitute_same_shaped_wrong_owner() {
     let (source, mut module) = parsed(
         "struct A{pub x:i32}\nstruct B{pub x:i32}\nfn unused<T:Copy>(a:A,v:T)->i32{return a.x}\nfn main()->i32{return 0}",
     );
+    let mut positive = module.clone();
+    attach(return_member(&mut positive, 2), named("A", source.span()));
+    assert!(zil_expand::expand(&source, &positive).is_ok());
     attach(return_member(&mut module, 2), named("B", source.span()));
-    assert!(zil_expand::expand(&source, &module).is_err());
+    let errors = zil_expand::expand(&source, &module).unwrap_err();
+    assert!(errors.iter().any(
+        |error| error.message == "generic body types must agree before concrete instantiation"
+    ));
 }
 #[test]
 fn selection_budget_and_remap_visit_the_complete_nested_owner_type() {
@@ -239,6 +245,7 @@ fn module_qualified_owner_keeps_same_type_identity_as_parameter() {
         panic!()
     };
     assert_eq!(owner, &read.parameters[0].ty);
+    assert_eq!(owner, &Type::Named("$module0_A".into()));
 }
 #[test]
 fn compound_place_preserves_owner_on_target_and_read_without_ascription() {
