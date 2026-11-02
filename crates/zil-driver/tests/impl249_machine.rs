@@ -5,6 +5,8 @@ use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_sou
 
 const EVENT_REPLY: &str =
     include_str!("../../../evidence/planning/owned-callback-finalR/event-reply/source.zil");
+const EVENT_COPY_RESULT: &str =
+    include_str!("../../../evidence/planning/owned-callback-finalR/event-copy-result/source.zil");
 const OWNED_RESULT: &str =
     include_str!("../../../evidence/planning/owned-callback-finalR/owned-result/source.zil");
 
@@ -14,7 +16,11 @@ fn impl249_concrete_owned_event_and_result_execute_o0_o2() {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)
         .join(format!("impl249-{}", std::process::id()));
-    for (name, source) in [("event-reply", EVENT_REPLY), ("owned-result", OWNED_RESULT)] {
+    for (name, source) in [
+        ("event-reply", EVENT_REPLY),
+        ("event-copy-result", EVENT_COPY_RESULT),
+        ("owned-result", OWNED_RESULT),
+    ] {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = report_root.join(format!("{name}-{optimization:?}"));
             fs::create_dir_all(&dir).unwrap();
