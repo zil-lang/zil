@@ -1,0 +1,42 @@
+{
+  "status": "Pass",
+  "scope": "239–244 finite ordinary resource-owning Sum language closure",
+  "implementation_commit": "15498f14af8f11d3a3bf4b198fe69208be5913ce",
+  "integration_commit": "8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad",
+  "source_and_merge_tree": "e07b048aa5495c06e007e9fb6a118caaade66b0a",
+  "pull_request": "https://github.com/zil-lang/zil/pull/17",
+  "schema": 30,
+  "formal": "evidence/integration/owned-sum-20261102/formal-R/RESULT.json",
+  "ci": "evidence/integration/owned-sum-20261102/pr-ci/RESULT.json",
+  "reviews": {
+    "239": "evidence/reviews/239/integrationR/REVIEW.json",
+    "240": "evidence/reviews/240/integrationR/REVIEW.json",
+    "241": "evidence/reviews/241/integrationR/REVIEW.json",
+    "242": "evidence/reviews/242/integrationR/REVIEW.json",
+    "243": "evidence/reviews/243/integrationR/REVIEW.json",
+    "244": "evidence/reviews/244/finalR/REVIEW.json"
+  },
+  "frontend_supplement": "evidence/reviews/240/frontend-finalR/REVIEW.json",
+  "consumer244": "evidence/reviews/239/integrationR/COMMON-RESULT.json",
+  "main_replay": {
+    "status": "Running",
+    "run_ids": [
+      41366807735,
+      41366807646
+    ],
+    "evidence": null,
+    "counts_not_added": true
+  },
+  "history": [
+    "formal-P/RESULT.json",
+    "formal-Q-b51/STATUS.json",
+    "pr-ci-returnQ/RESULT.json"
+  ],
+  "counts_not_added": true,
+  "full_language": "NotSatisfied",
+  "full_ZUI": "NotSatisfied",
+  "B0": "Doing",
+  "product": "NotRun",
+  "native_Windows": "NotRun",
+  "Rust_parity": "NotEstablished"
+}

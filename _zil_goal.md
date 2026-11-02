@@ -1,5 +1,11 @@
 # ZIL 施工总计划
 
+## 2026-11-02：普通拥有Sum已合入
+
+239–244共同源码`15498f14af8f11d3a3bf4b198fe69208be5913ce`通过独审、默认3575/0、参考3474/0与两条PR CI完整核回，经PR17合入实际main`8b2ae1fdc88b4e1ae8dc73162b13a425d0f6f1ad`，整树相同。schema/Wire30；普通非泛型拥有Enum、Product内Sum、含Store Product错误载荷，以及构造、消耗式match、完整替换、defer和失败清理形成五模块同步API闭环。P3548/12及Q3575/0仍误拒合法owner的历史分别保留。main自动重放仍在运行，结果另录。
+
+下一单一主目标为同步拥有Event/Reply穿过具体闭包和公共generic dispatch，之后接F原样转交、Type/Syntax及长期外部生命周期；最终R原源探针已确认这些真实缺口，并保留State/Store已可用对照。B0 Doing、完整1.4/ZUI NotSatisfied、产品及原生WindowsNotRun保持；没有新的Rust性能比较。见docs/LANGUAGE-OWNED-SUM-20261102.md及evidence/integration/owned-sum-20261102/ACCEPTANCE.json。
+
 ## 2026-11-02：同步语言核心组合已合入
 
 227/235/236/237/238共同源码e92508be已通过独审和正式默认3446/0、参考3347/0（均零忽略/过滤），原五模块消费者新364次/208真实分配失败全部通过；PR16两条CI与完整恢复归档已核回，实际main fde80814。schema/Wire29；普通同步defer、递归Product内Store、完整泛型Product身份与整体替换形成实际API闭环。原P整仓3425/11及修复均保存，B0 Doing、完整1.4/ZUI NotSatisfied、产品NotRun保持。下一主线按实际Q探针补普通拥有Sum和含Store Product的错误载荷，再推进同步高阶拥有参数/结果及F原样转交；两侧平坦Package错误联合已可用，不重复派工。见docs/LANGUAGE-CORE-20261102.md。
