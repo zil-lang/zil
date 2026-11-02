@@ -1,0 +1,44 @@
+{
+  "status": "Fail",
+  "scope": "independent_non_author_R1_recheck",
+  "candidate": "aa60520f966be3abd35d92a3dd6da0df0c6183b5",
+  "production_modified": false,
+  "uses_types_or_analyze_for_raw_authority": false,
+  "findings": [
+    {
+      "id": "254-R1-followup-CFG-join",
+      "reported_by": "Verify author flagged correlation risk; independent reviewer confirmed frozen raw/Wire counterexample",
+      "file": "crates/zil-verify/src/resources/arrays.rs",
+      "problem": "per-position may-source OR at joins invents a qualifying Parameter-call on an infeasible path through two branches over the same SSA Bool",
+      "trace": "slot A -> bridge; if(flag){drop A;bridge=B}else{bridge=A}; merge; if(flag){retain bridge}else{drop A;bridge=C}; merge;keep(bridge)",
+      "actual_semantics": "flag true always passes B; flag false always passes C; A never reaches keep",
+      "expected": "old container gate rejects slot lacking actual Parameter-call flow",
+      "actual": {
+        "raw": "accepted",
+        "current_wire": "accepted"
+      },
+      "wire": "R2-correlated-branches.wire",
+      "probe": "R2-probes.rs",
+      "log": "correlated-aa60520f-corrected.log"
+    }
+  ],
+  "controls": {
+    "independent_two_branches_both_overwrite_then_join": "raw/Wire reject with exact old container gate; keep A positive raw/Wire accepted",
+    "independent_mandatory_first_loop_iteration_overwrites_then_exits_or_repeats": "raw/Wire reject with exact old container gate; keep A positive raw/Wire accepted",
+    "initial_correlated_fixture_error": "missing StorageDead for new Bool formal caused E-VERIFY-CLEANUP; original log retained; corrected fixture gives raw+Wire Unexpected Accept",
+    "original_straight_line_R1": "author regression included in fixed commit; not independently reexecuted yet in this candidate"
+  },
+  "cargo_invocations": 3,
+  "semantic_fail_invocations": 1,
+  "fixture_error_invocations": 1,
+  "artifact_sha256": {
+    "R2-probes.rs": "419b056710f50b6d8e2648a65014f1770e65a24baebd9930ed26c6cd4544d00a",
+    "R2-correlated-branches.wire": "e755277e40c46cdaf679e6e82b2a2a93c7eb9c324b73df5cb877e20b0d7016e6",
+    "cfg-aa60520f.log": "526ea9ff17cd615a3c1a9a426dcf60e14f518d2137cbbc4253e80f2cebbdc6ef",
+    "correlated-aa60520f.log": "145aae21e98c66974f080d0a18ce7a4cf4c635a747aa84fb8c69ae6090df8218",
+    "correlated-aa60520f-corrected.log": "a0e964656e9d5d012edde0d077daf8b21cbdb64254e7536c4a79898a05aa21d1"
+  },
+  "cargo_failed_invocations": 1,
+  "cargo_successful_invocations": 2,
+  "fixture_error_note": "First correlated assertion was too broad and passed on E-VERIFY-CLEANUP; corrected to exact gate expectation before treating it as semantic evidence."
+}

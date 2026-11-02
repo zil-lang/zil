@@ -1,0 +1,19 @@
+{
+  "status": "recommendation_pending_integrator_decision",
+  "reviewed_spec": "_zil_design.md section 9.4.2; spec/interfaces.json persistent_slot",
+  "conclusion": "Existence of a keep/Parameter call as ordinary private Array1 admission authority is an implementation-specific predicate, not a normative semantic requirement. Prior R1/R2 prove bypass of that predicate, not yet ownership or borrow unsoundness.",
+  "recommendation": "Use a bounded structural private-carrier check, keep independent resource/borrow proofs and exact Parameter-return instance proof; remove keep-existence authority instead of weakening legal branch/loop support through must joins.",
+  "required_boundaries": [
+    "Only closed self-contained owning Closure elements in one private local/SSA cell",
+    "Carrier remains confined to approved storage/element-zero operations and cleanup",
+    "Carrier cannot escape in Call, Return, MakeClosure/capture, Package/State/Store or other aggregates",
+    "Public parameters/results and capture/container profiles retain prior gates",
+    "Parameter functions still independently prove this invocation actual input at every normal return",
+    "No default-limit increase; new scan and operand checks prepaid"
+  ],
+  "historical_evidence": [
+    "REVIEW-ac53b026.json",
+    "REVIEW-aa60520f.json"
+  ],
+  "expectation_migration": "Do not silently overwrite prior failures or frozen tests; integrator must record the semantic rationale and explicit revised private-carrier expectation."
+}

@@ -1,0 +1,41 @@
+{
+  "task": "R0-explicit-schema31-test-migration",
+  "reviewer": "/root/callback_backend_fallback",
+  "verdict": "Pass",
+  "implementation_commit": "b831f62af435df33086381d2410c46ba379a03fc",
+  "parent": "6065140cf1c1d00f7aec071579e554ef794b67e7",
+  "scope": "Independent review of four test assertion migrations plus their change note only; this does not approve the whole forwarding implementation or a full repository test run.",
+  "R0_evidence": "/workspace/.zil-env/forward/pre-nested-R0/workspace/receipts/output.log",
+  "R0_four_failures": [
+    "impl204_analyze_capture old exact Analyze assertion expected 2230, actual 2232",
+    "impl204_review old [Expand,Types,Analyze,Verify]=[2,196,2230,2490], actual [2,196,2232,2492]",
+    "review223_replay tried to decode frozen Wire30 with a Wire31-only decoder and got E-WIRE-VERSION",
+    "review240_helper_sum's original return-F definition reached Verify Success under the admitted Parameter profile, contradicting its former Unsupported assertion"
+  ],
+  "migration_checks": [
+    "204 updates only the two exact old budget expectations to +2 for one Fresh source tag scanned by both Analyze and Verify. Expand=2 and Types=196 stay fixed; N-1 ResourceLimit and fresh N identity assertions remain.",
+    "223 retains original Wire27, Wire29 and Wire30 fixture bytes and SHA256. Each old transport still rejects E-WIRE-VERSION. The new Wire31 envelope has no return contract payload; the test asserts byte equality to the original except version fields at offsets 8, 12, 1538 and the derived fingerprint bytes 1542..1574. Raw and decoded Wire31 still reject E-UNSUPPORTED: ordinary Product addresses are shared synchronous inputs.",
+    "240 keeps the original return-F source exact via RETURN_F and changes only its expected Stage::Verify status to Success; all other old illegal cases still require SafeReject or Unsupported without an executable. A separate concrete caller tests the actual F instance and owning E companion cleanup at O0/O2, with output AB and exit 0."
+  ],
+  "frozen_wire_sha256": {
+    "schema27": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+    "schema29": "3d5bf5e48a6a0856d3fad6c8b7997e8ba5ccb7adfbb0327a2e7e0852d4da4198",
+    "schema30": "783db64403cec14468080ce9708d4f25a4cbd315aaed36d2f994994f7f70e3c9"
+  },
+  "new_wire31": {
+    "sha256": "200afcb1764af60ae67f00987d243c01e3d6b8f16fde30dfb57aa57bf7939c7d",
+    "length": 1744,
+    "actual_changed_byte_offsets": [8, 12, 1538, 1542, 1543, 1544, 1545, 1546, 1547, 1548, 1549, 1550, 1551, 1552, 1553, 1554, 1555, 1556, 1557, 1558, 1559, 1560, 1561, 1562, 1563, 1564, 1565, 1566, 1567, 1568, 1569, 1570, 1571, 1572, 1573],
+    "semantic_result": "Raw and Wire both E-UNSUPPORTED at Verify with the original Product-address message, not a version or fingerprint rejection"
+  },
+  "independent_test": {
+    "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target-255 ZIL_TEST_REPORT_DIR=/workspace/.zil-env/forward-review-252/migration-R0/native cargo test -p zil-driver --features llvm-api --offline --locked -j 2 --test impl204_analyze_capture --test impl204_review --test review223_replay --test review240_helper_sum -- --nocapture",
+    "log": "test.log",
+    "log_sha256": "82a2c2401d261fb0ab892ecdcce998f8776c9ce51eeda74fff43a259dbb94380",
+    "passed": 33,
+    "failed": 0,
+    "breakdown": [7, 21, 2, 3],
+    "return_F_native": "O0 and O2 both LLVM API builder input, Verify once, no fallback, stdout AB, exit 0"
+  },
+  "historical_failure_retention": "The four original failures remain in R0_evidence and are not reclassified as historical Pass; this migration changes the current expected results under the later schema/semantics."
+}
