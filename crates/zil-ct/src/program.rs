@@ -3,6 +3,47 @@ use zil_base::{CompileResult, Diagnostic, Phase};
 use zil_ir::{Constant, InstructionKind, Terminator, Type, TypedFunction, ValueId};
 use zil_verify::VerifiedCTProgram;
 
+#[cfg(test)]
+#[path = "../../zil-verify/tests/support/foreign_scoped.rs"]
+mod scoped_callback_fixture;
+
+#[test]
+fn verified_runtime_scoped_callback_does_not_grant_ct_authority() {
+    use zil_base::{Limits, ResultCategory};
+    use zil_ir::{CtProgram, FunctionId, wire};
+
+    let limits = Limits::default();
+    let (module, plan) = scoped_callback_fixture::fixture();
+    let target = module.target.clone();
+    // FailClosed in ordinary Verify must never satisfy this CT boundary test.
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let runtime_bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&runtime_bytes, &target, &limits).unwrap();
+    let program = CtProgram {
+        module,
+        plan,
+        entry: FunctionId(4),
+        max_steps: limits.max_ct_steps,
+        max_call_depth: limits.max_call_depth,
+        max_live_slots: limits.max_values + limits.max_locals,
+    };
+    let bytes = wire::encode_ct_program(&program, &limits).unwrap();
+    for result in [
+        zil_verify::verify_ct_program(program, &target, &limits),
+        zil_verify::verify_ct_program_bytes(&bytes, &target, &limits),
+    ] {
+        let errors = result.unwrap_err();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert_eq!(errors[0].phase, Phase::Ct);
+        assert_eq!(errors[0].category, ResultCategory::SafeReject);
+        assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
+        assert_eq!(
+            errors[0].message,
+            "CT program cannot carry runtime closure environments"
+        );
+    }
+}
+
 /// Serializable data only. No member can carry a VM address or a runtime capability.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CompileTimeValue {
