@@ -383,7 +383,14 @@ pub(super) fn contract(
         fragments[current].next = next;
     }
     let graph = canonical(fragments, function.entry.0 as usize, state, span)?;
-    classify(graph, bounds, state, limits, span)
+    classify(
+        graph,
+        bounds,
+        state,
+        limits,
+        span,
+        matches!(function.return_type, Type::Closure(_)),
+    )
 }
 
 fn canonical(
@@ -446,6 +453,7 @@ fn classify(
     state: &mut closures::State,
     limits: &Limits,
     span: Span,
+    forward_loop: bool,
 ) -> R<CallableTraces> {
     let n = flow.nodes.len();
     state.snapshot(n.saturating_mul(3), span)?;
@@ -479,10 +487,20 @@ fn classify(
         }
     }
     if order.len() != n {
-        if bounds
-            .iter()
-            .any(|bound| bound.kind == CallableKind::FnOnce)
-        {
+        if forward_loop {
+            for node in &flow.nodes {
+                state.snapshot(node.calls.len().saturating_add(1), span)?;
+            }
+        }
+        if bounds.iter().any(|bound| {
+            bound.kind == CallableKind::FnOnce
+                && !(forward_loop
+                    && flow.nodes.iter().all(|node| {
+                        node.calls
+                            .iter()
+                            .all(|event| event.parameter != bound.index)
+                    }))
+        }) {
             return Err(unsupported(
                 span,
                 "cyclic FnOnce helper requires an additional consumption contract",
