@@ -197,7 +197,7 @@
       "command": "cargo test --offline --locked -p zil-driver --test impl252_nested -- --nocapture",
       "result": "Pass",
       "tests": 4,
-      "log": "intermediate matrix2 retained in external /workspace/.zil-env/252-nested-matrix-2.log"
+      "log": "matrix-intermediate.log"
     },
     {
       "command": "cargo test --offline --locked -p zil-driver --test impl252_nested -- --nocapture",
@@ -267,6 +267,7 @@
     "pre-fix/analyze-stale-borrow-expectation.log": "7d3ef584e52f9c4bee6ceefd5e48c176e973c3da4e125188848a672ff3004a43",
     "pre-fix/keep-and-ordinary-move-expectation.log": "18f96f661127c11f718e3bc4b6df9635d90799d3aa9b03feac04418a973ecd46",
     "pre-fix/types-original.log": "698c9d01cf4476e02540b39dcd52f44b7678ecbfdd1a24c05b34ddbe9fadb22e",
-    "types-checkpoint.log": "019bbb999725b0c03c5e71af0d81529519b635ad2b0d0f95f252f99b24d38fe7"
+    "types-checkpoint.log": "019bbb999725b0c03c5e71af0d81529519b635ad2b0d0f95f252f99b24d38fe7",
+    "matrix-intermediate.log": "43018b0c9b3f730f931f45393358a4d857597bcecddbd469caad52f66261876a"
   }
 }
