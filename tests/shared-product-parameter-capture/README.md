@@ -1,7 +1,8 @@
 # Shared Product parameter capture sources
 
 These ordinary synchronous programs freeze the original missing source and the
-12 parameter/direct probes from the investigation. `expectations.tsv` is the
+12 parameter/direct probes from the investigation. Two further frozen
+different-Store seeds cover pop and the whole-call ordering control. `expectations.tsv` is the
 independent oracle: arithmetic and actual Store identities determine the result;
 compiler reports do not generate the expected values. SHA-256 binds source bytes.
 Successful programs must exit 0 with empty stdout/stderr. Rejected programs never
@@ -26,3 +27,10 @@ removed; only small result rows are retained under ZIL_TEST_REPORT_DIR when set.
 Before the core changes, run the legal-source Verify test to preserve its real
 failure. Do not weaken expected outcomes or mark it ignored to make this baseline
 pass. Analyze/Verify implementation slices are separate dependencies.
+
+The raw/Wire conflict test first verifies each actual different-Store source
+(and its candidate), then changes only the main Call's second actual argument
+to the Store descriptor already used by OwnedStoreBorrow. Types and candidate
+holds remain identical; only the actual Store identity changes. The mutated
+module goes directly to Verify raw and Wire, without calling Analyze, so an
+earlier source rejection never substitutes for the independent check.

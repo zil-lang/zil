@@ -12,3 +12,5 @@ same-store-reserve-direct	14b4b6a2425093f81ffa9999a03be3e47006270c53fb1f4e526e2c
 same-store-reserve	050716fc9ba85fe3d9e172a701d6f56911215aa07ede772a2a66de12ad8a4725	borrow-conflict	-	Same Store may relocate while the captured parameter is still read.
 store-last-use-direct	af7fe7d8d2c74ba0a7780752aad732b49003c5a61d820e27ca4dc49c501a8067	success	0	render reads 7 before caller reserve/pop; 7-7=0.
 store-last-use	477e2d0a47403c70a7e4324d0d79261feb1d56c22cbfe059aad3844f1e2852ad	success	0	render reads 7 before caller reserve/pop; 7-7=0.
+different-store-pop	a3aacb18efda51f49efc92c26186a1df21423906186eb639c76aff3d7a07eea6	success	0	The operation affects a different Store; the borrowed count remains 7, yielding zero.
+different-store-after-read	95480f1346c5c7b59e60e826198ff769f0b686e59b70eed74410003b0a9538d1	success	0	The operation affects a different Store; the borrowed count remains 7, yielding zero.

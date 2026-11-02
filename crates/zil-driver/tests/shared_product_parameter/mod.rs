@@ -46,6 +46,8 @@ fn cases() -> Vec<Case> {
                 "store-last-use" => source!("store-last-use"),
                 "store-last-use-direct" => source!("store-last-use-direct"),
                 "different-store" => source!("different-store"),
+                "different-store-pop" => source!("different-store-pop"),
+                "different-store-after-read" => source!("different-store-after-read"),
                 "different-store-direct" => source!("different-store-direct"),
                 "same-store-reserve" => source!("same-store-reserve"),
                 "same-store-reserve-direct" => source!("same-store-reserve-direct"),
@@ -100,8 +102,8 @@ fn record(case: &Case, route: &str, result: &str) {
 #[test]
 fn source_oracles_are_frozen() {
     let cases = cases();
-    assert_eq!(cases.len(), 13);
-    assert_eq!(cases.iter().filter(|case| case.success).count(), 7);
+    assert_eq!(cases.len(), 15);
+    assert_eq!(cases.iter().filter(|case| case.success).count(), 9);
 }
 
 #[test]
@@ -214,6 +216,94 @@ fn source_derived_parameter_holds_survive_raw_and_wire_verification() {
         zil_verify::verify_module(module, plan, &target, &limits).unwrap();
         zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
         record(&case, "source-derived-raw-wire", "Pass Parameter(0)");
+    }
+}
+
+#[test]
+fn same_store_raw_and_wire_conflicts_bypass_the_analyze_rejection() {
+    for case in cases().into_iter().filter(|case| {
+        matches!(
+            case.name,
+            "different-store" | "different-store-pop" | "different-store-after-read"
+        )
+    }) {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), case.name, case.source);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand(&source, &syntax).unwrap();
+        let target = zil_base::TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let mut module = zil_types::check(&core, &target, &limits).unwrap();
+        let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+        let prefix = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+        zil_verify::verify_module_bytes(&prefix, &target, &limits).unwrap();
+        let render = module
+            .functions
+            .iter()
+            .find(|f| f.name == "render")
+            .unwrap()
+            .id;
+        let main = module
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "main")
+            .unwrap();
+        let borrowed_store = main
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|instruction| match instruction.kind {
+                InstructionKind::OwnedStoreBorrow { store, .. } => Some(store),
+                _ => None,
+            })
+            .unwrap();
+        let mut changed = 0;
+        for instruction in main.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+            if let InstructionKind::Call {
+                function,
+                arguments,
+            } = &mut instruction.kind
+                && *function == render
+            {
+                assert_eq!(arguments.len(), 2);
+                assert_ne!(arguments[1], borrowed_store);
+                assert_eq!(
+                    main.values[arguments[1].0 as usize],
+                    main.values[borrowed_store.0 as usize]
+                );
+                // Keep the exact legal CFG/holds and change only the actual
+                // Store identity supplied alongside its borrowed element.
+                arguments[1] = borrowed_store;
+                changed += 1;
+            }
+        }
+        assert_eq!(changed, 1);
+        plan.module_fingerprint = module.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+        // Do not call Analyze on the mutation: its earlier rejection cannot
+        // substitute for this independent Verify boundary.
+        for (route, result) in [
+            (
+                "same-store-raw",
+                zil_verify::verify_module(module, plan, &target, &limits),
+            ),
+            (
+                "same-store-wire",
+                zil_verify::verify_module_bytes(&wire, &target, &limits),
+            ),
+        ] {
+            let diagnostics = result.unwrap_err();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|d| d.category == ResultCategory::SafeReject
+                        && d.phase == Phase::Verify
+                        && d.code == "E-BORROW-CONFLICT"),
+                "{} {route}: {diagnostics:?}",
+                case.name
+            );
+            record(&case, route, "SafeReject/Verify E-BORROW-CONFLICT");
+        }
     }
 }
 
