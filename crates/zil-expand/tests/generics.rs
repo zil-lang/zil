@@ -42,9 +42,10 @@ fn generic_error_union_call_constraints_are_independent_of_argument_order() {
         ("value:Choice<T>!i32,witness:T", "Choice.None,id(true)"),
         ("value:T!i32,witness:T", "f(),witness()"),
         ("witness:T,value:T!i32", "witness(),f()"),
+        ("value:T!i32,witness:T", "f(),witness_value(7)"),
     ] {
         let text = format!(
-            "enum Choice<T>{{None,Some(T)}}fn id<T>(x:T)->T=>x;fn witness()->bool=>true;fn sink<T>({parameters})->i32{{return 0}}fn run<F:Fn()->i32>(f:F)->i32{{f();return sink({arguments})}}fn main()->i32{{let f=()->i32=>1;return run(f)}}"
+            "enum Choice<T>{{None,Some(T)}}fn id<T>(x:T)->T=>x;fn witness()->bool=>true;fn witness_value(value:bool!i32)->bool=>true;fn sink<T>({parameters})->i32{{return 0}}fn run<F:Fn()->i32>(f:F)->i32{{f();return sink({arguments})}}fn main()->i32{{let f=()->i32=>1;return run(f)}}"
         );
         let source = SourceUnit::new(FileId(0), ModuleId(0), "union-order.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
