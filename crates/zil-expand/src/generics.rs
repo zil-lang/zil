@@ -473,6 +473,7 @@ impl<'a> Engine<'a> {
         self.budget.node(span, depth)
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
+        self.products.trait_instances = self.traits.has_instances;
         self.collect_products(module)?;
         let mut result = Module {
             id: module.id,
@@ -932,9 +933,19 @@ impl<'a> Engine<'a> {
                             let ItemKind::Function(actual) = &member.kind else {
                                 continue;
                             };
-                            if let Some(required) = declaration.members.iter().find(
-                                |m| matches!(&m.kind,ItemKind::Function(f) if f.name==actual.name),
-                            ) {
+                            let mut required = None;
+                            for candidate in &declaration.members {
+                                self.budget.node(candidate.span, 0)?;
+                                if let ItemKind::Function(method) = &candidate.kind {
+                                    self.budget.text(&method.name, candidate.span)?;
+                                    self.budget.text(&actual.name, member.span)?;
+                                    if method.name == actual.name {
+                                        required = Some(candidate);
+                                        break;
+                                    }
+                                }
+                            }
+                            if let Some(required) = required {
                                 let mut signature = trait_instances::signature(
                                     declaration,
                                     required,

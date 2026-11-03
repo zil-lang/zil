@@ -335,7 +335,16 @@ fn normalize(
             combined.items.push(item);
         }
     }
-    let specialized = match generics::specialize_products(&combined, limits, products)
+    let has_trait_instances = combined
+        .items
+        .iter()
+        .any(|item| matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty()));
+    let instance_limits = if has_trait_instances {
+        budget.remaining_limits()
+    } else {
+        limits.clone()
+    };
+    let specialized = match generics::specialize_products(&combined, &instance_limits, products)
         .map_err(|mut e| e.remove(0))?
     {
         // A borrowed result is the unchanged combined input. Keep that owned
@@ -343,6 +352,9 @@ fn normalize(
         Cow::Borrowed(_) => combined,
         Cow::Owned(module) => module,
     };
+    if has_trait_instances && let Some(remaining) = &products.allowance {
+        budget.adopt_remaining(remaining);
+    }
     let mut output = modules
         .iter()
         .zip(imports)
@@ -424,6 +436,9 @@ fn normalize(
         for item in &mut module.items {
             visitor.item(item, &Names::new(), true, 0)?;
         }
+    }
+    if has_trait_instances {
+        products.allowance = Some(budget.remaining_limits());
     }
     products.restore_owners(&functions)?;
     Ok(output)

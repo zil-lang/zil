@@ -130,6 +130,7 @@ impl<'a> Expander<'a> {
         imports: &[CoreImport],
         limits: &Limits,
         signatures: &trait_instances::Signatures,
+        metered_trait_instances: bool,
     ) {
         // Preserve the old no-trait and builtin Drop paths. An actually
         // normalized external trait implementation activates project lookup.
@@ -148,6 +149,7 @@ impl<'a> Expander<'a> {
         // local indexes, including modules newly entering through an imported
         // trait. The old path retains exactly the same total cost.
         let mut work = limits.max_analysis_steps;
+        let starting_project_work = self.project_trait_work;
         for item in &module.items {
             let visits = 1usize.saturating_add(match &item.kind {
                 s::ItemKind::Aggregate(a) => a.fields.len().saturating_add(a.methods.len()),
@@ -320,8 +322,25 @@ impl<'a> Expander<'a> {
                             return;
                         };
                         work = left;
-                        if matches!(&item.kind,s::ItemKind::Trait(t) if t.name==trait_name) {
-                            found = Some(item.span);
+                        if let s::ItemKind::Trait(trait_declaration) = &item.kind {
+                            let Some(left) = work.checked_sub(
+                                trait_declaration
+                                    .name
+                                    .len()
+                                    .min(trait_name.len())
+                                    .saturating_add(1),
+                            ) else {
+                                self.diagnostics.push(Diagnostic::limit(
+                                    Phase::Expand,
+                                    "trait declaration identity comparison budget exhausted",
+                                    Some(item.span),
+                                ));
+                                return;
+                            };
+                            work = left;
+                            if trait_declaration.name == trait_name {
+                                found = Some(item.span);
+                            }
                         }
                     }
                 }
@@ -347,6 +366,31 @@ impl<'a> Expander<'a> {
                         continue;
                     }
                 }
+            }
+            if metered_trait_instances && let Some(reference) = &instance_reference {
+                let cost = reference
+                    .key
+                    .arguments
+                    .iter()
+                    .try_fold(0usize, |n, key| n.checked_add(key.len().saturating_add(1)));
+                let Some(left) = cost.and_then(|cost| work.checked_sub(cost)) else {
+                    self.diagnostics.push(Diagnostic::limit(
+                        Phase::Expand,
+                        "trait coherence key budget exhausted",
+                        Some(item.span),
+                    ));
+                    return;
+                };
+                work = left;
+                let Some(left) = project_nodes.checked_sub(reference.key.arguments.len()) else {
+                    self.diagnostics.push(Diagnostic::limit(
+                        Phase::Expand,
+                        "trait coherence key node budget exhausted",
+                        Some(item.span),
+                    ));
+                    return;
+                };
+                project_nodes = left;
             }
             let keys = instance_reference
                 .as_ref()
@@ -399,10 +443,26 @@ impl<'a> Expander<'a> {
                             ..limits.clone()
                         };
                         let mut meter = TraitBudget::new(&selected);
-                        let actual = i.members.iter().find_map(|m| match &m.kind {
-                            s::ItemKind::Function(f) if f.name == method.name => Some(f),
-                            _ => None,
-                        });
+                        let mut actual = None;
+                        for candidate in &i.members {
+                            if let Err(error) = meter.node(candidate.span, 0) {
+                                self.diagnostics.push(error);
+                                return;
+                            }
+                            if let s::ItemKind::Function(function) = &candidate.kind {
+                                if let Err(error) = meter
+                                    .text(&function.name, candidate.span)
+                                    .and_then(|()| meter.text(&method.name, member.span))
+                                {
+                                    self.diagnostics.push(error);
+                                    return;
+                                }
+                                if function.name == method.name {
+                                    actual = Some(function);
+                                    break;
+                                }
+                            }
+                        }
                         let result = if let Some(actual) = actual
                             && let Some(frozen) = signatures.get(&(item.span, actual.span))
                         {
@@ -578,6 +638,13 @@ impl<'a> Expander<'a> {
                         .saturating_add(before_project_work - work);
                 }
             }
+        }
+        if metered_trait_instances {
+            self.project_trait_work =
+                starting_project_work.saturating_add(limits.max_analysis_steps - work);
+            self.project_trait_nodes = self
+                .project_trait_nodes
+                .saturating_add(limits.max_nodes - project_nodes);
         }
     }
 }
