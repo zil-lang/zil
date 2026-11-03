@@ -15,6 +15,204 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn reviewer330_unused_and_instantiated_reference_defaults_keep_the_same_boundary() {
+    let cases = [
+        (
+            "local-address",
+            "trait Leak{fn bad(self:&Self)->&i32{let local=7;return &local}}",
+            "struct P{}impl Leak for P{}",
+        ),
+        (
+            "byvalue-receiver",
+            "trait Leak{fn borrow(self:&Self)->&i32;fn bad(self:Self)->&i32{return self.borrow()}}",
+            "struct P{n:i32}impl Leak for P{fn borrow(self:&Self)->&i32{return &self.n}}",
+        ),
+        (
+            "concrete-local",
+            "trait Leak{fn borrow(self:&Self)->&i32;fn bad(self:&Self)->&i32{let local=P{n:7};return local.borrow()}}",
+            "struct P{n:i32}impl Leak for P{fn borrow(self:&Self)->&i32{return &self.n}}",
+        ),
+        (
+            "shadowed-reference",
+            "trait Leak{fn bad(self:&Self,value:&i32)->&i32{let value=7;return &value}}",
+            "struct P{}impl Leak for P{}",
+        ),
+    ];
+    let mut mismatches = Vec::new();
+    for (label, declaration, implementation) in cases {
+        let unused = if label == "concrete-local" {
+            "struct P{n:i32}impl P{fn borrow(self:&Self)->&i32{return &self.n}}trait Leak{fn bad(self:&Self)->&i32{let local=P{n:7};return local.borrow()}}fn main(){}".to_owned()
+        } else {
+            format!("{declaration}fn main(){{}}")
+        };
+        let implemented = format!("{declaration}{implementation}fn main(){{}}");
+        let called = match label {
+            "local-address" => format!(
+                "{declaration}{implementation}fn main()->i32{{let p=P{{}};return *p.bad()-7}}"
+            ),
+            "shadowed-reference" => format!(
+                "{declaration}{implementation}fn main()->i32{{let p=P{{}};let value=1;return *p.bad(&value)-7}}"
+            ),
+            _ => format!(
+                "{declaration}{implementation}fn main()->i32{{let p=P{{n:7}};return *p.bad()-7}}"
+            ),
+        };
+        for (form, text) in [
+            ("unused", unused),
+            ("implemented", implemented),
+            ("called", called),
+        ] {
+            let report = check(&text);
+            eprintln!(
+                "review330 {label}/{form}: {:?}/{:?}/{:?}",
+                report.status,
+                report.phase,
+                report
+                    .diagnostics
+                    .iter()
+                    .map(|d| &d.code)
+                    .collect::<Vec<_>>()
+            );
+            if report.status != ResultCategory::Unsupported
+                || report.phase != Phase::Expand
+                || report
+                    .diagnostics
+                    .first()
+                    .is_none_or(|d| d.code != "E-UNSUPPORTED")
+                || report.verification_runs != 0
+            {
+                mismatches.push((
+                    label,
+                    form,
+                    format!(
+                        "{:?}/{:?}/{:?}",
+                        report.status,
+                        report.phase,
+                        report
+                            .diagnostics
+                            .iter()
+                            .map(|d| &d.code)
+                            .collect::<Vec<_>>()
+                    ),
+                ));
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "unused or instantiated default escaped the finite declaration boundary: {mismatches:?}"
+    );
+}
+
+#[test]
+fn reviewer330_receiver_shadow_is_rejected_before_an_instance_is_selected() {
+    for suffix in [
+        "fn main(){}",
+        "struct P{}impl Shadow for P{}fn main()->i32{let p=P{};return p.read()}",
+    ] {
+        let report = check(&format!(
+            "trait Shadow{{fn read(self:&Self)->i32{{let self=7;return 7}}}}{suffix}"
+        ));
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, "E-RECEIVER-RESERVED-NAME");
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn reviewer330_real_reference_forwarding_and_parameter_shadow_keep_native_meaning() {
+    native_both(&[(
+        "main",
+        "trait Borrow{fn required(self:&Self)->&i32;fn forward(self:&Self)->&i32{return self.required()}fn shadow(self:&Self,value:i32)->i32{let value=value+1;return value}}struct P{n:i32}impl Borrow for P{fn required(self:&Self)->&i32{return &self.n}}fn main()->i32{let p=P{n:41};let q=p.forward();return *q+p.shadow(0)-42}",
+    )]);
+    native_both(&[(
+        "main",
+        "trait Score<Tag>{fn required(self:&Self)->i32;fn score(self:&Self)->i32{return self.required()+1}}struct P{}impl Score<bool> for P{fn required()->i32{return 10}}impl Score<i32> for P{fn required()->i32{return 20}}fn left<T:Score<bool>>(p:&T)->i32{return p.score()}fn right<T:Score<i32>>(p:&T)->i32{return p.score()}fn main()->i32{let p=P{};if left(&p)!=11{return 1}return right(&p)-21}",
+    )]);
+    native_both(&[
+        (
+            "main",
+            "import rules;import data;fn main()->i32{let p=data.P{};return rules.run(&p)-43}",
+        ),
+        (
+            "rules",
+            "fn hidden()->i32{return 41}pub trait Score{fn score(self:&Self)->i32{return hidden()+2}}pub fn run<T:Score>(p:&T)->i32{return p.score()}",
+        ),
+        (
+            "data",
+            "import rules;fn hidden()->i32{return 99}pub struct P{}impl rules.Score for P{}",
+        ),
+    ]);
+}
+
+#[test]
+fn reviewer330_required_body_escape_cannot_gain_a_verify_proof() {
+    let unit = source(
+        "trait Borrow{fn required(self:&Self)->&i32;fn forward(self:&Self)->&i32{return self.required()}}struct P{n:i32}impl Borrow for P{fn required(self:&Self)->&i32{let local=7;let view=&local;let consumed=*view;return &self.n}}fn main()->i32{let p=P{n:7};return *p.forward()-7}",
+    );
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let mut module = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let mut plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let function=module.functions.iter_mut().find(|f|f.blocks.iter().flat_map(|b|&b.instructions).any(|i|matches!(i.kind,zil_ir::InstructionKind::BorrowLocal{local} if f.locals[local.0 as usize].ty==zil_ir::Type::I32))).unwrap();
+    let function_id = function.id;
+    let root=function.blocks.iter().flat_map(|b|&b.instructions).find_map(|i|matches!(i.kind,zil_ir::InstructionKind::BorrowLocal{local} if function.locals[local.0 as usize].ty==zil_ir::Type::I32).then_some(i.result).flatten()).unwrap();
+    for block in &mut function.blocks {
+        if matches!(block.terminator, zil_ir::Terminator::Return(_)) {
+            block.terminator = zil_ir::Terminator::Return(Some(root));
+        }
+    }
+    // Unannotated ordinary returns use the established architecture: Analyze
+    // produces a candidate and records the local root; Verify independently
+    // refuses to turn that candidate into a safety proof.
+    plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    assert!(
+        plan.functions
+            .iter()
+            .find(|f| f.function == function_id)
+            .unwrap()
+            .holds[root.0 as usize]
+            .roots
+            .iter()
+            .any(|r| matches!(r, zil_ir::HoldRoot::Local(_)))
+    );
+    eprintln!("review330 raw Analyze: CandidatePlan, local origin retained");
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    for result in [
+        zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default()),
+        zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()),
+    ] {
+        let errors = result.unwrap_err();
+        eprintln!(
+            "review330 raw Verify: {:?}",
+            errors.iter().map(|d| &d.code).collect::<Vec<_>>()
+        );
+        assert!(
+            errors.iter().any(|d| d.code == "E-BORROW-ESCAPE"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn trait330_original_pending_sources() {
     // Original Unsupported/Types baseline remains in commit 43bcafbd0; preserve source bytes.
     for text in [
