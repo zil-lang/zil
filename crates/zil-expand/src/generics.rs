@@ -2328,6 +2328,9 @@ fn unify_argument(
     span: Span,
     budget: &mut Budget<'_>,
 ) -> R<()> {
+    if context_argument(pattern, actual, variables, found, span, budget)? {
+        return Ok(());
+    }
     budget.ty(pattern)?;
     budget.ty(actual)?;
     let mut pattern = pattern;
@@ -2360,6 +2363,28 @@ fn unify_argument(
         return unify_bounded(expected, actual, variables, found, span);
     }
     unify_bounded(pattern, actual, variables, found, span)
+}
+// Only an independently complete parameter union can select an injection.
+// Missing variables still use ordinary whole-type unification, never two
+// alternative unifications followed by a choice of the successful branch.
+fn context_argument(
+    pattern: &TypeRef,
+    actual: &TypeRef,
+    variables: &BTreeSet<String>,
+    found: &BTreeMap<String, TypeRef>,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    if !matches!(grouped(pattern).kind, TypeKind::Error { .. })
+        || variables
+            .iter()
+            .any(|name| !found.contains_key(name) && enums::contains(pattern, name))
+    {
+        return Ok(false);
+    }
+    let expected = enums::substituted(pattern, found, budget)?;
+    check::same_return(actual, &expected, span, budget)?;
+    Ok(true)
 }
 fn unify_bounded(
     pattern: &TypeRef,
