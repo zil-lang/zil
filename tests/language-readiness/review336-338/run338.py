@@ -83,7 +83,7 @@ for backend in ['clang', 'llvm-api']:
                     rows.append({'kind': 'object-cache-warm', 'backend': backend, 'opt': opt,
                                  'summary': summary, 'verification_runs': 1,
                                  'run': run_program(output, expected)})
-                    for index, cached in enumerate(sorted(cache.glob('*.zobj'))):
+                    for index, cached in enumerate(sorted(cache.rglob('*.zobj'))):
                         data = cached.read_bytes()
                         assert data[:8] == b'ZILOBJ01'
                         assert data[8:40].hex() == cached.stem
