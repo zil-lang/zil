@@ -315,3 +315,185 @@ fn generic_injection_295_ambiguous_and_wrong_nominal_controls_reject() {
         );
     }
 }
+
+#[cfg(target_os = "linux")]
+fn recovery317_project(entry: &str) -> zil_driver::ProjectSources {
+    use std::{collections::BTreeMap, fs, path::PathBuf};
+    let root =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/recovery317");
+    let names = [entry, "config", "component", "bridge"];
+    let mut paths = BTreeMap::new();
+    let modules = names
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            let index = index as u32;
+            let path = root.join(format!("{name}.zil"));
+            if index != 0 {
+                paths.insert(vec![(*name).into()], ModuleId(index));
+            }
+            SourceUnit::new(
+                FileId(index),
+                ModuleId(index),
+                path.to_string_lossy().into_owned(),
+                fs::read_to_string(path).unwrap(),
+            )
+        })
+        .collect();
+    zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules,
+        paths,
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn recovery317_component_source_and_nearest_rejections() {
+    let report =
+        zil_driver::compile_project(&recovery317_project("main"), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    for entry in ["shared_window", "callback_alias", "nominal_config"] {
+        let report = zil_driver::compile_project(
+            &recovery317_project(&format!("negative/{entry}")),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{entry}: {}",
+            report.to_json()
+        );
+        assert!(report.artifacts.get("executable").is_none());
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn recovery317_component_native_success_error_and_null_cleanup() {
+    use std::{
+        fs,
+        io::Write,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::{Command, Stdio},
+        sync::atomic::{AtomicU64, Ordering},
+        time::{Duration, Instant},
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    fn quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+    }
+    let fixture =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/recovery317");
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let retained = std::env::var_os("ZIL_TEST_REPORT_DIR");
+            let directory = retained
+                .clone()
+                .map(PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir)
+                .join(format!(
+                    "recovery317-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+            fs::create_dir(&directory).unwrap();
+            let host = directory.join("host.o");
+            let compiled = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(fixture.join("host.c"))
+                .arg("-o")
+                .arg(&host)
+                .output()
+                .unwrap();
+            assert!(compiled.status.success(), "{compiled:?}");
+            let wrapper = directory.join("link.sh");
+            fs::write(&wrapper, format!(
+                "#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {}\nfi\nexec {} \"$@\"\n",
+                quote(&clang), quote(&host), quote(&clang)
+            )).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let report = zil_driver::compile_project(
+                &recovery317_project("main"),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    clang: Some(wrapper),
+                    stop_after: Stage::Build,
+                    emit_dir: retained.as_ref().map(|_| directory.join("ir")),
+                    output: Some(directory.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            if retained.is_some() {
+                fs::write(directory.join("compile.json"), report.to_json()).unwrap();
+            }
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            for (mode, status, stdout) in [
+                (b'0', 0, "REVSPBCAH"),
+                (b'1', 1, "REVFPBCAH"),
+                (b'2', 2, "RNBAH"),
+            ] {
+                let mut child = Command::new(&report.artifacts["executable"])
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                child.stdin.take().unwrap().write_all(&[mode]).unwrap();
+                let deadline = Instant::now() + Duration::from_secs(5);
+                while child.try_wait().unwrap().is_none() {
+                    if Instant::now() >= deadline {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        panic!("317 event loop timed out");
+                    }
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                let actual = child.wait_with_output().unwrap();
+                if retained.is_some() {
+                    fs::write(directory.join(format!("{mode}-stdout")), &actual.stdout).unwrap();
+                    fs::write(
+                        directory.join(format!("{mode}-status")),
+                        actual.status.to_string(),
+                    )
+                    .unwrap();
+                }
+                assert_eq!(
+                    actual.status.code(),
+                    Some(status),
+                    "mode {mode}: {actual:?}"
+                );
+                assert_eq!(actual.stdout, stdout.as_bytes(), "mode {mode}: {actual:?}");
+                assert!(actual.stderr.is_empty(), "mode {mode}: {actual:?}");
+            }
+            if retained.is_none() {
+                fs::remove_dir_all(directory).unwrap();
+            }
+        }
+    }
+}
