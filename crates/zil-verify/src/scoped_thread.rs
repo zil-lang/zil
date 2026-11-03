@@ -15,126 +15,6 @@ fn shared_i32(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32)
 }
 
-// Independently follow the actual producer, including local address transport.
-// Type eligibility alone must not admit a Store/lending/owning projection.
-fn stable_payload(
-    module: &TypedModule,
-    f: &TypedFunction,
-    argument: ValueId,
-    budget: &mut Budget,
-    span: Option<Span>,
-) -> Check<()> {
-    budget.spend(
-        f.values
-            .len()
-            .saturating_add(f.locals.len())
-            .saturating_add(1),
-    )?;
-    let mut values = vec![false; f.values.len()];
-    let mut locals = vec![false; f.locals.len()];
-    let mut pending = vec![(false, argument.0 as usize)];
-    let mut grounded = false;
-    while let Some((local, index)) = pending.pop() {
-        budget.spend(1)?;
-        let seen = if local {
-            &mut locals[index]
-        } else {
-            &mut values[index]
-        };
-        if std::mem::replace(seen, true) {
-            continue;
-        }
-        if local {
-            budget.spend(f.parameters.len())?;
-            if f.parameters.iter().any(|id| id.0 as usize == index) {
-                if !matches!(&f.locals[index].ty, Type::Address { inner, .. } if **inner == Type::I32)
-                {
-                    return Err(invalid(
-                        span,
-                        "thread payload parameter has no i32 address authority",
-                    ));
-                }
-                grounded = true;
-                continue;
-            }
-        }
-        let mut produced = false;
-        for block in &f.blocks {
-            budget.spend(block.instructions.len().saturating_add(1))?;
-            for instruction in &block.instructions {
-                if local {
-                    if let InstructionKind::Store { local, value } = instruction.kind
-                        && local.0 as usize == index
-                    {
-                        budget.spend(1)?;
-                        pending.push((false, value.0 as usize));
-                        produced = true;
-                    }
-                    continue;
-                }
-                if instruction.result != Some(ValueId(index as u32)) {
-                    continue;
-                }
-                produced = true;
-                match instruction.kind {
-                    InstructionKind::BorrowLocal { local }
-                    | InstructionKind::BorrowLocalMut { local }
-                        if f.locals[local.0 as usize].ty == Type::I32 =>
-                    {
-                        grounded = true
-                    }
-                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Address { inner, .. } if **inner == Type::I32) =>
-                    {
-                        budget.spend(1)?;
-                        pending.push((true, local.0 as usize));
-                    }
-                    InstructionKind::ReborrowAddress {
-                        address,
-                        mutable: false,
-                    } if matches!(&f.values[address.0 as usize], Type::Address { inner, .. } if **inner == Type::I32) =>
-                    {
-                        budget.spend(1)?;
-                        pending.push((false, address.0 as usize));
-                    }
-                    InstructionKind::ReadCapture { index }
-                    | InstructionKind::BorrowCapture {
-                        index,
-                        mutable: false,
-                    } if f
-                        .environment
-                        .and_then(|id| module.closures.get(id.0 as usize))
-                        .and_then(|c| c.captures.get(index as usize))
-                        .is_some_and(|ty| {
-                            matches!(ty, Type::Address { inner, .. } if **inner == Type::I32)
-                                || *ty == Type::I32
-                        }) =>
-                    {
-                        grounded = true
-                    }
-                    _ => {
-                        return Err(unsupported(
-                            "shared thread dynamic, lending or owning projection storage is not implemented",
-                            span,
-                        ));
-                    }
-                }
-            }
-        }
-        if !produced {
-            return Err(invalid(
-                span,
-                "shared thread payload has no actual storage producer",
-            ));
-        }
-    }
-    if !grounded {
-        return Err(invalid(
-            span,
-            "shared thread payload lacks a stable storage root",
-        ));
-    }
-    Ok(())
-}
 fn worker_graph(
     module: &TypedModule,
     root: FunctionId,
@@ -364,7 +244,12 @@ pub(super) fn instruction(
         ));
     }
     if shared {
-        stable_payload(module, caller, argument, budget, span)?;
+        if budget.shared_thread_functions.is_none() {
+            budget.spend(budget.function_count.saturating_add(1))?;
+            budget.shared_thread_functions = Some(vec![false; budget.function_count]);
+        }
+        budget.spend(1)?;
+        budget.shared_thread_functions.as_mut().unwrap()[caller.id.0 as usize] = true;
     }
     let Type::Closure(body_id) = value_type(caller, body, span)? else {
         return Err(invalid(

@@ -40,3 +40,20 @@ Analyze N=10829、Verify N=46749，N/N−1/fresh均实测；尚未比较旧控�
 场景；另5个源控制×4配置=20个无观察器运行。observer比较body实际&input与pthread
 context所载指针，延迟production start到body Drop之后，核生成worker读出11；未把
 C观察器当语言实现。API O2多CGU，全部实际backend且无fallback。重放不重复计数。
+
+## 独立来源核的修正
+
+独审发现首版Verify的额外producer句法DFS把合法父侧`same(&local)`结果误拒为
+Unsupported；该观察保留。root授权私有Verify Budget共享thread成员表，付费创建和
+读取，只对真正共享载荷caller启用原有完整loan重建。独立完成Facts的实际根现在
+用于stable storage资格，payload和body进入同一活动窗口，不复用Analyze候选来源。
+首版DFS已删除，不新增源句法白名单；worker的地址返回限制不因此放开。普通父helper
+返回合法根的parent_return源晋升成功，raw aggregate projection仍在Analyze与Verify
+分别Unsupported、Lower未执行。标量路径无成员表、保持旧收费。
+
+实际新共享basic Types N=532、Analyze N=8345、Verify N=29372；disjoint为
+656/10829/46218；parent_capture Types N=423。均保留N/N−1/fresh；共享basic的
+Verify费用上升来自此前会早退的非affine路径现在执行完整loan核。旧标量控制的
+Types/Analyze/Verify为526/7787/15329，原parent332/kinds为1587/26216/92685，
+同一个独立API探针绑定B既有release rlib与339实际debug rlib，各自全部边界逐字相同。
+探针源码shared339/budget_probe.rs保留；不是新Cargo测试目标，也不提供安全判定替代。

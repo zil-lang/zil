@@ -1189,6 +1189,7 @@ fn thread_native_parent_observer(profile: &str) {
                     "disjoint_write",
                     "nested_disjoint",
                     "parent_parameter",
+                    "parent_return",
                     "parent_capture",
                 ][..]
             } else if nested {
@@ -1793,6 +1794,7 @@ fn thread339_shared_source_and_independent_windows() {
         "disjoint_write",
         "nested_disjoint",
         "parent_parameter",
+        "parent_return",
         "parent_capture",
         "scalar_control",
     ] {
@@ -1916,5 +1918,130 @@ fn thread339_shared_source_and_independent_windows() {
             "{name}: {}",
             report.to_json()
         );
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread339_raw_dynamic_origin_is_unsupported_before_lowering() {
+    use zil_ir::InstructionKind;
+    let src = source(
+        "struct Item{value:i32}fn read(input:&i32)->i32{return *input}fn scalar(input:i32)->i32{return input}fn main()->i32{let item=Item{value:9};let pointer=&item.value;let body=()->i32=>0;let result=thread_scope(scalar,5,body);let observed=read(pointer);return result.1+observed}",
+    );
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut claim = zil_analyze::analyze(&typed, &limits).unwrap();
+    let reader = typed
+        .functions
+        .iter()
+        .find(|f| f.name.ends_with("read"))
+        .unwrap()
+        .id;
+    let caller = typed
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. }))
+        })
+        .unwrap();
+    let pointer = caller
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::AddressField { .. } => i.result,
+            _ => None,
+        })
+        .unwrap();
+    for instruction in caller.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::WithScopedThread {
+            worker, argument, ..
+        } = &mut instruction.kind
+        {
+            *worker = reader;
+            *argument = pointer;
+        }
+    }
+    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+    assert_eq!(
+        errors[0].category,
+        ResultCategory::Unsupported,
+        "{errors:?}"
+    );
+    claim.module_fingerprint = typed.fingerprint();
+    let errors = zil_verify::verify_module(typed, claim, &target, &limits).unwrap_err();
+    assert_eq!(
+        errors[0].category,
+        ResultCategory::Unsupported,
+        "{errors:?}"
+    );
+    assert_eq!(errors[0].phase, zil_base::Phase::Verify);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread339_types_shared_budget_and_scalar_control() {
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    for name in [
+        "shared_child",
+        "scalar_control",
+        "disjoint_write",
+        "parent_capture",
+    ] {
+        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
+            .unwrap();
+        let src = source(&text);
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let core = zil_expand::expand(&src, &ast).unwrap();
+        let run = |n| {
+            zil_types::check(
+                &core,
+                &target,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..limits.clone()
+                },
+            )
+        };
+        let expected = run(limits.max_analysis_steps).unwrap();
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low + 1 < high {
+            let n = low + (high - low) / 2;
+            match run(n) {
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    high = n
+                }
+                Err(e) => {
+                    assert_eq!(e[0].category, ResultCategory::ResourceLimit, "{e:?}");
+                    low = n
+                }
+            }
+        }
+        for n in [high, high - 1, high] {
+            match run(n) {
+                Ok(actual) => {
+                    assert_eq!(n, high);
+                    assert_eq!(actual, expected)
+                }
+                Err(e) => {
+                    assert_eq!(n, high - 1);
+                    assert_eq!(e[0].category, ResultCategory::ResourceLimit);
+                }
+            }
+        }
+        eprintln!("thread339 {name} Types N={high}, N-1 ResourceLimit, fresh N identical");
+        let plan = zil_analyze::analyze(&expected, &limits).unwrap();
+        if name == "shared_child" || name == "scalar_control" {
+            eprintln!("thread339 {name} kernel budgets follow");
+            thread332_budget(&expected, &plan);
+        }
     }
 }
