@@ -124,6 +124,17 @@ struct Materializer<'a, 'b> {
     max_depth: usize,
 }
 
+impl super::hygiene::Context for Materializer<'_, '_> {
+    fn owner_type(&mut self, ident: &CtIdent, span: Span) -> CompileResult<s::TypeRef> {
+        self.member_owner_type(ident, span)
+    }
+    fn prepay_record_shorthand(&mut self, work: u64, bytes: u64) -> CompileResult<()> {
+        self.environment.budget.reserve_analysis_work(work)?;
+        self.environment.budget.reserve_generated_nodes(1)?;
+        self.environment.budget.reserve_temporary_bytes(bytes)
+    }
+}
+
 impl Materializer<'_, '_> {
     fn depth(&self, depth: usize, span: Span) -> CompileResult<()> {
         if depth > self.max_depth {
@@ -927,13 +938,7 @@ impl Materializer<'_, '_> {
         self.environment
             .budget
             .reserve_temporary_bytes(hygiene_bytes)?;
-        super::hygiene::rename(
-            &mut syntax,
-            &rendered,
-            &tree.origins,
-            span,
-            &mut |ident, member_span| self.member_owner_type(ident, member_span),
-        )?;
+        super::hygiene::rename(&mut syntax, &rendered, &tree.origins, span, self)?;
         let limits = self.environment.remaining_limits_for_input();
         let work = zil_expand::remap_generated_spans(&mut syntax, span, &limits)?;
         self.environment.budget.reserve_analysis_work(work as u64)?;
