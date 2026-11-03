@@ -18,6 +18,9 @@ mod scalar_summaries;
 mod scoped_callback;
 #[cfg(test)]
 mod scoped_callback_tests;
+mod scoped_thread;
+#[cfg(test)]
+mod scoped_thread_tests;
 mod slices;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
@@ -270,6 +273,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     }));
     text.append(byte_buffer::runtime(lir)?);
     text.append(dynamic_store::runtime(lir, &closures)?);
+    text.append(scoped_thread::runtime(lir)?);
     for (operation, bits) in intrinsics {
         text.push(m::Event::Declare(m::Function {
             name: format!("llvm.{}.with.overflow.i{}", operation, bits),
@@ -1221,6 +1225,9 @@ impl FunctionEmitter<'_> {
         )));
         self.event(m::Event::End);
         for instruction in self.function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let InstructionKind::WithScopedThread { worker, body, .. } = instruction.kind {
+                self.scoped_thread_functions(instruction, worker, body)?;
+            }
             if let InstructionKind::WithForeignCallback {
                 register,
                 close,
@@ -1355,6 +1362,9 @@ impl FunctionEmitter<'_> {
                 ..
             } => {
                 self.call_scoped_callback_helper(instruction, *register, *close, *callback, *body)?
+            }
+            InstructionKind::WithScopedThread { argument, body, .. } => {
+                self.call_scoped_thread_helper(instruction, *argument, *body)?
             }
             InstructionKind::Constant(constant) => {
                 let result = result(instruction)?;
