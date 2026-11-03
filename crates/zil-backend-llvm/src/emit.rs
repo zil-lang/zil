@@ -19,7 +19,7 @@ mod scoped_callback;
 #[cfg(test)]
 mod scoped_callback_tests;
 mod scoped_thread;
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod scoped_thread_tests;
 mod slices;
 use std::collections::{BTreeMap, BTreeSet};
