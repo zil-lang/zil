@@ -294,10 +294,12 @@ pub(super) fn check_resolved_program_with_reuse(
             let id = signature.concrete_id(f.span).map_err(|e| vec![e])?;
             let mut typed = if let Some(typed) = factories.remove(&id) {
                 typed
-            } else if let Some(typed) = reuse
-                .as_mut()
-                .and_then(|reuse| reuse.get(core.module_id, f, &mut closure_state))
-            {
+            } else if let Some(typed) = match reuse.as_mut() {
+                Some(reuse) => reuse
+                    .get(core.module_id, f, &mut closure_state, limits)
+                    .map_err(|e| vec![e])?,
+                None => None,
+            } {
                 visibility.check(
                     &typed,
                     core.module_id,
