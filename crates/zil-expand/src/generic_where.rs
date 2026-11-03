@@ -167,10 +167,10 @@ pub(super) fn normalize(module: &Module, budget: &mut Budget<'_>) -> R<Module> {
                 // Pure grouping of an already supported nominal bound has the
                 // same meaning as its inline form. Copy retains 229's direct
                 // built-in spelling; applied and projected bounds stay closed.
-                if trait_bounds::plain(bound).is_none() || copy::is_bound(bound) {
+                if trait_instances::head(bound).is_none() || copy::is_bound(bound) {
                     return Err(unsupported(
                         bound.span,
-                        "where supports only the direct built-in Copy bound or a nominal trait without type arguments",
+                        "where supports only the direct built-in Copy bound or a resolved nominal trait application",
                     ));
                 }
                 nominal_bound(module, bound, &mut nominal_index, budget).map_err(|mut e| {

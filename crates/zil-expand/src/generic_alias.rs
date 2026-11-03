@@ -471,6 +471,7 @@ impl Visitor<'_, '_, '_> {
         let mut types = self.names(outer, item.span)?;
         let generics = match &item.kind {
             ItemKind::Impl(i) => i.generics.as_slice(),
+            ItemKind::Trait(t) => t.generics.as_slice(),
             ItemKind::Extern { function, .. } => function.generics.as_slice(),
             _ => params(item),
         };
@@ -533,6 +534,10 @@ impl Visitor<'_, '_, '_> {
                         VariantFields::Unit => {}
                     }
                 }
+            }
+            ItemKind::Trait(t) => {
+                types.insert("Self".into());
+                for m in &mut t.members {self.item(m,&types,depth+1)?;}
             }
             ItemKind::Impl(i) => {
                 self.ty(&mut i.target, &types, depth + 1)?;

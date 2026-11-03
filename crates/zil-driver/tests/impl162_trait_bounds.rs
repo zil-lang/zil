@@ -13,6 +13,124 @@ use zil_driver::{
 };
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
+
+#[test]
+fn concrete_generic_trait_arguments_and_bounds_call_real_instances() {
+    native(&[("main",r#"
+trait Read<R>{fn read(self:&Self)->R;}
+struct Point{n:i32}
+impl Read<i32> for Point{fn read()->i32{return .n}}
+impl Read<i64> for Point{fn read()->i64{return i64(.n)+1}}
+fn read32<T:Read<i32>>(x:&T)->i32{return x.read()}
+fn read64<T>(x:&T)->i64 where T:Read<i64>{return x.read()}
+fn main()->i32{let p=Point{n:7};if read32(&p)!=7{return 1}if read64(&p)!=8{return 2}return 0}
+"#)]);
+}
+
+#[test]
+fn original_concrete_generic_trait_probe_calls_directly() {
+    native(&[("main",include_str!("../../../tests/language-readiness/recovery/pending/trait-type-argument.zil"))]);
+}
+
+#[test]
+fn generic_trait_cross_module_bound_calls_keep_identity_and_exports() {
+    native(&[
+        ("main","import api;import data;fn main()->i32{let p=data.Point{n:7};return api.get(&p)-7}"),
+        ("api","pub trait Read<R>{fn read(self:&Self)->R;}pub fn get<T:Read<i32>>(x:&T)->i32{return x.read()}"),
+        ("data","import api;pub struct Point{pub n:i32}impl api.Read<i32> for Point{fn read()->i32{return .n}}"),
+    ]);
+}
+
+#[test]
+fn generic_trait_same_layout_nominals_and_phantom_arguments_stay_distinct() {
+    native(&[("main",r#"
+struct A{n:i32}struct B{n:i32}
+trait Build<R,P>{fn build(self:&Self)->R;}
+struct Point{n:i32}
+impl Build<A,bool> for Point{fn build()->A{return A{n:.n}}}
+impl Build<B,bool> for Point{fn build()->B{return B{n:.n+1}}}
+impl Build<A,i32> for Point{fn build()->A{return A{n:.n+2}}}
+fn a<T:Build<A,bool>>(x:&T)->A{return x.build()}
+fn b<T:Build<B,bool>>(x:&T)->B{return x.build()}
+fn c<T:Build<A,i32>>(x:&T)->A{return x.build()}
+fn main()->i32{let p=Point{n:7};if a(&p).n!=7{return 1}if b(&p).n!=8{return 2}return c(&p).n-9}
+"#)]);
+}
+
+#[test]
+fn generic_trait_record_arguments_normalize_required_signatures_from_declaration() {
+    native(&[("main",r#"
+struct Box<T:Copy>{value:T}
+trait Read<R:Copy>{fn read(self:&Self)->R;}
+struct Point{n:i32}
+impl Read<Box<i32>> for Point{fn read()->Box<i32>{return Box::<i32>{value:.n}}}
+fn get<T:Read<Box<i32>>>(x:&T)->Box<i32>{return x.read()}
+fn id<T:Copy>(value:T)->T{return value}
+fn main()->i32{let p=Point{n:7};let a=get(&p);let b=id(p.read());return a.value+b.value-14}
+"#)]);
+    for (actual,value) in [("B","B{n:1}"),("i64","1")] {
+        let text=format!("struct A{{n:i32}}struct B{{n:i32}}struct Box<T:Copy>{{value:T}}trait Read<R>{{fn read(self:&Self)->R;}}struct P{{}}impl Read<Box<A>> for P{{fn read()->Box<{actual}>{{return Box::<{actual}>{{value:{value}}}}}}}fn main(){{}}");
+        let report=check(&text);
+        assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
+        assert!(report.diagnostics.iter().any(|d|d.code=="E-TRAIT-SIGNATURE"),"{}",report.to_json());
+    }
+}
+
+#[test]
+fn generic_trait_direct_static_and_value_call_arguments_keep_context() {
+    native(&[("main",r#"
+trait Add<R>{fn add(self:&Self,value:R)->R;}
+struct Point{n:i64}
+impl Add<i64> for Point{fn add(value:i64)->i64{return .n+value}}
+fn id<T:Copy>(value:T)->T{return value}
+fn main()->i32{let p=Point{n:1};let a=p.add(id(6));let b=Point.add(&p,id(6));if a!=7{return 1}if b!=7{return 2}return 0}
+"#)]);
+}
+
+#[test]
+fn generic_trait_direct_ambiguity_does_not_reject_distinct_impl_headers() {
+    let declarations="trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i64> for P{fn read()->i64{return i64(.n)}}";
+    let good=check(&format!("{declarations}fn main()->i32{{return 0}}"));
+    assert_eq!(good.status,ResultCategory::Success,"{}",good.to_json());
+    let bad=check(&format!("{declarations}fn main()->i32{{let p=P{{n:7}};return p.read()}}"));
+    assert_eq!(bad.status,ResultCategory::SafeReject,"{}",bad.to_json());
+    assert!(bad.diagnostics.iter().any(|d|d.message.contains("ambiguous")),"{}",bad.to_json());
+}
+
+#[test]
+fn generic_trait_unused_signatures_and_instantiated_conformance_reject() {
+    for source in [
+        "trait Read<R>{fn read(self:&Self)->Missing;}fn main(){}",
+        "struct Box<T:Copy>{value:T}trait Read<R>{fn read(self:&Self)->Box<R>;}fn main(){}",
+        "trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i64{return 7}}fn main(){}",
+        "trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{}fn main(){}",
+        "trait Read<R>{fn read(self:&Self)->R;}fn unused<T:Read<i32>>(x:&T)->i64{return x.read()}fn main(){}",
+        "trait Flag<R>{}struct P{}impl Flag<i32> for P{}fn needed<T:Flag<i64>>(x:&T){}fn main(){let p=P{};needed(&p)}",
+        "trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i32> for P{fn read()->i32{return .n}}fn main(){}",
+        "type Int=i32;trait Flag<R>{}struct P{}impl Flag<Int> for P{}impl Flag<i32> for P{}fn main(){}",
+    ] {
+        let report=check(source);
+        assert_eq!(report.status,ResultCategory::SafeReject,"{source}: {}",report.to_json());
+    }
+    let good=check("struct Box<T:Copy>{value:T}trait Read<R:Copy>{fn read(self:&Self)->Box<R>;}fn main(){}");
+    assert_eq!(good.status,ResultCategory::Success,"{}",good.to_json());
+}
+
+#[test]
+fn trait_argument_lexical_binders_and_structural_capabilities_are_separate() {
+    for source in [
+        "trait Flag<R>{}struct U{}fn unused<U,T:Flag<U>>(x:&T){}fn main(){}",
+        "trait Flag<R>{}struct P{}impl Flag<&i32> for P{}fn main(){}",
+        "trait Flag<R>{}resource R{n:i32}struct P{}impl Flag<R> for P{}fn main(){}",
+        "trait Transfer<R>{}struct P{}impl Transfer<i32> for P{}fn main(){}",
+        "trait Copy<R>{}struct P{}impl Copy<i32> for P{}fn main(){}",
+        "trait Share<R>{}struct P{}impl Share<i32> for P{}fn main(){}",
+    ] {
+        let report=check(source);
+        assert_ne!(report.status,ResultCategory::Success,"{source}: {}",report.to_json());
+    }
+    native(&[("main","type R=i64;trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}fn get<T:Read<i32>>(x:&T)->i32{return x.read()}fn main()->i32{let p=P{n:7};return get(&p)-7}")]);
+}
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text)
 }
