@@ -1,6 +1,7 @@
 mod arrays;
 mod byte_buffer;
 mod constant_divisors;
+mod copy_aggregates;
 mod drop_plan;
 mod dynamic_store;
 mod enums;
@@ -18,6 +19,9 @@ mod scalar_summaries;
 mod scoped_callback;
 #[cfg(test)]
 mod scoped_callback_tests;
+mod scoped_thread;
+#[cfg(all(test, target_os = "linux"))]
+mod scoped_thread_tests;
 mod slices;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
@@ -98,6 +102,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     jobs: usize,
 ) -> CompileResult<(m::Module, bool)> {
     let sum_helpers = bind_lir(verified, lir, options.entry)?;
+    let copy_plans = copy_aggregates::plan(lir, verified.limits())?;
     let functions = lir
         .functions
         .iter()
@@ -189,6 +194,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             prepared_leaves
                 .as_ref()
                 .map(|leaves| &leaves[start..start + batch.len()]),
+            &copy_plans,
         )
     })?;
     let mut batches = batches.into_iter();
@@ -208,6 +214,9 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     }
     let mut text = m::Code::new();
     text.append(sum_helpers);
+    if copy_plans.values().any(|plan| !plan.is_empty()) {
+        text.append(copy_aggregates::declarations());
+    }
     for closure in lir.closures {
         let mut fields = closure
             .captures
@@ -270,6 +279,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     }));
     text.append(byte_buffer::runtime(lir)?);
     text.append(dynamic_store::runtime(lir, &closures)?);
+    text.append(scoped_thread::runtime(lir)?);
     for (operation, bits) in intrinsics {
         text.push(m::Event::Declare(m::Function {
             name: format!("llvm.{}.with.overflow.i{}", operation, bits),
@@ -426,8 +436,10 @@ fn lower_function_batch(
     summaries: Option<&BTreeMap<FunctionId, Constant>>,
     collected: Option<&BTreeSet<FunctionId>>,
     prepared_leaves: Option<&[Option<scalar_leaf::Prepared>]>,
+    copy_plans: &BTreeMap<FunctionId, copy_aggregates::Plan>,
 ) -> CompileResult<FunctionBatch> {
     let mut intrinsics = BTreeSet::new();
+    let empty_copy_plan = copy_aggregates::Plan::new();
     // Finish each function before retaining it: no whole-project Event buffer.
     let mut body =
         Vec::with_capacity(collected.map_or(batch.len(), |needed| needed.len().min(batch.len())));
@@ -483,6 +495,7 @@ fn lower_function_batch(
             continuation: 0,
             partial_packages: BTreeSet::new(),
             safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
+            copy_values: copy_plans.get(&function.id).unwrap_or(&empty_copy_plan),
         }
         .emit()?
         .into_items()
@@ -1024,6 +1037,7 @@ struct FunctionEmitter<'a> {
     // Complete values retain the existing inline ABI and whole-local path.
     partial_packages: BTreeSet<LocalId>,
     safe_divisors: Option<BTreeSet<ValueId>>,
+    copy_values: &'a copy_aggregates::Plan,
 }
 
 impl FunctionEmitter<'_> {
@@ -1067,6 +1081,7 @@ impl FunctionEmitter<'_> {
             blocks: None,
         }));
         self.event(m::Event::Label("entry".into()));
+        self.copy_allocations();
         let mut address_taken = BTreeSet::new();
         let mut package_views = BTreeMap::new();
         for instruction in self
@@ -1164,6 +1179,9 @@ impl FunctionEmitter<'_> {
             if let InstructionKind::ExtractIndex { aggregate, .. }
             | InstructionKind::UpdateIndex { aggregate, .. } = &instruction.kind
             {
+                if self.copy_values.contains_key(aggregate) {
+                    continue;
+                }
                 let result = instruction.result.expect("verified index result");
                 let ty = &self.function.values[aggregate.0 as usize];
                 self.event(m::Event::Instruction(m::Inst::new(
@@ -1221,6 +1239,9 @@ impl FunctionEmitter<'_> {
         )));
         self.event(m::Event::End);
         for instruction in self.function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let InstructionKind::WithScopedThread { worker, body, .. } = instruction.kind {
+                self.scoped_thread_functions(instruction, worker, body)?;
+            }
             if let InstructionKind::WithForeignCallback {
                 register,
                 close,
@@ -1237,6 +1258,9 @@ impl FunctionEmitter<'_> {
     }
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
+        if self.copy_instruction(instruction)? {
+            return Ok(());
+        }
         match &instruction.kind {
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
@@ -1355,6 +1379,9 @@ impl FunctionEmitter<'_> {
                 ..
             } => {
                 self.call_scoped_callback_helper(instruction, *register, *close, *callback, *body)?
+            }
+            InstructionKind::WithScopedThread { argument, body, .. } => {
+                self.call_scoped_thread_helper(instruction, *argument, *body)?
             }
             InstructionKind::Constant(constant) => {
                 let result = result(instruction)?;
@@ -2716,7 +2743,7 @@ impl FunctionEmitter<'_> {
         format!("%tmp.{id}")
     }
     fn event(&mut self, event: m::Event) {
-        self.text.push(event);
+        self.copy_event(event);
     }
 
     fn line(&mut self, code: m::Code) {

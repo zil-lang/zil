@@ -19,11 +19,13 @@ mod forward;
 mod helpers;
 mod holds;
 mod incremental;
+mod lifetimes;
 mod owned_callbacks;
 #[cfg(test)]
 mod resource_tests;
 mod resources;
 mod retained;
+mod scoped_thread;
 mod scopes;
 #[cfg(test)]
 mod sum_tests;
@@ -58,6 +60,7 @@ fn analyze_budgeted(
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;
+    lifetimes::headers(module, budget)?;
     let mut plan = CandidatePlan::empty_for(module);
     let mut hold_graphs = Vec::with_capacity(module.functions.len());
     for f in &module.functions {
@@ -95,6 +98,7 @@ fn analyze_budgeted(
         });
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
+    scoped_thread::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }

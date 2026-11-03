@@ -7,6 +7,7 @@ mod enums;
 mod foreign;
 mod generated_spans;
 mod generics;
+mod lifetimes;
 pub use generated_spans::remap_generated_spans;
 mod mapping;
 mod modules;
@@ -64,13 +65,21 @@ fn owned_store_name(name: &str) -> bool {
     )
 }
 fn primitive_name(name: &str) -> bool {
-    integer_name(name)
+    name == "thread_scope"
+        || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if name == "c_with_callback" {
+    if name == "thread_scope" {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-THREAD-NAME",
+            Some(span),
+            "thread_scope is a reserved structured primitive and cannot be rebound",
+        )
+    } else if name == "c_with_callback" {
         Diagnostic::error(
             Phase::Expand,
             "E-FFI-SCOPED-NAME",
@@ -920,7 +929,7 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if name == "c_with_callback" {
+        if name == "c_with_callback" || name == "thread_scope" {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }
@@ -1505,7 +1514,16 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             element: Box::new(type_ref(element)),
         },
         s::TypeKind::Group(t) => type_ref(t),
-        s::TypeKind::Reference { mutable, inner, .. } => Type::Address {
+        s::TypeKind::Reference {
+            lifetime: Some(_), ..
+        } => {
+            Type::Unsupported("explicit life requires a checked function signature contract".into())
+        }
+        s::TypeKind::Reference {
+            mutable,
+            inner,
+            lifetime: None,
+        } => Type::Address {
             mutable: *mutable,
             inner: Box::new(type_ref(inner)),
         },

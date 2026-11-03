@@ -134,7 +134,7 @@ fn literal_instruction_bytes_survive_real_module_envelopes_and_reject_corruption
                 "E-WIRE-BOOL",
             );
             // Opcodes90–93 are local Enum operations; schema32 assigns94 to With.
-            for unknown in [95, 254] {
+            for unknown in [96, 254] {
                 let mut bad = bytes.clone();
                 bad[offset + opcode] = unknown;
                 error(

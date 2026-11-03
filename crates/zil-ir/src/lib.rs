@@ -1299,6 +1299,14 @@ pub enum InstructionKind {
         body: ValueId,
         region: u32,
     },
+    /// Direct structured thread call. Only the verified i32 worker payload
+    /// crosses threads; body runs and is consumed in the parent thread.
+    /// Result: (created, worker_result, body_result). Failure cleans body once.
+    WithScopedThread {
+        worker: FunctionId,
+        argument: ValueId,
+        body: ValueId,
+    },
     /// A real, environment-free function address with its exact Copy signature.
     FunctionRef {
         function: FunctionId,
@@ -1725,7 +1733,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V33\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V34\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2324,6 +2332,16 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, callback.0);
             encode_u32(b, body.0);
             encode_u32(b, *region);
+        }
+        InstructionKind::WithScopedThread {
+            worker,
+            argument,
+            body,
+        } => {
+            b.push(95);
+            encode_u32(b, worker.0);
+            encode_u32(b, argument.0);
+            encode_u32(b, body.0);
         }
         InstructionKind::ForeignFunctionRef { function } => {
             b.push(60);

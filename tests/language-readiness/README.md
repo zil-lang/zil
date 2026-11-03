@@ -1,7 +1,7 @@
 # 语言完整性来源样本
 
 历史基线与实际观察见 `docs/validation/language-readiness-baseline.json`，核查日期2026-11-03。
-当前本地恢复候选为 `a57a668b68044e37e870d058684f9364307e04b1`；本地验证完成不代表远端main合入或CI通过，完整语言尚未完成。
+上一批本地受测候选为 `a57a668b68044e37e870d058684f9364307e04b1`，后续结果元数据经PR28合入远端main `0d7d74f7`；CI因账号支付/额度未启动，不能称为CI通过。新322–328候选正在组合验收，完整语言尚未完成。
 `controls` 保留既有源码到Verify正控；`pending` 是历史路径，不能仅按目录名判为当前缺口，也不注册为“必须拒绝”测试。
 
 以下四份源保留原路径和字节，现已作为正控运行，不重复重写：
@@ -15,7 +15,7 @@
 
 317实际多模块组合消费者也已完成本地源码与O0/O2运行、错误/关闭清理验证，见`examples/mainline/recovery317`及`changes/317-recovery-consumer.md`。
 316仅为`recovery/`中的25源能力核查，结果见`docs/validation/recovery-capabilities.json`，不是life/trait/异步或并发实现。一般life/trait、异步/Mutex及其余基础类型/模式仍是未完成范围。
-大数组a18在当前工具链O0仍崩溃，生产修复未做；精简复现见`docs/validation/recovery-large-array.json`。
+大数组原a18已由324有限生产修复，两后端O0/O2限定机器复验通过；旧崩溃报告原样保留。一般巨型按值ABI尚未完成，具体边界见`codegen-pending/README.md`。
 
 其余合法入口未来修复须保留原意并晋升正控。历史最小源的检查层级和317机器运行分别记账，不从未支持诊断推断安全，也不将源到Verify检查冒充原生执行或完整语言覆盖。
 

@@ -2869,6 +2869,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         span,
                     );
                 }
+                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
+                    return Err(unsupported(
+                        span,
+                        "thread_scope in a parent closure entry is not implemented",
+                    ));
+                }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
                     self.visit(depth + 1, callee.span)?;
                     let [register, close, callback, body] = arguments.as_slice() else {

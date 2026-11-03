@@ -457,6 +457,12 @@ pub fn build_view_with_cancellation_and_stable_names(
         Optimization::O2 => "-O2",
     };
     let mut commands = Vec::new();
+    let scoped_threads = lir
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+        .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }));
     let split = plan.units.len() > 1;
     let objects = if !split && options.backend == NativeBackend::Clang {
         // Keep one clang invocation, but an explicit closed build must consume
@@ -477,6 +483,9 @@ pub fn build_view_with_cancellation_and_stable_names(
             .arg("ir")
             .arg(optimization);
         clang_function_merging(&mut command, options.function_merging);
+        if scoped_threads {
+            command.arg("-pthread");
+        }
         if windows {
             command.arg("-c");
         }
@@ -553,6 +562,9 @@ pub fn build_view_with_cancellation_and_stable_names(
             .args(&objects)
             .arg("-o")
             .arg(&executable_path);
+        if scoped_threads {
+            link.arg("-pthread");
+        }
         commands.push(run_command(&mut link, "E-LLVM-COMPILE")?);
     }
     check_cancelled(cancelled)?;

@@ -85,7 +85,8 @@ impl Expander<'_> {
         if (callable_parameters.is_empty()
             && state_parameters.is_empty()
             && type_parameters.is_empty()
-            && !f.generics.is_empty())
+            && !f.generics.is_empty()
+            && !lifetimes::only_life(f))
             || !f.where_clause.is_empty()
         {
             self.unsupported("generic function specialization", f.span);
@@ -109,9 +110,33 @@ impl Expander<'_> {
             None
         };
         let selected = explicit.or(default);
-        let mut parameters: Vec<_> = f.params.iter().map(|p| self.param(p)).collect();
+        let life = match lifetimes::contract(
+            f,
+            selected.filter(|_| explicit.is_none()),
+            &mut self.callable_work,
+        ) {
+            Ok(life) => life,
+            Err(error) => {
+                self.diagnostics.push(error);
+                None
+            }
+        };
+        let mut parameters: Vec<_> = f
+            .params
+            .iter()
+            .map(|p| {
+                let mut param = self.param(p);
+                if life.is_some() {
+                    param.ty = lifetimes::signature_type(self, &p.ty);
+                }
+                param
+            })
+            .collect();
         let receiver = selected.map(|p| {
-            let parameter = self.param(p);
+            let mut parameter = self.param(p);
+            if life.is_some() {
+                parameter.ty = lifetimes::signature_type(self, &p.ty);
+            }
             if explicit.is_none() {
                 parameters.insert(0, parameter.clone());
             }
@@ -163,9 +188,13 @@ impl Expander<'_> {
         }
         let return_type = callable_return.as_ref().map_or_else(
             || {
-                f.return_type
-                    .as_ref()
-                    .map_or(Type::Unit, |t| self.type_ref(t))
+                f.return_type.as_ref().map_or(Type::Unit, |t| {
+                    if life.is_some() {
+                        lifetimes::signature_type(self, t)
+                    } else {
+                        self.type_ref(t)
+                    }
+                })
             },
             |bound| Type::Opaque {
                 identity: id,
@@ -188,7 +217,7 @@ impl Expander<'_> {
             }
         };
         self.functions.push(CoreFunction {
-            life: None,
+            life,
             callable_return,
             type_parameters,
             state_parameters,

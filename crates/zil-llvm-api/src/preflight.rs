@@ -87,7 +87,7 @@ fn attrs(a: &[Attr], ty: Option<&Ty>) -> Result<()> {
         }
         match (x, ty) {
             (Attr::ZeroExt, Some(Ty::Int(1 | 8 | 16 | 32 | 64))) => {}
-            (Attr::NonLazyBind, None) => {}
+            (Attr::NonLazyBind | Attr::NoInline, None) => {}
             _ => return fail("attribute is invalid for its machine ABI position"),
         }
     }

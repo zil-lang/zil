@@ -266,9 +266,194 @@ scenario('handoff-013', '历史注册集合必须完整且合法', t => {
   }
 });
 
+const migrationFile = 'docs/validation/handoff-migration-326.json';
+function migrate(f, {names = ['.task/impl/003.md'], historical = true, adapters = []} = {}) {
+  const source = git(f.root, 'rev-parse', 'HEAD');
+  const availability = value => /^[0-9a-f]{40}$/.test(value ?? '') ? capture('git', ['-C', f.root, 'cat-file', '-e', `${value}^{commit}`]).status === 0 ? 'Present' : 'Missing' : 'Invalid';
+  const records = names.map(name => {
+    const bytes = fs.readFileSync(path.join(f.root, name));
+    let task;
+    try { task = JSON.parse(bytes.toString().match(/```json\n([\s\S]*?)\n```/)[1]); } catch { task = null; }
+    const refs = [];
+    for (const field of ['baseline', 'base_revision', 'implementation_commit', 'integration_commit']) if (task?.[field]) refs.push({field, commit: task[field], availability: availability(task[field])});
+    for (const field of ['implementation_commit', 'review_commit']) if (task?.review?.[field]) refs.push({field: `review.${field}`, commit: task.review[field], availability: availability(task.review[field])});
+    const evidence = [];
+    for (const [field, values] of [['evidence', task?.evidence], ['review.evidence', task?.review?.evidence]]) for (const ref of values ?? []) {
+      const name = typeof ref === 'string' ? ref : ref.result_path;
+      const bytes = capture('git', ['-C', f.root, 'show', `${source}:${name}`]);
+      const present = bytes.status === 0 && bytes.stdout.length > 0;
+      evidence.push({field, path: name, availability: present ? 'PresentAtSnapshot' : 'MissingAtSnapshot', sha256: present ? sha(bytes.stdout) : null});
+    }
+    return {path: name, sha256: sha(bytes), recorded_state: task?.status ?? bytes.toString().split('\n')[0], classification: historical ? 'HistoricalRecord' : 'Current', reason: 'Explicit fixture migration', object_references: refs, evidence_references: evidence};
+  });
+  const policy = {schema_version: 1, kind: 'HandoffHistoricalMigration', source_commit: source, approved_by: '/root', claims_revalidated: false, records, review_adapters: adapters};
+  put(f.root, migrationFile, policy); commit(f.root, 'explicit historical migration');
+  return policy;
+}
+
+scenario('handoff-014', '历史Unavailable与当前门及只读audit分离', t => {
+  const f = fixture(t); f.task.baseline = 'a'.repeat(40); f.save(); commit(f.root, 'retain lost original baseline'); migrate(f);
+  const report = inspectHandoff(f.root);
+  check(report.status, 'CurrentPass'); check(report.current_gate.status, 'CurrentPass');
+  check(report.historical_status.status, 'Unavailable'); check(report.historical_status.claims_revalidated, false); check(report.next, []);
+  check(report.slices[0].status, '施工'); check(report.slices[0].validation.availability, 'Unavailable');
+  const created = capture(process.execPath, [script], {cwd: f.root}); check(created.status, 0);
+  const saved = fs.readFileSync(path.join(f.root, 'data/handoff.json'));
+  const legacy = capture(process.execPath, [script, '--legacy-audit'], {cwd: f.root});
+  check(legacy.status, 1); const audit = JSON.parse(legacy.stdout);
+  check(audit.status, 'LegacyAuditFail'); check(audit.current_gate.status, 'CurrentPass'); check(audit.legacy_audit.status, 'Fail');
+  check(audit.legacy_audit.errors.some(e => e.reason.includes('baseline must identify')), true);
+  check(fs.readFileSync(path.join(f.root, 'data/handoff.json')), saved);
+});
+
+scenario('handoff-015', '未列当前错误与在途hash不能被历史清单遮蔽', t => {
+  const f = fixture(t); migrate(f);
+  const current = {...f.task, id: '004', baseline: 'b'.repeat(40)};
+  put(f.root, '.task/impl/004.md', `施工\n\`\`\`json\n${JSON.stringify(current)}\n\`\`\`\n`); commit(f.root, 'new current task with a missing baseline');
+  let report = inspectHandoff(f.root); check(report.status, 'CurrentFail'); check(report.errors.some(e => e.id === '004' && e.reason.includes('baseline must identify')));
+  current.baseline = f.baseline; current.spec_hash = '0'.repeat(64);
+  put(f.root, '.task/impl/004.md', `施工\n\`\`\`json\n${JSON.stringify(current)}\n\`\`\`\n`); commit(f.root, 'current stale rules');
+  report = inspectHandoff(f.root); check(report.status, 'CurrentFail'); check(report.errors.some(e => e.id === '004' && e.reason.includes('snapshot is stale')));
+});
+
+scenario('handoff-016', '冻结路径字节对象与未提交清单篡改拒绝', t => {
+  for (const corruption of ['bytes', 'object', 'path', 'uncommitted']) {
+    const f = fixture(t), policy = migrate(f);
+    if (corruption === 'bytes') policy.records[0].sha256 = '0'.repeat(64);
+    if (corruption === 'object') policy.records[0].object_references[0].availability = 'Missing';
+    if (corruption === 'path') policy.records[0].path = '../outside.md';
+    if (corruption === 'uncommitted') policy.claims_revalidated = true;
+    put(f.root, migrationFile, policy);
+    if (corruption !== 'uncommitted') commit(f.root, `retain invalid ${corruption} migration`);
+    const report = inspectHandoff(f.root); check(report.current_gate.status, 'CurrentFail'); check(report.errors.some(e => e.id === 'migration'));
+  }
+});
+
+scenario('handoff-017', '归档原字节不可改删', t => {
+  for (const removed of [false, true]) {
+    const f = fixture(t); migrate(f);
+    if (removed) fs.unlinkSync(path.join(f.root, '.task/impl/003.md'));
+    else put(f.root, '.task/impl/003.md', 'changed historical record\n');
+    commit(f.root, 'retain detected historical edit');
+    check(hasError(inspectHandoff(f.root), 'Historical record was removed, changed or uncommitted'));
+  }
+});
+
+scenario('handoff-018', '历史笔记不伪造JSON且新任务不能加入旧快照', t => {
+  const f = fixture(t); put(f.root, '.task/impl/153.md', '施工\n# Historical note; no independent review.\n'); commit(f.root, 'original note');
+  const policy = migrate(f, {names: ['.task/impl/153.md']});
+  check(inspectHandoff(f.root).status, 'CurrentPass');
+  check(inspectHandoff(f.root, undefined, {legacyAudit: true}).legacy_audit.errors.some(e => e.reason.includes('no valid JSON')));
+  put(f.root, '.task/impl/154.md', '施工\n# Newly created note\n'); commit(f.root, 'new note outside cutoff');
+  policy.records.push({...policy.records[0], path: '.task/impl/154.md', sha256: sha(fs.readFileSync(path.join(f.root, '.task/impl/154.md')))});
+  put(f.root, migrationFile, policy); commit(f.root, 'invalid later archive');
+  check(hasError(inspectHandoff(f.root), 'Frozen task bytes do not match'));
+});
+
+scenario('handoff-019', '真实work权威与分树假权威明确区分', t => {
+  const f = fixture(t); git(f.root, 'branch', '-m', 'work');
+  let report = inspectHandoff(f.root); check(report.status, 'Pass'); check(report.authority.verified); check(report.authority.branch, 'work');
+  check(inspectHandoff(f.root, f.root).authority.current_is_main);
+  const child = path.join(f.area, '003'); git(f.root, 'worktree', 'add', '--quiet', '-b', '003', child);
+  check(inspectHandoff(child).runtime.main_tree, fs.realpathSync(f.root));
+  report = inspectHandoff(child, child); check(report.authority.verified, false); check(report.authority.current_is_main, false);
+  git(f.root, 'branch', '-m', 'unknown');
+  report = inspectHandoff(f.root); check(report.authority.verified, false); check(report.authority.current_is_main, false);
+});
+
+scenario('handoff-020', 'docs精简证据仍需提交且不能符号链接逃逸', t => {
+  const f = fixture(t); merged(f);
+  const name = 'docs/validation/receipt.json'; f.task.evidence = [name]; f.save();
+  put(f.root, name, {status: 'Pass', executed: 1, assertions: 1});
+  check(hasError(inspectHandoff(f.root), 'uncommitted'));
+  commit(f.root, 'compact committed receipt'); check(inspectHandoff(f.root).status, 'Pass');
+  put(f.root, name, {status: 'Fail', ok: true}); commit(f.root, 'failed compact receipt');
+  check(hasError(inspectHandoff(f.root), 'Evidence has no passing outcome'));
+  const outside = path.join(f.area, 'outside.json'); fs.writeFileSync(outside, '{"status":"Pass"}');
+  fs.unlinkSync(path.join(f.root, name)); fs.symlinkSync(outside, path.join(f.root, name)); commit(f.root, 'escaping symlink');
+  check(hasError(inspectHandoff(f.root), 'Evidence reference must stay under'));
+});
+
+scenario('handoff-021', '显式review selector精确提交与非作者核验', t => {
+  const f = fixture(t); merged(f);
+  const name = 'docs/validation/review.json';
+  put(f.root, name, {reviewer: 'reviewer', cases: {'003': {verdict: 'Pass', implementation_commit: f.task.implementation_commit}, wrong: {verdict: 'Pass', implementation_commit: f.baseline}}});
+  const revision = commit(f.root, 'exact compact review');
+  f.task.review.review_commit = revision; f.task.review.evidence = [{result_path: name, selector: '/cases/003'}]; f.save(); commit(f.root, 'bind exact selector');
+  check(inspectHandoff(f.root).status, 'Pass');
+  f.task.review.evidence[0].selector = '/cases/wrong'; f.save(); commit(f.root, 'wrong case');
+  check(hasError(inspectHandoff(f.root), 'No review evidence matches'));
+  f.task.review.evidence[0].selector = '/cases/003'; f.task.review.reviewer = 'builder'; f.save(); commit(f.root, 'self review');
+  check(hasError(inspectHandoff(f.root), 'independent passing review'));
+});
+
+scenario('handoff-022', '有限review不晋升正式Done', t => {
+  const f = fixture(t); merged(f);
+  f.task.scope_contract = 'Finite fixture only'; f.task.review.verdict = 'PassLimited';
+  put(f.root, 'docs/validation/limited.json', {verdict: 'PassLimited', reviewer: 'reviewer', implementation_commit: f.task.implementation_commit});
+  f.task.review.evidence = ['docs/validation/limited.json']; f.save(); commit(f.root, 'finite review');
+  check(hasError(inspectHandoff(f.root), 'independent passing review'));
+  migrate(f, {historical: false}); check(inspectHandoff(f.root).status, 'CurrentPass');
+  const formal = JSON.parse(fs.readFileSync(path.join(f.root, '.task/B0.md'), 'utf8').match(/```json\n([\s\S]*?)\n```/)[1]);
+  formal.status = 'Done'; formal.acceptance_record = 'docs/validation/limited.json'; formal.evidence = ['docs/validation/limited.json'];
+  put(f.root, '.task/B0.md', `# B0\n\`\`\`json\n${JSON.stringify(formal)}\n\`\`\`\n`); commit(f.root, 'invalid full Done from limited review');
+  check(hasError(inspectHandoff(f.root), 'Evidence has no passing outcome'));
+});
+
+scenario('handoff-023', 'metadata-only等价只允许明确文档差异', t => {
+  for (const sourceChanged of [false, true]) {
+    const f = fixture(t);
+    put(f.root, 'src/main.rs', 'fn main() {}\n'); put(f.root, 'docs/validation/build.json', {status: 'Pass', executed: 1, assertions: 1});
+    const reviewed = commit(f.root, 'reviewed source');
+    put(f.root, 'changes/delivery.md', 'Delivery notes only.\n');
+    if (sourceChanged) put(f.root, 'src/main.rs', 'fn main() { panic!() }\n');
+    const delivery = commit(f.root, 'delivery');
+    const name = 'docs/validation/review.json'; put(f.root, name, {reviewer: 'reviewer', cases: {'003': {verdict: 'Pass', implementation_commit: reviewed}}});
+    const reviewCommit = commit(f.root, 'review receipt');
+    Object.assign(f.task, {status: '已合入', implementation_commit: delivery, integration_commit: delivery, evidence: ['docs/validation/build.json'], review: {reviewer: 'reviewer', verdict: 'Pass', implementation_commit: delivery, review_commit: reviewCommit, evidence: [name]}});
+    f.save(); commit(f.root, 'record exact delivery');
+    migrate(f, {historical: false, adapters: [{task_id: '003', path: name, selector: '/cases/003', commit_field: 'implementation_commit', metadata_only: {reviewed_commit: reviewed, delivery_commit: delivery, allowed_paths: ['changes/delivery.md']}}]});
+    const report = inspectHandoff(f.root);
+    check(report.status, sourceChanged ? 'CurrentFail' : 'CurrentPass');
+    if (sourceChanged) check(hasError(report, 'Metadata-only review binding changes source/tests'));
+    else check(report.slices[0].review.evidence[0].binding, 'MetadataOnlyEquivalent');
+  }
+});
+
+scenario('handoff-024', '当前规范必需集合不能被较小注册表冒充', t => {
+  const f = fixture(t), registry = JSON.parse(fs.readFileSync(path.join(f.root, 'data/normative-inputs.json')));
+  delete registry.files['spec/grammar.ebnf']; registry.normative_hash = sha(Object.entries(registry.files).sort(([a], [b]) => a.localeCompare(b)).map(([name, hash]) => `${name}\0${hash}\n`).join(''));
+  put(f.root, 'data/normative-inputs.json', registry); commit(f.root, 'incomplete current registry');
+  check(hasError(inspectHandoff(f.root), 'Current normative registry differs'));
+  const other = fixture(t);
+  put(other.root, 'spec/interfaces.json', {normative_inputs: ['_zil_design.md', 'spec/./grammar.ebnf', 'spec/interfaces.json']});
+  const files = Object.fromEntries(['_zil_design.md', 'spec/./grammar.ebnf', 'spec/interfaces.json'].map(name => [name, sha(fs.readFileSync(path.join(other.root, name)))]));
+  put(other.root, 'data/normative-inputs.json', {files, normative_hash: sha(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)).map(([name, hash]) => `${name}\0${hash}\n`).join(''))});
+  commit(other.root, 'noncanonical current normative aliases');
+  check(hasError(inspectHandoff(other.root), 'Current normative registry differs'));
+});
+
+scenario('handoff-025', '精简本地验收仍绑定实际交付和非零门', t => {
+  const f = fixture(t); merged(f);
+  f.task.scope_contract = 'Finite implementation fixture'; f.task.accepted_candidate = f.task.implementation_commit;
+  const name = 'docs/validation/integration.json';
+  const receipt = {status: 'LocalLimitedAcceptance', tested_commit: f.task.accepted_candidate, implementation_commits: {'003': f.task.implementation_commit}, gates: [{gate: 'workspace', status: 'Pass', exit_code: 0, passed: 2, failed: 0}]};
+  put(f.root, name, receipt); f.task.evidence = [name]; f.save(); commit(f.root, 'bounded compact local acceptance');
+  migrate(f, {historical: false}); check(inspectHandoff(f.root).status, 'CurrentPass');
+  for (const corrupt of ['zero', 'wrong-implementation', 'failed-gate']) {
+    const bad = structuredClone(receipt);
+    if (corrupt === 'zero') bad.gates[0].passed = 0;
+    if (corrupt === 'wrong-implementation') bad.implementation_commits['003'] = f.baseline;
+    if (corrupt === 'failed-gate') bad.gates[0].status = 'Fail';
+    put(f.root, name, bad); commit(f.root, corrupt);
+    check(hasError(inspectHandoff(f.root), 'Evidence has no passing outcome'));
+  }
+});
+
 after(() => {
   const baseline = git(project, 'rev-parse', 'HEAD');
-  const report = {schema_version: 1, scope: 'Real temporary Git repositories and handoff CLI; not ZIL language acceptance.', status: results.length === 13 && results.every(x => x.status === 'Pass') ? 'Pass' : 'Fail', executed: results.length, assertions, baseline_commit: baseline, source_hashes: Object.fromEntries(['tools/handoff.mjs', 'tests/handoff.test.mjs'].map(name => [name, sha(fs.readFileSync(path.join(project, name)))])), node: process.version, results};
+  const expectedIds = Array.from({length: 25}, (_, n) => `handoff-${String(n + 1).padStart(3, '0')}`);
+  const report = {schema_version: 1, scope: 'Real temporary Git repositories and handoff CLI; not ZIL language acceptance.', status: results.length === expectedIds.length && expectedIds.every(id => results.some(row => row.id === id)) && results.every(x => x.status === 'Pass') ? 'Pass' : 'Fail', executed: results.length, assertions, baseline_commit: baseline, source_hashes: Object.fromEntries(['tools/handoff.mjs', 'tests/handoff.test.mjs'].map(name => [name, sha(fs.readFileSync(path.join(project, name)))])), node: process.version, results};
   const output = writeReport('handoff-tests.json', report, {file: process.env.ZIL_HANDOFF_REPORT});
   console.log(JSON.stringify({handoff_report: output, status: report.status, executed: report.executed, assertions: report.assertions}));
 });

@@ -66,12 +66,11 @@ pub(super) fn specialize_products<'a>(
     products: &mut products::Products,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
+    super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
-    let mut has_trait_instances = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
-        has_trait_instances |= matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty());
         if let ItemKind::Impl(implementation) = &item.kind
             && implementation
                 .trait_type
@@ -128,23 +127,9 @@ pub(super) fn specialize_products<'a>(
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
     }
-    if has_trait_instances {
-        let (aliased, budget) =
-            aliases::normalize_with_budget(module, names_budget).map_err(|e| vec![e])?;
-        return match aliased {
-            Some(aliased) => specialize_with_budget(
-                &aliased.module,
-                limits,
-                &aliased.pattern_types,
-                budget,
-                products,
-            ),
-            None => specialize_with_budget(module, limits, &BTreeMap::new(), budget, products),
-        }
-        .map(Cow::Owned)
-        .map_err(|e| vec![e]);
-    }
-    if let Some(normalized) = aliases::normalize(module, limits).map_err(|e| vec![e])? {
+    let (normalized, names_budget) =
+        aliases::normalize_with_budget(module, names_budget).map_err(|e| vec![e])?;
+    if let Some(normalized) = normalized {
         if normalized
             .module
             .items
@@ -158,10 +143,11 @@ pub(super) fn specialize_products<'a>(
         {
             return Ok(Cow::Owned(normalized.module));
         }
-        return specialize_engine(
+        return specialize_with_budget(
             &normalized.module,
             limits,
             &normalized.pattern_types,
+            names_budget,
             products,
         )
         .map(Cow::Owned)
@@ -175,18 +161,9 @@ pub(super) fn specialize_products<'a>(
     {
         return Ok(Cow::Borrowed(module));
     }
-    specialize_engine(module, limits, &BTreeMap::new(), products)
+    specialize_with_budget(module, limits, &BTreeMap::new(), names_budget, products)
         .map(Cow::Owned)
         .map_err(|error| vec![error])
-}
-
-fn specialize_engine(
-    module: &Module,
-    limits: &Limits,
-    pattern_types: &BTreeMap<String, TypeRef>,
-    products: &mut products::Products,
-) -> R<Module> {
-    specialize_with_budget(module, limits, pattern_types, Budget::new(limits), products)
 }
 
 fn specialize_with_budget<'a>(
@@ -260,7 +237,7 @@ fn named(name: &str, span: Span) -> TypeRef {
 }
 fn params(item: &Item) -> &[GenericParam] {
     match &item.kind {
-        ItemKind::Function(f) => &f.generics,
+        ItemKind::Function(f) if !super::lifetimes::only_life(f) => &f.generics,
         ItemKind::Aggregate(a) => &a.generics,
         ItemKind::Enum(e) => &e.generics,
         _ => &[],
