@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/astra_review",
+  "implementation_author": "/root/concurrency339",
+  "implementation_commit": "7423b4946e3787aa2a60764b473cde8307919bb7",
+  "executed_production_commit": "4d7c8b020c595f745a25c060bac7242532548e63",
+  "verdict": "PassLimited",
+  "scope": "Finite profile339 shared i32 child payloads; independent actual-source, raw/Wire, budget and native review.",
+  "source_equivalence": {
+    "method": "git diff --name-only executed_production_commit implementation_commit",
+    "changed_paths": [
+      "changes/339-shared-scoped-thread.md",
+      "examples/mainline/concurrency325/README.md",
+      "examples/mainline/concurrency325/shared339/validation.json"
+    ],
+    "production_tests_and_source_fixtures_identical": true
+  },
+  "cli_sha256": "5dc7da80f5e114580cdce02e5a41c5adc9b9742882b0905c6b4341fbc95c9d9c",
+  "checks": {
+    "sources": {
+      "unique_sources": 20,
+      "success": 10,
+      "safety_reject": 7,
+      "worker_profile_reject": 1,
+      "unsupported": 2,
+      "extra_analyze_command_same_source": 1,
+      "all_expected": true
+    },
+    "standalone_tests": {
+      "passed": 4,
+      "failed": 0,
+      "filtered_337_tests": 3,
+      "raw_wire_attack_tests": 3,
+      "budget_test": 1,
+      "linked_rlibs_stable_before_after": true,
+      "attacks": [
+        {
+          "name": "actual payload substituted with same-type pointer aliasing mutable body at final use",
+          "analyze": "E-BORROW-CONFLICT",
+          "verify_raw": "E-BORROW-CONFLICT",
+          "verify_wire": "E-BORROW-CONFLICT"
+        },
+        {
+          "name": "same-signature worker substituted with actual transitive foreign dependency",
+          "analyze": "E-THREAD-WORKER",
+          "verify_raw": "E-THREAD-WORKER",
+          "verify_wire": "E-THREAD-WORKER"
+        },
+        {
+          "name": "payload aliases body mutable address returned through ordinary static helper",
+          "analyze": "E-BORROW-CONFLICT",
+          "verify_raw": "E-BORROW-CONFLICT",
+          "verify_wire": "E-BORROW-CONFLICT"
+        }
+      ]
+    },
+    "independent_budget": {
+      "source": "tests/language-readiness/review336-astra/thread-raw-helper-return-seed.zil",
+      "types_N": 557,
+      "analyze_N": 6544,
+      "verify_N": 20261,
+      "N": "Success",
+      "N_minus_1": "ResourceLimit",
+      "fresh_N": "Success",
+      "default_limits_increased": false
+    },
+    "native": {
+      "observer_replay_builds": 4,
+      "observer_replay_executions": 16,
+      "independently_authored_sources": 3,
+      "independent_source_builds": 12,
+      "independent_source_executions": 12,
+      "configurations": [
+        "clang/O0",
+        "clang/O2",
+        "llvm-api/O0",
+        "llvm-api/O2"
+      ],
+      "observer_modes": {
+        "normal": {
+          "stdout": "CBDJA",
+          "exit_code": 0
+        },
+        "business_exit": {
+          "stdout": "CBDJA",
+          "exit_code": 1
+        },
+        "create_failure": {
+          "stdout": "CDA",
+          "exit_code": 2
+        },
+        "join_failure": {
+          "stdout": "CBDX",
+          "signal": 6
+        }
+      },
+      "independent_source_stdout": "0\n",
+      "independent_source_exit_code": 0,
+      "all_stderr": "",
+      "actual_backend_matched": true,
+      "fallback": null,
+      "api_input_kind": "builder",
+      "api_verify_before_after": true,
+      "api_parse_ns": 0,
+      "api_O2_observer_actual_CGUs": 2,
+      "observations": [
+        "Child executes the generated production entry on a distinct pthread.",
+        "Context stores the same actual parent pointee pointer passed to body.",
+        "Child reads after body cleanup and before parent resumes after join.",
+        "Create failure skips worker/body and cleans prepared owning body exactly once.",
+        "Join failure aborts without returning or releasing live context."
+      ]
+    }
+  },
+  "closed_findings": [
+    {
+      "original_commit": "582312371eb12da7e90123b304b15d3f10e364c7",
+      "source": "tests/language-readiness/review336-astra/thread-parent-static-identity.zil",
+      "original": "Analyze accepts actual ordinary-local origin; Verify producer DFS reports Unsupported.",
+      "final": "Success/Verify plus four-configuration native execution using independently completed provenance facts."
+    },
+    {
+      "original_commit": "582312371eb12da7e90123b304b15d3f10e364c7",
+      "source": "tests/language-readiness/review336-astra/thread-helper-returned-mutable-conflict.zil",
+      "original": "Analyze Success after dropping exclusive roots at a static mutable-return call; Verify already rejects E-BORROW-CONFLICT. No native execution.",
+      "final": "Analyze E-BORROW-CONFLICT; independent raw/Wire mutation rejected by both kernels after preserving every plain mutable address result actual root."
+    }
+  ],
+  "boundary_assessment": [
+    "Actual ordinary address parameters and fixed captures are invocation preconditions, not blanket claims about transitive source classes. Existing caller/capture retention must preserve original owners through the complete invocation.",
+    "Retained Store helper/capture positives pass; actual conflicting address arguments and give-Store owner transfer reject at the caller even at final use.",
+    "Unresolved direct dynamic Store and lending producers remain Unsupported; no general Transfer/Share or Mutex authority is introduced.",
+    "Nested per-capture qualification retains shared x separately from exclusive disjoint y. Closure-environment exclusivity does not grant write authority to shared retained pointees.",
+    "Worker graph checks actual static dependencies and rejects address-returning helpers, foreign dependencies and mutable child authority."
+  ],
+  "excluded_observations": [
+    "Nonowning Store-capture invalidation probes stop at existing Types Unsupported; these are not borrow-safety evidence.",
+    "Nested moved Store capture stops at existing Analyze self-contained-environment Unsupported; excluded from safety pass counts.",
+    "Scalar-only lender closure copy was confirmed safe by actual Load of original owner and StorageDead only after parent returns; it is not an escape finding."
+  ],
+  "complementary_review": {
+    "review_commit": "b9177c458bb2ebebfc3a08ae5486b35df19a5c90",
+    "path": "docs/validation/review339-provenance-final.json",
+    "counts_included_here": false
+  },
+  "not_run": [
+    "Full workspace/default/reference gates",
+    "Native Windows",
+    "General Mutex/Atomic/Transfer/Share or asynchronous cancellation",
+    "Rust same-semantics product comparisons"
+  ],
+  "rust_four_goals": {
+    "safety": "Independent actual origins, simultaneous windows and physical thread synchronization exercised; finite profile only.",
+    "runtime_memory": "Real shared pointer, stable context and join observed; no Rust latency/RSS comparison.",
+    "maintenance": "Ordinary checked borrowed inputs compose with worker and retained caller state; maintenance cost unmeasured.",
+    "compilation": "New per-capture/source work has independent exact budget boundaries; no speed advantage claimed.",
+    "finite_advance": "A real child thread can read the same checked parent scalar while its parent body runs, with independent window rejection and actual join/cleanup behavior."
+  },
+  "evidence": [
+    {
+      "path": "tests/language-readiness/review336-astra/candidate339-initial.json",
+      "sha256": "efb1843b6eea1d505ba150816f3874757e9187f552d95a2187d9d0553a380f91"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/boundary339-initial.json",
+      "sha256": "6f0635d1546b61dc76ea62fb5009d778bdac34e93f63e1c5c39db12d32ee20f1"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/helper-return339-initial.json",
+      "sha256": "07c25fd58467b44d53031e24e2eb3f2990e6399c927689967a9bb15b44d70472"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/candidate339.json",
+      "sha256": "2ac3f75e4ccf466b3571a5c65477642fbf5ec77fde9febe44518629a4857d3bd"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/native339.json",
+      "sha256": "b930f998057c0cdd1414353cb900d05dc7d1dc9af30171dc6e69d904f1f137d8"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/raw339.json",
+      "sha256": "bdf0bb8595bc94052f3ec770a7c9480ebb40686f048c5705eacb19a7dd601c2b"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/raw339.rs",
+      "sha256": "dede5221749b812cbc876c2e14884f8dff15cee7e5505ebeafcda183f329286c"
+    }
+  ]
+}
