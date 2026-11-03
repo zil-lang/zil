@@ -13,3 +13,9 @@ GitHub `task/language-mainline-20261103` 保存本轮集成源码；`task/322`�
 
 本轮最终bundle与远端main/进度头、实际恢复checkout比对的收据放在`/workspace/backups/zil-gaps-20261104/final/receipt.json`。该收据在最终推送及合入后生成，不在源码报告中制造自身提交哈希。接续优先从GitHub实际main恢复，再运行live handoff检查；旧301–312缺失源码和legacy失败没有被追认。完整范围见`docs/LANGUAGE-GAPS-20261104.md`。
 
+
+## 2026-11-04 后续施工336–339
+
+接续时实时核得远端main和旧进度枝均为`e5a4d51d844e29c4f4f5184eaff5704b1b27dd24`，37个已有worktree全干净。新施工集成备份枝为`task/language-mainline-20261104`，合同起点`c4da43441b03661e61d0087000a13dbbe7a2a75a`已实际推送并逐SHA核验；各片源保存在`task/336`至`task/339`，在途未提交源码另以`backup/wip-20261104-<号>`保存真实Git树并保留前一快照父链。
+
+阶段收据在`/workspace/backups/zil-batch336-20261104/<UTC批次>/receipt.json`。备份不改施工index或worktree，不运行reset/clean。当前合同/源码施工和最终接受分开；远端main只在独审及正式验证收口后更新。环境丢失时先从GitHub clone/fetch这些实际引用，读取源码与主树工单再执行检查。
