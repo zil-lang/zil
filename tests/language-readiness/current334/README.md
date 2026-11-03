@@ -1,5 +1,8 @@
 # 334 当前源码缺口复核
 
+本节原52/18属于40fb历史；共同B的52源新投影与component4/CT8机器复核另存
+`docs/validation/language-gaps-334-final.json`。原JSON/hash及本历史collector不改。
+
 以main `40fbcca6ef506f3cb8e1d40a4f8995c788627da0`为基线，复用316的25份
 源及已有语言/线程/状态消费者，只新增四个最小源：Copy tuple通配部分解构正控、
 尚未支持的普通T/life组合和usize/u64链。不以目录名决定预期，不把合法目标的
