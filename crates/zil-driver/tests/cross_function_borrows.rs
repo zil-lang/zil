@@ -13,6 +13,9 @@ use zil_ir::{HoldRoot, InstructionKind, LocalId, TypedModule};
 #[path = "../../../tests/language-readiness/review331/cache.rs"]
 mod independent331_cache;
 
+#[path = "../../../tests/language-readiness/mutable337/regressions.rs"]
+mod mutable337;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {

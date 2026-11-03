@@ -65,11 +65,11 @@ pub(super) fn compile(
                 inference::type_snapshot_work(&parameter.ty, parameter.span, limits)?,
                 parameter.span,
             )?;
-            if !matches!(&parameter.ty,Type::Address{mutable:false,inner} if inner.is_address_pointee())
+            if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee())
             {
                 return Err(invalid(
                     f,
-                    "life parameter must be a shared Copy or slice address",
+                    "life parameter must be a Copy or slice address",
                 ));
             }
         }
@@ -82,11 +82,11 @@ pub(super) fn compile(
         f.span,
     )?;
     if result as usize >= life.binders.len()
-        || !matches!(&f.return_type,Type::Address{mutable:false,inner} if inner.is_address_pointee())
+        || !matches!(&f.return_type,Type::Address{inner,..} if inner.is_address_pointee())
     {
         return Err(invalid(
             f,
-            "returned life needs a declared binder and shared Copy or slice address",
+            "returned life needs a declared binder and Copy or slice address",
         ));
     }
     let bound = life
@@ -96,7 +96,7 @@ pub(super) fn compile(
         .filter_map(|(i, tag)| (*tag == Some(result)).then_some(i as u32))
         .collect::<Vec<_>>();
     if bound.is_empty() {
-        return Err(invalid(f, "returned life has no shared input parameter"));
+        return Err(invalid(f, "returned life has no address input parameter"));
     }
     Ok(Some(bound))
 }
