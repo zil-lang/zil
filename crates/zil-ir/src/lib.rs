@@ -905,7 +905,7 @@ pub struct ClosureDefinition {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
-    /// Raw declared upper bound for a shared reference result; sorted unique
+    /// Raw declared upper bound for a shared or mutable reference result; sorted unique
     /// source parameter indices. Each kernel checks the actual CFG separately.
     /// None preserves body-derived origins for unannotated functions.
     pub reference_return_bound: Option<Vec<u32>>,

@@ -1,0 +1,514 @@
+{
+  "schema_version": 1,
+  "status": "LocalLimitedAcceptance",
+  "date": "2026-11-04",
+  "scope": "Finite336–339 source/compiler composition only; not full language/B0/ZUI or product acceptance.",
+  "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+  "compiler_source_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+  "implementation_commits": {
+    "336": "06ab8c3724ed70d8d7af1a07660d5b519b500f57",
+    "337": "97fb6e7686a01a1715a639d494c45048773fc6e1",
+    "338": "9dca59eee9212382f2ebbe581e5d56c2cf050a63",
+    "339": "7423b4946e3787aa2a60764b473cde8307919bb7"
+  },
+  "gates": [
+    {
+      "gate": "clippy-default",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 39.38,
+      "log_sha256": "e27fd9c4b86e8dbbc79c2bc1365ca4c95e36dce66a9f29fc54f6696727fcb18a",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-root",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/tmp/zil-batch336-default"
+      },
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true
+    },
+    {
+      "gate": "default",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 590.94,
+      "log_sha256": "281d7bef73c1785e5d44fe97c524f38e1e23c3c451dc4e700baf4e86cd57ddc6",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-root",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/tmp/zil-batch336-default"
+      },
+      "tests": {
+        "passed": 4196,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "groups": 422,
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true,
+      "passed": 4196,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "gate": "clippy-reference",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 40.7,
+      "log_sha256": "11a3614c1b3ea94b2c6cc558ab7a065eec937f9b6b99037179b0e78de3dc23af",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-reference",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/reference"
+      },
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true
+    },
+    {
+      "gate": "reference",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--workspace",
+        "--no-fail-fast",
+        "--no-default-features"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 545.06,
+      "log_sha256": "06f0aa2d5ce48a503589558e06cf4fa678767603cc4458df40975fdc42bdf161",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-reference",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/reference"
+      },
+      "tests": {
+        "passed": 4086,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "groups": 422,
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true,
+      "passed": 4086,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "gate": "architecture",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "node",
+        "tools/check-architecture.mjs",
+        "--metadata",
+        "/workspace/.zil-env/tmp-batch336/gates-tools-S/metadata.json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.07,
+      "log_sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-root",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/tools"
+      },
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true
+    },
+    {
+      "gate": "ci-compact",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/ci",
+        "-p",
+        "test_compact_results.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.47,
+      "log_sha256": "f5a459c684e3c5628b8513629dabc59084c7fda2ba7ed10b5c2381a1fcfd5499",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-root",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/tools"
+      },
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true,
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "gate": "ci-transport",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/ci",
+        "-p",
+        "test_evidence_transport.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.9,
+      "log_sha256": "58f650a1a42d366cbe2886ee9c4506d032bbbc702bcfbfe6b533fd5614e37f0d",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-root",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/tools"
+      },
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true,
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "gate": "fmt",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.97,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-root",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/tools"
+      },
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true
+    },
+    {
+      "gate": "handoff-tests",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "node",
+        "--test",
+        "tests/handoff.test.mjs"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 26.17,
+      "log_sha256": "ec3148577479e420342c69cefe83ff8552625feae64aa4f71a715357b324a4a3",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-root",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/tools"
+      },
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true,
+      "passed": 29,
+      "failed": 0
+    },
+    {
+      "gate": "migration",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/llvm",
+        "-p",
+        "test_*.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.25,
+      "log_sha256": "60fd3d27ee304593bc377f04a2083f9bb4235592048ad2f46d59a4a8dad8db56",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-root",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/tools"
+      },
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true,
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "gate": "plan",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "python3",
+        "tools/check-plan.py",
+        "--self-test"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.16,
+      "log_sha256": "c0f5ad04e40b262f52991765c719ab51a64e580bd40e4d53263af03f0bb61916",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-root",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/tools"
+      },
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true
+    },
+    {
+      "gate": "text",
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "text-reference"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.89,
+      "log_sha256": "71f1ff2a944f1eb02e05ee608b52fc488c5bab632239dfa2d0d156f8c7f235c0",
+      "status": "Pass",
+      "environment": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-recovery-text",
+        "CARGO_BUILD_JOBS": 2,
+        "TMPDIR": "/workspace/.zil-env/tmp-batch336/tools"
+      },
+      "tests": {
+        "passed": 65,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0
+      },
+      "groups": 10,
+      "end_head": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "end_worktree_clean": true,
+      "passed": 65,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "gate": "component_and_CT_native",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "passed": 16,
+      "failed": 0,
+      "builds": 16,
+      "record": "docs/validation/batch336-native.json"
+    },
+    {
+      "gate": "existing_cleanup_consumer",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "passed": 128,
+      "failed": 0,
+      "builds": 16,
+      "record": "docs/validation/batch336-consumer.json"
+    },
+    {
+      "gate": "current52_projection",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
+      "failed": 0,
+      "builds": 0,
+      "record": "docs/validation/batch336-current52.json",
+      "checked": 52,
+      "counts": {
+        "Success": 27,
+        "Unsupported": 13,
+        "SafeReject": 12
+      },
+      "scope": "Frozen sources observed and protected outcomes retained; Unsupported is not compiler acceptance."
+    }
+  ],
+  "compiler_build": {
+    "status": "Pass",
+    "source_start": "874f071bb53e85727b5467a2769ada47b51edd98",
+    "source_end": "874f071bb53e85727b5467a2769ada47b51edd98",
+    "worktree_start": "Clean",
+    "worktree_end": "Clean",
+    "command": [
+      "cargo",
+      "build",
+      "--locked",
+      "--offline",
+      "-p",
+      "zil-cli",
+      "--release"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 334.9,
+    "cli": "/workspace/.zil-env/target-mainline-release/release/zil",
+    "cli_sha256": "f671b630b7c051ea0232833f523700ecee670eed87a2f410c8504003eb9af715",
+    "log_sha256": "460e9b9559cd0c45d659e39a379bcdf03b0a1e356c267b8425ad37a9b74335fd"
+  },
+  "toolchain": {
+    "rust": "1.99.1",
+    "clang_llvm": "23.1.4",
+    "host": "x86_64-unknown-linux-gnu"
+  },
+  "independent_reviews": {
+    "336": {
+      "reviewer": "/root/review336_338",
+      "verdict": "PassLimited",
+      "implementation_commit": "06ab8c3724ed70d8d7af1a07660d5b519b500f57",
+      "review_commit": "26833fe026e02f801d77145188db8313b8ce400e",
+      "evidence": [
+        "docs/validation/review336.json"
+      ]
+    },
+    "337": {
+      "reviewer": "/root/astra_review",
+      "verdict": "PassLimited",
+      "implementation_commit": "97fb6e7686a01a1715a639d494c45048773fc6e1",
+      "review_commit": "55c40de63a6a89cc93fb2bbed90ba1324cc2ad93",
+      "evidence": [
+        "docs/validation/review337-astra.json"
+      ]
+    },
+    "338": {
+      "reviewer": "/root/review336_338",
+      "verdict": "PassLimited",
+      "implementation_commit": "9dca59eee9212382f2ebbe581e5d56c2cf050a63",
+      "review_commit": "3eb471be9a9ef68eca2d8efb1aaeb77656e90a54",
+      "evidence": [
+        "docs/validation/review338.json"
+      ]
+    },
+    "339": {
+      "reviewer": "/root/astra_review",
+      "verdict": "PassLimited",
+      "implementation_commit": "7423b4946e3787aa2a60764b473cde8307919bb7",
+      "review_commit": "26efd33107227a5b9c6c2a89d95cd2a915cc2e05",
+      "evidence": [
+        "docs/validation/review339-astra.json"
+      ]
+    }
+  },
+  "known_incomplete": [
+    "Option, usize/u64 complete native chain and general non-Copy/ref patterns remain incomplete.",
+    "Associated types/constants, const/generic/conditional impl, supertraits and generic methods remain incomplete; default function values are bounded ordinary concrete Copy signatures with explicit result annotation.",
+    "CopyT+mutable life, HRTB/borrowed FP/lending/storage remain incomplete; an unused no-life mutable generic can miss alias checking until instantiation (retained source, no executed UB claim).",
+    "Record-enum match after a function-pointer result still needs an explicit local result type; original combination source retained and rejected, annotated counterpart passes.",
+    "Finite ordinary Copy Enum/ErrorUnion ABI is accepted; large closure/special helper/foreign shapes remain limited. Legal large borrowed-enum closure passes normal CLI but both retained baseline and current 2MiB Rust API abort; internal crash phase is unknown before Codegen.",
+    "Shared thread child is static fn(&i32)->i32 with independently closed read-only graph and proven caller roots on Linux x64. Direct unproved dynamic/lending producers remain Unsupported; proven parameter/capture retention is permitted.",
+    "Mutex/Atomic, general Transfer/Share, Suspend/SABI, cancellation/drain/late notification and retained external callback registration remain incomplete.",
+    "General dyn/state protocols, complete String/collections/iteration, ZUI layout/IME/rendering and floating/anonymous-union final semantics remain incomplete.",
+    "Native Windows and same-semantic Rust runtime/RSS/maintenance/compile-cost comparisons NotRun; B0 Doing and whole language/ZUI NotSatisfied.",
+    "Old301–312 source objects/uncommitted edits remain unavailable; historical274 records220Unavailable/54Unreviewed are not revalidated."
+  ],
+  "root_integration_attempts": [
+    {
+      "attempt": "native-S",
+      "status": "Fail",
+      "completed_cases": 0,
+      "reason": "AssertionError(('tests/language-readiness/batch336/component.zil', 'clang', 'O0', {'status': 'SafeReject', 'phase': 'expand', 'diagnostics': [{'phase': 'expand', 'category': 'SafeReject', 'code': 'E-GENERIC-ARGUMENT', 'message': 'record enum pattern type cannot be inferred', 'span': {'file': 0, 'start': 929, 'end': 953}, 'notes': []}], 'artifacts': {}, 'input_fingerprint': '842475dc481707c6b10c6cc3b9ba0610f224f6ba647c5729cd49cdcba7332ac8', 'seconds': 0.000930651, 'cache_hit': False, 'commands': [], 'native_codegen': None, 'disk_cache': 'disabled', 'query_events': [{'phase': 'parse', 'disposition': 'executed'}, {'phase': 'expand', 'disposition': 'executed'}], 'verification_runs': 0, 'source_files': {'0': '/workspace/zil/tests/language-readiness/batch336/component.zil'}, 'scalar_interfaces': []}))",
+      "classification": "KnownIncomplete inference source"
+    },
+    {
+      "attempt": "native-explicit-S",
+      "status": "Fail",
+      "completed_cases": 0,
+      "reason": "AssertionError(('/workspace/.zil-env/tmp-batch336/component-explicit.zil', 'clang', 'O0', 0, b'', b''))",
+      "classification": "Root runner expectation/configuration error; preserved, not a compiler failure"
+    },
+    {
+      "attempt": "native-explicit-entry-S",
+      "status": "Fail",
+      "completed_cases": 8,
+      "reason": "AssertionError(('tests/language-readiness/pending/ct-type-generic-function.zil', {'backend': 'clang', 'object_reports': [], 'object_cache': {'requested': False, 'enabled': False, 'hits': 0, 'misses': 0, 'corrupt': 0, 'stored': 0, 'write_failures': 0, 'key_ns': 0, 'lookup_ns': 0, 'current_preflight_ns': 0, 'disabled_reason': None}, 'requested_units': 4, 'actual_units': 1, 'jobs': 1, 'fallback': 'one linkage-connected source group'}))",
+      "classification": "Root runner expectation/configuration error; preserved, not a compiler failure"
+    }
+  ],
+  "post_test_input_revision": {
+    "commit": "cd968e9c1f7f2763bcb94c06afa62d6d31250123",
+    "changed_files": [
+      "tests/language-readiness/batch336/README.md",
+      "tests/language-readiness/batch336/component-explicit.zil",
+      "tests/language-readiness/batch336/replay.py"
+    ],
+    "proof": "git diff --exit-code tested_commit HEAD -- crates Cargo.toml Cargo.lock passed; only standalone source/replay documentation added after full tests. Final16 native tests use committed paths and actual S CLI."
+  },
+  "counting": "Author, independent review, full-gate replays and root native matrix are separate; no summed unique coverage or language completion percentage. Root native16 = new component4 + retained old component4 + original CT2x4. Cleanup16 builds/128 observations/56 injected failures uses unchanged oracle.",
+  "remote_ci": {
+    "status": "NotStartedBillingLimit",
+    "observed_head": "d1868cf827a930909acb8af6701e2bb74c68e409",
+    "check_run_ids": [
+      126147176230,
+      126147174409
+    ],
+    "observed_steps": 0,
+    "reason": "The job was not started because recent account payments have failed or your spending limit needs to be increased.",
+    "local_gates_are_not_remote_ci": true
+  },
+  "handoff": {
+    "current_gate_at_source_freeze": "CurrentPass",
+    "error_count": 0,
+    "historical_archived": 274,
+    "historical_unavailable": 220,
+    "historical_unreviewed": 54,
+    "claims_revalidated": false,
+    "legacy_audit": "Fail retained separately"
+  },
+  "remote_delivery": {
+    "pr": "https://github.com/zil-lang/zil/pull/32",
+    "backup_branch": "task/language-mainline-20261104",
+    "status_at_local_acceptance": "PendingPR32Merge",
+    "final_receipt": "/workspace/backups/zil-batch336-20261104/final/receipt.json"
+  }
+}

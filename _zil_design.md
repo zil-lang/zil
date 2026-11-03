@@ -780,11 +780,17 @@ Transfer/Share 由所有被迁移或共同操作的数据、环境、Cleanup、R
 
 `thread_scope(worker, payload, body)` 是不可遮蔽的保留调用。worker是实际静态普通函数符号、精确`fn(i32)->i32`，payload为按源位置求值一次的i32，body为具体`FnOnce()->i32`并在父线程执行，沿既有规则允许合法的父线程捕获与借用。依次准备payload和body后尝试创建一个真实OS线程；成功时worker在子线程运行一次，body在父线程运行一次并按原规则消费/清理环境，再join子线程，返回普通`(created:bool, worker_result:i32, body_result:i32)`。创建失败返回`(false,0,0)`，不执行worker或body，准确清理已准备body环境；不得同步fallback或join未初始化handle。join不能证明静止时固定abort，不返回或释放仍被子线程访问的栈context。Direct trap/panic采用当前目标固定abort，不承诺unwind后异步排空。
 
-有限调用位置允许无callable参数/helper入口合同的普通Direct函数，以及具有真实ClosureDefinition和完整入口绑定的具体父闭包Fn/FnMut/FnOnce（332）；callable结果合同仅描述返回值，不将普通Direct工厂函数变成callback/helper入口，故其本身不排除本操作，返回载荷仍须满足既有来源、环境与责任规则。具体闭包入口必须由Types和两核分别核对environment、真实closure id/function id、参数LocalId及完整类型/结果/PassingMode，并按真实捕获推断body的移动和一次消费，不能只移除environment防线。父侧嵌套scope各自持有稳定context并在返回前join；未核callable参数/helper合同入口仍Unsupported，不把尚未实现的位置判为worker不安全。首片仅Linux x86_64可信pthread适配；create发布完整输入，父child结果分别占不相交槽，成功join提供真实happens-before后父线程才能读取child结果，context从创建到join保持稳定。跨线程载荷只有i32，不把父线程body环境或仅由父线程保活的资源伪作子线程载荷。worker及其实际可达静态调用子图须逐函数、类型、指令独立核验为有限纯标量路径；白名单只含Unit/bool/u8/u16/i32/i64及相应局部、标量运算/分支/直接调用，不开放地址、聚合资源、环境、FFI、TLS、allocator、teardown、未知间接调用或嵌套thread_scope。调用图按静态直接调用边求闭包，并保守扫描每个入图函数的全部CFG块，包括源条件不可达的块；本片不做路径敏感资格证明。无关的同模块声明不因此被拒，未知新指令默认不合格。
+有限调用位置允许无callable参数/helper入口合同的普通Direct函数，以及具有真实ClosureDefinition和完整入口绑定的具体父闭包Fn/FnMut/FnOnce（332）；callable结果合同仅描述返回值，不将普通Direct工厂函数变成callback/helper入口，故其本身不排除本操作，返回载荷仍须满足既有来源、环境与责任规则。具体闭包入口必须由Types和两核分别核对environment、真实closure id/function id、参数LocalId及完整类型/结果/PassingMode，并按真实捕获推断body的移动和一次消费，不能只移除environment防线。父侧嵌套scope各自持有稳定context并在返回前join；未核callable参数/helper合同入口仍Unsupported，不把尚未实现的位置判为worker不安全。首片仅Linux x86_64可信pthread适配；create发布完整输入，父child结果分别占不相交槽，成功join提供真实happens-before后父线程才能读取child结果，context从创建到join保持稳定。325/328跨线程载荷只有i32，339有限扩展见下；不把父线程body环境或仅由父线程保活的资源伪作子线程载荷。worker及其实际可达静态调用子图须逐函数、类型、指令独立核验为有限纯标量路径；白名单只含Unit/bool/u8/u16/i32/i64及相应局部、标量运算/分支/直接调用，不开放地址、聚合资源、环境、FFI、TLS、allocator、teardown、未知间接调用或嵌套thread_scope。调用图按静态直接调用边求闭包，并保守扫描每个入图函数的全部CFG块，包括源条件不可达的块；本片不做路径敏感资格证明。无关的同模块声明不因此被拒，未知新指令默认不合格。
 
 Types构造未核候选，Analyze与Verify分别重建实际worker调用图、精确签名、body责任及全部SSA使用/作用域/活性，不能共用资格证明。body只在父线程执行，无需伪造其Transfer，但实际消费及创建失败清理仍必须核实。新节点进入Wire/指纹、Lower、两后端、CGU静态依赖和缓存身份；CT显式拒绝，新增遍历在现有限额内预付。本片是真实Direct结构化线程，不授权可脱离handle、共享payload借用、Mutex/Atomic、取消、Suspend/SABI或一般Transfer/Share trait；这些终态义务继续保留。
 
 <a id="ZIL-ASYNC"></a>
+
+### 11.2 有限结构化共享标量借入（339）
+
+在11.1既有thread_scope入口中另允许真实静态`fn(&i32)->i32` worker及共享`&i32`载荷。载荷表达式和body仍按源序求值一次；指针指向实际父方稳定对象，从创建前至成功join保持共享窗口，父body可以同时共享读取，任何相交可变访问、移动、重建或清理必须被拒绝。body环境仅留父线程；不能把shared地址当Copy标量或凭父方保活授予写权限。payload及body捕获须作为同时活动输入由两核独立核验，最后使用位置也不能免除该窗口。
+
+worker可达直接调用图只增加真实共享i32地址参数、局部传递和读取；不得写入被借入对象、逃逸或持久存储/返回地址、捕获环境、FFI、间接调用或升级可变权限；普通函数内指针局部槽和共享重借仍属于局部传递。每个callee实际签名/指令/来源都核验，不由函数名或表面签名推断安全；其余纯标量控制流沿11.1。现有WithScopedThread携完整argument类型与ValueId，无新证明位；Wire34解码后仍必须由当前独立核验器检查。实际pthread context保存共享指针，目标在join前稳定；create发布及join acquire建立happens-before，失败不执行worker/body且正确清理，join不证明静止仍abort。此片无非原子写共享，不宣称Mutex/Atomic或一般Transfer/Share、异步取消完成。机器ABI/CGU/缓存绑定实际payload类型，新增遍历和窗口操作在增长前累计计费，不提高默认限额。首片来源以独立重建的实际根核验：普通i32局部、普通i32地址输入的合法共享重借，以及具体调用方闭包的真实固定捕获槽可形成前置；parent侧普通共享helper返回须保持这些已证根，不另按表达式名字放行。局部未核的dynamic Store/lending及拥有聚合投影等需要额外迁移/清理证明，当前明确Unsupported并保留后续实现义务。普通地址形参和固定捕获槽则承接真实调用/捕获边界已经证明的保活及来源责任，不一概禁止其原始对象来自Store或拥有载体；调用处须按实际根替换检查同根写入、转移、清理和最终使用。仅凭Address<i32>类型或不同参数编号不能通过该来源边界。
 
 ## 12. 挂起、异常、取消与驱动的最终共同边界
 
@@ -1205,6 +1211,10 @@ lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖�
 
 有限trait默认方法（330）：在现有具体静态trait/impl profile内，非泛型、无where/额外合同的方法可给普通默认体。所有默认体包含未使用定义，先按真实trait声明、Self及声明参数bound做符号检查；Self仅有声明给出的trait方法资格，不获得具体字段、Copy或额外impl权限。缺省成员在具体impl中取得唯一普通静态目标，显式完整实现优先；完整trait声明/有序实参/Self身份决定委托目标，同Self不同实例不可串目标。默认体继承trait声明处词法模块/可见性，不被impl模块同名私有项劫持；签名/方法集、所属与coherence规则不变。普通递归成为函数调用边，不递归内联展开。别名、实例、模块正规化、默认成员注入、静态收集及发布消费同一剩余预算，所有重复扫描与克隆先付费；无参默认方法也不能回落到默认新额度。首片默认体不开放新局部借用创建；未用定义期必须显式Unsupported而非擦除。借用结果仅能来自按真实绑定核得的引用输入（含共享/独占Self）或有依据的声明方法委托；按值Self、局部对象的显式或隐式借用不得冒充输入来源，无法证明的来源/局部shadow情形暂Unsupported。源保留self绑定规则不因生成helper改名而放松。本片不开放泛型方法、关联项、supertrait或安全失败回溯；合法但尚未支持的默认体借用组合仍为终态待实现义务。
 
+有限默认体静态函数值（336）：330默认体允许按实际词法定义上下文引用一个有明确结果标注、无环境、非泛型的普通函数符号作为薄函数指针；局部值绑定仍优先。该函数的完整声明参数/结果必须独立满足既有普通Copy函数指针资格，不能借调用方同名类型binder或expected类型补证。定义期比较完整实际签名、名义身份和符号trait参数，未用或被覆盖的错误默认体同样拒绝；模块私有名不泄露、实现模块同名项不劫持。缺少结果标注、泛型函数值、借用/拥有或foreign等未贯通签名仍明确Unsupported，不把合法未来功能登记为永久反例。新增索引访问、签名检查和复制预付同一请求预算；不新增IR/运行时字典或隐式分配。
+
+有限可变life返回（337）：在322的life-only普通Direct函数和具体inherent方法中允许一层`&'a mut T`输入/结果，T沿既有有限地址载荷（含已支持Copy/片）资格。life只声明真实地址输入来源的上界集合；相同标签不授予可变权限、不证明分离，也不能把共享输入升级为独占输入。Types保存引用模式并核对源码类型资格；Analyze与Verify从各自实际CFG重建来源并核对上界，mutable结果的实际输入根必须具有真实mutable输入权限。Analyze产生未核CandidatePlan，不代替Verify对真实指令类型、返回模式和调用处独占窗口的完整独立核验；可变返回仍保持独占，最后一次使用、重借、分支、局部逃逸和清理责任不减。共享/独占参数可属于同一来源上界，但每条实际返回路径必须有真实合法权限。CoreLifeContract/Typed返回参数上界及Wire34表示保持，原始Core、缓存恢复和CT重建重新核验完整合同。带普通类型参数的mutable life不在本片开放：未用模板的符号独占证明尚待实现；331共享T/life能力保持。无life普通可变返回既有能力不重记为本片新增。
+
 有限普通 Copy 泛型 profile（194）：直接 `T: Copy` 是编译器按实际结构检查的保留能力约束，当前入口限已支持有限普通 Copy Value：标量、元组、固定数组、名义记录/枚举、Copy错误联合及受支持无环境函数指针。Desc、Managed、Package、Closure、Address、裸Slice及递归/未支持形状不由此获得普通Copy类型实参资格；显式`&T`/`&mut T`沿既有地址规则，T自身仍须合格。定义期只可使用Copy所授予的复制与普通传递，不授予数值运算、公开字段、任意trait方法或callable能力；未使用的模板同样检查，用户同名空trait或impl不能制造该结构事实。实例化再次按实际形状、名义身份及原工作/深度额度核验。
 
 普通 Struct 的直接 Copy 参数约束（320）：在已有普通泛型 Struct 范围，类型参数可声明直接保留 `Copy` bound；每个 bound 只约束其具名参数，其余无 bound 参数保持原规则，不据此推断整个 Struct 为 Copy。字段声明及嵌套泛型应用在定义期核验，未使用的声明同样检查；内层 Copy obligation 须由当前真实 binder 的已声明约束证明，不能等实际 i32 特化后补证。实际实例逐一验证受约束参数的完整普通 Copy 资格，包含未出现在字段中的 phantom 参数；透明别名正规化、名义身份与完整实例键沿现有规则。此片不开放 aggregate where、任意 trait bound、Package/Resource 的新约束、方法或默认字段；既有字段资格保持。新增遍历/类型比较在增长前累计收费，默认额度不变，源正反例、实例身份和预算以及原生结果须实际核回。
@@ -1411,6 +1421,8 @@ SafeReject、ResourceLimit、Unsupported、基础设施失败是不同结果；�
 
 ### 19.4 版本化大型Copy生成ABI（333）
 
-有限x64 LLVM生成函数若普通Copy Array/Tuple/Record的某按值参数或结果物理尺寸至少4096字节，使用显式LargeCopy ABI v1：大参数以指向完整值的机器指针输入，callee在任何源码操作前复制到独立局部载体；大结果以首个隐藏out指针接收并在返回前写入，机器返回void。所有直接调用、普通函数引用/间接调用及相关CGU、缓存、接口消费者必须使用同一映射，不能只修改call或定义一端。源参数和结果仍为原Value语义，不向源暴露输入指针，不赋借用/别名或复制资源权限；清理顺序及Copy快照规则保持。
+有限x64 LLVM生成函数若普通Copy Array/Tuple/Record（338扩至有限普通Copy Enum/ErrorUnion）的某按值参数或结果物理尺寸至少4096字节，使用显式LargeCopy ABI v1：大参数以指向完整值的机器指针输入，callee在任何源码操作前复制到独立局部载体；大结果以首个隐藏out指针接收并在返回前写入，机器返回void。所有直接调用、普通函数引用/间接调用及相关CGU、缓存、接口消费者必须使用同一映射，不能只修改call或定义一端。源参数和结果仍为原Value语义，不向源暴露输入指针，不赋借用/别名或复制资源权限；清理顺序及Copy快照规则保持。
 
 这是一项显式生成ABI迁移：受影响ZIL生成符号使用`.lc1`版本后缀，保持默认External导出/跨单元契约，禁止把旧无版本符号偷偷绑定到新签名；旧机器消费者需重新生成并链接当前版本符号。不依赖本ABI的小值函数符号/签名和foreign/C回调ABI不变。版本依赖还须穿过公开签名中的普通函数指针、其嵌套签名及Array/Tuple/Record/Enum/error/地址或管理包装传播：即使自身物理参数只是ptr或小聚合，只要所携带函数指针的调用约定改变，生成符号仍须隔离。普通数据地址`&Big`不因referent尺寸大而单独触发版本变化。实际Closure/helper入口的隐含环境或调用接口若依赖受影响函数指针，必须同样映射所有构造/调用消费者，未接通者产物前Unsupported，不能留下旧名字绑定新调用约定。语言函数指针明确使用当前生成ABI；extern函数指针保持其已声明ABI。尚未贯通的大型callable/helper/foreign/特殊消费者须在产物前Unsupported，不重新落回巨型SSA桥接或静默fallback。公共Typed/Wire语义不因该机器映射获得新权限；机器身份、CGU/对象缓存必须绑定版本化真实签名和引用，预算在布局、快照及事件增长前累计，默认限额不提高。
+
+338的Sum机器扩展保持既有tag、实际活动payload和目标自然布局；大Enum/ErrorUnion构造、tag读取、投影、复制、直接/间接调用和返回统一消费内存快照，不重新生成巨型整值SSA。非活动payload/padding不作为语言初始化值读取，非法tag沿既有trap。只扩大普通Copy形状；拥有Sum、Closure/foreign和特殊helper资格不自动开放。新实际分类及内存操作费用必须与旧333控制分别记录；.lc1继续隔离受影响生成签名及所有嵌套fnptr载体。

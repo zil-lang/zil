@@ -260,6 +260,26 @@ impl FunctionEmitter<'_> {
         } else {
             success.as_ref()
         };
+        if self.copy_values.contains_key(&result) {
+            self.copy_zero(result);
+            let tag = self.copy_field(result, m::Arg::new(m::Ty::Int(32), 0));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    // One initialized byte also fixes bool's spare bits when
+                    // this error union is nested in an enum's payload memory.
+                    arg: m::Arg::new(m::Ty::Int(8), m::Val::Int(i128::from(is_error))),
+                    ptr: tag,
+                    align: 1,
+                },
+            )));
+            let address = self.copy_field(
+                result,
+                m::Arg::new(m::Ty::Int(32), if is_error { 1 } else { 2 }),
+            );
+            self.copy_write(address, source)?;
+            return Ok(());
+        }
         let llvm = llvm_type(ty)?;
         let payload_llvm = aggregate_field_type(payload)?;
         let source = if *payload == Type::Unit {
@@ -292,6 +312,18 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         source: ValueId,
     ) -> CompileResult<()> {
+        if self.copy_values.contains_key(&source) {
+            let address = self.copy_field(source, m::Arg::new(m::Ty::Int(32), 0));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(format!("v.{}", result(instruction)?.0)),
+                m::Op::Load {
+                    ty: m::Ty::Int(1),
+                    ptr: address,
+                    align: 1,
+                },
+            )));
+            return Ok(());
+        }
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((value(result(instruction)?)).clone())),
             m::Op::Extract {
@@ -315,6 +347,33 @@ impl FunctionEmitter<'_> {
         let llvm = llvm_type(self.value_type(source)?)?;
         let tag = self.temp();
         let mismatch = self.temp();
+        if self.copy_values.contains_key(&source) {
+            let address = self.copy_field(source, m::Arg::new(m::Ty::Int(32), 0));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(tag.clone())),
+                m::Op::Load {
+                    ty: m::Ty::Int(1),
+                    ptr: address,
+                    align: 1,
+                },
+            )));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(mismatch.clone())),
+                m::Op::Compare {
+                    predicate: "ne".into(),
+                    ty: m::Ty::Int(1),
+                    left: m::val(tag),
+                    right: m::val(is_error),
+                },
+            )));
+            self.trap_if(&mismatch);
+            let address = self.copy_field(
+                source,
+                m::Arg::new(m::Ty::Int(32), if is_error { 1 } else { 2 }),
+            );
+            self.copy_read(result, address)?;
+            return Ok(());
+        }
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((tag).clone())),
             m::Op::Extract {

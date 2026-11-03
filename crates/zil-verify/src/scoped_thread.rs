@@ -11,11 +11,16 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
     )
 }
+fn shared_i32(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32)
+}
+
 fn worker_graph(
     module: &TypedModule,
     root: FunctionId,
     budget: &mut Budget,
     span: Option<Span>,
+    shared: bool,
 ) -> Check<()> {
     let entry = module
         .functions
@@ -24,7 +29,11 @@ fn worker_graph(
     budget.spend(entry.parameters.len().saturating_add(1))?;
     if entry.parameters.len() != 1
         || entry.return_type != Type::I32
-        || local_type(entry, entry.parameters[0], span)? != &Type::I32
+        || if shared {
+            !shared_i32(local_type(entry, entry.parameters[0], span)?)
+        } else {
+            local_type(entry, entry.parameters[0], span)? != &Type::I32
+        }
     {
         return Err(invalid(span, "thread worker requires exact fn(i32)->i32"));
     }
@@ -56,8 +65,14 @@ fn worker_graph(
             || function.callable_return_contract.is_some()
             || function.result_mode != PassingMode::Infer
             || !scalar(&function.return_type)
-            || function.locals.iter().any(|local| !scalar(&local.ty))
-            || function.values.iter().any(|ty| !scalar(ty))
+            || function
+                .locals
+                .iter()
+                .any(|local| !scalar(&local.ty) && !(shared && shared_i32(&local.ty)))
+            || function
+                .values
+                .iter()
+                .any(|ty| !scalar(ty) && !(shared && shared_i32(ty)))
             || module
                 .resources
                 .iter()
@@ -73,6 +88,51 @@ fn worker_graph(
             for instruction in &block.instructions {
                 budget.spend(1)?;
                 match &instruction.kind {
+                    InstructionKind::ReadAddress { address } if shared => {
+                        if !shared_i32(value_type(function, *address, span)?)
+                            || instruction
+                                .result
+                                .map(|id| value_type(function, id, span))
+                                .transpose()?
+                                != Some(&Type::I32)
+                        {
+                            return Err(invalid(
+                                span,
+                                "thread read requires the actual shared i32 pointer",
+                            ));
+                        }
+                    }
+                    InstructionKind::ReborrowAddress {
+                        address,
+                        mutable: false,
+                    } if shared => {
+                        if !shared_i32(value_type(function, *address, span)?)
+                            || !instruction
+                                .result
+                                .map(|id| value_type(function, id, span))
+                                .transpose()?
+                                .is_some_and(shared_i32)
+                        {
+                            return Err(invalid(
+                                span,
+                                "thread reborrow must preserve shared i32 permission",
+                            ));
+                        }
+                    }
+                    InstructionKind::BorrowLocal { local } if shared => {
+                        if local_type(function, *local, span)? != &Type::I32
+                            || !instruction
+                                .result
+                                .map(|id| value_type(function, id, span))
+                                .transpose()?
+                                .is_some_and(shared_i32)
+                        {
+                            return Err(invalid(
+                                span,
+                                "thread local borrow requires actual i32 storage",
+                            ));
+                        }
+                    }
                     InstructionKind::Call { function, .. } => {
                         budget.spend(1)?;
                         queue.push_back(*function);
@@ -175,11 +235,21 @@ pub(super) fn instruction(
             }
         }
     }
-    if value_type(caller, argument, span)? != &Type::I32 {
+    let payload = value_type(caller, argument, span)?;
+    let shared = shared_i32(payload);
+    if payload != &Type::I32 && !shared {
         return Err(invalid(
             span,
             "thread argument is not the actual i32 payload",
         ));
+    }
+    if shared {
+        if budget.shared_thread_functions.is_none() {
+            budget.spend(budget.function_count.saturating_add(1))?;
+            budget.shared_thread_functions = Some(vec![false; budget.function_count]);
+        }
+        budget.spend(1)?;
+        budget.shared_thread_functions.as_mut().unwrap()[caller.id.0 as usize] = true;
     }
     let Type::Closure(body_id) = value_type(caller, body, span)? else {
         return Err(invalid(
@@ -220,6 +290,6 @@ pub(super) fn instruction(
             "thread body must admit one consuming zero-argument i32 call",
         ));
     }
-    worker_graph(module, worker, budget, span)?;
+    worker_graph(module, worker, budget, span, shared)?;
     Ok(Some(Type::Tuple(vec![Type::Bool, Type::I32, Type::I32])))
 }

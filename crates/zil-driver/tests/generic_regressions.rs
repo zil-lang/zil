@@ -980,9 +980,16 @@ fn thread332_native_nested_roots_and_failures() {
     thread_native_parent_observer("nested");
 }
 
+#[test]
+#[cfg(target_os = "linux")]
+fn thread339_native_shared_pointer_load_cleanup_and_failure() {
+    thread_native_parent_observer("shared");
+}
+
 #[cfg(target_os = "linux")]
 fn thread_native_parent_observer(profile: &str) {
-    let concrete_parent = profile != "direct";
+    let shared = profile == "shared";
+    let concrete_parent = profile != "direct" && !shared;
     let nested = profile == "nested";
     use std::{
         fs,
@@ -1021,7 +1028,9 @@ fn thread_native_parent_observer(profile: &str) {
             let observer = directory.join("observer.o");
             let compiled = Command::new(&clang)
                 .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
-                .arg(thread325_root().join(if nested {
+                .arg(thread325_root().join(if shared {
+                    "shared339/observer.c"
+                } else if nested {
                     "parent332/nested_observer.c"
                 } else {
                     "observer.c"
@@ -1042,6 +1051,23 @@ fn thread_native_parent_observer(profile: &str) {
                     1
                 };
             let mut project = thread325_project();
+            if shared {
+                project.modules = ["native_main", "native_worker"]
+                    .iter()
+                    .enumerate()
+                    .map(|(index, name)| {
+                        let path = thread325_root().join(format!("shared339/{name}.zil"));
+                        SourceUnit::new(
+                            FileId(index as u32),
+                            ModuleId(index as u32),
+                            path.to_string_lossy().into_owned(),
+                            fs::read_to_string(path).unwrap(),
+                        )
+                    })
+                    .collect();
+                project.paths.clear();
+                project.paths.insert(vec!["worker".into()], ModuleId(1));
+            }
             if concrete_parent {
                 let path = thread325_root().join(if nested {
                     "parent332/nested_owned.zil"
@@ -1097,7 +1123,14 @@ fn thread_native_parent_observer(profile: &str) {
                         && r.contains("\"parse_ns\":0,")
                 }));
             }
-            let cases = if nested {
+            let cases = if shared {
+                &[
+                    (b'0', Some(0), None, "CBDJA"),
+                    (b'1', Some(1), None, "CBDJA"),
+                    (b'2', Some(2), None, "CDA"),
+                    (b'3', None, Some(6), "CBDX"),
+                ][..]
+            } else if nested {
                 &[
                     (b'0', Some(0), None, "CBCbIjaOJA"),
                     (b'1', Some(3), None, "CBCIaOJA"),
@@ -1150,7 +1183,22 @@ fn thread_native_parent_observer(profile: &str) {
                 assert!(actual.stderr.is_empty(), "{actual:?}");
             }
             // Parent borrowing, life/trait composition, and a Direct factory reach both machines.
-            let controls = if nested {
+            let controls = if shared {
+                &[
+                    "shared_child",
+                    "two_scopes",
+                    "nested_shared",
+                    "helper_disjoint",
+                    "copied_lender",
+                    "owned_lender_retained",
+                    "ancestor_shared",
+                    "disjoint_write",
+                    "nested_disjoint",
+                    "parent_parameter",
+                    "parent_return",
+                    "parent_capture",
+                ][..]
+            } else if nested {
                 &[][..]
             } else if concrete_parent {
                 &["kinds", "nested", "borrow", "parent_closure"][..]
@@ -1158,7 +1206,10 @@ fn thread_native_parent_observer(profile: &str) {
                 &["parent_borrow", "life_trait", "return_factory"][..]
             };
             for control in controls {
-                let text = if concrete_parent {
+                let text = if shared {
+                    fs::read_to_string(thread325_root().join(format!("shared339/{control}.zil")))
+                        .unwrap()
+                } else if concrete_parent {
                     let path = if *control == "parent_closure" {
                         "pending/parent_closure.zil".to_owned()
                     } else {
@@ -1736,4 +1787,426 @@ fn thread332_budget(typed: &zil_ir::TypedModule, plan: &zil_ir::CandidatePlan) {
             if verify { "Verify" } else { "Analyze" }
         );
     }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread339_shared_source_and_independent_windows() {
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    for name in [
+        "shared_child",
+        "two_scopes",
+        "nested_shared",
+        "helper_disjoint",
+        "copied_lender",
+        "owned_lender_retained",
+        "ancestor_shared",
+        "disjoint_write",
+        "nested_disjoint",
+        "parent_parameter",
+        "parent_return",
+        "parent_capture",
+        "scalar_control",
+    ] {
+        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
+            .unwrap();
+        let src = source(&text);
+        let report = compile_source(&src, &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            report.to_json()
+        );
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let core = zil_expand::expand(&src, &ast).unwrap();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        let (raw, claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        let verified = zil_verify::verify_module(raw, claim, &target, &limits).unwrap();
+        zil_lower::lower(&verified).unwrap();
+        if name == "disjoint_write" {
+            thread332_budget(&typed, &plan);
+            // Substitute the child argument with a shared reborrow of the
+            // body's actual exclusive y capture. No source producer approves it.
+            let mut forged = typed.clone();
+            let caller = forged
+                .functions
+                .iter_mut()
+                .find(|f| {
+                    f.blocks
+                        .iter()
+                        .flat_map(|b| &b.instructions)
+                        .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }))
+                })
+                .unwrap();
+            let writable = caller
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| match i.kind {
+                    zil_ir::InstructionKind::BorrowLocalMut { .. } => i.result,
+                    _ => None,
+                })
+                .unwrap();
+            let value = zil_ir::ValueId(caller.values.len() as u32);
+            caller.values.push(zil_ir::Type::Address {
+                mutable: false,
+                inner: Box::new(zil_ir::Type::I32),
+            });
+            for block in &mut caller.blocks {
+                if let Some(index) = block.instructions.iter().position(|i| {
+                    matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. })
+                }) {
+                    let span = block.instructions[index].span;
+                    block.instructions.insert(
+                        index,
+                        zil_ir::Instruction {
+                            result: Some(value),
+                            kind: zil_ir::InstructionKind::ReborrowAddress {
+                                address: writable,
+                                mutable: false,
+                            },
+                            span,
+                        },
+                    );
+                    let zil_ir::InstructionKind::WithScopedThread { argument, .. } =
+                        &mut block.instructions[index + 1].kind
+                    else {
+                        unreachable!()
+                    };
+                    *argument = value;
+                }
+            }
+            let caller_id = caller.id;
+            let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+            assert!(
+                errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+                "{errors:?}"
+            );
+            let mut claim = plan.clone();
+            claim.module_fingerprint = forged.fingerprint();
+            let function = &mut claim.functions[caller_id.0 as usize];
+            let roots = function.holds[writable.0 as usize].roots.clone();
+            function.holds.push(zil_ir::ValueHold { value, roots });
+            let errors = zil_verify::verify_module(forged, claim, &target, &limits).unwrap_err();
+            assert!(
+                errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+                "{errors:?}"
+            );
+        }
+    }
+    for (name, category, code) in [
+        (
+            "body_write",
+            ResultCategory::SafeReject,
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "ancestor_write",
+            ResultCategory::SafeReject,
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "helper_writer",
+            ResultCategory::SafeReject,
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "owned_lender_cleanup",
+            ResultCategory::SafeReject,
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "owner_cleanup",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "lending_pending",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "nested_writer",
+            ResultCategory::SafeReject,
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "mutable_worker",
+            ResultCategory::SafeReject,
+            "E-THREAD-WORKER",
+        ),
+        (
+            "projection_pending",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+    ] {
+        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
+            .unwrap();
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(report.status, category, "{name}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread339_raw_dynamic_origin_is_unsupported_before_lowering() {
+    use zil_ir::InstructionKind;
+    let src = source(
+        "struct Item{value:i32}fn read(input:&i32)->i32{return *input}fn scalar(input:i32)->i32{return input}fn main()->i32{let item=Item{value:9};let pointer=&item.value;let body=()->i32=>0;let result=thread_scope(scalar,5,body);let observed=read(pointer);return result.1+observed}",
+    );
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut claim = zil_analyze::analyze(&typed, &limits).unwrap();
+    let reader = typed
+        .functions
+        .iter()
+        .find(|f| f.name.ends_with("read"))
+        .unwrap()
+        .id;
+    let caller = typed
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. }))
+        })
+        .unwrap();
+    let pointer = caller
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::AddressField { .. } => i.result,
+            _ => None,
+        })
+        .unwrap();
+    for instruction in caller.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::WithScopedThread {
+            worker, argument, ..
+        } = &mut instruction.kind
+        {
+            *worker = reader;
+            *argument = pointer;
+        }
+    }
+    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+    assert_eq!(
+        errors[0].category,
+        ResultCategory::Unsupported,
+        "{errors:?}"
+    );
+    claim.module_fingerprint = typed.fingerprint();
+    let errors = zil_verify::verify_module(typed, claim, &target, &limits).unwrap_err();
+    assert_eq!(
+        errors[0].category,
+        ResultCategory::Unsupported,
+        "{errors:?}"
+    );
+    assert_eq!(errors[0].phase, zil_base::Phase::Verify);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread339_types_shared_budget_and_scalar_control() {
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    for name in [
+        "shared_child",
+        "scalar_control",
+        "disjoint_write",
+        "parent_capture",
+        "two_scopes",
+        "nested_shared",
+    ] {
+        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
+            .unwrap();
+        let src = source(&text);
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let core = zil_expand::expand(&src, &ast).unwrap();
+        let run = |n| {
+            zil_types::check(
+                &core,
+                &target,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..limits.clone()
+                },
+            )
+        };
+        let expected = run(limits.max_analysis_steps).unwrap();
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low + 1 < high {
+            let n = low + (high - low) / 2;
+            match run(n) {
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    high = n
+                }
+                Err(e) => {
+                    assert_eq!(e[0].category, ResultCategory::ResourceLimit, "{e:?}");
+                    low = n
+                }
+            }
+        }
+        for n in [high, high - 1, high] {
+            match run(n) {
+                Ok(actual) => {
+                    assert_eq!(n, high);
+                    assert_eq!(actual, expected)
+                }
+                Err(e) => {
+                    assert_eq!(n, high - 1);
+                    assert_eq!(e[0].category, ResultCategory::ResourceLimit);
+                }
+            }
+        }
+        eprintln!("thread339 {name} Types N={high}, N-1 ResourceLimit, fresh N identical");
+        let plan = zil_analyze::analyze(&expected, &limits).unwrap();
+        if [
+            "shared_child",
+            "scalar_control",
+            "two_scopes",
+            "nested_shared",
+        ]
+        .contains(&name)
+        {
+            eprintln!("thread339 {name} kernel budgets follow");
+            thread332_budget(&expected, &plan);
+        }
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread339_helper_return_mutable_roots_are_joint_in_both_kernels() {
+    use zil_ir::InstructionKind;
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let text =
+        std::fs::read_to_string(thread325_root().join("shared339/helper_disjoint.zil")).unwrap();
+    let src = source(&text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut claim = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), claim.clone(), &target, &limits).unwrap();
+    let caller = typed
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. }))
+        })
+        .unwrap();
+    let poison = caller
+        .locals
+        .iter()
+        .find(|local| local.name == "poison")
+        .unwrap()
+        .id;
+    let actual = caller
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::Store { local, value } if local == poison => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    for instruction in caller.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::WithScopedThread { argument, .. } = &mut instruction.kind {
+            *argument = actual;
+        }
+    }
+    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{errors:?}"
+    );
+    claim.module_fingerprint = typed.fingerprint();
+    let errors = zil_verify::verify_module(typed, claim, &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{errors:?}"
+    );
+    let text =
+        std::fs::read_to_string(thread325_root().join("shared339/helper_writer.zil")).unwrap();
+    let src = source(&text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+#[cfg(all(target_os = "linux", feature = "llvm-api"))]
+fn thread339_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let dir = std::env::temp_dir().join(format!("thread339-cache-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    for (index, name) in ["scalar_control", "shared_child", "shared_child"]
+        .iter()
+        .enumerate()
+    {
+        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
+            .unwrap();
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                backend: NativeBackend::LlvmApi,
+                optimization: Optimization::O2,
+                stop_after: Stage::Build,
+                object_cache: Some(dir.join("objects")),
+                output: Some(dir.join(format!("program{index}"))),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.backend, NativeBackend::LlvmApi);
+        assert!(codegen.fallback.is_none());
+        let result = std::process::Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(0), "{result:?}");
+        assert!(result.stdout.is_empty() && result.stderr.is_empty());
+        if index == 2 {
+            assert!(
+                codegen
+                    .object_reports
+                    .iter()
+                    .any(|r| r.contains("\"input_kind\":\"object-cache\"")),
+                "{}",
+                report.to_json()
+            );
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }

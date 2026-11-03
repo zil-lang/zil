@@ -262,6 +262,26 @@
       "representation": "One ordinary Copy type binder plus lexical life binders; type arguments substitute T while preserving CoreLifeContract and actual parameter positions",
       "consumers": "Unused symbolic checks/alias scope -> ordinary instantiation -> existing Core life/Typed bound -> independent kernels, CT/interface/cache",
       "compatibility": "No new Typed/Wire fields; existing schema34 consumers remain responsible for actual metadata/CFG"
+    },
+    "default_fnptr_336": {
+      "authority": "_zil_design.md §18.1 profile336",
+      "representation": "Existing ordinary thin function pointer; real lexical static signature, local binding precedence and independently concrete Copy qualification.",
+      "consumers": "Default symbolic definition check, modules, ordinary lowering and independent kernels; unchanged Wire34."
+    },
+    "mutable_life_337": {
+      "authority": "_zil_design.md §18.1 profile337",
+      "representation": "Existing CoreLifeContract and Typed return parameter bound; life-only concrete Direct/inherent mutable references.",
+      "consumers": "Expand/Core normalization, Types, independent Analyze/Verify actual origins and exclusivity, CT/cache; unchanged Wire34."
+    },
+    "large_copy_sum_338": {
+      "authority": "_zil_design.md §19.4 profile338",
+      "representation": "Existing .lc1 copy-in/out ABI and memory snapshots extended to finite ordinary Copy Enum/ErrorUnion; no source Value change.",
+      "consumers": "Complete construct/tag/project/copy/call/ref/CGU/cache machine chain; unchanged Typed/Wire34."
+    },
+    "shared_thread_payload_339": {
+      "authority": "_zil_design.md §11.2 profile339",
+      "representation": "Existing WithScopedThread argument ValueId typed shared Address<i32>; actual stable parent pointer and combined payload/body window.",
+      "consumers": "Types plus independent worker graph/hold/loan kernels, Wire34 revalidation, actual pthread context, machine ABI/CGU/cache."
     }
   },
   "schemas": [

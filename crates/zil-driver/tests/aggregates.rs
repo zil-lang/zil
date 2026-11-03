@@ -2229,3 +2229,483 @@ fn review329_astra_lexical_builtin_controls() {
         assert_eq!(report.verification_runs, 1, "{label}");
     }
 }
+
+#[test]
+fn large_copy_enum_error_original_scale_all_backends() {
+    // Isolate LLVM failures and cap each compiler process. This remains one
+    // existing Cargo integration target and preserves the original input bytes.
+    if let Ok(profile) = std::env::var("ZIL_338_SUM_CHILD") {
+        use zil_driver::{NativeBackend, Optimization};
+        let (backend, optimization) = match profile.as_str() {
+            "clang-O0" => (NativeBackend::Clang, Optimization::O0),
+            "clang-O2" => (NativeBackend::Clang, Optimization::O2),
+            "llvm-api-O0" => (NativeBackend::LlvmApi, Optimization::O0),
+            "llvm-api-O2" => (NativeBackend::LlvmApi, Optimization::O2),
+            _ => panic!("unknown child profile"),
+        };
+        let out = Temp::new();
+        let case = std::env::var("ZIL_338_CASE").unwrap();
+        // Explicit manual KnownIncomplete reproduction only. The default test
+        // cases below never invoke this API small-stack crash or enlarge it.
+        if case == "capture-check" {
+            let input = include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture.zil"
+            );
+            eprintln!(
+                "338 borrowed Sum capture: Verify-only API begins (ordinary test worker stack)"
+            );
+            let report = compile_source(&source(input), &CompileOptions::default());
+            eprintln!(
+                "338 borrowed Sum capture: Verify-only API completed: {}",
+                report.to_json()
+            );
+            return;
+        }
+        let input = match case.as_str() {
+            "enum" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a18.zil"
+            ),
+            "error" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-error-a18.zil"
+            ),
+            "empty" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-empty-a18.zil"
+            ),
+            "enum-indirect" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-fnptr-a18.zil"
+            ),
+            "error-indirect" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-error-fnptr-a18.zil"
+            ),
+            _ => panic!("unknown ABI case"),
+        };
+        let report = compile_source(
+            &source(input),
+            &CompileOptions {
+                backend,
+                optimization,
+                stop_after: Stage::Build,
+                cancellation: zil_driver::CancellationToken::with_timeout(
+                    std::time::Duration::from_secs(45),
+                ),
+                output: Some(out.0.join("program")),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+        assert!(llvm.contains(".lc1("), "versioned definition/call absent");
+        assert!(llvm.contains("@zil.copy.bytes"));
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.backend, backend);
+        assert!(codegen.fallback.is_none());
+        if backend == NativeBackend::LlvmApi {
+            let pipeline = format!("\"pipeline\":\"default<{optimization:?}>\"");
+            assert!(!codegen.object_reports.is_empty());
+            assert!(codegen.object_reports.iter().all(|r| r.contains(&pipeline)));
+        } else {
+            let flag = if optimization == Optimization::O0 {
+                "-O0"
+            } else {
+                "-O2"
+            };
+            assert!(
+                report
+                    .commands
+                    .iter()
+                    .any(|command| command.iter().any(|arg| arg == flag))
+            );
+        }
+        let actual = Command::new("timeout")
+            .args(["-s", "KILL", "5s"])
+            .arg(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+        assert!(actual.stdout.is_empty());
+        assert!(actual.stderr.is_empty());
+        return;
+    }
+    for backend in ["clang", "llvm-api"] {
+        if backend == "llvm-api" && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in ["O0", "O2"] {
+            for case in ["enum", "error", "empty", "enum-indirect", "error-indirect"] {
+                let actual = Command::new("timeout")
+                    .args([
+                        "-s",
+                        "KILL",
+                        "55s",
+                        "bash",
+                        "-c",
+                        "ulimit -c 0; ulimit -t 45; ulimit -v 2097152; exec \"$@\"",
+                        "--",
+                    ])
+                    .arg(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "large_copy_enum_error_original_scale_all_backends",
+                        "--nocapture",
+                        "--test-threads=1",
+                    ])
+                    .env("ZIL_338_CASE", case)
+                    .env("ZIL_338_SUM_CHILD", format!("{backend}-{optimization}"))
+                    .output()
+                    .unwrap();
+                assert!(
+                    actual.status.success(),
+                    "{backend}-{optimization}: {} {}",
+                    String::from_utf8_lossy(&actual.stdout),
+                    String::from_utf8_lossy(&actual.stderr)
+                );
+                eprintln!(
+                    "338 a18 Sum ABI {case} {backend}-{optimization}: backend matched, requested pipeline, fallback=null, native_exit=0"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn large_copy_enum_error_value_order_alignment_and_canonical_small_payloads() {
+    let first = "[0]".repeat(13);
+    let body = format!(
+        "var original=a12;var message:Message=Message.Data{{unit:(),flag:true,n:9,bytes:original}};let saved:Message=message;let score=read(message,empty(&mut message));let pointer:fn(Message)->Message=keep;let returned:Message=pointer(saved);original{first}=4u8;let small:Message=Message.Small{{pair:(true,7),unit:()}};let small_score=read(small,0);match returned{{Message.Data{{unit:_,flag:ok,n:n,bytes:bytes}}=>{{if !ok{{return -1}}return i32(bytes{first})*1000+i32(original{first})*100+i32(n)*10+score+small_score}},Message.Empty()=>{{return -2}},Message.Small{{pair:_,unit:_}}=>{{return -3}}}}"
+    );
+    let declarations = format!(
+        "enum Message{{Data{{unit:(),flag:bool,n:i64,bytes:Big}},Empty,Small{{pair:(bool,i64),unit:()}}}}fn keep(value:Message)->Message{{var changed=value;changed=Message.Empty;return value}}fn empty(value:&mut Message)->i32{{*value=Message.Empty;return 1}}fn read(value:Message,marker:i32)->i32{{match value{{Message.Data{{unit:_,flag:_,n:_,bytes:bytes}}=>{{return i32(bytes{first})+marker}},Message.Empty()=>{{return 0}},Message.Small{{pair:(flag,n),unit:_}}=>{{if flag{{return i32(n)}}return -4}}}}}}"
+    );
+    let text = format!("{declarations}{}", large_copy_program(&body));
+    review329_native(&[("main", &text)], 3501);
+}
+
+#[test]
+fn large_copy_enum_error_both_arms_propagation_and_failure_cleanup() {
+    use zil_driver::{NativeBackend, Optimization};
+    let first = "[0]".repeat(13);
+    let prefix = large_copy_program("");
+    let prefix = &prefix[..prefix.find("fn result").unwrap()];
+    let init = (0..=12)
+        .map(|n| {
+            if n == 0 {
+                "let a0=[3u8];".to_owned()
+            } else {
+                format!("let a{n}=[a{},a{}];", n - 1, n - 1)
+            }
+        })
+        .collect::<String>();
+    for ok in [true, false] {
+        let text = format!(
+            r#"{prefix}extern "C" fn putchar(code:i32)->i32;resource Token{{code:i32}}impl Drop for Token{{fn drop(self:Self){{unsafe{{putchar(.code)}}}}}}struct Fault{{bytes:Big,flag:bool}}fn produce(ok:bool,bytes:Big)->Fault!Big{{if ok{{return bytes}}return Fault{{bytes,flag:true}}}}fn relay(value:Fault!Big)->Fault!Big{{return value}}fn work()->Fault!i32{{{init}let token=Token{{code:65}};var original=a12;let pointer:fn(Fault!Big)->Fault!Big=relay;let saved=pointer(produce({ok},original));original{first}=9u8;let bytes=saved?;return i32(bytes{first})}}fn main()->Fault!i32{{return work()?}}"#
+        );
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let out = Temp::new();
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(out.0.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let observed = Command::new("timeout")
+                    .args(["-s", "KILL", "5s"])
+                    .arg(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    observed.status.code(),
+                    Some(if ok { 3 } else { 1 }),
+                    "{observed:?}"
+                );
+                assert_eq!(observed.stdout, b"A");
+                assert!(observed.stderr.is_empty());
+                let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+                assert!(llvm.contains(".lc1(ptr %lc1.result, ptr %arg.0)"));
+                assert!(
+                    !llvm.contains("extractvalue { i1, {"),
+                    "large error must use memory projections"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn large_copy_enum_error_codegen_budget_exact_and_fresh() {
+    let src = source(include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a18.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = TargetProfile::default();
+    let defaults = Limits::default();
+    let typed = zil_types::check(&core, &target, &defaults).unwrap();
+    let candidate = zil_analyze::analyze(&typed, &defaults).unwrap();
+    let emit = |steps| {
+        let limits = Limits {
+            max_analysis_steps: steps,
+            ..defaults.clone()
+        };
+        let verified =
+            zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)?;
+        let lir = zil_lower::lower(&verified)?;
+        zil_backend_llvm::emit(&verified, &lir)
+    };
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    assert!(emit(high).is_ok());
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if emit(middle).is_ok() {
+            high = middle
+        } else {
+            low = middle + 1
+        }
+    }
+    let errors = emit(low - 1).unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+    assert_eq!(errors[0].phase, Phase::Codegen);
+    assert!(emit(low).unwrap().contains(".lc1"));
+    assert!(emit(low).unwrap().contains(".lc1"));
+    if cfg!(feature = "llvm-api") {
+        let out = Temp::new();
+        let options = CompileOptions {
+            backend: zil_driver::NativeBackend::LlvmApi,
+            stop_after: Stage::Build,
+            object_cache: Some(out.0.join("objects")),
+            output: Some(out.0.join("program")),
+            ..CompileOptions::default()
+        };
+        let cold = compile_source(&src, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        assert!(cold.native_codegen.as_ref().unwrap().object_cache.misses > 0);
+        let failed = compile_source(
+            &src,
+            &CompileOptions {
+                limits: Limits {
+                    max_analysis_steps: low - 1,
+                    ..defaults.clone()
+                },
+                ..options.clone()
+            },
+        );
+        assert_eq!(
+            failed.status,
+            ResultCategory::ResourceLimit,
+            "{}",
+            failed.to_json()
+        );
+        assert_eq!(failed.phase, Phase::Codegen);
+        assert!(!failed.artifacts.contains_key("executable"));
+        let warm = compile_source(&src, &options);
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.native_codegen.as_ref().unwrap().object_cache.misses, 0);
+        assert!(warm.native_codegen.as_ref().unwrap().object_cache.hits > 0);
+    }
+    eprintln!("338 a18 enum Codegen exact work limit: {low}");
+}
+
+#[test]
+fn large_copy_enum_error_function_pointer_carriers_are_versioned() {
+    let first = "[0]".repeat(13);
+    let text = large_copy_program(&format!(
+        "let handle:Handle=wrap();let pointer:Worker=unwrap(handle);let message:Message=pointer(Message.Data(a12));let raw=read_address(&message);match message{{Message.Data(bytes)=>{{return raw+i32(bytes{first})}},Message.Empty()=>{{return -1}}}}"
+    ));
+    let text = format!(
+        "enum Message{{Data(Big),Empty}}type Worker=fn(Message)->Message;enum Handle{{Call(Worker),None}}fn relay(value:Message)->Message{{return value}}fn factory()->Worker{{return relay}}fn wrap()->Handle{{return Handle.Call(factory())}}fn unwrap(handle:Handle)->Worker{{match handle{{Handle.Call(pointer)=>{{return pointer}},Handle.None()=>{{return factory()}}}}}}fn read_address(value:&Message)->i32{{match *value{{Message.Data(bytes)=>{{return i32(bytes{first})}},Message.Empty()=>{{return 0}}}}}}{text}"
+    );
+    let llvm = native(&text, Some(6));
+    for id in 0..=3 {
+        assert!(
+            llvm.lines()
+                .any(|l| l.starts_with("define ") && l.contains(&format!("@zil.fn.{id}.lc1("))),
+            "missing versioned {id}"
+        );
+    }
+    assert!(llvm.contains("define i32 @zil.fn.4(ptr %arg.0)"));
+    assert!(!llvm.contains("@zil.fn.4.lc1"));
+}
+
+#[test]
+fn large_copy_enum_error_cgu_cache_and_canonical_function_reference() {
+    use zil_driver::{
+        CodegenOptions, NativeBackend, Optimization, ProjectSources, compile_project,
+    };
+    let mut ty = "[u8;1]".to_owned();
+    let mut initialization = "let a0=[3u8];".to_owned();
+    for n in 1..=12 {
+        ty = format!("[{ty};2]");
+        initialization.push_str(&format!("let a{n}=[a{},a{}];", n - 1, n - 1));
+    }
+    let first = "[0]".repeat(13);
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = Temp::new();
+            for (round, changed) in [(0, false), (1, false), (2, true)] {
+                let body = if changed {
+                    format!(
+                        "match value{{Message.Data(bytes)=>{{var changed=bytes;changed{first}=9u8;return Message.Data(changed)}},Message.Empty()=>{{return Message.Empty}}}}"
+                    )
+                } else {
+                    "return value".into()
+                };
+                let modules=[
+              ("main",format!("import model;import factory;fn main()->i32{{{initialization}let p=factory.pointer();let value:model.Message=p(model.Message.Data(a12));match value{{model.Message.Data(bytes)=>{{return i32(bytes{first})}},model.Message.Empty()=>{{return 0}}}}}}")),
+              ("model",format!("pub type Big={ty};pub enum Message{{Data(Big),Empty}}pub fn identity(value:Message)->Message{{{body}}}")),
+              ("factory","import model;pub fn pointer()->fn(model.Message)->model.Message{return model.identity}".into()),
+            ];
+                let project = ProjectSources {
+                    root: ModuleId(0),
+                    modules: modules
+                        .iter()
+                        .enumerate()
+                        .map(|(n, (name, text))| {
+                            SourceUnit::new(
+                                FileId(n as u32),
+                                ModuleId(n as u32),
+                                format!("{name}.zil"),
+                                text.clone(),
+                            )
+                        })
+                        .collect(),
+                    paths: [
+                        (vec!["model".into()], ModuleId(1)),
+                        (vec!["factory".into()], ModuleId(2)),
+                    ]
+                    .into_iter()
+                    .collect(),
+                };
+                let report = compile_project(
+                    &project,
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        incremental_o2: optimization == Optimization::O2,
+                        stop_after: Stage::Build,
+                        object_cache: (backend == NativeBackend::LlvmApi)
+                            .then(|| out.0.join("objects")),
+                        codegen: CodegenOptions { units: 3, jobs: 1 },
+                        output: Some(out.0.join(format!("program{round}"))),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let actual = Command::new("timeout")
+                    .args(["-s", "KILL", "5s"])
+                    .arg(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(if changed { 9 } else { 3 }),
+                    "{actual:?}"
+                );
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert!(codegen.actual_units >= 2, "{}", report.to_json());
+                assert!(codegen.fallback.is_none(), "{}", report.to_json());
+                if backend == NativeBackend::LlvmApi {
+                    assert!(codegen.object_cache.enabled, "{}", report.to_json());
+                    if round == 1 {
+                        assert_eq!(codegen.object_cache.hits, codegen.actual_units);
+                        assert_eq!(codegen.object_cache.misses, 0);
+                    } else {
+                        assert!(codegen.object_cache.misses > 0);
+                    }
+                }
+                let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+                assert!(llvm.contains(".lc1"));
+            }
+        }
+    }
+}
+
+#[test]
+fn large_copy_enum_error_long_source_names_are_prepaid_before_emission() {
+    let input = include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a12.zil"
+    );
+    let short = input
+        .replace(
+            "enum E{Data(Big),Empty}",
+            "struct Pad{n:i64,flag:bool}enum E{Data(Big,Pad),Empty}",
+        )
+        .replace("E.Data(a12)", "E.Data(a12,Pad{n:5,flag:true})")
+        .replace("E.Data(a)=>", "E.Data(a,p)=>");
+    let suffix = "x".repeat(256);
+    let long = short
+        .replace("Pad", &format!("Pad{suffix}"))
+        .replace("Data", &format!("Data{suffix}"))
+        .replace("Empty", &format!("Empty{suffix}"))
+        .replace("flag", &format!("flag{suffix}"));
+    let mut costs = Vec::new();
+    for text in [&short, &long] {
+        let src = source(text);
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let core = zil_expand::expand(&src, &ast).unwrap();
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let candidate = zil_analyze::analyze(&typed, &limits).unwrap();
+        let emit = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            let verified =
+                zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)?;
+            let lir = zil_lower::lower(&verified)?;
+            zil_backend_llvm::emit(&verified, &lir)
+        };
+        let (mut low, mut high) = (1, limits.max_analysis_steps);
+        assert!(emit(high).is_ok());
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if emit(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        let errors = emit(low - 1).unwrap_err();
+        assert_eq!(errors[0].phase, Phase::Codegen);
+        assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+        assert!(emit(low).is_ok());
+        assert!(emit(low).is_ok());
+        costs.push(low);
+    }
+    assert!(
+        costs[1] > costs[0] + 4 * 256,
+        "source metadata bytes must be in repeated emission reservations: {costs:?}"
+    );
+    eprintln!("338 enum source metadata Codegen exact limits short/long: {costs:?}");
+}
