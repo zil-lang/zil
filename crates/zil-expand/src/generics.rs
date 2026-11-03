@@ -67,9 +67,11 @@ pub(super) fn specialize_products<'a>(
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
     let mut has_where = false;
+    let mut has_trait_instances = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
+        has_trait_instances |= matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty());
         if let ItemKind::Impl(implementation) = &item.kind
             && implementation
                 .trait_type
@@ -122,6 +124,22 @@ pub(super) fn specialize_products<'a>(
                 products,
             ),
             None => specialize_with_budget(&normalized, limits, &BTreeMap::new(), budget, products),
+        }
+        .map(Cow::Owned)
+        .map_err(|e| vec![e]);
+    }
+    if has_trait_instances {
+        let (aliased, budget) =
+            aliases::normalize_with_budget(module, names_budget).map_err(|e| vec![e])?;
+        return match aliased {
+            Some(aliased) => specialize_with_budget(
+                &aliased.module,
+                limits,
+                &aliased.pattern_types,
+                budget,
+                products,
+            ),
+            None => specialize_with_budget(module, limits, &BTreeMap::new(), budget, products),
         }
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -478,6 +496,7 @@ impl<'a> Engine<'a> {
         self.budget.node(span, depth)
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
+        self.products.trait_instances = self.traits.has_instances;
         self.collect_products(module)?;
         let mut result = Module {
             id: module.id,
@@ -937,9 +956,19 @@ impl<'a> Engine<'a> {
                             let ItemKind::Function(actual) = &member.kind else {
                                 continue;
                             };
-                            if let Some(required) = declaration.members.iter().find(
-                                |m| matches!(&m.kind,ItemKind::Function(f) if f.name==actual.name),
-                            ) {
+                            let mut required = None;
+                            for candidate in &declaration.members {
+                                self.budget.node(candidate.span, 0)?;
+                                if let ItemKind::Function(method) = &candidate.kind {
+                                    self.budget.text(&method.name, candidate.span)?;
+                                    self.budget.text(&actual.name, member.span)?;
+                                    if method.name == actual.name {
+                                        required = Some(candidate);
+                                        break;
+                                    }
+                                }
+                            }
+                            if let Some(required) = required {
                                 let mut signature = trait_instances::signature(
                                     declaration,
                                     required,

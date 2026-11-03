@@ -10,8 +10,9 @@ use zil_ir::*;
 pub(crate) struct Products {
     templates: Vec<(Aggregate, Span)>,
     applications: Vec<Application>,
-    pub(super) allowance: Option<Limits>,
+    pub(crate) allowance: Option<Limits>,
     pub(crate) trait_signatures: trait_instances::Signatures,
+    pub(crate) trait_instances: bool,
 }
 #[derive(Clone)]
 pub(super) struct Scope {
@@ -191,6 +192,18 @@ impl Engine<'_> {
     }
 }
 impl Products {
+    pub(crate) fn trait_limits(&self, limits: &Limits) -> Limits {
+        let mut selected = limits.clone();
+        if self.trait_instances
+            && let Some(remaining) = &self.allowance
+        {
+            selected.max_nodes = selected.max_nodes.min(remaining.max_nodes);
+            selected.max_analysis_steps = selected
+                .max_analysis_steps
+                .min(remaining.max_analysis_steps);
+        }
+        selected
+    }
     pub(super) fn is_empty(&self) -> bool {
         self.templates.is_empty()
     }
