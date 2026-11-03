@@ -11,6 +11,7 @@ pub(super) struct Index<'a> {
     implementations: BTreeSet<(trait_instances::Key, &'a str)>,
     pub(super) has_instances: bool,
     references: BTreeMap<trait_instances::Key, trait_instances::Reference>,
+    instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
     nominals: BTreeMap<String, &'a Item>,
 }
@@ -74,6 +75,7 @@ impl<'a> Index<'a> {
             nominals,
             has_instances,
             references: BTreeMap::new(),
+            instance_count: 0,
             inherent_methods: BTreeSet::new(),
         };
         if has_instances && validate {
@@ -142,7 +144,10 @@ impl<'a> Index<'a> {
             {
                 let reference = index.reference(application, budget)?;
                 let key = trait_instances::copy_key(&reference.key, budget, item.span)?;
-                index.implementations.insert((key, host));
+                let generic_instance = !key.arguments.is_empty();
+                if index.implementations.insert((key, host)) && generic_instance {
+                    index.instance_count += 1;
+                }
                 let key = trait_instances::copy_key(&reference.key, budget, item.span)?;
                 index.references.insert(key, reference);
             }
@@ -157,10 +162,7 @@ impl<'a> Index<'a> {
         Ok(index)
     }
     pub(super) fn instance_count(&self) -> usize {
-        self.implementations
-            .iter()
-            .filter(|(key, _)| !key.arguments.is_empty())
-            .count()
+        self.instance_count
     }
 
     pub(super) fn declaration(&self, bound: &TypeRef, budget: &mut Budget<'_>) -> R<&'a TraitDecl> {

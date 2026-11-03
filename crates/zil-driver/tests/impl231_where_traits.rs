@@ -373,12 +373,7 @@ fn unsupported_subjects_and_non_nominal_bounds_are_not_erased() {
         (
             "generic-trait",
             "trait Read<U>{fn get(self:&Self)->U;}fn keep<T>(x:T)->T where T:Read=>x;fn main()->i32=>0",
-            "full trait solver",
-        ),
-        (
-            "applied-trait",
-            "trait Read<U>{fn get(self:&Self)->U;}fn keep<T>(x:T)->T where T:Read<i32> =>x;fn main()->i32=>0",
-            "without type arguments",
+            "type argument arity",
         ),
         (
             "unknown-subject",
@@ -408,6 +403,11 @@ fn unsupported_subjects_and_non_nominal_bounds_are_not_erased() {
     ] {
         rejected(label, text, reason);
     }
+    // 323 promotes this original, previously Unsupported concrete application.
+    accepted(
+        "applied-trait",
+        "trait Read<U>{fn get(self:&Self)->U;}fn keep<T>(x:T)->T where T:Read<i32> =>x;fn main()->i32=>0",
+    );
 }
 
 const PROJECT: &[(&str, &str)] = &[
@@ -532,7 +532,7 @@ fn private_missing_and_wrong_module_traits_cannot_satisfy_where_bounds() {
 const BUDGET: &str = "type Number=i32;trait Read{fn get(self:&Self)->i32;}struct C{n:Number}impl Read for C{fn get()->i32=>.n}fn read<T>(x:&T)->i32 where T:Read=>x.get();fn main()->i32{let c=C{n:7};return read(&c)-7}";
 
 #[test]
-fn alias_in_trait_signature_retains_the_existing_inline_boundary() {
+fn alias_in_trait_signature_normalizes_where_and_inline_equally() {
     let original = "type Number=i32;trait Read{fn get(self:&Self)->Number;}struct C{n:Number}impl Read for C{fn get()->Number=>.n}fn read<T>(x:&T)->Number where T:Read=>x.get();fn main()->i32{let c=C{n:7};return read(&c)-7}";
     let inline = original.replace(
         "read<T>(x:&T)->Number where T:Read",
@@ -542,7 +542,15 @@ fn alias_in_trait_signature_retains_the_existing_inline_boundary() {
         ("original-alias-signature", original),
         ("inline-alias-signature", inline.as_str()),
     ] {
-        rejected(label, text, "generic body types must agree");
+        // The original 231 expectation retained a legal alias signature's
+        // rejection. 323 traverses the trait signature with its lexical scope.
+        accepted(label, text);
+        native(label, &[("main", text)]);
+        let wrong = text.replace(
+            "impl Read for C{fn get()->Number=>.n}",
+            "impl Read for C{fn get()->bool=>true}",
+        );
+        rejected("wrong-impl-alias-signature", &wrong, "signature");
     }
 }
 
