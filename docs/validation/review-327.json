@@ -166,5 +166,65 @@
     ],
     "rustfmt_independent_test": "Pass",
     "git_diff_check": "Pass"
+  },
+  "common_candidate_review": {
+    "implementation_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+    "reviewer": "/root/recovery_audit",
+    "verdict": "PassLimited",
+    "scope": "323 finite concrete generic trait identity, target selection, unused conformance/Copy premises and cumulative request ledger, including the 322/323 public budget handoff. No 328 self-review.",
+    "compared_against": [
+      "c183ce4ff09c444fd6e9b47a51a1c7f742457876",
+      "877951d6f9c114a9454389f059c39e833e1d4917"
+    ],
+    "actual_diff_review": [
+      "git diff --exit-code 877951d6f 022303df8 -- crates/zil-expand/src crates/zil-driver/src crates/zil-base/src crates/zil-ir/src and all five reviewed trait driver targets returned 0 with no diff.",
+      "Relative to c183, reviewed the six Expand production differences retained from the already tested 877951 composition: generic_alias removes the fresh-budget wrapper; generics runs life validation then the shared names_budget -> alias -> specialize_with_budget chain; generic_check explicitly rejects unsupported generic thread wrappers; lib/receivers retain checked life contracts and reserved thread syntax; lifetimes validates unused positions and rejects trait lending. The 323 generic-trait instance/index/static-collector/Products/module ledger implementations themselves are unchanged. This does not constitute a full 322 or 325 review.",
+      "Read the complete new zil-types incremental.rs/program.rs diff since 877951: reuse now validates the current life header, checks reference_return_bound, subtracts the already charged validation delta from replay, excludes bound-bearing functions from scalar reuse, and fingerprints ordered life metadata in domain ZIL-FUNCTION-TYPES-2.",
+      "The Types cache key still contains the complete emitted function name, function ID, parameter/result types and passing modes. No trait identity or static target is dropped. lifetimes::compile returns Ok(None) before accounting for a function without life metadata.",
+      "Unchanged structured declaration/ordered-argument keys, nominal Self pairing and declaration-derived signature bridge retain same-Self multi-instance separation. Collision and trait/impl pairing scans retain visit/text prepayment; Products/module/single/project/publish still carry the actual remainder."
+    ],
+    "existing_combined_retest": {
+      "implementation_commit": "877951d6f9c114a9454389f059c39e833e1d4917",
+      "tested_checkout": "8f90ca85e7ce72c38e6caeab25340498ff733e6b",
+      "tree_equivalence": "The two committed trees were compared and identical before the review JSON update.",
+      "driver_targets": {
+        "impl162_trait_bounds": {
+          "passed": 24,
+          "failed": 0
+        },
+        "impl233_modules": {
+          "passed": 9,
+          "failed": 0
+        }
+      },
+      "source_ledger_units": {
+        "passed": 2,
+        "failed": 0
+      },
+      "full_request_boundary": {
+        "work": 3797,
+        "nodes": 851,
+        "instances": 5,
+        "checks": "N/N-1/N, cold/warm/fresh, zero remaining active queries"
+      },
+      "single_specialization": {
+        "work": 1359,
+        "nodes": 415
+      },
+      "project_specialization": {
+        "work": 1646,
+        "nodes": 373
+      },
+      "exhausted_remainder": "Exact specialization allowances succeed there but downstream public single/project Expand produces nonempty ResourceLimit diagnostics.",
+      "independent_native": "Two identity controls, each Clang O0/O2, four actual executions; separate expected values checked, verification_runs=1 and fallback=null.",
+      "quality": "Both targeted Clippy commands, independent-test rustfmt and git diff --check passed; exact commands/hashes remain in integration_execution and quality_checks."
+    },
+    "execution_on_common_candidate": "No additional test or native execution: this supplement is an actual immutable-commit diff/code review using the recorded integrated retest. The quoted N values were measured at 877951, not newly measured at 022303df8.",
+    "limits": [
+      "Only finite concrete local non-generic Self and concrete ordinary Copy trait arguments/inline-or-where consumers are covered.",
+      "No new public trait-instance IR shape exists; no additional raw/Wire trait-instance probe is claimed.",
+      "Common-candidate full/default/reference results and remote CI are not claimed by this review.",
+      "Not a full review of life safety, arrays, thread backend, async, SABI, the full trait solver or the complete language."
+    ]
   }
 }
