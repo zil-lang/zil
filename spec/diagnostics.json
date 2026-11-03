@@ -536,6 +536,15 @@
       ]
     },
     {
+      "code": "E-LIFE-ORIGIN",
+      "phases": [
+        "expand"
+      ],
+      "requirements": [
+        "ZIL-TRAIT"
+      ]
+    },
+    {
       "code": "E-LIFE-RETURN",
       "phases": [
         "analyze"

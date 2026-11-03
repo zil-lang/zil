@@ -2870,10 +2870,114 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     );
                 }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
-                    return Err(unsupported(
-                        span,
-                        "thread_scope in a parent closure entry is not implemented",
-                    ));
+                    self.visit(depth + 1, callee.span)?;
+                    let [worker, argument, body] = arguments.as_slice() else {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "thread_scope requires a static worker, i32 payload and body",
+                        ));
+                    };
+                    self.visit(depth + 1, worker.span)?;
+                    if !self.direct(worker) {
+                        return Err(error(
+                            "E-THREAD-WORKER",
+                            worker.span,
+                            "thread worker requires an actual static ordinary function symbol",
+                        ));
+                    }
+                    let signature = self.callee(worker)?;
+                    self.reserve_signature(signature, worker.span)?;
+                    if !signature.scalar_thread_worker() {
+                        return Err(error(
+                            "E-THREAD-WORKER",
+                            worker.span,
+                            "thread worker must be a concrete ordinary fn(i32)->i32",
+                        ));
+                    }
+                    let value = self.expr_expected(argument, Some(&Type::I32), depth + 1)?;
+                    value.bind(&mut self.graph, &Type::I32, argument.span)?;
+                    let value = self.expr(body, depth + 1)?;
+                    let signature = match value {
+                        LocalType::Nested(index, None) => self.nested_signature(index, span)?,
+                        // The legacy Copy inference path keeps a private
+                        // function signature for nested source closures.
+                        // Builder must still prove an actual Closure value;
+                        // this signature never grants a thin pointer authority.
+                        LocalType::Scalar(variable) => {
+                            self.graph.ty(variable)?.ok_or_else(|| {
+                                error(
+                                    "E-CLOSURE-INFERENCE",
+                                    span,
+                                    "thread body signature is unresolved",
+                                )
+                            })?
+                        }
+                        LocalType::Closure(id, None, _) => {
+                            let pending = &self.closures[id.0 as usize];
+                            Type::FunctionPointer {
+                                parameters: (0..pending.inference.arity())
+                                    .map(|i| {
+                                        pending.inference.parameter(i)?.ok_or_else(|| {
+                                            error(
+                                                "E-CLOSURE-INFERENCE",
+                                                span,
+                                                "thread body signature is unresolved",
+                                            )
+                                        })
+                                    })
+                                    .collect::<R<Vec<_>>>()?,
+                                result: Box::new(pending.inference.result()?.ok_or_else(|| {
+                                    error(
+                                        "E-CLOSURE-INFERENCE",
+                                        span,
+                                        "thread body result is unresolved",
+                                    )
+                                })?),
+                            }
+                        }
+                        _ => {
+                            return Err(error(
+                                "E-THREAD-BODY",
+                                body.span,
+                                "thread body must be a concrete closure value",
+                            ));
+                        }
+                    };
+                    if signature
+                        != (Type::FunctionPointer {
+                            parameters: vec![],
+                            result: Box::new(Type::I32),
+                        })
+                    {
+                        return Err(error(
+                            "E-THREAD-BODY",
+                            body.span,
+                            "thread body signature is ()->i32",
+                        ));
+                    }
+                    // The prepared body is transferred once, even when create
+                    // fails and only its environment cleanup executes.
+                    if let CoreExprKind::Name(name) = &body.kind
+                        && self.lookup(name).is_none()
+                    {
+                        self.graph.spend_count(
+                            self.captures
+                                .len()
+                                .saturating_mul(name.len().saturating_add(1)),
+                            span,
+                        )?;
+                        if let Some(capture) = self
+                            .captures
+                            .iter_mut()
+                            .find(|capture| capture.name == *name)
+                        {
+                            capture.moved = true;
+                            capture.borrowed = false;
+                            capture.consumed = true;
+                        }
+                    }
+                    return self.known(&Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]), span);
                 }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
                     self.visit(depth + 1, callee.span)?;

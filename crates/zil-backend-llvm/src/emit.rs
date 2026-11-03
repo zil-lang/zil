@@ -1822,7 +1822,7 @@ impl FunctionEmitter<'_> {
                     m::Op::Call {
                         result: llvm_type(&callee.return_type)?,
                         result_attrs: vec![],
-                        callee: m::global(symbol(*function)),
+                        callee: m::global(self.abi_symbol(*function)),
                         args: emitted_arguments,
                         vararg: None,
                     },
