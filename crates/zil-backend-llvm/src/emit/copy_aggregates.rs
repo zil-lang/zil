@@ -160,7 +160,7 @@ pub(super) fn declarations() -> m::Code {
                 result_attrs: vec![],
                 params: vec![
                     m::Param::new(m::Ty::Ptr, "destination"),
-                    m::Param::new(second, "source"),
+                    m::Param::new(second.clone(), "source"),
                     m::Param::new(m::Ty::Int(64), "bytes"),
                     m::Param::new(m::Ty::Int(1), "volatile"),
                 ],
@@ -169,6 +169,51 @@ pub(super) fn declarations() -> m::Code {
             attrs: vec![],
             blocks: None,
         }));
+        // Retain the requested optimization pipeline while keeping one bounded
+        // memory operation opaque to caller SROA. Inlining this helper would
+        // recreate hundreds of thousands of promoted scalar allocas at O2.
+        code.push(m::Event::Begin(m::Function {
+            name: if second == m::Ty::Ptr {
+                "zil.copy.bytes"
+            } else {
+                "zil.zero.bytes"
+            }
+            .into(),
+            linkage: m::Linkage::Internal,
+            signature: m::Signature {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                variadic: false,
+                params: vec![
+                    m::Param::new(m::Ty::Ptr, "destination"),
+                    m::Param::new(second.clone(), "source"),
+                    m::Param::new(m::Ty::Int(64), "bytes"),
+                ],
+            },
+            attrs: vec![m::Attr::NoInline],
+            blocks: None,
+        }));
+        code.push(m::Event::Label("entry".into()));
+        code.push(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Call {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                callee: m::global(name.into()),
+                args: vec![
+                    m::Arg::new(m::Ty::Ptr, m::local("destination".into())),
+                    m::Arg::new(second, m::local("source".into())),
+                    m::Arg::new(m::Ty::Int(64), m::local("bytes".into())),
+                    m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
+                ],
+                vararg: None,
+            },
+        )));
+        code.push(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(None),
+        )));
+        code.push(m::Event::End);
     }
     code
 }
@@ -197,12 +242,11 @@ impl FunctionEmitter<'_> {
             m::Op::Call {
                 result: m::Ty::Void,
                 result_attrs: vec![],
-                callee: m::global("llvm.memcpy.p0.p0.i64".into()),
+                callee: m::global("zil.copy.bytes".into()),
                 args: vec![
                     m::Arg::new(m::Ty::Ptr, destination),
                     m::Arg::new(m::Ty::Ptr, source),
                     m::Arg::new(m::Ty::Int(64), m::Val::Int(i128::from(bytes))),
-                    m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
                 ],
                 vararg: None,
             },
@@ -289,12 +333,11 @@ impl FunctionEmitter<'_> {
                     m::Op::Call {
                         result: m::Ty::Void,
                         result_attrs: vec![],
-                        callee: m::global("llvm.memset.p0.i64".into()),
+                        callee: m::global("zil.zero.bytes".into()),
                         args: vec![
                             m::Arg::new(m::Ty::Ptr, pointer(out)),
                             m::Arg::new(m::Ty::Int(8), 0),
                             m::Arg::new(m::Ty::Int(64), m::Val::Int(i128::from(bytes))),
-                            m::Arg::new(m::Ty::Int(1), m::Val::Bool(false)),
                         ],
                         vararg: None,
                     },
