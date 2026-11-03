@@ -2,7 +2,7 @@
   "schema_version": 1,
   "reviewer": "/root/recovery_audit",
   "review_kind": "independent limited source, raw/Wire and native review",
-  "overall_status": "Partial",
+  "overall_status": "LimitedReviewComplete",
   "review_tree": "/workspace/zil-review318",
   "target_dir": "/workspace/.zil-env/target318",
   "tested_composition": "4dc789ee10b9ece1f283f2cacbd27bbea7b655e8",
@@ -60,10 +60,127 @@
       "independent_review": "319"
     },
     "317": {
-      "checkpoint_reviewed": "ab2c4c4d7a0f66773353aac9f6baa0300231399e",
-      "verdict": "SourceReviewOnly",
-      "findings": "Original tuple sum was insensitive to field swaps; original CT case used only one instance; negative checks accepted any SafeReject. Author acknowledged and prepared fixes. Exact stdout, exit status, P/B/H drop counts and close ordering are substantive cleanup oracles.",
-      "runtime_status": "NotRun; dependencies and final consumer identity not yet frozen."
+      "verdict": "PassLimited",
+      "runtime_status": "2/0 existing recovery317 tests with explicit --features llvm-api; 4 compiled configurations each executed for 3 inputs, 12 native observations.",
+      "initial_checkpoint_reviewed": "ab2c4c4d7a0f66773353aac9f6baa0300231399e",
+      "initial_findings": "Original tuple sum was insensitive to field swaps; original CT case used only one instance; negative checks accepted any SafeReject. Author acknowledged and prepared fixes. Exact stdout, exit status, P/B/H drop counts and close ordering are substantive cleanup oracles.",
+      "implementation_commit": "ef4505598795e2fe88cd031d10aa8a96c061a897",
+      "tested_composition": "b343644ab0767e41ec7e0b00da858129b1364783",
+      "source_controls": "Main source reaches Verify once; two single-conflict-removed controls also reach Verify. Four nearest negatives bind actual phase/code/source span: shared Product Verify E-BORROW-CONFLICT, callback alias Analyze E-BORROW-CONFLICT, different nominal/phantom CT E-CT-CATEGORY.",
+      "oracle_review": "C host only registers, invokes the compiled ZIL callback, checks the shutdown sentinel and observes resource teardown. It does not implement tuple construction/projection, generic CT computation or Product updates. Distinct first=2/second=3 checks detect swaps; E count observes single evaluation; panel.count=5 and pump input observe actual mutation; post-close handler call and exact P/B/H counts/order observe real ownership and cleanup. Initial coarse negative assertions were replaced with exact phase/code/span and positive controls.",
+      "independent_native_receipts": [
+        {
+          "path": "/tmp/recovery318-native-report/recovery317-58135-0",
+          "compile_sha256": "af25e4c6a03482b694f6a78acaf8a20c450bb68d1792a2e08b8ea859f0fb65fd",
+          "backend": "clang",
+          "optimization": "-O0",
+          "verification_runs": 1,
+          "fallback": null,
+          "observed": [
+            {
+              "stdin": "0",
+              "stdout": "REVSPBCAH",
+              "exit": "exit status: 0"
+            },
+            {
+              "stdin": "1",
+              "stdout": "REVFPBCAH",
+              "exit": "exit status: 1"
+            },
+            {
+              "stdin": "2",
+              "stdout": "RNBAH",
+              "exit": "exit status: 2"
+            }
+          ]
+        },
+        {
+          "path": "/tmp/recovery318-native-report/recovery317-58135-1",
+          "compile_sha256": "3e740b3cb38044e938b89d73ed08ad4424afbbac0fc836e8c0bc932bbc0df1dd",
+          "backend": "clang",
+          "optimization": "-O2",
+          "verification_runs": 1,
+          "fallback": null,
+          "observed": [
+            {
+              "stdin": "0",
+              "stdout": "REVSPBCAH",
+              "exit": "exit status: 0"
+            },
+            {
+              "stdin": "1",
+              "stdout": "REVFPBCAH",
+              "exit": "exit status: 1"
+            },
+            {
+              "stdin": "2",
+              "stdout": "RNBAH",
+              "exit": "exit status: 2"
+            }
+          ]
+        },
+        {
+          "path": "/tmp/recovery318-native-report/recovery317-58135-2",
+          "compile_sha256": "030e11ca05c27b697f143b424b69cb75bd8a0e689def7e0595b45e4dc395b020",
+          "backend": "llvm-api",
+          "optimization": "-O0",
+          "verification_runs": 1,
+          "fallback": null,
+          "observed": [
+            {
+              "stdin": "0",
+              "stdout": "REVSPBCAH",
+              "exit": "exit status: 0"
+            },
+            {
+              "stdin": "1",
+              "stdout": "REVFPBCAH",
+              "exit": "exit status: 1"
+            },
+            {
+              "stdin": "2",
+              "stdout": "RNBAH",
+              "exit": "exit status: 2"
+            }
+          ],
+          "object_validation": {
+            "input_kind": "builder",
+            "verify_before_after": true,
+            "parse_ns": 0
+          }
+        },
+        {
+          "path": "/tmp/recovery318-native-report/recovery317-58135-3",
+          "compile_sha256": "bd381420e1604cf344705c0db0705dbc8a0616e16193bfbda00eee8939b2bdf4",
+          "backend": "llvm-api",
+          "optimization": "-O2",
+          "verification_runs": 1,
+          "fallback": null,
+          "observed": [
+            {
+              "stdin": "0",
+              "stdout": "REVSPBCAH",
+              "exit": "exit status: 0"
+            },
+            {
+              "stdin": "1",
+              "stdout": "REVFPBCAH",
+              "exit": "exit status: 1"
+            },
+            {
+              "stdin": "2",
+              "stdout": "RNBAH",
+              "exit": "exit status: 2"
+            }
+          ],
+          "object_validation": {
+            "input_kind": "builder",
+            "verify_before_after": true,
+            "parse_ns": 0
+          }
+        }
+      ],
+      "limits": "Linux synchronous finite scope only; no native Windows, returning registration, async or framework/product conclusion."
     },
     "320": {
       "implementation_commits": [
@@ -75,7 +192,9 @@
       "verdict": "PassLimited",
       "checks": "Author copy_record_bound 4/0; runtime native O0/O2=17; unused declarations, phantom identity and non-Copy rejection; Expand N=740 and old-unbound N=255, N-1/fresh retained.",
       "independent_probe": "review318_copy_record_binders_and_nested_unused_obligations 1/0: same-spelled aggregate/function binders shadow nominal Box correctly; mixed unbound phantom U remains accepted; nested Tag<V> obligations fail at definition time even when outer application itself is unused.",
-      "excluded": "General trait/where constraints, Package/Resource bounds and whole-Struct Copy inference."
+      "excluded": "General trait/where constraints, Package/Resource bounds and whole-Struct Copy inference.",
+      "delivery_commit": "4b42752fee6a4b900f027781a8906bdfec078842",
+      "final_checks": "copy_record_bound 5/0 on final delivery with actual CT record original and alternate branch O0/O2; original N740 and old-unbound N255 retained."
     },
     "321": {
       "implementation_commit": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
@@ -110,12 +229,16 @@
   },
   "commands": [
     "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test aggregates --test impl238_product_replacement --test impl224_shared_product -- --nocapture",
-    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test aggregates review318_ -- --nocapture"
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test aggregates review318_ -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test review194_composition generic_tuple -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test generics copy_record_bound -- --nocapture",
+    "source /workspace/.zil-env/env.sh; ZIL_TEST_REPORT_DIR=/tmp/recovery318-native-report CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test generic_regressions recovery317 -- --nocapture"
   ],
   "retained_failures": [
     "315 initial c88cbe1f7: impl224 11/12; only the subsequently authorized mutable signature oracle failed.",
     "Reviewer first expected Analyze to reject forged same-root loans; it produced an unverified candidate. Corrected review expectation after inspecting the established independent Verify loan architecture; Verify raw/Wire rejected the same attack.",
-    "Generic tuple expected-success native probe failed at Expand before code generation; original source and diagnostic retained for 321."
+    "Generic tuple expected-success native probe failed at Expand before code generation; original source and diagnostic retained for 321.",
+    "Reviewer first recovery317 retained-output run: source test passed; native test failed before compilation because the chosen /tmp report parent did not exist (fs::create_dir NotFound). Created the parent and reran unchanged source/tests: 2/0, with all 12 observations retained separately."
   ],
   "limits": "No full suite, final combined 313-321 acceptance, Windows, async or product/Rust comparison verdict. Limited passing results do not upgrade B0 or full language/ZUI.",
   "test_only_followup": {
@@ -126,5 +249,6 @@
     "verdict": "ReadOnlyReviewComplete",
     "findings": "Only the exhaustive statement label and existing differential coverage matrix changed. Tuple initializer contains a call and a second origin, so traversal effects are exercised. Unique statement variants rise 16 to 17; total matrix uses 27 expression cases plus 17 statement cases = 44, equivalent to (26+18). No production behavior or oracle weakening.",
     "execution": "Not rerun by reviewer; root reported the exact existing coverage test 1/0."
-  }
+  },
+  "final_tested_composition": "b343644ab0767e41ec7e0b00da858129b1364783"
 }
