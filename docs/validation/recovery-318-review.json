@@ -66,7 +66,16 @@
       "runtime_status": "NotRun; dependencies and final consumer identity not yet frozen."
     },
     "320": {
-      "verdict": "Pending"
+      "implementation_commits": [
+        "188a3a603664f1b5db149d6dc846e02a22e5dbb6",
+        "94974949768a52c6be88b5452dad77346e8792fd"
+      ],
+      "specification": "575b05b98f183f74ba36872d85869a16f160f17a",
+      "tested_composition": "eb5a142b30414ef1b79ce302e6a0adf69ff3c248",
+      "verdict": "PassLimited",
+      "checks": "Author copy_record_bound 4/0; runtime native O0/O2=17; unused declarations, phantom identity and non-Copy rejection; Expand N=740 and old-unbound N=255, N-1/fresh retained.",
+      "independent_probe": "review318_copy_record_binders_and_nested_unused_obligations 1/0: same-spelled aggregate/function binders shadow nominal Box correctly; mixed unbound phantom U remains accepted; nested Tag<V> obligations fail at definition time even when outer application itself is unused.",
+      "excluded": "General trait/where constraints, Package/Resource bounds and whole-Struct Copy inference."
     },
     "321": {
       "verdict": "Pending"
@@ -98,5 +107,14 @@
     "Reviewer first expected Analyze to reject forged same-root loans; it produced an unverified candidate. Corrected review expectation after inspecting the established independent Verify loan architecture; Verify raw/Wire rejected the same attack.",
     "Generic tuple expected-success native probe failed at Expand before code generation; original source and diagnostic retained for 321."
   ],
-  "limits": "No full suite, final combined 313-321 acceptance, Windows, async or product/Rust comparison verdict. Limited passing results do not upgrade B0 or full language/ZUI."
+  "limits": "No full suite, final combined 313-321 acceptance, Windows, async or product/Rust comparison verdict. Limited passing results do not upgrade B0 or full language/ZUI.",
+  "test_only_followup": {
+    "commits": [
+      "1b2df2a547ba32f5fea7460bdf3a8ea6e8ee32fb",
+      "a5e2a9fac1713c4e8a45d706f2ee32949385da85"
+    ],
+    "verdict": "ReadOnlyReviewComplete",
+    "findings": "Only the exhaustive statement label and existing differential coverage matrix changed. Tuple initializer contains a call and a second origin, so traversal effects are exercised. Unique statement variants rise 16 to 17; total matrix uses 27 expression cases plus 17 statement cases = 44, equivalent to (26+18). No production behavior or oracle weakening.",
+    "execution": "Not rerun by reviewer; root reported the exact existing coverage test 1/0."
+  }
 }
