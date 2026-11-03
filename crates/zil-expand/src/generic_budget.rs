@@ -15,12 +15,16 @@ impl<'a> Budget<'a> {
             work: limits.max_analysis_steps,
         }
     }
-    pub(super) fn remaining_limits(&self) -> Limits {
+    pub(crate) fn remaining_limits(&self) -> Limits {
         Limits {
             max_nodes: self.nodes,
             max_analysis_steps: self.work,
             ..self.limits.clone()
         }
+    }
+    pub(crate) fn adopt_remaining(&mut self, remaining: &Limits) {
+        self.nodes = self.nodes.min(remaining.max_nodes);
+        self.work = self.work.min(remaining.max_analysis_steps);
     }
     pub(crate) fn node(&mut self, span: Span, depth: usize) -> R<()> {
         if depth > self.limits.max_call_depth || self.nodes == 0 || self.work == 0 {

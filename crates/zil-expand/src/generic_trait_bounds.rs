@@ -472,7 +472,38 @@ impl<'a> Index<'a> {
         if !self.has_instances {
             return Ok(None);
         }
-        let local_collision=!name.starts_with("$trait_") && (self.inherent_methods.contains(&(host,name)) || self.nominals.get(host).is_some_and(|item|matches!(&item.kind,ItemKind::Aggregate(a) if a.fields.iter().any(|f|f.name==name)||a.methods.iter().any(|m|matches!(&m.kind,ItemKind::Function(f) if f.name==name)))));
+        let mut local_collision = false;
+        if !name.starts_with("$trait_") {
+            for _ in 0..self
+                .inherent_methods
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2)
+            {
+                budget.node(span, 0)?;
+                budget.text(host, span)?;
+                budget.text(name, span)?;
+            }
+            local_collision = self.inherent_methods.contains(&(host, name));
+            if let Some(Item {
+                kind: ItemKind::Aggregate(aggregate),
+                ..
+            }) = self.nominals.get(host)
+            {
+                for field in &aggregate.fields {
+                    budget.node(field.span, 0)?;
+                    budget.text(&field.name, field.span)?;
+                    local_collision |= field.name == name;
+                }
+                for member in &aggregate.methods {
+                    budget.node(member.span, 0)?;
+                    if let ItemKind::Function(method) = &member.kind {
+                        budget.text(&method.name, member.span)?;
+                        local_collision |= method.name == name;
+                    }
+                }
+            }
+        }
         let mut selected = None;
         for (key, actual_host) in &self.implementations {
             budget.node(span, 0)?;
