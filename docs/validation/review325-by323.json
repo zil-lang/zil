@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/impl314",
+  "implementation_author": "/root/impl317",
+  "implementation_commit": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+  "component_commit": "e622402234b62958a156c93947d42eb59cf6f479",
+  "verdict": "PassLimited",
+  "scope": "325 language, Types, independent Analyze/Verify, ownership/borrow, Wire/Lower and CT consumers for the finite Linux x86_64 Direct scalar thread profile; independent review, not a self-review of 323 or a full async/Transfer proof",
+  "authority": {
+    "file": "_zil_design.md",
+    "section": "11.1",
+    "sha256": "e42e5ecbc20ec405cdd146ebba394cd01b6e92451c26ce21dfde3773bc2f64e5"
+  },
+  "blocking_findings": [],
+  "source_review": [
+    "Types requires an actual static ordinary fn(i32)->i32, i32 payload and concrete zero-argument i32 closure. Callable helper/parameter entries and closure entries remain Unsupported; returning a callable result alone does not create such an entry.",
+    "Analyze and Verify independently reconstruct the actual direct worker graph. They admit only Unit/bool/u8/u16/i32/i64 storage and positive scalar opcodes, examine every CFG block, reject non-scalar storage/environment/foreign/teardown and unknown opcodes, and do not share a worker qualification proof.",
+    "Worker addresses come from real FunctionIds. Nested thread operations cannot satisfy the worker whitelist. Unrelated module declarations do not acquire a whole-module purity obligation. Normal kernel signature/SSA checks remain active.",
+    "The actual parent body is consumed under existing ownership rules; its borrowed captures remain subject to loan conflicts and scope/liveness checks. Neither the body environment nor its parent-only resources become a child payload. Reusing an owned Once body is rejected.",
+    "Wire round-trip retains the operation and actual identities. Lower consumes VerifiedModule. Both CT source/candidate paths explicitly reject the primitive; a name or producer claim does not supply migration authority.",
+    "Shared request budgets charge worker instruction/type inventories, queues and sets before growth. Analyze's ordered-set lookup/insertion is charged by bounded tree depth; Verify prepays its indexed visited vector and charges queued edges. The budget is not reset for each thread site.",
+    "The Linux adapter initializes stable scalar context before create; create failure drops the prepared parent body without invocation/join, and failed join aborts rather than returning with an active child. Successful join precedes child-result access. The focused native observer checks actual distinct pthread identity, parent-only body/drop and event order."
+  ],
+  "scope_delta": {
+    "component_to_common_022303df8": "Types/Analyze/Verify scoped_thread files and queried ownership, CT and Lower integration files are byte-identical to e622. The backend scoped_thread file has a 12-line off-target diagnostic-category correction to Unsupported; Linux execution logic is unchanged. Other life/cache/trait and aggregate work is outside this review.",
+    "common_022303df8_to_final": "Verified git diff --exit-code for crates/*/src/** and root/crate Cargo files: no changes. Final candidate adds the profile wording clarification and independent factory/Once/scalar-graph tests, alongside other review documents and budget migration records.",
+    "review_test_commit": "e3059bcdbb51fcd5f3a031a4f74ede8fa6072c07",
+    "review_changes": "changes/325-call-position-profile.md"
+  },
+  "tests": [
+    {
+      "commit": "e622402234b62958a156c93947d42eb59cf6f479",
+      "command": "cargo test -p zil-driver --features llvm-api --test generic_regressions thread325_ -- --nocapture",
+      "result": "3 passed, 0 failed, 0 ignored, 15 filtered",
+      "evidence_level": "existing real-source/native and source-derived raw/Wire controls, independently rerun by this reviewer"
+    },
+    {
+      "commit": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+      "command": "cargo test -p zil-driver --features llvm-api --test generic_regressions thread325_ -- --nocapture",
+      "result": "4 passed, 0 failed, 0 ignored, 15 filtered",
+      "native_executions": 28,
+      "native_matrix": "Clang and LLVM API, each O0/O2: four observer modes plus parent_borrow, life_trait and return_factory controls per profile. API O2 observer uses four actual CGUs; builder-object reports and no fallback are asserted.",
+      "native_observed": "Observer success exit0/PECBDJA; business error exit1/PECBDJA; create failure exit2/PECDA without worker/body invocation; join failure SIGABRT/PECBDX. All three ordinary controls exit0 with empty output on all four profiles.",
+      "raw_wire_observed": "Source-derived candidate survives encode/decode, Verify and Lower with two thread sites. Missing/teardown worker and repeated owned body reject independently in Analyze and Verify; a concrete parent closure placement reports Unsupported in both kernels.",
+      "budgets": {
+        "analyze_work": 6873,
+        "verify_work": 10587,
+        "control": "For each kernel, two fresh runs at N accept and N-1 returns ResourceLimit on the actual two-site candidate. Replays are not added to coverage totals."
+      }
+    },
+    {
+      "commit": "e3059bcdbb51fcd5f3a031a4f74ede8fa6072c07",
+      "command": "cargo clippy -p zil-driver --features llvm-api --test generic_regressions -- -D warnings",
+      "result": "Pass; final candidate has identical compiler/Cargo and corresponding test contents. rustfmt on the edited test file and git diff --check also passed."
+    }
+  ],
+  "independent_source_controls": [
+    {
+      "name": "return_factory",
+      "source": "fn worker(n:i32)->i32{return n+1}fn make()->impl Fn()->i32{let result=thread_scope(worker,7,()->i32=>1);let x=result.1;return move()->i32=>x}fn main()->i32{let f=make();return f()-8}",
+      "observed": "Success/Verify1 and four native exit0 runs; actual make has no environment or callable parameter contract and has a callable return contract.",
+      "review_disposition": "Initial wording 'no callable contract' was ambiguous. Root clarified section 11.1 to prohibit environment/callable parameter or helper-entry contracts, while preserving ordinary Direct factories. This is a recorded normative wording adjudication, not a proven UB or a production guard removal."
+    },
+    {
+      "name": "unreachable_address",
+      "test": "thread325_review_direct_factory_scalar_graph_and_once_body",
+      "observed": "Real worker source containing if false { let p=&n; return *p } rejects at Analyze/E-THREAD-WORKER, Verify0; source-level unreachable code does not establish scalar purity."
+    },
+    {
+      "name": "once_reuse",
+      "test": "thread325_review_direct_factory_scalar_graph_and_once_body",
+      "observed": "Real source passes one move closure capturing resource Mark to two thread_scope calls; second use rejects at Analyze/E-UNINITIALIZED, Verify0, with a source span and no executable."
+    }
+  ],
+  "environment": {
+    "checkout": "/workspace/zil-review325-by323",
+    "target_dir": "/workspace/.zil-env/target323-review325",
+    "build_jobs": 1,
+    "setup": "source /workspace/.zil-env/env.sh; explicit llvm-api feature; final focused test ran with HEAD exactly at implementation_commit"
+  },
+  "rust_goals": {
+    "safety": "Limited scalar worker and parent-body responsibilities independently checked; general async/Transfer/Share safety is unproved.",
+    "runtime_memory": "Real OS execution and failure cleanup observed; no same-semantics Rust timing/RSS comparison.",
+    "expression_maintenance": "Ordinary factory, borrowed parent body and life/trait composition reach both native backends; framework maintenance gains unmeasured.",
+    "compile_cost": "New traversal work has request N/N-1/fresh controls without raising limits; no Rust compilation-speed claim.",
+    "breakthrough": "Finite Direct OS-thread composition is executable; product-level four-goal conjunction and a repeatable net Rust advantage are not established."
+  },
+  "limitations": [
+    "No full workspace run was performed by this reviewer; root-owned full results are separate evidence.",
+    "No prior author review verdict or other reviewer test count is inherited.",
+    "No exhaustive scheduler/weak-memory proof, non-Linux support, shared child payload, detached task, cancellation, Suspend/SABI, general Transfer/Share, Mutex or Atomic claim."
+  ]
+}
