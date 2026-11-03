@@ -458,6 +458,34 @@ impl Visitor<'_, '_, '_> {
                     self.pattern(p, types, values, depth + 1)?;
                 }
             }
+            PatternKind::RecordConstructor { path, fields } => {
+                if path.len() == 2
+                    && !types.contains(&path[0])
+                    && let Some(alias) = self.resolver.resolved.get(&path[0])
+                {
+                    if !alias.parameters.is_empty() {
+                        return Err(error(p.span, "generic alias pattern requires a concrete alias"));
+                    }
+                    let alias = &alias.target;
+                    self.resolver.budget.ty_depth(alias, depth)?;
+                    let TypeKind::Named { path: target, args } = &grouped(alias).kind else {
+                        return Err(error(p.span, "record pattern alias requires a nominal enum"));
+                    };
+                    if !args.is_empty() {
+                        let marker = format!("$alias_pattern_{}", self.pattern_types.len());
+                        self.resolver.budget.text(&marker, p.span)?;
+                        self.pattern_types.insert(marker.clone(), alias.clone());
+                        path[0] = marker;
+                    } else {
+                        path[0] = target.join(".");
+                    }
+                }
+                for field in fields {
+                    self.resolver.budget.node(field.span, depth + 1)?;
+                    self.resolver.budget.text(&field.name, field.span)?;
+                    self.pattern(&mut field.pattern, types, values, depth + 1)?;
+                }
+            }
             _ => {}
         }
         Ok(())

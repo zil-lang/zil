@@ -352,6 +352,14 @@ pub fn walk_pattern<V: Visitor + ?Sized>(
                 walk_pattern(v, p, depth + 1)?;
             }
         }
+        s::PatternKind::RecordConstructor { path: names, fields } => {
+            path(v, names, p.span, depth + 1)?;
+            for field in fields {
+                v.node(field.span, depth + 1)?;
+                v.text(&field.name, field.span)?;
+                walk_pattern(v, &field.pattern, depth + 1)?;
+            }
+        }
     }
     Ok(())
 }

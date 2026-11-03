@@ -102,6 +102,14 @@ impl Renamer<'_> {
         match &mut pattern.kind {
             s::PatternKind::Name(name) => self.bind(name, pattern.span),
             s::PatternKind::Reference { pattern, .. } => self.pattern(pattern),
+            s::PatternKind::RecordConstructor { fields, .. } => {
+                // Only value binders are renamed. Member labels retain their
+                // source spelling for the later nominal field check.
+                for field in fields {
+                    self.pattern(&mut field.pattern)?;
+                }
+                Ok(())
+            }
             s::PatternKind::Tuple(parts) => {
                 for part in parts {
                     self.pattern(part)?;

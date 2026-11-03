@@ -338,7 +338,8 @@ fn normalize(
     let has_trait_instances = combined
         .items
         .iter()
-        .any(|item| matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty()));
+        .any(|item| matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty())
+            || matches!(&item.kind, ItemKind::Enum(e) if generics::record_enums::profile(e)));
     let instance_limits = if has_trait_instances {
         budget.remaining_limits()
     } else {
@@ -849,6 +850,21 @@ impl Visitor<'_, '_, '_> {
                 }
                 for p in arguments {
                     self.pattern(p, types, values, depth + 1)?;
+                }
+            }
+            PatternKind::RecordConstructor { path, fields } => {
+                if path.len() >= 2 {
+                    let count = path.len();
+                    if let Some(name) =
+                        self.symbol(&path[..count - 1], types, &Names::new(), p.span, true)?
+                    {
+                        *path = vec![name, path[count - 1].clone()];
+                    }
+                }
+                for field in fields {
+                    self.budget.node(field.span, depth + 1)?;
+                    self.budget.text(&field.name, field.span)?;
+                    self.pattern(&mut field.pattern, types, values, depth + 1)?;
                 }
             }
             _ => {}

@@ -20,6 +20,8 @@ pub(super) mod callable;
 mod copy;
 #[path = "generic_enum.rs"]
 mod enums;
+#[path = "generic_record_enum.rs"]
+pub(super) mod record_enums;
 #[path = "generic_helper_graph.rs"]
 mod helper_graph;
 #[path = "generic_products.rs"]
@@ -140,6 +142,8 @@ pub(super) fn specialize_products<'a>(
                 .items
                 .iter()
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+            && !normalized.module.items.iter().any(|item|
+                matches!(&item.kind, ItemKind::Enum(e) if record_enums::profile(e)))
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -158,6 +162,8 @@ pub(super) fn specialize_products<'a>(
             .items
             .iter()
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+        && !module.items.iter().any(|item|
+            matches!(&item.kind, ItemKind::Enum(e) if record_enums::profile(e)))
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -334,6 +340,13 @@ impl<'a> Engine<'a> {
             }
         }
         // Validate the parametric subset even when a template is not instantiated.
+        for item in &module.items {
+            if let ItemKind::Enum(declaration) = &item.kind
+                && record_enums::profile(declaration)
+            {
+                record_enums::validate(declaration, &engine.nominals, &engine.traits, &mut engine.budget)?;
+            }
+        }
         let mut helper_dependencies = helper_graph::Dependencies::default();
         for item in engine.templates.values() {
             if !item.attributes.is_empty() {
@@ -378,6 +391,8 @@ impl<'a> Engine<'a> {
                             || bounds.iter().all(stores::is_bound)
                             || matches!(&item.kind, ItemKind::Aggregate(a) if a.kind == AggregateKind::Struct)
                                 && bounds.iter().all(copy::is_bound)
+                            || matches!(item.kind, ItemKind::Enum(_))
+                                && bounds.iter().all(copy::is_bound)
                             || matches!(item.kind, ItemKind::Function(_)) => {}
                     _ => {
                         return Err(unsupported(
@@ -413,7 +428,7 @@ impl<'a> Engine<'a> {
                     &mut engine.trait_calls,
                 )?;
             }
-            if let ItemKind::Enum(e) = &item.kind {
+            if let ItemKind::Enum(e) = &item.kind && !record_enums::profile(e) {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
             if let ItemKind::Aggregate(a) = &item.kind {
@@ -474,6 +489,8 @@ impl<'a> Engine<'a> {
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
         self.products.trait_instances = self.traits.has_instances;
+        self.products.record_variants = module.items.iter().any(|item|
+            matches!(&item.kind, ItemKind::Enum(e) if record_enums::profile(e)));
         self.collect_products(module)?;
         let mut result = Module {
             id: module.id,
