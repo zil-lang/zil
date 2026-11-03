@@ -54,3 +54,14 @@ root需明确选择：证明并实现与既有目标机器ABI兼容的独立adap
 本片写集先限共享backend与已有aggregates/机器测试；未冻结导出边界前不实施
 破坏性签名变化。普通大Enum/ErrorUnion及大型环境内部值构造的旧SSA桥接也须
 明确范围，不把只修普通数组调用宣称所有大值机器路径完成。
+
+## 冻结与实现
+
+root在e28e08d8825085e9a3c6bae57d2a85d3a2418481冻结§19.4：选版本化迁移，
+受影响生成入口后缀`.lc1`、仍External；参数copy-in指针，大结果首hidden outptr，
+retvoid；小值/foreign C符号与ABI保持。无旧大型SSA兼容wrapper。
+共享Emitter同时消费definition/call/ref/indirect/return；ABI计划与324 snapshot
+计划共用同一剩余Codegen额度，额外header/函数指针完整类型布局检查确实收费。
+CGU按实际版本化符号分组、导入和声明；完整machine签名/名称继续进入原对象键。
+未贯通的closure entry/foreign/scoped-thread大签名提前Unsupported，未消费大snapshot
+不再临时Load回巨型SSA：发射记录Unsupported并在返回机器产物之前终止。

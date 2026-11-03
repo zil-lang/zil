@@ -296,7 +296,16 @@ fn prepare_inner(
         owner_key.extend_from_slice(key.as_bytes());
         let hash = Fingerprint::of(&owner_key).0;
         let owner = u64::from_le_bytes(hash[..8].try_into().ok()?) as usize % count;
-        let original = source_symbol(function.id);
+        let base = source_symbol(function.id);
+        let large = format!("{base}.lc1");
+        let original =
+            if module.items.iter().any(
+                |item| matches!(item, Item::Function(f) if f.name == large && f.blocks.is_some()),
+            ) {
+                large
+            } else {
+                base
+            };
         if function.name == "main" && entry.replace(original.clone()).is_some() {
             return None;
         }

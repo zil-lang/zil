@@ -1,5 +1,5 @@
 //! Private stack snapshots for large ordinary Copy values. These pointers never
-//! represent source addresses and do not change function signatures or LIR.
+//! represent source addresses. Source LIR types remain unchanged.
 use super::*;
 use zil_base::Limits;
 
@@ -7,8 +7,8 @@ const MIN_BYTES: u64 = 4096;
 
 #[derive(Clone)]
 pub(super) struct Slot {
-    ty: m::Ty,
-    bytes: u64,
+    pub(super) ty: m::Ty,
+    pub(super) bytes: u64,
     align: u32,
     work: usize,
 }
@@ -17,56 +17,7 @@ pub(super) type Plan = BTreeMap<ValueId, Slot>;
 pub(super) fn plan(
     lir: &LirView<'_>,
     limits: &Limits,
-) -> CompileResult<BTreeMap<FunctionId, Plan>> {
-    fn reserve(ty: &Type, work: &mut usize, depth: usize, limits: &Limits) -> CompileResult<()> {
-        *work = work.checked_sub(16).ok_or_else(|| {
-            vec![Diagnostic::limit(
-                Phase::Codegen,
-                "Copy aggregate snapshot planning budget exceeded",
-                None,
-            )]
-        })?;
-        if depth > limits.max_call_depth {
-            return Err(vec![Diagnostic::limit(
-                Phase::Codegen,
-                "Copy snapshot type depth exceeded",
-                None,
-            )]);
-        }
-        match ty {
-            Type::Array { element, .. } => reserve(element, work, depth + 1, limits)?,
-            Type::Tuple(fields) => {
-                for field in fields {
-                    reserve(field, work, depth + 1, limits)?;
-                }
-            }
-            Type::Record { fields, .. } => {
-                for (_, field) in fields {
-                    reserve(field, work, depth + 1, limits)?;
-                }
-            }
-            Type::Enum { variants, .. } => {
-                for (_, fields) in variants {
-                    for field in fields {
-                        reserve(field, work, depth + 1, limits)?;
-                    }
-                }
-            }
-            Type::ErrorUnion { error, result } => {
-                reserve(error, work, depth + 1, limits)?;
-                reserve(result, work, depth + 1, limits)?;
-            }
-            Type::FunctionPointer { parameters, result }
-            | Type::ForeignCallback { parameters, result } => {
-                for parameter in parameters {
-                    reserve(parameter, work, depth + 1, limits)?;
-                }
-                reserve(result, work, depth + 1, limits)?;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
+) -> CompileResult<super::large_copy_abi::Plans> {
     let mut work = limits.max_analysis_steps;
     let mut plans = BTreeMap::new();
     for function in lir.functions {
@@ -125,7 +76,8 @@ pub(super) fn plan(
             plans.insert(function.id, values);
         }
     }
-    if !plans.is_empty() {
+    let abi = super::large_copy_abi::plan(lir, limits, &mut work)?;
+    if !plans.is_empty() || abi.functions.values().any(|s| s.large()) {
         work.checked_sub(256).ok_or_else(|| {
             vec![Diagnostic::limit(
                 Phase::Codegen,
@@ -134,7 +86,92 @@ pub(super) fn plan(
             )]
         })?;
     }
-    Ok(plans)
+    Ok(super::large_copy_abi::Plans {
+        values: plans,
+        functions: abi.functions,
+        indirect: abi.indirect,
+    })
+}
+
+pub(super) fn reserve(
+    ty: &Type,
+    work: &mut usize,
+    depth: usize,
+    limits: &Limits,
+) -> CompileResult<()> {
+    *work = work.checked_sub(16).ok_or_else(|| {
+        vec![Diagnostic::limit(
+            Phase::Codegen,
+            "Copy aggregate snapshot planning budget exceeded",
+            None,
+        )]
+    })?;
+    if depth > limits.max_call_depth {
+        return Err(vec![Diagnostic::limit(
+            Phase::Codegen,
+            "Copy snapshot type depth exceeded",
+            None,
+        )]);
+    }
+    match ty {
+        Type::Array { element, .. } => reserve(element, work, depth + 1, limits)?,
+        Type::Tuple(fields) => {
+            for field in fields {
+                reserve(field, work, depth + 1, limits)?;
+            }
+        }
+        Type::Record { fields, .. } => {
+            for (_, field) in fields {
+                reserve(field, work, depth + 1, limits)?;
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for field in fields {
+                    reserve(field, work, depth + 1, limits)?;
+                }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            reserve(error, work, depth + 1, limits)?;
+            reserve(result, work, depth + 1, limits)?;
+        }
+        Type::FunctionPointer { parameters, result }
+        | Type::ForeignCallback { parameters, result } => {
+            for parameter in parameters {
+                reserve(parameter, work, depth + 1, limits)?;
+            }
+            reserve(result, work, depth + 1, limits)?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+pub(super) fn classify(
+    ty: &Type,
+    work: &mut usize,
+    limits: &Limits,
+) -> CompileResult<Option<Slot>> {
+    if !matches!(
+        ty,
+        Type::Array { .. } | Type::Tuple(_) | Type::Record { .. }
+    ) {
+        return Ok(None);
+    }
+    let before = *work;
+    reserve(ty, work, 0, limits)?;
+    if !ty.is_copy_value() {
+        return Ok(None);
+    }
+    let machine = llvm_type(ty)?;
+    let (bytes, align) = layout(&machine)?;
+    Ok((bytes >= MIN_BYTES).then_some(Slot {
+        ty: machine,
+        bytes,
+        align,
+        work: before - *work,
+    }))
 }
 
 fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
@@ -261,7 +298,7 @@ pub(super) fn declarations() -> m::Code {
     code
 }
 
-fn pointer(value: ValueId) -> m::Val {
+pub(super) fn pointer(value: ValueId) -> m::Val {
     m::local(format!("copy.value.{}", value.0))
 }
 
@@ -277,7 +314,7 @@ impl FunctionEmitter<'_> {
             )));
         }
     }
-    fn copy_bytes(&mut self, destination: m::Val, source: m::Val, bytes: u64) {
+    pub(super) fn copy_bytes(&mut self, destination: m::Val, source: m::Val, bytes: u64) {
         // One end is always a private, independently allocated value snapshot.
         // Source addresses cannot name it; these ranges cannot overlap.
         self.text.push(m::Event::Instruction(m::Inst::new(
@@ -504,16 +541,8 @@ impl FunctionEmitter<'_> {
         else {
             return;
         };
-        let temporary = self.temp();
-        self.text.push(m::Event::Instruction(m::Inst::new(
-            Some(m::name(temporary.clone())),
-            m::Op::Load {
-                ty: slot.ty,
-                ptr: pointer(id),
-                align: slot.align,
-            },
-        )));
-        argument.value = m::val(temporary);
+        let _ = slot;
+        self.unsupported_large_copy = true;
     }
     pub(super) fn copy_event(&mut self, mut event: m::Event) {
         if let m::Event::Instruction(instruction) = &mut event {
@@ -545,17 +574,8 @@ impl FunctionEmitter<'_> {
             if let Some((id, slot)) =
                 output.and_then(|id| self.copy_values.get(&id).cloned().map(|slot| (id, slot)))
             {
-                let temporary = self.temp();
-                instruction.result = Some(m::name(temporary.clone()));
-                self.text.push(event);
-                self.text.push(m::Event::Instruction(m::Inst::new(
-                    None,
-                    m::Op::Store {
-                        arg: m::Arg::new(slot.ty, m::val(temporary)),
-                        ptr: pointer(id),
-                        align: slot.align,
-                    },
-                )));
+                let _ = (id, slot);
+                self.unsupported_large_copy = true;
                 return;
             }
         }
