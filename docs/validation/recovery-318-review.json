@@ -273,6 +273,23 @@
     },
     "migration_recommendation": "Retain original source, all wire versions, hashes, frozen historical oracle and first full-suite failures. Add a current-contract acceptance ledger plus the nearest completeness/permission/loan conflicts. Old transport versions still reject. No production tightening or safety-oracle disabling is justified by these three cases.",
     "mutation_scope": "No root source, original fixture or frozen oracle changed by reviewer; only an independent existing-target test and this additive review record.",
-    "targeted_clippy": "impl238_product_replacement --features llvm-api -D warnings: Pass; reviewer corrected its earlier collapsible_if test-only lint with the equivalent if-let-chain, matching root eb25bf61e."
+    "targeted_clippy": "impl238_product_replacement --features llvm-api -D warnings: Pass; reviewer corrected its earlier collapsible_if test-only lint with the equivalent if-let-chain, matching root eb25bf61e.",
+    "migration_review": {
+      "commit": "c479b1d1ef0f03f0f6c8b96433d9c5f633a25d3b",
+      "tested_composition": "4d59c564f5a124be617a6258789e805fab85e9d9",
+      "verdict": "PassLimited",
+      "original_fixture_tree": "bcc405e24a104718ea36562d2b6ddfbd993c8ce5",
+      "fixture_identity": "Parent and candidate review223_fixtures Git trees exactly identical; source, frozen ORACLE and Wire27/29/30/32 bytes unchanged.",
+      "old_transport_oracle": "frozen_schema27_29_and30_wire_are_rejected_as_old_transports function byte-identical; original fixed hashes and both decode/Verify E-WIRE-VERSION assertions retained.",
+      "current_acceptance": "All three coherent current Product mutable helper inputs are verified through both raw and Wire paths; frozen replay additionally binds the verified fingerprint and exact schema32 SHA256. Original source generation and envelope allowed-range equality remain.",
+      "nearest_rejections": "Every migration entry checks shared addresses retaining WriteAddress => Verify/E-VERIFY-ADDRESS and actual owned-child address formation => Verify/E-UNSUPPORTED, on both raw and Wire: 12 exact semantic rejections. Each adds real missing-child source call => Analyze/SafeReject/E-ANALYZE-IR: 3 rejections. No fingerprint/resource-limit substitute or empty test selection.",
+      "results": {
+        "impl223_product_store": "13/0, no filter",
+        "review223_boundaries": "2/0, no filter",
+        "review223_replay": "2/0, no filter",
+        "targeted_clippy": "All three targets --features llvm-api -D warnings Pass"
+      },
+      "production_change": "None; candidate modifies three tests and the existing changes record only. Reviewer changed only this additive adjudication record after reproducing results."
+    }
   }
 }
