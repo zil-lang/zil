@@ -94,14 +94,12 @@ fn generic_enum_payload_uses_declared_callable_result() {
 }
 
 #[test]
-fn generic_error_union_symbolic_alternatives_require_distinctness() {
+fn generic_error_union_templates_preserve_symbolic_and_actual_checks() {
     for text in [
-        "fn sink<T>(value:T!i32,witness:T)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(7,w)}fn main(){}",
-        "fn sink<T>(witness:T,value:T!i32)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(w,7)}fn main(){}",
-        "fn unused<U:Copy>(w:U)->U!i32{let n:i32=7;return n}fn main(){}",
-        "fn unused<U:Copy>(w:U)->U!i32=>7;fn main(){}",
-        "fn unused<U:Copy>(w:U)->i32{let n:U!i32=7;return 0}fn main(){}",
-        "enum Choice<T>{None,Some(T)}fn unused<U:Copy>(w:U)->Choice<U>!Choice<i32>{let n=Choice::<i32>.None;return n}fn main(){}",
+        "fn unused<U:Copy>(w:U)->U!U{return w}fn main(){}",
+        "fn unused<U:Copy>(w:U)->i32{let value:U!U=w;return 0}fn main(){}",
+        "fn sink<T:Copy>(value:T!T,witness:T)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(w,w)}fn main(){}",
+        "fn sink<T>(value:T!i32)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(7)}fn main(){}",
     ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "union-symbolic-reject.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
@@ -114,6 +112,12 @@ fn generic_error_union_symbolic_alternatives_require_distinctness() {
         );
     }
     for text in [
+        "fn sink<T>(value:T!i32,witness:T)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(7,w)}fn main(){}",
+        "fn sink<T>(witness:T,value:T!i32)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(w,7)}fn main(){}",
+        "fn unused<U:Copy>(w:U)->U!i32{let n:i32=7;return n}fn main(){}",
+        "fn unused<U:Copy>(w:U)->U!i32=>7;fn main(){}",
+        "fn unused<U:Copy>(w:U)->i32{let n:U!i32=7;return 0}fn main(){}",
+        "enum Choice<T>{None,Some(T)}fn unused<U:Copy>(w:U)->Choice<U>!Choice<i32>{let n=Choice::<i32>.None;return n}fn main(){}",
         "fn sink<T>(value:T!i32,witness:T)->i32{return 0}fn unused<U:Copy>(w:U,v:U!i32)->i32{return sink(v,w)}fn main(){}",
         "fn unused<U:Copy>(v:U!i32)->U!i32{let n:U!i32=v;return n}fn main(){}",
         "enum Choice<T>{None,Some(T)}fn unused<U:Copy>(v:Choice<U>)->Choice<U>!i32{let n:Choice<U>!i32=v;return n}fn main(){}",

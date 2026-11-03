@@ -274,13 +274,7 @@ pub(super) fn validate_parametric<'l>(
             } else if check.callable.is_some()
                 || matches!(group(&result).kind, TypeKind::Error { .. })
             {
-                same_return(
-                    &actual,
-                    &result,
-                    value.span,
-                    Some(&check.variables),
-                    check.budget,
-                )?;
+                same_return(&actual, &result, value.span, check.budget)?;
             } else {
                 same(&actual, &result, value.span, check.budget)?;
             }
@@ -315,12 +309,10 @@ pub(super) fn same_return(
     actual: &TypeRef,
     expected: &TypeRef,
     span: Span,
-    variables: Option<&BTreeSet<String>>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
     let actual_key = type_key(actual, budget)?;
-    let mut dependent_expected = false;
-    if actual_key == type_key_observed(expected, variables, &mut dependent_expected, budget)? {
+    if actual_key == type_key(expected, budget)? {
         return Ok(());
     }
     if let TypeKind::Error {
@@ -331,18 +323,6 @@ pub(super) fn same_return(
         let error_match = actual_key == type_key(error_type, budget)?;
         let result_match = actual_key == type_key(result, budget)?;
         if error_match != result_match {
-            if dependent_expected {
-                let other = if error_match { result } else { error_type };
-                budget.ty(actual)?;
-                budget.ty(other)?;
-                if !provably_distinct(actual, other, variables.expect("observed generic variable"))
-                {
-                    return Err(error(
-                        span,
-                        "error union alternative may match an unresolved type parameter",
-                    ));
-                }
-            }
             return Ok(());
         }
         if error_match {
@@ -350,37 +330,6 @@ pub(super) fn same_return(
         }
     }
     same(actual, expected, span, budget)
-}
-// Types were prepaid by the caller. A symbolic name is not evidence that an
-// alternative differs: a later substitution may make it the very same type.
-fn provably_distinct(a: &TypeRef, b: &TypeRef, variables: &BTreeSet<String>) -> bool {
-    let a = group(a);
-    let b = group(b);
-    let unknown = |ty: &TypeRef| {
-        matches!(&ty.kind, TypeKind::Named { path, args }
-        if args.is_empty() && path.len() == 1 && variables.contains(&path[0]))
-    };
-    if unknown(a) || unknown(b) {
-        return false;
-    }
-    match (&a.kind, &b.kind) {
-        (TypeKind::Named { path: ap, args: aa }, TypeKind::Named { path: bp, args: ba }) => {
-            ap != bp || aa.len() != ba.len() || aa.iter().zip(ba).any(|(a,b)| {
-                matches!((a,b), (GenericArg::Type(a),GenericArg::Type(b)) if provably_distinct(a,b,variables))
-            })
-        }
-        (TypeKind::Tuple(a), TypeKind::Tuple(b)) => a.len() != b.len() || a.iter().zip(b).any(|(a,b)| provably_distinct(a,b,variables)),
-        (TypeKind::Array { element: a, length: al }, TypeKind::Array { element: b, length: bl }) => {
-            provably_distinct(a,b,variables) || match (al,bl) {
-                (Some(a),Some(b)) => matches!((array_length(a),array_length(b)), (Ok(a),Ok(b)) if a != b),
-                (None,Some(_)) | (Some(_),None) => true,
-                _ => false,
-            }
-        }
-        (TypeKind::Error { error: a, result: ar }, TypeKind::Error { error: b, result: br }) => provably_distinct(a,b,variables) || provably_distinct(ar,br,variables),
-        (TypeKind::Reference { mutable: a, inner: ai, .. }, TypeKind::Reference { mutable: b, inner: bi, .. }) => a != b || provably_distinct(ai,bi,variables),
-        _ => std::mem::discriminant(&a.kind) != std::mem::discriminant(&b.kind),
-    }
 }
 fn substituted_type(
     ty: &TypeRef,
@@ -2794,7 +2743,6 @@ impl Check<'_, '_, '_> {
                         &variables,
                         &found,
                         e.span,
-                        Some(&self.variables),
                         self.budget,
                     )? {
                         unify(
@@ -3320,13 +3268,7 @@ impl Check<'_, '_, '_> {
                     )?;
                     if let Some(ty) = ty {
                         if matches!(group(ty).kind, TypeKind::Error { .. }) {
-                            same_return(
-                                &actual,
-                                ty,
-                                statement.span,
-                                Some(&self.variables),
-                                self.budget,
-                            )?;
+                            same_return(&actual, ty, statement.span, self.budget)?;
                         } else {
                             same(&actual, ty, statement.span, self.budget)?;
                         }
@@ -3520,13 +3462,7 @@ impl Check<'_, '_, '_> {
                     } else if self.callable.is_some()
                         || matches!(group(&expected).kind, TypeKind::Error { .. })
                     {
-                        same_return(
-                            &actual,
-                            &expected,
-                            statement.span,
-                            Some(&self.variables),
-                            self.budget,
-                        )?;
+                        same_return(&actual, &expected, statement.span, self.budget)?;
                     } else {
                         same(&actual, &expected, statement.span, self.budget)?;
                     }
