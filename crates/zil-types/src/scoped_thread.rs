@@ -63,8 +63,7 @@ impl Builder<'_, '_> {
                 )?);
             }
             self.closures.snapshot(work.saturating_add(1), span)?;
-            let pending = &self.closures.pending[id.0 as usize];
-            if pending.inference.result()?.as_ref() != Some(&self.function.return_type) {
+            if self.closures.thread_result(id)?.as_ref() != Some(&self.function.return_type) {
                 return Err(error(
                     "E-THREAD-WORKER",
                     span,
@@ -72,7 +71,7 @@ impl Builder<'_, '_> {
                 ));
             }
             for (index, local) in self.function.parameters.iter().enumerate() {
-                if pending.inference.parameter(index)?.as_ref()
+                if self.closures.thread_parameter(id, index)?.as_ref()
                     != Some(&self.function.locals[local.0 as usize].ty)
                 {
                     return Err(error(
@@ -121,7 +120,8 @@ impl Builder<'_, '_> {
                 "thread_scope body signature is ()->i32",
             ));
         }
-        pending.inference.expect_result(&Type::I32, body.span)?;
+        self.closures
+            .thread_expect_result(id, &Type::I32, body.span)?;
         self.materialize_closure(id)?;
         let ty = Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]);
         if let Some(expected) = expected {
