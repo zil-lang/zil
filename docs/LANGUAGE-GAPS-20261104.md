@@ -25,3 +25,5 @@ Option、usize/u64原生链、const/关联项/泛型impl及方法、一般life/l
 旧恢复卡按本轮实际B源码与非作者复核重新绑定C；旧implementation、审核、失败及stale规范registry保存在历史字段，未重写旧对象。当前handoff完整性、历史Unavailable和legacy Fail分账。父B0 Doing、完整语言/ZUI NotSatisfied及产品门NotRun保持。
 
 源码已按阶段备份到GitHub进度/任务分支。PR30的实际状态以[GitHub](https://github.com/zil-lang/zil/pull/30)为准；已观察的两条CI任务因账号支付/额度未启动、没有步骤，不能声称远端CI通过。最终远端头、bundle验证和实际恢复源码比对另记录于备份收据。
+
+2026-11-04接续补记：335修复fresh refs-bundle checkout把旧游离对象可用性变化误作Current错误的问题，Node29/0与独立13组真实Git检查通过；原M的325个Current错误及两种环境legacy Fail保留。当前交付对象/规范/review仍严格，manifest未改。最终新main及实际恢复以备份收据为准。

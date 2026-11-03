@@ -260,3 +260,5 @@ Ready必须具备精确base_revision、当前spec_hash/normative_hash、固定�
 ## 2026-11-02 语言主线组合缺口
 
 用户优先完整语言及ZUI前置，编译优化研究不占主线必要时段。227同步defer、235普通嵌套Store Product已有可恢复候选，236真实消费者暴露whole-Product再赋值缺口，独审暴露泛型Product完整身份缺口，由238与237分别承接；保留原失败，不改oracle规避。主线以实际组合运行、错误退出、替换和清理闭环验收，形式工单及完整1.4/ZUI/产品门不随候选推送晋升。
+
+2026-11-04接续补记：335修复fresh refs-bundle checkout把旧游离对象可用性变化误作Current错误的问题，Node29/0与独立13组真实Git检查通过；原M的325个Current错误及两种环境legacy Fail保留。当前交付对象/规范/review仍严格，manifest未改。最终新main及实际恢复以备份收据为准。
