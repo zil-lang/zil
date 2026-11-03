@@ -867,8 +867,8 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
             "variant {variant}: {errors:?}"
         );
     }
-    // A well-formed concrete parent closure is a future legal placement, not
-    // a forged worker authority. Both raw kernels must report Unsupported.
+    // 332 admits this well-formed concrete parent entry after reconstructing
+    // its actual binding; the added environment bit alone is not authority.
     let mut future = typed.clone();
     let id = zil_ir::ClosureId(future.closures.len() as u32);
     future.functions[caller].environment = Some(id);
@@ -881,20 +881,35 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
         kind: zil_ir::CallableKind::Fn,
         lending_captures: vec![],
     });
-    let errors = zil_analyze::analyze(&future, &limits).unwrap_err();
-    assert_eq!(
-        errors[0].category,
-        ResultCategory::Unsupported,
-        "{errors:?}"
-    );
-    let mut claim = plan.clone();
-    claim.module_fingerprint = future.fingerprint();
-    let errors = zil_verify::verify_module(future, claim, &target, &limits).unwrap_err();
-    assert_eq!(
-        errors[0].category,
-        ResultCategory::Unsupported,
-        "{errors:?}"
-    );
+    let future_plan = zil_analyze::analyze(&future, &limits).unwrap();
+    zil_verify::verify_module(future.clone(), future_plan.clone(), &target, &limits).unwrap();
+    for variant in 0..5 {
+        let mut forged = future.clone();
+        match variant {
+            0 => forged.functions[caller].environment = Some(zil_ir::ClosureId(u32::MAX)),
+            1 => forged.closures[id.0 as usize].function = zil_ir::FunctionId(u32::MAX),
+            2 => forged.closures[id.0 as usize].result = zil_ir::Type::Bool,
+            3 => forged.closures[id.0 as usize]
+                .parameters
+                .push(zil_ir::Type::I32),
+            4 => forged.functions[caller].result_mode = zil_ir::PassingMode::Move,
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "parent variant {variant}: {errors:?}"
+        );
+        let mut claim = future_plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let errors = zil_verify::verify_module(forged, claim, &target, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "parent variant {variant}: {errors:?}"
+        );
+    }
     // Exact worker traversal work comes from the current request, not a fresh per-worker budget.
     for verify in [false, true] {
         let mut low = 0;
@@ -950,6 +965,25 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
 #[test]
 #[cfg(target_os = "linux")]
 fn thread325_native_os_join_parent_cleanup_and_failure() {
+    thread_native_parent_observer("direct");
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_native_concrete_parent_cleanup_and_failure() {
+    thread_native_parent_observer("owned");
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_native_nested_roots_and_failures() {
+    thread_native_parent_observer("nested");
+}
+
+#[cfg(target_os = "linux")]
+fn thread_native_parent_observer(profile: &str) {
+    let concrete_parent = profile != "direct";
+    let nested = profile == "nested";
     use std::{
         fs,
         io::Write,
@@ -987,7 +1021,11 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
             let observer = directory.join("observer.o");
             let compiled = Command::new(&clang)
                 .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
-                .arg(thread325_root().join("observer.c"))
+                .arg(thread325_root().join(if nested {
+                    "parent332/nested_observer.c"
+                } else {
+                    "observer.c"
+                }))
                 .arg("-o")
                 .arg(&observer)
                 .output()
@@ -996,13 +1034,33 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
             let wrapper = directory.join("link.sh");
             fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -pthread -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join\nfi\nexec {} \"$@\"\n", quote(&clang), quote(&observer), quote(&clang))).unwrap();
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-            let units = if backend == NativeBackend::LlvmApi && optimization == Optimization::O2 {
-                4
-            } else {
-                1
-            };
+            let units =
+                if !nested && backend == NativeBackend::LlvmApi && optimization == Optimization::O2
+                {
+                    4
+                } else {
+                    1
+                };
+            let mut project = thread325_project();
+            if concrete_parent {
+                let path = thread325_root().join(if nested {
+                    "parent332/nested_owned.zil"
+                } else {
+                    "parent332/owned_main.zil"
+                });
+                project.modules[0] = SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    path.to_string_lossy().into_owned(),
+                    fs::read_to_string(path).unwrap(),
+                );
+            }
+            if nested {
+                project.modules.truncate(1);
+                project.paths.clear();
+            }
             let report = zil_driver::compile_project(
-                &thread325_project(),
+                &project,
                 &CompileOptions {
                     backend,
                     optimization,
@@ -1039,12 +1097,23 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                         && r.contains("\"parse_ns\":0,")
                 }));
             }
-            for (mode, status, signal, stdout) in [
-                (b'0', Some(0), None, "PECBDJA"),
-                (b'1', Some(1), None, "PECBDJA"),
-                (b'2', Some(2), None, "PECDA"),
-                (b'3', None, Some(6), "PECBDX"),
-            ] {
+            let cases = if nested {
+                &[
+                    (b'0', Some(0), None, "CBCbIjaOJA"),
+                    (b'1', Some(3), None, "CBCIaOJA"),
+                    (b'2', Some(2), None, "COA"),
+                    (b'3', None, Some(6), "CBCbIx"),
+                    (b'4', None, Some(6), "CBCbIjaOX"),
+                ][..]
+            } else {
+                &[
+                    (b'0', Some(0), None, "PECBDJA"),
+                    (b'1', Some(1), None, "PECBDJA"),
+                    (b'2', Some(2), None, "PECDA"),
+                    (b'3', None, Some(6), "PECBDX"),
+                ][..]
+            };
+            for &(mode, status, signal, stdout) in cases {
                 let mut child = Command::new(&report.artifacts["executable"])
                     .current_dir(&directory)
                     .stdin(Stdio::piped())
@@ -1081,8 +1150,22 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                 assert!(actual.stderr.is_empty(), "{actual:?}");
             }
             // Parent borrowing, life/trait composition, and a Direct factory reach both machines.
-            for control in ["parent_borrow", "life_trait", "return_factory"] {
-                let text = if control == "return_factory" {
+            let controls = if nested {
+                &[][..]
+            } else if concrete_parent {
+                &["kinds", "nested", "borrow", "parent_closure"][..]
+            } else {
+                &["parent_borrow", "life_trait", "return_factory"][..]
+            };
+            for control in controls {
+                let text = if concrete_parent {
+                    let path = if *control == "parent_closure" {
+                        "pending/parent_closure.zil".to_owned()
+                    } else {
+                        format!("parent332/{control}.zil")
+                    };
+                    fs::read_to_string(thread325_root().join(path)).unwrap()
+                } else if *control == "return_factory" {
                     THREAD325_RETURN_FACTORY.to_owned()
                 } else {
                     fs::read_to_string(thread325_root().join(format!("controls/{control}.zil")))
@@ -1109,7 +1192,11 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                 let actual = Command::new(&report.artifacts["executable"])
                     .output()
                     .unwrap();
-                assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+                assert_eq!(
+                    actual.status.code(),
+                    Some(if *control == "parent_closure" { 14 } else { 0 }),
+                    "{control}: {actual:?}"
+                );
                 assert!(
                     actual.stdout.is_empty() && actual.stderr.is_empty(),
                     "{actual:?}"
@@ -1156,9 +1243,125 @@ fn thread332_concrete_parent_kinds_and_nested_source() {
             assert_eq!(kinds.len(), 1);
         }
         let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        if name == "kinds" {
+            thread332_budget(&typed, &plan);
+            // Forcing a shared entry must not copy the parent's owned body.
+            let mut forged = typed.clone();
+            let once = forged
+                .closures
+                .iter_mut()
+                .find(|c| {
+                    c.kind == CallableKind::FnOnce
+                        && c.captures
+                            .iter()
+                            .any(|t| matches!(t, zil_ir::Type::Managed(_)))
+                })
+                .unwrap();
+            once.kind = CallableKind::Fn;
+            let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+            let mut claim = plan.clone();
+            claim.module_fingerprint = forged.fingerprint();
+            let errors = zil_verify::verify_module(forged, claim, &target, &limits).unwrap_err();
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+        }
         let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
         let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
         let verified = zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
         zil_lower::lower(&verified).unwrap();
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_parent_boundaries() {
+    for (name, phase, code) in [
+        ("once_reuse", zil_base::Phase::Analyze, "E-UNINITIALIZED"),
+        ("thin_body", zil_base::Phase::Types, "E-THREAD-BODY"),
+        ("ct_parent", zil_base::Phase::Ct, "E-CT-FORBIDDEN"),
+        ("nested_worker", zil_base::Phase::Analyze, "E-THREAD-WORKER"),
+        (
+            "borrow_conflict",
+            zil_base::Phase::Analyze,
+            "E-BORROW-CONFLICT",
+        ),
+    ] {
+        let text = std::fs::read_to_string(thread325_root().join(format!("parent332/{name}.zil")))
+            .unwrap();
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+        if name == "borrow_conflict" {
+            let positive = text.replace("        *input=4\n", "");
+            let report = compile_source(&source(&positive), &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn thread332_budget(typed: &zil_ir::TypedModule, plan: &zil_ir::CandidatePlan) {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for verify in [false, true] {
+        let mut low = 0;
+        let mut high = limits.max_analysis_steps;
+        while low + 1 < high {
+            let selected = Limits {
+                max_analysis_steps: (low + high) / 2,
+                ..limits.clone()
+            };
+            let accepted = if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected).is_ok()
+            } else {
+                zil_analyze::analyze(typed, &selected).is_ok()
+            };
+            if accepted {
+                high = selected.max_analysis_steps;
+            } else {
+                low = selected.max_analysis_steps;
+            }
+        }
+        for amount in [high, high - 1, high] {
+            let selected = Limits {
+                max_analysis_steps: amount,
+                ..limits.clone()
+            };
+            let result = if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected)
+                    .map(|_| ())
+            } else {
+                zil_analyze::analyze(typed, &selected).map(|_| ())
+            };
+            if amount == high {
+                result.unwrap();
+            } else {
+                assert_eq!(
+                    result.unwrap_err()[0].category,
+                    ResultCategory::ResourceLimit
+                );
+            }
+        }
+        eprintln!(
+            "thread332 {} cumulative parent work N={high}",
+            if verify { "Verify" } else { "Analyze" }
+        );
     }
 }
