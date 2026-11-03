@@ -543,5 +543,60 @@
     "Default body direct global function value remains legitimate KnownIncomplete; existing non-thread Graph cumulative accounting debt remains outside this repair",
     "Full language/B0/ZUI and native Windows/Rust same-semantics cost gates remain uncompleted"
   ],
-  "raw_logs": "Ephemeral local only; actual regression source, replay utility and compact observed outcomes are committed. No raw evidence archives in Git."
+  "raw_logs": "Ephemeral local only; actual regression source, replay utility and compact observed outcomes are committed. No raw evidence archives in Git.",
+  "handoff": {
+    "observed_head": "a71c49e4431d05464c7a186e0251734d158a1ac5",
+    "current_gate": {
+      "status": "CurrentPass",
+      "error_count": 0
+    },
+    "historical_status": {
+      "status": "Unavailable",
+      "archived": 274,
+      "unavailable": 220,
+      "unreviewed": 54,
+      "claims_revalidated": false,
+      "source_commit": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072"
+    },
+    "legacy_audit_status": "Fail",
+    "legacy_error_count": 1924,
+    "claims_revalidated": false
+  },
+  "post_full_gate_changes": {
+    "base": "65c25910616196eae76911afb13818dc79b73012",
+    "compiler_and_registered_Rust_tests_unchanged": true,
+    "paths_before_metadata_snapshot": [
+      ".task/impl/313.md",
+      ".task/impl/314.md",
+      ".task/impl/315.md",
+      ".task/impl/316.md",
+      ".task/impl/317.md",
+      ".task/impl/320.md",
+      ".task/impl/321.md",
+      ".task/impl/329.md",
+      ".task/impl/330.md",
+      ".task/impl/331.md",
+      ".task/impl/332.md",
+      ".task/impl/333.md",
+      ".task/impl/334.md",
+      "_zil_goal.md",
+      "changes/334-gap-audit.md",
+      "docs/LANGUAGE-GAPS-20261104.md",
+      "docs/LANGUAGE-NEXT-PRIORITIES.md",
+      "docs/LANGUAGE-REMAINING.md",
+      "docs/RUST-GOALS.md",
+      "docs/validation/language-gaps-334-final.json",
+      "docs/validation/language-gaps-consumer208-20261104.json",
+      "docs/validation/language-gaps-integration-20261104.json",
+      "docs/validation/language-gaps-root-reviews-20261104.json",
+      "tests/language-readiness/README.md",
+      "tests/language-readiness/codegen-pending/README.md",
+      "tests/language-readiness/current334/README.md",
+      "tests/language-readiness/followup334/default-global-fnptr-known-incomplete.zil",
+      "tests/language-readiness/review331/README.md",
+      "tests/language-readiness/review331/primitive-binder-life-numeric-negative.zil",
+      "tests/language-readiness/review331/primitive-binder-life-positive.zil"
+    ],
+    "explanation": "Post-full changes are task/docs/review records and standalone already-observed readiness inputs; no compiler/Cargo/native or registered Rust test source changed."
+  }
 }
