@@ -261,8 +261,17 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
         let task = null;
         try { task = JSON.parse(original.raw.match(/```json\r?\n([\s\S]*?)\r?\n```/)?.[1] ?? ''); } catch { /* An explicitly frozen note is not invented JSON. */ }
         const state = task?.status ?? original.raw.split(/\r?\n/)[0];
-        if (state !== entry.recorded_state || JSON.stringify(references(task)) !== JSON.stringify(entry.object_references)) {
-          complain('migration', `Frozen state or object availability differs: ${name}`); continue;
+        const observedReferences = references(task);
+        const historical = entry.classification === 'HistoricalRecord';
+        const frozenReferencesValid = Array.isArray(entry.object_references) && entry.object_references.every(ref =>
+          ref && typeof ref === 'object' && JSON.stringify(Object.keys(ref).sort()) === JSON.stringify(['availability', 'commit', 'field']) &&
+          typeof ref.field === 'string' && typeof ref.commit === 'string' && ['Present', 'Missing', 'Invalid'].includes(ref.availability) &&
+          (ref.availability === 'Invalid') === !commitPattern.test(ref.commit));
+        const identity = refs => refs.map(({field, commit}) => ({field, commit}));
+        const referencesMatch = frozenReferencesValid && JSON.stringify(historical ? identity(observedReferences) : observedReferences) ===
+          JSON.stringify(historical ? identity(entry.object_references) : entry.object_references);
+        if (state !== entry.recorded_state || !referencesMatch) {
+          complain('migration', `Frozen state or object reference inventory differs: ${name}`); continue;
         }
         const expectedEvidence = [];
         for (const [field, refs] of [['evidence', task?.evidence], ['review.evidence', task?.review?.evidence]]) {
@@ -281,8 +290,10 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
           if (!full || !fs.existsSync(full) || digest(fs.readFileSync(full)) !== entry.sha256 || !tracked(name, fs.readFileSync(full))) {
             complain('migration', `Historical record was removed, changed or uncommitted: ${name}`); continue;
           }
-          const unavailable = !task || entry.object_references.some(ref => ref.availability !== 'Present') || entry.evidence_references.some(ref => ref.availability !== 'PresentAtSnapshot');
-          historicalRecords.set(name, {...entry, parent_task: task?.parent_task ?? null, availability: unavailable ? 'Unavailable' : 'Unreviewed', claims_revalidated: false});
+          const objectAvailabilityChanges = observedReferences.flatMap((ref, index) => ref.availability === entry.object_references[index].availability ? [] :
+            [{field: ref.field, commit: ref.commit, recorded: entry.object_references[index].availability, observed: ref.availability}]);
+          const unavailable = !task || observedReferences.some(ref => ref.availability !== 'Present') || entry.evidence_references.some(ref => ref.availability !== 'PresentAtSnapshot');
+          historicalRecords.set(name, {...entry, parent_task: task?.parent_task ?? null, availability: unavailable ? 'Unavailable' : 'Unreviewed', object_availability_changes: objectAvailabilityChanges, claims_revalidated: false});
         }
       }
       for (const adapter of policy.review_adapters) {
@@ -301,7 +312,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
       const relative = `${directory}/${filename}`, bytes = fs.readFileSync(path.join(root, relative));
       const archived = historicalRecords.get(relative);
       if (archived && !legacyAudit) {
-        output.push({id: filename.slice(0, -3), path: relative, status: archived.recorded_state, baseline: archived.object_references.find(ref => ['baseline', 'base_revision'].includes(ref.field))?.commit ?? null, record_sha256: digest(bytes), committed: true, validation: {classification: 'HistoricalRecord', availability: archived.availability, claims_revalidated: false}, parent_task: archived.parent_task});
+        output.push({id: filename.slice(0, -3), path: relative, status: archived.recorded_state, baseline: archived.object_references.find(ref => ['baseline', 'base_revision'].includes(ref.field))?.commit ?? null, record_sha256: digest(bytes), committed: true, validation: {classification: 'HistoricalRecord', availability: archived.availability, object_availability_changes: archived.object_availability_changes, claims_revalidated: false}, parent_task: archived.parent_task});
         continue;
       }
       const errorStart = errors.length;
@@ -360,7 +371,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
       if (!record.committed) warnings.push({id, reason: 'Current task record differs from committed main; it is a working instruction, not a completed handoff.'});
       output.push(record);
       if (archived) {
-        record.validation = {classification: 'HistoricalRecord', availability: archived.availability, claims_revalidated: false};
+        record.validation = {classification: 'HistoricalRecord', availability: archived.availability, object_availability_changes: archived.object_availability_changes, claims_revalidated: false};
         legacyErrors.push(...errors.splice(errorStart));
       }
     }
@@ -396,7 +407,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
     schema_version: migration ? 2 : 1, scope: 'Current handoff record integrity; historical availability is separate. Not language correctness, review quality or full task acceptance.',
     status: migration ? legacyAudit ? legacyFailed ? 'LegacyAuditFail' : 'LegacyAuditPass' : currentGate.status : errors.length ? 'Fail' : 'Pass', snapshot_only: true,
     current_gate: currentGate,
-    historical_status: {status: unavailable ? 'Unavailable' : historicalRecords.size ? 'Unreviewed' : 'NotClassified', archived: historicalRecords.size, unavailable, unreviewed: historicalRecords.size - unavailable, claims_revalidated: false, source_commit: migration?.source_commit ?? null},
+    historical_status: {status: unavailable ? 'Unavailable' : historicalRecords.size ? 'Unreviewed' : 'NotClassified', archived: historicalRecords.size, unavailable, unreviewed: historicalRecords.size - unavailable, object_availability_changes: [...historicalRecords.values()].reduce((total, record) => total + record.object_availability_changes.length, 0), claims_revalidated: false, source_commit: migration?.source_commit ?? null},
     legacy_audit: {status: legacyAudit ? legacyFailed ? 'Fail' : 'Pass' : 'NotRun', errors: legacyAudit ? [...errors, ...legacyErrors] : []},
     authority: {method: mainTree ? 'explicit-main-worktree' : top.ok ? authorityBranch === 'work' ? 'git-primary-worktree' : 'git-main-worktree' : 'archive-without-git', task_root: '.task', verified: authorityVerified, branch: authorityBranch, current_is_main: authorityVerified && current === root, origin_main_tracking_head: top.ok ? cachedGit('rev-parse', '--verify', 'refs/remotes/origin/main').text || null : null, remote_observation: 'Local tracking ref only; no network or remote merge claim.'},
     current_head: git(current, 'rev-parse', '--verify', 'HEAD').text || null, main_head: mainHead,
