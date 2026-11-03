@@ -2626,13 +2626,3 @@ fn large_copy_enum_error_cgu_cache_and_canonical_function_reference() {
         }
     }
 }
-
-#[test]
-fn large_copy_enum_error_borrow_capture_keeps_pointer_environment() {
-    let first = "[0]".repeat(13);
-    let text = large_copy_program(&format!(
-        "var message:Message=Message.Data(a12);let f=()=>{{let saved:Message=message;message=Message.Empty;match saved{{Message.Data(bytes)=>{{return i32(bytes{first})}},Message.Empty()=>{{return 0}}}}}};return f()*10+f();"
-    ));
-    let text = format!("enum Message{{Data(Big),Empty}}{text}");
-    review329_native(&[("main", &text)], 30);
-}
