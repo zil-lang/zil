@@ -450,11 +450,14 @@ impl Engine<'_> {
                 )?;
                 let actual = match actual {
                     Some(actual) => actual,
-                    None => self
-                        .value_hint(&argument.value, env, depth + 1, true)?
-                        .ok_or_else(|| {
-                            error(argument.span, "enum payload type cannot be inferred")
-                        })?,
+                    None => match self.value_hint(&argument.value, env, depth + 1, true)? {
+                        Some(actual) => actual,
+                        None if self.budget.has_enum_profiles() && !unresolved => {
+                            self.budget.ty(&hint)?;
+                            hint.clone()
+                        }
+                        None => return Err(error(argument.span, "enum payload type cannot be inferred")),
+                    },
                 };
                 let actual = self.original_type(&actual)?;
                 unify(field, &actual, &vars, &mut found, span, &mut self.budget)?;

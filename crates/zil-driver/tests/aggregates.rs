@@ -9,6 +9,314 @@ use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Targ
 use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+#[test]
+fn record_enum329_named_source_order_and_exact_values() {
+    native(
+        r#"
+enum Message{Data{left:i64,right:i64,flag:bool},Empty{}}
+fn mark(log:&mut i64,digit:i64)->i64{*log=*log*10+digit;return digit}
+fn result()->i64{
+ var log:i64=0;
+ let message=Message.Data{right:mark(&mut log,2),flag:true,left:mark(&mut log,1)};
+ if log!=21{return -1}
+ match message{
+  Message.Data{flag:true,left:left,right:right}=>{if left!=1{return -2}if right!=2{return -3}return log*100+left*10+right},
+  Message.Data{left:_,right:_,flag:false}=>{return -4},
+  Message.Empty{}=>{return -5}
+ }
+}
+"#,
+        Some(2112),
+    );
+    native(
+        r#"
+enum E{Data{left:i64,right:i64},Empty{},Unit,Tuple(i64)}
+fn read(e:E)->i64{match e{E.Data{right:r,left:l}=>{return l*100+r},E.Empty{}=>{return 1},E.Unit()=>{return 2},E.Tuple(n)=>{return n}}}
+fn result()->i64{let left:i64=7;let right:i64=9;return read(E.Data{right,left})+read(E.Empty{})+read(E.Unit)+read(E.Tuple(3))}
+"#,
+        Some(715),
+    );
+}
+
+#[test]
+fn record_enum329_nested_generic_copy_and_phantom_identity() {
+    native(r#"
+struct P{n:i64}
+enum E{Named{p:P},Old(P)}
+fn result()->i64{let a=E.Named{p:{n:7}};let b=E.Old({n:9});match a{E.Named{p:p}=>{match b{E.Old(q)=>{return p.n*10+q.n},E.Named{p:_}=>{return -1}}},E.Old(_)=>{return -2}}}
+"#, Some(79));
+    native(
+        r#"
+struct Box<T:Copy>{value:T}
+enum Message<T:Copy,P:Copy>{Data{boxed:Box<T>,ok:bool}}
+fn make<T:Copy,P:Copy>(value:T)->Message<T,P>{return Message::<T,P>.Data{ok:true,boxed:Box::<T>{value:value}}}
+fn read<T:Copy,P:Copy>(message:Message<T,P>)->T{match message{Message.Data{ok:_,boxed:box}=>{return box.value}}}
+fn result()->i64{let a=make::<i64,bool>(7);let b=make::<i64,i32>(9);return read::<i64,bool>(a)*10+read::<i64,i32>(b)}
+"#,
+        Some(79),
+    );
+    native(
+        r#"
+enum Inner{Only{x:i64,flag:bool}}
+enum Outer{Wrap{inner:Inner,pair:(i64,bool)},Other}
+fn result()->i64{let value=Outer.Wrap{pair:(7,true),inner:Inner.Only{flag:false,x:5}};match value{Outer.Wrap{pair:(a,true),inner:Inner.Only{x:b,flag:false}}=>{let read=()=>a*10+b;return read()},Outer.Wrap{inner:_,pair:_}=>{return -1},Outer.Other()=>{return -2}}}
+"#,
+        Some(75),
+    );
+}
+
+#[test]
+fn record_enum329_labels_shapes_and_unused_definitions_reject() {
+    for text in [
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V{x:1};}",
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V{x:1,y:true,z:2};}",
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V{x:1,x:2,y:true};}",
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V{x:true,y:1};}",
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V(1,true);}",
+        "enum E{V(i32,bool)}fn main(){let x=E.V{x:1,y:true};}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V{x:x}=>{}}}fn main(){}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V{x:x,y:y,z:_}=>{}}}fn main(){}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V{x:a,x:b,y:_}=>{}}}fn main(){}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V{x:n,y:n}=>{}}}fn main(){}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V(x,y)=>{}}}fn main(){}",
+        "enum E{V(i32,bool)}fn unused(e:E){match e{E.V{x:x,y:y}=>{}}}fn main(){}",
+        "enum A{V{x:i32}}enum B{V{x:i32}}fn unused(e:A){match e{B.V{x:_}=>{}}}fn main(){}",
+        "enum E<T:Copy>{V{x:T}}fn unused<T>(x:T){let value=E.V{x:x};}fn main(){}",
+        "enum E<T:Copy,P:Copy>{V{x:T}}fn unused<T:Copy,P>(e:E<T,P>){}fn main(){}",
+        "enum E<T:Copy,P:Copy>{V{x:T}}fn only(e:E<i32,bool>){}fn main(){let e:E<i32,i64>=E.V{x:7};only(e)}",
+        "enum E<T:Copy,P:Copy>{V{x:T}}type Bad=E<i32,ByteBuffer>;fn main(){}",
+        "enum E<T:Copy>{V{x:T}}type A<T>=E<T>;fn unused<T>(x:T)->A<T>{return A::<T>.V{x:x}}fn main(){}",
+        "struct Box<T:Copy>{value:T}enum E<T>{V{value:Box<T>}}fn main(){}",
+        "enum E{V{x:i32,x:i32}}fn main(){}",
+        "enum E{V{x:&i32}}fn main(){}",
+        "enum E{V{x:ByteBuffer}}fn main(){}",
+        "enum E{V{x:E}}fn main(){}",
+        "enum E<T>{V{x:T}}fn unused<T>(x:T){let value=E.V{x:x};let again=x;}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert!(!report.diagnostics.is_empty(), "{text}");
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+    for text in [
+        "enum E<T>{R{r:T}}fn bad<T:Copy>()->E<T>{return E::<T>.R{r:7}}fn main(){}",
+        "enum E{V{x:i32=7}}fn main(){}",
+        "enum E{V{pub x:i32}}fn main(){}",
+        "resource R{x:i32}enum E{V{manages owner:R}}fn main(){}",
+        "resource R{x:i32}enum E{V{x:i32},Other(manages R)}fn main(){}",
+        "enum E{V{x:i32}}fn unused(e:E){if let E.V{x:x}=e{}}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert!(!report.diagnostics.is_empty());
+    }
+    for text in [
+        "enum E<T:Copy>{V{x:T}}fn unused<T:Copy>(x:T){let value=E.V{x:x};}fn main(){}",
+        "enum E<T>{R{r:T}}fn good<T:Copy>(r:T)->E<T>{return E::<T>.R{r:r}}fn main(){}",
+        "enum E<T:Copy>{V{x:T}}type A<T>=E<T>;fn unused<T:Copy>(x:T)->A<T>{return A::<T>.V{x:x}}fn main(){}",
+        "enum E<T:Copy,P:Copy>{V{x:T}}fn unused<T:Copy,P:Copy>(e:E<T,P>){}fn main(){}",
+        "struct Box<T:Copy>{value:T}enum E<T:Copy>{V{value:Box<T>}}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn record_enum329_public_module_alias_and_field_label_dependency() {
+    use zil_driver::{CompilationSession, ProjectSources};
+    let main = "import model;type Alias=model.Message<i64>;fn main()->i32{let e:Alias=model.Message.Data{value:7,flag:true};match e{Alias.Data{flag:true,value:n}=>{if n!=7{return 1}return 0},Alias.Data{flag:false,value:_}=>{return 2}}}";
+    let model = "pub enum Message<T:Copy>{Data{flag:bool,value:T}}";
+    let project = |provider: &str| ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            source(main),
+            SourceUnit::new(FileId(1), ModuleId(1), "model.zil", provider),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["model".into()], ModuleId(1))]),
+    };
+    for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+        let out = Temp::new();
+        let report = zil_driver::compile_project(
+            &project(model),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                output: Some(out.0.join("program")),
+                optimization,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let result = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(0), "{result:?}");
+        assert!(result.stdout.is_empty() && result.stderr.is_empty());
+    }
+    let mut session = CompilationSession::default();
+    let options = CompileOptions::default();
+    assert_eq!(
+        session.compile_project(&project(model), &options).status,
+        ResultCategory::Success
+    );
+    // Same payload types/layout, different source member identity. Neither a
+    // warm source cache nor positional Enum IR may retain the removed label.
+    let renamed = model.replace("value:T", "renamed:T");
+    let fresh = CompilationSession::default().compile_project(&project(&renamed), &options);
+    assert_eq!(
+        fresh.status,
+        ResultCategory::SafeReject,
+        "{}",
+        fresh.to_json()
+    );
+    let warm = session.compile_project(&project(&renamed), &options);
+    assert_eq!(
+        warm.status,
+        ResultCategory::SafeReject,
+        "{}",
+        warm.to_json()
+    );
+    assert_eq!(session.active_query_count(), 0);
+    assert_eq!(
+        session.compile_project(&project(model), &options).status,
+        ResultCategory::Success
+    );
+}
+
+#[test]
+fn record_enum329_request_budgets_are_exact_cold_warm_and_fresh() {
+    use zil_driver::CompilationSession;
+    let input = source(
+        "enum E<T:Copy,P:Copy>{V{value:T,flag:bool}}fn make<T:Copy,P:Copy>(x:T)->E<T,P>{return E::<T,P>.V{flag:true,value:x}}fn read<T:Copy,P:Copy>(e:E<T,P>)->T{match e{E.V{flag:_,value:n}=>{return n}}}fn main()->i32{return read::<i32,bool>(make::<i32,bool>(7))-7}",
+    );
+    for ledger in ["work", "nodes", "instances"] {
+        let options = |n| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                _ => options.limits.max_functions = n,
+            }
+            options
+        };
+        let mut low = 1;
+        let mut high = match ledger {
+            "work" => Limits::default().max_analysis_steps,
+            "nodes" => Limits::default().max_nodes,
+            _ => Limits::default().max_functions,
+        };
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&input, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut warm = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            assert_eq!(warm.compile_source(&input, &options(n)).status, expected);
+            assert_eq!(
+                CompilationSession::default()
+                    .compile_source(&input, &options(n))
+                    .status,
+                expected
+            );
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!("329 full request {ledger} N={low}; N-1 ResourceLimit, cold/warm/fresh agree");
+    }
+}
+
+#[test]
+fn record_enum329_raw_and_wire_preserve_typed_enum_integrity() {
+    let input = source(
+        "enum E{V{number:i64,flag:bool},U}fn result()->i64{let e=E.V{flag:true,number:7};match e{E.V{flag:_,number:n}=>{return n},E.U()=>{return 0}}}",
+    );
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_verify::verify_module_bytes(&wire, &target, &limits)
+            .unwrap()
+            .module(),
+        &typed
+    );
+    for attack in 0..3 {
+        let mut damaged = typed.clone();
+        let function = &mut damaged.functions[0];
+        if attack < 2 {
+            let op = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::MakeVariant { .. }))
+                .unwrap();
+            let InstructionKind::MakeVariant { variant, fields } = &mut op.kind else {
+                unreachable!()
+            };
+            if attack == 0 {
+                fields.swap(0, 1)
+            } else {
+                *variant = 99
+            }
+        } else {
+            let op = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::ReadVariant { .. }))
+                .unwrap();
+            let InstructionKind::ReadVariant { index, .. } = &mut op.kind else {
+                unreachable!()
+            };
+            *index = 99;
+        }
+        let mut claims = plan.clone();
+        claims.module_fingerprint = damaged.fingerprint();
+        let raw = zil_verify::verify_module(damaged.clone(), claims.clone(), &target, &limits)
+            .unwrap_err();
+        let bytes = zil_ir::wire::encode_module_candidate(&damaged, &claims, &limits).unwrap();
+        let transported = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+        for errors in [raw, transported] {
+            assert!(!errors.is_empty());
+            assert_eq!(errors[0].phase, Phase::Verify);
+            assert!(errors[0].code.starts_with("E-VERIFY-"));
+        }
+    }
+}
+
 struct Temp(PathBuf);
 impl Temp {
     fn new() -> Self {

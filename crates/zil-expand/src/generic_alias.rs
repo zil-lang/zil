@@ -122,6 +122,31 @@ pub(super) fn normalize_with_budget<'a>(
         visitor.resolver.budget.item(item)?;
     }
     let pattern_types = visitor.pattern_types;
+    if resolver.budget.has_enum_profiles() {
+        // Aliases disappear before Engine sees ordinary type applications.
+        // Validate their normalized targets while concrete phantom arguments
+        // still exist. Alias parameters remain conditional type recipes, not
+        // function capabilities; each actual use is checked again downstream.
+        let index = trait_bounds::Index::declarations_only(&output, &mut resolver.budget)?;
+        for alias in resolver.resolved.values() {
+            let mut variables = BTreeSet::new();
+            let mut conditional = trait_bounds::Bounds::new();
+            for name in &alias.parameters {
+                resolver.budget.node(alias.target.span, 0)?;
+                resolver.budget.text(name, alias.target.span)?;
+                resolver.budget.text(name, alias.target.span)?;
+                variables.insert(name.clone());
+                conditional.insert(name.clone(), vec![trait_bounds::Bound::Copy]);
+            }
+            index.store_types(
+                &alias.target,
+                &conditional,
+                &variables,
+                &mut resolver.budget,
+                callable::StoreCallbacks::None,
+            )?;
+        }
+    }
     Ok((
         Some(Normalized {
             module: output,
