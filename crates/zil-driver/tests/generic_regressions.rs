@@ -175,16 +175,24 @@ fn generic_injection_295_native_contexts_preserve_value_and_order() {
             "ABC",
         ),
         (
-            "call-payload-error",
-            include_str!("../../../tests/generic-error-enum/native-context/call-payload-error.zil"),
-            1,
-            "ABC",
-        ),
-        (
             "call-success",
             include_str!("../../../tests/generic-error-enum/native-context/call-success.zil"),
             0,
             "ABCD7",
+        ),
+        (
+            "call-payload-explicit",
+            include_str!(
+                "../../../tests/generic-error-enum/native-context/call-payload-explicit.zil"
+            ),
+            1,
+            "ABC",
+        ),
+        (
+            "call-payload-error",
+            include_str!("../../../tests/generic-error-enum/native-context/call-payload-error.zil"),
+            1,
+            "ABC",
         ),
     ] {
         for backend in &backends {
