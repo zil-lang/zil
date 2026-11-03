@@ -24,6 +24,7 @@ mod incremental;
 mod inference;
 pub use incremental::{FunctionSession, FunctionStats};
 mod lending;
+mod lifetimes;
 mod managed_slots;
 mod member_owner;
 mod names;
@@ -509,7 +510,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let first_closure = closures.pending.len();
         let mut b = Self {
             function: TypedFunction {
-                reference_return_bound: None,
+                reference_return_bound: lifetimes::compile(f, closures)?,
                 callable_return_contract: None,
                 callable_contract: None,
                 result_mode: f.result_mode,

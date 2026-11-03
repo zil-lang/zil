@@ -461,6 +461,7 @@ fn check_module(
         {
             check_type_shape(ty, &module.target, limits, &mut budget)?;
         }
+        check_reference_return_bound(function, &mut budget)?;
     }
     budget.current_function = None;
     for ty in module.closures.iter().flat_map(|c| {
@@ -936,6 +937,45 @@ struct FunctionGraph {
     reachable: Vec<bool>,
     package_views: packages::CaptureViews,
     role_data_uses: Vec<ValueId>,
+}
+
+fn check_reference_return_bound(f: &TypedFunction, budget: &mut Budget) -> Check<()> {
+    let Some(bound) = &f.reference_return_bound else {
+        return Ok(());
+    };
+    budget.spend(bound.len().saturating_mul(2).saturating_add(1))?;
+    let fail = || {
+        reject(
+            "E-VERIFY-LIFE",
+            Some(f.span),
+            "invalid shared direct return-life upper bound",
+        )
+    };
+    if bound.is_empty()
+        || f.environment.is_some()
+        || f.foreign.is_some()
+        || f.callable_contract.is_some()
+        || !matches!(&f.return_type,Type::Address{mutable:false,inner} if inner.is_address_pointee())
+    {
+        return Err(fail());
+    }
+    let mut previous = None;
+    for &position in bound {
+        if previous.is_some_and(|last| last >= position) {
+            return Err(fail());
+        }
+        let parameter = f
+            .parameters
+            .get(position as usize)
+            .and_then(|id| f.locals.get(id.0 as usize))
+            .ok_or_else(fail)?;
+        if !matches!(&parameter.ty,Type::Address{mutable:false,inner} if inner.is_address_pointee())
+        {
+            return Err(fail());
+        }
+        previous = Some(position);
+    }
+    Ok(())
 }
 
 fn check_function(

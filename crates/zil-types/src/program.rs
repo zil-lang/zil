@@ -350,7 +350,7 @@ pub(super) fn check_resolved_program_with_reuse(
                 typed.name = format!("@module{}:function{}", core.module_id.0, id.0);
             }
             let export = ScalarFunction {
-                reference_return_bound: None,
+                reference_return_bound: typed.reference_return_bound.clone(),
                 result_mode: f.result_mode,
                 name: f.name.clone(),
                 function: id,
@@ -507,6 +507,13 @@ fn interface_fingerprint(
             PassingMode::Infer => 7,
         });
         type_identity(&mut bytes, &export.result, closures);
+        bytes.push(u8::from(export.reference_return_bound.is_some()));
+        if let Some(bound) = &export.reference_return_bound {
+            bytes.extend_from_slice(&(bound.len() as u64).to_le_bytes());
+            for index in bound {
+                bytes.extend_from_slice(&index.to_le_bytes());
+            }
+        }
     }
     Fingerprint::of(&bytes)
 }

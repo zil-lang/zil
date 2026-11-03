@@ -2250,6 +2250,7 @@ pub(super) fn infer_module(
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     let result = infer_module_inner(module, graphs, store_profiles, budget)?;
+    super::lifetimes::returns(module, graphs, &result, budget)?;
     if !budget.shared_product_capture {
         return Ok(result);
     }

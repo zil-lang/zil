@@ -84,6 +84,7 @@ impl<'a> Budget<'a> {
 /// reuses the borrowed input walk, so nested statements/types and text all count.
 pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> R<(usize, bool)> {
     let mut budget = Budget::new(limits);
+    lifetimes::preflight(function, &mut budget.work)?;
     budget.work(
         function
             .name
@@ -488,6 +489,7 @@ fn headers(
     validate_module_metadata(core, budget)?;
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
+        lifetimes::preflight(function, &mut budget.work)?;
         state_snapshot(&function.state_parameters, function.span, budget)?;
         if !function.state_parameters.is_empty() && !function.callable_parameters.is_empty() {
             // The mixed header compares both declarations and the actual

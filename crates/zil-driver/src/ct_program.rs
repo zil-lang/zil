@@ -720,6 +720,26 @@ impl Collector<'_> {
             )]);
         }
         self.ty(&function.return_type, 0)?;
+        if let Some(life) = &function.life {
+            if life.binders.len() > self.limits.max_nodes
+                || life.parameter_lives.len() > self.limits.max_locals
+            {
+                return Err(vec![Diagnostic::limit(
+                    Phase::Ct,
+                    "CT life metadata bound exceeded",
+                    Some(function.span),
+                )]);
+            }
+            self.text_len(
+                life.binders
+                    .len()
+                    .saturating_add(life.parameter_lives.len())
+                    .saturating_add(1),
+            )?;
+            for name in &life.binders {
+                self.text(name)?;
+            }
+        }
         for parameter in &function.parameters {
             self.text(&parameter.name)?;
             self.ty(&parameter.ty, 0)?;
