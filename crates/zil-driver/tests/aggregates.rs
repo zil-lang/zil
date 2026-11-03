@@ -256,6 +256,54 @@ fn review329_shared_record_pun_capture_neighbor() {
 }
 
 #[test]
+fn review329_unused_variant_attributes_do_not_disappear() {
+    let report = compile_source(
+        &source("enum E{#[cfg(true)] V{x:i32}}fn result()->i32{return 0}"),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"));
+}
+
+#[test]
+fn review329_symbolic_primitive_spelling_patterns_do_not_gain_scalar_permissions() {
+    for text in [
+        "enum E<T:Copy>{V{x:T}}fn keep<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:n}=>{return 0}}}fn result()->i32{return 0}",
+        "fn scalar()->i64{return 1}fn keep<i64:Copy>(x:i64)->i32{let n=scalar();match n{1=>{return 1},_=>{return 0}}}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    let mut accepted = Vec::new();
+    for text in [
+        "enum E<T:Copy>{V{x:T}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        eprintln!("review329 symbolic pattern {text}: {}", report.to_json());
+        if report.status == ResultCategory::Success {
+            accepted.push(text);
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "symbolic primitive-spelling patterns accepted: {accepted:?}"
+    );
+}
+
+#[test]
 fn record_enum329_quote_shorthand_preserves_value_hygiene() {
     // Reviewer 6c6481d08's legal-category source; author regression, not review.
     native(
@@ -1032,6 +1080,33 @@ fn tuple_binding_original_readiness_source() {
         "main",
         Some(0),
     );
+}
+
+#[test]
+fn common313_discard_still_checks_copy_and_evaluates_record_rhs_once() {
+    review329_native(
+        &[(
+            "main",
+            "enum Envelope{Value{left:i32,right:i32}}fn mark(trace:&mut i32,n:i32)->i32{*trace=*trace*10+n;return n}fn result()->i32{var trace=0;let(_,_)=(Envelope.Value{right:mark(&mut trace,2),left:mark(&mut trace,1)},());return trace}",
+        )],
+        21,
+    );
+    for text in [
+        "fn result()->i32{let value=7;let(_,_)=(&value,0);return value}",
+        "resource Token{value:i32}impl Drop for Token{fn drop(self:Self){}}fn result()->i32{let(_,_)=(Token{value:7},0);return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, "E-UNSUPPORTED");
+        assert_eq!(report.verification_runs, 0);
+        assert!(!report.artifacts.contains_key("executable"));
+    }
 }
 #[test]
 fn review318_tuple_rhs_order_and_ct_traversal() {
@@ -1887,5 +1962,210 @@ fn large_copy_abi_recursive_carrier_symbols_and_old_link_rejection() {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn review329_astra_symbolic_copy_does_not_grant_primitive_operations() {
+    for (label, text) in [
+        (
+            "named_i32",
+            "enum E<T:Copy>{V{x:T}}fn bad<i32:Copy>(e:E<i32>)->u8{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_i32",
+            "enum E<T:Copy>{V(T)}fn bad<i32:Copy>(e:E<i32>)->u8{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_i64",
+            "enum E<T:Copy>{V{x:T}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_i64",
+            "enum E<T:Copy>{V(T)}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_u8",
+            "enum E<T:Copy>{V{x:T}}fn bad<u8:Copy>(e:E<u8>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_u8",
+            "enum E<T:Copy>{V(T)}fn bad<u8:Copy>(e:E<u8>)->i32{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_u16",
+            "enum E<T:Copy>{V{x:T}}fn bad<u16:Copy>(e:E<u16>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_u16",
+            "enum E<T:Copy>{V(T)}fn bad<u16:Copy>(e:E<u16>)->i32{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_bool",
+            "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_bool",
+            "enum E<T:Copy>{V(T)}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V(true)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_T",
+            "enum E<T:Copy>{V{x:T}}fn bad<T:Copy>(e:E<T>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_T",
+            "enum E<T:Copy>{V(T)}fn bad<T:Copy>(e:E<T>)->i32{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "alias_i64",
+            "enum E<T:Copy>{V{x:T}}type Alias<T>=E<T>;fn bad<i64:Copy>(e:Alias<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "nested_i64",
+            "enum E<T:Copy>{V{x:(T,bool)}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:(1,_)}=>{return 1},E.V{x:(_,_) }=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "scalar_bool",
+            "fn bad<bool:Copy>(b:bool)->i32{match b{true=>{return 1},false=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "bool_construct",
+            "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>()->E<bool>{return E::<bool>.V{x:true}}fn result()->i32{return 0}",
+        ),
+        (
+            "bool_return",
+            "fn bad<bool:Copy>()->bool{return true}fn result()->i32{return 0}",
+        ),
+        (
+            "bool_condition",
+            "fn bad<bool:Copy>(b:bool)->i32{if b{return 1}return 0}fn result()->i32{return 0}",
+        ),
+        (
+            "i64_conversion",
+            "fn bad<i64:Copy>(x:i64)->i32{return i32(x)}fn result()->i32{return 0}",
+        ),
+        (
+            "i64_index",
+            "fn bad<i64:Copy>(a:[i32;2],i:i64)->i32{return a[i]}fn result()->i32{return 0}",
+        ),
+        (
+            "enum_shadow_named",
+            "enum E{V{x:i32}}fn bad<E:Copy>(e:E)->i32{match e{E.V{x:x}=>{return x}}}fn result()->i32{return 0}",
+        ),
+        (
+            "enum_shadow_tuple",
+            "enum E{V(i32)}fn bad<E:Copy>(e:E)->i32{match e{E.V(x)=>{return x}}}fn result()->i32{return 0}",
+        ),
+        (
+            "enum_shadow_construct",
+            "enum E{V{x:i32}}fn bad<E:Copy>()->E{return E.V{x:1}}fn result()->i32{return 0}",
+        ),
+        (
+            "struct_shadow_field",
+            "struct P{x:i32}fn bad<P:Copy>(p:P)->i32{return p.x}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_slice",
+            "fn bad<i64:Copy>(a:[i32;2],i:i64){let s=&a[i..i]}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_while",
+            "fn bad<bool:Copy>(b:bool){while b{break}}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_conversion_output",
+            "fn bad<i64:Copy>()->i64{return i64(1)}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_ordinary_call",
+            "fn consume(x:i64){}fn bad<i64:Copy>(x:i64){consume(x)}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_unrelated_alias",
+            "type Alias=i32;fn bad<bool:Copy>()->bool{return true}fn result()->i32{return 0}",
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{label}: {}", report.to_json());
+        assert_eq!(report.verification_runs, 0, "{label}");
+    }
+}
+
+#[test]
+fn review329_astra_lexical_builtin_controls() {
+    for (label, text) in [
+        (
+            "legal_life_bool_type_i64",
+            "fn keep<i64:Copy,life bool>(x:&'bool i64)->&'bool i64{return x}fn result()->i32{let x=1;return *keep(&x)}",
+        ),
+        (
+            "legal_life_alias_type_i64",
+            "type A=i32;fn keep<i64:Copy,life A>(x:&'A i64)->&'A i64{return x}fn result()->A{let x=1;return *keep(&x)}",
+        ),
+        (
+            "legal_life_i64_only",
+            "fn trigger<bool:Copy>(x:bool)->bool{return x}fn keep<life i64>(x:&'i64 i64)->&'i64 i64{return x}fn result()->i64{let x:i64=1;return *keep(&x)}",
+        ),
+        (
+            "legal_concrete_named",
+            "enum E<T:Copy>{V{x:T}}fn good<T:Copy>(unused:T,e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "legal_dependent_named",
+            "enum E<T:Copy>{V{x:T}}fn good<i64:Copy>(e:E<i64>)->i64{match e{E.V{x:x}=>{return x}}}fn result()->i32{return 0}",
+        ),
+        (
+            "legal_bool_concrete",
+            "enum E<T:Copy>{V{x:T}}fn good<T:Copy>(unused:T,e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:false}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "legal_callee_i64",
+            "fn scalar()->i64{return 1}fn keep<i64:Copy>(x:i64)->i32{let n=scalar();match n{1=>{return 1},_=>{return 0}}}fn result()->i32{return keep(true)}",
+        ),
+        (
+            "legal_declared_i64_field",
+            "enum E<T:Copy>{V{x:T,y:i64}}fn good<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:_,y:1}=>{return 1},E.V{x:_,y:_}=>{return 0}}}fn result()->i32{return good(E::<bool>.V{x:true,y:i64(1)})}",
+        ),
+        (
+            "legal_callee_bool",
+            "fn scalar()->bool{return true}fn keep<bool:Copy>(x:bool)->i32{if scalar(){return 1}return 0}fn result()->i32{return keep(7)}",
+        ),
+        (
+            "legal_renamed_identity",
+            "fn keep<i64:Copy>(x:i64)->i64{return x}fn result()->i32{if keep::<bool>(true){return 1}return 0}",
+        ),
+        (
+            "legal_alias_identity",
+            "type A<i64>=i64;fn keep<bool:Copy>(x:A<bool>)->A<bool>{return x}fn result()->i32{return keep(1)}",
+        ),
+        (
+            "legal_renamed_enum_binder",
+            "enum E<bool:Copy>{V{x:bool,y:i64}}fn wrap<bool:Copy>(x:bool)->E<bool>{return E::<bool>.V{x:x,y:i64(7)}}fn result()->i64{match wrap(1){E.V{x:_,y:y}=>{return y}}}",
+        ),
+        (
+            "legal_declared_i64_field_unsuffixed",
+            "enum E<T:Copy>{V{x:T,y:i64}}fn good<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:_,y:1}=>{return 1},E.V{x:_,y:_}=>{return 0}}}fn result()->i32{return good(E::<bool>.V{x:true,y:1})}",
+        ),
+        (
+            "legal_renamed_enum_binder_unsuffixed",
+            "enum E<bool:Copy>{V{x:bool,y:i64}}fn wrap<bool:Copy>(x:bool)->E<bool>{return E::<bool>.V{x:x,y:7}}fn result()->i64{match wrap(1){E.V{x:_,y:y}=>{return y}}}",
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1, "{label}");
     }
 }

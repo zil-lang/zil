@@ -5,7 +5,7 @@
   "review_kind": "Independent bounded static, existing-target, and real-source CLI/native review of 333 only",
   "implementation_commit": "fc9353c0e5917af6d204167ead6457aa04104ba7",
   "component_commit": "fc9353c0e5917af6d204167ead6457aa04104ba7",
-  "common_candidate_binding": "Root integration binding remains pending; 332 and other integrated components are excluded from this review.",
+  "common_candidate_binding": "Independent 333-only scope rebind to exact common A is recorded in common_candidate_review.",
   "verdict": "PassLimited",
   "scope": "LargeCopy ABI v1 ordinary Copy Array/Tuple/Record >=4096 bytes, direct/ordinary function pointer calls and returns, default External versioning, CGU/cache, cleanup, and explicit unsupported special consumers.",
   "blocking_findings": [],
@@ -531,5 +531,116 @@
       "fixed_commit": "9071376944591fe65ddcc501962b8cdc90f36c6b",
       "resolution": "A separate Signature.versioned flag carries recursively changed ordinary-function-pointer ABI dependencies. Physical large() mapping is unchanged. Definitions, all ordinary Direct calls and FunctionRef use abi_symbol; affected closure interfaces/environments and resource helpers stop before artifacts."
     }
-  ]
+  ],
+  "common_candidate_review": {
+    "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+    "component_commit": "fc9353c0e5917af6d204167ead6457aa04104ba7",
+    "reviewer": "/root/impl317",
+    "implementation_author": "/root/impl313",
+    "scope": "333 only; no review of reviewer-authored 332 or unrelated integrated features",
+    "verdict": "PassLimited",
+    "blocking_findings": [],
+    "production_tree_comparison": {
+      "crates/zil-backend-llvm/src": {
+        "component_tree": "811e782cfab60c26723b25238fdc8f46e308207b",
+        "common_tree": "811e782cfab60c26723b25238fdc8f46e308207b",
+        "byte_identical": true
+      },
+      "crates/zil-llvm-api/src": {
+        "component_tree": "61ab2396cf94e3ef09a094dba5dae9101d51f333",
+        "common_tree": "61ab2396cf94e3ef09a094dba5dae9101d51f333",
+        "byte_identical": true
+      }
+    },
+    "shared_aggregates_test_delta": "Compared to fc935, common A adds 585 test lines for other integrated features; backend/API source trees are identical. Only the existing 333 filters below were replayed.",
+    "validation": [
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_abi_ -- --nocapture",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 38,
+        "seconds": 46.0,
+        "Codegen_N": 356960,
+        "N_minus_1_fresh_and_warm_cache_denial": true,
+        "includes": "recursive carrier old-name link rejection; explicit incremental O2 CGU/cache; special Unsupported and borrowed Big controls"
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_a18_by_value_abi_native_all_backends -- --exact --nocapture",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 45,
+        "seconds": 15.62,
+        "original_scale_native_cases": 12,
+        "actual_backend_pipeline_no_fallback_exit_asserted": true
+      },
+      {
+        "source_sha256": "c4b67bd65c0c5436c34b42e9e0b3db769c52dcf42899109a72ff780e545544ba",
+        "source": "Same independent version-extended source embedded in version_isolation_probe",
+        "profiles": [
+          {
+            "backend": "clang",
+            "optimization": "O0",
+            "actual_backend_pipeline_no_fallback": true,
+            "native_exit": 0,
+            "default_External_nm_names_correct": true,
+            "affected_old_exports_absent": true,
+            "unaffected_old_exports_preserved": true
+          },
+          {
+            "backend": "clang",
+            "optimization": "O2",
+            "actual_backend_pipeline_no_fallback": true,
+            "native_exit": 0,
+            "default_External_nm_names_correct": true,
+            "affected_old_exports_absent": true,
+            "unaffected_old_exports_preserved": true
+          },
+          {
+            "backend": "llvm-api",
+            "optimization": "O0",
+            "actual_backend_pipeline_no_fallback": true,
+            "native_exit": 0,
+            "default_External_nm_names_correct": true,
+            "affected_old_exports_absent": true,
+            "unaffected_old_exports_preserved": true
+          },
+          {
+            "backend": "llvm-api",
+            "optimization": "O2",
+            "actual_backend_pipeline_no_fallback": true,
+            "native_exit": 0,
+            "default_External_nm_names_correct": true,
+            "affected_old_exports_absent": true,
+            "unaffected_old_exports_preserved": true
+          }
+        ],
+        "native_cases": 4,
+        "expected_versioned_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "expected_unversioned_ids": [
+          9,
+          10,
+          11,
+          12
+        ],
+        "old_affected_exports_absent_and_default_External_preserved": true
+      }
+    ],
+    "limitations_carried_forward": [
+      "General large Enum/ErrorUnion ABI remains uncompleted with no uniform size-based Unsupported guard.",
+      "The 4096-byte move capture 2MiB API Verify stack overflow remains KnownIncomplete; the 8MiB test precondition is not a fix.",
+      "No workspace full suite or root full-suite results were counted as this reviewer evidence; source A binding does not declare complete language/main/CI success."
+    ]
+  }
 }
