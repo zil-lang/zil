@@ -330,7 +330,12 @@ impl Builder<'_, '_> {
             }
             s::ExprKind::Call { callee, arguments } => {
                 if matches!(&callee.kind, s::ExprKind::Name(name) if name == "thread_scope") {
-                    return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-FORBIDDEN", Some(e.span), "structured threads cannot execute in CT")]);
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(e.span),
+                        "structured threads cannot execute in CT",
+                    )]);
                 }
                 self.call(callee, arguments, expected, depth + 1, span)?
             }

@@ -942,12 +942,18 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
-                    InstructionKind::WithScopedThread { worker, argument, body } => {
+                    InstructionKind::WithScopedThread {
+                        worker,
+                        argument,
+                        body,
+                    } => {
                         budget.input(4, "scoped thread operands")?;
                         if worker.0 as usize >= module.functions.len()
                             || argument.0 as usize >= function.values.len()
                             || body.0 as usize >= function.values.len()
-                        { return Err(bad("scoped thread operand outside actual tables")); }
+                        {
+                            return Err(bad("scoped thread operand outside actual tables"));
+                        }
                         budget.scoped_threads = true;
                     }
                     InstructionKind::WithForeignCallback {

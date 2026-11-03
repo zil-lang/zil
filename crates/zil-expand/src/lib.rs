@@ -72,7 +72,12 @@ fn primitive_name(name: &str) -> bool {
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
     if name == "thread_scope" {
-        Diagnostic::error(Phase::Expand, "E-THREAD-NAME", Some(span), "thread_scope is a reserved structured primitive and cannot be rebound")
+        Diagnostic::error(
+            Phase::Expand,
+            "E-THREAD-NAME",
+            Some(span),
+            "thread_scope is a reserved structured primitive and cannot be rebound",
+        )
     } else if name == "c_with_callback" {
         Diagnostic::error(
             Phase::Expand,
