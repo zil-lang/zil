@@ -385,7 +385,7 @@ Analyze与Verify分别按实际SSA/Local及子树叶位置重建每个Managed叶
 
 §8.1.1 的完整 Product 可从可写普通局部建立同步不逃逸的 `&mut Product`，并经普通 helper 参数转借。形状限既有 Copy 伴随字段、直接 Managed ByteBuffer/有限 Copy 头用户资源和完整递归 child；本片不增加 Store、具体 Closure、拥有 Sum/数组或借入字段资格。建立窗口时须独立核验实际可写存储、shell 及全部拥有 child 完整，字段投影保留真实根。可通过地址更新已有 Copy 字段；不可通过该地址消费、替换或写入拥有 child/Managed 字段，新的可变 child 深投影仍待实现。
 
-普通局部、参数、Store 元素和捕获来源分别重建，不能互借分类结果授信。Analyze 与 Verify 各自核验完整性、实际来源及共享/独占冲突，父子重借、末用恢复及移动/替换/清理失效沿既有窗口规则。该准入不开放可变捕获、借入返回、长期登记或异步；schema/Wire、ABI 和默认预算保持。须有原源、最近反例、独立 raw/Wire 核验及 O0/O2 实际行为与清理结果后才能宣称本片实现。
+普通局部、参数、Store 元素和捕获来源分别重建，不能互借分类结果授信。Analyze 与 Verify 各自重建完整性及实际来源；Analyze 的候选计划不代表安全通过，共享/独占冲突必须由 Verify 从实际指令独立核验。父子重借、末用恢复及移动/替换/清理失效沿既有窗口规则。该准入不开放可变捕获、借入返回、长期登记或异步；schema/Wire、ABI 和默认预算保持。须有原源、最近反例、独立 raw/Wire 核验及 O0/O2 实际行为与清理结果后才能宣称本片实现。
 
 #### 8.1.3 普通 Product 完整拥有 Store 字段（235）
 
@@ -1186,6 +1186,8 @@ fn measured<T: Measure>(value: &T) -> usize {
 lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖分开。可写字段与相关内容参数不变型，不能通过缩短表面借期把短命对象写入长命容器。结构性质 Copy/Transfer/Share 由结构规则或明确审计点建立，空 impl 不造权限。
 
 有限普通 Copy 泛型 profile（194）：直接 `T: Copy` 是编译器按实际结构检查的保留能力约束，当前入口限已支持有限普通 Copy Value：标量、元组、固定数组、名义记录/枚举、Copy错误联合及受支持无环境函数指针。Desc、Managed、Package、Closure、Address、裸Slice及递归/未支持形状不由此获得普通Copy类型实参资格；显式`&T`/`&mut T`沿既有地址规则，T自身仍须合格。定义期只可使用Copy所授予的复制与普通传递，不授予数值运算、公开字段、任意trait方法或callable能力；未使用的模板同样检查，用户同名空trait或impl不能制造该结构事实。实例化再次按实际形状、名义身份及原工作/深度额度核验。
+
+普通 Struct 的直接 Copy 参数约束（320）：在已有普通泛型 Struct 范围，类型参数可声明直接保留 `Copy` bound；每个 bound 只约束其具名参数，其余无 bound 参数保持原规则，不据此推断整个 Struct 为 Copy。字段声明及嵌套泛型应用在定义期核验，未使用的声明同样检查；内层 Copy obligation 须由当前真实 binder 的已声明约束证明，不能等实际 i32 特化后补证。实际实例逐一验证受约束参数的完整普通 Copy 资格，包含未出现在字段中的 phantom 参数；透明别名正规化、名义身份与完整实例键沿现有规则。此片不开放 aggregate where、任意 trait bound、Package/Resource 的新约束、方法或默认字段；既有字段资格保持。新增遍历/类型比较在增长前累计收费，默认额度不变，源正反例、实例身份和预算以及原生结果须实际核回。
 
 有限`where Copy`正规化（229）：普通自由函数可把已有直接`T:Copy`约束写为`fn f<T>(...) ... where T:Copy`，其含义与内联约束完全相同。首片仅接受同一函数直接声明的普通类型参数作为单段主体、无类型实参的保留Copy约束；函数泛型参数仅限普通类型，已有内联约束为空或Copy。相同Copy约束在内联与where或多个where子句重复时幂等合并，不制造额外权限；不同直接类型参数分别归并，绑定以当前函数声明为准。未知主体、投影/复合主体、lifetime/const、非Copy bound、callable/StoreElement及方法/impl/外部声明的where不随本片开放，不能通过丢弃不支持的子句放行。
 
