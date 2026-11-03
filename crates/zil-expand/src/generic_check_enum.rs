@@ -23,6 +23,9 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         expected: Option<&TypeRef>,
     ) -> R<Option<TypeRef>> {
+        if matches!(e.kind, ExprKind::Record { .. }) {
+            return self.record_enum_expression(e, state, expected);
+        }
         let (callee, args) = match &e.kind {
             ExprKind::Call { callee, arguments } => (callee.as_ref(), arguments.as_slice()),
             _ => (e, &[][..]),
@@ -77,6 +80,115 @@ impl Check<'_, '_, '_> {
             unify(field, &actual, &vars, &mut found, arg.span, self.budget)?;
         }
         let actual = syntax_enum::application(decl, &found, e.span, self.budget)?;
+        if self.budget.has_enum_profiles() {
+            self.traits.check_arguments(
+                &decl.generics,
+                &found,
+                (
+                    &self.bounds,
+                    &self.variables,
+                    callable::StoreCallbacks::None,
+                ),
+                self.budget,
+                e.span,
+                None,
+            )?;
+        }
+        syntax_enum::check_injection(&actual, expected, self.budget)?;
+        Ok(Some(actual))
+    }
+
+    fn record_enum_expression(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Record {
+            ty: Some(callee),
+            base,
+            fields: supplied,
+        } = &e.kind
+        else {
+            return Ok(None);
+        };
+        let Some((name, variant, explicit)) = syntax_enum::constructor(callee) else {
+            return Ok(None);
+        };
+        let Some(declaration) = self.enums.get(name).copied() else {
+            return Ok(None);
+        };
+        if state.locals.contains_key(name) {
+            return Err(error(
+                e.span,
+                "record enum namespace is shadowed by a value",
+            ));
+        }
+        let declared = record_enums::fields(declaration, variant, e.span, self.budget)?;
+        if base.is_some() {
+            return Err(unsupported(e.span, "record enum spread is not implemented"));
+        }
+        let order = record_enums::order(
+            declared,
+            supplied.iter().map(|f| (f.name.as_str(), f.span)),
+            e.span,
+            self.budget,
+        )?;
+        let variables = record_enums::variables(declaration, self.budget)?;
+        let mut found = BTreeMap::new();
+        if let Some(explicit) = explicit {
+            if explicit.len() != declaration.generics.len() {
+                return Err(error(e.span, "record enum type argument arity mismatch"));
+            }
+            for (parameter, argument) in declaration.generics.iter().zip(explicit) {
+                let GenericArg::Type(ty) = argument else {
+                    return Err(unsupported(e.span, "const enum type argument"));
+                };
+                self.budget.text(&parameter.name, parameter.span)?;
+                self.budget.ty(ty)?;
+                found.insert(parameter.name.clone(), ty.clone());
+            }
+        }
+        syntax_enum::context(declaration, expected, &mut found, self.budget)?;
+        for (supplied, index) in supplied.iter().zip(order) {
+            let shorthand;
+            let value = if let Some(value) = &supplied.value {
+                value
+            } else {
+                self.budget.node(supplied.span, 0)?;
+                self.budget.text(&supplied.name, supplied.span)?;
+                shorthand = Expr {
+                    kind: ExprKind::Name(supplied.name.clone()),
+                    span: supplied.span,
+                };
+                &shorthand
+            };
+            let field = &declared[index];
+            let hint = syntax_enum::substituted(&field.ty, &found, self.budget)?;
+            let unresolved = record_enums::unresolved(&variables, &found, &hint, self.budget)?;
+            let actual = self.expr(value, state, (!unresolved).then_some(&hint), false)?;
+            unify(
+                &field.ty,
+                &actual,
+                &variables,
+                &mut found,
+                supplied.span,
+                self.budget,
+            )?;
+        }
+        self.traits.check_arguments(
+            &declaration.generics,
+            &found,
+            (
+                &self.bounds,
+                &self.variables,
+                callable::StoreCallbacks::None,
+            ),
+            self.budget,
+            e.span,
+            None,
+        )?;
+        let actual = syntax_enum::application(declaration, &found, e.span, self.budget)?;
         syntax_enum::check_injection(&actual, expected, self.budget)?;
         Ok(Some(actual))
     }
@@ -107,6 +219,15 @@ impl Check<'_, '_, '_> {
             };
             self.budget.ty(t)?;
             found.insert(p.name.clone(), t.clone());
+        }
+        if self.budget.has_enum_profiles()
+            && let VariantFields::Record(fields) =
+                &record_enums::variant(decl, variant, ty.span, self.budget)?.fields
+        {
+            return fields
+                .iter()
+                .map(|field| syntax_enum::substituted(&field.ty, &found, self.budget))
+                .collect();
         }
         syntax_enum::fields(decl, variant, ty.span)?
             .iter()
@@ -167,6 +288,62 @@ impl Check<'_, '_, '_> {
                         .collect::<R<_>>()?,
                 )
             }
+            PatternKind::RecordConstructor {
+                path,
+                fields: supplied,
+            } => {
+                let alias = path.first().and_then(|name| self.pattern_types.get(name));
+                if let Some(alias) = alias {
+                    same(ty, alias, p.span, self.budget)?;
+                }
+                let TypeKind::Named { path: base, args } = &group(ty).kind else {
+                    return Err(error(p.span, "record pattern requires declared enum type"));
+                };
+                if path.len() != base.len() + 1
+                    || (alias.is_none() && path[..path.len() - 1] != base[..])
+                {
+                    return Err(error(
+                        p.span,
+                        "generic record pattern nominal type mismatch",
+                    ));
+                }
+                let declaration = self
+                    .enums
+                    .get(&base.join("."))
+                    .copied()
+                    .ok_or_else(|| error(p.span, "unknown enum in record pattern"))?;
+                let variant = path.last().expect("qualified variant");
+                let declared = record_enums::fields(declaration, variant, p.span, self.budget)?;
+                let order = record_enums::order(
+                    declared,
+                    supplied.iter().map(|f| (f.name.as_str(), f.span)),
+                    p.span,
+                    self.budget,
+                )?;
+                if declaration.generics.len() != args.len() {
+                    return Err(error(p.span, "record enum pattern type arity mismatch"));
+                }
+                let mut found = BTreeMap::new();
+                for (parameter, argument) in declaration.generics.iter().zip(args) {
+                    let GenericArg::Type(ty) = argument else {
+                        return Err(unsupported(p.span, "const enum argument"));
+                    };
+                    self.budget.text(&parameter.name, parameter.span)?;
+                    self.budget.ty(ty)?;
+                    found.insert(parameter.name.clone(), ty.clone());
+                }
+                self.budget.text(variant, p.span)?;
+                for _ in declared {
+                    self.budget.node(p.span, 0)?;
+                }
+                let mut patterns = vec![Pat::Any; declared.len()];
+                for (supplied, index) in supplied.iter().zip(order) {
+                    let field_type =
+                        syntax_enum::substituted(&declared[index].ty, &found, self.budget)?;
+                    patterns[index] = self.pattern(&supplied.pattern, &field_type, state, seen)?;
+                }
+                Pat::Ctor(Ctor::Variant(variant.clone()), patterns)
+            }
             PatternKind::Constructor { path, arguments } => {
                 let alias = path.first().and_then(|name| self.pattern_types.get(name));
                 if let Some(alias) = alias {
@@ -181,6 +358,18 @@ impl Check<'_, '_, '_> {
                     return Err(error(p.span, "generic pattern nominal type mismatch"));
                 }
                 let variant = path.last().expect("variant");
+                if let Some(declaration) = self.enums.get(&base.join("."))
+                    && self.budget.has_enum_profiles()
+                    && matches!(
+                        record_enums::variant(declaration, variant, p.span, self.budget)?.fields,
+                        VariantFields::Record(_)
+                    )
+                {
+                    return Err(error(
+                        p.span,
+                        "record enum variant requires a named pattern",
+                    ));
+                }
                 let mut managed = Vec::new();
                 let fields = self.enum_fields(ty, variant, Some(&mut managed))?;
                 if fields.len() != arguments.len() {

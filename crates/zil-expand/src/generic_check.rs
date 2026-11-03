@@ -25,6 +25,17 @@ pub(super) fn validate_parametric<'l>(
     budget: &mut Budget<'l>,
     trait_calls: &mut trait_instances::Calls,
 ) -> R<()> {
+    validate_parametric_with_bounds(function, tables, dependencies, budget, trait_calls, None)
+}
+
+pub(super) fn validate_parametric_with_bounds<'l>(
+    function: &Function,
+    tables: ParametricTables<'_, 'l>,
+    dependencies: &mut helper_graph::Dependencies,
+    budget: &mut Budget<'l>,
+    trait_calls: &mut trait_instances::Calls,
+    supplied_bounds: Option<trait_bounds::Bounds>,
+) -> R<()> {
     let ParametricTables {
         nominals,
         enums,
@@ -67,13 +78,18 @@ pub(super) fn validate_parametric<'l>(
     if callable.is_some() {
         dependencies.register(&function.name, function.span, budget)?;
     }
+    let definition_bound_context = supplied_bounds.is_some();
     let mut check = Check {
         variables,
+        definition_bound_context,
         callable,
         owned_dispatch,
         definition: &function.name,
         dependencies,
-        bounds: traits.bounds(function, budget)?,
+        bounds: match supplied_bounds {
+            Some(bounds) => bounds,
+            None => traits.bounds(function, budget)?,
+        },
         trait_calls,
         traits,
         next_local: function.params.len(),
@@ -577,6 +593,7 @@ struct State {
 }
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
+    definition_bound_context: bool,
     callable: Option<callable::CallableTemplates>,
     owned_dispatch: bool,
     definition: &'s str,
@@ -1008,6 +1025,14 @@ impl Check<'_, '_, '_> {
         self.budget.node(span, 0)
     }
     fn bind_local(&mut self, state: &mut State, name: String, ty: TypeRef) -> R<()> {
+        if self.definition_bound_context && name == "self" {
+            return Err(Diagnostic::error(
+                Phase::Expand,
+                "E-RECEIVER-RESERVED-NAME",
+                Some(ty.span),
+                "self is reserved for the default method receiver and cannot be rebound",
+            ));
+        }
         if super::super::primitive_name(&name) {
             return Err(super::super::primitive_name_error(&name, ty.span));
         }

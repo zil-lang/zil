@@ -249,6 +249,13 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                                 return Err(unsupported(ty.span, "StoreElement const enum"));
                             };
                             self.budget.ty(ty)?;
+                            if let GenericParamKind::Type(bounds) = &p.kind {
+                                for bound in bounds {
+                                    if is_bound(bound) {
+                                        self.copy(ty)?;
+                                    }
+                                }
+                            }
                             substitutions.insert(p.name.clone(), ty.clone());
                         }
                         for variant in &e.variants {
@@ -269,6 +276,12 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                                 }
                                 VariantFields::Record(fields) => {
                                     for field in fields {
+                                        if field.manages {
+                                            return Err(error(
+                                                field.span,
+                                                "Copy enum field cannot own resources",
+                                            ));
+                                        }
                                         let field_type =
                                             self.substitute(&field.ty, &substitutions)?;
                                         self.copy(&field_type)?;

@@ -10,6 +10,7 @@ pub(super) struct Index<'a> {
     declarations: BTreeMap<&'a str, (&'a Item, &'a TraitDecl)>,
     implementations: BTreeSet<(trait_instances::Key, &'a str)>,
     pub(super) has_instances: bool,
+    pub(super) has_defaults: bool,
     references: BTreeMap<trait_instances::Key, trait_instances::Reference>,
     instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
@@ -34,6 +35,7 @@ impl<'a> Index<'a> {
         let mut declarations = BTreeMap::new();
         let implementations = BTreeSet::new();
         let mut has_instances = false;
+        let mut has_defaults = false;
         let mut nominals = BTreeMap::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
@@ -53,7 +55,9 @@ impl<'a> Index<'a> {
                     ));
                 }
                 ItemKind::Trait(declaration) => {
-                    has_instances |= !declaration.generics.is_empty();
+                    let defaults = trait_defaults::present(declaration, budget)?;
+                    has_defaults |= defaults;
+                    has_instances |= !declaration.generics.is_empty() || defaults;
                     if declarations
                         .insert(declaration.name.as_str(), (item, declaration))
                         .is_some()
@@ -74,13 +78,14 @@ impl<'a> Index<'a> {
             implementations,
             nominals,
             has_instances,
+            has_defaults,
             references: BTreeMap::new(),
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
-                if !declaration.generics.is_empty() {
+                if !declaration.generics.is_empty() || has_defaults {
                     trait_instances::validate_declaration(
                         item,
                         declaration,
@@ -215,11 +220,10 @@ impl<'a> Index<'a> {
             if !method.generics.is_empty()
                 || !method.where_clause.is_empty()
                 || !method.contract.is_empty()
-                || !matches!(method.body, FunctionBody::Declaration)
             {
                 return Err(unsupported(
                     method.span,
-                    "generic, default or contract-bearing trait method",
+                    "generic or contract-bearing trait method",
                 ));
             }
         }
@@ -417,9 +421,14 @@ impl<'a> Index<'a> {
             let (_, declaration) = self.declarations[reference.key.name.as_str()];
             for member in &declaration.members {
                 budget.node(member.span, 0)?;
-                if let ItemKind::Function(method) = &member.kind
-                    && method.name == name
-                {
+                if let ItemKind::Function(method) = &member.kind {
+                    if self.has_defaults {
+                        budget.text(&method.name, member.span)?;
+                        budget.text(name, span)?;
+                    }
+                    if method.name != name {
+                        continue;
+                    }
                     if selected.is_some() {
                         return Err(error(
                             span,
@@ -648,6 +657,56 @@ impl<'a> Index<'a> {
                                 && let GenericArg::Type(actual) = argument
                             {
                                 self.store_element(actual, available, variables, budget, callback)?;
+                            }
+                        }
+                    }
+                    if budget.has_enum_profiles() {
+                        for part in path {
+                            budget.text(part, ty.span)?;
+                        }
+                        if let Some(Item {
+                            kind: ItemKind::Enum(declaration),
+                            span: declaration_span,
+                            ..
+                        }) = self.nominals.get(&path.join("."))
+                            && budget.enum_profile(*declaration_span)
+                        {
+                            let mut constrained = Vec::new();
+                            for parameter in &declaration.generics {
+                                budget.node(parameter.span, 0)?;
+                                let mut has_copy = false;
+                                if let GenericParamKind::Type(bounds) = &parameter.kind {
+                                    for bound in bounds {
+                                        budget.ty(bound)?;
+                                        has_copy |= copy::is_bound(bound);
+                                    }
+                                }
+                                constrained.push(has_copy);
+                            }
+                            if constrained.iter().any(|bound| *bound)
+                                && declaration.generics.len() != args.len()
+                            {
+                                return Err(error(
+                                    ty.span,
+                                    "Copy enum type argument arity mismatch",
+                                ));
+                            }
+                            for (is_copy, argument) in constrained.into_iter().zip(args) {
+                                if is_copy {
+                                    let GenericArg::Type(actual) = argument else {
+                                        return Err(unsupported(
+                                            ty.span,
+                                            "Copy enum requires type arguments",
+                                        ));
+                                    };
+                                    copy::require(
+                                        actual,
+                                        &self.nominals,
+                                        available,
+                                        variables,
+                                        budget,
+                                    )?;
+                                }
                             }
                         }
                     }

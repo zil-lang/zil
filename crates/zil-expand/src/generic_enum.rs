@@ -31,7 +31,7 @@ pub(super) fn fields<'a>(
     match &v.fields {
         VariantFields::Unit => Ok(&[]),
         VariantFields::Tuple(fields) => Ok(fields),
-        VariantFields::Record(_) => Err(unsupported(span, "record enum variants")),
+        VariantFields::Record(_) => Err(error(span, "record enum variant requires named fields")),
     }
 }
 pub(super) fn substituted(
@@ -388,6 +388,9 @@ impl Engine<'_> {
         expected: Option<&TypeRef>,
         depth: usize,
     ) -> R<Option<TypeRef>> {
+        if matches!(e.kind, ExprKind::Record { .. }) {
+            return self.record_enum_expression(e, env, expected, depth);
+        }
         let span = e.span;
         let (callee, arguments) = match &mut e.kind {
             ExprKind::Call { callee, arguments } => {
@@ -547,6 +550,9 @@ impl Engine<'_> {
                     self.ty(&mut t, depth + 1)?;
                     self.enum_pattern(p, Some(&t), env, depth + 1)?;
                 }
+            }
+            PatternKind::RecordConstructor { path, fields } => {
+                self.record_enum_pattern(path, fields, ty, env, pattern.span, depth)?;
             }
             _ => {}
         }

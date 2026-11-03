@@ -329,6 +329,16 @@
       ]
     },
     {
+      "code": "E-ENUM-FIELD",
+      "phases": [
+        "expand"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
       "code": "E-ENUM-VARIANT",
       "phases": [
         "types"
@@ -528,6 +538,15 @@
     },
     {
       "code": "E-LIFE-DECLARATION",
+      "phases": [
+        "expand"
+      ],
+      "requirements": [
+        "ZIL-TRAIT"
+      ]
+    },
+    {
+      "code": "E-LIFE-ORIGIN",
       "phases": [
         "expand"
       ],

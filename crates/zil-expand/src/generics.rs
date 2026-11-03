@@ -24,6 +24,8 @@ mod enums;
 mod helper_graph;
 #[path = "generic_products.rs"]
 pub(super) mod products;
+#[path = "generic_record_enum.rs"]
+pub(super) mod record_enums;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
@@ -32,6 +34,8 @@ pub(super) mod store_templates;
 mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
+#[path = "generic_trait_defaults.rs"]
+pub(super) mod trait_defaults;
 #[path = "generic_trait_instances.rs"]
 pub(super) mod trait_instances;
 #[path = "generic_where.rs"]
@@ -68,9 +72,14 @@ pub(super) fn specialize_products<'a>(
     let mut names_budget = Budget::new(limits);
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
+    let mut has_defaults = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
+        if let ItemKind::Trait(declaration) = &item.kind {
+            has_defaults |=
+                trait_defaults::present(declaration, &mut names_budget).map_err(|e| vec![e])?;
+        }
         if let ItemKind::Impl(implementation) = &item.kind
             && implementation
                 .trait_type
@@ -138,11 +147,13 @@ pub(super) fn specialize_products<'a>(
             .items
             .iter()
             .all(|item| params(item).is_empty())
+            && !has_defaults
             && !normalized
                 .module
                 .items
                 .iter()
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+            && !names_budget.has_enum_profiles()
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -157,10 +168,12 @@ pub(super) fn specialize_products<'a>(
         .map_err(|error| vec![error]);
     }
     if module.items.iter().all(|item| params(item).is_empty())
+        && !has_defaults
         && !module
             .items
             .iter()
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+        && !names_budget.has_enum_profiles()
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -212,6 +225,7 @@ struct Engine<'a> {
     inferred_state_values: BTreeSet<String>,
     has_store_templates: bool,
     has_single_state_values: bool,
+    default_functions: usize,
     nominal_binder_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
@@ -287,6 +301,7 @@ impl<'a> Engine<'a> {
             inferred_state_values: BTreeSet::new(),
             has_store_templates: false,
             has_single_state_values: false,
+            default_functions: 0,
             nominal_binder_collision: false,
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
@@ -342,7 +357,26 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        engine.validate_trait_defaults(module)?;
+        if engine.nominal_binder_collision {
+            return Ok(engine);
+        }
         // Validate the parametric subset even when a template is not instantiated.
+        if engine.budget.has_enum_profiles() {
+            for item in &module.items {
+                engine.budget.node(item.span, 0)?;
+                if let ItemKind::Enum(declaration) = &item.kind
+                    && engine.budget.enum_profile(item.span)
+                {
+                    record_enums::validate(
+                        declaration,
+                        &engine.nominals,
+                        &engine.traits,
+                        &mut engine.budget,
+                    )?;
+                }
+            }
+        }
         let mut helper_dependencies = helper_graph::Dependencies::default();
         for item in engine.templates.values() {
             if !item.attributes.is_empty() {
@@ -392,6 +426,8 @@ impl<'a> Engine<'a> {
                             || bounds.iter().all(stores::is_bound)
                             || matches!(&item.kind, ItemKind::Aggregate(a) if a.kind == AggregateKind::Struct)
                                 && bounds.iter().all(copy::is_bound)
+                            || matches!(item.kind, ItemKind::Enum(_))
+                                && bounds.iter().all(copy::is_bound)
                             || matches!(item.kind, ItemKind::Function(_)) => {}
                     _ => {
                         return Err(unsupported(
@@ -427,7 +463,9 @@ impl<'a> Engine<'a> {
                     &mut engine.trait_calls,
                 )?;
             }
-            if let ItemKind::Enum(e) = &item.kind {
+            if let ItemKind::Enum(e) = &item.kind
+                && !engine.budget.enum_profile(item.span)
+            {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
             if let ItemKind::Aggregate(a) = &item.kind {
@@ -488,6 +526,7 @@ impl<'a> Engine<'a> {
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
         self.products.trait_instances = self.traits.has_instances;
+        self.products.record_variants = self.budget.has_enum_profiles();
         self.collect_products(module)?;
         let mut result = Module {
             id: module.id,
@@ -627,6 +666,7 @@ impl<'a> Engine<'a> {
             .len()
             .saturating_add(self.retained_stores.len())
             .saturating_add(self.traits.instance_count())
+            .saturating_add(self.default_functions)
             >= self.limits.max_functions.min(512)
         {
             return Err(Diagnostic::limit(
@@ -699,6 +739,11 @@ impl<'a> Engine<'a> {
                         if field.manages {
                             return Err(unsupported(field.span, "owned generic enum payload"));
                         }
+                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                    }
+                } else if let VariantFields::Record(fields) = &variant.fields {
+                    for field in fields {
+                        self.budget.node(field.span, 0)?;
                         copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
                     }
                 }
@@ -936,6 +981,7 @@ impl<'a> Engine<'a> {
                 }
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
+                self.complete_trait_defaults(i, item.span)?;
                 self.ty(&mut i.target, 0)?;
                 if self.traits.has_instances
                     && let Some(application) = &i.trait_type
