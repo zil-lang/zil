@@ -5,7 +5,8 @@
     "77f4bd085607b96675f51b678b5af70d120110c9",
     "1732af2bb5d8cfd10309effd01feb29963143795",
     "0fc326966b2968bafe87fbaa1df1de38b006ff66",
-    "07ec1efd94be88d1f60b48b2ee0f12e89b41d879"
+    "07ec1efd94be88d1f60b48b2ee0f12e89b41d879",
+    "fb1a95eac127f39ddd7c8548c32aaf96c8770490"
   ],
   "original_sources": {
     "binding_sha256": "42ee898c5535b1144cd6057244381217351afba9956de3a59a9351732f6b447e",
@@ -19,11 +20,12 @@
     "passed": 13,
     "failed": 0,
     "ignored": 0,
-    "filtered": 0
+    "filtered": 0,
+    "candidate": "07ec1efd94be88d1f60b48b2ee0f12e89b41d879"
   },
   "native": {
-    "cases": 8,
-    "executions": 32,
+    "cases": 10,
+    "executions": 40,
     "backends": [
       "clang",
       "LLVM API"
@@ -41,11 +43,22 @@
       "call_error": "ABC; exit 1",
       "call_success": "ABCD7; exit 0",
       "call_payload_explicit": "ABC; exit 1",
-      "call_payload_closure": "ABC; exit 1"
+      "call_payload_closure": "ABC; exit 1",
+      "lookahead_forward": "BC; exit 0",
+      "lookahead_reverse": "CB; exit 0"
     },
-    "cleanup": "E is emitted once by defer on both success and error propagation; B in payload controls is emitted while evaluating the argument before sink emits C."
+    "cleanup": "E is emitted once by defer on both success and error propagation; B in payload controls is emitted while evaluating the argument before sink emits C.",
+    "lookahead": "Two additional actual arguments each emit one character. The other argument establishes T=bool; the callee returns i32 independent of T. Both argument orders were executed on both backends at O0/O2.",
+    "final_limited_test": {
+      "command": "cargo test --offline --locked -p zil-driver --features llvm-api --test generic_regressions generic_injection_295_native_contexts -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "filtered": 12,
+      "includes_prior_32_replayed": true,
+      "candidate": "fb1a95eac127f39ddd7c8548c32aaf96c8770490"
+    }
   },
-  "history": "Early 77f4 rejected the legal Choice.Some(f()) payload; original source retained as positive and 1732 restored its actual declared callable return type. Limited Clippy at 0fc failed on four production lint findings; 07ec fixes them and the same limited check passes.",
+  "history": "Early 77f4 rejected the legal Choice.Some(f()) payload; original source retained as positive and 1732 restored its actual declared callable return type. Limited Clippy at 0fc failed on four production lint findings; 07ec fixes them and the same limited check passes. At 07ec both new lookahead sources failed with generic argument cannot be inferred; retained as positive. fb1a recovers the actual declared Fn result, and both now pass natively.",
   "not_run": [
     "full workspace",
     "Windows",
@@ -54,6 +67,7 @@
   "clippy": {
     "command": "CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=/workspace/.zil-env/target-295 cargo clippy --offline --locked -p zil-driver --features llvm-api --test generic_regressions -- -D warnings",
     "status": "Pass",
-    "prior_failure": "0fc candidate had four production collapsible_if lint failures, corrected in 07ec"
+    "prior_failure": "0fc candidate had four production collapsible_if lint failures, corrected in 07ec",
+    "candidate": "07ec1efd94be88d1f60b48b2ee0f12e89b41d879"
   }
 }
