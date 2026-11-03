@@ -1228,13 +1228,15 @@ impl<'a> Engine<'a> {
                     return Ok(Some(named("i64", e.span)));
                 }
                 if let Some(local) = env.get(target) {
+                    if default_integer && let Some(ty) = local {
+                        self.budget.ty(ty)?;
+                    }
                     let mut result = local.as_ref().and_then(|ty| match &grouped(ty).kind {
                         TypeKind::Function { result, .. } => Some(result.as_ref()),
                         _ => callable::opaque_signature(ty).map(|(_, _, result)| result),
                     });
                     if default_integer && result.is_none() {
                         if let Some(ty) = local {
-                            self.budget.ty(ty)?;
                             if let Some(bounds) = &self.active_callables {
                                 for bound in bounds.bindings() {
                                     self.budget.ty(&bound.result)?;
@@ -1569,10 +1571,6 @@ impl<'a> Engine<'a> {
                         .map(|h| h.hint(index, &mut self.budget))
                         .transpose()?
                         .flatten();
-                    let hint = match hint {
-                        Some(hint) => Some(hint),
-                        None => self.local_union_argument_context(callee, index, env)?,
-                    };
                     let ty = self.expr_expected(&mut arg.value, env, hint.as_ref(), depth + 1)?;
                     if value_inference_allowed
                         && let Some(ty) = &ty
@@ -2315,6 +2313,32 @@ fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     type_key_bounded(ty)
 }
 fn type_key_bounded(ty: &TypeRef) -> R<String> {
+    type_key_bounded_observed(ty, None, &mut false)
+}
+fn type_key_observed(
+    ty: &TypeRef,
+    variables: Option<&BTreeSet<String>>,
+    dependent: &mut bool,
+    budget: &mut Budget<'_>,
+) -> R<String> {
+    budget.ty(ty)?;
+    type_key_bounded_observed(ty, variables, dependent)
+}
+fn type_key_bounded_observed(
+    ty: &TypeRef,
+    variables: Option<&BTreeSet<String>>,
+    dependent: &mut bool,
+) -> R<String> {
+    // Observe names during the already prepaid canonical-key traversal. There
+    // is no second dependency scan or changed concrete-path accounting.
+    if let TypeKind::Named { path, args } = &ty.kind {
+        if path.len() == 1
+            && args.is_empty()
+            && variables.is_some_and(|vars| vars.contains(&path[0]))
+        {
+            *dependent = true;
+        }
+    }
     Ok(match &ty.kind {
         TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => {
             "()".into()
@@ -2325,36 +2349,51 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
                 let GenericArg::Type(t) = a else {
                     return Err(unsupported(ty.span, "const generic argument"));
                 };
-                key.push_str(&format!("<{}>", type_key_bounded(t)?));
+                key.push_str(&format!(
+                    "<{}>",
+                    type_key_bounded_observed(t, variables, dependent)?
+                ));
             }
             key
         }
-        TypeKind::Group(t) => return type_key_bounded(t),
+        TypeKind::Group(t) => return type_key_bounded_observed(t, variables, dependent),
         TypeKind::Reference {
             mutable,
             inner,
             lifetime: None,
-        } => format!("R{mutable}<{}>", type_key_bounded(inner)?),
+        } => format!(
+            "R{mutable}<{}>",
+            type_key_bounded_observed(inner, variables, dependent)?
+        ),
         TypeKind::Tuple(ts) => format!(
             "({})",
             ts.iter()
-                .map(type_key_bounded)
+                .map(|ty| type_key_bounded_observed(ty, variables, dependent))
                 .collect::<R<Vec<_>>>()?
                 .join(",")
         ),
         TypeKind::Array {
             element,
             length: Some(length),
-        } => format!("A{}<{}>", array_length(length)?, type_key_bounded(element)?),
+        } => format!(
+            "A{}<{}>",
+            array_length(length)?,
+            type_key_bounded_observed(element, variables, dependent)?
+        ),
         TypeKind::Array {
             element,
             length: None,
-        } => format!("S<{}>", type_key_bounded(element)?),
-        TypeKind::Optional(t) => format!("?{}", type_key_bounded(t)?),
+        } => format!(
+            "S<{}>",
+            type_key_bounded_observed(element, variables, dependent)?
+        ),
+        TypeKind::Optional(t) => {
+            format!("?{}", type_key_bounded_observed(t, variables, dependent)?)
+        }
         TypeKind::Error { error, result } => format!(
             "E<{}><{}>",
-            type_key_bounded(error)?,
-            type_key_bounded(result)?
+            type_key_bounded_observed(error, variables, dependent)?,
+            type_key_bounded_observed(result, variables, dependent)?
         ),
         TypeKind::ForeignFunction {
             abi,
@@ -2366,19 +2405,19 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
             abi,
             params
                 .iter()
-                .map(type_key_bounded)
+                .map(|ty| type_key_bounded_observed(ty, variables, dependent))
                 .collect::<R<Vec<_>>>()?
                 .join(","),
-            type_key_bounded(result)?
+            type_key_bounded_observed(result, variables, dependent)?
         ),
         TypeKind::Function { params, result } => format!(
             "F({})->{}",
             params
                 .iter()
-                .map(type_key_bounded)
+                .map(|ty| type_key_bounded_observed(ty, variables, dependent))
                 .collect::<R<Vec<_>>>()?
                 .join(","),
-            type_key_bounded(result)?
+            type_key_bounded_observed(result, variables, dependent)?
         ),
         _ => {
             return Err(unsupported(
@@ -2408,7 +2447,7 @@ fn unify_argument(
     span: Span,
     budget: &mut Budget<'_>,
 ) -> R<()> {
-    if context_argument(pattern, actual, variables, found, span, budget)? {
+    if context_argument(pattern, actual, variables, found, span, None, budget)? {
         return Ok(());
     }
     budget.ty(pattern)?;
@@ -2453,6 +2492,7 @@ fn context_argument(
     variables: &BTreeSet<String>,
     found: &BTreeMap<String, TypeRef>,
     span: Span,
+    caller_variables: Option<&BTreeSet<String>>,
     budget: &mut Budget<'_>,
 ) -> R<bool> {
     if !matches!(grouped(pattern).kind, TypeKind::Error { .. }) {
@@ -2462,7 +2502,7 @@ fn context_argument(
         return Ok(false);
     }
     let expected = enums::substituted(pattern, found, budget)?;
-    check::same_return(actual, &expected, span, budget)?;
+    check::same_return(actual, &expected, span, caller_variables, budget)?;
     Ok(true)
 }
 fn context_unresolved(
