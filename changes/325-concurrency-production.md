@@ -59,6 +59,14 @@ body 及其 ByteBuffer/资源等责任从不迁移到 child。仅同步调用中
 无捕获/借入/共享子载荷、脱离任务、可返回登记、线程杀死、Mutex/Atomic、
 Transfer/Share 一般 trait、Suspend 帧/执行根、取消或晚通知入口。
 
+调用位置首片限普通 Direct 函数。父 closure entry 和 callable helper 的准入/责任
+trace 尚未实现，Types/Analyze/Verify 统一返回 Unsupported，不能作为永久安全拒绝；
+两份未来合法源保存在 `pending`。这与 worker 内嵌 thread_scope 不同：后者不满足
+本片纯标量 worker 白名单，必须拒绝该迁移资格。worker 仅遍历从实际入口可达的
+静态函数子图，但对这些函数的全部 CFG blocks 逐项扫描；这是保守范围，不宣称
+路径精确。无关同模块声明不误拒，未调用的坏定义仍经过普通定义核验，未知 opcode
+默认不具 worker 资格。
+
 ## 写集与并行接口
 
 - root：`zil-base` schema，`zil-ir` lib/wire/fingerprint，规范/文法/诊断/接口附件；

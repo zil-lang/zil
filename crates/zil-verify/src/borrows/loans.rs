@@ -795,7 +795,9 @@ pub(super) fn check(
                     &flow.values[body.0 as usize],
                     std::slice::from_ref(callback),
                 ),
-                InstructionKind::WithScopedThread { body, .. } => (&flow.values[body.0 as usize], &[]),
+                InstructionKind::WithScopedThread { body, .. } => {
+                    (&flow.values[body.0 as usize], &[])
+                }
                 InstructionKind::Call { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
                 _ => (&empty, &[]),
@@ -847,7 +849,12 @@ pub(super) fn check(
             }
             if let InstructionKind::WithScopedThread { body, .. } = instruction.kind {
                 for &loan in &flow.values[body.0 as usize] {
-                    access.check(&flow.values[body.0 as usize], &flow.roots[loan], flow.mutable[loan], budget)?;
+                    access.check(
+                        &flow.values[body.0 as usize],
+                        &flow.roots[loan],
+                        flow.mutable[loan],
+                        budget,
+                    )?;
                 }
             }
             if let Some((buffer, write)) =

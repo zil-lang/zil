@@ -25,8 +25,8 @@ mod owned_callbacks;
 mod resource_tests;
 mod resources;
 mod retained;
-mod scopes;
 mod scoped_thread;
+mod scopes;
 #[cfg(test)]
 mod sum_tests;
 

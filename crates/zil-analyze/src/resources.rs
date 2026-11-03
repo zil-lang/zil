@@ -2400,10 +2400,15 @@ impl Flow<'_> {
                         });
                     }
                 }
-                InstructionKind::WithForeignCallback { .. } | InstructionKind::WithScopedThread { .. } => {
+                InstructionKind::WithForeignCallback { .. }
+                | InstructionKind::WithScopedThread { .. } => {
                     let operands = match i.kind {
-                        InstructionKind::WithForeignCallback { callback, body, .. } => [Some((callback, false)), Some((body, true))],
-                        InstructionKind::WithScopedThread { body, .. } => [None, Some((body, true))],
+                        InstructionKind::WithForeignCallback { callback, body, .. } => {
+                            [Some((callback, false)), Some((body, true))]
+                        }
+                        InstructionKind::WithScopedThread { body, .. } => {
+                            [None, Some((body, true))]
+                        }
                         _ => unreachable!(),
                     };
                     for (value, consume) in operands.into_iter().flatten() {

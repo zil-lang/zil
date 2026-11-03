@@ -31,6 +31,7 @@ fn worker(
             continue;
         }
         budget.spend(1, "thread worker insertion")?;
+        budget.lookup(seen.len(), "thread worker ordered-set insertion")?;
         seen.insert(id);
         let function = module
             .functions
@@ -104,7 +105,10 @@ fn worker(
                     | InstructionKind::ScopeEnter { .. }
                     | InstructionKind::ScopeExit { .. }
                     | InstructionKind::Store { .. }
-                    | InstructionKind::Unary { .. }
+                    | InstructionKind::Unary {
+                        op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot,
+                        ..
+                    }
                     | InstructionKind::Binary { .. } => {}
                     _ => {
                         return Err(reject(
@@ -145,10 +149,11 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     continue;
                 };
                 if caller.environment.is_some() || caller.callable_contract.is_some() {
-                    return Err(reject(
-                        instruction.span,
-                        "thread_scope in nested or callable helper entries is not implemented",
-                    ));
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "thread_scope is implemented only in ordinary Direct functions; closure and callable helper entries are not implemented",
+                        Some(instruction.span),
+                    )]);
                 }
                 if caller.values.get(argument.0 as usize) != Some(&Type::I32)
                     || instruction
@@ -172,12 +177,21 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     .get(id.0 as usize)
                     .ok_or_else(|| reject(instruction.span, "thread body entry is absent"))?;
                 budget.spend(1, "thread body actual entry")?;
-                let entry_function = module.functions.get(definition.function.0 as usize)
+                let entry_function = module
+                    .functions
+                    .get(definition.function.0 as usize)
                     .ok_or_else(|| reject(instruction.span, "thread body function is absent"))?;
-                if entry_function.environment != Some(*id) || entry_function.foreign.is_some()
-                    || !entry_function.parameters.is_empty() || entry_function.return_type != Type::I32
+                if entry_function.environment != Some(*id)
+                    || entry_function.foreign.is_some()
+                    || !entry_function.parameters.is_empty()
+                    || entry_function.return_type != Type::I32
                     || entry_function.result_mode != PassingMode::Infer
-                { return Err(reject(instruction.span, "thread body metadata differs from its actual concrete entry")); }
+                {
+                    return Err(reject(
+                        instruction.span,
+                        "thread body metadata differs from its actual concrete entry",
+                    ));
+                }
                 if !definition.parameters.is_empty()
                     || definition.result != Type::I32
                     || !definition.lending_captures.is_empty()

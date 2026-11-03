@@ -2422,7 +2422,10 @@ impl Check<'_, '_, '_> {
                     return Ok(named(&value.ty().name(), e.span));
                 }
                 if super::super::foreign::bare_name(callee) == Some("thread_scope") {
-                    return Err(unsupported(e.span, "thread_scope in generic callable wrappers is not implemented"));
+                    return Err(unsupported(
+                        e.span,
+                        "thread_scope in generic callable wrappers is not implemented",
+                    ));
                 }
                 if super::super::foreign::bare_name(callee) == Some("c_with_callback") {
                     return self.scoped_callback_call(arguments, state, e.span);

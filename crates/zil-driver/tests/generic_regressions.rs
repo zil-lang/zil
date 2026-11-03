@@ -576,41 +576,134 @@ fn thread325_root() -> std::path::PathBuf {
 fn thread325_project() -> zil_driver::ProjectSources {
     use std::collections::BTreeMap;
     let mut paths = BTreeMap::new();
-    let modules = ["main", "worker", "observer", "component"].iter().enumerate()
+    let modules = ["main", "worker", "observer", "component"]
+        .iter()
+        .enumerate()
         .map(|(index, name)| {
             let index = index as u32;
             let path = thread325_root().join(format!("{name}.zil"));
-            if index != 0 { paths.insert(vec![(*name).into()], ModuleId(index)); }
-            SourceUnit::new(FileId(index), ModuleId(index), path.to_string_lossy().into_owned(), std::fs::read_to_string(path).unwrap())
-        }).collect();
-    zil_driver::ProjectSources { root: ModuleId(0), modules, paths }
+            if index != 0 {
+                paths.insert(vec![(*name).into()], ModuleId(index));
+            }
+            SourceUnit::new(
+                FileId(index),
+                ModuleId(index),
+                path.to_string_lossy().into_owned(),
+                std::fs::read_to_string(path).unwrap(),
+            )
+        })
+        .collect();
+    zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules,
+        paths,
+    }
 }
 
 #[test]
 #[cfg(target_os = "linux")]
 fn thread325_source_and_worker_boundaries() {
     let report = zil_driver::compile_project(&thread325_project(), &CompileOptions::default());
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     assert_eq!(report.verification_runs, 1);
-    let text = std::fs::read_to_string(thread325_root().join("controls/parent_borrow.zil")).unwrap();
+    let mut private = thread325_project();
+    private.modules[0].text = private.modules[0]
+        .text
+        .replace("worker.compute", "worker.step");
+    let report = zil_driver::compile_project(&private, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-MODULE-PRIVATE"),
+        "{}",
+        report.to_json()
+    );
+    let text =
+        std::fs::read_to_string(thread325_root().join("controls/parent_borrow.zil")).unwrap();
     let report = compile_source(&source(&text), &CompileOptions::default());
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     assert_eq!(report.verification_runs, 1);
     for (name, phase, code) in [
         ("foreign_worker", zil_base::Phase::Types, "E-THREAD-WORKER"),
         ("stored_worker", zil_base::Phase::Types, "E-THREAD-WORKER"),
         ("wrong_body", zil_base::Phase::Types, "E-THREAD-BODY"),
-        ("transitive_foreign", zil_base::Phase::Analyze, "E-THREAD-WORKER"),
-        ("address_worker", zil_base::Phase::Analyze, "E-THREAD-WORKER"),
-        ("body_borrow_conflict", zil_base::Phase::Verify, "E-BORROW-CONFLICT"),
+        (
+            "transitive_foreign",
+            zil_base::Phase::Analyze,
+            "E-THREAD-WORKER",
+        ),
+        (
+            "address_worker",
+            zil_base::Phase::Analyze,
+            "E-THREAD-WORKER",
+        ),
+        (
+            "body_borrow_conflict",
+            zil_base::Phase::Verify,
+            "E-BORROW-CONFLICT",
+        ),
         ("ct_thread", zil_base::Phase::Ct, "E-CT-FORBIDDEN"),
     ] {
         let path = thread325_root().join(format!("negative/{name}.zil"));
-        let input = SourceUnit::new(FileId(0), ModuleId(0), path.to_string_lossy().into_owned(), std::fs::read_to_string(&path).unwrap());
+        let input = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            path.to_string_lossy().into_owned(),
+            std::fs::read_to_string(&path).unwrap(),
+        );
         let report = compile_source(&input, &CompileOptions::default());
-        assert_eq!(report.status, ResultCategory::SafeReject, "{name}: {}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
         assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
-        assert!(report.diagnostics.iter().any(|d| d.code == code && d.phase == phase && d.span.is_some_and(|span| span.file == FileId(0))), "{name}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code
+                && d.phase == phase
+                && d.span.is_some_and(|span| span.file == FileId(0))),
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+    for (name, phase) in [
+        ("parent_closure", zil_base::Phase::Types),
+        ("callable_wrapper", zil_base::Phase::Expand),
+    ] {
+        let path = thread325_root().join(format!("pending/{name}.zil"));
+        let text = std::fs::read_to_string(path).unwrap();
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"),
+            "{name}: {}",
+            report.to_json()
+        );
         assert!(!report.artifacts.contains_key("executable"));
     }
 }
@@ -619,7 +712,9 @@ fn thread325_source_and_worker_boundaries() {
 #[cfg(target_os = "linux")]
 fn thread325_raw_wire_worker_identity_and_once_body() {
     use zil_ir::InstructionKind;
-    let src = source("resource Mark{code:i32} impl Drop for Mark{fn drop(self:Self){}} fn worker(value:i32)->i32{return value+1} fn main()->i32{let a=Mark{code:4};let b=Mark{code:7};let first=move()->i32=>a.code;let second=move()->i32=>b.code;let x=thread_scope(worker,3,first);let y=thread_scope(worker,5,second);return x.1+y.2}");
+    let src = source(
+        "resource Mark{code:i32} impl Drop for Mark{fn drop(self:Self){}} fn worker(value:i32)->i32{return value+1} fn main()->i32{let a=Mark{code:4};let b=Mark{code:7};let first=move()->i32=>a.code;let second=move()->i32=>b.code;let x=thread_scope(worker,3,first);let y=thread_scope(worker,5,second);return x.1+y.2}",
+    );
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
     let target = zil_base::TargetProfile::default();
@@ -630,92 +725,245 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
     let (decoded, decoded_plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
     let verified = zil_verify::verify_module(decoded, decoded_plan, &target, &limits).unwrap();
     let lir = zil_lower::lower(&verified).unwrap();
-    assert_eq!(lir.functions.iter().flat_map(|f| &f.blocks).flat_map(|b| &b.instructions).filter(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. })).count(), 2);
-    let caller = typed.functions.iter().position(|f| f.blocks.iter().any(|b| b.instructions.iter().any(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. })))).unwrap();
+    assert_eq!(
+        lir.functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .filter(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. }))
+            .count(),
+        2
+    );
+    let caller = typed
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks.iter().any(|b| {
+                b.instructions
+                    .iter()
+                    .any(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. }))
+            })
+        })
+        .unwrap();
     for variant in [0, 1, 2] {
         let mut forged = typed.clone();
         let teardown = forged.resources.iter().find_map(|r| r.teardown).unwrap();
         let mut body = None;
         let mut count = 0;
-        for instruction in forged.functions[caller].blocks.iter_mut().flat_map(|b| &mut b.instructions) {
-            if let InstructionKind::WithScopedThread { worker, body: actual, .. } = &mut instruction.kind {
-                if variant == 0 { *worker = zil_ir::FunctionId(u32::MAX); break; }
-                if variant == 1 { *worker = teardown; break; }
+        for instruction in forged.functions[caller]
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+        {
+            if let InstructionKind::WithScopedThread {
+                worker,
+                body: actual,
+                ..
+            } = &mut instruction.kind
+            {
+                if variant == 0 {
+                    *worker = zil_ir::FunctionId(u32::MAX);
+                    break;
+                }
+                if variant == 1 {
+                    *worker = teardown;
+                    break;
+                }
                 count += 1;
-                if count == 1 { body = Some(*actual); } else { *actual = body.unwrap(); break; }
+                if count == 1 {
+                    body = Some(*actual);
+                } else {
+                    *actual = body.unwrap();
+                    break;
+                }
             }
         }
         let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
-        assert_eq!(errors[0].category, ResultCategory::SafeReject, "variant {variant}: {errors:?}");
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "variant {variant}: {errors:?}"
+        );
         let mut claim = plan.clone();
         claim.module_fingerprint = forged.fingerprint();
         let errors = zil_verify::verify_module(forged, claim, &target, &limits).unwrap_err();
-        assert_eq!(errors[0].category, ResultCategory::SafeReject, "variant {variant}: {errors:?}");
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "variant {variant}: {errors:?}"
+        );
     }
+    // A well-formed concrete parent closure is a future legal placement, not
+    // a forged worker authority. Both raw kernels must report Unsupported.
+    let mut future = typed.clone();
+    let id = zil_ir::ClosureId(future.closures.len() as u32);
+    future.functions[caller].environment = Some(id);
+    future.closures.push(zil_ir::ClosureDefinition {
+        id,
+        function: future.functions[caller].id,
+        captures: vec![],
+        parameters: vec![],
+        result: zil_ir::Type::I32,
+        kind: zil_ir::CallableKind::Fn,
+        lending_captures: vec![],
+    });
+    let errors = zil_analyze::analyze(&future, &limits).unwrap_err();
+    assert_eq!(
+        errors[0].category,
+        ResultCategory::Unsupported,
+        "{errors:?}"
+    );
+    let mut claim = plan.clone();
+    claim.module_fingerprint = future.fingerprint();
+    let errors = zil_verify::verify_module(future, claim, &target, &limits).unwrap_err();
+    assert_eq!(
+        errors[0].category,
+        ResultCategory::Unsupported,
+        "{errors:?}"
+    );
     // Exact worker traversal work comes from the current request, not a fresh per-worker budget.
     for verify in [false, true] {
         let mut low = 0;
         let mut high = limits.max_analysis_steps;
         while low + 1 < high {
-            let selected = Limits { max_analysis_steps: (low + high) / 2, ..limits.clone() };
-            let accepted = if verify { zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected).is_ok() }
-                else { zil_analyze::analyze(&typed, &selected).is_ok() };
-            if accepted { high = selected.max_analysis_steps; } else { low = selected.max_analysis_steps; }
+            let selected = Limits {
+                max_analysis_steps: (low + high) / 2,
+                ..limits.clone()
+            };
+            let accepted = if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected).is_ok()
+            } else {
+                zil_analyze::analyze(&typed, &selected).is_ok()
+            };
+            if accepted {
+                high = selected.max_analysis_steps;
+            } else {
+                low = selected.max_analysis_steps;
+            }
         }
         for _ in 0..2 {
-            let selected = Limits { max_analysis_steps: high, ..limits.clone() };
-            if verify { zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected).unwrap(); }
-            else { zil_analyze::analyze(&typed, &selected).unwrap(); }
+            let selected = Limits {
+                max_analysis_steps: high,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected).unwrap();
+            } else {
+                zil_analyze::analyze(&typed, &selected).unwrap();
+            }
         }
-        let selected = Limits { max_analysis_steps: high - 1, ..limits.clone() };
-        let errors = if verify { zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected).unwrap_err() }
-            else { zil_analyze::analyze(&typed, &selected).unwrap_err() };
-        assert_eq!(errors[0].category, ResultCategory::ResourceLimit, "verify={verify} N={high}: {errors:?}");
-        eprintln!("thread325 {} work N={high}", if verify { "Verify" } else { "Analyze" });
+        let selected = Limits {
+            max_analysis_steps: high - 1,
+            ..limits.clone()
+        };
+        let errors = if verify {
+            zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected).unwrap_err()
+        } else {
+            zil_analyze::analyze(&typed, &selected).unwrap_err()
+        };
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::ResourceLimit,
+            "verify={verify} N={high}: {errors:?}"
+        );
+        eprintln!(
+            "thread325 {} work N={high}",
+            if verify { "Verify" } else { "Analyze" }
+        );
     }
 }
 
 #[test]
 #[cfg(target_os = "linux")]
 fn thread325_native_os_join_parent_cleanup_and_failure() {
-    use std::{fs, io::Write, os::unix::{fs::PermissionsExt, process::ExitStatusExt}, path::{Path, PathBuf}, process::{Command, Stdio}, sync::atomic::{AtomicU64, Ordering}, time::{Duration, Instant}};
+    use std::{
+        fs,
+        io::Write,
+        os::unix::{fs::PermissionsExt, process::ExitStatusExt},
+        path::{Path, PathBuf},
+        process::{Command, Stdio},
+        sync::atomic::{AtomicU64, Ordering},
+        time::{Duration, Instant},
+    };
     use zil_driver::{NativeBackend, Optimization, Stage};
     static NEXT: AtomicU64 = AtomicU64::new(0);
-    fn quote(path: &Path) -> String { format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'")) }
-    let clang = std::env::var_os("ZIL_CLANG").map(PathBuf::from).unwrap_or_else(|| "clang".into());
+    fn quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
     let mut backends = vec![NativeBackend::Clang];
-    if cfg!(feature = "llvm-api") { backends.push(NativeBackend::LlvmApi); }
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
     for backend in backends {
         for optimization in [Optimization::O0, Optimization::O2] {
             let retained = std::env::var_os("ZIL_TEST_REPORT_DIR");
-            let directory = retained.clone().map(PathBuf::from).unwrap_or_else(std::env::temp_dir)
-                .join(format!("thread325-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+            let directory = retained
+                .clone()
+                .map(PathBuf::from)
+                .unwrap_or_else(std::env::temp_dir)
+                .join(format!(
+                    "thread325-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
             fs::create_dir(&directory).unwrap();
             let observer = directory.join("observer.o");
-            let compiled = Command::new(&clang).args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
-                .arg(thread325_root().join("observer.c")).arg("-o").arg(&observer).output().unwrap();
+            let compiled = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
+                .arg(thread325_root().join("observer.c"))
+                .arg("-o")
+                .arg(&observer)
+                .output()
+                .unwrap();
             assert!(compiled.status.success(), "{compiled:?}");
             let wrapper = directory.join("link.sh");
             fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -pthread -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join\nfi\nexec {} \"$@\"\n", quote(&clang), quote(&observer), quote(&clang))).unwrap();
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-            let units = if backend == NativeBackend::LlvmApi && optimization == Optimization::O2 { 4 } else { 1 };
-            let report = zil_driver::compile_project(&thread325_project(), &CompileOptions {
-                backend, optimization, clang: Some(wrapper), stop_after: Stage::Build,
-                codegen: zil_backend_llvm::CodegenOptions { units, jobs: 1 },
-                output: Some(directory.join("program")),
-                emit_dir: retained.as_ref().map(|_| directory.join("ir")), ..CompileOptions::default()
-            });
-            if retained.is_some() { fs::write(directory.join("compile.json"), report.to_json()).unwrap(); }
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            let units = if backend == NativeBackend::LlvmApi && optimization == Optimization::O2 {
+                4
+            } else {
+                1
+            };
+            let report = zil_driver::compile_project(
+                &thread325_project(),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    clang: Some(wrapper),
+                    stop_after: Stage::Build,
+                    codegen: zil_backend_llvm::CodegenOptions { units, jobs: 1 },
+                    output: Some(directory.join("program")),
+                    emit_dir: retained.as_ref().map(|_| directory.join("ir")),
+                    ..CompileOptions::default()
+                },
+            );
+            if retained.is_some() {
+                fs::write(directory.join("compile.json"), report.to_json()).unwrap();
+            }
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.verification_runs, 1);
             let codegen = report.native_codegen.as_ref().unwrap();
             assert_eq!(codegen.backend, backend);
             assert!(codegen.fallback.is_none(), "{}", report.to_json());
             assert_eq!(codegen.requested_units, units);
-            if units > 1 { assert!(codegen.actual_units > 1, "{}", report.to_json()); }
+            if units > 1 {
+                assert!(codegen.actual_units > 1, "{}", report.to_json());
+            }
             if backend == NativeBackend::LlvmApi {
                 assert!(!codegen.object_reports.is_empty());
-                assert!(codegen.object_reports.iter().all(|r| r.contains("\"input_kind\":\"builder\"") && r.contains("\"verify_before_after\":true") && r.contains("\"parse_ns\":0,")));
+                assert!(codegen.object_reports.iter().all(|r| {
+                    r.contains("\"input_kind\":\"builder\"")
+                        && r.contains("\"verify_before_after\":true")
+                        && r.contains("\"parse_ns\":0,")
+                }));
             }
             for (mode, status, signal, stdout) in [
                 (b'0', Some(0), None, "PECBDJA"),
@@ -723,37 +971,73 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                 (b'2', Some(2), None, "PECDA"),
                 (b'3', None, Some(6), "PECBDX"),
             ] {
-                let mut child = Command::new(&report.artifacts["executable"]).current_dir(&directory)
-                    .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+                let mut child = Command::new(&report.artifacts["executable"])
+                    .current_dir(&directory)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap();
                 child.stdin.take().unwrap().write_all(&[mode]).unwrap();
                 let deadline = Instant::now() + Duration::from_secs(5);
                 while child.try_wait().unwrap().is_none() {
-                    if Instant::now() >= deadline { let _ = child.kill();let _ = child.wait();panic!("thread325 join timed out"); }
+                    if Instant::now() >= deadline {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        panic!("thread325 join timed out");
+                    }
                     std::thread::sleep(Duration::from_millis(2));
                 }
                 let actual = child.wait_with_output().unwrap();
                 if retained.is_some() {
                     fs::write(directory.join(format!("{mode}-stdout")), &actual.stdout).unwrap();
-                    fs::write(directory.join(format!("{mode}-status")), actual.status.to_string()).unwrap();
+                    fs::write(
+                        directory.join(format!("{mode}-status")),
+                        actual.status.to_string(),
+                    )
+                    .unwrap();
                 }
-                assert_eq!(actual.status.code(), status, "{backend:?}/{optimization:?} mode {mode}: {actual:?}");
+                assert_eq!(
+                    actual.status.code(),
+                    status,
+                    "{backend:?}/{optimization:?} mode {mode}: {actual:?}"
+                );
                 assert_eq!(actual.status.signal(), signal, "{actual:?}");
                 assert_eq!(actual.stdout, stdout.as_bytes(), "{actual:?}");
                 assert!(actual.stderr.is_empty(), "{actual:?}");
             }
             // A body using a real parent local keeps the existing borrow rules.
-            let text = fs::read_to_string(thread325_root().join("controls/parent_borrow.zil")).unwrap();
-            let report = compile_source(&source(&text), &CompileOptions {
-                backend, optimization, stop_after: Stage::Build,
-                output: Some(directory.join("borrow")), ..CompileOptions::default()
-            });
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            let text =
+                fs::read_to_string(thread325_root().join("controls/parent_borrow.zil")).unwrap();
+            let report = compile_source(
+                &source(&text),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(directory.join("borrow")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
             assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-            let actual = Command::new(&report.artifacts["executable"]).output().unwrap();
+            let actual = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
             assert_eq!(actual.status.code(), Some(0), "{actual:?}");
-            assert!(actual.stdout.is_empty() && actual.stderr.is_empty(), "{actual:?}");
-            if retained.is_none() { fs::remove_dir_all(directory).unwrap(); }
+            assert!(
+                actual.stdout.is_empty() && actual.stderr.is_empty(),
+                "{actual:?}"
+            );
+            if retained.is_none() {
+                fs::remove_dir_all(directory).unwrap();
+            }
         }
     }
 }

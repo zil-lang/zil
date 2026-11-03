@@ -1665,11 +1665,16 @@ impl Transfer<'_> {
                         fresh_result = Some(INPUT);
                     }
                 }
-                InstructionKind::WithForeignCallback { .. } | InstructionKind::WithScopedThread { .. } => {
+                InstructionKind::WithForeignCallback { .. }
+                | InstructionKind::WithScopedThread { .. } => {
                     // Even registration failure consumes and cleans the prepared body.
                     let (callbacks, body) = match &instruction.kind {
-                        InstructionKind::WithForeignCallback { callback, body, .. } => ([Some(callback), Some(body)], body),
-                        InstructionKind::WithScopedThread { body, .. } => ([None, Some(body)], body),
+                        InstructionKind::WithForeignCallback { callback, body, .. } => {
+                            ([Some(callback), Some(body)], body)
+                        }
+                        InstructionKind::WithScopedThread { body, .. } => {
+                            ([None, Some(body)], body)
+                        }
                         _ => unreachable!(),
                     };
                     for callee in callbacks.into_iter().flatten() {

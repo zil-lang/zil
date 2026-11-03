@@ -93,7 +93,10 @@ fn worker_graph(
                     | InstructionKind::ScopeEnter { .. }
                     | InstructionKind::ScopeExit { .. }
                     | InstructionKind::Store { .. }
-                    | InstructionKind::Unary { .. }
+                    | InstructionKind::Unary {
+                        op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot,
+                        ..
+                    }
                     | InstructionKind::Binary { .. } => {}
                     _ => {
                         return Err(invalid(
@@ -132,9 +135,9 @@ pub(super) fn instruction(
         ));
     }
     if caller.environment.is_some() || caller.callable_contract.is_some() {
-        return Err(invalid(
+        return Err(unsupported(
+            "thread_scope is implemented only in ordinary Direct functions; closure and callable helper entries are not implemented",
             span,
-            "nested and callable helper thread scopes are not implemented",
         ));
     }
     if value_type(caller, argument, span)? != &Type::I32 {
@@ -151,12 +154,21 @@ pub(super) fn instruction(
     };
     let body = closures::definition(module, *body_id, span)?;
     budget.spend(1)?;
-    let entry = module.functions.get(body.function.0 as usize)
+    let entry = module
+        .functions
+        .get(body.function.0 as usize)
         .ok_or_else(|| invalid(span, "thread body actual entry is absent"))?;
-    if entry.environment != Some(*body_id) || entry.foreign.is_some()
-        || !entry.parameters.is_empty() || entry.return_type != Type::I32
+    if entry.environment != Some(*body_id)
+        || entry.foreign.is_some()
+        || !entry.parameters.is_empty()
+        || entry.return_type != Type::I32
         || entry.result_mode != PassingMode::Infer
-    { return Err(invalid(span, "thread body metadata differs from its actual entry")); }
+    {
+        return Err(invalid(
+            span,
+            "thread body metadata differs from its actual entry",
+        ));
+    }
     budget.spend(
         body.parameters
             .len()
