@@ -26,11 +26,22 @@ impl Plans {
     }
 }
 fn signature<'a>(
-    parameters: impl Iterator<Item = &'a Type>,
+    parameters: impl ExactSizeIterator<Item = &'a Type>,
     result: &Type,
     remaining: &mut usize,
     limits: &Limits,
 ) -> CompileResult<Signature> {
+    // Pay the retained parameter mapping before allocating it, including Unit
+    // erasure positions. This shares the current module's snapshot remainder.
+    *remaining = remaining
+        .checked_sub(parameters.len().saturating_add(1))
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Codegen,
+                "large Copy ABI mapping budget exceeded",
+                None,
+            )]
+        })?;
     let parameters = parameters
         .map(|ty| classify(ty, remaining, limits))
         .collect::<CompileResult<Vec<_>>>()?;

@@ -519,9 +519,9 @@ impl FunctionEmitter<'_> {
         self.copy_read(result(instruction)?, selected)
     }
 
-    // ABI and other legacy consumers retain their exact signatures/operations.
-    // Materialization is explicit and may still expose LLVM's large-value ABI
-    // limitation; this is not a silent backend/optimization fallback.
+    // Ordinary memory instructions and LargeCopy ABI consumers are handled
+    // explicitly. Any remaining snapshot consumer must stop before publishing
+    // machine IR; never materialize a giant SSA bridge for an unsupported path.
     fn copy_argument(&mut self, argument: &mut m::Arg) {
         let m::Val::Local(name) = &argument.value else {
             return;

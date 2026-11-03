@@ -283,6 +283,129 @@ fn large_copy_a18_native_all_backends() {
     }
 }
 #[test]
+fn large_copy_a18_by_value_abi_native_all_backends() {
+    // Isolate LLVM failures and cap each compiler process. This remains one
+    // existing Cargo integration target and preserves the original input bytes.
+    if let Ok(profile) = std::env::var("ZIL_333_LARGE_COPY_CHILD") {
+        use zil_driver::{NativeBackend, Optimization};
+        let (backend, optimization) = match profile.as_str() {
+            "clang-O0" => (NativeBackend::Clang, Optimization::O0),
+            "clang-O2" => (NativeBackend::Clang, Optimization::O2),
+            "llvm-api-O0" => (NativeBackend::LlvmApi, Optimization::O0),
+            "llvm-api-O2" => (NativeBackend::LlvmApi, Optimization::O2),
+            _ => panic!("unknown child profile"),
+        };
+        let out = Temp::new();
+        let case = std::env::var("ZIL_333_CASE").unwrap();
+        let input = match case.as_str() {
+            "argument" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-array-a18-by-value.zil"
+            ),
+            "return" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-array-a18-return.zil"
+            ),
+            "pointer" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-array-a18-function-pointer.zil"
+            ),
+            _ => panic!("unknown ABI case"),
+        };
+        let report = compile_source(
+            &source(input),
+            &CompileOptions {
+                backend,
+                optimization,
+                stop_after: Stage::Build,
+                cancellation: zil_driver::CancellationToken::with_timeout(
+                    std::time::Duration::from_secs(45),
+                ),
+                output: Some(out.0.join("program")),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+        assert!(llvm.contains(".lc1("), "versioned definition/call absent");
+        assert!(llvm.contains("@zil.copy.bytes"));
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.backend, backend);
+        assert!(codegen.fallback.is_none());
+        if backend == NativeBackend::LlvmApi {
+            let pipeline = format!("\"pipeline\":\"default<{optimization:?}>\"");
+            assert!(!codegen.object_reports.is_empty());
+            assert!(codegen.object_reports.iter().all(|r| r.contains(&pipeline)));
+        } else {
+            let flag = if optimization == Optimization::O0 {
+                "-O0"
+            } else {
+                "-O2"
+            };
+            assert!(
+                report
+                    .commands
+                    .iter()
+                    .any(|command| command.iter().any(|arg| arg == flag))
+            );
+        }
+        let actual = Command::new("timeout")
+            .args(["-s", "KILL", "5s"])
+            .arg(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+        assert!(actual.stdout.is_empty());
+        assert!(actual.stderr.is_empty());
+        return;
+    }
+    for backend in ["clang", "llvm-api"] {
+        if backend == "llvm-api" && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in ["O0", "O2"] {
+            for case in ["argument", "return", "pointer"] {
+                let actual = Command::new("timeout")
+                    .args([
+                        "-s",
+                        "KILL",
+                        "55s",
+                        "bash",
+                        "-c",
+                        "ulimit -c 0; ulimit -t 45; ulimit -v 2097152; exec \"$@\"",
+                        "--",
+                    ])
+                    .arg(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "large_copy_a18_by_value_abi_native_all_backends",
+                        "--nocapture",
+                        "--test-threads=1",
+                    ])
+                    .env("ZIL_333_CASE", case)
+                    .env(
+                        "ZIL_333_LARGE_COPY_CHILD",
+                        format!("{backend}-{optimization}"),
+                    )
+                    .output()
+                    .unwrap();
+                assert!(
+                    actual.status.success(),
+                    "{backend}-{optimization}: {} {}",
+                    String::from_utf8_lossy(&actual.stdout),
+                    String::from_utf8_lossy(&actual.stderr)
+                );
+                eprintln!(
+                    "333 a18 ABI {case} {backend}-{optimization}: backend matched, requested pipeline, fallback=null, native_exit=0"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn records_nested_update_parameter_and_return() {
     let llvm = native(
         include_str!("../../../examples/aggregates/main.zil"),
@@ -736,5 +859,184 @@ fn raw_aggregate_shapes_obey_work_and_depth_limits_before_identity_checks() {
             zil_verify::verify_module(damaged, plan.clone(), &target, &limits).unwrap_err();
         assert_eq!(checked[0].category, ResultCategory::ResourceLimit);
         assert_eq!(checked[0].phase, Phase::Verify);
+    }
+}
+
+#[test]
+fn large_copy_abi_copy_in_and_rhs_order() {
+    let first = "[0]".repeat(13);
+    let text = large_copy_program(&format!(
+        "var original=a12;let pointer:fn(Big)->Big=keep;let returned=pointer(original);let observed=pair(original,touch(&mut original));return i32(returned{first})*100+i32(original{first})*10+observed;"
+    ));
+    let text = format!(
+        "fn keep(value:Big)->Big{{var changed=value;changed{first}=9u8;return value}}fn pair(value:Big,marker:i32)->i32{{var changed=value;changed{first}=8u8;return i32(value{first})+marker}}{text}"
+    );
+    let llvm = native(&text, Some(344));
+    assert!(llvm.contains(".lc1(ptr %lc1.result, ptr %arg.0)"));
+    assert!(!llvm.contains("define internal void @zil.fn."));
+}
+
+#[test]
+fn large_copy_abi_special_closure_is_explicitly_unsupported() {
+    let text = large_copy_program("let f=(value:Big)->Big=>value;return 0;");
+    let verified = compile_source(&source(&text), &CompileOptions::default());
+    assert_eq!(
+        verified.status,
+        ResultCategory::Success,
+        "{}",
+        verified.to_json()
+    );
+    let report = compile_source(
+        &source(&text),
+        &CompileOptions {
+            stop_after: Stage::Build,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(report.diagnostics.iter().any(|d| d.phase == Phase::Codegen));
+    assert!(!report.artifacts.contains_key("llvm"));
+    assert!(!report.artifacts.contains_key("executable"));
+}
+
+#[test]
+fn large_copy_abi_codegen_budget_exact_and_fresh() {
+    let src = source(include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-array-a18-function-pointer.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = TargetProfile::default();
+    let defaults = Limits::default();
+    let typed = zil_types::check(&core, &target, &defaults).unwrap();
+    let candidate = zil_analyze::analyze(&typed, &defaults).unwrap();
+    let emit = |steps| {
+        let limits = Limits {
+            max_analysis_steps: steps,
+            ..defaults.clone()
+        };
+        let verified =
+            zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)?;
+        let lir = zil_lower::lower(&verified)?;
+        zil_backend_llvm::emit(&verified, &lir)
+    };
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    assert!(emit(high).is_ok());
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if emit(middle).is_ok() {
+            high = middle
+        } else {
+            low = middle + 1
+        }
+    }
+    let errors = emit(low - 1).unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+    assert_eq!(errors[0].phase, Phase::Codegen);
+    assert!(emit(low).unwrap().contains(".lc1"));
+    assert!(emit(low).unwrap().contains(".lc1"));
+    eprintln!("333 a18 function-pointer Codegen exact work limit: {low}");
+}
+
+#[test]
+fn large_copy_abi_cgu_cache_and_canonical_function_reference() {
+    use zil_driver::{
+        CodegenOptions, NativeBackend, Optimization, ProjectSources, compile_project,
+    };
+    let mut ty = "[u8;1]".to_owned();
+    let mut initialization = "let a0=[3u8];".to_owned();
+    for n in 1..=12 {
+        ty = format!("[{ty};2]");
+        initialization.push_str(&format!("let a{n}=[a{},a{}];", n - 1, n - 1));
+    }
+    let first = "[0]".repeat(13);
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = Temp::new();
+            for (round, changed) in [(0, false), (1, false), (2, true)] {
+                let body = if changed {
+                    format!("var changed=value;changed{first}=9u8;return changed")
+                } else {
+                    "return value".into()
+                };
+                let modules=[
+              ("main",format!("import model;import factory;fn main()->i32{{{initialization}let p=factory.pointer();let value=p(a12);return i32(value{first})}}")),
+              ("model",format!("pub type Big={ty};pub fn identity(value:Big)->Big{{{body}}}")),
+              ("factory","import model;pub fn pointer()->fn(model.Big)->model.Big{return model.identity}".into()),
+            ];
+                let project = ProjectSources {
+                    root: ModuleId(0),
+                    modules: modules
+                        .iter()
+                        .enumerate()
+                        .map(|(n, (name, text))| {
+                            SourceUnit::new(
+                                FileId(n as u32),
+                                ModuleId(n as u32),
+                                format!("{name}.zil"),
+                                text.clone(),
+                            )
+                        })
+                        .collect(),
+                    paths: [
+                        (vec!["model".into()], ModuleId(1)),
+                        (vec!["factory".into()], ModuleId(2)),
+                    ]
+                    .into_iter()
+                    .collect(),
+                };
+                let report = compile_project(
+                    &project,
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        object_cache: (backend == NativeBackend::LlvmApi)
+                            .then(|| out.0.join("objects")),
+                        codegen: CodegenOptions { units: 3, jobs: 1 },
+                        output: Some(out.0.join(format!("program{round}"))),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let actual = Command::new("timeout")
+                    .args(["-s", "KILL", "5s"])
+                    .arg(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(if changed { 9 } else { 3 }),
+                    "{actual:?}"
+                );
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert!(codegen.actual_units >= 2, "{}", report.to_json());
+                assert!(codegen.fallback.is_none(), "{}", report.to_json());
+                if backend == NativeBackend::LlvmApi {
+                    assert!(codegen.object_cache.enabled, "{}", report.to_json());
+                    if round == 1 {
+                        assert_eq!(codegen.object_cache.hits, codegen.actual_units);
+                        assert_eq!(codegen.object_cache.misses, 0);
+                    } else {
+                        assert!(codegen.object_cache.misses > 0);
+                    }
+                }
+                let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+                assert!(llvm.contains(".lc1"));
+            }
+        }
     }
 }
