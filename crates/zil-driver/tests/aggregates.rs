@@ -215,6 +215,23 @@ fn large_copy_a18_native_all_backends() {
         let codegen = report.native_codegen.as_ref().unwrap();
         assert_eq!(codegen.backend, backend);
         assert!(codegen.fallback.is_none());
+        if backend == NativeBackend::LlvmApi {
+            let pipeline = format!("\"pipeline\":\"default<{optimization:?}>\"");
+            assert!(!codegen.object_reports.is_empty());
+            assert!(codegen.object_reports.iter().all(|r| r.contains(&pipeline)));
+        } else {
+            let flag = if optimization == Optimization::O0 {
+                "-O0"
+            } else {
+                "-O2"
+            };
+            assert!(
+                report
+                    .commands
+                    .iter()
+                    .any(|command| command.iter().any(|arg| arg == flag))
+            );
+        }
         let actual = Command::new("timeout")
             .args(["-s", "KILL", "5s"])
             .arg(&report.artifacts["executable"])
@@ -258,6 +275,9 @@ fn large_copy_a18_native_all_backends() {
                 "{backend}-{optimization}: {} {}",
                 String::from_utf8_lossy(&actual.stdout),
                 String::from_utf8_lossy(&actual.stderr)
+            );
+            eprintln!(
+                "324 a18 {backend}-{optimization}: backend matched, requested pipeline, fallback=null, native_exit=0"
             );
         }
     }
