@@ -176,3 +176,11 @@ root/impl317在6b确认：factory返回受影响薄fnptr、apply接收fnptr、�
 - 修补后backend两feature alltargets Clippy、API aggregates Clippy/fmt通过。
   旧整target31/0是6b收口历史，不冒称最终共同树33用例已整target复跑；本轮按
   root要求只重跑受影响限定控制，原a18独立非作者复验由impl317绑定最终交付。
+
+补充只读边界核查（root收尾问题）：一般Enum/ErrorUnion本体>=4096B并没有统一的
+Codegen Unsupported门槛。333 physical classifier只选择Array/Tuple/Record；
+`llvm_type(Enum/ErrorUnion)`仍inline aggregate，enum layout的现有拒绝是shape/
+地址范围溢出检查，不是4KiB拒绝。部分构造/投影碰到未消费ordinary大snapshot会
+明确Unsupported，但不能推广为所有大Enum/Error都已拒绝。故一般大型Enum/
+ErrorUnion内部按值可靠性仍是本片未支持/未验收范围；本次只读确认没有新增LLVM
+崩溃探针、没有推测为已复现新缺陷、没有扩大本片生产修复或宣称完整大Copy支持。
