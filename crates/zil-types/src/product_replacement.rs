@@ -335,6 +335,18 @@ impl References<'_, '_> {
         for statement in &block.statements {
             self.charge(depth + 1, statement.span, 0)?;
             match &statement.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    ty,
+                    initializer,
+                    ..
+                } => {
+                    if let Some(ty) = ty {
+                        self.ty(ty, statement.span)?;
+                    }
+                    found |= self.expr(initializer, shadow, depth + 1)?;
+                    shadow |= self.pattern(pattern, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     name,
                     ty,

@@ -99,6 +99,14 @@ impl Walker {
         // Resolver charges blocks and expressions, not statement wrappers.
         for statement in &block.statements {
             match &statement.kind {
+                CoreStatementKind::TupleBinding {
+                    ty, initializer, ..
+                } => {
+                    if let Some(ty) = ty {
+                        self.ty(ty, depth + 1, statement.span)?;
+                    }
+                    self.expr(initializer, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     ty, initializer, ..
                 } => {

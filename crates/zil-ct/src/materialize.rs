@@ -245,6 +245,9 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
             Visit::Statement(s) => {
                 observe(s.id, s.span)?;
                 match &s.kind {
+                    CoreStatementKind::TupleBinding { initializer, .. } => {
+                        pending.push((Visit::Expr(initializer), depth + 1));
+                    }
                     CoreStatementKind::Binding { initializer, .. }
                     | CoreStatementKind::Return(initializer) => {
                         if let Some(e) = initializer {

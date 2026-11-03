@@ -45,6 +45,7 @@ mod retained;
 mod scalar_shapes;
 mod state_origins;
 mod store_templates;
+mod tuple_bindings;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
@@ -1001,6 +1002,14 @@ impl<'a, 'c> Builder<'a, 'c> {
             ));
         }
         match &s.kind {
+            CoreStatementKind::TupleBinding {
+                pattern,
+                mutable,
+                ty,
+                initializer,
+            } => {
+                self.tuple_binding(pattern, *mutable, ty.as_ref(), initializer)?;
+            }
             CoreStatementKind::Defer(body) => self.register_defer(body, s.span)?,
             CoreStatementKind::Binding {
                 name,
@@ -2132,7 +2141,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             } => self
                 .known_type(operand)
                 .filter(|ty| ty.is_address_pointee()
-                    || (*op == UnaryOp::Borrow && matches!(ty, Type::Package { .. }))
+                    || matches!(ty, Type::Package { .. })
                     || (*op == UnaryOp::Borrow && matches!(ty, Type::Managed(payload)
                         if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())))
                 .map(|inner| Type::Address {
@@ -2143,8 +2152,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 op: UnaryOp::Dereference,
                 operand,
             } => match self.known_type(operand)? {
-                Type::Address { inner, mutable } if inner.is_address_pointee()
-                    || (!mutable && matches!(inner.as_ref(), Type::Package { .. })) => Some(*inner),
+                Type::Address { inner, .. } if inner.is_address_pointee()
+                    || matches!(inner.as_ref(), Type::Package { .. }) => Some(*inner),
                 _ => None,
             },
             CoreExprKind::Unary {

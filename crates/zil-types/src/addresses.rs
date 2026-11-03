@@ -269,14 +269,18 @@ impl Builder<'_, '_> {
                         decl.ty,
                     ));
                 }
-                let product_head = !mutable && matches!(decl.ty, Type::Package { .. });
+                let product_head = matches!(decl.ty, Type::Package { .. });
                 if product_head {
                     let work = inference::type_snapshot_work(&decl.ty, e.span, self.limits)?;
                     self.closures.snapshot(work, e.span)?;
                     if !packages::product::supported(&decl.ty) {
                         return Err(unsupported(
                             e.span,
-                            "shared Product heads require finite complete ordinary children",
+                            if mutable {
+                                "Product heads require finite complete ordinary children"
+                            } else {
+                                "shared Product heads require finite complete ordinary children"
+                            },
                         ));
                     }
                 }
