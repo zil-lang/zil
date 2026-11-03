@@ -271,7 +271,10 @@ fn raw_wire(label: &str, module: TypedModule, mut plan: CandidatePlan, reject: b
                 "{label}/{route}: {errors:#?}"
             );
             let (code, message) = match label {
-                "mutable" => ("E-UNSUPPORTED", "shared synchronous"),
+                "mutable" => (
+                    "E-VERIFY-MUTABILITY",
+                    "exclusive borrow requires mutable storage",
+                ),
                 "wrong-field" => ("E-VERIFY-ADDRESS", "projection index"),
                 "owning-read" => ("E-VERIFY-ADDRESS", "finite Copy"),
                 "missing-hold" | "forged-parent" => {
