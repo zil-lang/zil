@@ -12,8 +12,25 @@
     "binding_success": "ABBD7, exit 0",
     "call_error": "ABC, exit 1",
     "call_success": "ABCD7, exit 0",
-    "backends": ["clang", "LLVM API"],
-    "optimization": ["O0", "O2"],
-    "status": "not yet run against 294"
+    "backends": [
+      "clang",
+      "LLVM API"
+    ],
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "status": "not yet run against 294",
+    "call_payload_explicit": "ABC, exit 1; ordinary mark() runs inside the argument before sink",
+    "call_payload_closure": "ABC, exit 1; f() runs inside the argument before sink"
+  },
+  "early_checkpoint": {
+    "producer": "77f4bd08",
+    "status": "partial; not final",
+    "original_pending_sources": "both pass through verification",
+    "source_controls": "alias/group, whole union, explicit nominal and six rejection controls pass",
+    "native": "five source cases, each clang and LLVM API at O0/O2; 20 executions matched expected stdout/stderr/exit",
+    "remaining_failure": "Choice.Some(f()) is rejected in Expand as enum payload type cannot be inferred; preserved as a positive",
+    "raw_log": "/tmp/zil295-explicit-mark.log"
   }
 }
