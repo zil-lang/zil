@@ -106,10 +106,10 @@ fn review318_nested_missing_child_and_same_root_raw_attacks() {
     let panel = f.locals.iter().find(|l| l.name == "panel").unwrap().id;
     let other = f.locals.iter().find(|l| l.name == "other").unwrap().id;
     for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
-        if let I::BorrowLocalMut { local } = &mut i.kind {
-            if *local == other {
-                *local = panel;
-            }
+        if let I::BorrowLocalMut { local } = &mut i.kind
+            && *local == other
+        {
+            *local = panel;
         }
     }
     let fp = plan
