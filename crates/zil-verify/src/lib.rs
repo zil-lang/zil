@@ -944,6 +944,7 @@ fn check_reference_return_bound(f: &TypedFunction, budget: &mut Budget) -> Check
         return Ok(());
     };
     budget.spend(bound.len().saturating_mul(2).saturating_add(1))?;
+    resources::charge_payload(&f.return_type, budget)?;
     let fail = || {
         reject(
             "E-VERIFY-LIFE",
@@ -969,6 +970,7 @@ fn check_reference_return_bound(f: &TypedFunction, budget: &mut Budget) -> Check
             .get(position as usize)
             .and_then(|id| f.locals.get(id.0 as usize))
             .ok_or_else(fail)?;
+        resources::charge_payload(&parameter.ty, budget)?;
         if !matches!(&parameter.ty,Type::Address{mutable:false,inner} if inner.is_address_pointee())
         {
             return Err(fail());

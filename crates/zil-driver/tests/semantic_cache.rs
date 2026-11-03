@@ -69,7 +69,7 @@ impl Dir {
         CompilationSession::default().compile_project(&self.project(), options)
     }
     fn entries(&self) -> Vec<PathBuf> {
-        let mut files = fs::read_dir(self.0.join("cache/semantic-v2"))
+        let mut files = fs::read_dir(self.0.join("cache/semantic-v3"))
             .into_iter()
             .flatten()
             .map(|p| p.unwrap().path())
@@ -427,7 +427,7 @@ fn unsupported_cache_modes_and_writable_store_keep_current_source_path() {
     let options = d.options();
     success(&d.compile(&options));
     fs::set_permissions(
-        d.0.join("cache/semantic-v2"),
+        d.0.join("cache/semantic-v3"),
         fs::Permissions::from_mode(0o777),
     )
     .unwrap();
@@ -440,4 +440,56 @@ fn unsupported_cache_modes_and_writable_store_keep_current_source_path() {
             .iter()
             .any(|e| e.phase == Phase::Types && e.disposition == QueryDisposition::Executed)
     );
+}
+
+#[test]
+fn prior_cache_directory_and_format_are_not_reused() {
+    let d = Dir::new();
+    let options = d.options();
+    let cold = d.compile(&options);
+    success(&cold);
+    let current = d.entries().pop().unwrap();
+    let bytes = fs::read(&current).unwrap();
+    assert_eq!(&bytes[..8], b"ZILRAW02");
+    assert_eq!(&bytes[80..88], b"ZILSEM03");
+    let old_directory = d.0.join("cache/semantic-v2");
+    fs::create_dir(&old_directory).unwrap();
+    let old_entry = old_directory.join(current.file_name().unwrap());
+    // Valid current bytes under the previous directory isolate directory
+    // selection from a decoder rejection. The old directory stays untouched.
+    fs::write(&old_entry, &bytes).unwrap();
+    fs::remove_file(&current).unwrap();
+    let fresh = d.compile(&options);
+    success(&fresh);
+    assert_eq!(fresh.disk_cache, DiskCacheStatus::Missing);
+    assert!(
+        fresh
+            .query_events
+            .iter()
+            .any(|e| e.phase == Phase::Types && e.disposition == QueryDisposition::Executed)
+    );
+    equivalent(&fresh, &cold);
+    assert_eq!(fs::read(&old_entry).unwrap(), bytes);
+
+    // A previous-format header in the current directory must also miss; its
+    // payload is deliberately not claimed to be an archived v2 fixture.
+    let mut previous_format = bytes.clone();
+    previous_format[80..88].copy_from_slice(b"ZILSEM02");
+    // Preserve the outer artifact identity, size and integrity so that this
+    // reaches the semantic format decoder's independent version check.
+    let digest = Fingerprint::of(&previous_format[80..]);
+    previous_format[40..72].copy_from_slice(&digest.0);
+    fs::write(&current, previous_format).unwrap();
+    let rebuilt = d.compile(&options);
+    success(&rebuilt);
+    assert_eq!(rebuilt.disk_cache, DiskCacheStatus::Rebuilt);
+    assert!(
+        rebuilt
+            .query_events
+            .iter()
+            .any(|e| e.phase == Phase::Types && e.disposition == QueryDisposition::Executed)
+    );
+    equivalent(&rebuilt, &cold);
+    assert_eq!(fs::read(&old_entry).unwrap(), bytes);
+    frontend_hit(&d.compile(&options));
 }

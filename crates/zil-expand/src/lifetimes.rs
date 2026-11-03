@@ -33,6 +33,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
                         self.budget.text(&p.name, p.span).map_err(|e| vec![e])?;
+                        for _ in 0..self.binders.len() {
+                            self.budget.text(&p.name, p.span).map_err(|e| vec![e])?;
+                        }
                         if self.binders.contains(&p.name) {
                             return Err(vec![failure(p.span, "duplicate life binder")]);
                         }
@@ -71,8 +74,14 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 ..
             } = &ty.kind
             {
+                for _ in 0..self.binders.len().saturating_add(1) {
+                    self.budget.text(name, ty.span).map_err(|e| vec![e])?;
+                }
                 if !self.binders.contains(name) {
                     return Err(vec![failure(ty.span, "undeclared life name")]);
+                }
+                for _ in 0..self.headers.len() {
+                    self.budget.text("h", ty.span).map_err(|e| vec![e])?;
                 }
                 if *mutable || !self.headers.contains(&std::ptr::from_ref(ty)) {
                     return Err(vec![Diagnostic::unsupported(

@@ -139,6 +139,10 @@ fn explicit_life_identity_keeps_core_ct_and_actual_native_origins() {
         "struct Point{value:i64}impl Point{fn read<life a>(self:&'a Self)->&'a i64{return &self.value}}fn result()->i64{let p=Point{value:42};return *p.read()}",
         42,
     );
+    native(
+        "fn identity<life a>(s:&'a[i64])->&'a[i64]{return s}fn result()->i64{let values:[i64;2]=[20,22];let view=identity(&values[..]);return view[0]+view[1]}",
+        42,
+    );
 }
 
 #[test]
@@ -274,6 +278,136 @@ fn explicit_life_project_ct_and_warm_interface_keep_the_declared_upper_bound() {
             .unwrap()
             .reference_return_bound,
         Some(vec![0])
+    );
+}
+
+#[test]
+fn explicit_life_core_metadata_is_not_a_type_proof() {
+    let unit = source("fn first<life a,life b>(p:&'a i32,q:&'b i32)->&'a i32{return p}");
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    for attack in 0..5 {
+        let mut changed = core.clone();
+        let life = changed.functions[0].life.as_mut().unwrap();
+        match attack {
+            0 => life.binders[1] = life.binders[0].clone(),
+            1 => life.parameter_lives[0] = Some(99),
+            2 => life.result_life = Some(99),
+            3 => {
+                life.parameter_lives.pop();
+            }
+            _ => life.binders.clear(),
+        }
+        let errors =
+            zil_types::check(&changed, &TargetProfile::default(), &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Types && d.code == "E-LIFE-CONTRACT"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn explicit_life_upper_bound_and_actual_origins_have_distinct_interface_identity() {
+    let run = |head: &str, body: &str| {
+        let project = zil_driver::ProjectSources {
+            root: ModuleId(0),
+            modules: vec![source(&format!(
+                "pub fn selected<life a,life b>(left:&'a i32,right:&'{head} i32)->&'a i32{{return {body}}}fn result()->i32{{let x=1;let y=2;return *selected(&x,&y)}}"
+            ))],
+            paths: std::collections::BTreeMap::new(),
+        };
+        let report = zil_driver::compile_project(&project, &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        report.scalar_interfaces[0].clone()
+    };
+    let narrow = run("b", "left");
+    let wide_left = run("a", "left");
+    let wide_right = run("a", "right");
+    assert_ne!(
+        narrow.signature_fingerprint,
+        wide_left.signature_fingerprint
+    );
+    assert_eq!(narrow.result_origins, wide_left.result_origins);
+    assert_eq!(
+        wide_left.signature_fingerprint,
+        wide_right.signature_fingerprint
+    );
+    assert_ne!(wide_left.result_origins, wide_right.result_origins);
+    assert_ne!(
+        wide_left.contract_fingerprint,
+        wide_right.contract_fingerprint
+    );
+}
+
+#[test]
+fn explicit_life_each_changed_semantic_phase_has_exact_fresh_budget() {
+    fn boundary<T: std::fmt::Debug + PartialEq>(
+        phase: Phase,
+        run: impl Fn(usize) -> Result<T, Vec<zil_base::Diagnostic>>,
+    ) -> usize {
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        let expected = run(high).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    high = middle;
+                }
+                Err(errors) => {
+                    assert!(!errors.is_empty());
+                    assert!(
+                        errors.iter().all(
+                            |d| d.phase == phase && d.category == ResultCategory::ResourceLimit
+                        ),
+                        "{phase:?}: {errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        assert_eq!(run(high).unwrap(), expected);
+        let errors = run(high - 1).unwrap_err();
+        assert!(!errors.is_empty());
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit),
+            "{phase:?}: {errors:?}"
+        );
+        assert_eq!(run(high).unwrap(), expected);
+        high
+    }
+    let unit = source(LIFE_IDENTITY322);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let limit = |n| Limits {
+        max_analysis_steps: n,
+        ..Limits::default()
+    };
+    let expand = boundary(Phase::Expand, |n| {
+        zil_expand::expand_with_map_limits(&unit, &syntax, &limit(n)).map(|m| m.core)
+    });
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let types = boundary(Phase::Types, |n| {
+        zil_types::check(&core, &TargetProfile::default(), &limit(n))
+    });
+    let module = zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
+    let analyze = boundary(Phase::Analyze, |n| zil_analyze::analyze(&module, &limit(n)));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let verify = boundary(Phase::Verify, |n| {
+        zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limit(n))
+            .map(|v| v.fingerprint())
+    });
+    println!(
+        "322 original phase N: expand={expand} types={types} analyze={analyze} verify={verify}; N-1 ResourceLimit, fresh N Success"
     );
 }
 

@@ -510,7 +510,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let first_closure = closures.pending.len();
         let mut b = Self {
             function: TypedFunction {
-                reference_return_bound: lifetimes::compile(f, closures)?,
+                reference_return_bound: lifetimes::compile(f, closures, limits)?,
                 callable_return_contract: None,
                 callable_contract: None,
                 result_mode: f.result_mode,
