@@ -420,6 +420,67 @@ fn reviewer322_equal_length_source_life_error_still_precedes_reuse() {
 }
 
 #[test]
+fn reviewer322_scalar_work_products_reject_a_typed_return_life_bound() {
+    let unit = source("fn scalar(p:i32)->i32{let n0=p+1;let n1=n0+1;let n2=n1+1;return n2}");
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let original = zil_ir::CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![zil_ir::ProgramModule {
+            core,
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let prepared = zil_types::infer_program_for_ct(&original, &limits)
+        .unwrap()
+        .into_prepared();
+    let mut seeded = zil_types::FunctionSession::default();
+    let expected = seeded
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    let bytes = seeded.encode_work_products(&target, &limits).unwrap();
+    assert_eq!(&bytes[..8], b"ZILFUN01");
+    assert_eq!(u32::from_le_bytes(bytes[8..12].try_into().unwrap()), 1);
+    let boundary = 12 + 80;
+    let (module, candidate) =
+        zil_ir::wire::decode_module_candidate(&bytes[boundary..], &limits).unwrap();
+    assert_eq!(module.functions.len(), 1);
+    assert_eq!(module.functions[0].reference_return_bound, None);
+    let mut restored = zil_types::FunctionSession::default();
+    assert!(restored.restore_work_products(&bytes, &target, &limits));
+    assert_eq!(
+        restored
+            .check_prepared_program(&prepared, &target, &limits)
+            .unwrap(),
+        expected
+    );
+    assert_eq!(restored.last_stats().reused_functions, 1);
+    for bound in [vec![], vec![0], vec![99]] {
+        let mut changed = module.clone();
+        changed.functions[0].reference_return_bound = Some(bound);
+        let changed_wire =
+            zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits).unwrap();
+        let mut tampered = bytes[..boundary].to_vec();
+        tampered.extend_from_slice(&changed_wire);
+        let mut session = zil_types::FunctionSession::default();
+        assert!(!session.restore_work_products(&tampered, &target, &limits));
+        assert!(session.is_empty());
+        assert_eq!(
+            session
+                .check_prepared_program(&prepared, &target, &limits)
+                .unwrap(),
+            expected
+        );
+        assert_eq!(session.last_stats().reused_functions, 0);
+        assert_eq!(session.last_stats().executed_functions, 1);
+    }
+}
+
+#[test]
 fn explicit_life_scalar_reuse_keeps_valid_hits_ordered_keys_and_exact_budget() {
     let unit = source(
         "fn scalar<life a,life b>(p:i32)->i32{let n0=p+1;let n1=n0+1;let n2=n1+1;return n2}",
