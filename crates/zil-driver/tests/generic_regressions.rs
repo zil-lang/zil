@@ -210,6 +210,18 @@ fn generic_injection_295_native_contexts_preserve_value_and_order() {
             1,
             "ABC",
         ),
+        (
+            "lookahead-forward",
+            include_str!("../../../tests/generic-error-enum/native-context/lookahead-forward.zil"),
+            0,
+            "BC",
+        ),
+        (
+            "lookahead-reverse",
+            include_str!("../../../tests/generic-error-enum/native-context/lookahead-reverse.zil"),
+            0,
+            "CB",
+        ),
     ] {
         for backend in &backends {
             for optimization in [Optimization::O0, Optimization::O2] {
