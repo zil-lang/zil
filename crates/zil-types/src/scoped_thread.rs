@@ -29,11 +29,58 @@ impl Builder<'_, '_> {
                 "thread_scope requires a static worker, i32 payload and body",
             ));
         };
-        if self.function.environment.is_some() || !self.helper_bounds.is_empty() {
+        if !self.helper_bounds.is_empty() {
             return Err(unsupported(
                 span,
-                "thread_scope is implemented only in ordinary Direct functions; closure and callable helper entries are not implemented",
+                "thread_scope in callable parameter/helper entries is not implemented",
             ));
+        }
+        if let Some(id) = self.function.environment {
+            // This is a real materialized concrete entry, not an arbitrary
+            // environment bit granting permission to enter the thread root.
+            let pending = self.closures.pending.get(id.0 as usize).ok_or_else(|| {
+                error("E-THREAD-WORKER", span, "parent closure identity is absent")
+            })?;
+            if pending.id != id
+                || pending.function != self.function.id
+                || pending.inference.arity() != self.function.parameters.len()
+                || self.function.foreign.is_some()
+                || self.function.result_mode != zil_ir::PassingMode::Infer
+            {
+                return Err(error(
+                    "E-THREAD-WORKER",
+                    span,
+                    "parent closure actual entry differs from its definition",
+                ));
+            }
+            let mut work =
+                inference::type_snapshot_work(&self.function.return_type, span, self.limits)?;
+            for local in &self.function.parameters {
+                work = work.saturating_add(inference::type_snapshot_work(
+                    &self.function.locals[local.0 as usize].ty,
+                    span,
+                    self.limits,
+                )?);
+            }
+            self.closures.snapshot(work.saturating_add(1), span)?;
+            if self.closures.thread_result(id)?.as_ref() != Some(&self.function.return_type) {
+                return Err(error(
+                    "E-THREAD-WORKER",
+                    span,
+                    "parent closure result differs from its actual entry",
+                ));
+            }
+            for (index, local) in self.function.parameters.iter().enumerate() {
+                if self.closures.thread_parameter(id, index)?.as_ref()
+                    != Some(&self.function.locals[local.0 as usize].ty)
+                {
+                    return Err(error(
+                        "E-THREAD-WORKER",
+                        span,
+                        "parent closure parameter differs from its actual entry",
+                    ));
+                }
+            }
         }
         if !matches!(
             worker.kind,
@@ -73,7 +120,8 @@ impl Builder<'_, '_> {
                 "thread_scope body signature is ()->i32",
             ));
         }
-        pending.inference.expect_result(&Type::I32, body.span)?;
+        self.closures
+            .thread_expect_result(id, &Type::I32, body.span)?;
         self.materialize_closure(id)?;
         let ty = Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]);
         if let Some(expected) = expected {

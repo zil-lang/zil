@@ -15,6 +15,515 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn reviewer330_unused_and_instantiated_reference_defaults_keep_the_same_boundary() {
+    let cases = [
+        (
+            "local-address",
+            "trait Leak{fn bad(self:&Self)->&i32{let local=7;return &local}}",
+            "struct P{}impl Leak for P{}",
+        ),
+        (
+            "byvalue-receiver",
+            "trait Leak{fn borrow(self:&Self)->&i32;fn bad(self:Self)->&i32{return self.borrow()}}",
+            "struct P{n:i32}impl Leak for P{fn borrow(self:&Self)->&i32{return &self.n}}",
+        ),
+        (
+            "concrete-local",
+            "trait Leak{fn borrow(self:&Self)->&i32;fn bad(self:&Self)->&i32{let local=P{n:7};return local.borrow()}}",
+            "struct P{n:i32}impl Leak for P{fn borrow(self:&Self)->&i32{return &self.n}}",
+        ),
+        (
+            "shadowed-reference",
+            "trait Leak{fn bad(self:&Self,value:&i32)->&i32{let value=7;return &value}}",
+            "struct P{}impl Leak for P{}",
+        ),
+    ];
+    let mut mismatches = Vec::new();
+    for (label, declaration, implementation) in cases {
+        let unused = if label == "concrete-local" {
+            "struct P{n:i32}impl P{fn borrow(self:&Self)->&i32{return &self.n}}trait Leak{fn bad(self:&Self)->&i32{let local=P{n:7};return local.borrow()}}fn main(){}".to_owned()
+        } else {
+            format!("{declaration}fn main(){{}}")
+        };
+        let implemented = format!("{declaration}{implementation}fn main(){{}}");
+        let called = match label {
+            "local-address" => format!(
+                "{declaration}{implementation}fn main()->i32{{let p=P{{}};return *p.bad()-7}}"
+            ),
+            "shadowed-reference" => format!(
+                "{declaration}{implementation}fn main()->i32{{let p=P{{}};let value=1;return *p.bad(&value)-7}}"
+            ),
+            _ => format!(
+                "{declaration}{implementation}fn main()->i32{{let p=P{{n:7}};return *p.bad()-7}}"
+            ),
+        };
+        for (form, text) in [
+            ("unused", unused),
+            ("implemented", implemented),
+            ("called", called),
+        ] {
+            let report = check(&text);
+            eprintln!(
+                "review330 {label}/{form}: {:?}/{:?}/{:?}",
+                report.status,
+                report.phase,
+                report
+                    .diagnostics
+                    .iter()
+                    .map(|d| &d.code)
+                    .collect::<Vec<_>>()
+            );
+            if report.status != ResultCategory::Unsupported
+                || report.phase != Phase::Expand
+                || report
+                    .diagnostics
+                    .first()
+                    .is_none_or(|d| d.code != "E-UNSUPPORTED")
+                || report.verification_runs != 0
+            {
+                mismatches.push((
+                    label,
+                    form,
+                    format!(
+                        "{:?}/{:?}/{:?}",
+                        report.status,
+                        report.phase,
+                        report
+                            .diagnostics
+                            .iter()
+                            .map(|d| &d.code)
+                            .collect::<Vec<_>>()
+                    ),
+                ));
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "unused or instantiated default escaped the finite declaration boundary: {mismatches:?}"
+    );
+}
+
+#[test]
+fn reviewer330_receiver_shadow_is_rejected_before_an_instance_is_selected() {
+    for suffix in [
+        "fn main(){}",
+        "struct P{}impl Shadow for P{}fn main()->i32{let p=P{};return p.read()}",
+    ] {
+        let report = check(&format!(
+            "trait Shadow{{fn read(self:&Self)->i32{{let self=7;return 7}}}}{suffix}"
+        ));
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, "E-RECEIVER-RESERVED-NAME");
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn reviewer330_real_reference_forwarding_and_parameter_shadow_keep_native_meaning() {
+    native_both(&[(
+        "main",
+        "trait Borrow{fn required(self:&Self)->&i32;fn forward(self:&Self)->&i32{return self.required()}fn shadow(self:&Self,value:i32)->i32{let value=value+1;return value}}struct P{n:i32}impl Borrow for P{fn required(self:&Self)->&i32{return &self.n}}fn main()->i32{let p=P{n:41};let q=p.forward();return *q+p.shadow(0)-42}",
+    )]);
+    native_both(&[(
+        "main",
+        "trait Score<Tag>{fn required(self:&Self)->i32;fn score(self:&Self)->i32{return self.required()+1}}struct P{}impl Score<bool> for P{fn required()->i32{return 10}}impl Score<i32> for P{fn required()->i32{return 20}}fn left<T:Score<bool>>(p:&T)->i32{return p.score()}fn right<T:Score<i32>>(p:&T)->i32{return p.score()}fn main()->i32{let p=P{};if left(&p)!=11{return 1}return right(&p)-21}",
+    )]);
+    native_both(&[
+        (
+            "main",
+            "import rules;import data;fn main()->i32{let p=data.P{};return rules.run(&p)-43}",
+        ),
+        (
+            "rules",
+            "fn hidden()->i32{return 41}pub trait Score{fn score(self:&Self)->i32{return hidden()+2}}pub fn run<T:Score>(p:&T)->i32{return p.score()}",
+        ),
+        (
+            "data",
+            "import rules;fn hidden()->i32{return 99}pub struct P{}impl rules.Score for P{}",
+        ),
+    ]);
+}
+
+#[test]
+fn reviewer330_required_body_escape_cannot_gain_a_verify_proof() {
+    let unit = source(
+        "trait Borrow{fn required(self:&Self)->&i32;fn forward(self:&Self)->&i32{return self.required()}}struct P{n:i32}impl Borrow for P{fn required(self:&Self)->&i32{let local=7;let view=&local;let consumed=*view;return &self.n}}fn main()->i32{let p=P{n:7};return *p.forward()-7}",
+    );
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let mut module = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let mut plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let function=module.functions.iter_mut().find(|f|f.blocks.iter().flat_map(|b|&b.instructions).any(|i|matches!(i.kind,zil_ir::InstructionKind::BorrowLocal{local} if f.locals[local.0 as usize].ty==zil_ir::Type::I32))).unwrap();
+    let function_id = function.id;
+    let root=function.blocks.iter().flat_map(|b|&b.instructions).find_map(|i|matches!(i.kind,zil_ir::InstructionKind::BorrowLocal{local} if function.locals[local.0 as usize].ty==zil_ir::Type::I32).then_some(i.result).flatten()).unwrap();
+    for block in &mut function.blocks {
+        if matches!(block.terminator, zil_ir::Terminator::Return(_)) {
+            block.terminator = zil_ir::Terminator::Return(Some(root));
+        }
+    }
+    // Unannotated ordinary returns use the established architecture: Analyze
+    // produces a candidate and records the local root; Verify independently
+    // refuses to turn that candidate into a safety proof.
+    plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    assert!(
+        plan.functions
+            .iter()
+            .find(|f| f.function == function_id)
+            .unwrap()
+            .holds[root.0 as usize]
+            .roots
+            .iter()
+            .any(|r| matches!(r, zil_ir::HoldRoot::Local(_)))
+    );
+    eprintln!("review330 raw Analyze: CandidatePlan, local origin retained");
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    for result in [
+        zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default()),
+        zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()),
+    ] {
+        let errors = result.unwrap_err();
+        eprintln!(
+            "review330 raw Verify: {:?}",
+            errors.iter().map(|d| &d.code).collect::<Vec<_>>()
+        );
+        assert!(
+            errors.iter().any(|d| d.code == "E-BORROW-ESCAPE"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn trait330_original_pending_sources() {
+    // Original Unsupported/Types baseline remains in commit 43bcafbd0; preserve source bytes.
+    for text in [
+        include_str!("../../../tests/language-readiness/pending/default-trait-method.zil"),
+        include_str!("../../../tests/language-readiness/recovery/pending/trait-default-method.zil"),
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+fn trait330_default_delegation_and_instance_override_are_native() {
+    native_both(&[(
+        "main",
+        include_str!("../../../tests/language-readiness/recovery/pending/trait-default-method.zil"),
+    )]);
+    native_both(&[(
+        "main",
+        r#"
+trait Read<R:Copy>{
+ fn read(self:&Self)->R;
+ fn delegated(self:&Self)->R{return self.read()}
+}
+struct Point{value:i32}
+impl Read<i32> for Point{fn read()->i32{return .value}}
+impl Read<i64> for Point{
+ fn read()->i64{return i64(.value)+2}
+ fn delegated()->i64{return 29}
+}
+fn narrow<T:Read<i32>>(x:&T)->i32{return x.delegated()}
+fn wide<T:Read<i64>>(x:&T)->i64{return x.delegated()}
+fn main()->i32{let p=Point{value:7};if narrow(&p)!=7{return 1}if wide(&p)!=29{return 2}return 0}
+"#,
+    )]);
+}
+
+#[test]
+fn trait330_same_self_two_default_instances_keep_ordered_phantom_identity() {
+    native_both(&[(
+        "main",
+        r#"
+trait Tag<A:Copy,B:Copy>{
+ fn base(self:&Self)->i32;
+ fn delegated(self:&Self)->i32{return self.base()}
+}
+struct Point{}
+impl Tag<i32,bool> for Point{fn base()->i32{return 17}}
+impl Tag<bool,i32> for Point{fn base()->i32{return 29}}
+fn first<T:Tag<i32,bool>>(x:&T)->i32{return x.delegated()}
+fn second<T>(x:&T)->i32 where T:Tag<bool,i32>{return x.delegated()}
+fn main()->i32{let p=Point{};if first(&p)!=17{return 1}if second(&p)!=29{return 2}return 0}
+"#,
+    )]);
+}
+
+#[test]
+fn trait330_default_body_keeps_private_helper_module_and_actual_host_dependencies() {
+    native_both(&[
+        (
+            "main",
+            "import rules;import data;fn main()->i32{let p=data.Point{};return rules.apply(&p)-7}",
+        ),
+        (
+            "rules",
+            "fn helper()->i32{return 7}pub trait Read<R:Copy>{fn read(self:&Self)->i32{return helper()}}pub fn apply<T:Read<i32>>(x:&T)->i32{return x.read()}",
+        ),
+        (
+            "data",
+            "import rules;pub struct Point{}fn helper()->i32{return 99}impl rules.Read<i32> for Point{}",
+        ),
+    ]);
+}
+
+#[test]
+fn trait330_recursive_default_is_a_static_call_edge() {
+    native_both(&[(
+        "main",
+        r#"
+trait Down{fn down(self:&Self,n:i32)->i32{if n==0{return 0}return self.down(n-1)}}
+struct P{}
+impl Down for P{}
+fn main()->i32{let p=P{};return p.down(4)}
+"#,
+    )]);
+}
+
+#[test]
+fn trait330_default_substitutes_trait_arguments_through_record_bodies_and_signatures() {
+    native_both(&[(
+        "main",
+        r#"
+struct Box<T:Copy>{value:T}
+trait Wrap<R:Copy>{fn wrap(self:&Self,value:R)->Box<R>{return Box::<R>{value:value}}}
+struct P{}
+impl Wrap<i32> for P{}
+fn wrapped<T:Wrap<i32>>(x:&T)->Box<i32>{return x.wrap(7)}
+fn main()->i32{let p=P{};return wrapped(&p).value-7}
+"#,
+    )]);
+}
+
+#[test]
+fn trait330_direct_reference_inputs_and_required_borrow_delegation_are_native() {
+    native_both(&[(
+        "main",
+        r#"
+trait Read{
+ fn raw(self:&Self)->&i32;
+ fn same(self:&Self)->&Self{return self}
+ fn delegated(self:&Self)->&i32{return self.raw()}
+}
+struct P{n:i32}
+impl Read for P{fn raw()->&i32{return &.n}}
+fn main()->i32{let p=P{n:7};let same=p.same();let raw=p.delegated();if same.n!=7{return 1}return *raw-7}
+"#,
+    )]);
+}
+
+#[test]
+fn trait330_missing_wrong_override_duplicate_and_ambiguous_targets_reject() {
+    for (text, phase, code) in [
+        (
+            "trait Read{fn required(self:&Self)->i32;fn delegated(self:&Self)->i32{return self.required()}}struct P{}impl Read for P{}fn main(){}",
+            Phase::Expand,
+            "E-TRAIT-METHOD-SET",
+        ),
+        (
+            "trait Read{fn read(self:&Self)->i32{return 7}}struct P{}impl Read for P{fn read()->bool{return true}}fn main(){}",
+            Phase::Expand,
+            "E-TRAIT-SIGNATURE",
+        ),
+        (
+            "type Int=i32;trait Read<R>{fn read(self:&Self)->i32{return 7}}struct P{}impl Read<Int> for P{}impl Read<i32> for P{}fn main(){}",
+            Phase::Expand,
+            "E-TRAIT-DUPLICATE",
+        ),
+        (
+            "trait Read<R>{fn read(self:&Self)->i32{return 7}}struct P{}impl Read<i32> for P{}impl Read<i64> for P{}fn main()->i32{let p=P{};return p.read()}",
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+        ),
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn trait330_default_request_budgets_are_exact_across_cache_replay() {
+    use zil_driver::CompilationSession;
+    let unit = source(
+        "trait Tag<A:Copy,B:Copy>{fn base(self:&Self)->i32;fn delegated(self:&Self)->i32{return self.base()}}struct P{}impl Tag<i32,bool> for P{fn base()->i32{return 17}}impl Tag<bool,i32> for P{fn base()->i32{return 29}}fn a<T:Tag<i32,bool>>(x:&T)->i32{return x.delegated()}fn b<T:Tag<bool,i32>>(x:&T)->i32{return x.delegated()}fn main()->i32{let p=P{};return a(&p)+b(&p)-46}",
+    );
+    for ledger in ["work", "nodes", "functions"] {
+        let mut low = 1;
+        let mut high = match ledger {
+            "work" => Limits::default().max_analysis_steps,
+            "nodes" => Limits::default().max_nodes,
+            _ => Limits::default().max_functions,
+        };
+        let options = |n| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                _ => options.limits.max_functions = n,
+            }
+            options
+        };
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&unit, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut session = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                session.compile_source(&unit, &options(n)),
+                CompilationSession::default().compile_source(&unit, &options(n)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                if expected == ResultCategory::ResourceLimit {
+                    assert!(!report.diagnostics.is_empty());
+                } else {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        println!("330 default request {ledger} N={low}; N-1 ResourceLimit, cold/warm/fresh agree");
+    }
+}
+
+#[test]
+fn trait330_unused_and_overridden_defaults_check_symbolic_permissions() {
+    for (text, category, code) in [
+        (
+            "trait Read{fn read(self:&Self)->&i32{let x=7;return &x}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "trait Read{fn raw(self:&Self)->&i32;fn leak(self:Self)->&i32{return self.raw()}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "struct P{n:i32}impl P{fn borrow(self:&Self)->&i32{return &.n}}trait Read{fn read(self:&Self)->&i32{let p=P{n:7};return p.borrow()}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "struct P{n:i32}impl P{fn borrow(self:&Self)->&i32{return &.n}}trait Read{fn read(self:&Self,p:&i32)->&i32{let p=P{n:7};return p.borrow()}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "trait Read{fn read(self:&Self)->i32{let self=7;return 7}}fn main(){}",
+            ResultCategory::SafeReject,
+            "E-RECEIVER-RESERVED-NAME",
+        ),
+        (
+            "trait Read{fn read(self:&Self)->i32{return self.secret}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "trait Read<R:Copy>{fn read(self:&Self,x:R)->R{return x+1}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "trait Read{fn read(self:&Self)->i32{return true}}fn main(){}",
+            ResultCategory::SafeReject,
+            "E-GENERIC-ARGUMENT",
+        ),
+        (
+            "struct R{n:i32}fn concrete(x:R)->i32{return x.n}trait Read<R:Copy>{fn read(self:&Self,x:R)->i32{return concrete(x)}}fn main(){}",
+            ResultCategory::SafeReject,
+            "E-GENERIC-ARGUMENT",
+        ),
+        (
+            "trait Read{fn read(self:&Self)->i32{return self.other()}}struct P{}impl Read for P{fn read()->i32{return 7}}fn main(){}",
+            ResultCategory::SafeReject,
+            "E-GENERIC-ARGUMENT",
+        ),
+        (
+            "trait Read<R>{fn read(self:&Self,x:R)->R{let y=x;return x}}fn main(){}",
+            ResultCategory::SafeReject,
+            "E-GENERIC-ARGUMENT",
+        ),
+        (
+            "struct Box<T:Copy>{value:T}trait Read<R>{fn read(self:&Self,x:R)->Box<R>{return Box::<R>{value:x}}}fn main(){}",
+            ResultCategory::SafeReject,
+            "E-GENERIC-ARGUMENT",
+        ),
+    ] {
+        let report = check(text);
+        assert_eq!(report.status, category, "{text}: {}", report.to_json());
+        assert_eq!(report.phase, Phase::Expand, "{text}: {}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+        assert!(!report.diagnostics.is_empty());
+        assert!(
+            report.diagnostics.iter().all(|d| d.code == code),
+            "{}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "trait Read<R>{fn read(self:&Self)->R;fn delegated(self:&Self)->R{return self.read()}}fn main(){}",
+        "trait Again{fn again(self:&Self)->i32{return self.again()}}fn main(){}",
+        "trait Read<R:Copy>{fn read(self:&Self,x:R)->R{let y=x;return x}}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+#[test]
 fn review327_generic_trait_declaration_and_ordered_argument_identity() {
     native(&[
         (
@@ -366,6 +875,15 @@ fn project(files: &[(&str, &str)]) -> ProjectSources {
     }
 }
 fn native(files: &[(&str, &str)]) {
+    native_backend(files, zil_driver::NativeBackend::default());
+}
+fn native_both(files: &[(&str, &str)]) {
+    native_backend(files, zil_driver::NativeBackend::Clang);
+    if cfg!(feature = "llvm-api") {
+        native_backend(files, zil_driver::NativeBackend::LlvmApi);
+    }
+}
+fn native_backend(files: &[(&str, &str)], backend: zil_driver::NativeBackend) {
     for optimization in [Optimization::O0, Optimization::O2] {
         let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
             .map(PathBuf::from)
@@ -381,6 +899,7 @@ fn native(files: &[(&str, &str)]) {
         }
         let executable = dir.join("program");
         let options = CompileOptions {
+            backend,
             stop_after: Stage::Build,
             optimization,
             output: Some(executable.clone()),
@@ -400,6 +919,18 @@ fn native(files: &[(&str, &str)]) {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.backend, backend);
+        assert!(codegen.fallback.is_none());
+        if backend == zil_driver::NativeBackend::LlvmApi {
+            assert!(!codegen.object_reports.is_empty());
+            assert!(
+                codegen
+                    .object_reports
+                    .iter()
+                    .all(|object| object.contains("\"input_kind\":\"builder\""))
+            );
+        }
         let output = Command::new(&executable).output().unwrap();
         fs::write(dir.join("stdout"), &output.stdout).unwrap();
         fs::write(dir.join("stderr"), &output.stderr).unwrap();

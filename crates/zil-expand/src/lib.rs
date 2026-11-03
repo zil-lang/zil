@@ -8,6 +8,7 @@ mod foreign;
 mod generated_spans;
 mod generics;
 mod lifetimes;
+mod record_enums;
 pub use generated_spans::remap_generated_spans;
 mod mapping;
 mod modules;
@@ -154,7 +155,7 @@ pub struct ExpandedModule {
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<Span, String>,
+    trait_method_names: BTreeMap<(Span, Span), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -185,9 +186,9 @@ pub fn expand_with_map_limits(
         false,
         &lower_limits,
         &products.trait_signatures,
-        products.trait_instances,
+        products.metered(),
     )?;
-    if products.trait_instances {
+    if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
@@ -223,9 +224,9 @@ pub fn expand_program_module_with_limits(
         true,
         &lower_limits,
         &products.trait_signatures,
-        products.trait_instances,
+        products.metered(),
     )?;
-    if products.trait_instances {
+    if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
@@ -259,7 +260,7 @@ fn source_exports(
     module: &s::Module,
     core: &CoreModule,
     imported_public_traits: &BTreeSet<String>,
-    trait_method_names: &BTreeMap<Span, String>,
+    trait_method_names: &BTreeMap<(Span, Span), String>,
 ) -> Vec<NodeId> {
     let public_nominals: std::collections::BTreeSet<_> = module
         .items
@@ -293,8 +294,10 @@ fn source_exports(
         .map(|f| ((f.name.clone(), f.span), f.id))
         .collect();
     let mut result = Vec::new();
-    let mut add = |f: &s::Function, prefix: Option<&str>| {
-        let target = trait_method_names.get(&f.span).unwrap_or(&f.name);
+    let mut add = |f: &s::Function, prefix: Option<&str>, implementation: Option<Span>| {
+        let target = implementation
+            .and_then(|owner| trait_method_names.get(&(owner, f.span)))
+            .unwrap_or(&f.name);
         let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
         if let Some(id) = functions.get(&(name, f.span)) {
             result.push(*id);
@@ -302,13 +305,13 @@ fn source_exports(
     };
     for item in &module.items {
         match &item.kind {
-            s::ItemKind::Function(f) if item.public => add(f, None),
+            s::ItemKind::Function(f) if item.public => add(f, None, None),
             s::ItemKind::Aggregate(a) if public_nominals.contains(a.name.as_str()) => {
                 for member in &a.methods {
                     if member.public
                         && let s::ItemKind::Function(f) = &member.kind
                     {
-                        add(f, Some(&a.name));
+                        add(f, Some(&a.name), None);
                     }
                 }
             }
@@ -334,7 +337,7 @@ fn source_exports(
                         member.public
                     }) && let s::ItemKind::Function(f) = &member.kind
                     {
-                        add(f, Some(&owner));
+                        add(f, Some(&owner), Some(item.span));
                     }
                 }
             }
@@ -409,7 +412,7 @@ pub fn expand_program_with_limits(
                 &project_modules,
                 source_imports,
                 &products.trait_signatures,
-                products.trait_instances,
+                products.metered(),
             ),
             (&remaining, &remaining),
             Some(&defaults),
@@ -505,7 +508,7 @@ pub fn expand_program_with_limits(
         .iter_mut()
         .map(|(module, map)| (&mut module.core, map))
         .collect::<Vec<_>>();
-    if products.trait_instances {
+    if products.metered() {
         products.allowance = Some(remaining);
     }
     products.publish(&mut product_cores, sources, limits)?;
@@ -632,6 +635,7 @@ fn expand_inner_project(
             e.traits.entry(t.name.clone()).or_insert(t);
         }
     }
+    e.enum_sources = project_modules;
     e.collect_resource_drops(module);
     e.collect_static_traits(
         module,
@@ -706,11 +710,13 @@ struct Expander<'a> {
     functions: Vec<CoreFunction>,
     aggregates: Vec<CoreAggregate>,
     enums: Vec<CoreEnum>,
+    enum_sources: &'a [&'a s::Module],
+    named_match: bool,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<Span, String>,
+    trait_method_names: BTreeMap<(Span, Span), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     static_traits: BTreeSet<String>,
@@ -752,6 +758,8 @@ impl<'a> Expander<'a> {
             functions: Vec::new(),
             aggregates: Vec::new(),
             enums: Vec::new(),
+            enum_sources: &[],
+            named_match: false,
             declarations,
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),
@@ -822,18 +830,7 @@ impl Expander<'_> {
         self.unexecuted_attributes(&item.attributes, "declaration");
         match &item.kind {
             s::ItemKind::Function(f) => {
-                let first = self.functions.len();
                 self.function(f, prefix, host, default);
-                if let Some(target) = self.trait_method_names.get(&f.span) {
-                    for function in &mut self.functions[first..] {
-                        if function.span == f.span {
-                            function.name = prefix.map_or_else(
-                                || target.clone(),
-                                |owner| format!("{owner}.{target}"),
-                            );
-                        }
-                    }
-                }
             }
             s::ItemKind::Aggregate(a) => {
                 for field in &a.fields {
@@ -886,7 +883,17 @@ impl Expander<'_> {
                     } else {
                         i.receiver_default.clone()
                     };
-                    self.item(m, Some(&name), Some(&host), inherited.as_ref())
+                    let first = self.functions.len();
+                    self.item(m, Some(&name), Some(&host), inherited.as_ref());
+                    if let s::ItemKind::Function(f) = &m.kind
+                        && let Some(target) = self.trait_method_names.get(&(item.span, f.span))
+                    {
+                        for function in &mut self.functions[first..] {
+                            if function.span == f.span {
+                                function.name = format!("{name}.{target}");
+                            }
+                        }
+                    }
                 }
             }
             s::ItemKind::Import(import) if self.imports_resolved => {
@@ -1400,6 +1407,11 @@ impl Expander<'_> {
                 }
             }
             s::ExprKind::Record { ty, base, fields } => {
+                if let Some(value) =
+                    self.record_enum(e.span, ty.as_deref(), base.as_deref(), fields)
+                {
+                    return value;
+                }
                 return self.record(e.span, ty.as_deref(), base.as_deref(), fields, expected);
             }
             s::ExprKind::Closure {

@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "candidate": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+  "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+  "reviewer": "/root/impl315",
+  "review_kind": "Non-author limited review of historical313/317/320 scopes and332 common-candidate rebind",
+  "spec_hash": "3e29cc65a8e6e7298e79b1351e015f8d3a30710e5b7d679610abf5579428f052",
+  "normative_hash": "5e64822c7c48e22829e479d5862d011ca9ecf3bc75e6aef139bd8270a2a5afb4",
+  "authority": "Main tree AGENTS.md, current named design/specification and .task/impl/313,317,320,332; exact common freeze supplied by root.",
+  "history": "Original implementation/review/test records in recovery-318-review.json and each card remain historical and unchanged. Root-reported legacy registry Fail is not rewritten. These are new actual scope checks against A, not new implementation work or inherited old Pass counts.",
+  "reviews": {
+    "313": {
+      "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+      "reviewer": "/root/impl315",
+      "verdict": "PassLimited",
+      "production_changes": "None; current-scope source review and existing-target controls only.",
+      "original_implementation_author": "/root/impl313",
+      "original_implementation_commit": "2ef488be92647f4ec7c6f1a6195a6ba551f676b1",
+      "scope": "Ordinary concrete finite Copy tuple bindings: exact nested arity, discard qualification, RHS once before binding, local scope/mutability, existing IR/Wire and bounded walkers.",
+      "scope_review": [
+        "tuple_bindings.rs production blob is identical to original implementation. Checked complete-value is_copy_value gate before pattern coverage, initializer before publishing any names, and existing projection lowering.",
+        "Reviewed affected CT/inference walkers: new life transport leaves old None path intact; current statement visitors preserve TupleBinding RHS/type/pattern traversal. Generic tuple definition implementation321 is explicitly not reviewed here.",
+        "Shared329 record construction and331 generic/type-scope entry changes were considered as consumers; added ordinary Copy record-enum RHS under all-discard tuple to observe source field order and single evaluation, plus owned and shared-address discards that must still reject."
+      ],
+      "actual_validation": {
+        "existing_tuple_binding_filter": {
+          "pass": 6,
+          "fail": 0
+        },
+        "original_independent_rhs_defer_filter": {
+          "pass": 2,
+          "fail": 0
+        },
+        "new_common_neighbor": {
+          "pass": 1,
+          "fail": 0
+        },
+        "native": "Existing original tuple/RHS/defer/mutable-capture controls executed default build and clang-IR O2 helpers, including original readiness source,2125 RHS oracle,42 defer and67 outer capture. Added record-enum all-discard RHS ran actual Clang/LLVM API O0/O2, output21, verification_runs1 and no fallback.",
+        "negative": "Exact arity/type/duplicate name/let writes/reserved self cases and closed ref-pattern controls retained. New all-discard owned resource and shared-address tuples are Types/Unsupported/E-UNSUPPORTED, Verify0.",
+        "wire": "Existing raw projection99 mutation rejects in independent Verify; unmodified candidate Wire roundtrip verifies.",
+        "budget": {
+          "Types_N": 51,
+          "N_minus_1": "ResourceLimit",
+          "fresh_N": "Success"
+        }
+      },
+      "limits": "No claim about general ownership/reference patterns or implementation321 symbolic generic tuple scope."
+    },
+    "317": {
+      "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+      "reviewer": "/root/impl315",
+      "verdict": "PassLimited",
+      "production_changes": "None; current-scope source review and existing-target controls only.",
+      "original_implementation_author": "/root/impl317",
+      "original_implementation_commit": "260839fd786af6cea1dafec0c42b78fc165c51b7",
+      "scope": "Original four-module recovery component: generic Type/Syntax CT configuration, ordinary tuple event, Product helper consumer and synchronous foreign callback cleanup.",
+      "scope_review": [
+        "All examples/mainline/recovery317 sources and host are byte-identical to original delivery. Re-read main/config/component/bridge and observer host.",
+        "CT distinct Config<i32,bool>/Config<i64,i32> applications and two Type branches still flow through current shared generic/alias/record walkers after329/331. Original tuple first2/second3/ready values and E marker make field order and once evaluation observable.",
+        "Host only registers/invokes compiled callback, enforces shutdown sentinel and observes P/B/H cleanup. It does not compute tuple/CT values or Product updates. This is a consumer review, not self-review of315 implementation."
+      ],
+      "actual_validation": {
+        "existing_recovery317_filter": {
+          "pass": 2,
+          "fail": 0
+        },
+        "source": "Original main and both shared-window/callback-alias last-use controls Verify Success, verification_runs1.",
+        "nearest_rejections": {
+          "shared_window": "Verify/E-BORROW-CONFLICT, span panel, Verify1",
+          "callback_alias": "Analyze/E-BORROW-CONFLICT, exact bridge call span, Verify0",
+          "nominal_config": "Ct/E-CT-CATEGORY, Other<i32> source span, Verify0",
+          "phantom_config": "Ct/E-CT-CATEGORY, Config<i32,i64> source span, Verify0"
+        },
+        "native": "Clang/LLVM API O0/O2 each executed three original inputs: 12 actual observations; exit0/stdout REVSPBCAH, exit1/REVFPBCAH, exit2/RNBAH. Build reports require actual backend/no fallback and exact cleanup order/counts."
+      },
+      "limits": "Linux synchronous finite consumer only; no real allocator-failure, retained registration, async or full framework conclusion."
+    },
+    "320": {
+      "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+      "reviewer": "/root/impl315",
+      "verdict": "PassLimited",
+      "production_changes": "None; current-scope source review and existing-target controls only.",
+      "original_implementation_author": "/root/impl313",
+      "original_implementation_commit": "4b42752fee6a4b900f027781a8906bdfec078842",
+      "scope": "Ordinary Struct direct Copy-bound consumer, unused nested and phantom obligations, runtime and original CT record input, full nominal identity.",
+      "scope_review": [
+        "Compared generic_copy.rs to original: current additions check record-enum managed fields and all declared Copy arguments, strengthening composite qualification. Original Struct parameter obligation loop remains, including phantom parameters.",
+        "Checked current generic_trait_bounds Copy parameter collection, exact arity and check_arguments/store_types concrete/symbolic Copy checks. Type versus life namespace filtering does not create a Copy proof; full ordinary type binders and actual arguments still checked.",
+        "Current329 enum Copy profile intersects Struct-bound proof. Added unused Outer<U> containing Box<Ghost<U>> with phantom Copy enum U: absent Copy fails at definition before any instance, stated Copy succeeds and runtime wrap/match produces7. No i32 specialization substitutes for definition proof."
+      ],
+      "actual_validation": {
+        "existing_copy_record_bound_filter": {
+          "pass": 5,
+          "fail": 0
+        },
+        "original_independent_binder_filter": {
+          "pass": 1,
+          "fail": 0
+        },
+        "new_common_neighbor": {
+          "pass": 1,
+          "fail": 0
+        },
+        "source": "Original ct-type-generic-record bytes and runtime Struct declaration retained; original and alternate i64 branch each native O0/O2 exit0. Existing runtime nested/phantom program returns17; new composite record-enum/Struct wrap returns7 in default/O2 helpers.",
+        "negative": "Original unused obligations, nominal/phantom mismatches and17 non-Copy/shape neighbors retained, including zero-length address arrays. New phantom missing-bound source is Expand/SafeReject/E-GENERIC-ARGUMENT, Verify0.",
+        "budget": {
+          "current_bound_Expand_N": 863,
+          "current_unbound_Expand_N": 319,
+          "historical_bound_N": 740,
+          "historical_unbound_N": 255,
+          "N_minus_1": "ResourceLimit",
+          "fresh_N": "Success",
+          "note": "Current shared front-end traversal changes real work. Original source and historical numbers preserved; no default quota increase or claim old fees unchanged."
+        }
+      },
+      "limits": "This constrains named Struct binders; no whole-Struct Copy inference or new resource/package/general solver permission. Does not deliver a self-review verdict on331."
+    },
+    "332_common": {
+      "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+      "reviewer": "/root/impl315",
+      "verdict": "PassLimited",
+      "production_changes": "None; current-scope source review and existing-target controls only.",
+      "original_implementation_author": "/root/impl317",
+      "original_implementation_commit": "96c0ad4b16c9dd11ff5aa714c9d653ec5e124620",
+      "scope": "Rebind concrete-parent thread entry, actual owned-body Once consumption, two independent kernels/raw/Wire, native failure cleanup and repaired shared Types ledger to common A.",
+      "scope_review": [
+        "All4 implementation files compared96c toA. scoped_thread.rs in Types/Analyze/Verify are identical. closures.rs differs solely by the previously authorized independent cfg(test) ledger module; stripping that exact module leaves identical nonblank production lines.",
+        "Original6f4 strong source fixture and precise11 raw caller/environment/definition/parameter/mode/fake-Fn attacks rerun unchanged. No dynamic-N-only acceptance: source lower bound25950 remains an independent assertion.",
+        "Repeated scoped pure Graph lease units against actual State.pending graphs, including two independent graphs sharing2 steps, zero quota and private exhaustion, actual signature clone delta, mutable expectation, partial-error settlement and N/N-1/fresh."
+      ],
+      "actual_validation": {
+        "thread332_filter": {
+          "pass": 7,
+          "fail": 0,
+          "filtered": 19
+        },
+        "independent_lease_units": {
+          "pass": 3,
+          "fail": 0,
+          "filtered": 29
+        },
+        "Types_N": {
+          "short": 751,
+          "long_worker": 2208,
+          "long_capture": 1267,
+          "four_parents": 15106,
+          "two_wide_parents": 47722,
+          "nested": 793
+        },
+        "shared_lower_bound": 25950,
+        "historical_cb17_two_wide_N": 13145,
+        "kernel_N": {
+          "Analyze": 26216,
+          "Verify": 92685
+        },
+        "budget_result": "All N-1 ResourceLimit/freshN identical;47722 >=25950. Historical cb17 ConfirmedAccountingBlock retained in review332-by331.json.",
+        "source_raw_native": "Original52 native scenarios and independent captured-body source x two backends x O0/O2 actually rerun. Actual parent definitions, Once/source borrow boundaries, nested context lifetime and create/join failure cleanup match prior exact receipts. All11 raw mutations reject in Analyze and Verify raw/Wire with retained exact codes."
+      },
+      "limits": "Only new thread-specific queries/Graph work/name scans use this repaired request ledger. General non-thread Graph history remains separate; helper/async/worker restrictions unchanged. No full workspace revalidation claim."
+    }
+  },
+  "excluded_self_review": [
+    "315",
+    "321",
+    "331 implementation verdict"
+  ],
+  "environment": "source /workspace/.zil-env/env.sh; export CARGO_TARGET_DIR=/workspace/.zil-env/target331 CARGO_BUILD_JOBS=1; explicit llvm-api",
+  "production_change": false,
+  "blocking_findings": [],
+  "global_limits": "No formal full workspace suite was run by this reviewer. No full-language/B0/ZUI, async, Windows, product or Rust-performance verdict. Root formal integration remains separate.",
+  "commands": [
+    "cargo test -p zil-driver --test aggregates --features llvm-api --offline tuple_binding -- --nocapture",
+    "cargo test -p zil-driver --test aggregates --features llvm-api --offline review318_tuple_ -- --nocapture",
+    "cargo test -p zil-driver --test generics --features llvm-api --offline copy_record_bound -- --nocapture",
+    "cargo test -p zil-driver --test generics --features llvm-api --offline review318_copy_record -- --nocapture",
+    "cargo test -p zil-driver --test generic_regressions --features llvm-api --offline recovery317 -- --nocapture",
+    "cargo test -p zil-driver --test generic_regressions --features llvm-api --offline thread332_ -- --nocapture",
+    "cargo test -p zil-types --lib reviewer332_thread_lease --offline -- --nocapture",
+    "cargo test -p zil-driver --test aggregates --test generics --features llvm-api --offline common3 -- --nocapture",
+    "cargo clippy -p zil-driver --test aggregates --test generics --test generic_regressions --features llvm-api --offline -- -D warnings"
+  ],
+  "quality": {
+    "scoped_clippy": "Pass",
+    "git_diff_check": "Pass",
+    "source_tests": "Only two added cases in existing driver targets; no new Cargo target or production change."
+  },
+  "fixture_sha256": {
+    "tests/language-readiness/pending/runtime-tuple-binding.zil": "0ee29d7d58b2f5c36e3acc0fca2847a8041578285f0aa9fd096dba29265a1afa",
+    "tests/language-readiness/pending/ct-type-generic-record.zil": "fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49"
+  }
+}

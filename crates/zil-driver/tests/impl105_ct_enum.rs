@@ -16,6 +16,36 @@ use zil_driver::{
 use zil_ir::{Constant, CtProgram, InstructionKind, Type};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+#[test]
+fn record_enum329_ct_values_and_generated_function_labels_survive() {
+    native(
+        r#"
+enum E{V{number:i64,flag:bool},Empty{}}
+fn made()->E{let number:i64=7;return E.V{flag:true,number}}
+fn value()->i64{let e=#(made());match e{E.V{flag:true,number:n}=>{return n},E.V{number:_,flag:false}=>{return -1},E.Empty{}=>{return -2}}}
+"#,
+        7,
+    );
+    native(
+        r#"
+enum E{V{n:i64}}
+#for(i in [7]){pub fn generated()->i64{let e=E.V{n:i64(i)};match e{E.V{n:n}=>{return n}}}}
+fn value()->i64{return generated()}
+"#,
+        7,
+    );
+    native(
+        "fn n()->i64{return 5}enum E{V{n:i64}}fn value()->i64{let e=E.V{n:7};match e{E.V{n:x}=>{return #(n())+x}}}",
+        12,
+    );
+    reject(
+        "fn n()->i64{return 5}enum E{V{n:i64}}fn value()->i64{let e=E.V{n:7};match e{E.V{n:n}=>{return #(n())}}}",
+        ResultCategory::SafeReject,
+        Phase::Ct,
+        "E-CT-RUNTIME",
+    );
+}
 struct Case(PathBuf, bool);
 impl Case {
     fn new(label: &str) -> Self {

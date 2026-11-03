@@ -208,25 +208,55 @@ impl Reuse<'_> {
         module: ModuleId,
         function: &CoreFunction,
         state: &mut closures::State,
-    ) -> Option<TypedFunction> {
-        let key = self.keys.as_ref()?.get(&(module, function.name.clone()))?;
-        let entry = self.prior.get(key)?;
+        limits: &Limits,
+    ) -> R<Option<TypedFunction>> {
+        let Some(key) = self
+            .keys
+            .as_ref()
+            .and_then(|keys| keys.get(&(module, function.name.clone())))
+        else {
+            return Ok(None);
+        };
+        let Some(entry) = self.prior.get(key) else {
+            return Ok(None);
+        };
+        // A matching cache key is not declaration validation. Recheck the
+        // current Core life header before returning any prior Typed body.
+        let before = state.accounting();
+        let bound = lifetimes::compile(function, state, limits)?;
+        let after = state.accounting();
+        if entry.function.reference_return_bound != bound {
+            return Ok(None);
+        }
+        let mut replay = entry.cost;
+        for i in 0..replay.len() {
+            let Some(delta) = after[i].checked_sub(before[i]) else {
+                return Ok(None);
+            };
+            let Some(left) = replay[i].checked_sub(delta) else {
+                return Ok(None);
+            };
+            replay[i] = left;
+        }
         let mut typed = entry.function.clone();
         if !rebase(
             &mut typed,
             Span::new(
                 FileId(0),
                 0,
-                function.span.end.checked_sub(function.span.start)?,
+                match function.span.end.checked_sub(function.span.start) {
+                    Some(n) => n,
+                    None => return Ok(None),
+                },
             ),
             function.span,
-        ) || !state.replay_accounting(entry.cost)
+        ) || !state.replay_accounting(replay)
         {
-            return None;
+            return Ok(None);
         }
         self.next.insert(*key, entry.clone());
         self.stats.reused_functions += 1;
-        Some(typed)
+        Ok(Some(typed))
     }
     pub(super) fn save(
         &mut self,
@@ -276,6 +306,7 @@ fn scalar_typed(f: &TypedFunction) -> bool {
         && f.environment.is_none()
         && f.callable_contract.is_none()
         && f.callable_return_contract.is_none()
+        && f.reference_return_bound.is_none()
         && scalar(&f.return_type)
         && f.locals.iter().all(|l| scalar(&l.ty))
         && f.values.iter().all(scalar)
@@ -338,7 +369,7 @@ fn keys(
         return None;
     }
     let mut context = FingerprintBuilder::new();
-    context.update(b"ZIL-FUNCTION-TYPES-1\0");
+    context.update(b"ZIL-FUNCTION-TYPES-2\0");
     target.hash(&mut context);
     // Limits is an explicit complete struct so adding a field forces review.
     let Limits {
@@ -403,6 +434,14 @@ fn keys(
             signature.id.hash(&mut context);
             signature.public.hash(&mut context);
             f.name.hash(&mut context);
+            f.life.is_some().hash(&mut context);
+            if let Some(life) = &f.life {
+                // Ordered lexical binders and their dense actual positions
+                // are semantic declaration input, including unused binders.
+                life.binders.hash(&mut context);
+                life.parameter_lives.hash(&mut context);
+                life.result_life.hash(&mut context);
+            }
             f.foreign.is_some().hash(&mut context);
             if let Some(foreign) = &f.foreign {
                 foreign.abi.hash(&mut context);

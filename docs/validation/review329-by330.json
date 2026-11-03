@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/impl314",
+  "implementation_author": "/root/recovery_audit",
+  "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+  "verdict": "Fail",
+  "scope": "329 named Copy enum constructors and explicit complete named match patterns, symbolic Copy premises, alias/module identity and CT/hygiene consumers; not a review of author-owned 330",
+  "blocking_findings": [
+    {
+      "id": "review329-primitive-spelling-pattern-authority",
+      "sources": [
+        "enum E<T:Copy>{V{x:T}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}"
+      ],
+      "observed": "Both uncalled invalid definitions compile Success/Verify1 on candidate A. A type binder named i64 or bool with only Copy is being treated as the primitive scalar for literal patterns.",
+      "fingerprints": [
+        "da73dc364ab961843bdfecd1f2dfe4c6631fa4dcbe89728b6ae0332c471a44e2",
+        "7353375179ac51a1c622dfa9695148073bddf09d579ff0e7759915b65ca4c9fb"
+      ],
+      "cause": "generic_check_enum::pattern integer/boolean predicates inspect the type spelling without preserving the lexical binder distinction.",
+      "impact": "Unused-template scalar permission is accepted without a declared premise; no memory unsafety demonstrated.",
+      "positive_controls": [
+        "enum E<T:Copy>{V{x:T}}fn keep<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:n}=>{return 0}}}fn result()->i32{return 0}",
+        "fn scalar()->i64{return 1}fn keep<i64:Copy>(x:i64)->i32{let n=scalar();match n{1=>{return 1},_=>{return 0}}}fn result()->i32{return 0}"
+      ],
+      "positive_observed": "Both compile Success/Verify1 on candidate A; the callee scalar result is a real builtin i64 from its own declaration scope and must not be mistaken for the caller type binder.",
+      "fixture_commit": "50c60bf22",
+      "status": "Reported to author/root/Astra investigation; original sources and expected rejection retained."
+    }
+  ],
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ -- --nocapture",
+      "result": "3 passed, 1 failed, 30 filtered; failure at this run was invalid reviewer quote category, before hygiene. The other three independent groups passed with 24 native executions.",
+      "observed_controls": "Source evaluation order 2112; declaration-order payload and crossed/nested field labels; i64 context; ordinary shorthand and empty record/unit distinctions; complete field sets, tuple/record misuse, duplicate binders; unused phantom aliases before/after enum declaration and through another alias; T:Copy literal lacks numeric authority; same-spelled public enums remain nominally distinct and private enum access rejects."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ct_quote -- --nocapture",
+      "result": "After category and receiving-slot corrections: 0 passed, 1 failed, 33 filtered; actual machine result reproduces blocking finding. Remaining two quote controls have not executed because the first case fails."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ -- --nocapture",
+      "commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+      "result": "6 passed, 1 failed, 41 filtered",
+      "native_executions": 40,
+      "observed": "Original quote/ordinary pun sources now return 7, crossed labels and Type-spelling hygiene return 12, all Clang/API O0/O2 with no fallback. Unused variant cfg attribute explicitly Unsupported. New primitive-spelling symbolic pattern group exposes the blocking acceptance."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_symbolic -- --nocapture",
+      "commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+      "result": "0 passed, 1 failed, 47 filtered",
+      "observed": "Both original i64/bool bad definitions accepted; both lexical-builtin/wildcard near positives succeed."
+    }
+  ],
+  "review_fixture_history": [
+    {
+      "commit": "090b77c2a33b43e7d471c4fcde6be95b22bfcd75",
+      "observation": "Original reviewer used Syntax<Stmt>/quote<Stmt>; Parse/SafeReject/E-PARSE-QUOTE-CATEGORY. This invalid setup is not a 329 language failure."
+    },
+    {
+      "commit": "cd8ebc7b4",
+      "observation": "Changing only Stmt to existing StmtList reaches CT/SafeReject/E-CT-CATEGORY because #splice consumes expression/type Syntax. This second invalid setup is also not a language failure."
+    },
+    {
+      "commit": "6c6481d08",
+      "observation": "Changing only the receiving syntax to existing #emit preserves the generated body, field labels and expected 7, and reaches the actual erroneous native result."
+    }
+  ],
+  "source_review": [
+    "Named fields map against the actual declaration before positional Core lowering. Existing Sequence preserves source expression order before declaration-order Enum payload assembly.",
+    "Named labels and child binders are separate AST fields; inspected substitution, alias/module, CT selection, materialization and hygiene walkers retain labels and recurse through child patterns.",
+    "ct_artifact/compiler_cfg.rs does not interpret the new named pattern and has explicit error branches; this is not a successful consuming path and is not described as label erasure.",
+    "The existing Ascribed mechanism must carry actual field context without granting numeric authority to unknown T:Copy; the independent uncalled literal/forwarding controls passed.",
+    "No production file was edited by this reviewer. The test-file merge retained complete author and reviewer blocks; compiler src was checked byte-identical to 803a."
+  ],
+  "environment": {
+    "checkout": "/workspace/zil-review329",
+    "target_dir": "/workspace/.zil-env/target330",
+    "build_jobs": 1,
+    "features": "llvm-api explicitly enabled; native controls assert actual Clang/API backend, API builder input and no fallback"
+  },
+  "handoff_observation": {
+    "status": "CurrentFail at review startup",
+    "authority": "/workspace/zil",
+    "reason": "Historical task specification snapshots 313/314/315/316/317/320/321 stale; root acknowledged maintenance work. No main-tree task was edited by this reviewer."
+  },
+  "limitations": [
+    "Review remains failing until the original symbolic primitive-spelling sources reject and the positive lexical-builtin/wildcard controls still succeed on a fixed exact candidate.",
+    "Full aggregate/CT regression targets, budget controls and Clippy have not yet been independently rerun on a final candidate.",
+    "No full workspace run, general enum/pattern/language completeness or Rust performance claim."
+  ],
+  "resolved_findings": [
+    {
+      "id": "review329-quote-shorthand-capture",
+      "source": "enum E{V{x:i32}}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let e=E.V{x};match e{E.V{x:y}=>{return y}}}}fn result()->i32{let x=100;#emit generated()}",
+      "observed": "Real source compiles successfully, Verify1, Clang O0/no fallback; executable exits successfully and prints 100\\n instead of required 7\\n.",
+      "evidence": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ct_quote -- --nocapture; review checkout 6c6481d08 with compiler src byte-identical to implementation_commit; stdout bytes [49,48,48,10], expected [55,10]",
+      "cause": "ct_artifact/hygiene.rs visits only Some(field.value). A shorthand record field has no explicit value expression, so the generated local x is renamed while the implicit read remains caller x.",
+      "impact": "Incorrect lexical binding and program result; no memory unsafety demonstrated.",
+      "shared_path_control": {
+        "source": "struct P{x:i32}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let p=P{x};return p.x}}fn result()->i32{let x=100;#emit generated()}",
+        "commit": "97502a600",
+        "observed": "Same 803a compiler: Verify1 and Clang O0/no fallback, stdout [49,48,48,10] instead of [55,10]. This confirms the shared Record shorthand path; no separate historical 40fb execution is claimed."
+      },
+      "status": "Closed by d308a74fefb4998ca9b7b9f4a4b3f75f93666871; original corrected enum and ordinary-record sources both pass all four Clang/API O0/O2 profiles on candidate A."
+    }
+  ],
+  "component_commit": "d308a74fefb4998ca9b7b9f4a4b3f75f93666871",
+  "common_candidate_review": {
+    "reviewer": "/root/impl314",
+    "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+    "verdict": "Fail",
+    "scope": "329 named Copy enum constructors and explicit complete named match patterns, symbolic Copy premises, alias/module identity and CT/hygiene consumers; not a review of author-owned 330",
+    "result": "6 independent groups pass, 1 fails (41 filtered). 40 native controls pass; only the uncalled symbolic-pattern permission group fails."
+  }
+}

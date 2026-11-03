@@ -390,6 +390,17 @@ pub enum PatternKind {
         path: Vec<String>,
         arguments: Vec<Pattern>,
     },
+    RecordConstructor {
+        path: Vec<String>,
+        fields: Vec<RecordPatternField>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecordPatternField {
+    pub name: String,
+    pub pattern: Pattern,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -24,6 +24,8 @@ mod enums;
 mod helper_graph;
 #[path = "generic_products.rs"]
 pub(super) mod products;
+#[path = "generic_record_enum.rs"]
+pub(super) mod record_enums;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
@@ -32,6 +34,8 @@ pub(super) mod store_templates;
 mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
+#[path = "generic_trait_defaults.rs"]
+pub(super) mod trait_defaults;
 #[path = "generic_trait_instances.rs"]
 pub(super) mod trait_instances;
 #[path = "generic_where.rs"]
@@ -68,9 +72,16 @@ pub(super) fn specialize_products<'a>(
     let mut names_budget = Budget::new(limits);
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
+    let mut has_defaults = false;
+    let mut has_alias = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
+        has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
+        if let ItemKind::Trait(declaration) = &item.kind {
+            has_defaults |=
+                trait_defaults::present(declaration, &mut names_budget).map_err(|e| vec![e])?;
+        }
         if let ItemKind::Impl(implementation) = &item.kind
             && implementation
                 .trait_type
@@ -104,11 +115,41 @@ pub(super) fn specialize_products<'a>(
             check_nominal_name(name, item.span).map_err(|error| vec![error])?;
         }
         for param in params(item) {
+            if matches!(param.kind, GenericParamKind::Lifetime) {
+                continue;
+            }
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
             if super::byte_buffer_name(&param.name) || super::owned_store_name(&param.name) {
                 return Err(vec![super::primitive_name_error(&param.name, param.span)]);
             }
         }
+    }
+    if names_budget.has_primitive_binders() && !has_alias {
+        // The existing scoped normalizer also protects aliases. Without an
+        // alias, trigger it only for actual builtin/type-binder collisions.
+        // Complete preflight precedes its whole-AST clone, on this same ledger.
+        for item in &module.items {
+            names_budget.item(item).map_err(|e| vec![e])?;
+        }
+        let protected = super::modules::protect_alias_binders(module, &mut names_budget)
+            .map_err(|e| vec![e])?;
+        let protected = if has_where {
+            Cow::Owned(
+                where_copy::normalize(protected.as_ref(), &mut names_budget)
+                    .map_err(|e| vec![e])?,
+            )
+        } else {
+            protected
+        };
+        return specialize_with_budget(
+            protected.as_ref(),
+            limits,
+            &BTreeMap::new(),
+            names_budget,
+            products,
+        )
+        .map(Cow::Owned)
+        .map_err(|e| vec![e]);
     }
     if has_where {
         let normalized = where_copy::normalize(module, &mut names_budget).map_err(|e| vec![e])?;
@@ -135,11 +176,13 @@ pub(super) fn specialize_products<'a>(
             .items
             .iter()
             .all(|item| params(item).is_empty())
+            && !has_defaults
             && !normalized
                 .module
                 .items
                 .iter()
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+            && !names_budget.has_enum_profiles()
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -154,10 +197,12 @@ pub(super) fn specialize_products<'a>(
         .map_err(|error| vec![error]);
     }
     if module.items.iter().all(|item| params(item).is_empty())
+        && !has_defaults
         && !module
             .items
             .iter()
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+        && !names_budget.has_enum_profiles()
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -209,6 +254,7 @@ struct Engine<'a> {
     inferred_state_values: BTreeSet<String>,
     has_store_templates: bool,
     has_single_state_values: bool,
+    default_functions: usize,
     nominal_binder_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
@@ -242,6 +288,12 @@ fn params(item: &Item) -> &[GenericParam] {
         ItemKind::Enum(e) => &e.generics,
         _ => &[],
     }
+}
+fn type_parameters(function: &Function) -> impl Iterator<Item = &GenericParam> + Clone {
+    function
+        .generics
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, GenericParamKind::Type(_)))
 }
 fn name(item: &Item) -> Option<&str> {
     match &item.kind {
@@ -278,6 +330,7 @@ impl<'a> Engine<'a> {
             inferred_state_values: BTreeSet::new(),
             has_store_templates: false,
             has_single_state_values: false,
+            default_functions: 0,
             nominal_binder_collision: false,
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
@@ -333,7 +386,26 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        engine.validate_trait_defaults(module)?;
+        if engine.nominal_binder_collision {
+            return Ok(engine);
+        }
         // Validate the parametric subset even when a template is not instantiated.
+        if engine.budget.has_enum_profiles() {
+            for item in &module.items {
+                engine.budget.node(item.span, 0)?;
+                if let ItemKind::Enum(declaration) = &item.kind
+                    && engine.budget.enum_profile(item.span)
+                {
+                    record_enums::validate(
+                        declaration,
+                        &engine.nominals,
+                        &engine.traits,
+                        &mut engine.budget,
+                    )?;
+                }
+            }
+        }
         let mut helper_dependencies = helper_graph::Dependencies::default();
         for item in engine.templates.values() {
             if !item.attributes.is_empty() {
@@ -349,6 +421,11 @@ impl<'a> Engine<'a> {
             };
             let mut seen = BTreeSet::new();
             for parameter in params(item) {
+                if matches!(&item.kind, ItemKind::Function(f) if super::lifetimes::copy_life(f))
+                    && matches!(parameter.kind, GenericParamKind::Lifetime)
+                {
+                    continue;
+                }
                 // This parameter/name was already charged by item preflight.
                 // Borrow the existing nominal index; do not add a global scan,
                 // name copy or a hygiene pass to the noncolliding old path.
@@ -377,6 +454,8 @@ impl<'a> Engine<'a> {
                             || callable.is_some()
                             || bounds.iter().all(stores::is_bound)
                             || matches!(&item.kind, ItemKind::Aggregate(a) if a.kind == AggregateKind::Struct)
+                                && bounds.iter().all(copy::is_bound)
+                            || matches!(item.kind, ItemKind::Enum(_))
                                 && bounds.iter().all(copy::is_bound)
                             || matches!(item.kind, ItemKind::Function(_)) => {}
                     _ => {
@@ -413,7 +492,9 @@ impl<'a> Engine<'a> {
                     &mut engine.trait_calls,
                 )?;
             }
-            if let ItemKind::Enum(e) = &item.kind {
+            if let ItemKind::Enum(e) = &item.kind
+                && !engine.budget.enum_profile(item.span)
+            {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
             if let ItemKind::Aggregate(a) = &item.kind {
@@ -474,6 +555,8 @@ impl<'a> Engine<'a> {
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
         self.products.trait_instances = self.traits.has_instances;
+        self.products.record_variants = self.budget.has_enum_profiles();
+        self.products.protected_binders = self.budget.has_primitive_binders();
         self.collect_products(module)?;
         let mut result = Module {
             id: module.id,
@@ -562,6 +645,7 @@ impl<'a> Engine<'a> {
         };
         let parameters: Vec<_> = params(item)
             .iter()
+            .filter(|p| matches!(p.kind, GenericParamKind::Type(_)))
             .filter(|p| {
                 retained
                     .as_ref()
@@ -612,6 +696,7 @@ impl<'a> Engine<'a> {
             .len()
             .saturating_add(self.retained_stores.len())
             .saturating_add(self.traits.instance_count())
+            .saturating_add(self.default_functions)
             >= self.limits.max_functions.min(512)
         {
             return Err(Diagnostic::limit(
@@ -686,15 +771,21 @@ impl<'a> Engine<'a> {
                         }
                         copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
                     }
+                } else if let VariantFields::Record(fields) = &variant.fields {
+                    for field in fields {
+                        self.budget.node(field.span, 0)?;
+                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                    }
                 }
             }
         }
         match &mut instance.kind {
             ItemKind::Function(f) => {
                 f.generics.retain(|parameter| {
-                    retained
-                        .as_ref()
-                        .is_some_and(|bound| bound.contains_generic(&parameter.name))
+                    matches!(parameter.kind, GenericParamKind::Lifetime)
+                        || retained
+                            .as_ref()
+                            .is_some_and(|bound| bound.contains_generic(&parameter.name))
                 });
                 f.name.clone_from(&generated);
                 self.signatures
@@ -920,6 +1011,7 @@ impl<'a> Engine<'a> {
                 }
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
+                self.complete_trait_defaults(i, item.span)?;
                 self.ty(&mut i.target, 0)?;
                 if self.traits.has_instances
                     && let Some(application) = &i.trait_type
@@ -1347,7 +1439,7 @@ impl<'a> Engine<'a> {
                 }
                 if default_integer && let Some(function) = self.signatures.get(target) {
                     let mut variables = BTreeSet::new();
-                    for parameter in &function.generics {
+                    for parameter in type_parameters(function) {
                         self.budget.text(&parameter.name, e.span)?;
                         variables.insert(parameter.name.clone());
                     }
@@ -1375,17 +1467,17 @@ impl<'a> Engine<'a> {
                     return Ok(Some(check::unit(e.span)));
                 };
                 let mut variables = BTreeSet::new();
-                for parameter in &function.generics {
+                for parameter in type_parameters(function) {
                     self.budget.text(&parameter.name, e.span)?;
                     variables.insert(parameter.name.clone());
                 }
                 self.budget.ty(result)?;
                 let mut found = BTreeMap::new();
                 if let Some(arguments) = explicit {
-                    if arguments.len() != function.generics.len() {
+                    if arguments.len() != type_parameters(function).count() {
                         return Ok(None);
                     }
-                    for (parameter, argument) in function.generics.iter().zip(arguments) {
+                    for (parameter, argument) in type_parameters(function).zip(arguments) {
                         let GenericArg::Type(ty) = argument else {
                             return Ok(None);
                         };
@@ -1812,7 +1904,7 @@ impl<'a> Engine<'a> {
                                 .any(|p| !callable.contains_generic(&p.name))
                             {
                                 let variables: BTreeSet<_> =
-                                    function.generics.iter().map(|p| p.name.clone()).collect();
+                                    type_parameters(function).map(|p| p.name.clone()).collect();
                                 let mut found = if contextual_constraints {
                                     hints
                                         .as_ref()
@@ -1910,7 +2002,7 @@ impl<'a> Engine<'a> {
                                 return Err(error(e.span, "generic call arity mismatch"));
                             }
                             let variables =
-                                function.generics.iter().map(|p| p.name.clone()).collect();
+                                type_parameters(function).map(|p| p.name.clone()).collect();
                             let mut found = if contextual_constraints {
                                 hints
                                     .as_ref()
@@ -1949,9 +2041,7 @@ impl<'a> Engine<'a> {
                                     &mut self.budget,
                                 )?;
                             }
-                            function
-                                .generics
-                                .iter()
+                            type_parameters(function)
                                 .map(|p| {
                                     found.get(&p.name).cloned().ok_or_else(|| {
                                         error(
@@ -2515,11 +2605,9 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
             key
         }
         TypeKind::Group(t) => return type_key_bounded(t),
-        TypeKind::Reference {
-            mutable,
-            inner,
-            lifetime: None,
-        } => format!("R{mutable}<{}>", type_key_bounded(inner)?),
+        TypeKind::Reference { mutable, inner, .. } => {
+            format!("R{mutable}<{}>", type_key_bounded(inner)?)
+        }
         TypeKind::Tuple(ts) => format!(
             "({})",
             ts.iter()

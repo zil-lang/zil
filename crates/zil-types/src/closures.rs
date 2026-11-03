@@ -22,6 +22,165 @@ pub(super) struct Capture {
     pub declared_kind: Option<CallableKind>,
     pub span: Span,
 }
+
+#[cfg(test)]
+mod reviewer332_thread_lease {
+    use super::*;
+
+    // Internal accounting fixtures only: they carry no source or CFG proof.
+    fn pending_state(result: Option<Type>, count: usize) -> State {
+        let limits = Limits::default();
+        let mut state = State::new(0, &limits);
+        for index in 0..count {
+            let mut graph = Graph::new(&limits);
+            let parameter = graph.fresh(I32, false);
+            let value = graph.fresh(VALUE, false);
+            if let Some(result) = &result {
+                graph.bind(value, result, Span::default()).unwrap();
+            }
+            state.pending.push(Pending {
+                id: ClosureId(index as u32),
+                function: FunctionId(index as u32),
+                parameters: vec![CoreClosureParameter {
+                    name: "value".into(),
+                    ty: Some(Type::I32),
+                    mode: PassingMode::Infer,
+                    span: Span::default(),
+                }],
+                body: CoreBlock {
+                    statements: vec![],
+                    span: Span::default(),
+                },
+                span: Span::default(),
+                captures: vec![],
+                owns_leaf_store: false,
+                defer_action: false,
+                inference: Inference {
+                    graph,
+                    parameters: vec![parameter],
+                    result: value,
+                },
+                typed: None,
+            });
+        }
+        state
+    }
+
+    fn exhausted<T>(result: R<T>) {
+        let error = result
+            .err()
+            .expect("a fresh private Graph quota bypassed shared exhaustion");
+        assert_eq!(error.phase, Phase::Types);
+        assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+    }
+
+    #[test]
+    fn two_pending_graphs_share_the_current_remainder_and_cannot_renew_it() {
+        let mut state = pending_state(Some(Type::I32), 2);
+        state.work_left = 2;
+        let before0 = state.pending[0].inference.graph.work_left.get();
+        let before1 = state.pending[1].inference.graph.work_left.get();
+        assert_eq!(state.thread_result(ClosureId(0)).unwrap(), Some(Type::I32));
+        assert_eq!(state.work_left, 1);
+        assert_eq!(
+            state.thread_parameter(ClosureId(1), 0).unwrap(),
+            Some(Type::I32)
+        );
+        assert_eq!(state.work_left, 0);
+        assert_eq!(
+            state.pending[0].inference.graph.work_left.get(),
+            before0 - 1
+        );
+        assert_eq!(
+            state.pending[1].inference.graph.work_left.get(),
+            before1 - 1
+        );
+        exhausted(state.thread_result(ClosureId(1)));
+        exhausted(state.thread_parameter(ClosureId(0), 0));
+        assert_eq!(state.work_left, 0);
+        assert_eq!(
+            state.pending[0].inference.graph.work_left.get(),
+            before0 - 1
+        );
+        assert_eq!(
+            state.pending[1].inference.graph.work_left.get(),
+            before1 - 1
+        );
+        let mut limited = pending_state(Some(Type::I32), 1);
+        limited.pending[0].inference.graph.work_left.set(1);
+        limited.work_left = 1000;
+        limited.thread_result(ClosureId(0)).unwrap();
+        assert_eq!(limited.work_left, 999);
+        exhausted(limited.thread_result(ClosureId(0)));
+        assert_eq!(limited.work_left, 999);
+        assert_eq!(limited.pending[0].inference.graph.work_left.get(), 0);
+    }
+
+    #[test]
+    fn actual_pending_signature_clone_receipt_has_exact_n_and_failed_n_minus_one() {
+        let ty = Type::Tuple(vec![Type::I32, Type::I32]);
+        let mut ample = pending_state(Some(ty.clone()), 1);
+        let before_shared = ample.work_left;
+        let before_graph = ample.pending[0].inference.graph.work_left.get();
+        assert_eq!(ample.thread_result(ClosureId(0)).unwrap(), Some(ty.clone()));
+        let work = before_graph - ample.pending[0].inference.graph.work_left.get();
+        assert!(work > 1);
+        assert_eq!(before_shared - ample.work_left, work);
+        for amount in [work, work - 1, work] {
+            let mut current = pending_state(Some(ty.clone()), 1);
+            current.work_left = amount;
+            let before = current.pending[0].inference.graph.work_left.get();
+            let result = current.thread_result(ClosureId(0));
+            if amount == work {
+                assert_eq!(result.unwrap(), Some(ty.clone()));
+                assert_eq!(current.work_left, 0);
+            } else {
+                exhausted(result);
+            }
+            assert_eq!(
+                amount - current.work_left,
+                before - current.pending[0].inference.graph.work_left.get()
+            );
+            assert!(current.work_left <= amount);
+        }
+    }
+
+    #[test]
+    fn mutable_pending_expectation_debits_the_same_graph_work_once_even_on_failure() {
+        let mut ample = pending_state(None, 1);
+        let shared = ample.work_left;
+        let graph = ample.pending[0].inference.graph.work_left.get();
+        ample
+            .thread_expect_result(ClosureId(0), &Type::I32, Span::default())
+            .unwrap();
+        let work = graph - ample.pending[0].inference.graph.work_left.get();
+        assert!(work > 0);
+        assert_eq!(shared - ample.work_left, work);
+        for amount in [work, work - 1, work] {
+            let mut current = pending_state(None, 1);
+            current.work_left = amount;
+            let graph = current.pending[0].inference.graph.work_left.get();
+            let result = current.thread_expect_result(ClosureId(0), &Type::I32, Span::default());
+            if amount == work {
+                result.unwrap();
+                assert_eq!(current.work_left, 0);
+            } else {
+                exhausted(result);
+            }
+            assert_eq!(
+                amount - current.work_left,
+                graph - current.pending[0].inference.graph.work_left.get()
+            );
+            assert!(current.work_left <= amount);
+        }
+        let mut zero = pending_state(None, 1);
+        zero.work_left = 0;
+        let before = zero.pending[0].inference.graph.work_left.get();
+        exhausted(zero.thread_expect_result(ClosureId(0), &Type::I32, Span::default()));
+        assert_eq!(zero.work_left, 0);
+        assert_eq!(zero.pending[0].inference.graph.work_left.get(), before);
+    }
+}
 impl Capture {
     pub fn stored_type(&self) -> Type {
         if let Type::Managed(payload) = &self.ty {
@@ -267,6 +426,29 @@ impl State {
             .checked_sub(entries)
             .ok_or_else(|| limit("closure lookup snapshot budget exceeded", span))?;
         Ok(())
+    }
+
+    // Thread-only queries join this request's existing work counter. General
+    // expression inference keeps its historical independent Graph profile.
+    pub(super) fn thread_result(&mut self, id: ClosureId) -> R<Option<Type>> {
+        let inference = &self.pending[id.0 as usize].inference;
+        inference
+            .graph
+            .thread_query(&mut self.work_left, |graph| graph.ty(inference.result))
+    }
+    pub(super) fn thread_parameter(&mut self, id: ClosureId, index: usize) -> R<Option<Type>> {
+        let inference = &self.pending[id.0 as usize].inference;
+        inference.graph.thread_query(&mut self.work_left, |graph| {
+            graph.ty(inference.parameters[index])
+        })
+    }
+    pub(super) fn thread_expect_result(&mut self, id: ClosureId, ty: &Type, span: Span) -> R<()> {
+        let inference = &mut self.pending[id.0 as usize].inference;
+        let result = inference.result;
+        inference.graph.thread_work(&mut self.work_left, |graph| {
+            graph.bind(result, ty, span)?;
+            graph.solve()
+        })
     }
 
     pub fn allocate_function(&mut self, span: Span) -> R<FunctionId> {
@@ -627,6 +809,40 @@ impl Graph {
             source_callback_parameters: Vec::new(),
         }
     }
+    // A graph-only operation leases at most the current shared remainder.
+    // Always debit actual work, including partial work before an error, while
+    // preserving the Graph's own historical quota minus that same work.
+    fn thread_query<T>(&self, remaining: &mut usize, query: impl FnOnce(&Self) -> R<T>) -> R<T> {
+        let original = self.work_left.get();
+        let allowance = original.min(*remaining);
+        self.work_left.set(allowance);
+        let result = query(self);
+        self.thread_finish(original, allowance, remaining, result)
+    }
+    fn thread_work<T>(
+        &mut self,
+        remaining: &mut usize,
+        query: impl FnOnce(&mut Self) -> R<T>,
+    ) -> R<T> {
+        let original = self.work_left.get();
+        let allowance = original.min(*remaining);
+        self.work_left.set(allowance);
+        let result = query(self);
+        self.thread_finish(original, allowance, remaining, result)
+    }
+    fn thread_finish<T>(
+        &self,
+        original: usize,
+        allowance: usize,
+        remaining: &mut usize,
+        result: R<T>,
+    ) -> R<T> {
+        let spent = allowance - self.work_left.get();
+        *remaining -= spent;
+        self.work_left.set(original - spent);
+        result
+    }
+
     pub(super) fn set_store_parameter(&mut self, name: &str, span: Span) -> R<()> {
         self.spend_count(name.len().saturating_add(1), span)?;
         self.store_parameter = Some(name.to_owned());
@@ -2870,10 +3086,156 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     );
                 }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
-                    return Err(unsupported(
-                        span,
-                        "thread_scope in a parent closure entry is not implemented",
-                    ));
+                    self.visit(depth + 1, callee.span)?;
+                    let [worker, argument, body] = arguments.as_slice() else {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "thread_scope requires a static worker, i32 payload and body",
+                        ));
+                    };
+                    self.visit(depth + 1, worker.span)?;
+                    self.thread_worker_lookup(worker)?;
+                    if !self.direct(worker) {
+                        return Err(error(
+                            "E-THREAD-WORKER",
+                            worker.span,
+                            "thread worker requires an actual static ordinary function symbol",
+                        ));
+                    }
+                    *self.work_left = self
+                        .work_left
+                        .checked_sub(1)
+                        .ok_or_else(|| limit("thread worker signature budget exceeded", span))?;
+                    if !self.callee(worker)?.scalar_thread_worker() {
+                        return Err(error(
+                            "E-THREAD-WORKER",
+                            worker.span,
+                            "thread worker must be a concrete ordinary fn(i32)->i32",
+                        ));
+                    }
+                    // The accepted declaration is exactly these two scalar
+                    // types with no callable bounds; reserve its actual work.
+                    self.graph.thread_query(self.work_left, |graph| {
+                        graph.reserve_type(&Type::I32, 0, worker.span)?;
+                        graph.reserve_type(&Type::I32, 0, worker.span)
+                    })?;
+                    let value = self.expr_expected(argument, Some(&Type::I32), depth + 1)?;
+                    self.graph.thread_work(self.work_left, |graph| {
+                        value.bind(graph, &Type::I32, argument.span)
+                    })?;
+                    let value = self.expr(body, depth + 1)?;
+                    let signature = match value {
+                        LocalType::Nested(index, None) => {
+                            let signature = &self.nested_signatures[index];
+                            self.graph.thread_query(self.work_left, |graph| {
+                                graph.reserve_type(signature, 0, span)?;
+                                Ok(signature.clone())
+                            })?
+                        }
+                        // The legacy Copy inference path keeps a private
+                        // function signature for nested source closures.
+                        // Builder must still prove an actual Closure value;
+                        // this signature never grants a thin pointer authority.
+                        LocalType::Scalar(variable) => self
+                            .graph
+                            .thread_query(self.work_left, |graph| graph.ty(variable))?
+                            .ok_or_else(|| {
+                                error(
+                                    "E-CLOSURE-INFERENCE",
+                                    span,
+                                    "thread body signature is unresolved",
+                                )
+                            })?,
+                        LocalType::Closure(id, None, _) => {
+                            let pending = &self.closures[id.0 as usize];
+                            if pending.inference.arity() != 0 {
+                                return Err(error(
+                                    "E-THREAD-BODY",
+                                    body.span,
+                                    "thread body signature is ()->i32",
+                                ));
+                            }
+                            *self.work_left = self.work_left.checked_sub(1).ok_or_else(|| {
+                                limit("thread signature construction budget exceeded", span)
+                            })?;
+                            let result = pending
+                                .inference
+                                .graph
+                                .thread_query(self.work_left, |graph| {
+                                    graph.ty(pending.inference.result)
+                                })?;
+                            Type::FunctionPointer {
+                                parameters: vec![],
+                                result: Box::new(result.ok_or_else(|| {
+                                    error(
+                                        "E-CLOSURE-INFERENCE",
+                                        span,
+                                        "thread body result is unresolved",
+                                    )
+                                })?),
+                            }
+                        }
+                        _ => {
+                            return Err(error(
+                                "E-THREAD-BODY",
+                                body.span,
+                                "thread body must be a concrete closure value",
+                            ));
+                        }
+                    };
+                    *self.work_left = self.work_left.checked_sub(2).ok_or_else(|| {
+                        limit("thread signature comparison budget exceeded", span)
+                    })?;
+                    if !matches!(&signature, Type::FunctionPointer { parameters, result } if parameters.is_empty() && result.as_ref() == &Type::I32)
+                    {
+                        return Err(error(
+                            "E-THREAD-BODY",
+                            body.span,
+                            "thread body signature is ()->i32",
+                        ));
+                    }
+                    // The prepared body is transferred once, even when create
+                    // fails and only its environment cleanup executes.
+                    if let CoreExprKind::Name(name) = &body.kind {
+                        let width = name.len().saturating_add(1);
+                        *self.work_left = self
+                            .work_left
+                            .checked_sub(self.scopes.len())
+                            .ok_or_else(|| limit("thread body lookup budget exceeded", span))?;
+                        let lookup = self.scopes.iter().fold(0usize, |work, scope| {
+                            work.saturating_add(
+                                helpers::plan::tree_work(scope.len()).saturating_mul(width),
+                            )
+                        });
+                        *self.work_left = self
+                            .work_left
+                            .checked_sub(lookup)
+                            .ok_or_else(|| limit("thread body lookup budget exceeded", span))?;
+                        if self.lookup(name).is_none() {
+                            let scan = self.captures.len().saturating_mul(width);
+                            *self.work_left =
+                                self.work_left.checked_sub(scan).ok_or_else(|| {
+                                    limit("thread capture scan budget exceeded", span)
+                                })?;
+                            if let Some(capture) = self
+                                .captures
+                                .iter_mut()
+                                .find(|capture| capture.name == *name)
+                            {
+                                capture.moved = true;
+                                capture.borrowed = false;
+                                capture.consumed = true;
+                            }
+                        }
+                    }
+                    return self.graph.thread_work(self.work_left, |graph| {
+                        graph.spend_count(4, span)?;
+                        let ty = Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]);
+                        let variable = graph.fresh(VALUE, false);
+                        graph.bind(variable, &ty, span)?;
+                        Ok(LocalType::Scalar(variable))
+                    });
                 }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
                     self.visit(depth + 1, callee.span)?;
@@ -3498,6 +3860,70 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 .bind(&mut self.graph, expected, argument.span)?;
         }
         self.known(ty, span)
+    }
+    // Both direct() and callee() look through the source scope/outer tables.
+    // Reserve their bounded ordered-key paths before either lookup executes.
+    fn thread_worker_lookup(&mut self, expression: &CoreExpr) -> R<()> {
+        let (name, member) = match &expression.kind {
+            CoreExprKind::Name(name) => (name, None),
+            CoreExprKind::Member { object, member, .. } => {
+                let CoreExprKind::Name(name) = &object.kind else {
+                    return Ok(());
+                };
+                (name, Some(member))
+            }
+            _ => return Ok(()),
+        };
+        let span = expression.span;
+        *self.work_left = self
+            .work_left
+            .checked_sub(self.scopes.len())
+            .ok_or_else(|| limit("thread worker lookup budget exceeded", span))?;
+        let width = name.len().saturating_add(1);
+        let scopes = self.scopes.iter().fold(0usize, |sum, scope| {
+            sum.saturating_add(helpers::plan::tree_work(scope.len()))
+        });
+        let mut work = scopes
+            .saturating_add(helpers::plan::tree_work(self.outer.len()))
+            .saturating_mul(width)
+            .saturating_mul(2);
+        let signature_width = member.map_or(width, |member| {
+            width.saturating_add(member.len()).saturating_add(1)
+        });
+        work = work.saturating_add(
+            helpers::plan::tree_work(self.signatures.len()).saturating_mul(signature_width),
+        );
+        if let Some(member) = member {
+            // The qualified lookup constructs alias.member before consulting
+            // the local signature map, then can enter the imported module map.
+            work = work.saturating_add(signature_width);
+            if let Some(imports) = self.imports {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(imports.signatures.len())
+                    .ok_or_else(|| limit("thread module lookup inventory budget exceeded", span))?;
+                let largest = imports
+                    .signatures
+                    .values()
+                    .map(BTreeMap::len)
+                    .max()
+                    .unwrap_or(0);
+                work = work
+                    .saturating_add(
+                        helpers::plan::tree_work(imports.aliases.len()).saturating_mul(width),
+                    )
+                    .saturating_add(helpers::plan::tree_work(imports.signatures.len()))
+                    .saturating_add(
+                        helpers::plan::tree_work(largest)
+                            .saturating_mul(member.len().saturating_add(1)),
+                    );
+            }
+        }
+        *self.work_left = self
+            .work_left
+            .checked_sub(work)
+            .ok_or_else(|| limit("thread worker ordered-key lookup budget exceeded", span))?;
+        Ok(())
     }
     fn direct(&self, expression: &CoreExpr) -> bool {
         let name = match &expression.kind {

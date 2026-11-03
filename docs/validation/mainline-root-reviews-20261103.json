@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "reviews": {
+    "326": {
+      "reviewer": "/root",
+      "verdict": "PassLimited",
+      "implementation_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+      "scope": "Current handoff record integrity and honest frozen historical classification; not historical revalidation or language correctness.",
+      "method": [
+        "Read tool, frozen classifications, exact review and selector bindings, current authority and canonical paths.",
+        "Independently execute 25 self-test families (129 assertions), actual current records and legacy audit.",
+        "Verify legacy1924 errors remain separate and formal Done cannot be inferred from a limited slice."
+      ],
+      "current_status": "CurrentPass",
+      "historical_status": "Unavailable/Unreviewed",
+      "legacy_status": "LegacyAuditFail"
+    },
+    "327": {
+      "reviewer": "/root",
+      "verdict": "PassLimited",
+      "implementation_commit": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+      "scope": "Integrity of the 323 independent review artifact and source-derived reviewer controls; no additional production feature or 328 self-review.",
+      "method": [
+        "Read original findings, final ledger closure and actual common-candidate difference report.",
+        "Verify independent tests are in the accepted source tree, component and tested identities exist, and reviewer differs from 323 author.",
+        "Cross-check full workspace and ledger/control results; keep source, model and exploratory observations distinct."
+      ]
+    }
+  }
+}

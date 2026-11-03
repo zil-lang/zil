@@ -106,3 +106,27 @@ Rust 四目标：显式 life 现在有可执行来源合同，减少普通库表
 维护工作量及编译成本未作 Rust 配对，N 边界不是速度优势，产品级突破仍未建立。
 混合 T/F、可变 life、HRTB/间接调用、借入存储及一般 life/Self/trait 组合继续
 未完成；完整语言、B0、ZUI 和产品门不由本片升级。
+
+## R1：独审发现的 scalar work-product life 身份遗漏
+
+非作者 language_map 在 e86e79a0a 上冻结反例 `1ca086f06820d069c8961ae8670e9b81428df69f`
+及独立 review 记录，六种同 span/body 的非法 raw CoreLifeContract 在 fresh Types
+均被 `E-LIFE-CONTRACT` 拒绝，却在内存及 encode/restore 两条 FunctionSession
+路径共 12 次复用了旧 Typed scalar。这是已证实的声明检查绕过；原始源等长重复
+binder 仍在 Expand 拒绝，没有据此宣称源级 UB。原反例以 `330a23e20` 原样拾取，
+未修改其断言或输入来通过。
+
+生产修复 `4b846df8f653117ddb03db40e19ea963d16285ee` 把完整有序 binder、密集
+参数映射、结果 life 及 Some/None 纳入函数增量 context，域升级为
+`ZIL-FUNCTION-TYPES-2`，旧 key 不能复用。命中后仍在当前 Core 上重新执行
+life 声明检查并核对缓存 Typed 上界；实际已收的 header accounting 从待 replay
+receipt 扣除，未隐藏或双算该工作。scalar work product 不接受非空 return-bound
+字段。两核安全求证没有共享或修改。
+
+使用上述相同 target322/jobs1 命令，R1 限定实测为 cross_function_borrows
+21/21（原18、独审2、作者合法复用及预算1）、semantic_cache8/8、定向 Clippy
+`-D warnings` 与 diff check 全部通过。原 12 次绕过均关闭，原 source 控制保留。
+合法 scalar life 的 live/restore 均为 reused1/executed0；两条路径及 fresh 在
+N=79 成功、N−1 ResourceLimit、fresh N 再成功。合法 binder 换序及 Some→None
+会 miss 并重建，与 fresh 完整结果一致；未禁用合法 life 缓存。原 probe 四阶段
+N99/95/714/993 仍通过。该作者复验不替代随后针对 R1 精确提交的独立审核。

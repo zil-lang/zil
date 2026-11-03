@@ -377,6 +377,31 @@ impl Parser<'_> {
                         path,
                         arguments: p.pattern_list()?,
                     }
+                } else if p.eat(Symbol::LBrace) {
+                    let fields = p.scoped(true, |p| {
+                        let mut fields = Vec::new();
+                        p.newlines();
+                        while !p.at(Symbol::RBrace) {
+                            let start = p.peek().span;
+                            let name =
+                                p.ident_kind(QuoteNameNamespace::Member, QuoteNameRole::Reference)?;
+                            p.expect(Symbol::Colon)?;
+                            let pattern = p.pattern()?;
+                            fields.push(RecordPatternField {
+                                name,
+                                pattern,
+                                span: p.span_from(start),
+                            });
+                            p.newlines();
+                            if !p.eat(Symbol::Comma) {
+                                break;
+                            }
+                            p.newlines();
+                        }
+                        p.expect(Symbol::RBrace)?;
+                        Ok(fields)
+                    })?;
+                    PatternKind::RecordConstructor { path, fields }
                 } else if path.len() == 1 {
                     PatternKind::Name(path.into_iter().next().expect("nonempty path"))
                 } else {

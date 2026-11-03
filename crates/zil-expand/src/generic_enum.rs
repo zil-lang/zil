@@ -31,7 +31,7 @@ pub(super) fn fields<'a>(
     match &v.fields {
         VariantFields::Unit => Ok(&[]),
         VariantFields::Tuple(fields) => Ok(fields),
-        VariantFields::Record(_) => Err(unsupported(span, "record enum variants")),
+        VariantFields::Record(_) => Err(error(span, "record enum variant requires named fields")),
     }
 }
 pub(super) fn substituted(
@@ -388,6 +388,9 @@ impl Engine<'_> {
         expected: Option<&TypeRef>,
         depth: usize,
     ) -> R<Option<TypeRef>> {
+        if matches!(e.kind, ExprKind::Record { .. }) {
+            return self.record_enum_expression(e, env, expected, depth);
+        }
         let span = e.span;
         let (callee, arguments) = match &mut e.kind {
             ExprKind::Call { callee, arguments } => {
@@ -548,6 +551,9 @@ impl Engine<'_> {
                     self.enum_pattern(p, Some(&t), env, depth + 1)?;
                 }
             }
+            PatternKind::RecordConstructor { path, fields } => {
+                self.record_enum_pattern(path, fields, ty, env, pattern.span, depth)?;
+            }
             _ => {}
         }
         Ok(())
@@ -603,17 +609,15 @@ impl Engine<'_> {
         let Some(f) = self.signatures.get(name) else {
             return Ok(None);
         };
-        let variables = f
-            .generics
-            .iter()
+        let variables = type_parameters(f)
             .map(|p| p.name.clone())
             .collect::<BTreeSet<_>>();
         let mut found = BTreeMap::new();
         if let Some(args) = explicit {
-            if args.len() != f.generics.len() {
+            if args.len() != type_parameters(f).count() {
                 return Err(error(callee.span, "type argument arity mismatch"));
             }
-            for (p, a) in f.generics.iter().zip(args) {
+            for (p, a) in type_parameters(f).zip(args) {
                 let GenericArg::Type(t) = a else {
                     return Err(unsupported(callee.span, "const generic argument"));
                 };

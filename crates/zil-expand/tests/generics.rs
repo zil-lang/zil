@@ -130,24 +130,27 @@ fn generic_error_union_templates_preserve_symbolic_and_actual_checks() {
 
 #[test]
 fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
+    // Pre322 work/nodes: binding880/301, argument871/290, independent1440/457.
+    // Full type-position lifetime validation now pays from the same Budget.
+    // Migration and unchanged source controls: changes/322-budget-migration-by324.md.
     for (name, text, steps, nodes) in [
         (
             "binding",
             include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
-            880,
-            301,
+            1036,
+            368,
         ),
         (
             "argument",
             include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
-            871,
-            290,
+            1024,
+            361,
         ),
         (
             "independent",
             "enum Choice<T>{None,Some(T)}fn sink<T>(value:Choice<T>!i32,witness:T)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{f();return sink(Choice.None,true)}fn main()->i32{let f=()->i32=>1;return run(f)}",
-            1440,
-            457,
+            1612,
+            536,
         ),
     ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
@@ -234,8 +237,9 @@ fn generic_enum_error_context_prepays_new_work() {
     );
     let parsed = zil_syntax::parse(&source).into_result().unwrap();
     let expected = zil_expand::expand(&source, &parsed).unwrap();
-    // Independently measured minimal limits for the frozen direct source.
-    for (work, amount) in [(true, 624), (false, 242)] {
+    // Same frozen source: pre322 work624/nodes242; the paid full-AST life
+    // validation now yields work782/nodes310 without resetting the remainder.
+    for (work, amount) in [(true, 782), (false, 310)] {
         let mut limits = zil_base::Limits::default();
         if work {
             limits.max_analysis_steps = amount
@@ -489,9 +493,10 @@ fn concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries() 
     let scalar = "fn run<F:FnMut(i32)->i32>(f:&mut F)->i32{return f(2)}fn main()->i32{var f=(x:i32)->i32=>x+1;return run(&mut f)}";
     let owned = "resource R{n:i32}package P{manages r:R}fn consume(p:P)->i32{return p.r.n}fn run<F:FnMut(i32)->i32>(f:&mut F,p:P)->i32{return f(consume(p))}fn main()->i32{var f=(x:i32)->i32=>x+1;let r=R{n:3};let p=P{r:give r};return run(&mut f,p)}";
     let local = "resource R{n:i32}package P{manages r:R}fn consume(p:P)->i32{return p.r.n}fn run<F:FnMut(i32)->i32>(f:&mut F)->i32{let r=R{n:3};let p=P{r:give r};return f(consume(p))}fn main()->i32{var f=(x:i32)->i32=>x+1;return run(&mut f)}";
-    // Old scalar/owned boundaries were independently measured on fa34160.
-    // The formerly unsupported local preparation pays its actual new work.
-    for (text, work, nodes) in [(scalar, 288, 144), (owned, 554, 279), (local, 558, 281)] {
+    // Historical fa34160 controls were scalar288/144 and owned554/279;
+    // local preparation was558/281 before322. Same bytes now also pay the
+    // complete type-position lifetime scan (see the attributed migration).
+    for (text, work, nodes) in [(scalar, 381, 194), (owned, 735, 376), (local, 730, 372)] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "resource-budget.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let expected = zil_expand::expand(&source, &parsed).unwrap();

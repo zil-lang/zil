@@ -1,0 +1,646 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/impl317",
+  "implementation_author": "/root/impl313",
+  "review_kind": "Independent bounded static, existing-target, and real-source CLI/native review of 333 only",
+  "implementation_commit": "fc9353c0e5917af6d204167ead6457aa04104ba7",
+  "component_commit": "fc9353c0e5917af6d204167ead6457aa04104ba7",
+  "common_candidate_binding": "Independent 333-only scope rebind to exact common A is recorded in common_candidate_review.",
+  "verdict": "PassLimited",
+  "scope": "LargeCopy ABI v1 ordinary Copy Array/Tuple/Record >=4096 bytes, direct/ordinary function pointer calls and returns, default External versioning, CGU/cache, cleanup, and explicit unsupported special consumers.",
+  "blocking_findings": [],
+  "identity": {
+    "review_tree": "/workspace/zil-review333-by332",
+    "target_dir": "/workspace/.zil-env/target332",
+    "jobs": 1,
+    "production_or_tests_modified_by_reviewer": false,
+    "authority": "Read current main-tree AGENTS.md, _zil_goal.md, task333 and frozen design 19.4, including 5eb792faf dependency clarification. Parent suite results were not counted as reviewer evidence.",
+    "component_files_sha256": {
+      "crates/zil-backend-llvm/src/emit.rs": "d0802a353840e8a5ec33ea3f1ba1ae817001718834566a057ed23b8a150cafb0",
+      "crates/zil-backend-llvm/src/emit/copy_aggregates.rs": "3e714b5f170a76e7d471651e2c07187090e9997d5cda131886d2d1ef402fbeb6",
+      "crates/zil-backend-llvm/src/emit/large_copy_abi.rs": "319d641c36cfe0df49f9f9e7936b38946b4fa736760603304f3aa647a236f04f",
+      "crates/zil-backend-llvm/src/machine_cgu.rs": "0bcdc663f3a671020b8723897c84d6ce622ebddf0378e84c3f75ecad20315001",
+      "crates/zil-backend-llvm/src/machine_stable_identity.rs": "4187de3355c2a37e96132036cc546f4d0e759d052b36f1079a7b1dec1fd68013",
+      "crates/zil-backend-llvm/src/object_cache.rs": "ba5349d003f055edcf2a17c1526c6831b8f066b38c9669c54c6710a26c30bfe9",
+      "crates/zil-driver/tests/aggregates.rs": "dfe0b5bee0991c1a92fd7bbbdf875bc486826949217d773aff39cc96ac44fea1"
+    },
+    "reviewed_head_before_this_doc": "c76d5959bb1a47cca66674abfe06ac2174a3fc7a",
+    "final_delta": "907 contains final production. 717 adds only cfg(test) models, fixtures/tests and documentation; fc935 adds only documentation of unresolved general large Enum/ErrorUnion scope."
+  },
+  "static_checks": {
+    "copy_in": "Large parameters receive pointers to already prepared ValueId snapshots. Every actual callee parameter local is allocated independently and memcpy copy-in happens before source blocks. No source address authority is derived from these machine pointers.",
+    "outptr_cleanup": "Large result is first hidden ptr; return copies the retained ValueId snapshot after normal LIR cleanup then returns void. Caller output has a separate entry alloca. No aggregate SSA bridge is used for unhandled snapshot consumers.",
+    "def_call_pointer": "Physical definition/direct/ref/ordinary indirect/return paths share the same mapping and Unit erasure. Version dependency separately follows nested ordinary function pointer signatures and carriers without changing a small physical signature. Ordinary small Direct calls also select the versioned actual symbol.",
+    "layout": "copy_aggregates::layout derives checked x64 integer/pointer/array/struct allocation sizes and alignment from actual llvm_type, including Unit empty struct, bool byte allocation, padding and tail rounding.",
+    "cgu_cache": "machine_cgu resolves .lc1 definitions for grouping/imports and closed internalization. object_cache::machine_key hashes complete machine items and target namespace, including actual versioned symbols/signatures. Stable-symbol optimization can decline unsupported shapes instead of rebinding a .lc1 function through an old name.",
+    "prepayment": "One copy-planning remainder flows through snapshots, function/indirect mappings and recursive ABI dependency scanning; it is not refreshed per function/carrier. Shape and mapping costs precede allocation/event growth. Exact residual model controls and real Codegen N/N-1/fresh plus warm-cache denial were independently rerun. Default limits are unchanged.",
+    "unsupported": "Before function emission, actual closure captures and resource payloads are scanned with the same remainder. Affected closure entries/environments, resource helper interfaces and ForeignCallback dependencies are Unsupported, avoiding stale dedicated CallClosure/drop/scoped helper symbols. Ordinary borrowed Big and unaffected small function pointer captures remain supported."
+  },
+  "independent_validation": {
+    "environment": "Linux x86_64; source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=target332; jobs1; explicit llvm-api feature",
+    "commands": [
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_abi_ -- --nocapture",
+        "commit": "9071376944591fe65ddcc501962b8cdc90f36c6b",
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 25,
+        "Codegen_N": 356960,
+        "N_minus_1": "Codegen ResourceLimit",
+        "fresh_N_replays": 2,
+        "warm_cache_does_not_bypass_low_budget": true
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_a18_by_value_abi_native_all_backends -- --exact --nocapture",
+        "commit": "9071376944591fe65ddcc501962b8cdc90f36c6b",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 31,
+        "native_profiles": 12,
+        "original_scale_cases": [
+          "argument",
+          "return",
+          "function pointer"
+        ],
+        "actual_backend_pipeline_no_fallback_exit_asserted": true
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_abi_cgu_cache_and_canonical_function_reference -- --exact --nocapture",
+        "commit": "fc9353c0e5917af6d204167ead6457aa04104ba7",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 32,
+        "explicit_incremental_O2": true,
+        "cold_warm_body_change_native_profiles": 12
+      },
+      {
+        "command": "cargo test -p zil-backend-llvm --features llvm-api --lib large_copy_abi::tests -- --nocapture",
+        "commit": "fc9353c0e5917af6d204167ead6457aa04104ba7",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 141,
+        "meaning": "Carrier physical-shape and exact shared residual controls, model evidence rather than source evidence."
+      }
+    ],
+    "new_independent_source_probes": {
+      "commit": "9071376944591fe65ddcc501962b8cdc90f36c6b",
+      "native_cases": 24,
+      "actual_backend_and_no_fallback_asserted": true,
+      "limits": "Compiler CPU15s/VM2GiB/wall20s, core0; native wall5s.",
+      "cases": [
+        {
+          "name": "copy-in-out-unit",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];fn alter(value:&mut Big)->Big{(*value)[0][0][0][0][0][0][0][0][0][0][0][0][0]=7u8;return *value}fn select(unit:void,left:Big,right:Big)->Big{var changed=left;changed[0][0][0][0][0][0][0][0][0][0][0][0][0]=9u8;if left[0][0][0][0][0][0][0][0][0][0][0][0][0]!=3u8{return changed};return right}fn main()->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];var original=a12;let fp:fn(void,Big,Big)->Big=select;let got=fp((),original,alter(&mut original));return i32(got[0][0][0][0][0][0][0][0][0][0][0][0][0])*10+i32(original[0][0][0][0][0][0][0][0][0][0][0][0][0])-77}",
+          "sha256": "cc65df6b7d8679620df707501e5dc77578ee5625fdf0c930ca7f72c8662ab39b",
+          "observed_profiles": [
+            "clang-O0",
+            "clang-O2",
+            "llvm-api-O0",
+            "llvm-api-O2"
+          ],
+          "compile_statuses": [
+            "Success",
+            "Success",
+            "Success",
+            "Success"
+          ],
+          "native_exit_codes": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "stdout": "",
+          "stderr": "",
+          "has_lc1": true
+        },
+        {
+          "name": "out-after-cleanup",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];extern \"C\" fn putchar(code:i32)->i32;resource Guard{code:i32}impl Drop for Guard{fn drop(self:Self){unsafe{putchar(.code)}}}fn make(value:Big)->Big{let guard=Guard{code:68};return value}fn main()->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];let got=make(a12);return i32(got[0][0][0][0][0][0][0][0][0][0][0][0][0])-3}",
+          "sha256": "eba9a6ea4f82794bb8aadf2eb6fc316a4bc0196219ac427b2e7b79d7e2cb5c71",
+          "observed_profiles": [
+            "clang-O0",
+            "clang-O2",
+            "llvm-api-O0",
+            "llvm-api-O2"
+          ],
+          "compile_statuses": [
+            "Success",
+            "Success",
+            "Success",
+            "Success"
+          ],
+          "native_exit_codes": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "stdout": "D",
+          "stderr": "",
+          "has_lc1": true
+        },
+        {
+          "name": "padded-record-unit",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];struct Packet{flag:bool,unit:void,value:Big,code:i32}fn keep(unit:void,value:Packet)->Packet{return value}fn main()->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];let packet=Packet{flag:true,unit:(),value:a12,code:19};let fp:fn(void,Packet)->Packet=keep;let got=fp((),packet);if !got.flag || got.code!=19 || got.value[0][0][0][0][0][0][0][0][0][0][0][0][0]!=3u8{return 1};return 0}",
+          "sha256": "1f32f3331bc8488740ffc8290ab493ac98f5979835007fd80208ed692f293da7",
+          "observed_profiles": [
+            "clang-O0",
+            "clang-O2",
+            "llvm-api-O0",
+            "llvm-api-O2"
+          ],
+          "compile_statuses": [
+            "Success",
+            "Success",
+            "Success",
+            "Success"
+          ],
+          "native_exit_codes": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "stdout": "",
+          "stderr": "",
+          "has_lc1": true
+        },
+        {
+          "name": "small-abi",
+          "source": "struct Small{flag:bool,unit:void,number:i32}fn keep(unit:void,value:Small)->Small{return value}fn main()->i32{let value=Small{flag:true,unit:(),number:19};let fp:fn(void,Small)->Small=keep;let got=fp((),value);if !got.flag || got.number!=19{return 1};return 0}",
+          "sha256": "7f788c2a104d75b98dd9908ebc188234eff15ed302d406fac17f8bb8fb0bcc2d",
+          "observed_profiles": [
+            "clang-O0",
+            "clang-O2",
+            "llvm-api-O0",
+            "llvm-api-O2"
+          ],
+          "compile_statuses": [
+            "Success",
+            "Success",
+            "Success",
+            "Success"
+          ],
+          "native_exit_codes": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "stdout": "",
+          "stderr": "",
+          "has_lc1": false
+        },
+        {
+          "name": "dynamic-trap",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];fn pick(value:Big,index:i32)->i32{return i32(value[index][0][0][0][0][0][0][0][0][0][0][0][0])}fn main()->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];return pick(a12,2)}",
+          "sha256": "ee81edb1153bb7caf3b748cf11b3443df89c616b61b2e0fb4249e83c78a1cdd3",
+          "observed_profiles": [
+            "clang-O0",
+            "clang-O2",
+            "llvm-api-O0",
+            "llvm-api-O2"
+          ],
+          "compile_statuses": [
+            "Success",
+            "Success",
+            "Success",
+            "Success"
+          ],
+          "native_exit_codes": [
+            -4,
+            -4,
+            -4,
+            -4
+          ],
+          "stdout": "",
+          "stderr": "",
+          "has_lc1": true
+        },
+        {
+          "name": "borrow-capture",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];fn main()->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];var original=a12;var action=()->i32=>{original[0][0][0][0][0][0][0][0][0][0][0][0][0]=5u8;return i32(original[0][0][0][0][0][0][0][0][0][0][0][0][0])};let got=action();return got+i32(original[0][0][0][0][0][0][0][0][0][0][0][0][0])-10}",
+          "sha256": "498e5c26cde1d5b425611a145f775cf29cc1fcd1585fb1eb93293836fe2d4788",
+          "observed_profiles": [
+            "clang-O0",
+            "clang-O2",
+            "llvm-api-O0",
+            "llvm-api-O2"
+          ],
+          "compile_statuses": [
+            "Success",
+            "Success",
+            "Success",
+            "Success"
+          ],
+          "native_exit_codes": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "stdout": "",
+          "stderr": "",
+          "has_lc1": false
+        }
+      ]
+    },
+    "format_check": "cargo fmt --all -- --check passed; no production mutation",
+    "known_incomplete": {
+      "source_sha256": "6ba91840b41b64ca098d57ca29778bd862b8e5aada06a0ffd546c6368077b1b8",
+      "cli": [
+        {
+          "command": [
+            "check",
+            "tests/language-readiness/codegen-pending/large-copy-a12-move-capture.zil",
+            "--json"
+          ],
+          "status": "Success",
+          "phase": "verify",
+          "verification_runs": 1,
+          "diagnostics": [],
+          "llvm_artifact_present": false,
+          "executable_artifact_present": false,
+          "earlier_phase_artifacts_permitted": false
+        },
+        {
+          "command": [
+            "build",
+            "tests/language-readiness/codegen-pending/large-copy-a12-move-capture.zil",
+            "--entry",
+            "result",
+            "--backend",
+            "llvm-api",
+            "--opt",
+            "O0",
+            "--emit-dir",
+            "/tmp/zil-review333-independent/capture-ir",
+            "-o",
+            "/tmp/zil-review333-independent/capture-program",
+            "--json"
+          ],
+          "status": "Unsupported",
+          "phase": "codegen",
+          "verification_runs": 1,
+          "diagnostics": [
+            {
+              "phase": "codegen",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "large Copy value requires an unsupported callable/helper ABI",
+              "span": {
+                "file": 0,
+                "start": 258,
+                "end": 549
+              },
+              "notes": []
+            }
+          ],
+          "llvm_artifact_present": false,
+          "executable_artifact_present": false,
+          "earlier_phase_artifacts_permitted": true
+        }
+      ],
+      "api_2MiB": {
+        "returncode": -6,
+        "stdout": "\nrunning 1 test\ntest large_copy_abi_special_closure_is_explicitly_unsupported ... ",
+        "stderr": "333 capture probe: Verify API begins; move_capture=false\n333 capture probe: Verify API completed; Build API begins\n333 capture probe: Verify API begins; move_capture=true\n\nthread '<unknown>' (222368) has overflowed its stack\nfatal runtime error: stack overflow, aborting\n",
+        "classification": "KnownIncomplete",
+        "stack_bytes": 2097152
+      },
+      "reproduced_commit": "9071376944591fe65ddcc501962b8cdc90f36c6b"
+    },
+    "version_isolation_probe": {
+      "commit": "9071376944591fe65ddcc501962b8cdc90f36c6b",
+      "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];struct Handle{call:fn(Big)->i32}fn worker(value:Big)->i32{return i32(value[0][0][0][0][0][0][0][0][0][0][0][0][0])}fn factory()->fn(Big)->i32{return worker}fn apply(pointer:fn(Big)->i32)->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];return pointer(a12)}fn wrap()->Handle{return Handle{call:worker}}fn unwrap(handle:Handle)->fn(Big)->i32{return handle.call}type Worker=fn(Big)->i32;type Maker=fn()->Worker;fn via(pointer:&Worker)->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];return (*pointer)(a12)}fn vector()->[Worker;1]{return [worker]}fn pair()->(Worker,i32){return (worker,0)}fn choose_factory()->Maker{return factory}fn read_big(pointer:&Big)->i32{return i32((*pointer)[0][0][0][0][0][0][0][0][0][0][0][0][0])}fn small(value:[u8;1])->i32{return i32(value[0])}type SmallWorker=fn([u8;1])->i32;fn small_factory()->SmallWorker{return small}fn main()->i32{let items=vector();let f=items[0];let a=apply(f);let tuple=pair();let b=apply(tuple.0);let creator=choose_factory();let other=creator();let c=apply(other);let pointer=factory();let d=via(&pointer);return a+b+c+d-12}",
+      "source_sha256": "c4b67bd65c0c5436c34b42e9e0b3db769c52dcf42899109a72ff780e545544ba",
+      "expected_versioned_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "expected_unversioned_ids": [
+        9,
+        10,
+        11,
+        12
+      ],
+      "physical_headers": [
+        "define i32 @zil.fn.0.lc1(ptr %arg.0) {",
+        "define ptr @zil.fn.1.lc1() {",
+        "define i32 @zil.fn.2.lc1(ptr %arg.0) {",
+        "define { ptr } @zil.fn.3.lc1() {",
+        "define ptr @zil.fn.4.lc1({ ptr } %arg.0) {",
+        "define i32 @zil.fn.5.lc1(ptr %arg.0) {",
+        "define [1 x ptr] @zil.fn.6.lc1() {",
+        "define { ptr, i32 } @zil.fn.7.lc1() {",
+        "define ptr @zil.fn.8.lc1() {",
+        "define i32 @zil.fn.9(ptr %arg.0) {",
+        "define i32 @zil.fn.10([1 x i8] %arg.0) {",
+        "define ptr @zil.fn.11() {",
+        "define i32 @zil.fn.12() {"
+      ],
+      "profiles": [
+        {
+          "backend": "clang",
+          "optimization": "O0",
+          "actual_backend_pipeline_no_fallback": true,
+          "native_exit": 0,
+          "default_External_nm_names_correct": true,
+          "affected_old_exports_absent": true,
+          "unaffected_old_exports_preserved": true
+        },
+        {
+          "backend": "clang",
+          "optimization": "O2",
+          "actual_backend_pipeline_no_fallback": true,
+          "native_exit": 0,
+          "default_External_nm_names_correct": true,
+          "affected_old_exports_absent": true,
+          "unaffected_old_exports_preserved": true
+        },
+        {
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "actual_backend_pipeline_no_fallback": true,
+          "native_exit": 0,
+          "default_External_nm_names_correct": true,
+          "affected_old_exports_absent": true,
+          "unaffected_old_exports_preserved": true
+        },
+        {
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "actual_backend_pipeline_no_fallback": true,
+          "native_exit": 0,
+          "default_External_nm_names_correct": true,
+          "affected_old_exports_absent": true,
+          "unaffected_old_exports_preserved": true
+        }
+      ],
+      "meaning": "nm -g proves changed old exports absent and default External .lc1 exports present, not merely successful calls within one compiler. Ordinary &Big/small data/small code pointers keep old names. No legacy bridge is supplied."
+    },
+    "special_interface_controls": {
+      "commit": "9071376944591fe65ddcc501962b8cdc90f36c6b",
+      "unsupported_builds": 6,
+      "unaffected_native_cases": 8,
+      "actual_backend_and_no_fallback_asserted_for_native": true,
+      "cases": [
+        {
+          "name": "closure-fnptr-interface",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];struct Handle{call:fn(Big)->i32}fn worker(value:Big)->i32{return i32(value[0][0][0][0][0][0][0][0][0][0][0][0][0])}type Worker=fn(Big)->i32;fn main()->i32{let action=(pointer:Worker)->i32=>{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];return pointer(a12)};return action(worker)-3}",
+          "source_sha256": "3fd159e52170499c896cf82a21f02ba21db2b7570483c2f4cb2fa7c1847e1eb0",
+          "profiles": [
+            "clang-O0",
+            "llvm-api-O0"
+          ],
+          "status": "Unsupported",
+          "phase": "codegen",
+          "verification_runs": 1,
+          "no_llvm_or_executable": true,
+          "diagnostic_code": "E-UNSUPPORTED",
+          "native_exit_codes": []
+        },
+        {
+          "name": "closure-fnptr-environment",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];struct Handle{call:fn(Big)->i32}fn worker(value:Big)->i32{return i32(value[0][0][0][0][0][0][0][0][0][0][0][0][0])}type Worker=fn(Big)->i32;fn main()->i32{let pointer:Worker=worker;let action=move()->i32=>{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];return pointer(a12)};return action()-3}",
+          "source_sha256": "91e0d66d9a9f37354b6ff8cda55f40b6950c5c557ab8084a3205add5c4256164",
+          "profiles": [
+            "clang-O0",
+            "llvm-api-O0"
+          ],
+          "status": "Unsupported",
+          "phase": "codegen",
+          "verification_runs": 1,
+          "no_llvm_or_executable": true,
+          "diagnostic_code": "E-UNSUPPORTED",
+          "native_exit_codes": []
+        },
+        {
+          "name": "resource-fnptr-helper",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];struct Handle{call:fn(Big)->i32}fn worker(value:Big)->i32{return i32(value[0][0][0][0][0][0][0][0][0][0][0][0][0])}type Worker=fn(Big)->i32;resource Holder{call:Worker}impl Drop for Holder{fn drop(self:Self){}}fn main()->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];let holder=Holder{call:worker};let pointer=holder.call;return pointer(a12)-3}",
+          "source_sha256": "8de28a5acd8dd4df7c71af4a36ea00e746f63898e9309ded2549536709853166",
+          "profiles": [
+            "clang-O0",
+            "llvm-api-O0"
+          ],
+          "status": "Unsupported",
+          "phase": "codegen",
+          "verification_runs": 1,
+          "no_llvm_or_executable": true,
+          "diagnostic_code": "E-UNSUPPORTED",
+          "native_exit_codes": []
+        },
+        {
+          "name": "unchanged-resource-small-fnptr",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];struct Handle{call:fn(Big)->i32}fn worker(value:Big)->i32{return i32(value[0][0][0][0][0][0][0][0][0][0][0][0][0])}type Worker=fn(Big)->i32;fn small(value:[u8;1])->i32{return i32(value[0])}type SmallWorker=fn([u8;1])->i32;resource Holder{call:SmallWorker}impl Drop for Holder{fn drop(self:Self){}}fn main()->i32{let holder=Holder{call:small};let pointer=holder.call;return pointer([3u8])-3}",
+          "source_sha256": "65cbdaf3fb5bb2d302c3accc699fd1b9e238439fdd9ba0cb886adc90f9511382",
+          "profiles": [
+            "clang-O0",
+            "clang-O2",
+            "llvm-api-O0",
+            "llvm-api-O2"
+          ],
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "no_llvm_or_executable": false,
+          "diagnostic_code": null,
+          "native_exit_codes": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "unchanged-closure-small-fnptr",
+          "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];struct Handle{call:fn(Big)->i32}fn worker(value:Big)->i32{return i32(value[0][0][0][0][0][0][0][0][0][0][0][0][0])}type Worker=fn(Big)->i32;fn small(value:[u8;1])->i32{return i32(value[0])}type SmallWorker=fn([u8;1])->i32;fn main()->i32{let pointer:SmallWorker=small;let action=move()->i32=>pointer([3u8]);return action()-3}",
+          "source_sha256": "f548e6dc819618637911e5cc6b5e834ee68a847b2839ba1b896f06c20c30f480",
+          "profiles": [
+            "clang-O0",
+            "clang-O2",
+            "llvm-api-O0",
+            "llvm-api-O2"
+          ],
+          "status": "Success",
+          "phase": "link",
+          "verification_runs": 1,
+          "no_llvm_or_executable": false,
+          "diagnostic_code": null,
+          "native_exit_codes": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "The ordinary LargeCopy ABI and transitive pointer-carrier isolation receive PassLimited after R333-1 closure; no claim of complete large-value or language support is made.",
+    "The preserved 4096-byte move capture is CLI Verify1 Success and Codegen Unsupported with no LLVM/executable. Its explicit 2MiB API thread still aborts within Verify; 8MiB passing test setup is not a repair.",
+    "General >=4096-byte Enum/ErrorUnion bodies retain an uncompleted/unaccepted old inline ABI. There is no uniform size-based Codegen Unsupported gate; an incidental snapshot rejection is not a complete guard. No new crash probe for those forms was run.",
+    "Affected closure/helper/foreign combinations remain Unsupported where all consumers are not mapped. Borrowed Big and unaffected small function pointer closure/resource neighbors passed.",
+    "No workspace full suite, Windows native execution, or Rust runtime/RSS/performance comparison was run."
+  ],
+  "production_commit": "9071376944591fe65ddcc501962b8cdc90f36c6b",
+  "resolved_findings": [
+    {
+      "id": "R333-1",
+      "severity": "blocking",
+      "location": "crates/zil-backend-llvm/src/emit/large_copy_abi.rs:Signature::large / classify / abi_symbol",
+      "problem": "Version selection depends only on direct physical large parameter/result Slots. A physically small factory/apply/record wrapper can exchange an ordinary function pointer whose calling convention changed, retaining its old symbol and connecting an old consumer to a new incompatible pointee ABI.",
+      "observed_headers": [
+        "define i32 @zil.fn.0.lc1(ptr %arg.0) {",
+        "define ptr @zil.fn.1() {",
+        "define i32 @zil.fn.2(ptr %arg.0) {",
+        "define { ptr } @zil.fn.3() {",
+        "define ptr @zil.fn.4({ ptr } %arg.0) {",
+        "define i32 @zil.fn.5() {"
+      ],
+      "function_positions": {
+        "0": "worker",
+        "1": "factory",
+        "2": "apply",
+        "3": "wrap",
+        "4": "unwrap",
+        "5": "main"
+      },
+      "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];struct Handle{call:fn(Big)->i32}fn worker(value:Big)->i32{return i32(value[0][0][0][0][0][0][0][0][0][0][0][0][0])}fn factory()->fn(Big)->i32{return worker}fn apply(pointer:fn(Big)->i32)->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];return pointer(a12)}fn wrap()->Handle{return Handle{call:worker}}fn unwrap(handle:Handle)->fn(Big)->i32{return handle.call}fn main()->i32{return apply(unwrap(wrap()))-3}",
+      "source_sha256": "99b4575e78845ae89837cf66ac8267679e12d9070a58465aae7777da8e690be2",
+      "actual_backend": "llvm-api",
+      "optimization": "O0",
+      "fallback": null,
+      "required_resolution": "Independently represent transitive signature ABI dependency for symbol versioning while retaining the physical small argument/result mapping. Walk callable signatures and containing types; unchanged &Big alone must not acquire a large physical ABI. Close unimplemented special-entry consumers before artifacts.",
+      "old_machine_consumer_executed": false,
+      "status": "Closed",
+      "reported_commit": "6b6a2f9b63ab65621af582ada59582e0d142e208",
+      "fixed_commit": "9071376944591fe65ddcc501962b8cdc90f36c6b",
+      "resolution": "A separate Signature.versioned flag carries recursively changed ordinary-function-pointer ABI dependencies. Physical large() mapping is unchanged. Definitions, all ordinary Direct calls and FunctionRef use abi_symbol; affected closure interfaces/environments and resource helpers stop before artifacts."
+    }
+  ],
+  "common_candidate_review": {
+    "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+    "component_commit": "fc9353c0e5917af6d204167ead6457aa04104ba7",
+    "reviewer": "/root/impl317",
+    "implementation_author": "/root/impl313",
+    "scope": "333 only; no review of reviewer-authored 332 or unrelated integrated features",
+    "verdict": "PassLimited",
+    "blocking_findings": [],
+    "production_tree_comparison": {
+      "crates/zil-backend-llvm/src": {
+        "component_tree": "811e782cfab60c26723b25238fdc8f46e308207b",
+        "common_tree": "811e782cfab60c26723b25238fdc8f46e308207b",
+        "byte_identical": true
+      },
+      "crates/zil-llvm-api/src": {
+        "component_tree": "61ab2396cf94e3ef09a094dba5dae9101d51f333",
+        "common_tree": "61ab2396cf94e3ef09a094dba5dae9101d51f333",
+        "byte_identical": true
+      }
+    },
+    "shared_aggregates_test_delta": "Compared to fc935, common A adds 585 test lines for other integrated features; backend/API source trees are identical. Only the existing 333 filters below were replayed.",
+    "validation": [
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_abi_ -- --nocapture",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 38,
+        "seconds": 46.0,
+        "Codegen_N": 356960,
+        "N_minus_1_fresh_and_warm_cache_denial": true,
+        "includes": "recursive carrier old-name link rejection; explicit incremental O2 CGU/cache; special Unsupported and borrowed Big controls"
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_a18_by_value_abi_native_all_backends -- --exact --nocapture",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 45,
+        "seconds": 15.62,
+        "original_scale_native_cases": 12,
+        "actual_backend_pipeline_no_fallback_exit_asserted": true
+      },
+      {
+        "source_sha256": "c4b67bd65c0c5436c34b42e9e0b3db769c52dcf42899109a72ff780e545544ba",
+        "source": "Same independent version-extended source embedded in version_isolation_probe",
+        "profiles": [
+          {
+            "backend": "clang",
+            "optimization": "O0",
+            "actual_backend_pipeline_no_fallback": true,
+            "native_exit": 0,
+            "default_External_nm_names_correct": true,
+            "affected_old_exports_absent": true,
+            "unaffected_old_exports_preserved": true
+          },
+          {
+            "backend": "clang",
+            "optimization": "O2",
+            "actual_backend_pipeline_no_fallback": true,
+            "native_exit": 0,
+            "default_External_nm_names_correct": true,
+            "affected_old_exports_absent": true,
+            "unaffected_old_exports_preserved": true
+          },
+          {
+            "backend": "llvm-api",
+            "optimization": "O0",
+            "actual_backend_pipeline_no_fallback": true,
+            "native_exit": 0,
+            "default_External_nm_names_correct": true,
+            "affected_old_exports_absent": true,
+            "unaffected_old_exports_preserved": true
+          },
+          {
+            "backend": "llvm-api",
+            "optimization": "O2",
+            "actual_backend_pipeline_no_fallback": true,
+            "native_exit": 0,
+            "default_External_nm_names_correct": true,
+            "affected_old_exports_absent": true,
+            "unaffected_old_exports_preserved": true
+          }
+        ],
+        "native_cases": 4,
+        "expected_versioned_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "expected_unversioned_ids": [
+          9,
+          10,
+          11,
+          12
+        ],
+        "old_affected_exports_absent_and_default_External_preserved": true
+      }
+    ],
+    "limitations_carried_forward": [
+      "General large Enum/ErrorUnion ABI remains uncompleted with no uniform size-based Unsupported guard.",
+      "The 4096-byte move capture 2MiB API Verify stack overflow remains KnownIncomplete; the 8MiB test precondition is not a fix.",
+      "No workspace full suite or root full-suite results were counted as this reviewer evidence; source A binding does not declare complete language/main/CI success."
+    ]
+  }
+}

@@ -6,6 +6,9 @@ pub(crate) struct Budget<'a> {
     limits: &'a Limits,
     nodes: usize,
     work: usize,
+    enum_profiles: BTreeSet<Span>,
+    enum_header: Option<Span>,
+    primitive_binders: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -13,6 +16,9 @@ impl<'a> Budget<'a> {
             limits,
             nodes: limits.max_nodes,
             work: limits.max_analysis_steps,
+            enum_profiles: BTreeSet::new(),
+            enum_header: None,
+            primitive_binders: false,
         }
     }
     pub(crate) fn remaining_limits(&self) -> Limits {
@@ -25,6 +31,29 @@ impl<'a> Budget<'a> {
     pub(crate) fn adopt_remaining(&mut self, remaining: &Limits) {
         self.nodes = self.nodes.min(remaining.max_nodes);
         self.work = self.work.min(remaining.max_analysis_steps);
+    }
+    pub(crate) fn note_enum_profile(&mut self, span: Span) -> R<()> {
+        self.node(span, 0)?;
+        self.enum_profiles.insert(span);
+        Ok(())
+    }
+    pub(crate) fn has_enum_profiles(&self) -> bool {
+        !self.enum_profiles.is_empty()
+    }
+    pub(crate) fn note_type_binder(&mut self, name: &str, span: Span) -> R<()> {
+        if super::super::integer_name(name)
+            || matches!(name, "bool" | "void" | "c_handle" | "c_wstr")
+        {
+            self.node(span, 0)?;
+            self.primitive_binders = true;
+        }
+        Ok(())
+    }
+    pub(crate) fn has_primitive_binders(&self) -> bool {
+        self.primitive_binders
+    }
+    pub(super) fn enum_profile(&self, span: Span) -> bool {
+        self.enum_profiles.contains(&span)
     }
     pub(crate) fn node(&mut self, span: Span, depth: usize) -> R<()> {
         if depth > self.limits.max_call_depth || self.nodes == 0 || self.work == 0 {
@@ -235,8 +264,14 @@ impl<'a> Budget<'a> {
             self.text(&p.name, p.span)?;
             match &p.kind {
                 GenericParamKind::Type(ts) => {
+                    self.note_type_binder(&p.name, p.span)?;
                     for t in ts {
                         self.ty_at(t, depth + 1, subs)?;
+                        if let Some(owner) = self.enum_header
+                            && copy::is_bound(t)
+                        {
+                            self.note_enum_profile(owner)?;
+                        }
                     }
                 }
                 GenericParamKind::Const(t) => self.ty_at(t, depth + 1, subs)?,
@@ -366,7 +401,9 @@ impl<'a> Budget<'a> {
             }
             ItemKind::Enum(e) => {
                 self.text(&e.name, item.span)?;
+                let old_header = self.enum_header.replace(item.span);
                 self.generics(&e.generics, depth + 1, subs)?;
+                self.enum_header = old_header;
                 for v in &e.variants {
                     self.node(v.span, depth + 1)?;
                     self.text(&v.name, v.span)?;
@@ -379,6 +416,7 @@ impl<'a> Budget<'a> {
                             }
                         }
                         VariantFields::Record(fs) => {
+                            self.note_enum_profile(item.span)?;
                             for f in fs {
                                 self.node(f.span, depth + 2)?;
                                 self.text(&f.name, f.span)?;
@@ -479,6 +517,16 @@ impl<'a> Budget<'a> {
                 }
                 for p in arguments {
                     self.pattern(p, depth + 1)?;
+                }
+            }
+            PatternKind::RecordConstructor { path, fields } => {
+                for name in path {
+                    self.text(name, p.span)?;
+                }
+                for field in fields {
+                    self.node(field.span, depth + 1)?;
+                    self.text(&field.name, field.span)?;
+                    self.pattern(&field.pattern, depth + 1)?;
                 }
             }
             PatternKind::Reference { pattern, .. } => self.pattern(pattern, depth + 1)?,

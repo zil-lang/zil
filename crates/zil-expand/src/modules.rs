@@ -57,7 +57,9 @@ pub(super) fn protect_alias_nominals<'a>(
         for parameter in parameters {
             budget.node(parameter.span, depth + 1)?;
             budget.text(&parameter.name, parameter.span)?;
-            names.insert(&parameter.name);
+            if matches!(parameter.kind, GenericParamKind::Type(_)) {
+                names.insert(&parameter.name);
+            }
         }
         for member in members {
             binders(member, names, budget, depth + 1)?;
@@ -335,10 +337,14 @@ fn normalize(
             combined.items.push(item);
         }
     }
-    let has_trait_instances = combined
-        .items
-        .iter()
-        .any(|item| matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty()));
+    let mut has_trait_instances = false;
+    for item in &combined.items {
+        if let ItemKind::Trait(t) = &item.kind {
+            has_trait_instances |=
+                generics::trait_defaults::present(t, &mut budget)? || !t.generics.is_empty();
+        }
+    }
+    has_trait_instances |= budget.has_enum_profiles() || budget.has_primitive_binders();
     let instance_limits = if has_trait_instances {
         budget.remaining_limits()
     } else {
@@ -648,7 +654,9 @@ impl Visitor<'_, '_, '_> {
             _ => &[],
         };
         for p in params {
-            types.insert(p.name.clone());
+            if matches!(p.kind, GenericParamKind::Type(_)) {
+                types.insert(p.name.clone());
+            }
         }
         let previous = if let Mode::Binders {
             bindings,
@@ -849,6 +857,21 @@ impl Visitor<'_, '_, '_> {
                 }
                 for p in arguments {
                     self.pattern(p, types, values, depth + 1)?;
+                }
+            }
+            PatternKind::RecordConstructor { path, fields } => {
+                if path.len() >= 2 {
+                    let count = path.len();
+                    if let Some(name) =
+                        self.symbol(&path[..count - 1], types, &Names::new(), p.span, true)?
+                    {
+                        *path = vec![name, path[count - 1].clone()];
+                    }
+                }
+                for field in fields {
+                    self.budget.node(field.span, depth + 1)?;
+                    self.budget.text(&field.name, field.span)?;
+                    self.pattern(&mut field.pattern, types, values, depth + 1)?;
                 }
             }
             _ => {}
