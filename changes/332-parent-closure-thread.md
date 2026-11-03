@@ -170,3 +170,7 @@ source env后target332、jobs1、显式llvm-api，`cargo test -p zil-driver
 新增覆盖。fmt通过。联合Types/Driver all-targets Clippy的首轮被独审raw测试的
 needless_range_loop挡住，生产代码无lint错误；该测试样式由独审者单独修复，
 最终lint结果另续，不把本轮失败记为通过。
+
+独审者`2309423b2`修复其raw测试iterator样式后，作者树只合该测试/审核增量，
+再次执行Types/Driver all-targets Clippy `-D warnings`及fmt，均实际通过；上段
+首轮lint失败保留。生产仍固定`96c0ad4b1`，不据此重复增加机器覆盖或两核计数。
