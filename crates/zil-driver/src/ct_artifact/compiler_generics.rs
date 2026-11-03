@@ -183,6 +183,45 @@ impl<'a> Compiler<'a> {
         self.bindings = old;
         result
     }
+    fn has_unbound(&mut self, ty: &s::TypeRef, names: &[String], slots: &[Option<CtTy>], depth: usize) -> R<bool> {
+        self.budget.depth(depth,ty.span)?;
+        Ok(match &ty.kind {
+            s::TypeKind::Named {path,args} => {
+                if path.len()==1 {
+                    self.budget.work(names.len(),ty.span)?;
+                    if let Some(i)=names.iter().position(|n|n==&path[0]) { return Ok(slots[i].is_none()); }
+                }
+                let mut found=false;
+                for arg in args {
+                    if let s::GenericArg::Type(ty)=arg { found |= self.has_unbound(ty,names,slots,depth+1)?; }
+                }
+                found
+            }
+            s::TypeKind::Tuple(fields) => {
+                let mut found=false;
+                for field in fields { found |= self.has_unbound(field,names,slots,depth+1)?; }
+                found
+            }
+            s::TypeKind::Group(inner) | s::TypeKind::Array {element:inner,..} => self.has_unbound(inner,names,slots,depth+1)?,
+            _ => false,
+        })
+    }
+    pub(super) fn partial_type(&mut self, module:usize, pattern:&s::TypeRef, names:&[String], slots:&[Option<CtTy>], depth:usize) -> R<Option<CtTy>> {
+        if self.has_unbound(pattern,names,slots,depth)? { return Ok(None); }
+        let mut bindings=Vec::new();
+        for (name,ty) in names.iter().zip(slots) {
+            if let Some(ty)=ty {
+                self.budget.text(name,pattern.span)?;
+                self.budget.copy_ty(ty,0,pattern.span)?;
+                self.budget.node(pattern.span)?;
+                bindings.push((name.clone(),ty.clone()));
+            }
+        }
+        let old=std::mem::replace(&mut self.bindings,bindings);
+        let result=self.ty(module,pattern,depth+1);
+        self.bindings=old;
+        result.map(Some)
+    }
     /// Infer using the declaration's syntax and concrete schema arguments. This
     /// never inspects fields to invent an operation on a Copy binder.
     pub(super) fn infer(&mut self, module: usize, pattern: &s::TypeRef, actual: &CtTy, names: &[String], slots: &mut [Option<CtTy>], depth: usize) -> R<()> {
