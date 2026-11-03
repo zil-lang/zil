@@ -381,38 +381,6 @@ fn layout(
 }
 
 impl Engine<'_> {
-    pub(super) fn local_union_argument_context(
-        &mut self,
-        callee: &Expr,
-        index: usize,
-        env: &Env,
-    ) -> R<Option<TypeRef>> {
-        let ExprKind::Name(name) = &callee.kind else {
-            return Ok(None);
-        };
-        let Some(Some(ty)) = env.get(name) else {
-            return Ok(None);
-        };
-        let Some(bounds) = &self.active_callables else {
-            return Ok(None);
-        };
-        for bound in bounds.bindings() {
-            if callable::parameter_mode(ty, &bound.generic_name).is_none() {
-                continue;
-            }
-            let Some(parameter) = bound.parameters.get(index) else {
-                return Ok(None);
-            };
-            if !matches!(grouped(parameter).kind, TypeKind::Error { .. }) {
-                return Ok(None);
-            }
-            self.budget.ty(ty)?;
-            self.budget.text(&bound.generic_name, callee.span)?;
-            self.budget.ty(parameter)?;
-            return Ok(Some(parameter.clone()));
-        }
-        Ok(None)
-    }
     pub(super) fn enum_expression(
         &mut self,
         e: &mut Expr,
