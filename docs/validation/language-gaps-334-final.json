@@ -1,0 +1,137 @@
+{
+  "task": "334",
+  "implementation_author": "/root/language_map",
+  "status": "AwaitingCommonCandidate",
+  "common_candidate": null,
+  "historical_replay": {
+    "status": "MatchesHistoricalBaseline",
+    "historical_source_commit": "40fbcca6ef506f3cb8e1d40a4f8995c788627da0",
+    "historical_receipt": "docs/validation/language-gaps-334.json",
+    "historical_receipt_sha256": "ce3aadadfba28d9d5299a698e36664b7b4316a38d0ebd4a4e8bf39871ea125b0",
+    "historical_receipt_modified": false,
+    "root_replay_collector_commit": "5eb792fafafc7db3ff003b4e1c7a275d75195665",
+    "root_replay_sha256": "8dad658305fa51324a84baee548afb727d17ddf0a9b02ea0354487130b8057bb",
+    "compiler_sha256": "89891e131177e2fdc8d5e9febb90fbb37521a9fc815869e76b56f74ae575df67",
+    "same_historical_compiler": true,
+    "source_set": 52,
+    "source_hash_status_phase_exit_verification_and_diagnostics_differences": [],
+    "native_source_opt_pairs": 18,
+    "native_source_backend_fallback_result_exit_stdout_stderr_differences": [],
+    "counts": {
+      "Success": 22,
+      "Unsupported": 18,
+      "SafeReject": 12
+    },
+    "meaning": "Root independently replayed the same historical CLI89891e and source bytes. This is not evidence of new330-333 behavior. Four normative files changed as expected, so current semantics are not inferred from the old CLI."
+  },
+  "pending_matrix_delta": {
+    "observed_main_commit": "45ad1e38c04096deeedc6a7874c62f4adfac86f3",
+    "normative_profile_commit": "5eb792fafafc7db3ff003b4e1c7a275d75195665",
+    "integrated_with_independent_branch_reviews": [
+      "330 finite trait defaults",
+      "331 Copy-T plus life",
+      "332 concrete parent-closure thread entry"
+    ],
+    "not_yet_common_accepted": [
+      "329 named Copy enum variants",
+      "333 internal large-copy byvalue ABI"
+    ],
+    "rows_requiring_update": [
+      1,
+      2,
+      3,
+      8,
+      10
+    ],
+    "rows_without_new_completion_claim": [
+      4,
+      5,
+      6,
+      7,
+      9
+    ]
+  },
+  "component_plan": {
+    "source": "tests/language-readiness/review331/component-planned.zil",
+    "sha256": "822b49eaffd11ce6d201a9d8569c27ad01e5777c96715ea75dbf75ad6315af5f",
+    "source_byte_changes": false,
+    "status": "PlannedUntilCommonCandidate",
+    "required_tasks": [
+      "329",
+      "330",
+      "331",
+      "332"
+    ],
+    "configurations": [
+      {
+        "backend": "clang",
+        "opt": "O0"
+      },
+      {
+        "backend": "clang",
+        "opt": "O2"
+      },
+      {
+        "backend": "llvm-api",
+        "opt": "O0"
+      },
+      {
+        "backend": "llvm-api",
+        "opt": "O2"
+      }
+    ],
+    "expected": {
+      "entry": "main",
+      "stdout": "0\n",
+      "stderr": "",
+      "exit_code": 0
+    },
+    "method_after_freeze": "Use the exact common candidate CLI with verified source identity, check stage semantics and actual backend/no-fallback, execute all four configurations, record compact hashes/outcomes. No old89891e reuse for new features."
+  },
+  "metadata_diagnostic_advice": {
+    "observed_main_commit": "45ad1e38c04096deeedc6a7874c62f4adfac86f3",
+    "status": "ReadOnlyAdviceToRoot",
+    "handoff_current_gate": "CurrentFail",
+    "errors": 7,
+    "affected_active_ids": [
+      "313",
+      "314",
+      "315",
+      "316",
+      "317",
+      "320",
+      "321"
+    ],
+    "reason": "These PendingAcceptance cards still carry e42e5e/cf316b while current hashes are3e29cc/749e16. Other live current cards match. Archived historical records are excluded by the326 manifest, not rewritten.",
+    "suggestion": "Root may preserve the prior snapshot explicitly in historical fields, migrate only the seven still-current card digests to current3e29cc/749e16 with a no-scope-expansion explanation, or complete truthful merged metadata bound to each exact frozen implementation. Do not only flip status or alter historical locks.",
+    "authority_cards_modified_by_agent": false,
+    "root_decision_after_audit": {
+      "status": "PreserveHistoricalRegistryFailAndRebindCurrentScope",
+      "reason": "Root inspected actual legacy implementation/a57 Git objects and found their normative-input registries themselves stale. Updating old cards to historical hashes cannot make those historical registries valid.",
+      "action": "Root will bind the seven current finite cards to the new actual common candidate with fresh independent scope reviews, retaining original implementations/reviews/tests and historical Fail in separate fields. No old object, tool bypass or history rewrite."
+    }
+  },
+  "not_run": [
+    "New common CLI/component execution",
+    "Formal full suite",
+    "Windows/Rust cost/weak-memory gates",
+    "Push or authority task edits"
+  ],
+  "reviews": {
+    "314": {
+      "reviewer": "/root/language_map",
+      "implementation_author": "/root/impl314",
+      "verdict": "AwaitingCommonCandidate",
+      "implementation_commit": null,
+      "legacy_implementation_commit": "d53b846af0e8075224697d4d600b8459362f0d6a",
+      "legacy_review_commit": "2c3da1661e6c6e2588b38bf30b8e0964d3a2b598",
+      "scope": "Finite ordinary Copy generic CT functions returning Type/Syntax and concrete pure generic record CT consumers. Diff the actual shared compiler dependencies from legacy delivery to common, then check the two original source bytes and execute actual native consumers. Not a new acceptance of all CT or generics.",
+      "original_sources": {
+        "tests/language-readiness/pending/ct-type-generic-function.zil": "e921543f9a9ed6b3e279ee44b3b7ebb16565c024978db093bf8bc4da30ed1838",
+        "tests/language-readiness/pending/ct-type-generic-record.zil": "fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49"
+      },
+      "planned_execution": "Candidate CLI source-to-Verify plus native O0/O2 for both original sources, separately counted from the component four-configuration run.",
+      "historical_results_preserved": true
+    }
+  }
+}
