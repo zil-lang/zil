@@ -104,12 +104,34 @@
     ],
     "reason": "These PendingAcceptance cards still carry e42e5e/cf316b while current hashes are3e29cc/749e16. Other live current cards match. Archived historical records are excluded by the326 manifest, not rewritten.",
     "suggestion": "Root may preserve the prior snapshot explicitly in historical fields, migrate only the seven still-current card digests to current3e29cc/749e16 with a no-scope-expansion explanation, or complete truthful merged metadata bound to each exact frozen implementation. Do not only flip status or alter historical locks.",
-    "authority_cards_modified_by_agent": false
+    "authority_cards_modified_by_agent": false,
+    "root_decision_after_audit": {
+      "status": "PreserveHistoricalRegistryFailAndRebindCurrentScope",
+      "reason": "Root inspected actual legacy implementation/a57 Git objects and found their normative-input registries themselves stale. Updating old cards to historical hashes cannot make those historical registries valid.",
+      "action": "Root will bind the seven current finite cards to the new actual common candidate with fresh independent scope reviews, retaining original implementations/reviews/tests and historical Fail in separate fields. No old object, tool bypass or history rewrite."
+    }
   },
   "not_run": [
     "New common CLI/component execution",
     "Formal full suite",
     "Windows/Rust cost/weak-memory gates",
     "Push or authority task edits"
-  ]
+  ],
+  "reviews": {
+    "314": {
+      "reviewer": "/root/language_map",
+      "implementation_author": "/root/impl314",
+      "verdict": "AwaitingCommonCandidate",
+      "implementation_commit": null,
+      "legacy_implementation_commit": "d53b846af0e8075224697d4d600b8459362f0d6a",
+      "legacy_review_commit": "2c3da1661e6c6e2588b38bf30b8e0964d3a2b598",
+      "scope": "Finite ordinary Copy generic CT functions returning Type/Syntax and concrete pure generic record CT consumers. Diff the actual shared compiler dependencies from legacy delivery to common, then check the two original source bytes and execute actual native consumers. Not a new acceptance of all CT or generics.",
+      "original_sources": {
+        "tests/language-readiness/pending/ct-type-generic-function.zil": "e921543f9a9ed6b3e279ee44b3b7ebb16565c024978db093bf8bc4da30ed1838",
+        "tests/language-readiness/pending/ct-type-generic-record.zil": "fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49"
+      },
+      "planned_execution": "Candidate CLI source-to-Verify plus native O0/O2 for both original sources, separately counted from the component four-configuration run.",
+      "historical_results_preserved": true
+    }
+  }
 }
