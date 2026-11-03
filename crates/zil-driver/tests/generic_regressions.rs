@@ -370,23 +370,67 @@ fn recovery317_component_source_and_nearest_rejections() {
         );
         assert_eq!(report.verification_runs, 1);
     }
-    for entry in [
-        "shared_window",
-        "callback_alias",
-        "nominal_config",
-        "phantom_config",
+    for (entry, phase, code, text, verification_runs) in [
+        (
+            "shared_window",
+            zil_base::Phase::Verify,
+            "E-BORROW-CONFLICT",
+            "panel",
+            1,
+        ),
+        (
+            "callback_alias",
+            zil_base::Phase::Analyze,
+            "E-BORROW-CONFLICT",
+            "bridge.run(&mut handler,body)",
+            0,
+        ),
+        (
+            "nominal_config",
+            zil_base::Phase::Ct,
+            "E-CT-CATEGORY",
+            "Other::<i32>{value:1}",
+            0,
+        ),
+        (
+            "phantom_config",
+            zil_base::Phase::Ct,
+            "E-CT-CATEGORY",
+            "config.Config::<i32,i64>{value:1}",
+            0,
+        ),
     ] {
-        let report = zil_driver::compile_project(
-            &recovery317_project(&format!("negative/{entry}")),
-            &CompileOptions::default(),
-        );
+        let input = recovery317_project(&format!("negative/{entry}"));
+        let report = zil_driver::compile_project(&input, &CompileOptions::default());
         assert_eq!(
             report.status,
             ResultCategory::SafeReject,
             "{entry}: {}",
             report.to_json()
         );
-        assert!(report.artifacts.get("executable").is_none());
+        assert_eq!(report.phase, phase, "{entry}: {}", report.to_json());
+        assert_eq!(
+            report.verification_runs,
+            verification_runs,
+            "{entry}: {}",
+            report.to_json()
+        );
+        assert!(
+            report.diagnostics.iter().any(|diagnostic| {
+                diagnostic.phase == phase
+                    && diagnostic.code == code
+                    && diagnostic.span.is_some_and(|span| {
+                        span.file == FileId(0)
+                            && input.modules[0]
+                                .text
+                                .get(span.start..span.end)
+                                .is_some_and(|source| source.contains(text))
+                    })
+            }),
+            "{entry}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
     }
 }
 
@@ -469,6 +513,14 @@ fn recovery317_component_native_success_error_and_null_cleanup() {
             let codegen = report.native_codegen.as_ref().unwrap();
             assert_eq!(codegen.backend, backend);
             assert!(codegen.fallback.is_none());
+            if backend == NativeBackend::LlvmApi {
+                assert!(!codegen.object_reports.is_empty());
+                assert!(codegen.object_reports.iter().all(|report| {
+                    report.contains("\"input_kind\":\"builder\"")
+                        && report.contains("\"verify_before_after\":true")
+                        && report.contains("\"parse_ns\":0,")
+                }));
+            }
             for (mode, status, stdout) in [
                 (b'0', 0, "REVSPBCAH"),
                 (b'1', 1, "REVFPBCAH"),

@@ -4,7 +4,7 @@ fn main()->i32 {
     let mark=component.Mark{code:72}
     var handler=move(value:i32)->i32=>value+mark.code
     let alias=&handler
-    let body=move()->i32=>alias(1)
+    let body=()->i32=>0
     let result=bridge.run(&mut handler,body)
-    return result.1
+    return alias(1)+result.1
 }
