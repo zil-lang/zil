@@ -1,0 +1,311 @@
+{
+  "schema_version": 1,
+  "status": "LocalLimitedAcceptance",
+  "date": "2026-11-03",
+  "integrator": "/root",
+  "base_commit": "0d7d74f7d4b013f893f313b469fc7bd233c9f918",
+  "tested_commit": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+  "tested_tree": "53d33f5ee244c56930c20785e8d7b5a1de69494b",
+  "full_workspace_tested_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+  "implementation_commits": {
+    "322": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+    "323": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+    "324": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+    "325": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+    "326": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+    "327": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+    "328": "022303df8c24de8a609a8b0c9ae33213a576a0c0"
+  },
+  "component_commits": {
+    "322": "4b846df8f653117ddb03db40e19ea963d16285ee",
+    "323": "c183ce4ff09c444fd6e9b47a51a1c7f742457876",
+    "324": "5825cd582ac6b419d185b59486c7b7fc79f1bedb",
+    "325": "e622402234b62958a156c93947d42eb59cf6f479",
+    "326": "0f1b8f8df5eea6a647624f36384a07cd22977780",
+    "327": "aafdcc9c251959c59825f7d466ade226346b6e7d",
+    "328": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66"
+  },
+  "spec_hash": "e42e5ecbc20ec405cdd146ebba394cd01b6e92451c26ce21dfde3773bc2f64e5",
+  "normative_hash": "cf316bcbadb4d6d4ab1b51de7ccb86817dcf4e5337b7c95ca6099d7c57f7f62c",
+  "scope": "322–328 finite life/trait/Copy-lowering/Direct-thread and handoff migration; 327 is a review artifact, not an additional compiler feature.",
+  "reuse": {
+    "compiler_sources_equal": true,
+    "changed_paths_after_full_workspace_gate": [
+      ".task/B0.md",
+      ".task/T01.md",
+      ".task/T02.md",
+      ".task/T03.md",
+      ".task/T04.md",
+      ".task/T05.md",
+      ".task/T06.md",
+      ".task/T07.md",
+      ".task/T08.md",
+      ".task/T09.md",
+      ".task/W1.md",
+      ".task/W2.md",
+      ".task/W3.md",
+      ".task/W4.md",
+      ".task/impl/181.md",
+      ".task/impl/313.md",
+      ".task/impl/314.md",
+      ".task/impl/315.md",
+      ".task/impl/316.md",
+      ".task/impl/317.md",
+      ".task/impl/320.md",
+      ".task/impl/321.md",
+      ".task/impl/322.md",
+      ".task/impl/323.md",
+      ".task/impl/324.md",
+      ".task/impl/325.md",
+      ".task/impl/326.md",
+      ".task/impl/327.md",
+      ".task/impl/328.md",
+      "_zil_design.md",
+      "changes/322-budget-migration-by324.md",
+      "changes/325-call-position-profile.md",
+      "crates/zil-driver/tests/generic_regressions.rs",
+      "data/normative-inputs.json",
+      "docs/validation/review-327.json",
+      "docs/validation/review322-by326.json",
+      "docs/validation/review328-by324.json"
+    ],
+    "reason": "No compiler source, Cargo manifest, lock, build script or native shim changed. Final existing generic_regressions target was replayed completely in both configurations after a normative clarification and one reviewer test was added. Do not add these replay counts to full-suite totals."
+  },
+  "gates": [
+    {
+      "gate": "default",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+      "command": "cargo test --locked --workspace --no-fail-fast",
+      "groups": 422,
+      "passed": 4097,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "log_sha256": "b275b5aedddc9836edb1e79febe97162d9b96c9984f071e35828d64c3dd337d1"
+    },
+    {
+      "gate": "reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+      "command": "cargo test --locked --workspace --no-default-features --no-fail-fast",
+      "groups": 422,
+      "passed": 3988,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "log_sha256": "2620202bfc658470c1c22dd050e30ba8437bd22986f8a00a5141a350716250cc"
+    },
+    {
+      "gate": "final_existing_target_default",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+      "command": "cargo test --locked -p zil-driver --features llvm-api --test generic_regressions",
+      "groups": 1,
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "log_sha256": "1c4bb5c8f626a84c498e8f4663c5e726874d2beb7ace0036b7f242d42fab741c"
+    },
+    {
+      "gate": "final_existing_target_reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+      "command": "cargo test --locked -p zil-driver --no-default-features --test generic_regressions",
+      "groups": 1,
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "log_sha256": "55f709c4e3d98313c4849780993c628c380867f1079d441de1d2e9e2f47c7e21"
+    },
+    {
+      "gate": "text_reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+      "command": "cargo test --locked -p zil-llvm-api --features text-reference",
+      "groups": 10,
+      "passed": 65,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "log_sha256": "bd52f733acf304ebf480a0c139790e22c7154696e0cfe922925af54dffebc97b"
+    },
+    {
+      "gate": "clippy",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+      "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+      "log_sha256": "b51f85e825464729e13ec5b11dfbe988bd650808266747949dc88ea0abff8c55"
+    },
+    {
+      "gate": "clippy_reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+      "command": "cargo clippy --locked --workspace --all-targets --no-default-features -- -D warnings",
+      "log_sha256": "eb20e5ba1c4a0b8431197aa15acfd409ab4828fb205cabd63e2eab09d008b106"
+    },
+    {
+      "gate": "final_clippy_default",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+      "scope": "Complete changed generic_regressions target; other targets unchanged",
+      "log_sha256": "8c9b3b4091f16aca207de312509d59e3a3f570209325dd44272908a4d33e59c9"
+    },
+    {
+      "gate": "final_clippy_reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+      "scope": "Complete changed generic_regressions target; other targets unchanged",
+      "log_sha256": "129ef857b9f2b3c21d9f41c3dda4ed8a36b8115a0f543fc0c331b4816edd5ce9"
+    },
+    {
+      "gate": "fmt",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "ee05596112d7a771544a586e3d3aec1b9b555d76",
+      "command": "cargo fmt --all -- --check"
+    },
+    {
+      "gate": "migration",
+      "status": "Pass",
+      "exit_code": 0,
+      "passed": 9,
+      "failed": 0,
+      "log_sha256": "1393ebb7eebf7e2622afc9e4e459701f4bbc92ac47f6c4b5e6911c4e0137e7c1"
+    },
+    {
+      "gate": "ci_transport",
+      "status": "Pass",
+      "exit_code": 0,
+      "passed": 5,
+      "failed": 0,
+      "log_sha256": "afdd59700fd7f0d2acf469c2936b6162a963337e83f77b3276a2fbfbeaeacece"
+    },
+    {
+      "gate": "ci_compact",
+      "status": "Pass",
+      "exit_code": 0,
+      "passed": 3,
+      "failed": 0,
+      "log_sha256": "8c4d95e7d1bfc15c46a364cf93ede620e720ea590225f976840d9869ca3e09be"
+    },
+    {
+      "gate": "handoff_self_tests",
+      "status": "Pass",
+      "exit_code": 0,
+      "passed": 25,
+      "failed": 0,
+      "assertions": 129,
+      "log_sha256": "d3276896e80ab3967358cb6733168c4b05d1eb59689b2c3655280bc76316b56d"
+    },
+    {
+      "gate": "plan",
+      "status": "Pass",
+      "exit_code": 0,
+      "summary": {
+        "ok": true,
+        "tasks": 14,
+        "protocol_case_requirements": 63,
+        "conformance_sources": 93,
+        "registered_artifacts": 23,
+        "unordered_task_pairs_checked": 21,
+        "ready_tasks": [],
+        "errors": [],
+        "warnings": []
+      }
+    },
+    {
+      "gate": "architecture",
+      "status": "Pass",
+      "exit_code": 0,
+      "summary": {
+        "ok": true,
+        "errors": [],
+        "checkedCrates": 15,
+        "checkedEdges": 38
+      }
+    },
+    {
+      "gate": "release_consumer208",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "f2122be4deb5d6b00abbc3847f8d144a919035fe",
+      "builds": 16,
+      "executions": 128,
+      "injected_failures": 56,
+      "commands": 145,
+      "record": "docs/validation/mainline-consumer208-20261103.json",
+      "cli_sha256": "89891e131177e2fdc8d5e9febb90fbb37521a9fc815869e76b56f74ae575df67"
+    }
+  ],
+  "toolchain": {
+    "rust": "1.99.1",
+    "clang_llvm": "23.1.4",
+    "host": "x86_64-unknown-linux-gnu",
+    "release_cli_sha256": "89891e131177e2fdc8d5e9febb90fbb37521a9fc815869e76b56f74ae575df67"
+  },
+  "history": {
+    "exploratory_full_gate": {
+      "source_commit": "88fde29a624d94e1cf90f535a01b32ead3c13609",
+      "passed": 4063,
+      "failed": 26,
+      "groups": 422,
+      "log_sha256": "b13e3e0460bc20b416c0b1071adc0675066f82a033b8376466e59a6306daf108"
+    },
+    "closed_findings": [
+      "322 raw Core life metadata reuse: 12 live/restored bypasses reproduced and closed; source-entry control was rejected throughout, no source UB claim.",
+      "323 aliases/module/static collector/publish request-budget resets and repeated scans: fixed and independently rechecked.",
+      "Driver fingerprint consumer, thread emitter constructor and Wire32 safety fixtures migrated; original bytes retained.",
+      "Opcode95 is now allocated; unknown-opcode checks moved to96/97/254. Original N controls migrated with paid full-AST life checks; source and N−1/fresh/cold/warm controls retained.",
+      "325 Direct factory return-contract wording clarified with four real native positive profiles and Once/unreachable-worker negatives."
+    ]
+  },
+  "handoff": {
+    "current_gate": {
+      "status": "CurrentPass",
+      "error_count": 0
+    },
+    "historical_status": {
+      "status": "Unavailable",
+      "archived": 274,
+      "unavailable": 220,
+      "unreviewed": 54,
+      "claims_revalidated": false,
+      "source_commit": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072"
+    },
+    "legacy_audit_status": "LegacyAuditFail",
+    "legacy_error_count": 1924,
+    "claims_revalidated": false
+  },
+  "remote_ci": {
+    "status": "NotStarted",
+    "reason": "Observed GitHub jobs have no steps; account billing/spending-limit annotation. No remote CI pass claimed.",
+    "pr": "https://github.com/zil-lang/zil/pull/29"
+  },
+  "known_incomplete": [
+    "Finite shared life returns and concrete inherent Self; general FP/HRTB/storage/trait lending remain incomplete.",
+    "Concrete finite generic trait instances; generic/conditional impl, associated items and supertraits remain incomplete.",
+    "Linux x64 Direct scoped pthread with scalar i32 child payload; full async/SABI/Mutex/Atomic/Transfer/Share/cancellation remain incomplete.",
+    "Original a18 local Copy case is fixed; general giant by-value ABI and special SSA bridges remain incomplete; by-value probe has not been executed.",
+    "Whole language, B0, ZUI, native Windows and Rust product comparison remain incomplete.",
+    "Old 301–312 objects and uncommitted source were not recovered; historical unavailable evidence is not revalidated."
+  ],
+  "raw_logs": "Ephemeral local logs only; log digests are provenance, not recoverable raw archives. Reproducible regression source and compact observations are committed.",
+  "backup": "Verified staged GitHub task/language-mainline-20261103 and task branches; progress procedure docs/PROGRESS-BACKUP.md. Final source push and bundle verified separately."
+}

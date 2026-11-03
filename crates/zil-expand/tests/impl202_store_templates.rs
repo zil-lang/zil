@@ -253,14 +253,16 @@ fn legacy_single_field_state_preserves_exact_expand_budget() {
     // 205 closes an observed unused-definition alias hole on this real
     // borrow/sibling input. Its pre-fix N1731 baseline is retained separately;
     // the new actual window walk is charged, with defaults unchanged.
-    check(1938).unwrap();
-    let errors = check(1937).unwrap_err();
+    // Pre322 N1938 is retained here as history; full type-position lifetime
+    // validation and its shared remainder now require N2358 (N-1/fresh below).
+    check(2358).unwrap();
+    let errors = check(2357).unwrap_err();
     assert!(
         errors
             .iter()
             .any(|d| d.category == ResultCategory::ResourceLimit)
     );
-    check(1938).unwrap();
+    check(2358).unwrap();
 }
 
 const ORDINARY: &str = r#"
@@ -333,8 +335,8 @@ fn ordinary_store_calls_stay_eager_with_a_measured_exact_budget() {
     let n = boundary(ORDINARY);
     eprintln!("ordinary_store_expand_n={n}");
     assert_eq!(
-        n, 2255,
-        "same source measured on pre202 production at 9bc570bc"
+        n, 2713,
+        "322 full type-position lifetime validation; source unchanged from pre202 N2255"
     );
 }
 

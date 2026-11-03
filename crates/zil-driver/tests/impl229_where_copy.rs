@@ -83,13 +83,14 @@ fn old_source_budget_controls() {
         let work = minimum(text, false, Stage::Core);
         let nodes = minimum(text, true, Stage::Core);
         rows.push_str(&format!("{label},{work},{nodes}\n"));
-        // Measured before 229 on the same sources and shared name-only base.
+        // Historical 229 controls were (589,220)/(952,233); 322 now pays
+        // the full type-position/life validation walk on these exact sources.
         assert_eq!(
             (work, nodes),
             if label == "plain" {
-                (589, 220)
+                (725, 277)
             } else {
-                (952, 233)
+                (1641, 491)
             }
         );
     }
@@ -229,7 +230,7 @@ fn unsupported_clauses_are_not_erased_and_unused_bodies_are_checked() {
         (
             "lifetime-binder",
             "fn keep<T,life a>(x:T)->T where T:Copy=>x;fn main()->i32=>0",
-            "ordinary type parameters",
+            "life is supported only",
         ),
         (
             "lifetime-clause",
@@ -307,7 +308,7 @@ fn where_aliases_and_specialization_share_exact_fresh_and_warm_limits() {
     let nodes = minimum(WHERE, true, Stage::Verify);
     assert_eq!(
         (work, nodes),
-        (1651, 488),
+        (1813, 549),
         "measured where + alias + specialization work on one budget"
     );
     fs::write(

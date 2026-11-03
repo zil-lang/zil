@@ -2,6 +2,7 @@
 //! conformance emits untrusted Core, which still follows the
 //! ordinary type/analyze/independent-Verify pipeline. No trait grants capability.
 use super::*;
+use crate::generics::{Budget as TraitBudget, trait_instances};
 use crate::receivers::substitute_self;
 
 fn plain_name(ty: &s::TypeRef) -> Option<&str> {
@@ -68,7 +69,7 @@ impl<'a> Expander<'a> {
             );
             return;
         }
-        if !t.generics.is_empty() || !t.bounds.is_empty() {
+        if !t.bounds.is_empty() {
             self.unsupported(
                 "generic or supertrait declarations require the full trait solver",
                 item.span,
@@ -128,6 +129,8 @@ impl<'a> Expander<'a> {
         declarations: &[&'a s::Module],
         imports: &[CoreImport],
         limits: &Limits,
+        signatures: &trait_instances::Signatures,
+        metered_trait_instances: bool,
     ) {
         // Preserve the old no-trait and builtin Drop paths. An actually
         // normalized external trait implementation activates project lookup.
@@ -136,7 +139,7 @@ impl<'a> Expander<'a> {
             s::ItemKind::Impl(implementation) => implementation
                 .trait_type
                 .as_ref()
-                .and_then(plain_name)
+                .and_then(trait_instances::head)
                 .is_some_and(|name| name.starts_with("$module") && !self.traits.contains_key(name)),
             _ => false,
         }) {
@@ -146,6 +149,7 @@ impl<'a> Expander<'a> {
         // local indexes, including modules newly entering through an imported
         // trait. The old path retains exactly the same total cost.
         let mut work = limits.max_analysis_steps;
+        let starting_project_work = self.project_trait_work;
         for item in &module.items {
             let visits = 1usize.saturating_add(match &item.kind {
                 s::ItemKind::Aggregate(a) => a.fields.len().saturating_add(a.methods.len()),
@@ -231,7 +235,8 @@ impl<'a> Expander<'a> {
             if plain_name(trait_ty) == Some("Drop") {
                 continue;
             }
-            let (Some(trait_name), Some(host_name)) = (plain_name(trait_ty), plain_name(&i.target))
+            let (Some(trait_name), Some(host_name)) =
+                (trait_instances::head(trait_ty), plain_name(&i.target))
             else {
                 self.unsupported(
                     "trait impl requires concrete local nominal names",
@@ -299,7 +304,98 @@ impl<'a> Expander<'a> {
                 );
                 continue;
             }
-            if !impls.insert((trait_name.to_owned(), host_name.to_owned())) {
+            let declaration = *self
+                .traits
+                .get(trait_name)
+                .expect("collected local declaration");
+            let mut instance_reference = None;
+            if !declaration.generics.is_empty() {
+                let mut found = None;
+                for source in declarations.iter().copied().chain(std::iter::once(module)) {
+                    for item in &source.items {
+                        let Some(left) = work.checked_sub(1) else {
+                            self.diagnostics.push(Diagnostic::limit(
+                                Phase::Expand,
+                                "trait instance identity work exhausted",
+                                Some(item.span),
+                            ));
+                            return;
+                        };
+                        work = left;
+                        if let s::ItemKind::Trait(trait_declaration) = &item.kind {
+                            let Some(left) = work.checked_sub(
+                                trait_declaration
+                                    .name
+                                    .len()
+                                    .min(trait_name.len())
+                                    .saturating_add(1),
+                            ) else {
+                                self.diagnostics.push(Diagnostic::limit(
+                                    Phase::Expand,
+                                    "trait declaration identity comparison budget exhausted",
+                                    Some(item.span),
+                                ));
+                                return;
+                            };
+                            work = left;
+                            if trait_declaration.name == trait_name {
+                                found = Some(item.span);
+                            }
+                        }
+                    }
+                }
+                let Some(declaration_span) = found else {
+                    self.unsupported("trait instance declaration identity is absent", item.span);
+                    continue;
+                };
+                let selected = Limits {
+                    max_analysis_steps: work,
+                    max_nodes: project_nodes,
+                    ..limits.clone()
+                };
+                let mut meter = TraitBudget::new(&selected);
+                let result =
+                    trait_instances::arguments(declaration_span, declaration, trait_ty, &mut meter);
+                let left = trait_instances::remaining(&meter);
+                work = left.max_analysis_steps;
+                project_nodes = left.max_nodes;
+                match result {
+                    Ok(reference) => instance_reference = Some(reference),
+                    Err(error) => {
+                        self.diagnostics.push(error);
+                        continue;
+                    }
+                }
+            }
+            if metered_trait_instances && let Some(reference) = &instance_reference {
+                let cost = reference
+                    .key
+                    .arguments
+                    .iter()
+                    .try_fold(0usize, |n, key| n.checked_add(key.len().saturating_add(1)));
+                let Some(left) = cost.and_then(|cost| work.checked_sub(cost)) else {
+                    self.diagnostics.push(Diagnostic::limit(
+                        Phase::Expand,
+                        "trait coherence key budget exhausted",
+                        Some(item.span),
+                    ));
+                    return;
+                };
+                work = left;
+                let Some(left) = project_nodes.checked_sub(reference.key.arguments.len()) else {
+                    self.diagnostics.push(Diagnostic::limit(
+                        Phase::Expand,
+                        "trait coherence key node budget exhausted",
+                        Some(item.span),
+                    ));
+                    return;
+                };
+                project_nodes = left;
+            }
+            let keys = instance_reference
+                .as_ref()
+                .map_or_else(Vec::new, |reference| reference.key.arguments.clone());
+            if !impls.insert((trait_name.to_owned(), keys, host_name.to_owned())) {
                 self.trait_error(
                     "E-TRAIT-DUPLICATE",
                     item.span,
@@ -337,17 +433,83 @@ impl<'a> Expander<'a> {
                 return;
             };
             work = left;
-            let required: BTreeMap<_, _> = declaration
-                .members
-                .iter()
-                .filter_map(|m| {
-                    if let s::ItemKind::Function(f) = &m.kind {
-                        Some((f.name.as_str(), f))
+            let mut required = BTreeMap::new();
+            for member in &declaration.members {
+                if let s::ItemKind::Function(method) = &member.kind {
+                    let signature = if let Some(reference) = &instance_reference {
+                        let selected = Limits {
+                            max_analysis_steps: work,
+                            max_nodes: project_nodes,
+                            ..limits.clone()
+                        };
+                        let mut meter = TraitBudget::new(&selected);
+                        let mut actual = None;
+                        for candidate in &i.members {
+                            if let Err(error) = meter.node(candidate.span, 0) {
+                                self.diagnostics.push(error);
+                                return;
+                            }
+                            if let s::ItemKind::Function(function) = &candidate.kind {
+                                if let Err(error) = meter
+                                    .text(&function.name, candidate.span)
+                                    .and_then(|()| meter.text(&method.name, member.span))
+                                {
+                                    self.diagnostics.push(error);
+                                    return;
+                                }
+                                if function.name == method.name {
+                                    actual = Some(function);
+                                    break;
+                                }
+                            }
+                        }
+                        let result = if let Some(actual) = actual
+                            && let Some(frozen) = signatures.get(&(item.span, actual.span))
+                        {
+                            if frozen.key != reference.key
+                                || frozen.host != host_name
+                                || frozen.declaration != member.span
+                            {
+                                Err(Diagnostic::error(
+                                    Phase::Expand,
+                                    "E-TRAIT-SIGNATURE",
+                                    Some(member.span),
+                                    "trait required signature has a different source instance",
+                                ))
+                            } else {
+                                for p in &frozen.method.params {
+                                    if let Err(error) = meter.ty(&p.ty) {
+                                        self.diagnostics.push(error);
+                                        return;
+                                    }
+                                }
+                                if let Some(result) = &frozen.method.return_type
+                                    && let Err(error) = meter.ty(result)
+                                {
+                                    self.diagnostics.push(error);
+                                    return;
+                                }
+                                Ok(std::borrow::Cow::Borrowed(&frozen.method))
+                            }
+                        } else {
+                            trait_instances::signature(declaration, member, reference, &mut meter)
+                        };
+                        let left = trait_instances::remaining(&meter);
+                        work = left.max_analysis_steps;
+                        project_nodes = left.max_nodes;
+                        match result {
+                            Ok(signature) => signature,
+                            Err(error) => {
+                                self.diagnostics.push(error);
+                                return;
+                            }
+                        }
                     } else {
-                        None
-                    }
-                })
-                .collect();
+                        std::borrow::Cow::Borrowed(method)
+                    };
+                    required.insert(method.name.as_str(), signature);
+                }
+            }
             let mut implemented = BTreeSet::new();
             let mut valid = true;
             for member in &i.members {
@@ -416,12 +578,13 @@ impl<'a> Expander<'a> {
                     self.trait_error("E-TRAIT-SIGNATURE", member.span, "implementation receiver, parameters, passing modes and return type must match the declared signature");
                     valid = false;
                 }
-                if methods
-                    .get(&(host_name.into(), f.name.clone()))
-                    .copied()
-                    .unwrap_or(0)
-                    != 1
-                    || fields[host_name].contains(f.name.as_str())
+                if instance_reference.is_none()
+                    && (methods
+                        .get(&(host_name.into(), f.name.clone()))
+                        .copied()
+                        .unwrap_or(0)
+                        != 1
+                        || fields[host_name].contains(f.name.as_str()))
                 {
                     self.unsupported("colliding trait, inherent or field name requires explicit trait-qualified resolution", member.span);
                     valid = false;
@@ -438,13 +601,50 @@ impl<'a> Expander<'a> {
                 valid = false;
             }
             if valid {
+                if let Some(reference) = &instance_reference {
+                    for member in &i.members {
+                        if let s::ItemKind::Function(method) = &member.kind {
+                            let selected = Limits {
+                                max_analysis_steps: work,
+                                max_nodes: project_nodes,
+                                ..limits.clone()
+                            };
+                            let mut meter = TraitBudget::new(&selected);
+                            let result = trait_instances::method_name(
+                                reference,
+                                &method.name,
+                                &mut meter,
+                                member.span,
+                            );
+                            let left = trait_instances::remaining(&meter);
+                            work = left.max_analysis_steps;
+                            project_nodes = left.max_nodes;
+                            match result {
+                                Ok(target) => {
+                                    self.trait_method_names.insert(method.span, target);
+                                }
+                                Err(error) => {
+                                    self.diagnostics.push(error);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
                 self.static_trait_impls.insert(item.span);
-                if project_impl {
+                if project_impl || instance_reference.is_some() {
                     self.project_trait_work = self
                         .project_trait_work
                         .saturating_add(before_project_work - work);
                 }
             }
+        }
+        if metered_trait_instances {
+            self.project_trait_work =
+                starting_project_work.saturating_add(limits.max_analysis_steps - work);
+            self.project_trait_nodes = self
+                .project_trait_nodes
+                .saturating_add(limits.max_nodes - project_nodes);
         }
     }
 }

@@ -1008,6 +1008,12 @@ pub(super) fn check_module(
                         "reference return has no grounded input origin; a recursive cycle is not an empty contract",
                     ));
                 }
+                if let Some(bound) = &function.reference_return_bound {
+                    budget.spend(roots.len().saturating_mul(bound.len().saturating_add(1)))?;
+                    if roots.iter().any(|root|!matches!(root,Root::Parameter(index) if bound.binary_search(index).is_ok())) {
+                        return Err(reject("E-VERIFY-LIFE",Some(function.span),"actual return origins exceed the declared life input set"));
+                    }
+                }
                 if function.environment.is_some() {
                     budget.spend(roots.len().saturating_add(1))?;
                     for root in roots {
@@ -1212,6 +1218,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    reference_return_bound: None,
                     callable_return_contract: None,
                     callable_contract: None,
                     result_mode: zil_ir::PassingMode::Infer,

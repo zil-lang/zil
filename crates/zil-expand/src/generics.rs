@@ -32,6 +32,8 @@ pub(super) mod store_templates;
 mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
+#[path = "generic_trait_instances.rs"]
+pub(super) mod trait_instances;
 #[path = "generic_where.rs"]
 mod where_copy;
 
@@ -64,6 +66,7 @@ pub(super) fn specialize_products<'a>(
     products: &mut products::Products,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
+    super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
@@ -124,39 +127,43 @@ pub(super) fn specialize_products<'a>(
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
     }
-    if let Some(normalized) = aliases::normalize(module, limits).map_err(|e| vec![e])? {
+    let (normalized, names_budget) =
+        aliases::normalize_with_budget(module, names_budget).map_err(|e| vec![e])?;
+    if let Some(normalized) = normalized {
         if normalized
             .module
             .items
             .iter()
             .all(|item| params(item).is_empty())
+            && !normalized
+                .module
+                .items
+                .iter()
+                .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         {
             return Ok(Cow::Owned(normalized.module));
         }
-        return specialize_engine(
+        return specialize_with_budget(
             &normalized.module,
             limits,
             &normalized.pattern_types,
+            names_budget,
             products,
         )
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
     }
-    if module.items.iter().all(|item| params(item).is_empty()) {
+    if module.items.iter().all(|item| params(item).is_empty())
+        && !module
+            .items
+            .iter()
+            .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+    {
         return Ok(Cow::Borrowed(module));
     }
-    specialize_engine(module, limits, &BTreeMap::new(), products)
+    specialize_with_budget(module, limits, &BTreeMap::new(), names_budget, products)
         .map(Cow::Owned)
         .map_err(|error| vec![error])
-}
-
-fn specialize_engine(
-    module: &Module,
-    limits: &Limits,
-    pattern_types: &BTreeMap<String, TypeRef>,
-    products: &mut products::Products,
-) -> R<Module> {
-    specialize_with_budget(module, limits, pattern_types, Budget::new(limits), products)
 }
 
 fn specialize_with_budget<'a>(
@@ -190,6 +197,7 @@ struct Engine<'a> {
     enums: BTreeMap<String, &'a EnumDecl>,
     nominals: BTreeMap<String, &'a Item>,
     traits: trait_bounds::Index<'a>,
+    trait_calls: trait_instances::Calls,
     return_type: Option<TypeRef>,
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
@@ -229,7 +237,7 @@ fn named(name: &str, span: Span) -> TypeRef {
 }
 fn params(item: &Item) -> &[GenericParam] {
     match &item.kind {
-        ItemKind::Function(f) => &f.generics,
+        ItemKind::Function(f) if !super::lifetimes::only_life(f) => &f.generics,
         ItemKind::Aggregate(a) => &a.generics,
         ItemKind::Enum(e) => &e.generics,
         _ => &[],
@@ -255,6 +263,7 @@ impl<'a> Engine<'a> {
         let mut engine = Self {
             pattern_types,
             traits,
+            trait_calls: trait_instances::Calls::new(),
             templates: BTreeMap::new(),
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
@@ -401,6 +410,7 @@ impl<'a> Engine<'a> {
                     },
                     &mut helper_dependencies,
                     &mut engine.budget,
+                    &mut engine.trait_calls,
                 )?;
             }
             if let ItemKind::Enum(e) = &item.kind {
@@ -463,6 +473,7 @@ impl<'a> Engine<'a> {
         self.budget.node(span, depth)
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
+        self.products.trait_instances = self.traits.has_instances;
         self.collect_products(module)?;
         let mut result = Module {
             id: module.id,
@@ -600,6 +611,7 @@ impl<'a> Engine<'a> {
             .instances
             .len()
             .saturating_add(self.retained_stores.len())
+            .saturating_add(self.traits.instance_count())
             >= self.limits.max_functions.min(512)
         {
             return Err(Diagnostic::limit(
@@ -635,7 +647,7 @@ impl<'a> Engine<'a> {
         if product && let Some(name) = &self.store_parameter {
             self.budget.node(span, 0)?;
             self.budget.text(name, span)?;
-            product_bounds.insert(name.clone(), vec![stores::BOUND.to_owned()]);
+            product_bounds.insert(name.clone(), vec![trait_bounds::Bound::StoreElement]);
             product_variables.insert(name.clone());
         }
         self.traits.check_arguments(
@@ -655,6 +667,11 @@ impl<'a> Engine<'a> {
         )?;
         self.budget.substituted_item(item, &substitution)?;
         let mut instance = item.clone();
+        if let ItemKind::Function(f) = &item.kind
+            && let Some(calls) = self.trait_calls.get(&f.name)
+        {
+            trait_instances::rewrite_calls(&mut instance, calls, &mut self.budget)?;
+        }
         substitute_item(&mut instance, &substitution)?;
         self.budget.item(&instance)?;
         // Original generic enums retain their existing Copy payload profile,
@@ -904,6 +921,78 @@ impl<'a> Engine<'a> {
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
                 self.ty(&mut i.target, 0)?;
+                if self.traits.has_instances
+                    && let Some(application) = &i.trait_type
+                    && trait_instances::head(application)
+                        .is_some_and(|name| !super::static_traits::reserved_trait(name))
+                {
+                    let reference = self.traits.reference(application, &mut self.budget)?;
+                    let (_, declaration) = self.traits.declaration_item(&reference);
+                    if !declaration.generics.is_empty() {
+                        for member in &i.members {
+                            let ItemKind::Function(actual) = &member.kind else {
+                                continue;
+                            };
+                            let mut required = None;
+                            for candidate in &declaration.members {
+                                self.budget.node(candidate.span, 0)?;
+                                if let ItemKind::Function(method) = &candidate.kind {
+                                    self.budget.text(&method.name, candidate.span)?;
+                                    self.budget.text(&actual.name, member.span)?;
+                                    if method.name == actual.name {
+                                        required = Some(candidate);
+                                        break;
+                                    }
+                                }
+                            }
+                            if let Some(required) = required {
+                                let mut signature = trait_instances::signature(
+                                    declaration,
+                                    required,
+                                    &reference,
+                                    &mut self.budget,
+                                )?
+                                .into_owned();
+                                for p in &mut signature.params {
+                                    self.ty(&mut p.ty, 0)?;
+                                }
+                                if let Some(t) = &mut signature.return_type {
+                                    self.ty(t, 0)?;
+                                }
+                                let key = trait_instances::copy_key(
+                                    &reference.key,
+                                    &mut self.budget,
+                                    member.span,
+                                )?;
+                                let host = trait_bounds::plain(&i.target).ok_or_else(|| {
+                                    unsupported(
+                                        i.target.span,
+                                        "trait impl requires a concrete non-generic Self",
+                                    )
+                                })?;
+                                self.budget.text(host, member.span)?;
+                                self.budget.node(member.span, 0)?;
+                                let expected = trait_instances::ConcreteSignature {
+                                    key,
+                                    host: host.to_owned(),
+                                    declaration: required.span,
+                                    method: signature,
+                                };
+                                if self
+                                    .products
+                                    .trait_signatures
+                                    .insert((item.span, actual.span), expected)
+                                    .is_some()
+                                {
+                                    return Err(error(
+                                        member.span,
+                                        "duplicate source trait method signature identity",
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
                 for item in &mut i.members {
                     self.item(item)?;
                 }
@@ -1434,6 +1523,40 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Call { callee, arguments } => {
+                let mut trait_signature = None;
+                let mut type_qualified = false;
+                if self.traits.has_instances
+                    && let ExprKind::Member {
+                        object,
+                        member:
+                            MemberName::Name(member) | MemberName::Constrained { name: member, .. },
+                    } = &mut callee.kind
+                {
+                    let mut hint = self.value_hint(object, env, depth + 1, false)?;
+                    if hint.is_none()
+                        && let ExprKind::Name(name) = &object.kind
+                        && !env.contains_key(name)
+                        && self.nominals.contains_key(name)
+                    {
+                        hint = Some(named(name, object.span));
+                        type_qualified = true;
+                    }
+                    if let Some(actual) = hint {
+                        let actual = self.original_type(&actual)?;
+                        if let Some(host) = trait_bounds::plain(projection_shape(&actual))
+                            && let Some((target, signature)) = self.traits.concrete_method(
+                                host,
+                                member,
+                                &mut self.budget,
+                                callee.span,
+                            )?
+                        {
+                            self.budget.text(&target, callee.span)?;
+                            member.clone_from(&target);
+                            trait_signature = Some(signature);
+                        }
+                    }
+                }
                 if let Some(name) =
                     super::foreign::bare_name(callee).filter(|name| stores::primitive(name))
                 {
@@ -1605,6 +1728,18 @@ impl<'a> Engine<'a> {
                             .map(|h| h.hint(index, &mut self.budget))
                             .transpose()?
                             .flatten();
+                    }
+                    if hint.is_none()
+                        && let Some(signature) = &trait_signature
+                    {
+                        let skip = usize::from(
+                            !type_qualified
+                                && signature.params.first().is_some_and(|p| p.name == "self"),
+                        );
+                        if let Some(parameter) = signature.params.get(index + skip) {
+                            self.budget.ty(&parameter.ty)?;
+                            hint = Some(parameter.ty.clone());
+                        }
                     }
                     let arg = &mut arguments[index];
                     let ty = self.expr_expected(&mut arg.value, env, hint.as_ref(), depth + 1)?;
@@ -1850,7 +1985,14 @@ impl<'a> Engine<'a> {
                     }
                 } else {
                     self.expr(callee, env, depth + 1)?;
-                    None
+                    if let Some(mut signature) = trait_signature {
+                        if let Some(result) = &mut signature.return_type {
+                            self.ty(result, depth + 1)?;
+                        }
+                        signature.return_type
+                    } else {
+                        None
+                    }
                 }
             }
             ExprKind::Tuple(values) => {

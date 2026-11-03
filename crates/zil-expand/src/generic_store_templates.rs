@@ -96,7 +96,7 @@ impl Engine<'_> {
             self.budget.text(name, span)?;
             self.budget.text(name, span)?;
             self.budget.text(stores::BOUND, span)?;
-            available.insert(name.clone(), vec![stores::BOUND.to_owned()]);
+            available.insert(name.clone(), vec![trait_bounds::Bound::StoreElement]);
             variables.insert(name.clone());
         }
         self.traits.store_element(

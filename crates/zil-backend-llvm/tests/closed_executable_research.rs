@@ -45,6 +45,7 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
         .into_iter()
         .enumerate()
         .map(|(id, name)| TypedFunction {
+            reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
             result_mode: PassingMode::Infer,

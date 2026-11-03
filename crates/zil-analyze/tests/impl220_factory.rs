@@ -19,6 +19,7 @@ fn instruction(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        reference_return_bound: None,
         id: FunctionId(id),
         name: format!("raw220_{id}"),
         foreign: None,

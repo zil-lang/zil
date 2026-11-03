@@ -1,0 +1,230 @@
+{
+  "review": "327",
+  "reviewer": "/root/recovery_audit",
+  "scope": "Non-author review of 323 finite concrete generic trait instances and the 322/323 budget handoff; no 328 self-review.",
+  "status": "PassWithinDeclaredScope",
+  "implementation_sha": "c183ce4ff09c444fd6e9b47a51a1c7f742457876",
+  "integration_sha": "877951d6f9c114a9454389f059c39e833e1d4917",
+  "tested_integration_checkout": "8f90ca85e7ce72c38e6caeab25340498ff733e6b",
+  "integration_tree_equality": "git diff 877951d6f 8f90ca85e is empty, including implementation, tests and metadata.",
+  "independent_tests_sha": "ac4ad8f0e5c60c475e1d348b0cc0d920958d8fa6",
+  "environment": {
+    "tree": "/workspace/zil-327",
+    "target": "/workspace/target327",
+    "jobs": 1,
+    "features": "default; no llvm-api feature"
+  },
+  "isolated_candidate_execution": [
+    {
+      "command": "cargo test -p zil-driver --test impl162_trait_bounds --test impl147_static_traits --test impl233_modules --test impl231_where_traits --test review231_independent -- --nocapture",
+      "result": {
+        "passed": 67,
+        "failed": 0,
+        "targets": {
+          "impl162_trait_bounds": 24,
+          "impl147_static_traits": 12,
+          "impl233_modules": 9,
+          "impl231_where_traits": 14,
+          "review231_independent": 8
+        }
+      },
+      "local_log": "/tmp/zil-327-traits-final.log",
+      "log_sha256": "4f26dc1261fafcbdc3ec27ea38faafa461816d18426308c4000fb1ed516015e8"
+    },
+    {
+      "command": "cargo test -p zil-expand --lib trait_request_ledger -- --nocapture",
+      "result": {
+        "passed": 2,
+        "failed": 0
+      },
+      "local_log": "/tmp/zil-327-ledger-final.log",
+      "log_sha256": "1466c1d9893a0ee5f61e410f58d5f4a8fa15e8004a2c653e1905d538eab7a071"
+    }
+  ],
+  "integration_execution": [
+    {
+      "command": "cargo test -p zil-driver --test impl162_trait_bounds --test impl233_modules -- --nocapture",
+      "result": {
+        "passed": 33,
+        "failed": 0,
+        "targets": {
+          "impl162_trait_bounds": 24,
+          "impl233_modules": 9
+        }
+      },
+      "local_log": "/tmp/zil-327-traits-joint.log",
+      "log_sha256": "fd1c315bc966f9aedafc8bfb506d710d3e8971420482aa05f8735fa9b8e05ab5"
+    },
+    {
+      "command": "cargo test -p zil-expand --lib trait_request_ledger -- --nocapture",
+      "result": {
+        "passed": 2,
+        "failed": 0
+      },
+      "local_log": "/tmp/zil-327-ledger-joint.log",
+      "log_sha256": "f9b091eec8dc6189283bf3e294aeaa5cbac3d262ab869f3ab000fbf224f40339"
+    }
+  ],
+  "budget_evidence": {
+    "isolated_c183": {
+      "full_request": {
+        "work": 3797,
+        "nodes": 734,
+        "instances": 5
+      },
+      "single_specialization": {
+        "work": 1235,
+        "nodes": 365
+      },
+      "project_specialization": {
+        "work": 1489,
+        "nodes": 326
+      }
+    },
+    "integration_877951": {
+      "full_request": {
+        "work": 3797,
+        "nodes": 851,
+        "instances": 5
+      },
+      "single_specialization": {
+        "work": 1359,
+        "nodes": 415
+      },
+      "project_specialization": {
+        "work": 1646,
+        "nodes": 373
+      }
+    },
+    "request_boundary": "Each ledger N succeeds, N-1 is ResourceLimit, and N succeeds again; cold/warm/fresh agree and leave zero active queries.",
+    "source_ledger_contract": "Real source is parsed and specialized. Alias cost plus engine cost is checked as a sum. Exact specialization work/node allowances suffice for specialization but leave nonempty ResourceLimit diagnostics from downstream public single/project Expand.",
+    "historical": "d626c5ad4 had work3797/nodes656/instances5 local thresholds; these did not establish cumulative accounting and are not final acceptance figures."
+  },
+  "independent_near_neighbors": [
+    "Same Self implements same-spelled Read<i32> traits from different modules; bound calls separately return 7 and 9.",
+    "Entirely phantom ordered arguments Tag<i32,bool> and Tag<bool,i32> select distinct methods returning 17 and 29.",
+    "Unused Wrap<Box<R>> trait signature rejects missing Copy at Expand; adding R:Copy succeeds.",
+    "Transparent-alias duplicate full instance rejects Expand/E-TRAIT-DUPLICATE.",
+    "Swapped ordered arguments cannot satisfy an absent implementation; Expand/SafeReject reports the missing nominal bound."
+  ],
+  "native_evidence": {
+    "per_candidate_executions": 4,
+    "independent_sources": 2,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "actual_backend": "clang",
+    "fallback": null,
+    "verification_runs_per_build": 1,
+    "checks": "The native helper asserts actual process exit 0; both independent programs assert each expected result separately. Integration compile reports were inspected for backend, optimization, fallback and verification count.",
+    "counting": "Initial, isolated-final and integrated reruns repeat the same controls; counts are not added as distinct coverage."
+  },
+  "closed_findings": [
+    {
+      "id": "323-budget-cumulative",
+      "original_candidate": "d626c5ad40b388afa77550514f8c242b178c29c8",
+      "original_issue": "Single-module static collection received default limits; alias normalization could be followed by a fresh engine budget; new collision and trait/impl matching scans were not fully charged.",
+      "fixed_production": "a0adf510eac4a49563ae3217bbec63f03f4a7ed7",
+      "resolution": "New-trait Products preserve the flag and actual allowance through names/alias/engine, module normalize/restore, single/project static collection, node/work debit and publish. New collision/member-match scans charge each visit and compared text before access. Root 877951 keeps the 322 shared names_budget chain and removes the redundant fresh-engine path.",
+      "verification": "Read-only implementation audit plus source-ledger units, N/N-1 cold/warm/fresh checks, old impl233 exact budget controls, semantic near neighbors and actual O0/O2 execution."
+    }
+  ],
+  "code_review": [
+    "Structured key contains true declaration Span and ordered full normalized argument keys; implementation identity also includes nominal Self.",
+    "Required concrete signatures originate in the trait declaration and bridge checks bind full key, host, impl-method and trait-method spans.",
+    "Distinct same-Self instances have distinct static targets; unresolved direct ambiguity rejects at the call.",
+    "No runtime trait dictionary or new trait-instance public IR shape was introduced; raw/Wire trait-instance probes are not claimed."
+  ],
+  "excluded": [
+    "Full workspace tests and remote CI.",
+    "Full review of 322, 324, 325 or 326; 328 backend was authored by this reviewer and requires its separate non-author report.",
+    "Open trait arguments, generic/conditional impl, associated/default/generic methods, supertraits and full trait solver.",
+    "Async, SABI, complete-language safety and Rust runtime/RSS or compilation-speed advantage."
+  ],
+  "rust_goal_boundaries": {
+    "safety": "Finite instance identity and conformance tested; no full-language claim.",
+    "runtime_memory": "Actual native result checks, without paired Rust runtime/RSS measurement.",
+    "expression_maintenance": "Concrete trait bounds select distinct static implementations; framework maintenance benefit unmeasured.",
+    "compilation_cost": "New request work is shared and boundary-tested; no Rust compilation performance claim.",
+    "breakthrough": "Finite expressive increment observed; product-level net advantage and the four-goal conjunction are not established."
+  },
+  "quality_checks": {
+    "integration_clippy": [
+      {
+        "command": "cargo clippy -p zil-expand --lib --tests -- -D warnings",
+        "result": "Pass",
+        "local_log": "/tmp/zil-327-expand-clippy-joint.log",
+        "log_sha256": "9d8478bd1d66f1852e09f56e84f87d2a5e5c5f83c6f7f98bb2bddf047d909362"
+      },
+      {
+        "command": "cargo clippy -p zil-driver --test impl162_trait_bounds -- -D warnings",
+        "result": "Pass",
+        "local_log": "/tmp/zil-327-driver-clippy-joint.log",
+        "log_sha256": "ea7a40022045b5d20a2ed852e2c8021190e24274a4570a665c1da1cee2bd08be"
+      }
+    ],
+    "rustfmt_independent_test": "Pass",
+    "git_diff_check": "Pass"
+  },
+  "common_candidate_review": {
+    "implementation_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+    "reviewer": "/root/recovery_audit",
+    "verdict": "PassLimited",
+    "scope": "323 finite concrete generic trait identity, target selection, unused conformance/Copy premises and cumulative request ledger, including the 322/323 public budget handoff. No 328 self-review.",
+    "compared_against": [
+      "c183ce4ff09c444fd6e9b47a51a1c7f742457876",
+      "877951d6f9c114a9454389f059c39e833e1d4917"
+    ],
+    "actual_diff_review": [
+      "git diff --exit-code 877951d6f 022303df8 -- crates/zil-expand/src crates/zil-driver/src crates/zil-base/src crates/zil-ir/src and all five reviewed trait driver targets returned 0 with no diff.",
+      "Relative to c183, reviewed the six Expand production differences retained from the already tested 877951 composition: generic_alias removes the fresh-budget wrapper; generics runs life validation then the shared names_budget -> alias -> specialize_with_budget chain; generic_check explicitly rejects unsupported generic thread wrappers; lib/receivers retain checked life contracts and reserved thread syntax; lifetimes validates unused positions and rejects trait lending. The 323 generic-trait instance/index/static-collector/Products/module ledger implementations themselves are unchanged. This does not constitute a full 322 or 325 review.",
+      "Read the complete new zil-types incremental.rs/program.rs diff since 877951: reuse now validates the current life header, checks reference_return_bound, subtracts the already charged validation delta from replay, excludes bound-bearing functions from scalar reuse, and fingerprints ordered life metadata in domain ZIL-FUNCTION-TYPES-2.",
+      "The Types cache key still contains the complete emitted function name, function ID, parameter/result types and passing modes. No trait identity or static target is dropped. lifetimes::compile returns Ok(None) before accounting for a function without life metadata.",
+      "Unchanged structured declaration/ordered-argument keys, nominal Self pairing and declaration-derived signature bridge retain same-Self multi-instance separation. Collision and trait/impl pairing scans retain visit/text prepayment; Products/module/single/project/publish still carry the actual remainder."
+    ],
+    "existing_combined_retest": {
+      "implementation_commit": "877951d6f9c114a9454389f059c39e833e1d4917",
+      "tested_checkout": "8f90ca85e7ce72c38e6caeab25340498ff733e6b",
+      "tree_equivalence": "The two committed trees were compared and identical before the review JSON update.",
+      "driver_targets": {
+        "impl162_trait_bounds": {
+          "passed": 24,
+          "failed": 0
+        },
+        "impl233_modules": {
+          "passed": 9,
+          "failed": 0
+        }
+      },
+      "source_ledger_units": {
+        "passed": 2,
+        "failed": 0
+      },
+      "full_request_boundary": {
+        "work": 3797,
+        "nodes": 851,
+        "instances": 5,
+        "checks": "N/N-1/N, cold/warm/fresh, zero remaining active queries"
+      },
+      "single_specialization": {
+        "work": 1359,
+        "nodes": 415
+      },
+      "project_specialization": {
+        "work": 1646,
+        "nodes": 373
+      },
+      "exhausted_remainder": "Exact specialization allowances succeed there but downstream public single/project Expand produces nonempty ResourceLimit diagnostics.",
+      "independent_native": "Two identity controls, each Clang O0/O2, four actual executions; separate expected values checked, verification_runs=1 and fallback=null.",
+      "quality": "Both targeted Clippy commands, independent-test rustfmt and git diff --check passed; exact commands/hashes remain in integration_execution and quality_checks."
+    },
+    "execution_on_common_candidate": "No additional test or native execution: this supplement is an actual immutable-commit diff/code review using the recorded integrated retest. The quoted N values were measured at 877951, not newly measured at 022303df8.",
+    "limits": [
+      "Only finite concrete local non-generic Self and concrete ordinary Copy trait arguments/inline-or-where consumers are covered.",
+      "No new public trait-instance IR shape exists; no additional raw/Wire trait-instance probe is claimed.",
+      "Common-candidate full/default/reference results and remote CI are not claimed by this review.",
+      "Not a full review of life safety, arrays, thread backend, async, SABI, the full trait solver or the complete language."
+    ]
+  }
+}

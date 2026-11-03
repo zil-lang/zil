@@ -84,6 +84,7 @@ impl<'a> Budget<'a> {
 /// reuses the borrowed input walk, so nested statements/types and text all count.
 pub(super) fn helper_snapshot_work(function: &CoreFunction, limits: &Limits) -> R<(usize, bool)> {
     let mut budget = Budget::new(limits);
+    lifetimes::preflight(function, &mut budget.work)?;
     budget.work(
         function
             .name
@@ -488,6 +489,7 @@ fn headers(
     validate_module_metadata(core, budget)?;
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
+        lifetimes::preflight(function, &mut budget.work)?;
         state_snapshot(&function.state_parameters, function.span, budget)?;
         if !function.state_parameters.is_empty() && !function.callable_parameters.is_empty() {
             // The mixed header compares both declarations and the actual
@@ -3208,6 +3210,62 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         &byte_buffer::result_type(name).expect("byte primitive"),
                         span,
                     );
+                }
+                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
+                    self.budget.node(depth + 1, callee.span)?;
+                    self.expression_index += 1;
+                    let [worker, argument, body] = arguments.as_slice() else {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "thread_scope requires three arguments",
+                        ));
+                    };
+                    if !matches!(
+                        worker.kind,
+                        CoreExprKind::Name(_) | CoreExprKind::Member { .. }
+                    ) {
+                        return Err(error(
+                            "E-THREAD-WORKER",
+                            worker.span,
+                            "thread worker must be a static ordinary symbol",
+                        ));
+                    }
+                    let Term::Function(signature) = self.expr(worker, depth + 1, false)? else {
+                        return Err(error(
+                            "E-THREAD-WORKER",
+                            worker.span,
+                            "thread worker cannot be a stored callable",
+                        ));
+                    };
+                    if !signature.scalar_thread_worker() {
+                        return Err(error(
+                            "E-THREAD-WORKER",
+                            worker.span,
+                            "thread worker must be a concrete ordinary fn(i32)->i32",
+                        ));
+                    }
+                    let argument_term =
+                        self.expr_expected(argument, Some(&Type::I32), depth + 1, false)?;
+                    self.bind_term(&argument_term, &Type::I32, argument.span)?;
+                    let Term::Closure(id) = self.expr(body, depth + 1, false)? else {
+                        return Err(error(
+                            "E-THREAD-BODY",
+                            body.span,
+                            "thread body must be a concrete closure",
+                        ));
+                    };
+                    if !self.closures[id].parameters.is_empty() {
+                        return Err(error(
+                            "E-THREAD-BODY",
+                            body.span,
+                            "thread body signature is ()->i32",
+                        ));
+                    }
+                    self.graph
+                        .bind(self.closures[id].result, &Type::I32, body.span)?;
+                    return self
+                        .known_term(&Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]), span);
                 }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
                     self.budget.node(depth + 1, callee.span)?;

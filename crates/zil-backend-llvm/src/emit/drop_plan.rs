@@ -708,6 +708,7 @@ mod impl243_plan_tests {
             closures: vec![],
             layouts: vec![],
             functions: vec![TypedFunction {
+                reference_return_bound: None,
                 id: FunctionId(0),
                 name: "recipe".into(),
                 parameters: vec![],

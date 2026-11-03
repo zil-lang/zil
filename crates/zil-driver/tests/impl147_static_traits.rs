@@ -136,7 +136,7 @@ fn missing_extra_duplicate_methods_and_overlapping_impls_reject() {
 #[test]
 fn unsupported_solver_features_are_not_invented_by_lowering_to_functions() {
     for src in [
-        "trait Read<T>{fn read(self:&Self)->T;}fn main(){}",
+        "trait Read<T>{type Item;fn read(self:&Self)->T;}fn main(){}",
         "trait Read{fn read(self:&Self)->i32{return 1}}fn main(){}",
         "trait A{fn f(self:&Self)->i32;}trait B{fn f(self:&Self)->i32;}struct C{x:i32}impl A for C{fn f()->i32=>1}impl B for C{fn f()->i32=>2}fn main(){}",
     ] {
@@ -147,6 +147,13 @@ fn unsupported_solver_features_are_not_invented_by_lowering_to_functions() {
     let r = compile(
         "trait Read{fn read(self:&Self)->i32;}resource C{x:i32}impl Read for C{fn read()->i32=>.x}fn main(){}",
     );
+    assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+    assert_eq!(r.verification_runs, 1);
+}
+
+#[test]
+fn unused_ordinary_generic_trait_signature_is_checked() {
+    let r = compile("trait Read<T>{fn read(self:&Self)->T;}fn main(){}");
     assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
     assert_eq!(r.verification_runs, 1);
 }

@@ -1492,6 +1492,7 @@ fn product_may_store_write(
                         }
                         InstructionKind::CallClosure { callee, .. }
                         | InstructionKind::CallClosureOnce { callee, .. }
+                        | InstructionKind::WithScopedThread { body: callee, .. }
                         | InstructionKind::CallClosureBorrowed { callee, .. } => {
                             Some(&function.values[callee.0 as usize])
                         }
@@ -2007,6 +2008,7 @@ fn parameter_product_windows(
                     }
                     InstructionKind::CallClosure { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
+                    | InstructionKind::WithScopedThread { body: callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. } => {
                         Some(&f.values[callee.0 as usize])
                     }
@@ -2248,6 +2250,7 @@ pub(super) fn infer_module(
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     let result = infer_module_inner(module, graphs, store_profiles, budget)?;
+    super::lifetimes::returns(module, graphs, &result, budget)?;
     if !budget.shared_product_capture {
         return Ok(result);
     }
@@ -2550,6 +2553,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    reference_return_bound: None,
                     callable_return_contract: None,
                     callable_contract: None,
                     result_mode: zil_ir::PassingMode::Infer,
@@ -2805,6 +2809,7 @@ mod product_parameter_dependency_tests {
             span: Span::default(),
         };
         let function = |id, instructions| TypedFunction {
+            reference_return_bound: None,
             id: FunctionId(id),
             name: format!("f{id}"),
             foreign: None,

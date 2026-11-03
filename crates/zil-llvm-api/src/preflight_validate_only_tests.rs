@@ -710,3 +710,23 @@ fn large_functions_use_temporary_scratch_without_growing_the_small_pool() {
     function::<false>(&world, small, &mut reused).unwrap();
     assert!(reused.uses.capacity() <= 256);
 }
+
+#[test]
+fn noinline_is_a_function_boundary_not_a_result_or_parameter_attribute() {
+    let mut source = module(vec![function_item(
+        "copy_boundary",
+        vec![block("entry", vec![ret(Val::Int(0))])],
+    )]);
+    let Item::Function(function) = &mut source.items[0] else {
+        panic!()
+    };
+    function.attrs.push(Attr::NoInline);
+    accepted(&source);
+    assert!(source.to_text().contains("noinline"));
+    let Item::Function(function) = &mut source.items[0] else {
+        panic!()
+    };
+    function.signature.result_attrs.push(Attr::NoInline);
+    assert!(validate_impl::<true>(&source).is_err());
+    assert!(validate_impl::<false>(&source).is_err());
+}

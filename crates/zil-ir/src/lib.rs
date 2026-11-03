@@ -359,6 +359,8 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Source-declared lexical life bindings. Raw metadata, never a proof.
+    pub life: Option<CoreLifeContract>,
     /// Retained ordinary template metadata; only a checked full instance may run.
     pub type_parameters: Vec<CoreTypeParameter>,
     /// Independent declared bindings within one owning State parameter.
@@ -378,6 +380,15 @@ pub struct CoreFunction {
     pub receiver: Option<ReceiverShape>,
     pub span: Span,
 }
+/// Life binder identity is local to this function, including a receiver at index 0.
+/// The dense parameter map names source-declared shared input dependencies only.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreLifeContract {
+    pub binders: Vec<String>,
+    pub parameter_lives: Vec<Option<u32>>,
+    pub result_life: Option<u32>,
+}
+
 /// Source-declared bound for a finite, self-contained callable factory result.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableReturn {
@@ -894,6 +905,10 @@ pub struct ClosureDefinition {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
+    /// Raw declared upper bound for a shared reference result; sorted unique
+    /// source parameter indices. Each kernel checks the actual CFG separately.
+    /// None preserves body-derived origins for unannotated functions.
+    pub reference_return_bound: Option<Vec<u32>>,
     /// Raw opaque callable result contract, independently checked by Verify.
     pub callable_return_contract: Option<CallableReturnContract>,
     /// Raw finite helper relation, independently reconstructed by Verify.
@@ -1283,6 +1298,14 @@ pub enum InstructionKind {
         callback: ValueId,
         body: ValueId,
         region: u32,
+    },
+    /// Direct structured thread call. Only the verified i32 worker payload
+    /// crosses threads; body runs and is consumed in the parent thread.
+    /// Result: (created, worker_result, body_result). Failure cleans body once.
+    WithScopedThread {
+        worker: FunctionId,
+        argument: ValueId,
+        body: ValueId,
     },
     /// A real, environment-free function address with its exact Copy signature.
     FunctionRef {
@@ -1710,7 +1733,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V32\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V34\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1893,6 +1916,13 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     }
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
+    b.push(u8::from(f.reference_return_bound.is_some()));
+    if let Some(bound) = &f.reference_return_bound {
+        encode_len(b, bound.len());
+        for parameter in bound {
+            encode_u32(b, *parameter);
+        }
+    }
     b.push(u8::from(f.callable_return_contract.is_some()));
     if let Some(contract) = &f.callable_return_contract {
         encode_callable_return_contract(b, contract);
@@ -2302,6 +2332,16 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, callback.0);
             encode_u32(b, body.0);
             encode_u32(b, *region);
+        }
+        InstructionKind::WithScopedThread {
+            worker,
+            argument,
+            body,
+        } => {
+            b.push(95);
+            encode_u32(b, worker.0);
+            encode_u32(b, argument.0);
+            encode_u32(b, body.0);
         }
         InstructionKind::ForeignFunctionRef { function } => {
             b.push(60);

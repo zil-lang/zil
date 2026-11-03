@@ -36,7 +36,17 @@ fn nominal_bound<'a>(
                 _ => {}
             }
         }
-        *index = Some(trait_bounds::Index::new(module, budget)?);
+        *index = Some(
+            if module
+                .items
+                .iter()
+                .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+            {
+                trait_bounds::Index::declarations_only(module, budget)?
+            } else {
+                trait_bounds::Index::new(module, budget)?
+            },
+        );
     }
     index
         .as_ref()
@@ -167,10 +177,10 @@ pub(super) fn normalize(module: &Module, budget: &mut Budget<'_>) -> R<Module> {
                 // Pure grouping of an already supported nominal bound has the
                 // same meaning as its inline form. Copy retains 229's direct
                 // built-in spelling; applied and projected bounds stay closed.
-                if trait_bounds::plain(bound).is_none() || copy::is_bound(bound) {
+                if trait_instances::head(bound).is_none() || copy::is_bound(bound) {
                     return Err(unsupported(
                         bound.span,
-                        "where supports only the direct built-in Copy bound or a nominal trait without type arguments",
+                        "where supports only the direct built-in Copy bound or a resolved nominal trait application",
                     ));
                 }
                 nominal_bound(module, bound, &mut nominal_index, budget).map_err(|mut e| {

@@ -1,5 +1,15 @@
 # ZIL 施工总计划
 
+## 2026-11-03：life/trait、结构化线程与大数组本地有限验收
+
+上一批有限语言成果已由PR28合入实际远端main `0d7d74f7d4b013f893f313b469fc7bd233c9f918`；GitHub任务未启动的原因是账号支付/额度检查，不是通过CI。下面旧段的“远端main未更新”和“大数组待实现”是该批历史断点。
+
+322显式life来源合同、323具体泛型trait实例、325/328真实Direct结构化pthread与324大型Copy内存快照已有源码候选。324保留原262144字节a18输入，恢复后明确features llvm-api的两后端O0/O2四组均实际成功、无fallback；默认target不启用API时曾误记四组，已经撤回并留存更正。一般巨型按值ABI仍未解决。线程成功/业务错误/create失败/join失败与父线程借用已经限定机器执行，完整async/SABI/Mutex仍未完成。
+
+非作者审核发现的322 raw Core life缓存复用和323累计预算缺口已修复并复核。共同编译器022303df8本地默认4097/0、reference3988/0，各422组且零忽略/过滤；最终profile ee0559611只改规范澄清/审核和附加测试，完整受影响目标两配置各19/0；Clippy、text65/0、migration9/0及发布消费者16构建/128观察通过。完整来源、原失败和有限裁决见docs/LANGUAGE-MAINLINE-20261103.md；PR29远端状态以GitHub实际记录为准，不称CI通过。当前handoff工具326为CurrentPass，历史220Unavailable/54Unreviewed与legacy Fail单列，不追认旧证据。
+
+源码按阶段atomic推到 `task/language-mainline-20261103` 及各 `task/322`–`task/328`实际施工分支，逐完整SHA核远端；未提交源码另以WIP树快照保存。恢复说明见docs/PROGRESS-BACKUP.md。候选未完成共同验收前不记为完整语言/B0/ZUI完成。
+
 ## 2026-11-03：恢复后有限语言组合本地验收
 
 可用基线为299后的`7f039d16`，指定301–312旧对象与未提交源码均未恢复；补充旧对话仅记载其未推送，不作为当前源码或规范。可用来源审计见docs/RECOVERY-20261103.md，除新附件/平台导出外不反复恢复同一批编号。

@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/cp34_instruction_cases.rs"]
 mod cases;
-#[path = "support/cp34_reference_v32.rs"]
+#[path = "support/cp34_reference_v34.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -267,6 +267,7 @@ fn module(flag: bool) -> TypedModule {
             Terminator::Unreachable,
         ];
         TypedFunction {
+            reference_return_bound: None,
             callable_return_contract: flag.then(|| return_contract(kinds()[i % 4])),
             callable_contract: flag.then(|| contract(i % 2 == 0)),
             id: FunctionId(i as u32),
@@ -656,5 +657,49 @@ fn scoped32_reference_preserves_v31_anchors_and_rejects_new_old_forms() {
         };
         equal(&changed);
         assert_ne!(input.fingerprint(), changed.fingerprint(), "field {field}");
+    }
+}
+
+#[test]
+fn life_and_scoped_thread_identity_fields_match_the_extended_reference() {
+    let mut raw = module(false);
+    raw.functions[0].reference_return_bound = Some(vec![0, 2]);
+    equal(&raw);
+    assert!(std::panic::catch_unwind(|| legacy::bytes_v31(&raw)).is_err());
+    let original = raw.fingerprint();
+    raw.functions[0].reference_return_bound = Some(vec![0, 3]);
+    equal(&raw);
+    assert_ne!(original, raw.fingerprint());
+    raw.functions[0].blocks[0].instructions.push(Instruction {
+        result: Some(ValueId(17)),
+        span: Span::default(),
+        kind: InstructionKind::WithScopedThread {
+            worker: FunctionId(101),
+            argument: ValueId(103),
+            body: ValueId(107),
+        },
+    });
+    equal(&raw);
+    for field in 0..3 {
+        let mut changed = raw.clone();
+        let InstructionKind::WithScopedThread {
+            worker,
+            argument,
+            body,
+        } = &mut changed.functions[0].blocks[0]
+            .instructions
+            .last_mut()
+            .unwrap()
+            .kind
+        else {
+            panic!()
+        };
+        match field {
+            0 => worker.0 += 1,
+            1 => argument.0 += 1,
+            _ => body.0 += 1,
+        }
+        equal(&changed);
+        assert_ne!(raw.fingerprint(), changed.fingerprint());
     }
 }

@@ -1,4 +1,4 @@
-//! Exact original223 attack bytes, plus an explicitly migrated schema32 envelope.
+//! Exact archived223 bytes plus a structurally migrated schema34 fixture.
 use std::{fs, path::PathBuf};
 use zil_base::{Fingerprint, Limits, Phase, ResultCategory, TargetProfile};
 
@@ -6,9 +6,10 @@ const ORIGINAL: &[u8] = include_bytes!("review223_fixtures/mutable-product-origi
 const SCHEMA29: &[u8] = include_bytes!("review223_fixtures/mutable-product-schema29.wire");
 const SCHEMA30: &[u8] = include_bytes!("review223_fixtures/schema30-mutable-product.wire");
 const SCHEMA32: &[u8] = include_bytes!("review223_fixtures/schema32-mutable-product.wire");
+const SCHEMA34: &[u8] = include_bytes!("review223_fixtures/v34/mutable-product.wire");
 
 #[test]
-fn frozen_schema27_29_and30_wire_are_rejected_as_old_transports() {
+fn frozen_schema27_29_30_and32_wire_are_rejected_as_old_transports() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     for (wire, hash) in [
@@ -23,6 +24,10 @@ fn frozen_schema27_29_and30_wire_are_rejected_as_old_transports() {
         (
             SCHEMA30,
             "783db64403cec14468080ce9708d4f25a4cbd315aaed36d2f994994f7f70e3c9",
+        ),
+        (
+            SCHEMA32,
+            "8cc0e4a565e57b71135b3c692079dcaa65dfa4ce6f49dbe36c253182df497862",
         ),
     ] {
         assert_eq!(Fingerprint::of(wire).to_hex(), hash);
@@ -39,35 +44,29 @@ fn frozen_schema27_29_and30_wire_are_rejected_as_old_transports() {
     }
 }
 
-// The archived attack contains no foreign declarations or return contracts.
-// Decode its separately migrated Wire32 fixture and check every unchanged byte
-// against the original; no legacy decoder is exposed in production.
-fn migrate_original_envelope(limits: &Limits) -> Vec<u8> {
+// The offline migration decoded Wire32 and re-encoded the complete v34
+// records, including reference_return_bound=None. Production has no legacy codec.
+fn current_original_envelope(limits: &Limits) -> Vec<u8> {
     assert_eq!(&ORIGINAL[..8], b"ZILMODP\0");
     assert_eq!(&ORIGINAL[8..12], &27u32.to_le_bytes());
-    assert_eq!(zil_ir::wire::WIRE_VERSION, 32);
-    assert_eq!(zil_base::SCHEMA_VERSION, 32);
-    let (module, plan) = zil_ir::wire::decode_module_candidate(SCHEMA32, limits).unwrap();
-    assert_eq!(module.schema_version, 32);
-    assert_eq!(plan.schema_version, 32);
+    assert_eq!(zil_ir::wire::WIRE_VERSION, 34);
+    assert_eq!(zil_base::SCHEMA_VERSION, 34);
+    let (module, plan) = zil_ir::wire::decode_module_candidate(SCHEMA34, limits).unwrap();
+    assert_eq!(module.schema_version, 34);
+    assert_eq!(plan.schema_version, 34);
     assert_eq!(plan.target_fingerprint, module.target.fingerprint());
     assert_eq!(plan.module_fingerprint, module.fingerprint());
     assert!(
         module
             .functions
             .iter()
-            .all(|f| f.foreign.is_none() && f.callable_return_contract.is_none())
+            .all(|f| f.reference_return_bound.is_none()
+                && f.foreign.is_none()
+                && f.callable_return_contract.is_none())
     );
-    let migrated = zil_ir::wire::encode_module_candidate(&module, &plan, limits).unwrap();
-    let mut expected = ORIGINAL.to_vec();
-    for offset in [8, 12, 1538] {
-        assert_eq!(&ORIGINAL[offset..offset + 4], &27u32.to_le_bytes());
-        expected[offset..offset + 4].copy_from_slice(&32u32.to_le_bytes());
-    }
-    expected[1542..1574].copy_from_slice(&plan.module_fingerprint.0);
-    assert_eq!(migrated, expected);
-    assert_eq!(migrated, SCHEMA32);
-    migrated
+    let encoded = zil_ir::wire::encode_module_candidate(&module, &plan, limits).unwrap();
+    assert_eq!(encoded, SCHEMA34);
+    encoded
 }
 
 #[test]
@@ -82,7 +81,7 @@ fn frozen_mutable_product_raw_and_wire_is_promoted_by_315() {
         Fingerprint::of(SCHEMA30).to_hex(),
         "783db64403cec14468080ce9708d4f25a4cbd315aaed36d2f994994f7f70e3c9"
     );
-    let current = migrate_original_envelope(&limits);
+    let current = current_original_envelope(&limits);
     let (module, plan) = zil_ir::wire::decode_module_candidate(&current, &limits).unwrap();
     assert_eq!(
         zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap(),
@@ -94,7 +93,7 @@ fn frozen_mutable_product_raw_and_wire_is_promoted_by_315() {
         .unwrap_or_else(std::env::temp_dir)
         .join("frozen-mutable-replay");
     fs::create_dir_all(&root).unwrap();
-    fs::write(root.join("schema32-mutable-product.wire"), &current).unwrap();
+    fs::write(root.join("schema34-mutable-product.wire"), &current).unwrap();
     let results = [
         (
             "raw",

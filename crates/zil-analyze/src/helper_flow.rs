@@ -194,7 +194,8 @@ fn actual_call(
         InstructionKind::CallClosure { callee, .. } => {
             (values[callee.0 as usize], CallableKind::Fn, false)
         }
-        InstructionKind::CallClosureOnce { callee, .. } => {
+        InstructionKind::CallClosureOnce { callee, .. }
+        | InstructionKind::WithScopedThread { body: callee, .. } => {
             (values[callee.0 as usize], CallableKind::FnOnce, false)
         }
         InstructionKind::CallClosureShared { callee, .. } => {

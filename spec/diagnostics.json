@@ -518,6 +518,33 @@
       ]
     },
     {
+      "code": "E-LIFE-CONTRACT",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-TRAIT"
+      ]
+    },
+    {
+      "code": "E-LIFE-DECLARATION",
+      "phases": [
+        "expand"
+      ],
+      "requirements": [
+        "ZIL-TRAIT"
+      ]
+    },
+    {
+      "code": "E-LIFE-RETURN",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-TRAIT"
+      ]
+    },
+    {
       "code": "E-LLVM-API-CANCELLED",
       "phases": [
         "link"
@@ -900,6 +927,26 @@
       ]
     },
     {
+      "code": "E-THREAD-BODY",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-ASYNC"
+      ]
+    },
+    {
+      "code": "E-THREAD-WORKER",
+      "phases": [
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ASYNC"
+      ]
+    },
+    {
       "code": "E-TRY-ERROR-TYPE",
       "phases": [
         "types"
@@ -1058,6 +1105,15 @@
       "requirements": [
         "ZIL-ARCH",
         "ZIL-LOWERING"
+      ]
+    },
+    {
+      "code": "E-VERIFY-LIFE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-TRAIT"
       ]
     },
     {

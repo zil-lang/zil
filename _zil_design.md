@@ -776,6 +776,14 @@ Transfer/Share 由所有被迁移或共同操作的数据、环境、Cleanup、R
 
 标准同步库的实现须有弱内存论证。仅 SC 交错通过不构成该论证；RustBelt 的弱内存扩展就是这类边界的既有经验。
 
+### 11.1 有限结构化线程执行根（325/328）
+
+`thread_scope(worker, payload, body)` 是不可遮蔽的保留调用。worker是实际静态普通函数符号、精确`fn(i32)->i32`，payload为按源位置求值一次的i32，body为具体`FnOnce()->i32`并在父线程执行，沿既有规则允许合法的父线程捕获与借用。依次准备payload和body后尝试创建一个真实OS线程；成功时worker在子线程运行一次，body在父线程运行一次并按原规则消费/清理环境，再join子线程，返回普通`(created:bool, worker_result:i32, body_result:i32)`。创建失败返回`(false,0,0)`，不执行worker或body，准确清理已准备body环境；不得同步fallback或join未初始化handle。join不能证明静止时固定abort，不返回或释放仍被子线程访问的栈context。Direct trap/panic采用当前目标固定abort，不承诺unwind后异步排空。
+
+首片调用位置限无环境、无callable参数/helper入口合同的普通Direct函数；callable结果合同仅描述返回值，不将普通Direct工厂函数变成callback/helper入口，故其本身不排除本操作，返回载荷仍须满足既有来源、环境与责任规则。在闭包入口或callback/helper合同函数内部调用暂报Unsupported，不把尚未实现的调用位置判为worker不安全。首片仅Linux x86_64可信pthread适配；create发布完整输入，父child结果分别占不相交槽，成功join提供真实happens-before后父线程才能读取child结果，context从创建到join保持稳定。跨线程载荷只有i32，不把父线程body环境或仅由父线程保活的资源伪作子线程载荷。worker及其实际可达静态调用子图须逐函数、类型、指令独立核验为有限纯标量路径；白名单只含Unit/bool/u8/u16/i32/i64及相应局部、标量运算/分支/直接调用，不开放地址、聚合资源、环境、FFI、TLS、allocator、teardown、未知间接调用或嵌套thread_scope。调用图按静态直接调用边求闭包，并保守扫描每个入图函数的全部CFG块，包括源条件不可达的块；本片不做路径敏感资格证明。无关的同模块声明不因此被拒，未知新指令默认不合格。
+
+Types构造未核候选，Analyze与Verify分别重建实际worker调用图、精确签名、body责任及全部SSA使用/作用域/活性，不能共用资格证明。body只在父线程执行，无需伪造其Transfer，但实际消费及创建失败清理仍必须核实。新节点进入Wire/指纹、Lower、两后端、CGU静态依赖和缓存身份；CT显式拒绝，新增遍历在现有限额内预付。本片是真实Direct结构化线程，不授权可脱离handle、共享payload借用、Mutex/Atomic、取消、Suspend/SABI或一般Transfer/Share trait；这些终态义务继续保留。
+
 <a id="ZIL-ASYNC"></a>
 
 ## 12. 挂起、异常、取消与驱动的最终共同边界
@@ -1184,6 +1192,12 @@ fn measured<T: Measure>(value: &T) -> usize {
 匹配 impl 头只找到候选配方，全部前提满足后才发布证据。候选关联等式不得证明自身前提。泛型正文使用独立已有 bound 支持的符号投影；不要求为常见迭代器组合写手工字典。名义字段递归在声明身份停止；实际关联展开环错误，非重复增长按确定配额停止。
 
 lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖分开。可写字段与相关内容参数不变型，不能通过缩短表面借期把短命对象写入长命容器。结构性质 Copy/Transfer/Share 由结构规则或明确审计点建立，空 impl 不造权限。
+
+有限显式 life 来源合同（322）：普通 Direct 函数及具体 inherent 方法可声明仅由 `<life a, life b>` 组成的 life binder，以一层共享地址参数和返回类型的 `&'a T` 关联真实来源。binder 属于当前函数，最终接收者占真实参数索引0；返回标注必须对应至少一个实际共享地址输入，同名 life 只规定允许的来源集合，不证明对象相同、独占或不相交。实际 CFG 的每个借用返回根必须属于该声明上界；局部逃逸、窗口冲突、清理和所有既有完整性责任仍独立核验。
+
+未标注返回的有正文函数继续按已有真实来源推导，不因多输入机械误拒。未声明/重复 binder 与错误来源拒绝；未实现的混合类型/可调用泛型、FP/HRTB、where life 偏序、借用存储位置及 trait lending 保持显式 Unsupported，不能擦除标注放行。Self正规化、跨模块、CT/生成后的重建保留相同声明与实际索引。Core保存原binder及参数映射，Types产生未核返回参数上界；Analyze与Verify各自从真实CFG重建并检查，不能共享证明。上界入Typed/Wire/指纹和接口签名；对调用方仍发布独立核得的实际来源，正文变化沿现有依赖失效。新元数据在复制或扩张前计费，默认额度不变；无life路径保持旧语义。该profile不授权可变存储缩短借期或空trait制造权限。
+
+有限具体泛型 trait 实例（323）：在已有静态名义trait范围，trait可声明有限普通类型参数，其具体有序实参、定义模块及真实Self共同确定impl身份。首片为具体本地非泛型Self的完整impl和普通泛型函数inline/where bound消费；trait参数的直接Copy前提须在未用定义与实际实例分别核验，未声明的嵌套义务不能等i32特化补证。无调用定义、所有方法签名及Self/参数替换同样完整检查。相同Self的不同trait实参不构成重复impl；bound已选定的实例可定位其独立静态方法目标，直接方法调用有多个候选时在调用处诊断歧义，不把不同实例合并成同名方法。模块/名义/phantom完整身份、所属、可见性、预算和既有保留Copy/Transfer/Share等边界保持；泛型impl、impl where、关联项、默认/泛型方法和supertrait尚不由此profile开放。
 
 有限普通 Copy 泛型 profile（194）：直接 `T: Copy` 是编译器按实际结构检查的保留能力约束，当前入口限已支持有限普通 Copy Value：标量、元组、固定数组、名义记录/枚举、Copy错误联合及受支持无环境函数指针。Desc、Managed、Package、Closure、Address、裸Slice及递归/未支持形状不由此获得普通Copy类型实参资格；显式`&T`/`&mut T`沿既有地址规则，T自身仍须合格。定义期只可使用Copy所授予的复制与普通传递，不授予数值运算、公开字段、任意trait方法或callable能力；未使用的模板同样检查，用户同名空trait或impl不能制造该结构事实。实例化再次按实际形状、名义身份及原工作/深度额度核验。
 

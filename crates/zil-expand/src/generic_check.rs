@@ -23,6 +23,7 @@ pub(super) fn validate_parametric<'l>(
     tables: ParametricTables<'_, 'l>,
     dependencies: &mut helper_graph::Dependencies,
     budget: &mut Budget<'l>,
+    trait_calls: &mut trait_instances::Calls,
 ) -> R<()> {
     let ParametricTables {
         nominals,
@@ -72,6 +73,7 @@ pub(super) fn validate_parametric<'l>(
         definition: &function.name,
         dependencies,
         bounds: traits.bounds(function, budget)?,
+        trait_calls,
         traits,
         next_local: function.params.len(),
         enum_resource_flow: false,
@@ -512,6 +514,7 @@ struct Check<'s, 'b, 'l> {
     definition: &'s str,
     dependencies: &'b mut helper_graph::Dependencies,
     bounds: trait_bounds::Bounds,
+    trait_calls: &'b mut trait_instances::Calls,
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
     enum_resource_flow: bool,
@@ -1782,6 +1785,15 @@ impl Check<'_, '_, '_> {
         let method = self
             .traits
             .method(&self.bounds, variable, name, self.budget, object.span)?;
+        if method.name != name {
+            self.budget.text(self.definition, object.span)?;
+            self.budget.text(&method.name, object.span)?;
+            self.budget.node(object.span, 0)?;
+            self.trait_calls
+                .entry(self.definition.to_owned())
+                .or_default()
+                .insert(object.span, method.name.clone());
+        }
         let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
             return Err(error(
                 object.span,
@@ -2408,6 +2420,12 @@ impl Check<'_, '_, '_> {
                         self.budget.wide_units(units, e.span)?;
                     }
                     return Ok(named(&value.ty().name(), e.span));
+                }
+                if super::super::foreign::bare_name(callee) == Some("thread_scope") {
+                    return Err(unsupported(
+                        e.span,
+                        "thread_scope in generic callable wrappers is not implemented",
+                    ));
                 }
                 if super::super::foreign::bare_name(callee) == Some("c_with_callback") {
                     return self.scoped_callback_call(arguments, state, e.span);

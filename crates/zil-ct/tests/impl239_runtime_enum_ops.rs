@@ -76,6 +76,7 @@ fn raw(read: bool) -> (TypedModule, CandidatePlan) {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            reference_return_bound: None,
             id: FunctionId(0),
             name: "entry".into(),
             parameters: vec![],

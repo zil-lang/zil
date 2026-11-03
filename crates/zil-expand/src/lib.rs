@@ -7,6 +7,7 @@ mod enums;
 mod foreign;
 mod generated_spans;
 mod generics;
+mod lifetimes;
 pub use generated_spans::remap_generated_spans;
 mod mapping;
 mod modules;
@@ -64,13 +65,21 @@ fn owned_store_name(name: &str) -> bool {
     )
 }
 fn primitive_name(name: &str) -> bool {
-    integer_name(name)
+    name == "thread_scope"
+        || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if name == "c_with_callback" {
+    if name == "thread_scope" {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-THREAD-NAME",
+            Some(span),
+            "thread_scope is a reserved structured primitive and cannot be rebound",
+        )
+    } else if name == "c_with_callback" {
         Diagnostic::error(
             Phase::Expand,
             "E-FFI-SCOPED-NAME",
@@ -145,7 +154,9 @@ pub struct ExpandedModule {
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
+    trait_method_names: BTreeMap<Span, String>,
     project_trait_work: usize,
+    project_trait_nodes: usize,
     member_owner_work: usize,
     member_owner_nodes: usize,
 }
@@ -167,7 +178,19 @@ pub fn expand_with_map_limits(
 ) -> CompileResult<ExpandedModule> {
     let mut products = generics::products::Products::default();
     let specialized = generics::specialize_products(module, limits, &mut products)?;
-    let mut expanded = expand_inner(source, &specialized, false, limits)?;
+    let mut lower_limits = products.trait_limits(limits);
+    let mut expanded = expand_inner(
+        source,
+        &specialized,
+        false,
+        &lower_limits,
+        &products.trait_signatures,
+        products.trait_instances,
+    )?;
+    if products.trait_instances {
+        debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
+        products.allowance = Some(lower_limits);
+    }
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -193,13 +216,30 @@ pub fn expand_program_module_with_limits(
     let mut products = generics::products::Products::default();
     let specialized = generics::specialize_products(module, limits, &mut products)?;
     let module = &specialized;
-    let mut expanded = expand_inner(source, module, true, limits)?;
+    let mut lower_limits = products.trait_limits(limits);
+    let mut expanded = expand_inner(
+        source,
+        module,
+        true,
+        &lower_limits,
+        &products.trait_signatures,
+        products.trait_instances,
+    )?;
+    if products.trait_instances {
+        debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
+        products.allowance = Some(lower_limits);
+    }
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
         limits,
     )?;
-    let exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
+    let exports = source_exports(
+        module,
+        &expanded.core,
+        &expanded.imported_public_traits,
+        &expanded.trait_method_names,
+    );
     Ok((
         ProgramModule {
             core: expanded.core,
@@ -219,6 +259,7 @@ fn source_exports(
     module: &s::Module,
     core: &CoreModule,
     imported_public_traits: &BTreeSet<String>,
+    trait_method_names: &BTreeMap<Span, String>,
 ) -> Vec<NodeId> {
     let public_nominals: std::collections::BTreeSet<_> = module
         .items
@@ -253,7 +294,8 @@ fn source_exports(
         .collect();
     let mut result = Vec::new();
     let mut add = |f: &s::Function, prefix: Option<&str>| {
-        let name = prefix.map_or_else(|| f.name.clone(), |owner| format!("{owner}.{}", f.name));
+        let target = trait_method_names.get(&f.span).unwrap_or(&f.name);
+        let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
         if let Some(id) = functions.get(&(name, f.span)) {
             result.push(*id);
         }
@@ -316,7 +358,7 @@ pub fn expand_program_with_limits(
     let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
     let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
-    let mut remaining = limits.clone();
+    let mut remaining = products.trait_limits(limits);
     let mut defaults = ProjectDefaults::new();
     // Defaults execute in their declaration's module. The generated function
     // name cannot be spelled by source syntax, but it remains an ordinary
@@ -362,7 +404,13 @@ pub fn expand_program_with_limits(
             module,
             true,
             sources,
-            (&declarations, &project_modules, source_imports),
+            (
+                &declarations,
+                &project_modules,
+                source_imports,
+                &products.trait_signatures,
+                products.trait_instances,
+            ),
             (&remaining, &remaining),
             Some(&defaults),
         )?;
@@ -401,6 +449,16 @@ pub fn expand_program_with_limits(
             })?;
         remaining.max_nodes = remaining
             .max_nodes
+            .checked_sub(expanded.project_trait_nodes)
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Expand,
+                    "project trait instance node budget exceeded",
+                    Some(module.span),
+                )]
+            })?;
+        remaining.max_nodes = remaining
+            .max_nodes
             .checked_sub(expanded.source_map.entries.len())
             .ok_or_else(|| {
                 vec![Diagnostic::limit(
@@ -425,7 +483,12 @@ pub fn expand_program_with_limits(
                     Some(module.span),
                 )]
             })?;
-        let mut exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
+        let mut exports = source_exports(
+            module,
+            &expanded.core,
+            &expanded.imported_public_traits,
+            &expanded.trait_method_names,
+        );
         exports.extend(expanded.generated_exports);
         let mut resolved_imports = module_imports.clone();
         resolved_imports.extend(expanded.generated_imports);
@@ -442,8 +505,51 @@ pub fn expand_program_with_limits(
         .iter_mut()
         .map(|(module, map)| (&mut module.core, map))
         .collect::<Vec<_>>();
+    if products.trait_instances {
+        products.allowance = Some(remaining);
+    }
     products.publish(&mut product_cores, sources, limits)?;
     Ok(result)
+}
+
+fn debit_trait_lowering(
+    expanded: &ExpandedModule,
+    remaining: &mut Limits,
+    source_count: usize,
+) -> CompileResult<()> {
+    let map_work = expanded
+        .source_map
+        .entries
+        .iter()
+        .try_fold(source_count, |work, entry| {
+            work.checked_add(entry.related.len().saturating_add(1))
+        });
+    let work = map_work
+        .and_then(|work| work.checked_add(expanded.member_owner_work))
+        .and_then(|work| work.checked_add(expanded.project_trait_work));
+    remaining.max_analysis_steps = work
+        .and_then(|work| remaining.max_analysis_steps.checked_sub(work))
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "trait expansion request work budget exceeded",
+                None,
+            )]
+        })?;
+    let nodes = expanded
+        .member_owner_nodes
+        .checked_add(expanded.project_trait_nodes)
+        .and_then(|nodes| nodes.checked_add(expanded.source_map.entries.len()));
+    remaining.max_nodes = nodes
+        .and_then(|nodes| remaining.max_nodes.checked_sub(nodes))
+        .ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Expand,
+                "trait expansion request node budget exceeded",
+                None,
+            )]
+        })?;
+    Ok(())
 }
 
 fn expand_inner(
@@ -451,15 +557,29 @@ fn expand_inner(
     module: &s::Module,
     imports_resolved: bool,
     owner_limits: &Limits,
+    signatures: &generics::trait_instances::Signatures,
+    metered_trait_instances: bool,
 ) -> CompileResult<ExpandedModule> {
     let declarations = declaration_index(std::iter::once(module));
+    let legacy_limits = Limits::default();
+    let lowering_limits = if metered_trait_instances {
+        owner_limits
+    } else {
+        &legacy_limits
+    };
     expand_inner_project(
         source,
         module,
         imports_resolved,
         std::slice::from_ref(source),
-        (&declarations, &[module], &[]),
-        (&Limits::default(), owner_limits),
+        (
+            &declarations,
+            &[module],
+            &[],
+            signatures,
+            metered_trait_instances,
+        ),
+        (lowering_limits, owner_limits),
         None,
     )
 }
@@ -483,12 +603,18 @@ fn expand_inner_project(
     module: &s::Module,
     imports_resolved: bool,
     sources: &[SourceUnit],
-    project: (&Declarations<'_>, &[&s::Module], &[CoreImport]),
+    project: (
+        &Declarations<'_>,
+        &[&s::Module],
+        &[CoreImport],
+        &generics::trait_instances::Signatures,
+        bool,
+    ),
     budgets: (&Limits, &Limits),
     project_defaults: Option<&ProjectDefaults>,
 ) -> CompileResult<ExpandedModule> {
     let (limits, owner_limits) = budgets;
-    let (declarations, project_modules, imports) = project;
+    let (declarations, project_modules, imports, signatures, metered_trait_instances) = project;
     let mut e = Expander::new(
         module.id,
         imports_resolved,
@@ -507,7 +633,14 @@ fn expand_inner_project(
         }
     }
     e.collect_resource_drops(module);
-    e.collect_static_traits(module, project_modules, imports, limits);
+    e.collect_static_traits(
+        module,
+        project_modules,
+        imports,
+        limits,
+        signatures,
+        metered_trait_instances,
+    );
     // A public default is a declaration: check its body even when a particular
     // consumer explicitly supplies that field. Private/local defaults retain
     // their existing lazy lowering.
@@ -546,7 +679,9 @@ fn expand_inner_project(
         generated_imports: e.generated_imports.into_values().collect(),
         generated_exports: e.generated_exports,
         imported_public_traits: e.imported_public_traits,
+        trait_method_names: e.trait_method_names,
         project_trait_work: e.project_trait_work,
+        project_trait_nodes: e.project_trait_nodes,
         member_owner_work: e.member_owner_work,
         member_owner_nodes: owner_limits.max_nodes - e.member_owner_nodes,
     })
@@ -575,7 +710,9 @@ struct Expander<'a> {
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
     imported_public_traits: BTreeSet<String>,
+    trait_method_names: BTreeMap<Span, String>,
     project_trait_work: usize,
+    project_trait_nodes: usize,
     static_traits: BTreeSet<String>,
     static_trait_impls: BTreeSet<Span>,
     source_map: SourceMap,
@@ -619,7 +756,9 @@ impl<'a> Expander<'a> {
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),
             imported_public_traits: BTreeSet::new(),
+            trait_method_names: BTreeMap::new(),
             project_trait_work: 0,
+            project_trait_nodes: 0,
             static_traits: BTreeSet::new(),
             static_trait_impls: BTreeSet::new(),
             source_map: SourceMap::new(module_id),
@@ -682,7 +821,20 @@ impl Expander<'_> {
     ) {
         self.unexecuted_attributes(&item.attributes, "declaration");
         match &item.kind {
-            s::ItemKind::Function(f) => self.function(f, prefix, host, default),
+            s::ItemKind::Function(f) => {
+                let first = self.functions.len();
+                self.function(f, prefix, host, default);
+                if let Some(target) = self.trait_method_names.get(&f.span) {
+                    for function in &mut self.functions[first..] {
+                        if function.span == f.span {
+                            function.name = prefix.map_or_else(
+                                || target.clone(),
+                                |owner| format!("{owner}.{target}"),
+                            );
+                        }
+                    }
+                }
+            }
             s::ItemKind::Aggregate(a) => {
                 for field in &a.fields {
                     self.unexecuted_attributes(&field.attributes, "field");
@@ -777,7 +929,7 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if name == "c_with_callback" {
+        if name == "c_with_callback" || name == "thread_scope" {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }
@@ -1362,7 +1514,16 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             element: Box::new(type_ref(element)),
         },
         s::TypeKind::Group(t) => type_ref(t),
-        s::TypeKind::Reference { mutable, inner, .. } => Type::Address {
+        s::TypeKind::Reference {
+            lifetime: Some(_), ..
+        } => {
+            Type::Unsupported("explicit life requires a checked function signature contract".into())
+        }
+        s::TypeKind::Reference {
+            mutable,
+            inner,
+            lifetime: None,
+        } => Type::Address {
             mutable: *mutable,
             inner: Box::new(type_ref(inner)),
         },

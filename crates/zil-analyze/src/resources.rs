@@ -412,6 +412,9 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::WithScopedThread { argument, body, .. } => {
+            (Some(*argument), Some(*body), &[])
+        }
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             (Some(*callback), Some(*body), &[])
         }
@@ -2397,8 +2400,18 @@ impl Flow<'_> {
                         });
                     }
                 }
-                InstructionKind::WithForeignCallback { callback, body, .. } => {
-                    for (value, consume) in [(*callback, false), (*body, true)] {
+                InstructionKind::WithForeignCallback { .. }
+                | InstructionKind::WithScopedThread { .. } => {
+                    let operands = match i.kind {
+                        InstructionKind::WithForeignCallback { callback, body, .. } => {
+                            [Some((callback, false)), Some((body, true))]
+                        }
+                        InstructionKind::WithScopedThread { body, .. } => {
+                            [None, Some((body, true))]
+                        }
+                        _ => unreachable!(),
+                    };
+                    for (value, consume) in operands.into_iter().flatten() {
                         let ty = &f.values[value.0 as usize];
                         if let Some(shape) = self.shapes.get(&Place::Value(value)) {
                             let fact = copied(state, Place::Value(value), budget)?;
@@ -2824,6 +2837,7 @@ fn effect_consumers(
                     InstructionKind::CallClosure { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. }
+                    | InstructionKind::WithScopedThread { body: callee, .. }
                     | InstructionKind::WithForeignCallback { body: callee, .. } => {
                         let ty = function
                             .values

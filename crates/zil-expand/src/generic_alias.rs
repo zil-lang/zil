@@ -15,10 +15,6 @@ pub(super) fn reserved_declaration_name(name: &str) -> bool {
     )
 }
 
-pub(super) fn normalize(module: &Module, limits: &Limits) -> R<Option<Normalized>> {
-    normalize_with_budget(module, Budget::new(limits)).map(|(normalized, _)| normalized)
-}
-
 pub(super) fn normalize_with_budget<'a>(
     module: &Module,
     mut budget: Budget<'a>,
@@ -471,6 +467,7 @@ impl Visitor<'_, '_, '_> {
         let mut types = self.names(outer, item.span)?;
         let generics = match &item.kind {
             ItemKind::Impl(i) => i.generics.as_slice(),
+            ItemKind::Trait(t) => t.generics.as_slice(),
             ItemKind::Extern { function, .. } => function.generics.as_slice(),
             _ => params(item),
         };
@@ -532,6 +529,12 @@ impl Visitor<'_, '_, '_> {
                         }
                         VariantFields::Unit => {}
                     }
+                }
+            }
+            ItemKind::Trait(t) => {
+                types.insert("Self".into());
+                for m in &mut t.members {
+                    self.item(m, &types, depth + 1)?;
                 }
             }
             ItemKind::Impl(i) => {

@@ -45,6 +45,7 @@ struct Body(TypedFunction);
 impl Body {
     fn new(result: Type) -> Self {
         Self(TypedFunction {
+            reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
             id: FunctionId(0),

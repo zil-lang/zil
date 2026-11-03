@@ -1,4 +1,4 @@
-//! Migrated raw/Wire32 operands from the independent Analyze 253 review.
+//! Structurally migrated raw/Wire34 operands from the independent Analyze 253 review.
 use zil_base::{Limits, TargetProfile};
 
 #[test]
@@ -8,12 +8,13 @@ fn forwarded_f_cannot_pass_as_its_own_i32_callback_argument() {
     for (name, bytes, expected) in [
         (
             "f_as_i32",
-            include_bytes!("../../../tests/impl254/escape_callback_argument.wire").as_slice(),
+            include_bytes!("../../../tests/impl254/v34/escape_callback_argument.wire").as_slice(),
             "E-VERIFY-CLOSURE-CALL",
         ),
         (
             "symbolic_copy",
-            include_bytes!("../../../tests/impl254/control_callback_i32_argument.wire").as_slice(),
+            include_bytes!("../../../tests/impl254/v34/control_callback_i32_argument.wire")
+                .as_slice(),
             "E-VERIFY-CALLABLE-CONTRACT",
         ),
     ] {
@@ -29,7 +30,7 @@ fn forwarded_f_cannot_pass_as_its_own_i32_callback_argument() {
     // A genuine Fn call borrows its live local before the by-value transfer
     // to Return. The callback's i32 argument stays an actual i32.
     let (mut typed, mut plan) = zil_ir::wire::decode_module_candidate(
-        include_bytes!("../../../tests/impl254/control_callback_i32_argument.wire"),
+        include_bytes!("../../../tests/impl254/v34/control_callback_i32_argument.wire"),
         &limits,
     )
     .unwrap();

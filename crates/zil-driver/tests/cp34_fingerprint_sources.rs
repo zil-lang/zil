@@ -6,14 +6,14 @@ use zil_driver::{CompilationSession, CompileOptions, Stage};
 use zil_ir::{CoreProgram, TypedModule};
 
 // Historical encoders remain archived byte-for-byte. The independent Vec
-// reference emits V32 and can also reproduce representable V31 identities.
-#[path = "../../zil-ir/tests/support/cp34_reference_v32.rs"]
+// reference emits V34 and can also reproduce representable V31 identities.
+#[path = "../../zil-ir/tests/support/cp34_reference_v34.rs"]
 mod legacy;
 
 fn check_identity_and_verify(module: TypedModule) {
     let current = Fingerprint::of(&legacy::bytes(&module));
     let historical = Fingerprint::of(&legacy::bytes_v31(&module));
-    assert_ne!(current, historical, "V32 must remain distinct from V31");
+    assert_ne!(current, historical, "V34 must remain distinct from V31");
     assert_eq!(module.fingerprint(), current);
     let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
