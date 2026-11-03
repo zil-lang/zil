@@ -833,6 +833,66 @@ impl Check<'_, '_, '_> {
         );
         Ok(())
     }
+    fn tuple_binding_pattern(
+        &mut self,
+        pattern: &Pattern,
+        ty: &TypeRef,
+        mutable: bool,
+        state: &mut State,
+        seen: &mut BTreeSet<String>,
+    ) -> R<()> {
+        // The borrowed AST preflight bounded pattern depth. Pay each repeated
+        // visit, type snapshot and name index before publishing a local.
+        self.tick(pattern.span)?;
+        match &pattern.kind {
+            PatternKind::Name(name) => {
+                if name == "self" {
+                    return Err(error(pattern.span, "self is reserved for receiver binding"));
+                }
+                let name_work = seen.len().saturating_add(1).ilog2() as usize
+                    + state.locals.len().saturating_add(1).ilog2() as usize
+                    + 4;
+                for _ in 0..name_work {
+                    self.budget.text(name, pattern.span)?;
+                }
+                if !seen.insert(name.clone()) {
+                    return Err(error(pattern.span, "duplicate generic tuple binding"));
+                }
+                self.budget.ty(ty)?;
+                self.bind_local(state, name.clone(), ty.clone())?;
+                state.locals.get_mut(name).expect("just bound").mutable = mutable;
+                Ok(())
+            }
+            PatternKind::Wildcard => Ok(()),
+            PatternKind::Tuple(patterns) => {
+                let fields = match &group(ty).kind {
+                    TypeKind::Tuple(fields) => fields.as_slice(),
+                    TypeKind::Named { path, args }
+                        if path.as_slice() == ["void"] && args.is_empty() =>
+                    {
+                        &[]
+                    }
+                    _ => {
+                        return Err(error(
+                            pattern.span,
+                            "tuple binding requires tuple type before instantiation",
+                        ));
+                    }
+                };
+                if patterns.len() != fields.len() {
+                    return Err(error(pattern.span, "generic tuple binding arity mismatch"));
+                }
+                for (pattern, field) in patterns.iter().zip(fields) {
+                    self.tuple_binding_pattern(pattern, field, mutable, state, seen)?;
+                }
+                Ok(())
+            }
+            _ => Err(unsupported(
+                pattern.span,
+                "tuple binding requires names, discards and tuple patterns",
+            )),
+        }
+    }
     fn owning_store_expression(&self, expression: &Expr, state: &State) -> bool {
         match &expression.kind {
             ExprKind::Group(inner) => self.owning_store_expression(inner, state),
@@ -3315,6 +3375,34 @@ impl Check<'_, '_, '_> {
                             state.fresh_stores.insert(local.id);
                         }
                     }
+                }
+                StmtKind::Binding {
+                    pattern,
+                    ty,
+                    value,
+                    mutable,
+                } if matches!(pattern.kind, PatternKind::Tuple(_)) => {
+                    // Infer against the written complete type before adding
+                    // any names. Copy is proved from symbolic bounds across
+                    // every field, including those discarded by the pattern.
+                    let actual = self.expr(value, state, ty.as_ref(), false)?;
+                    if let Some(expected) = ty {
+                        same(&actual, expected, statement.span, self.budget)?;
+                    }
+                    copy::require(
+                        &actual,
+                        self.nominals,
+                        &self.bounds,
+                        &self.variables,
+                        self.budget,
+                    )?;
+                    self.tuple_binding_pattern(
+                        pattern,
+                        &actual,
+                        *mutable,
+                        state,
+                        &mut BTreeSet::new(),
+                    )?;
                 }
                 StmtKind::Assign { target, op, value } => {
                     self.factory_place(target, state, true)?;
