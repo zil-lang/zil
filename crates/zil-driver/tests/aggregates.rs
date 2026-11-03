@@ -1033,6 +1033,33 @@ fn tuple_binding_original_readiness_source() {
         Some(0),
     );
 }
+
+#[test]
+fn common313_discard_still_checks_copy_and_evaluates_record_rhs_once() {
+    review329_native(
+        &[(
+            "main",
+            "enum Envelope{Value{left:i32,right:i32}}fn mark(trace:&mut i32,n:i32)->i32{*trace=*trace*10+n;return n}fn result()->i32{var trace=0;let(_,_)=(Envelope.Value{right:mark(&mut trace,2),left:mark(&mut trace,1)},());return trace}",
+        )],
+        21,
+    );
+    for text in [
+        "fn result()->i32{let value=7;let(_,_)=(&value,0);return value}",
+        "resource Token{value:i32}impl Drop for Token{fn drop(self:Self){}}fn result()->i32{let(_,_)=(Token{value:7},0);return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, "E-UNSUPPORTED");
+        assert_eq!(report.verification_runs, 0);
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
 #[test]
 fn review318_tuple_rhs_order_and_ct_traversal() {
     native(
