@@ -679,6 +679,19 @@ pub(super) struct CallHints {
     found: BTreeMap<String, TypeRef>,
 }
 impl CallHints {
+    pub(super) fn independent_input(
+        &self,
+        index: usize,
+        union_pass: bool,
+        budget: &mut Budget<'_>,
+    ) -> R<bool> {
+        match self.parameters.get(index) {
+            Some(parameter) => {
+                independent_input(parameter, &self.variables, &self.found, union_pass, budget)
+            }
+            None => Ok(false),
+        }
+    }
     pub(super) fn unresolved_context(&self, index: usize, budget: &mut Budget<'_>) -> R<bool> {
         let Some(parameter) = self.parameters.get(index) else {
             return Ok(false);
@@ -696,6 +709,8 @@ impl CallHints {
         budget: &mut Budget<'_>,
     ) -> R<()> {
         if let Some(parameter) = self.parameters.get(index) {
+            budget.ty(parameter)?;
+            budget.ty(actual)?;
             if matches!(grouped(parameter).kind, TypeKind::Error { .. }) {
                 if !matches!(grouped(actual).kind, TypeKind::Error { .. }) {
                     return Ok(());

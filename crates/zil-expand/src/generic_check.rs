@@ -2733,29 +2733,46 @@ impl Check<'_, '_, '_> {
                     if argument.spread {
                         return Err(unsupported(argument.span, "parametric tuple spread"));
                     }
-                    if matches!(group(&parameter.ty).kind, TypeKind::Error { .. })
+                    let mut hint = substituted_type(&parameter.ty, &found, self.budget)?;
+                    if matches!(group(&hint).kind, TypeKind::Error { .. })
                         && context_unresolved(&parameter.ty, &variables, &found, self.budget)?
                     {
                         // Read-only lookahead collects whole-type constraints;
                         // actual argument checks below retain source order.
-                        for (other, value) in function.params.iter().zip(arguments) {
-                            self.budget.node(value.span, 0)?;
-                            if let Some(actual) = self.value_hint(&value.value, state, 0, true)?
-                                && (!matches!(group(&other.ty).kind, TypeKind::Error { .. })
-                                    || matches!(group(&actual).kind, TypeKind::Error { .. }))
-                            {
-                                unify(
+                        for union_pass in [false, true] {
+                            for (other, value) in function.params.iter().zip(arguments) {
+                                self.budget.node(value.span, 0)?;
+                                if !independent_input(
                                     &other.ty,
-                                    &actual,
                                     &variables,
-                                    &mut found,
-                                    value.span,
+                                    &found,
+                                    union_pass,
                                     self.budget,
-                                )?;
+                                )? {
+                                    continue;
+                                }
+                                if let Some(actual) =
+                                    self.value_hint(&value.value, state, 0, true)?
+                                {
+                                    self.budget.ty(&other.ty)?;
+                                    self.budget.ty(&actual)?;
+                                    if !matches!(group(&other.ty).kind, TypeKind::Error { .. })
+                                        || matches!(group(&actual).kind, TypeKind::Error { .. })
+                                    {
+                                        unify(
+                                            &other.ty,
+                                            &actual,
+                                            &variables,
+                                            &mut found,
+                                            value.span,
+                                            self.budget,
+                                        )?;
+                                    }
+                                }
                             }
                         }
+                        hint = substituted_type(&parameter.ty, &found, self.budget)?;
                     }
-                    let hint = substituted_type(&parameter.ty, &found, self.budget)?;
                     if parameter.give
                         && stores::carrier(&hint).is_some()
                         && !self.owning_store_expression(&argument.value, state)
