@@ -1254,6 +1254,25 @@ impl<'a> Engine<'a> {
                     }
                     return Ok(result.cloned());
                 }
+                if default_integer && let Some(function) = self.signatures.get(target) {
+                    let mut variables = BTreeSet::new();
+                    for parameter in &function.generics {
+                        self.budget.text(&parameter.name, e.span)?;
+                        variables.insert(parameter.name.clone());
+                    }
+                    let Some(result) = &function.return_type else {
+                        return Ok(Some(check::unit(e.span)));
+                    };
+                    self.budget.ty(result)?;
+                    if !check::dependent(result, &variables)
+                        && callable::opaque_signature(result).is_none()
+                    {
+                        // Its declared result already determines the hint.
+                        // This lookahead must not type-check nested arguments;
+                        // the real source-order pass checks their injections.
+                        return Ok(Some(result.clone()));
+                    }
+                }
                 let mut actuals = Vec::new();
                 for arg in arguments {
                     actuals.push(self.value_hint(&arg.value, env, depth + 1, default_integer)?);
