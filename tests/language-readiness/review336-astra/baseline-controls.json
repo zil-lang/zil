@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "kind": "AlteredBaselineSetupControlsOnly",
+  "cli_sha256": "beebbe5900ab5e615a33c66e640950e8c71656fa24d9aee7f0c4a1c3b7d0fc73",
+  "purpose": "Validate ordinary body syntax/types and retain legacy behavior; these changed sources do not prove new profile behavior.",
+  "cases": [
+    {
+      "id": "life-mixed-upper-bound",
+      "path": "baseline-controls/life-mixed-upper-bound.zil",
+      "transformation": "erase_only_life_annotations",
+      "source_sha256": "09a56f84e75c4fee6fbf588fe55b620cb57912ef91f77302c74b1b936abe4b7c",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "life-exact-return-origin",
+      "path": "baseline-controls/life-exact-return-origin.zil",
+      "transformation": "erase_only_life_annotations",
+      "source_sha256": "a70dba86b307d35422b41b98558fb2f3e9a4cc7e2d436b8f4763937f6ad70a5b",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "life-callee-permutation",
+      "path": "baseline-controls/life-callee-permutation.zil",
+      "transformation": "erase_only_life_annotations",
+      "source_sha256": "193b234e9eec4194ea518a5f3989b8a9634fa99fbcce2304e36f570158e8bc93",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "life-shared-reborrow",
+      "path": "baseline-controls/life-shared-reborrow.zil",
+      "transformation": "erase_only_life_annotations",
+      "source_sha256": "4408c4c710928a0ac811db8f1a9d5ab1a03842529362e2b3fea61aa7784deaa3",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "life-branch-bounds",
+      "path": "baseline-controls/life-branch-bounds.zil",
+      "transformation": "erase_only_life_annotations",
+      "source_sha256": "480ec91575acfdfb9d010dbc1d7c3037d6a6862d0121433a063a5882feaec03c",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "life-local-escape",
+      "path": "baseline-controls/life-local-escape.zil",
+      "transformation": "erase_only_life_annotations",
+      "source_sha256": "c9b705b3a9f147aa4ec47ff90323904414c1a0c0745fab2476e8b92628a0d61a",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-ESCAPE",
+          "message": "returned reference would outlive its local or closure storage"
+        }
+      ],
+      "verification_runs": 1
+    },
+    {
+      "id": "life-shared-upgrade",
+      "path": "baseline-controls/life-shared-upgrade.zil",
+      "transformation": "erase_only_life_annotations",
+      "source_sha256": "022e5181e64a698d3b62d9d09f81ceefc5817c6cf64d7877b0cde19c217a97ae",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-ADDRESS-PERMISSION",
+          "message": "shared address cannot be reborrowed exclusively"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "life-returned-loan-parent-write",
+      "path": "baseline-controls/life-returned-loan-parent-write.zil",
+      "transformation": "erase_only_life_annotations",
+      "source_sha256": "6cce099e8137f04abe1b2d8eda83d804a44161929d236f0442dc8f552260d48f",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority"
+        }
+      ],
+      "verification_runs": 1
+    },
+    {
+      "id": "life-same-root-call",
+      "path": "baseline-controls/life-same-root-call.zil",
+      "transformation": "erase_only_life_annotations",
+      "source_sha256": "1e4fe3dbeb9a0116831ef8b8399b0591a92bf5afacefc4bda480d99c695f1604",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority"
+        }
+      ],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-mixed-capture-modes",
+      "path": "baseline-controls/thread-mixed-capture-modes.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "b21da6cc9616997bffc492421125e256c27b2d6c7e87d613c695646e475f7c1b",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-shared-helper",
+      "path": "baseline-controls/thread-shared-helper.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "f2decbec7c0be0a79cba9dc61ed8107e28a8f2b490eba8e86724013579955a5b",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-ordinary-ref-input",
+      "path": "baseline-controls/thread-ordinary-ref-input.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "bf5534ae0ea4667398b055423e2854d9e3ddd0122ba97e1ee35aa0ad62ad85ec",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-fixed-parent-capture",
+      "path": "baseline-controls/thread-fixed-parent-capture.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "f3df2455d2ecca18082620c275c97df5b16cc35fd2cb17ae23f9c00e501396dd",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-last-use-write",
+      "path": "baseline-controls/thread-last-use-write.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "73b8a070c7f9601711b7ed6759b927a2b511ea66853eb2c6dc13359bc1e6f099",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-ancestor-write",
+      "path": "baseline-controls/thread-ancestor-write.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "e2ddd512dbd630d1b8a14925788e259acfb248e827482e1bd96c16109c82be5b",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-nested-writer-setup-invalid",
+      "path": "baseline-controls/thread-nested-writer-setup-invalid.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "cbf4ae7438ec5147f8185898bed77c7df61cb6dced28cc07c6c59087396ddbc6",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-IMMUTABLE-ASSIGNMENT",
+          "message": "exclusive borrow requires a mutable position"
+        }
+      ],
+      "verification_runs": 0,
+      "setup_note": "Mutable nested closure binding was immutable; retained and corrected to var inner in the review case."
+    },
+    {
+      "id": "thread-nested-reader",
+      "path": "baseline-controls/thread-nested-reader.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "c1c039e2b0ea54aa831cae09c7230236f6f66e7ed08b5d37638f3e5c0d4af57d",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-transitive-foreign",
+      "path": "baseline-controls/thread-transitive-foreign.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "b6cee134144dfc292908e6400859580fb5194c20aab115699edf4c6c79cf755b",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-helper-address-result",
+      "path": "baseline-controls/thread-helper-address-result.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "564e23248b9a1379a43af947b52c736539ef6788c0a53b8961dd44ce7baf9d2f",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-lending-origin",
+      "path": "baseline-controls/thread-lending-origin.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "1e4b2a059f505da7558f40e08028b259ea19e57188cdb5a519a141333b5ddb72",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-store-origin",
+      "path": "baseline-controls/thread-store-origin.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "f3e1a19dcf34ec182830a7b4875fb3011eddf2f017582fa1a6ad159e2af8ef17",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-raw-disjoint-seed",
+      "path": "baseline-controls/thread-raw-disjoint-seed.zil",
+      "transformation": "replace_child_lane_with_legacy_scalar_only",
+      "source_sha256": "a72a880855f282c7ebdcf830d6dfc3e3af10b3b73de251fd28b21cfbbcabb95e",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-nested-writer",
+      "path": "baseline-controls/thread-nested-writer.zil",
+      "source_sha256": "6cf10f5f1f6dd2a7f34979f37b73ee4cba8c5e49fd95323815473353c7b4b248",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    }
+  ]
+}
