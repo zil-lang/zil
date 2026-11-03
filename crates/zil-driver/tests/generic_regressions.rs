@@ -92,7 +92,10 @@ fn selected_analysis_work_and_unused_signature_lifetimes_are_checked() {
         &Limits::default(),
     )
     .unwrap_err();
-    assert_eq!(errors[0].category, ResultCategory::Unsupported);
+    // Undeclared life is now diagnosed precisely; keep the original source.
+    assert_eq!(errors[0].category, ResultCategory::SafeReject);
+    assert_eq!(errors[0].phase, zil_base::Phase::Expand);
+    assert_eq!(errors[0].code, "E-LIFE-DECLARATION");
 }
 #[test]
 fn concrete_unary_and_binary_errors_remain_errors_when_unused() {
