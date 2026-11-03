@@ -506,6 +506,7 @@ fn statement_variant(kind: &CoreStatementKind) -> &'static str {
     use CoreStatementKind::*;
     match kind {
         Binding { .. } => "Binding",
+        TupleBinding { .. } => "TupleBinding",
         Assign { .. } => "Assign",
         Expression(_) => "Expression",
         Return(_) => "Return",
