@@ -12,7 +12,7 @@ SHA256 `3acb74e1ffc85123469f402d2a3c02178d267543b7928692ad9e01547d9a7791`。
 | Clang O0 | 23.190s，Verify1后link InfraError/E-LLVM-COMPILE；cc1明确Segmentation fault及SelectionDAG回溯，外层工具SIGABRT；非OOM |
 | LLVM API O0 | 25.223s，编译器SIGSEGV(-11)，无最终JSON |
 | Clang O2 | 51.541s，工具报告Killed；CPU受限运行，不宣称无约束优化逻辑崩溃 |
-| LLVM API O2 | 等待该限额运行完成后填写 |
+| LLVM API O2 | 47.293s，编译器SIGKILL(-9)，无JSON、未触发55s父wall超时；资源受限未完成，不宣称无约束逻辑崩溃 |
 
 本地结果/tmp/zil-333-probe/results.json；不归档大回溯，不缩源或改优化级别。
 
