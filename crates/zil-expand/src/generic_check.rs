@@ -34,9 +34,10 @@ pub(super) fn validate_parametric<'l>(
         traits,
     } = tables;
     // Validate every written signature even if the template remains unused.
-    // Type keys reject unresolved lifetime/const forms rather than erasing them.
+    // Layout keys compare ordinary types. Retained life declarations are
+    // separately checked against actual parameter origins below.
     let mut parameter_names = BTreeSet::new();
-    let variables = function.generics.iter().map(|p| p.name.clone()).collect();
+    let variables = type_parameters(function).map(|p| p.name.clone()).collect();
     let callable = callable::template(function)?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
     let owned_dispatch = function.generics.len() == 1 && callable.as_ref().is_some_and(|bounds| {
@@ -98,12 +99,66 @@ pub(super) fn validate_parametric<'l>(
         defer_captures: None,
         pattern_types,
         result_mode: stores::result_mode(function)?,
+        life_allowed: None,
         result: function
             .return_type
             .clone()
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
+    if super::super::lifetimes::copy_life(function) {
+        let mut remaining = check.budget.remaining_limits();
+        let life =
+            super::super::lifetimes::contract(function, None, &mut remaining.max_analysis_steps)?
+                .expect("mixed Copy/life header has a declaration");
+        check.budget.adopt_remaining(&remaining);
+        for ty in function
+            .params
+            .iter()
+            .map(|p| &p.ty)
+            .chain(function.return_type.iter())
+        {
+            check.budget.node(ty.span, 0)?;
+            if let TypeKind::Reference { mutable, inner, .. } = &group(ty).kind {
+                if *mutable {
+                    return Err(unsupported(
+                        ty.span,
+                        "mixed type and life headers require shared addresses",
+                    ));
+                }
+                let pointee = match &group(inner).kind {
+                    TypeKind::Array {
+                        element,
+                        length: None,
+                    } => element,
+                    _ => inner,
+                };
+                copy::require(
+                    pointee,
+                    check.nominals,
+                    &check.bounds,
+                    &check.variables,
+                    check.budget,
+                )?;
+            }
+        }
+        if matches!(group(&check.result).kind, TypeKind::Reference { .. }) {
+            let mut allowed = BTreeSet::new();
+            for (index, parameter) in function.params.iter().enumerate() {
+                check.budget.node(parameter.span, 0)?;
+                if matches!(
+                    group(&parameter.ty).kind,
+                    TypeKind::Reference { mutable: false, .. }
+                ) && life
+                    .result_life
+                    .is_none_or(|tag| life.parameter_lives[index] == Some(tag))
+                {
+                    allowed.insert(index);
+                }
+            }
+            check.life_allowed = Some(allowed);
+        }
+    }
     // Mixed Copy-T templates can disappear without a concrete instantiation.
     // Check the new data boundary here rather than relying on a later Core
     // instance. Ordinary single-F and existing State paths keep their fees.
@@ -198,8 +253,18 @@ pub(super) fn validate_parametric<'l>(
         fresh_stores: BTreeSet::new(),
         aliases: None,
         defer_holds: BTreeSet::new(),
+        life_origins: BTreeMap::new(),
     };
     for (id, parameter) in function.params.iter().enumerate() {
+        if check.life_allowed.is_some()
+            && matches!(
+                group(&parameter.ty).kind,
+                TypeKind::Reference { mutable: false, .. }
+            )
+        {
+            check.budget.node(parameter.span, 0)?;
+            state.life_origins.insert(id, BTreeSet::from([id]));
+        }
         check.traits.store_types(
             &parameter.ty,
             &check.bounds,
@@ -506,6 +571,9 @@ struct State {
     fresh_stores: BTreeSet<usize>,
     aliases: Option<state_aliases::AliasState>,
     defer_holds: BTreeSet<usize>,
+    // Present only in the mixed Copy/life definition lane. These are actual
+    // parameter indices, never label spellings. usize::MAX means a local root.
+    life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
 struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
@@ -540,9 +608,134 @@ struct Check<'s, 'b, 'l> {
     pattern_types: &'s BTreeMap<String, TypeRef>,
     result: TypeRef,
     result_mode: zil_ir::PassingMode,
+    life_allowed: Option<BTreeSet<usize>>,
     budget: &'b mut Budget<'l>,
 }
 impl Check<'_, '_, '_> {
+    fn life_copy(&mut self, roots: &BTreeSet<usize>, span: Span) -> R<BTreeSet<usize>> {
+        for _ in roots {
+            self.budget.node(span, 0)?;
+        }
+        Ok(roots.clone())
+    }
+
+    // A definition-time origin calculation, separate from ordinary type
+    // unification. Concrete instances still enter both independent CFG cores.
+    fn life_expression(&mut self, expression: &Expr, state: &State) -> R<BTreeSet<usize>> {
+        self.tick(expression.span)?;
+        match &expression.kind {
+            ExprKind::Name(name) => {
+                self.budget.text(name, expression.span)?;
+                match state
+                    .locals
+                    .get(name)
+                    .and_then(|local| state.life_origins.get(&local.id))
+                {
+                    Some(roots) => self.life_copy(roots, expression.span),
+                    None => Ok(BTreeSet::new()),
+                }
+            }
+            ExprKind::Group(inner) => self.life_expression(inner, state),
+            ExprKind::Unary {
+                op: UnaryOp::Borrow,
+                operand,
+            } => self.life_place(operand, state),
+            ExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } => {
+                let mut roots = self.life_expression(then_value, state)?;
+                for root in self.life_expression(else_value, state)? {
+                    self.budget.node(expression.span, 0)?;
+                    roots.insert(root);
+                }
+                Ok(roots)
+            }
+            ExprKind::Call { callee, arguments } => {
+                let target = match &callee.kind {
+                    ExprKind::Name(name) => Some(name),
+                    ExprKind::TypeApply { callee, .. } => match &callee.kind {
+                        ExprKind::Name(name) => Some(name),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let function = target.and_then(|name| self.signatures.get(name)).ok_or_else(||
+                    unsupported(expression.span, "generic shared return requires a static helper with an explicit life relation"))?;
+                self.budget.node(callee.span, 0)?;
+                self.budget.text(&function.name, callee.span)?;
+                let result = function.return_type.as_ref().map(group);
+                let Some(TypeRef {
+                    kind:
+                        TypeKind::Reference {
+                            lifetime: Some(result),
+                            mutable: false,
+                            ..
+                        },
+                    ..
+                }) = result
+                else {
+                    return Err(unsupported(
+                        expression.span,
+                        "generic shared forwarding requires an explicit callee return life",
+                    ));
+                };
+                let mut roots = BTreeSet::new();
+                for (parameter, argument) in function.params.iter().zip(arguments) {
+                    self.budget.node(parameter.span, 0)?;
+                    self.budget.text(result, parameter.span)?;
+                    if matches!(&group(&parameter.ty).kind, TypeKind::Reference { lifetime: Some(name), mutable: false, .. } if name == result)
+                    {
+                        for root in self.life_expression(&argument.value, state)? {
+                            self.budget.node(argument.span, 0)?;
+                            roots.insert(root);
+                        }
+                    }
+                }
+                Ok(roots)
+            }
+            _ => Err(unsupported(
+                expression.span,
+                "this generic shared reference expression needs additional symbolic origin checking",
+            )),
+        }
+    }
+
+    fn life_place(&mut self, expression: &Expr, state: &State) -> R<BTreeSet<usize>> {
+        self.tick(expression.span)?;
+        match &expression.kind {
+            ExprKind::Group(inner) => self.life_place(inner, state),
+            ExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => self.life_expression(operand, state),
+            ExprKind::Member { object, .. }
+            | ExprKind::Index { object, .. }
+            | ExprKind::Slice { object, .. } => {
+                // Existing place checking performs the real dereference and
+                // projection type checks. An input reference retains its roots;
+                // a by-value aggregate or array is a function-local place.
+                let roots = match &object.kind {
+                    ExprKind::Name(name)
+                        if state.locals.get(name).is_some_and(|local| {
+                            matches!(group(&local.ty).kind, TypeKind::Reference { .. })
+                        }) =>
+                    {
+                        self.life_expression(object, state)?
+                    }
+                    _ => self.life_place(object, state)?,
+                };
+                Ok(roots)
+            }
+            ExprKind::Name(_) => Ok(BTreeSet::from([usize::MAX])),
+            _ => Err(unsupported(
+                expression.span,
+                "this generic borrowed place needs additional symbolic origin checking",
+            )),
+        }
+    }
+
     /// Ordinary Copy parameters can leave this definition uninstantiated and
     /// absent from Core. Check the complete mixed header here as well as at
     /// the later selector-producing boundary; no concrete instance grants it.
@@ -993,6 +1186,21 @@ impl Check<'_, '_, '_> {
         }
     }
     fn return_expression(&mut self, expression: &Expr, state: &mut State) -> R<TypeRef> {
+        if self.life_allowed.is_some() {
+            let roots = self.life_expression(expression, state)?;
+            let allowed = self.life_allowed.as_ref().expect("life return lane");
+            for _ in &roots {
+                self.budget.node(expression.span, 0)?;
+            }
+            if roots.is_empty() || !roots.is_subset(allowed) {
+                return Err(Diagnostic::error(
+                    Phase::Expand,
+                    "E-LIFE-ORIGIN",
+                    Some(expression.span),
+                    "generic return source is outside its declared shared input life set",
+                ));
+            }
+        }
         // Capture the ownership facts before expression evaluation consumes
         // its source. Looking only at the returned syntax type erases the
         // distinction between a Store carrier and its Copy description.
@@ -1306,6 +1514,12 @@ impl Check<'_, '_, '_> {
         for _ in &state.defer_holds {
             self.budget.node(self.result.span, 0)?;
         }
+        for roots in state.life_origins.values() {
+            self.budget.node(self.result.span, 0)?;
+            for _ in roots {
+                self.budget.node(self.result.span, 0)?;
+            }
+        }
         if self.resource_desc_roots {
             // Fresh root activations also live in moved; reserve their snapshot
             // before cloning the set. No old profile enters this extra walk.
@@ -1322,6 +1536,7 @@ impl Check<'_, '_, '_> {
         state.invalidated_stores.clear();
         state.store_origins.clear();
         state.fresh_stores.clear();
+        state.life_origins.clear();
         if let Some(first) = branches.first() {
             for id in &first.fresh_stores {
                 self.budget.node(span, 0)?;
@@ -1336,6 +1551,13 @@ impl Check<'_, '_, '_> {
             }
         }
         for branch in branches {
+            for (local, roots) in &branch.life_origins {
+                self.budget.node(span, 0)?;
+                for root in roots {
+                    self.budget.node(span, 0)?;
+                    state.life_origins.entry(*local).or_default().insert(*root);
+                }
+            }
             for id in &branch.moved {
                 self.budget.node(span, 0)?;
                 state.moved.insert(*id);
@@ -1373,6 +1595,7 @@ impl Check<'_, '_, '_> {
             if before.moved.contains(&local.id) != after.moved.contains(&local.id)
                 || before.store_origins.get(&local.id) != after.store_origins.get(&local.id)
                 || before.fresh_stores.contains(&local.id) != after.fresh_stores.contains(&local.id)
+                || before.life_origins.get(&local.id) != after.life_origins.get(&local.id)
             {
                 return Err(unsupported(
                     span,
@@ -1616,7 +1839,7 @@ impl Check<'_, '_, '_> {
                     return Ok(Some(unit(span)));
                 };
                 let mut variables = BTreeSet::new();
-                for parameter in &function.generics {
+                for parameter in type_parameters(function) {
                     self.budget.text(&parameter.name, span)?;
                     variables.insert(parameter.name.clone());
                 }
@@ -1627,10 +1850,10 @@ impl Check<'_, '_, '_> {
                 }
                 let mut found = BTreeMap::new();
                 if let Some(explicit) = explicit {
-                    if explicit.len() != function.generics.len() {
+                    if explicit.len() != type_parameters(function).count() {
                         return Ok(None);
                     }
-                    for (parameter, argument) in function.generics.iter().zip(explicit) {
+                    for (parameter, argument) in type_parameters(function).zip(explicit) {
                         let GenericArg::Type(ty) = argument else {
                             return Ok(None);
                         };
@@ -2711,13 +2934,13 @@ impl Check<'_, '_, '_> {
                     return Err(error(e.span, "parametric call arity mismatch"));
                 }
                 let variables: BTreeSet<_> =
-                    function.generics.iter().map(|p| p.name.clone()).collect();
+                    type_parameters(function).map(|p| p.name.clone()).collect();
                 let mut found = BTreeMap::new();
                 if let Some(args) = explicit {
-                    if args.len() != function.generics.len() {
+                    if args.len() != type_parameters(function).count() {
                         return Err(error(e.span, "parametric type argument arity mismatch"));
                     }
-                    for (param, arg) in function.generics.iter().zip(args) {
+                    for (param, arg) in type_parameters(function).zip(args) {
                         let GenericArg::Type(ty) = arg else {
                             return Err(unsupported(e.span, "const generic argument"));
                         };
@@ -3320,6 +3543,13 @@ impl Check<'_, '_, '_> {
                     }
                     let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
+                    let life_origins = if self.life_allowed.is_some()
+                        && matches!(group(&actual).kind, TypeKind::Reference { .. })
+                    {
+                        Some(self.life_expression(value, state)?)
+                    } else {
+                        None
+                    };
                     // A concrete local resource can establish an owning place
                     // only from an actual create/give producer. Callable bounds
                     // and a later With do not supply that ownership fact. Keep
@@ -3362,6 +3592,10 @@ impl Check<'_, '_, '_> {
                         resource_flow.roots
                     };
                     let local = state.locals.get_mut(n).expect("just bound");
+                    if let Some(roots) = life_origins {
+                        self.budget.node(statement.span, 0)?;
+                        state.life_origins.insert(local.id, roots);
+                    }
                     local.mutable = *mutable;
                     local.declaration_resource = declaration_resource;
                     local.description_roots = roots;
@@ -3492,6 +3726,13 @@ impl Check<'_, '_, '_> {
                         self.resource_description_replacement(whole, value, state)?;
                     let actual = self.expr(value, state, Some(&ty), false)?;
                     same(&actual, &ty, value.span, self.budget)?;
+                    let life_origins = if self.life_allowed.is_some()
+                        && matches!(group(&ty).kind, TypeKind::Reference { .. })
+                    {
+                        Some(self.life_expression(value, state)?)
+                    } else {
+                        None
+                    };
                     if let Some((name, flow)) = resource_replacement {
                         self.resource_description_replace(&name, flow, state, target.span)?;
                     }
@@ -3503,6 +3744,10 @@ impl Check<'_, '_, '_> {
                     }
                     if let ExprKind::Name(name) = &whole.kind {
                         let local = state.locals[name].id;
+                        if let Some(roots) = life_origins {
+                            self.budget.node(target.span, 0)?;
+                            state.life_origins.insert(local, roots);
+                        }
                         self.alias_bind(state, local, target.span)?;
                         // Restore only after the complete RHS succeeded. A
                         // move from this very target during RHS evaluation is

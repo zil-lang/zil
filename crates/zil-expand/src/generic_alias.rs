@@ -472,7 +472,9 @@ impl Visitor<'_, '_, '_> {
             _ => params(item),
         };
         for g in generics {
-            types.insert(g.name.clone());
+            if !matches!(g.kind, GenericParamKind::Lifetime) {
+                types.insert(g.name.clone());
+            }
         }
         match &mut item.kind {
             ItemKind::Function(f) | ItemKind::Extern { function: f, .. } => {

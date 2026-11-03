@@ -1,4 +1,4 @@
-# 331：普通 Copy 类型参数与显式 life 组合（提案）
+# 331：普通 Copy 类型参数与显式 life 组合（实施中）
 
 基线为 `40fbcca6ef506f3cb8e1d40a4f8995c788627da0`。本提案引用
 ZIL-ORIGIN、ZIL-MODES、ZIL-MODULE、ZIL-TRAIT、322/194 的既有责任；
@@ -64,3 +64,12 @@ where life 及借入存储不随此片开放。首片 Copy 前提采用 inline �
 
 本片尚未实施，完整语言、ZUI、life/trait 终态及 Rust 产品四目标未完成；没有
 运行/内存、维护成本或编译速度比较，也没有产品级突破结论。
+
+## 第一阶段源码 checkpoint
+
+规范已由root提交`e28e08d8825085e9a3c6bae57d2a85d3a2418481`冻结。当前接通
+普通类型参数计数/代入与life保留，alias/Copy-bound名字空间排除life，并在
+泛型定义核中加入实际参数来源、局部根、静态callee位置代换及分支合流；
+循环暂要求外部引用来源不变，不能通过单次扫描猜固定点。实例仍沿322的
+CoreLifeContract和两核独立CFG核。`cargo check -p zil-expand --offline`已过；
+本checkpoint尚未完成原源/机器/缓存/预算限测，不记验收。
