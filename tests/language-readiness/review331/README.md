@@ -32,3 +32,9 @@ target334/jobs1，不创建新Cargo target。
 Meter；worker只接收i32，借入view只被父线程body读取，未假定泛型impl或跨线程
 借入资格。它依赖329、330、331、332；当前基线首先在record模式解析拒绝，未构建
 或执行。计划的显式main harness输出为`0\n`、exit0；不能据源或预期升级任何任务。
+
+B的共用原生名绑定修补后，另增两份不属于原8源/历史52源的控制：
+`primitive-binder-life-positive.zil`把真实Type binder与life都命名为i64，并在正文
+调用返回真实原生i64的外部声明；应保留callee词法类型且以bool实例成功。
+`primitive-binder-life-numeric-negative.zil`要求未用同名Type binder仍不能从Copy
+取得数值权限。精确B实测结果另在334 final报告，不追改原331审核结论。
