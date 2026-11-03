@@ -109,6 +109,38 @@ fn main()->i32{let p=P{};return p.down(4)}
 }
 
 #[test]
+fn trait330_default_substitutes_trait_arguments_through_record_bodies_and_signatures() {
+    native_both(&[(
+        "main",
+        r#"
+struct Box<T:Copy>{value:T}
+trait Wrap<R:Copy>{fn wrap(self:&Self,value:R)->Box<R>{return Box::<R>{value:value}}}
+struct P{}
+impl Wrap<i32> for P{}
+fn wrapped<T:Wrap<i32>>(x:&T)->Box<i32>{return x.wrap(7)}
+fn main()->i32{let p=P{};return wrapped(&p).value-7}
+"#,
+    )]);
+}
+
+#[test]
+fn trait330_direct_reference_inputs_and_required_borrow_delegation_are_native() {
+    native_both(&[(
+        "main",
+        r#"
+trait Read{
+ fn raw(self:&Self)->&i32;
+ fn same(self:&Self)->&Self{return self}
+ fn delegated(self:&Self)->&i32{return self.raw()}
+}
+struct P{n:i32}
+impl Read for P{fn raw()->&i32{return &.n}}
+fn main()->i32{let p=P{n:7};let same=p.same();let raw=p.delegated();if same.n!=7{return 1}return *raw-7}
+"#,
+    )]);
+}
+
+#[test]
 fn trait330_missing_wrong_override_duplicate_and_ambiguous_targets_reject() {
     for (text, phase, code) in [
         (
@@ -150,14 +182,87 @@ fn trait330_missing_wrong_override_duplicate_and_ambiguous_targets_reject() {
 }
 
 #[test]
-fn trait330_unused_and_overridden_defaults_check_symbolic_permissions() {
-    for text in [
-        "trait Read{fn read(self:&Self)->&i32{let x=7;return &x}}fn main(){}",
-        "trait Read{fn read(self:&Self)->i32{let self=7;return 7}}fn main(){}",
-    ] {
-        eprintln!("330 extra {text}: {}", check(text).to_json());
+fn trait330_default_request_budgets_are_exact_across_cache_replay() {
+    use zil_driver::CompilationSession;
+    let unit = source(
+        "trait Tag<A:Copy,B:Copy>{fn base(self:&Self)->i32;fn delegated(self:&Self)->i32{return self.base()}}struct P{}impl Tag<i32,bool> for P{fn base()->i32{return 17}}impl Tag<bool,i32> for P{fn base()->i32{return 29}}fn a<T:Tag<i32,bool>>(x:&T)->i32{return x.delegated()}fn b<T:Tag<bool,i32>>(x:&T)->i32{return x.delegated()}fn main()->i32{let p=P{};return a(&p)+b(&p)-46}",
+    );
+    for ledger in ["work", "nodes", "functions"] {
+        let mut low = 1;
+        let mut high = match ledger {
+            "work" => Limits::default().max_analysis_steps,
+            "nodes" => Limits::default().max_nodes,
+            _ => Limits::default().max_functions,
+        };
+        let options = |n| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                _ => options.limits.max_functions = n,
+            }
+            options
+        };
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&unit, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut session = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                session.compile_source(&unit, &options(n)),
+                CompilationSession::default().compile_source(&unit, &options(n)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                if expected == ResultCategory::ResourceLimit {
+                    assert!(!report.diagnostics.is_empty());
+                } else {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        println!("330 default request {ledger} N={low}; N-1 ResourceLimit, cold/warm/fresh agree");
     }
+}
+
+#[test]
+fn trait330_unused_and_overridden_defaults_check_symbolic_permissions() {
     for (text, category, code) in [
+        (
+            "trait Read{fn read(self:&Self)->&i32{let x=7;return &x}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "trait Read{fn raw(self:&Self)->&i32;fn leak(self:Self)->&i32{return self.raw()}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "struct P{n:i32}impl P{fn borrow(self:&Self)->&i32{return &.n}}trait Read{fn read(self:&Self)->&i32{let p=P{n:7};return p.borrow()}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "struct P{n:i32}impl P{fn borrow(self:&Self)->&i32{return &.n}}trait Read{fn read(self:&Self,p:&i32)->&i32{let p=P{n:7};return p.borrow()}}fn main(){}",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "trait Read{fn read(self:&Self)->i32{let self=7;return 7}}fn main(){}",
+            ResultCategory::SafeReject,
+            "E-RECEIVER-RESERVED-NAME",
+        ),
         (
             "trait Read{fn read(self:&Self)->i32{return self.secret}}fn main(){}",
             ResultCategory::Unsupported,
@@ -616,6 +721,18 @@ fn native_backend(files: &[(&str, &str)], backend: zil_driver::NativeBackend) {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.backend, backend);
+        assert!(codegen.fallback.is_none());
+        if backend == zil_driver::NativeBackend::LlvmApi {
+            assert!(!codegen.object_reports.is_empty());
+            assert!(
+                codegen
+                    .object_reports
+                    .iter()
+                    .all(|object| object.contains("\"input_kind\":\"builder\""))
+            );
+        }
         let output = Command::new(&executable).output().unwrap();
         fs::write(dir.join("stdout"), &output.stdout).unwrap();
         fs::write(dir.join("stderr"), &output.stderr).unwrap();

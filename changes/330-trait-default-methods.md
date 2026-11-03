@@ -105,9 +105,23 @@ parametric checker分类为Expand/Unsupported；错误返回、缺额外trait方
 及重复消费分别在Expand/SafeReject拒绝。首次把前两项误期待SafeReject的1Fail
 已保留实际类别并修正精确断言；没有按具体实例补证。
 
-自查另发现既有parametric checker不覆盖普通局部地址来源，未用default
-`let x=7;return &x`目前仍被接受；该路径不是交付Pass，正与root裁定有限正文边界。
-`self`重绑定现已在仅default的显式Bounds上下文拒绝，普通generic路径不改。
+自查另发现既有parametric checker不覆盖普通局部地址来源，WIP曾接受未用default
+`let x=7;return &x`；原发现保留，不能用当时7/0当作关闭依据。root现已裁决下述
+有限正文边界，`self`重绑定也在仅default的显式Bounds上下文拒绝，普通generic路径不改。
 新增trait参数/外部nominal同名时先走已有词法名义保护，再做default检查；不得将
 `fn concrete(x:R)`中的外部R误当trait binder R。预算ledger、完整限定回归及最终
 质量检查仍待完成。
+
+## root裁决后的有限借用正文
+
+330首片的default正文不创建显式借用（包括合法但尚未符号核实的reborrow），遇到
+Borrow/BorrowMut在未用定义期即`Expand/Unsupported`。未知借用来源同样不接受。
+含Reference的结果目前只接受一层地址，且正文是单条直接return或表达式体：
+直接返回原Ref参数，或通过真实Ref Self参数委托当前trait中receiver也是Ref的方法。
+委托若另有含Reference的输入，实际值也须为原Ref参数。参数/局部不按同拼写混同：
+有局部binding、assignment、分支等的借用返回先报Unsupported，不把shadow后的
+名字当参数证明。byvalue Self隐式借用后返回、具体局部对象方法返回和局部alias均
+不在本片来源证明范围。`return self`和共享Self的required借用方法委托已保留原生
+正控。实际实例仍完整进入普通Types/Analyze/独立Verify；这里不把前端许可当两核证明。
+
+该裁决保留完整默认方法/符号借用终态义务；不能宣称已支持任意普通default正文。
