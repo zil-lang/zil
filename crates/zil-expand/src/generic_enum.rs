@@ -381,6 +381,38 @@ fn layout(
 }
 
 impl Engine<'_> {
+    pub(super) fn local_union_argument_context(
+        &mut self,
+        callee: &Expr,
+        index: usize,
+        env: &Env,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Name(name) = &callee.kind else {
+            return Ok(None);
+        };
+        let Some(Some(ty)) = env.get(name) else {
+            return Ok(None);
+        };
+        let Some(bounds) = &self.active_callables else {
+            return Ok(None);
+        };
+        for bound in bounds.bindings() {
+            if callable::parameter_mode(ty, &bound.generic_name).is_none() {
+                continue;
+            }
+            let Some(parameter) = bound.parameters.get(index) else {
+                return Ok(None);
+            };
+            if !matches!(grouped(parameter).kind, TypeKind::Error { .. }) {
+                return Ok(None);
+            }
+            self.budget.ty(ty)?;
+            self.budget.text(&bound.generic_name, callee.span)?;
+            self.budget.ty(parameter)?;
+            return Ok(Some(parameter.clone()));
+        }
+        Ok(None)
+    }
     pub(super) fn enum_expression(
         &mut self,
         e: &mut Expr,
@@ -439,14 +471,20 @@ impl Engine<'_> {
                 let unresolved = vars
                     .iter()
                     .any(|v| !found.contains_key(v) && contains(&hint, v));
-                let actual = self
-                    .expr_expected(
-                        &mut argument.value,
-                        env,
-                        (!unresolved).then_some(&hint),
-                        depth + 1,
-                    )?
-                    .ok_or_else(|| error(argument.span, "enum payload type cannot be inferred"))?;
+                let actual = self.expr_expected(
+                    &mut argument.value,
+                    env,
+                    (!unresolved).then_some(&hint),
+                    depth + 1,
+                )?;
+                let actual = match actual {
+                    Some(actual) => actual,
+                    None => self
+                        .value_hint(&argument.value, env, depth + 1, true)?
+                        .ok_or_else(|| {
+                            error(argument.span, "enum payload type cannot be inferred")
+                        })?,
+                };
                 let actual = self.original_type(&actual)?;
                 unify(field, &actual, &vars, &mut found, span, &mut self.budget)?;
             }
@@ -673,6 +711,52 @@ pub(super) struct CallHints {
     found: BTreeMap<String, TypeRef>,
 }
 impl CallHints {
+    pub(super) fn unresolved_context(&self, index: usize, budget: &mut Budget<'_>) -> R<bool> {
+        let Some(parameter) = self.parameters.get(index) else {
+            return Ok(false);
+        };
+        if !matches!(grouped(parameter).kind, TypeKind::Error { .. }) {
+            return Ok(false);
+        }
+        context_unresolved(parameter, &self.variables, &self.found, budget)
+    }
+    pub(super) fn independent_constraint(
+        &mut self,
+        index: usize,
+        actual: &TypeRef,
+        span: Span,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        if let Some(parameter) = self.parameters.get(index) {
+            if matches!(grouped(parameter).kind, TypeKind::Error { .. }) {
+                if !matches!(grouped(actual).kind, TypeKind::Error { .. }) {
+                    return Ok(());
+                }
+                unify(
+                    parameter,
+                    actual,
+                    &self.variables,
+                    &mut self.found,
+                    span,
+                    budget,
+                )?;
+            } else {
+                self.constrain(index, actual, span, budget)?;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn context_constraints(
+        &self,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<BTreeMap<String, TypeRef>> {
+        for (name, ty) in &self.found {
+            budget.text(name, span)?;
+            budget.ty(ty)?;
+        }
+        Ok(self.found.clone())
+    }
     pub(super) fn symbolic_result(
         &self,
         result: &TypeRef,
