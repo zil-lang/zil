@@ -1622,7 +1622,7 @@ fn thread332_reviewer_raw_parent_metadata_and_shared_once_claims_are_not_proofs(
         ("E-ANALYZE-IR", "E-VERIFY-CLOSURE-ENTRY"),
         ("E-ANALYZE-IR", "E-VERIFY-CLOSURE-CALL"),
     ];
-    for variant in 0..11 {
+    for (variant, (analyze_code, verify_code)) in expected.into_iter().enumerate() {
         let mut changed = typed.clone();
         match variant {
             0 => changed.functions[parent].id = FunctionId(0),
@@ -1658,7 +1658,7 @@ fn thread332_reviewer_raw_parent_metadata_and_shared_once_claims_are_not_proofs(
             ResultCategory::SafeReject,
             "{variant}: {errors:?}"
         );
-        assert_eq!(errors[0].code, expected[variant].0, "{variant}: {errors:?}");
+        assert_eq!(errors[0].code, analyze_code, "{variant}: {errors:?}");
         let mut claim = plan.clone();
         claim.module_fingerprint = changed.fingerprint();
         let bytes = zil_ir::wire::encode_module_candidate(&changed, &claim, &limits).unwrap();
@@ -1683,10 +1683,7 @@ fn thread332_reviewer_raw_parent_metadata_and_shared_once_claims_are_not_proofs(
                 ResultCategory::SafeReject,
                 "{variant}/{form}: {errors:?}"
             );
-            assert_eq!(
-                errors[0].code, expected[variant].1,
-                "{variant}/{form}: {errors:?}"
-            );
+            assert_eq!(errors[0].code, verify_code, "{variant}/{form}: {errors:?}");
         }
     }
 }
