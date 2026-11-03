@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/astra_review",
+  "implementation_author": "/root/life337",
+  "implementation_commit": "97fb6e7686a01a1715a639d494c45048773fc6e1",
+  "executed_production_commit": "51788f2b95d22394967ef102ad68b8976135596c",
+  "verdict": "PassLimited",
+  "scope": "Finite profile337 life-only mutable references; independent source/static/native/raw-Wire review.",
+  "source_equivalence": {
+    "method": "git diff --name-only executed_production_commit implementation_commit",
+    "changed_paths": [
+      "changes/337-mutable-life-returns.md",
+      "tests/language-readiness/mutable337/validation.json"
+    ],
+    "production_and_tests_identical": true
+  },
+  "authority_revision_at_fixture_freeze": "dde8be30124f9fafa0d5cb7ed7c281c9fcecf798",
+  "checks": {
+    "source": {
+      "positive": 4,
+      "safe_reject": 5,
+      "unsupported": 1,
+      "known_incomplete_observations_excluded": 1
+    },
+    "native": {
+      "sources": 2,
+      "builds": 8,
+      "executions": 8,
+      "configurations": [
+        "clang/O0",
+        "clang/O2",
+        "llvm-api/O0",
+        "llvm-api/O2"
+      ],
+      "all_stdout": "0\n",
+      "all_exit_code": 0,
+      "all_stderr": "",
+      "actual_backend_matched": true,
+      "fallback": null,
+      "api_input_kind": "builder",
+      "api_verify_before_after": true,
+      "api_parse_ns": 0
+    },
+    "standalone_raw_tests": {
+      "passed": 3,
+      "failed": 0,
+      "filtered_future339": 2,
+      "positive_source_to_typed_and_raw_wire_controls": true,
+      "attacks": [
+        {
+          "name": "mixed declaration upper bound replaced with shared-only wrong root",
+          "analyze": "E-LIFE-RETURN",
+          "verify_raw": "E-VERIFY-LIFE",
+          "verify_wire": "E-VERIFY-LIFE"
+        },
+        {
+          "name": "actual shared input under forged mutable reborrow",
+          "analyze": "E-LIFE-RETURN",
+          "verify_raw": "E-VERIFY-ADDRESS",
+          "verify_wire": "E-VERIFY-ADDRESS"
+        },
+        {
+          "name": "declared shared result but actual mutable SSA return",
+          "analyze": "SuccessCandidateOnly",
+          "verify_raw": "E-VERIFY-RETURN",
+          "verify_wire": "E-VERIFY-RETURN"
+        }
+      ]
+    },
+    "static_review": [
+      "Mutable annotations restricted to life-only source functions; CopyT/mutable remains Unsupported.",
+      "Declared upper bound stays separate from reconstructed actual origins and input modes.",
+      "Analyze mutable actual-root check charges each root before traversal.",
+      "Verify preserves independent executable type, return, origin and exclusive loan checks; it does not consume an Analyze safety proof.",
+      "No new runtime or public schema is introduced."
+    ]
+  },
+  "nonpassing_or_excluded_observations": [
+    "Existing unused no-life generic alias-conflict body still succeeds; this predates337 and remains KnownIncomplete.",
+    "Initial thread nested-writer fixture setup mistake is retained separately and not counted as337 safety coverage.",
+    "Analyze is not a complete raw instruction type validator; raw result-mode corruption is independently rejected by Verify."
+  ],
+  "not_run": [
+    "Full workspace/default/reference gates",
+    "Independent execution of author budget N/N-1/fresh cases",
+    "Windows native",
+    "Rust same-semantics product comparisons",
+    "339 candidate tests"
+  ],
+  "rust_four_goals": {
+    "safety": "Finite declared mutable-return origins and nearby misuse independently exercised; full language remains incomplete.",
+    "runtime_memory": "Existing address representation reached both native backends; no Rust timing or RSS comparison.",
+    "maintenance": "Ordinary named-life mutable APIs require no new storage object; maintenance cost unmeasured.",
+    "compilation": "Finite changed work inspected for charging; no compilation-speed claim.",
+    "finite_advance": "Four previously unsupported explicit mutable-life programs now verify; two execute across all four native configurations with real origin restrictions retained."
+  },
+  "evidence": [
+    {
+      "path": "tests/language-readiness/review336-astra/expectations.json",
+      "sha256": "c06f102fba9d4eb483c9d50c3f2d9fed1cd8e0b8e8e0181e21c5643f3133d643"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/baseline.json",
+      "sha256": "8dce2c45f157e5e76e351cec5fa3435dc3fce8d5959e664179eb4cc64afc3aac"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/baseline-controls.json",
+      "sha256": "ae9df2ffb126fff5ababa12bf6ade5ca3ade53dcc46bc95c55e728e8e4057a39"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/candidate337.json",
+      "sha256": "239df2bb8ecea3998487e83b86a9f605d395356bb966683b118625c1ba237889"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/native337.json",
+      "sha256": "dd1253636cd17383dd8307e2d6f2528e0771ab46ce7e515d4c8f568f6708e0e1"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/raw337.json",
+      "sha256": "3dd2caeb161353c20ef39a6bfc990b067abb14de49353dec8b05ac3ce3e57241"
+    },
+    {
+      "path": "tests/language-readiness/review336-astra/raw.rs",
+      "sha256": "dc4f94ded1c5e47a0aed0c39446a7eb0f5dec94fd455342d662c67679f3ce3d7"
+    }
+  ]
+}

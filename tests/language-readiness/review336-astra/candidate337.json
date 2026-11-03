@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "kind": "ExactCandidateIndependentSourceCheck",
+  "implementation_commit": "51788f2b95d22394967ef102ad68b8976135596c",
+  "cli_sha256": "15bd3dc8cec04668c84d7bb4ca6f9ae4518ffc8320e2f90eceeb613e2b9d0746",
+  "cli_build_identity": "Author reports clean same-SHA build; reviewer independently matches binary SHA.",
+  "cases": [
+    {
+      "id": "life-mixed-upper-bound",
+      "path": "life-mixed-upper-bound.zil",
+      "source_sha256": "b8abd30b4c4c173dac890c25a5bd48d1dd57cf137efa6f3c8708a61af9d8b312",
+      "expected": "Success",
+      "expectation_met": true,
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-mixed-upper-bound.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-exact-return-origin",
+      "path": "life-exact-return-origin.zil",
+      "source_sha256": "ebbabdf9a26bc1605698f5b57df9678d1c8f453cef4f8b9437adf07a8bb05b16",
+      "expected": "Success",
+      "expectation_met": true,
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-exact-return-origin.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-callee-permutation",
+      "path": "life-callee-permutation.zil",
+      "source_sha256": "8a87744efbcbc939d541e28ff274d31584a1757c667be8e7fa3d8a8f9648d5da",
+      "expected": "Success",
+      "expectation_met": true,
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-callee-permutation.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-shared-reborrow",
+      "path": "life-shared-reborrow.zil",
+      "source_sha256": "eb30c2be4020b0dfcd554cf34084fdd3b9cc44b9764989cd701346298d1dfa66",
+      "expected": "Success",
+      "expectation_met": true,
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-shared-reborrow.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-branch-bounds",
+      "path": "life-branch-bounds.zil",
+      "source_sha256": "1b0fa9ac6e4cf3d543b66fc9373dce2a93ef57eb3bb09a5a8fe3c3988f302ab8",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-LIFE-RETURN",
+          "message": "actual return origins exceed the declared life input set"
+        }
+      ],
+      "verification_runs": 0,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-branch-bounds.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-local-escape",
+      "path": "life-local-escape.zil",
+      "source_sha256": "bc970406dc19cc5bcd955412d2522f828a8e021ef479fd3a2a666f726f199842",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-LIFE-RETURN",
+          "message": "actual return origins exceed the declared life input set"
+        }
+      ],
+      "verification_runs": 0,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-local-escape.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-shared-upgrade",
+      "path": "life-shared-upgrade.zil",
+      "source_sha256": "f5602855a83f61a8e0847d05549e6447b98d602db45c5962302f48ac39a3f782",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-ADDRESS-PERMISSION",
+          "message": "shared address cannot be reborrowed exclusively"
+        }
+      ],
+      "verification_runs": 0,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-shared-upgrade.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-returned-loan-parent-write",
+      "path": "life-returned-loan-parent-write.zil",
+      "source_sha256": "43e6a243a161136b556f41cd04c621f48e711be515497d66d9928cb41f52b76e",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority"
+        }
+      ],
+      "verification_runs": 1,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-returned-loan-parent-write.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-same-root-call",
+      "path": "life-same-root-call.zil",
+      "source_sha256": "4c21a1e10604a43bc56bbaf5915c3073ae294cef663e1a20c2ec3650c02bf7f3",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority"
+        }
+      ],
+      "verification_runs": 1,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-same-root-call.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-generic-mutable",
+      "path": "life-generic-mutable.zil",
+      "source_sha256": "c922a413cf9165915a14fd00ba6087f51313cef80ec9daf9fd863d14cfb44cfa",
+      "expected": "Unsupported",
+      "expectation_met": true,
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "explicit life in this type position is not implemented"
+        }
+      ],
+      "verification_runs": 0,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-generic-mutable.zil",
+        "--json"
+      ]
+    },
+    {
+      "id": "life-generic-no-life-known-gap",
+      "path": "life-generic-no-life-known-gap.zil",
+      "source_sha256": "7fa5f8b498326b5877dd9aad42603d712b1a3cafe9544a269cb1bf40550eb8fc",
+      "expected": "KnownIncomplete",
+      "expectation_met": null,
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "argv": [
+        "/workspace/.zil-env/target337/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-generic-no-life-known-gap.zil",
+        "--json"
+      ],
+      "disposition": "Separate existing gap observation; excluded from pass counts"
+    }
+  ]
+}
