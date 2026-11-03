@@ -179,7 +179,8 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
   if (frozen?.files) {
     const required = readJson('spec/interfaces.json')?.normative_inputs;
     const registered = Object.keys(frozen.files);
-    if (!Array.isArray(required) || required.length === 0 || new Set(required).size !== required.length || !required.includes('_zil_design.md') || !required.includes('spec/interfaces.json') || required.some(name => !inside(root, name)) || required.length !== registered.length || registered.some(name => !required.includes(name))) complain('normative', 'Current normative registry differs from the complete required input set.');
+    const canonical = name => typeof name === 'string' && !name.includes('\\') && path.posix.normalize(name) === name && inside(root, name);
+    if (!Array.isArray(required) || required.length === 0 || new Set(required).size !== required.length || !required.includes('_zil_design.md') || !required.includes('spec/interfaces.json') || required.some(name => !canonical(name)) || required.length !== registered.length || registered.some(name => !required.includes(name))) complain('normative', 'Current normative registry differs from the complete required input set.');
     const lines = [];
     for (const [name, expected] of Object.entries(frozen.files).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
       const full = inside(root, name);
