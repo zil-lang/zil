@@ -129,6 +129,7 @@ impl<'a> Expander<'a> {
         declarations: &[&'a s::Module],
         imports: &[CoreImport],
         limits: &Limits,
+        signatures:&trait_instances::Signatures,
     ) {
         // Preserve the old no-trait and builtin Drop paths. An actually
         // normalized external trait implementation activates project lookup.
@@ -362,7 +363,16 @@ impl<'a> Expander<'a> {
                     let signature=if let Some(reference)=&instance_reference {
                         let selected=Limits{max_analysis_steps:work,max_nodes:project_nodes,..limits.clone()};
                         let mut meter=TraitBudget::new(&selected);
-                        let result=trait_instances::signature(declaration,method,reference,&mut meter);
+                        let actual=i.members.iter().find_map(|m|match &m.kind {s::ItemKind::Function(f) if f.name==method.name=>Some(f),_=>None});
+                        let result=if let Some(actual)=actual && let Some(frozen)=signatures.get(&(item.span,actual.span)) {
+                            if frozen.key!=reference.key || frozen.host!=host_name || frozen.declaration!=member.span {
+                                Err(Diagnostic::error(Phase::Expand,"E-TRAIT-SIGNATURE",Some(member.span),"trait required signature has a different source instance"))
+                            } else {
+                                for p in &frozen.method.params {if let Err(error)=meter.ty(&p.ty){self.diagnostics.push(error);return;}}
+                                if let Some(result)=&frozen.method.return_type && let Err(error)=meter.ty(result){self.diagnostics.push(error);return;}
+                                Ok(std::borrow::Cow::Borrowed(&frozen.method))
+                            }
+                        } else {trait_instances::signature(declaration,member,reference,&mut meter)};
                         let left=trait_instances::remaining(&meter);work=left.max_analysis_steps;project_nodes=left.max_nodes;
                         match result {Ok(signature)=>signature,Err(error)=>{self.diagnostics.push(error);return;}}
                     } else {std::borrow::Cow::Borrowed(method)};

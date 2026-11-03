@@ -168,7 +168,7 @@ pub fn expand_with_map_limits(
 ) -> CompileResult<ExpandedModule> {
     let mut products = generics::products::Products::default();
     let specialized = generics::specialize_products(module, limits, &mut products)?;
-    let mut expanded = expand_inner(source, &specialized, false, limits)?;
+    let mut expanded = expand_inner(source, &specialized, false, limits,&products.trait_signatures)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -194,7 +194,7 @@ pub fn expand_program_module_with_limits(
     let mut products = generics::products::Products::default();
     let specialized = generics::specialize_products(module, limits, &mut products)?;
     let module = &specialized;
-    let mut expanded = expand_inner(source, module, true, limits)?;
+    let mut expanded = expand_inner(source, module, true, limits,&products.trait_signatures)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -365,7 +365,7 @@ pub fn expand_program_with_limits(
             module,
             true,
             sources,
-            (&declarations, &project_modules, source_imports),
+            (&declarations, &project_modules, source_imports,&products.trait_signatures),
             (&remaining, &remaining),
             Some(&defaults),
         )?;
@@ -454,6 +454,7 @@ fn expand_inner(
     module: &s::Module,
     imports_resolved: bool,
     owner_limits: &Limits,
+    signatures:&generics::trait_instances::Signatures,
 ) -> CompileResult<ExpandedModule> {
     let declarations = declaration_index(std::iter::once(module));
     expand_inner_project(
@@ -461,7 +462,7 @@ fn expand_inner(
         module,
         imports_resolved,
         std::slice::from_ref(source),
-        (&declarations, &[module], &[]),
+        (&declarations, &[module], &[],signatures),
         (&Limits::default(), owner_limits),
         None,
     )
@@ -486,12 +487,12 @@ fn expand_inner_project(
     module: &s::Module,
     imports_resolved: bool,
     sources: &[SourceUnit],
-    project: (&Declarations<'_>, &[&s::Module], &[CoreImport]),
+    project: (&Declarations<'_>, &[&s::Module], &[CoreImport],&generics::trait_instances::Signatures),
     budgets: (&Limits, &Limits),
     project_defaults: Option<&ProjectDefaults>,
 ) -> CompileResult<ExpandedModule> {
     let (limits, owner_limits) = budgets;
-    let (declarations, project_modules, imports) = project;
+    let (declarations, project_modules, imports,signatures) = project;
     let mut e = Expander::new(
         module.id,
         imports_resolved,
@@ -510,7 +511,7 @@ fn expand_inner_project(
         }
     }
     e.collect_resource_drops(module);
-    e.collect_static_traits(module, project_modules, imports, limits);
+    e.collect_static_traits(module, project_modules, imports, limits,signatures);
     // A public default is a declaration: check its body even when a particular
     // consumer explicitly supplies that field. Private/local defaults retain
     // their existing lazy lowering.

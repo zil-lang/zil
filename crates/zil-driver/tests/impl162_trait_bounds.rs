@@ -58,6 +58,36 @@ fn main()->i32{let p=Point{n:7};if a(&p).n!=7{return 1}if b(&p).n!=8{return 2}re
 }
 
 #[test]
+fn generic_trait_record_arguments_normalize_required_signatures_from_declaration() {
+    native(&[("main",r#"
+struct Box<T:Copy>{value:T}
+trait Read<R:Copy>{fn read(self:&Self)->R;}
+struct Point{n:i32}
+impl Read<Box<i32>> for Point{fn read()->Box<i32>{return Box::<i32>{value:.n}}}
+fn get<T:Read<Box<i32>>>(x:&T)->Box<i32>{return x.read()}
+fn id<T:Copy>(value:T)->T{return value}
+fn main()->i32{let p=Point{n:7};let a=get(&p);let b=id(p.read());return a.value+b.value-14}
+"#)]);
+    for (actual,value) in [("B","B{n:1}"),("i64","1")] {
+        let text=format!("struct A{{n:i32}}struct B{{n:i32}}struct Box<T:Copy>{{value:T}}trait Read<R>{{fn read(self:&Self)->R;}}struct P{{}}impl Read<Box<A>> for P{{fn read()->Box<{actual}>{{return Box::<{actual}>{{value:{value}}}}}}}fn main(){{}}");
+        let report=check(&text);
+        assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
+        assert!(report.diagnostics.iter().any(|d|d.code=="E-TRAIT-SIGNATURE"),"{}",report.to_json());
+    }
+}
+
+#[test]
+fn generic_trait_direct_static_and_value_call_arguments_keep_context() {
+    native(&[("main",r#"
+trait Add<R>{fn add(self:&Self,value:R)->R;}
+struct Point{n:i64}
+impl Add<i64> for Point{fn add(value:i64)->i64{return .n+value}}
+fn id<T:Copy>(value:T)->T{return value}
+fn main()->i32{let p=Point{n:1};let a=p.add(id(6));let b=Point.add(&p,id(6));if a!=7{return 1}if b!=7{return 2}return 0}
+"#)]);
+}
+
+#[test]
 fn generic_trait_direct_ambiguity_does_not_reject_distinct_impl_headers() {
     let declarations="trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i64> for P{fn read()->i64{return i64(.n)}}";
     let good=check(&format!("{declarations}fn main()->i32{{return 0}}"));

@@ -11,6 +11,7 @@ pub(crate) struct Products {
     templates: Vec<(Aggregate, Span)>,
     applications: Vec<Application>,
     pub(super) allowance: Option<Limits>,
+    pub(crate) trait_signatures: trait_instances::Signatures,
 }
 #[derive(Clone)]
 pub(super) struct Scope {

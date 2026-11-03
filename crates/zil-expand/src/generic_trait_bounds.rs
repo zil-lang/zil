@@ -85,8 +85,10 @@ impl<'a> Index<'a> {
                 && index.declarations.contains_key(name)
             {
                 let reference=index.reference(application,budget)?;
-                index.implementations.insert((reference.key.clone(),host));
-                index.references.insert(reference.key.clone(),reference);
+                let key=trait_instances::copy_key(&reference.key,budget,item.span)?;
+                index.implementations.insert((key,host));
+                let key=trait_instances::copy_key(&reference.key,budget,item.span)?;
+                index.references.insert(key,reference);
             }
         }
         Ok(index)
@@ -153,7 +155,7 @@ impl<'a> Index<'a> {
         Ok(declaration)
     }
 
-    fn reference(&self,bound:&TypeRef,budget:&mut Budget<'_>)->R<trait_instances::Reference> {
+    pub(super) fn reference(&self,bound:&TypeRef,budget:&mut Budget<'_>)->R<trait_instances::Reference> {
         let declaration=self.declaration(bound,budget)?;
         let (item,_)=self.declarations[declaration.name.as_str()];
         let reference=trait_instances::arguments(item.span,declaration,bound,budget)?;
@@ -331,7 +333,7 @@ impl<'a> Index<'a> {
                             "method is ambiguous between declared trait bounds",
                         ));
                     }
-                    let mut method=trait_instances::signature(declaration,method,reference,budget)?;
+                    let mut method=trait_instances::signature(declaration,member,reference,budget)?;
                     if !reference.arguments.is_empty() {
                         method.to_mut().name=trait_instances::method_name(reference,name,budget,span)?;
                     }
@@ -347,35 +349,36 @@ impl<'a> Index<'a> {
         })
     }
 
+    pub(super) fn declaration_item(&self,reference:&trait_instances::Reference)->(&'a Item,&'a TraitDecl) {
+        self.declarations[reference.key.name.as_str()]
+    }
     fn actual_reference(&self,key:&trait_instances::Key,budget:&mut Budget<'_>,span:Span)->R<trait_instances::Reference> {
         let reference=&self.references[key];
         budget.text(&key.name,span)?;
         for (argument,ty) in key.arguments.iter().zip(&reference.arguments) {budget.text(argument,span)?;budget.ty(ty)?;}
         Ok(reference.clone())
     }
-    pub(super) fn concrete_method(&self,host:&str,name:&str,budget:&mut Budget<'_>,span:Span)->R<Option<(String,TypeRef)>> {
+    pub(super) fn concrete_method(&self,host:&str,name:&str,budget:&mut Budget<'_>,span:Span)->R<Option<(String,Function)>> {
         if !self.has_instances {return Ok(None);}
         let mut selected=None;
         for (key,actual_host) in &self.implementations {
             budget.node(span,0)?;
             if *actual_host!=host {continue;}
-            let (item,declaration)=self.declarations[key.name.as_str()];
+            let (_,declaration)=self.declarations[key.name.as_str()];
+            let reference=self.actual_reference(key,budget,span)?;
             for member in &declaration.members {
                 budget.node(member.span,0)?;
                 let ItemKind::Function(method)=&member.kind else {continue;};
-                if method.name!=name {continue;}
+                let target=trait_instances::method_name(&reference,&method.name,budget,span)?;
+                if method.name!=name && target!=name {continue;}
                 if selected.is_some() {return Err(error(span,"method call is ambiguous between trait instances"));}
-                let args=key.arguments.len();
-                if args==0 {
-                    selected=Some((name.to_owned(),method.return_type.clone().unwrap_or_else(||named("void",span))));
-                    continue;
-                }
-                // Recover actual type trees from their authenticated impl application.
-                let reference=self.actual_reference(key,budget,span)?;
-                let signature=trait_instances::signature(declaration,method,&reference,budget)?;
-                let target=trait_instances::method_name(&reference,name,budget,span)?;
-                let _=item;
-                selected=Some((target,signature.return_type.clone().unwrap_or_else(||named("void",span))));
+                let signature=trait_instances::signature(declaration,member,&reference,budget)?;
+                if declaration.generics.is_empty() {budget.item(member)?;}
+                let mut signature=signature.into_owned();
+                let substitutions=BTreeMap::from([("Self".to_owned(),named(host,span))]);
+                for p in &mut signature.params {budget.substituted_type(&p.ty,&substitutions)?;Substitution{substitutions:&substitutions}.ty(&mut p.ty);}
+                if let Some(t)=&mut signature.return_type {budget.substituted_type(t,&substitutions)?;Substitution{substitutions:&substitutions}.ty(t);}
+                selected=Some((target,signature));
             }
         }
         Ok(selected)

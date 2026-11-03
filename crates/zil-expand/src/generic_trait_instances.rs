@@ -28,6 +28,18 @@ impl PartialEq<&str> for Bound { fn eq(&self, other: &&str)->bool { self==*other
 pub(crate) type Calls = BTreeMap<String, BTreeMap<Span,String>>;
 pub(crate) fn remaining(budget:&Budget<'_>)->Limits {budget.remaining_limits()}
 
+pub(crate) struct ConcreteSignature {
+    pub key:Key,
+    pub host:String,
+    pub declaration:Span,
+    pub method:Function,
+}
+pub(crate) type Signatures=BTreeMap<(Span,Span),ConcreteSignature>;
+pub(crate) fn copy_key(key:&Key,budget:&mut Budget<'_>,span:Span)->R<Key> {
+    budget.text(&key.name,span)?;
+    for arg in &key.arguments {budget.text(arg,span)?;budget.node(span,0)?;}
+    Ok(key.clone())
+}
 pub(crate) fn head(ty:&TypeRef)->Option<&str> {
     match &grouped(ty).kind { TypeKind::Named{path,..} if path.len()==1=>Some(&path[0]), _=>None }
 }
@@ -59,20 +71,20 @@ pub(crate) fn method_name(reference:&Reference, method:&str, budget:&mut Budget<
     for key in &reference.key.arguments { budget.text(key,span)?;hash.update(&(key.len() as u64).to_le_bytes());hash.update(key.as_bytes()); }
     budget.text(method,span)?;
     budget.node(span,0)?;
+    budget.text("$trait_0000000000000000000000000000000000000000000000000000000000000000_",span)?;
+    budget.text(method,span)?;
     let result=format!("$trait_{}_{}",hash.digest(),method);
-    budget.text(&result,span)?;
     Ok(result)
 }
-pub(crate) fn signature<'a>(declaration:&TraitDecl, method:&'a Function, reference:&Reference, budget:&mut Budget<'_>)->R<Cow<'a,Function>> {
+pub(crate) fn signature<'a>(declaration:&TraitDecl, member:&'a Item, reference:&Reference, budget:&mut Budget<'_>)->R<Cow<'a,Function>> {
+    let ItemKind::Function(method)=&member.kind else {return Err(error(member.span,"trait signature is not an ordinary function"));};
     if declaration.generics.is_empty() { return Ok(Cow::Borrowed(method)); }
     let mut substitutions=BTreeMap::new();
     for (parameter,actual) in declaration.generics.iter().zip(&reference.arguments) {
         budget.text(&parameter.name,actual.span)?;budget.ty(actual)?;budget.node(actual.span,0)?;
         substitutions.insert(parameter.name.clone(),actual.clone());
     }
-    for p in &method.params {budget.substituted_type(&p.ty,&substitutions)?;}
-    if let Some(t)=&method.return_type {budget.substituted_type(t,&substitutions)?;}
-    budget.text(&method.name,method.span)?;
+    budget.substituted_item(member,&substitutions)?;
     let mut result=method.clone();
     let visitor=Substitution{substitutions:&substitutions};
     for p in &mut result.params {visitor.ty(&mut p.ty);}
