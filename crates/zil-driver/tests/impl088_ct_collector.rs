@@ -56,6 +56,7 @@ fn program() -> CoreProgram {
                 enums: vec![],
                 unsupported: vec![],
                 functions: vec![CoreFunction {
+                    life: None,
                     id: NodeId(1),
                     span: span(),
                     name: "helper".into(),

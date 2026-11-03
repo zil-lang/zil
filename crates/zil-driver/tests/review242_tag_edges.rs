@@ -78,6 +78,7 @@ fn fixture() -> TypedModule {
         ),
     ]);
     let function = TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
         id: FunctionId(0),

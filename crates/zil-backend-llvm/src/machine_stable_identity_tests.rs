@@ -38,6 +38,7 @@ fn fixture(order: &[String]) -> (Module, LirModule, Vec<(FunctionId, String)>) {
     for (index, name) in order.iter().enumerate() {
         let id = FunctionId(index as u32);
         source.functions.push(TypedFunction {
+            reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
             id,

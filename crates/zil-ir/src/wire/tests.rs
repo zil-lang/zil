@@ -216,6 +216,7 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
         source_fingerprint: Fingerprint::of(b"candidate"),
         target: TargetProfile::host_llvm(),
         functions: vec![TypedFunction {
+            reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
             result_mode: PassingMode::Infer,

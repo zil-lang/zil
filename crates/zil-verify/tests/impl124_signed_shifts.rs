@@ -17,6 +17,7 @@ fn module(left: Constant, right: Constant, op: BinaryOp) -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            reference_return_bound: None,
             id: FunctionId(0),
             name: "value".into(),
             environment: None,

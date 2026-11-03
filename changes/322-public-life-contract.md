@@ -1,0 +1,5 @@
+# 322 公共life合同冻结
+
+本变更由集成方持有。依据现行§18.1及316探针，将life词法声明保留为CoreLifeContract，并把真实参数来源上界带入TypedFunction/ScalarFunction、Wire33与指纹。None保持旧路径；字段不是前端证明，322生产者与两核消费者仍须实施及独审。CT重建克隆同一life字段，复制前按binder文本和密集参数映射收费；无life成本不增加。旧Wire32及更早输入明确拒绝，CT artifact自身版本保持1。
+
+最近反例包括错binder来源、局部逃逸、未声明标注、重复binder、乱序/重复/越界raw上界、非shared参数、CT重建丢失、接口缓存变化。新增线程操作将作为独立Wire34合同发布，使life生产消费者能先独立构建验证；公共字段登记不等于实现通过。

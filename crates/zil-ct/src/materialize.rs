@@ -465,6 +465,7 @@ mod tests {
     }
     fn function(id: u32, body: CoreBlock) -> CoreFunction {
         CoreFunction {
+            life: None,
             callable_return: None,
             state_parameters: Vec::new(),
             type_parameters: Vec::new(),

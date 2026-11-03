@@ -24,6 +24,7 @@ fn local(id: u32, ty: Type) -> zil_ir::LocalDecl {
 
 fn function(id: u32, foreign: Option<&str>) -> TypedFunction {
     TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
         id: FunctionId(id),
@@ -53,6 +54,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     let body = Type::Closure(ClosureId(1));
     let pair = Type::Tuple(vec![Type::Bool, Type::I32]);
     let source = TypedFunction {
+        reference_return_bound: None,
         parameters: vec![LocalId(0), LocalId(1)],
         locals: vec![
             local(0, f.clone()),
