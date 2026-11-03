@@ -8,6 +8,8 @@ fn generic_error_union_binding_and_call_contexts_accept_complete_types() {
         include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
         "enum Fault{Bad} fn sink(v:Fault!i32)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{let v:Fault!i32=7;return sink(v)+sink(f())} fn main(){}",
         "enum Choice<T>{None,Some(T)} fn sink<T>(v:Choice<T>!i32)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{f();return sink::<i32>(Choice.None)} fn main(){}",
+        "fn sink<T>(value:T!i32,witness:bool!T)->i32{return 0}fn run<F:Fn()->i32>(f:F,v:bool!i64)->i32{f();return sink(7,v)}fn main()->i32{let f=()->i32=>0;let v:bool!i64=true;return run(f,v)}",
+        "fn sink<T>(value:T!i32,witness:T,other:(bool!i32)!i64)->i32{return 0}fn run<F:Fn()->i32>(f:F,v:bool!i32)->i32{f();return sink(7,true,v)}fn main()->i32{let f=()->i32=>0;let v:bool!i32=true;return run(f,v)}",
     ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "union-context.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
@@ -38,9 +40,11 @@ fn generic_error_union_call_constraints_are_independent_of_argument_order() {
         ("value:Choice<T>!i32,witness:T", "Choice.None,true"),
         ("witness:T,value:Choice<T>!i32", "true,Choice.None"),
         ("value:Choice<T>!i32,witness:T", "Choice.None,id(true)"),
+        ("value:T!i32,witness:T", "f(),witness()"),
+        ("witness:T,value:T!i32", "witness(),f()"),
     ] {
         let text = format!(
-            "enum Choice<T>{{None,Some(T)}}fn id<T>(x:T)->T=>x;fn sink<T>({parameters})->i32{{return 0}}fn run<F:Fn()->i32>(f:F)->i32{{f();return sink({arguments})}}fn main()->i32{{let f=()->i32=>1;return run(f)}}"
+            "enum Choice<T>{{None,Some(T)}}fn id<T>(x:T)->T=>x;fn witness()->bool=>true;fn sink<T>({parameters})->i32{{return 0}}fn run<F:Fn()->i32>(f:F)->i32{{f();return sink({arguments})}}fn main()->i32{{let f=()->i32=>1;return run(f)}}"
         );
         let source = SourceUnit::new(FileId(0), ModuleId(0), "union-order.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
@@ -131,14 +135,14 @@ fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
         (
             "argument",
             include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
-            844,
-            284,
+            871,
+            290,
         ),
         (
             "independent",
             "enum Choice<T>{None,Some(T)}fn sink<T>(value:Choice<T>!i32,witness:T)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{f();return sink(Choice.None,true)}fn main()->i32{let f=()->i32=>1;return run(f)}",
-            1286,
-            413,
+            1440,
+            457,
         ),
     ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
