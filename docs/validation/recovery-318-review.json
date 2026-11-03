@@ -15,7 +15,21 @@
       "scope": "Concrete finite Copy tuple ordinary bindings, exact nested arity, all-discard qualification, RHS before bindings, lexical scope, mutability, existing TypedIR/Wire and bounded traversal.",
       "tests": "aggregates: 16 passed; independent RHS probe: native O0/O2 output 2125",
       "budget": "Types analysis N=51, N-1=50 ResourceLimit, fresh N success",
-      "open_combination": "Ordinary generic Copy tuple binding remains Unsupported at the parametric AST definition checker; assigned to 321."
+      "open_combination": "Ordinary generic Copy tuple binding remains Unsupported at the parametric AST definition checker; assigned to 321.",
+      "walker_followup": {
+        "scope": "Read-only audit of all production CoreStatementKind consumers; no runtime implementation changed.",
+        "checked": [
+          "initializer and closure inference",
+          "managed-slot shadowing and initialization",
+          "resource and Package effects",
+          "retained and helper/state source scopes",
+          "defer validation",
+          "CT collector, normalizer, materializer and fast-path fallback"
+        ],
+        "fast_paths": "CT unchanged_shape rejects the new node and falls back to the complete walker; scalar incremental fingerprint similarly falls back. Dedicated selection/generation Return/Expression matches consume synthetic one-statement shapes, not arbitrary function bodies.",
+        "limited_probe": "review318_tuple_defer_capture_and_scoped_initialization: 1 passed; defer tuple mutable capture O0/O2=42, RHS-only outer capture mutation O0/O2=67, scope escape and hidden unknown RHS E-UNKNOWN-NAME, invalid defer return E-DEFER-CONTROL.",
+        "verdict": "No additional traversal defect found in the checked concrete profile; generic definition gap remains tracked by 321."
+      }
     },
     "315": {
       "implementation_commit": "c88cbe1f7b640caef158b7994ce5630957158ccf",
