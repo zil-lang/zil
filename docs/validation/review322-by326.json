@@ -1,0 +1,64 @@
+{
+  "task": "322",
+  "reviewer": "/root/language_map",
+  "implementation_author": "/root/impl315",
+  "verdict": "Fail",
+  "implementation_commit": "e86e79a0a0730e7533ceae2dcee6e4d11c59ce68",
+  "scope": "Independent review of the finite explicit shared life return-bound slice, on schema/Wire33; not a whole-language or integrated schema34 acceptance.",
+  "source_observation": {
+    "author_tree_head": "992c600a80f298d75b8b45dac17413822e286a69",
+    "difference_from_implementation": ["changes/322-explicit-life-contract.md"],
+    "reviewer_test_commit": "1ca086f06820d069c8961ae8670e9b81428df69f",
+    "reviewer_test_base": "e86e79a0a0730e7533ceae2dcee6e4d11c59ce68",
+    "author_tree_modified_by_reviewer": false
+  },
+  "static_checks": {
+    "analyze": "Checks each reachable Return against the declared bound after its own complete interprocedural origin fixed point.",
+    "verify": "Independently validates bound shape and derives origins using its private borrows fixed point; does not trust Analyze Hold rows.",
+    "interfaces": "Declared bound enters signature identity; verified actual result_origins remain separate and enter contract identity.",
+    "ct_transport": "Source Core life metadata is preserved by rebuilding and query cloning, with borrowed preflight before copying.",
+    "source_types": "The bounded AST Visitor scans definitions before generic removal; only checked outer signature positions can erase explicit life to address layout.",
+    "semantic_cache": "Version3 explicitly encodes and compares interface bounds with Typed, source/target request identity is checked, and a warm request runs Verify again. This is an explicitly trusted local cache, not authentication of hostile writers."
+  },
+  "executions": [
+    {
+      "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target326 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test cross_function_borrows --test semantic_cache --offline -- --nocapture",
+      "tree": "author tree at documentation-only successor 992c600a; production/tests exactly e86e79a0a",
+      "exit_code": 0,
+      "cross_function_borrows": {"passed": 18, "failed": 0, "ignored": 0, "filtered": 0},
+      "semantic_cache": {"passed": 8, "failed": 0, "ignored": 0, "filtered": 0},
+      "phase_N": {"expand": 99, "types": 95, "analyze": 714, "verify": 993},
+      "phase_N_minus_one": "ResourceLimit in each phase",
+      "phase_fresh_N": "Success in each phase",
+      "log_sha256": "af6f4b5f18cbd14f0d1341c6bd6b52a668597e09bf1d4d44bb98f88860f4b567"
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target326 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test cross_function_borrows reviewer322_ --offline -- --nocapture",
+      "tree": "independent review fixture 1ca086f06 on unchanged e86e79a0a production",
+      "exit_code": 101,
+      "passed": 1,
+      "failed": 1,
+      "ignored": 0,
+      "filtered": 18,
+      "log_sha256": "05f18d615aa87b2b70fd87b0b7c3ae3b7a8661318b867ba2aa4d4f49217ae492"
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "322-R1",
+      "status": "Open",
+      "location": "crates/zil-types/src/incremental.rs: keys / Reuse::get; crates/zil-types/src/lifetimes.rs: compile",
+      "cause": "The scalar function work-product key omits CoreFunction.life. Reuse returns a prior TypedFunction without calling the new life declaration compiler, while fresh header preflight only charges metadata.",
+      "fixture": "reviewer322_scalar_reuse_must_recheck_current_raw_life_declarations",
+      "baseline": "A legal scalar<life a,life b>(p:i32) with four scalar statements creates one cached Types work product. Its unchanged valid warm result equals fresh Types.",
+      "mutations": ["empty binders", "duplicate binders", "missing dense parameter map", "life on scalar parameter", "life on scalar result", "out-of-range result binder"],
+      "actual": "All six mutations are rejected by fresh Types with E-LIFE-CONTRACT. Both live and encoded/restored FunctionSession accept every mutation, reporting reused_functions=1 and executed_functions=0: twelve bypasses.",
+      "source_control": "The same-length source change from <life a,life b> to <life a,life a> is rejected at Expand by both warm and fresh driver paths; the counterexample establishes raw Core/work-product integrity failure, not source-level safe UB.",
+      "required_remediation": "Bind current life metadata into reuse eligibility/key and validate current declarations before a hit can bypass their compiler; preserve legal source acceptance and fresh/warm equivalence, including restored products. Re-run the unchanged independent counterexample and affected existing targets."
+    }
+  ],
+  "limits": [
+    "Do not interpret deleting a declared bound to None as an intrinsically malformed raw Typed program: it denotes the separate body-inferred lane. Source/cache identity must bind the intended source program.",
+    "No production edits by reviewer, no full suites, no schema34 combination, no Windows or Rust product comparison, no remote push, and no acceptance of full B0/ZUI/trait/lifetime obligations."
+  ]
+}
