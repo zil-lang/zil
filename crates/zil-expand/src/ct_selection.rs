@@ -6,6 +6,12 @@ use super::*;
 pub trait Visitor {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()>;
     fn text(&mut self, value: &str, span: Span) -> CompileResult<()>;
+    fn enum_bound(&mut self, _: Span, _: &s::TypeRef, _: usize) -> CompileResult<()> {
+        Ok(())
+    }
+    fn record_variant(&mut self, _: Span, _: usize) -> CompileResult<()> {
+        Ok(())
+    }
     fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
         walk_item(self, item, depth)
     }
@@ -63,6 +69,14 @@ fn generics<V: Visitor + ?Sized>(
     gs: &[s::GenericParam],
     depth: usize,
 ) -> CompileResult<()> {
+    generics_for(v, gs, depth, None)
+}
+fn generics_for<V: Visitor + ?Sized>(
+    v: &mut V,
+    gs: &[s::GenericParam],
+    depth: usize,
+    owner: Option<Span>,
+) -> CompileResult<()> {
     for g in gs {
         v.node(g.span, depth)?;
         v.text(&g.name, g.span)?;
@@ -70,6 +84,9 @@ fn generics<V: Visitor + ?Sized>(
             s::GenericParamKind::Type(ts) => {
                 for t in ts {
                     v.ty(t, depth + 1)?;
+                    if let Some(owner) = owner {
+                        v.enum_bound(owner, t, depth + 1)?;
+                    }
                 }
             }
             s::GenericParamKind::Const(t) => v.ty(t, depth + 1)?,
@@ -183,7 +200,7 @@ pub fn walk_item<V: Visitor + ?Sized>(
         }
         s::ItemKind::Enum(e) => {
             v.text(&e.name, item.span)?;
-            generics(v, &e.generics, depth + 1)?;
+            generics_for(v, &e.generics, depth + 1, Some(item.span))?;
             for a in &e.variants {
                 v.node(a.span, depth + 1)?;
                 v.text(&a.name, a.span)?;
@@ -196,6 +213,7 @@ pub fn walk_item<V: Visitor + ?Sized>(
                         }
                     }
                     s::VariantFields::Record(fs) => {
+                        v.record_variant(item.span, depth + 1)?;
                         for f in fs {
                             field(v, f, depth + 2)?;
                         }

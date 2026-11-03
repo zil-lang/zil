@@ -6,6 +6,8 @@ pub(crate) struct Budget<'a> {
     limits: &'a Limits,
     nodes: usize,
     work: usize,
+    enum_profiles: BTreeSet<Span>,
+    enum_header: Option<Span>,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -13,6 +15,8 @@ impl<'a> Budget<'a> {
             limits,
             nodes: limits.max_nodes,
             work: limits.max_analysis_steps,
+            enum_profiles: BTreeSet::new(),
+            enum_header: None,
         }
     }
     pub(crate) fn remaining_limits(&self) -> Limits {
@@ -25,6 +29,17 @@ impl<'a> Budget<'a> {
     pub(crate) fn adopt_remaining(&mut self, remaining: &Limits) {
         self.nodes = self.nodes.min(remaining.max_nodes);
         self.work = self.work.min(remaining.max_analysis_steps);
+    }
+    pub(crate) fn note_enum_profile(&mut self, span: Span) -> R<()> {
+        self.node(span, 0)?;
+        self.enum_profiles.insert(span);
+        Ok(())
+    }
+    pub(crate) fn has_enum_profiles(&self) -> bool {
+        !self.enum_profiles.is_empty()
+    }
+    pub(super) fn enum_profile(&self, span: Span) -> bool {
+        self.enum_profiles.contains(&span)
     }
     pub(crate) fn node(&mut self, span: Span, depth: usize) -> R<()> {
         if depth > self.limits.max_call_depth || self.nodes == 0 || self.work == 0 {
@@ -237,6 +252,11 @@ impl<'a> Budget<'a> {
                 GenericParamKind::Type(ts) => {
                     for t in ts {
                         self.ty_at(t, depth + 1, subs)?;
+                        if let Some(owner) = self.enum_header
+                            && copy::is_bound(t)
+                        {
+                            self.note_enum_profile(owner)?;
+                        }
                     }
                 }
                 GenericParamKind::Const(t) => self.ty_at(t, depth + 1, subs)?,
@@ -366,7 +386,9 @@ impl<'a> Budget<'a> {
             }
             ItemKind::Enum(e) => {
                 self.text(&e.name, item.span)?;
+                let old_header = self.enum_header.replace(item.span);
                 self.generics(&e.generics, depth + 1, subs)?;
+                self.enum_header = old_header;
                 for v in &e.variants {
                     self.node(v.span, depth + 1)?;
                     self.text(&v.name, v.span)?;
@@ -379,6 +401,7 @@ impl<'a> Budget<'a> {
                             }
                         }
                         VariantFields::Record(fs) => {
+                            self.note_enum_profile(item.span)?;
                             for f in fs {
                                 self.node(f.span, depth + 2)?;
                                 self.text(&f.name, f.span)?;
