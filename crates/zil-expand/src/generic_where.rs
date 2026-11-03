@@ -36,7 +36,9 @@ fn nominal_bound<'a>(
                 _ => {}
             }
         }
-        *index = Some(trait_bounds::Index::new(module, budget)?);
+        *index = Some(if module.items.iter().any(|item|matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty())) {
+            trait_bounds::Index::declarations_only(module,budget)?
+        } else {trait_bounds::Index::new(module,budget)?});
     }
     index
         .as_ref()

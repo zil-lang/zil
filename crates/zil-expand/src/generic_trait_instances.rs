@@ -220,7 +220,7 @@ impl CallRewrite<'_> {
         }
     }
     fn expr(&self, e: &mut Expr) {
-        if let ExprKind::Member {object,member:MemberName::Name(name)}=&mut e.kind
+        if let ExprKind::Member {object,member:MemberName::Name(name)|MemberName::Constrained{name,..}}=&mut e.kind
             && let Some(target)=self.calls.get(&object.span) { name.clone_from(target); }
 
         match &mut e.kind {

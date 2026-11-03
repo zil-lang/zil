@@ -606,6 +606,7 @@ impl<'a> Engine<'a> {
             .instances
             .len()
             .saturating_add(self.retained_stores.len())
+            .saturating_add(self.traits.instance_count())
             >= self.limits.max_functions.min(512)
         {
             return Err(Diagnostic::limit(
@@ -1467,7 +1468,7 @@ impl<'a> Engine<'a> {
                 let mut trait_signature=None;
                 let mut type_qualified=false;
                 if self.traits.has_instances
-                    && let ExprKind::Member {object,member:MemberName::Name(member)}=&mut callee.kind {
+                    && let ExprKind::Member {object,member:MemberName::Name(member)|MemberName::Constrained{name:member,..}}=&mut callee.kind {
                     let mut hint=self.value_hint(object,env,depth+1,false)?;
                     if hint.is_none() && let ExprKind::Name(name)=&object.kind
                         && !env.contains_key(name) && self.nominals.contains_key(name) {hint=Some(named(name,object.span));type_qualified=true;}

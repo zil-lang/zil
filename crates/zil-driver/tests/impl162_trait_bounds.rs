@@ -95,6 +95,34 @@ fn generic_trait_direct_ambiguity_does_not_reject_distinct_impl_headers() {
     let bad=check(&format!("{declarations}fn main()->i32{{let p=P{{n:7}};return p.read()}}"));
     assert_eq!(bad.status,ResultCategory::SafeReject,"{}",bad.to_json());
     assert!(bad.diagnostics.iter().any(|d|d.message.contains("ambiguous")),"{}",bad.to_json());
+    let text="trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl P{fn read(self:&Self)->i32{return .n}}fn get<T:Read<i32>>(x:&T)->i32{return x.read()}fn main()->i32{let p=P{n:7};return get(&p)-7}";
+    assert_eq!(check(text).status,ResultCategory::Success);
+    let bad=check(&text.replace("get(&p)-7","p.read()-7"));
+    assert_eq!(bad.status,ResultCategory::SafeReject,"{}",bad.to_json());
+    assert!(bad.diagnostics.iter().any(|d|d.message.contains("ambiguous")));
+}
+
+#[test]
+fn generic_trait_request_budgets_are_exact_across_cache_replay() {
+    use zil_driver::CompilationSession;
+    let unit=source("trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i64> for P{fn read()->i64{return i64(.n)}}fn a<T:Read<i32>>(x:&T)->i32{return x.read()}fn b<T:Read<i64>>(x:&T)->i64{return x.read()}fn main()->i32{let p=P{n:7};let x=a(&p);let y=b(&p);return x-7}");
+    for ledger in ["work","nodes","instances"] {
+        let mut low=1;
+        let mut high=match ledger {"work"=>Limits::default().max_analysis_steps,"nodes"=>Limits::default().max_nodes,_=>Limits::default().max_functions};
+        let options=|n|{let mut options=CompileOptions::default();match ledger {"work"=>options.limits.max_analysis_steps=n,"nodes"=>options.limits.max_nodes=n,_=>options.limits.max_functions=n};options};
+        while low<high {
+            let n=low+(high-low)/2;
+            let report=compile_source(&unit,&options(n));
+            match report.status {ResultCategory::Success=>high=n,ResultCategory::ResourceLimit=>low=n+1,_=>panic!("{}",report.to_json())}
+        }
+        let mut session=CompilationSession::default();
+        for (n,expected) in [(low,ResultCategory::Success),(low-1,ResultCategory::ResourceLimit),(low,ResultCategory::Success)] {
+            assert_eq!(session.compile_source(&unit,&options(n)).status,expected);
+            assert_eq!(CompilationSession::default().compile_source(&unit,&options(n)).status,expected);
+            assert_eq!(session.active_query_count(),0);
+        }
+        println!("323 trait request {ledger} N={low}; N-1 ResourceLimit, cold/warm/fresh agree");
+    }
 }
 
 #[test]

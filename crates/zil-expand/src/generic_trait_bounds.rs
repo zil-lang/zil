@@ -11,6 +11,7 @@ pub(super) struct Index<'a> {
     implementations: BTreeSet<(trait_instances::Key, &'a str)>,
     pub(super) has_instances: bool,
     references: BTreeMap<trait_instances::Key,trait_instances::Reference>,
+    inherent_methods:BTreeSet<(&'a str,&'a str)>,
     nominals: BTreeMap<String, &'a Item>,
 }
 
@@ -22,7 +23,9 @@ pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
 }
 
 impl<'a> Index<'a> {
-    pub(super) fn new(module: &'a Module, budget: &mut Budget<'_>) -> R<Self> {
+    pub(super) fn new(module: &'a Module, budget: &mut Budget<'_>) -> R<Self> {Self::build(module,budget,true)}
+    pub(super) fn declarations_only(module:&'a Module,budget:&mut Budget<'_>)->R<Self> {Self::build(module,budget,false)}
+    fn build(module:&'a Module,budget:&mut Budget<'_>,validate:bool)->R<Self> {
         let mut declarations = BTreeMap::new();
         let implementations = BTreeSet::new();
         let mut has_instances = false;
@@ -61,8 +64,8 @@ impl<'a> Index<'a> {
                 _ => {}
             }
         }
-        let mut index=Self {declarations,implementations,nominals,has_instances,references:BTreeMap::new()};
-        if has_instances {
+        let mut index=Self {declarations,implementations,nominals,has_instances,references:BTreeMap::new(),inherent_methods:BTreeSet::new()};
+        if has_instances && validate {
             for (item,declaration) in index.declarations.values() {
                 if !declaration.generics.is_empty() {
                     trait_instances::validate_declaration(item,declaration,&index.nominals,budget)?;
@@ -78,6 +81,11 @@ impl<'a> Index<'a> {
             }
         }
         for item in &module.items {
+            if !validate {continue;}
+            if has_instances && let ItemKind::Impl(i)=&item.kind && i.trait_type.is_none()
+                && let Some(host)=plain(&i.target) {
+                for member in &i.members {budget.node(member.span,0)?;if let ItemKind::Function(f)=&member.kind {index.inherent_methods.insert((host,f.name.as_str()));}}
+            }
             if let ItemKind::Impl(i)=&item.kind
                 && i.generics.is_empty() && i.where_clause.is_empty()
                 && let (Some(application),Some(host))=(&i.trait_type,plain(&i.target))
@@ -91,8 +99,10 @@ impl<'a> Index<'a> {
                 index.references.insert(key,reference);
             }
         }
+        if index.instance_count()>budget.remaining_limits().max_functions {return Err(Diagnostic::limit(Phase::Expand,"trait implementation-instance budget exhausted",Some(module.span)));}
         Ok(index)
     }
+    pub(super) fn instance_count(&self)->usize {self.implementations.iter().filter(|(key,_)|!key.arguments.is_empty()).count()}
 
     pub(super) fn declaration(&self, bound: &TypeRef, budget: &mut Budget<'_>) -> R<&'a TraitDecl> {
         budget.ty(bound)?;
@@ -360,6 +370,7 @@ impl<'a> Index<'a> {
     }
     pub(super) fn concrete_method(&self,host:&str,name:&str,budget:&mut Budget<'_>,span:Span)->R<Option<(String,Function)>> {
         if !self.has_instances {return Ok(None);}
+        let local_collision=!name.starts_with("$trait_") && (self.inherent_methods.contains(&(host,name)) || self.nominals.get(host).is_some_and(|item|matches!(&item.kind,ItemKind::Aggregate(a) if a.fields.iter().any(|f|f.name==name)||a.methods.iter().any(|m|matches!(&m.kind,ItemKind::Function(f) if f.name==name)))));
         let mut selected=None;
         for (key,actual_host) in &self.implementations {
             budget.node(span,0)?;
@@ -371,6 +382,7 @@ impl<'a> Index<'a> {
                 let ItemKind::Function(method)=&member.kind else {continue;};
                 let target=trait_instances::method_name(&reference,&method.name,budget,span)?;
                 if method.name!=name && target!=name {continue;}
+                if local_collision {return Err(error(span,"method call is ambiguous between a trait instance and a field or inherent method"));}
                 if selected.is_some() {return Err(error(span,"method call is ambiguous between trait instances"));}
                 let signature=trait_instances::signature(declaration,member,&reference,budget)?;
                 if declaration.generics.is_empty() {budget.item(member)?;}
