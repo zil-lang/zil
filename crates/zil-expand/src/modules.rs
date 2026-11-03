@@ -337,10 +337,13 @@ fn normalize(
             combined.items.push(item);
         }
     }
-    let has_trait_instances = combined
-        .items
-        .iter()
-        .any(|item| matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty()));
+    let mut has_trait_instances = false;
+    for item in &combined.items {
+        if let ItemKind::Trait(t) = &item.kind {
+            has_trait_instances |=
+                generics::trait_defaults::present(t, &mut budget)? || !t.generics.is_empty();
+        }
+    }
     let instance_limits = if has_trait_instances {
         budget.remaining_limits()
     } else {
