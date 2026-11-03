@@ -7,9 +7,11 @@ use std::{
 };
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
-use zil_ir::{InstructionKind as I, TypedModule};
+use zil_ir::{CandidatePlan, HoldRoot, InstructionKind as I, TypedModule};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
+const MUTABLE_PRODUCT_HELPER: &str =
+    include_str!("../../../tests/language-readiness/pending/mutable-product-helper-gap.zil");
 const HEAD: &str = r#"extern "C" fn putchar(code:i32)->i32;fn emit(code:i32){unsafe{putchar(code)}}resource Mark{code:i32}impl Drop for Mark{fn drop(self:Self){emit(.code)}}"#;
 fn directory(label: &str) -> PathBuf {
     let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
@@ -28,6 +30,304 @@ fn typed(text: &str) -> TypedModule {
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
+}
+#[test]
+fn ordinary_local_product_mutable_helper_original() {
+    native("mutable-product-original315", MUTABLE_PRODUCT_HELPER, "", 0);
+    let module = typed(MUTABLE_PRODUCT_HELPER);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+}
+fn product315(body: &str, helpers: &str) -> String {
+    format!(
+        "resource Mark{{n:i32}}package Panel{{manages mark:Mark;count:i32}}fn bump(panel:&mut Panel){{panel.count+=1}}{helpers}fn main()->i32{{var panel=Panel{{mark:Mark{{n:3}},count:0}};{body}}}"
+    )
+}
+
+#[test]
+fn ordinary_local_product_mutable_helper_reborrows_and_cleanup() {
+    native(
+        "mutable-product-reborrow315",
+        &product315(
+            "let parent=&mut panel;twice(parent);bump(parent);let read=&*parent;let n=read.count;bump(&mut panel);return n-3+panel.count-4",
+            "fn twice(panel:&mut Panel){bump(panel);bump(panel)}",
+        ),
+        "",
+        0,
+    );
+    native(
+        "mutable-product-apart315",
+        &product315(
+            "var other=Panel{mark:Mark{n:9},count:0};both(&mut panel,&mut other);return panel.count+other.count-3",
+            "fn both(left:&mut Panel,right:&mut Panel){left.count+=1;right.count+=2}",
+        ),
+        "",
+        0,
+    );
+    for (failure, stdout, exit) in [(false, "QA", 0), (true, "QA", 1)] {
+        native(
+            "mutable-product-error-cleanup315",
+            &format!(
+                "{HEAD}package Panel{{manages mark:Mark;count:i32}}fn bump(panel:&mut Panel,failure:bool)->void!i32{{panel.count+=1;if failure{{return ()}}return 0}}fn main()->void!i32{{var panel=Panel{{mark:Mark{{code:65}},count:0}};defer{{emit(81)}}bump(&mut panel,{failure})?;return panel.count-1}}"
+            ),
+            stdout,
+            exit,
+        );
+    }
+}
+
+#[test]
+fn ordinary_local_product_mutable_helper_nearest_rejections() {
+    for (label, body, helpers, category) in [
+        (
+            "shared-live315",
+            "let held=&panel;bump(&mut panel);return held.count",
+            "",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "exclusive-live315",
+            "let held=&mut panel;bump(&mut panel);return held.count",
+            "",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "exclusive-direct-read315",
+            "let held=&mut panel;let n=panel.count;bump(held);return n",
+            "",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "exclusive-direct-write315",
+            "let held=&mut panel;panel.count=9;bump(held);return 0",
+            "",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "child-live315",
+            "let held=&mut panel;let child=&mut *held;bump(held);bump(child);return 0",
+            "",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "replace-live315",
+            "let held=&mut panel;panel=Panel{mark:Mark{n:4},count:0};bump(held);return 0",
+            "",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "move-live315",
+            "let held=&mut panel;let moved=panel;bump(held);return 0",
+            "",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "partial315",
+            "let removed=give panel.mark;bump(&mut panel);return 0",
+            "",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "moved315",
+            "let moved=panel;bump(&mut panel);return 0",
+            "",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "same-actual315",
+            "both(&mut panel,&mut panel);return 0",
+            "fn both(a:&mut Panel,b:&mut Panel){a.count+=1;b.count+=1}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "capture315",
+            "let held=&mut panel;let f=()=>held.count;return f()",
+            "",
+            ResultCategory::Unsupported,
+        ),
+        (
+            "return315",
+            "let held=escape(&mut panel);return held.count",
+            "fn escape(panel:&mut Panel)->&mut Panel{return panel}",
+            ResultCategory::Unsupported,
+        ),
+        (
+            "owned-write315",
+            "replace(&mut panel);return 0",
+            "fn replace(panel:&mut Panel){panel.mark=Mark{n:9}}",
+            ResultCategory::Unsupported,
+        ),
+    ] {
+        reject(label, &product315(body, helpers), category);
+    }
+    reject(
+        "immutable315",
+        &MUTABLE_PRODUCT_HELPER.replace("var panel=", "let panel="),
+        ResultCategory::SafeReject,
+    );
+}
+
+fn raw_reject315(label: &str, module: TypedModule, mut plan: CandidatePlan, code: &str) {
+    plan.module_fingerprint = module.fingerprint();
+    let limits = Limits::default();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for (route, result) in [
+        (
+            "raw",
+            zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&wire, &module.target, &limits),
+        ),
+    ] {
+        let errors = result.expect_err(label);
+        assert!(
+            errors.iter().any(|d| d.code == code),
+            "{label}/{route}: {errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit
+                    && !d.message.contains("fingerprint")),
+            "{label}/{route}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn ordinary_local_product_mutable_helper_independent_roots_and_permission() {
+    let module = typed(MUTABLE_PRODUCT_HELPER);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    for name in ["main", "bump"] {
+        let f = module.functions.iter().find(|f| f.name == name).unwrap();
+        let expected = if name == "bump" {
+            HoldRoot::Parameter(0)
+        } else {
+            HoldRoot::Local(f.locals.iter().find(|l| l.name == "panel").unwrap().id)
+        };
+        let function_plan = plan.functions.iter().find(|p| p.function == f.id).unwrap();
+        assert!(function_plan.holds.iter().any(|h| h.roots == [expected]));
+        let mut forged = plan.clone();
+        let forged_function = forged
+            .functions
+            .iter_mut()
+            .find(|p| p.function == f.id)
+            .unwrap();
+        for hold in &mut forged_function.holds {
+            if hold.roots == [expected] {
+                hold.roots = vec![if name == "bump" {
+                    HoldRoot::Local(f.parameters[0])
+                } else {
+                    HoldRoot::Parameter(0)
+                }];
+            }
+        }
+        raw_reject315(name, module.clone(), forged, "E-VERIFY-HOLD");
+    }
+    let mut immutable = module.clone();
+    let f = immutable
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    f.locals
+        .iter_mut()
+        .find(|l| l.name == "panel")
+        .unwrap()
+        .mutable = false;
+    raw_reject315(
+        "immutable-raw315",
+        immutable,
+        plan.clone(),
+        "E-VERIFY-MUTABILITY",
+    );
+    let mut shared = module;
+    let f = shared
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let borrow = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| matches!(i.kind, I::BorrowLocalMut { .. }))
+        .unwrap();
+    let zil_ir::Type::Address { mutable, .. } = &mut f.values[borrow.result.unwrap().0 as usize]
+    else {
+        unreachable!()
+    };
+    *mutable = false;
+    raw_reject315("forged-permission315", shared, plan, "E-VERIFY-TYPE");
+}
+
+#[test]
+fn ordinary_local_product_mutable_helper_independent_completeness_and_liveness() {
+    for (label, transfer) in [
+        ("partial-raw315", "let removed=give panel.mark;"),
+        ("moved-raw315", "let moved=panel;"),
+        ("drop-raw315", ""),
+        ("dead-raw315", ""),
+    ] {
+        let mut module = typed(&product315(
+            &format!("bump(&mut panel);{transfer}return 0"),
+            "",
+        ));
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let f = module
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "main")
+            .unwrap();
+        let local = f.locals.iter().find(|l| l.name == "panel").unwrap().id;
+        let block = f
+            .blocks
+            .iter_mut()
+            .find(|b| {
+                b.instructions
+                    .iter()
+                    .any(|i| matches!(i.kind,I::BorrowLocalMut{local:l} if l==local))
+            })
+            .unwrap();
+        let moved = block
+            .instructions
+            .iter()
+            .position(|i| match label {
+                "partial-raw315" => matches!(i.kind,I::TakePackageField{local:l,..} if l==local),
+                "moved-raw315" => matches!(i.kind,I::TakeLocal{local:l} if l==local),
+                "drop-raw315" => matches!(i.kind,I::DropPackage{local:l} if l==local),
+                "dead-raw315" => matches!(i.kind,I::StorageDead(l) if l==local),
+                _ => unreachable!(),
+            })
+            .unwrap();
+        let instruction = block.instructions.remove(moved);
+        let before = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind,I::BorrowLocalMut{local:l} if l==local))
+            .unwrap();
+        block.instructions.insert(before, instruction);
+        let errors = zil_analyze::analyze(&module, &Limits::default()).expect_err(label);
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit),
+            "{label}: {errors:?}"
+        );
+        raw_reject315(
+            label,
+            module,
+            plan,
+            match label {
+                "moved-raw315" | "drop-raw315" | "dead-raw315" => "E-VERIFY-INITIALIZATION",
+                _ => "E-VERIFY-RESOURCE",
+            },
+        );
+    }
 }
 fn native(label: &str, source: &str, stdout: &str, exit: i32) {
     for optimization in [Optimization::O0, Optimization::O2] {

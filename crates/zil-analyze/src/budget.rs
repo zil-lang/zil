@@ -307,10 +307,7 @@ fn local_value(
     if budget.sum_type(ty)? {
         return super::resources::sums::admit(module, ty, budget);
     }
-    if let Type::Address {
-        mutable: false,
-        inner,
-    } = ty
+    if let Type::Address { inner, .. } = ty
         && super::resources::product::nested(inner)
     {
         return super::resources::product::admit(inner, budget).map(|_| false);
