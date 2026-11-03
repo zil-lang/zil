@@ -214,8 +214,8 @@ fn each_byte_storage_operand_mutability_and_definition_bind_identity() {
 #[test]
 fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     use zil_base::{Limits, ResultCategory};
-    assert_eq!(SCHEMA_VERSION, 33);
-    assert_eq!(wire::WIRE_VERSION, 33);
+    assert_eq!(SCHEMA_VERSION, 34);
+    assert_eq!(wire::WIRE_VERSION, 34);
     assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 1);
     let limits = Limits::default();
     let mut raw = candidate();
@@ -424,4 +424,54 @@ fn declared_reference_return_bound_is_distinct_bounded_wire33_data() {
         wire::encode_module_candidate(&oversized, &CandidatePlan::empty_for(&oversized), &limits)
             .is_err()
     );
+}
+
+#[test]
+fn structured_thread_wire34_keeps_three_actual_operands() {
+    let limits = Limits::default();
+    let mut raw = candidate();
+    raw.functions[0].blocks[0].instructions.push(Instruction {
+        result: Some(ValueId(100)),
+        span: Span::default(),
+        kind: InstructionKind::WithScopedThread {
+            worker: FunctionId(0x12345678),
+            argument: ValueId(0x23456789),
+            body: ValueId(0x3456789a),
+        },
+    });
+    let bytes =
+        wire::encode_module_candidate(&raw, &CandidatePlan::empty_for(&raw), &limits).unwrap();
+    assert_eq!(
+        wire::decode_module_candidate(&bytes, &limits).unwrap().0,
+        raw
+    );
+    let marker = [
+        vec![95],
+        0x12345678u32.to_le_bytes().to_vec(),
+        0x23456789u32.to_le_bytes().to_vec(),
+        0x3456789au32.to_le_bytes().to_vec(),
+    ]
+    .concat();
+    let offset = bytes
+        .windows(marker.len())
+        .position(|window| window == marker)
+        .unwrap();
+    let mut unknown = bytes.clone();
+    unknown[offset] = 96;
+    assert!(
+        wire::decode_module_candidate(&unknown, &limits)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.code == "E-WIRE-OPCODE")
+    );
+    for version in [32u32, 33] {
+        let mut old = bytes.clone();
+        old[8..12].copy_from_slice(&version.to_le_bytes());
+        assert!(
+            wire::decode_module_candidate(&old, &limits)
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-WIRE-VERSION")
+        );
+    }
 }
