@@ -20,8 +20,10 @@ Rust四目标：本片是交付记录工具，不改变语言安全、运行或�
 
 `ZIL_HANDOFF_REPORT=/tmp/handoff326-closeout-check.json node --test tests/handoff.test.mjs`实际25/0、129断言、0跳过。原13族及其69断言原样保留；新场景显式防当前错误被归档遮蔽、清单/对象/字节篡改、文档伪Pass、自审/错selector、metadata-only夹带源码、非canonical当前规范及零门验收。结果绑定工具/测试SHA，与ef2e14994提交字节一致，不叠加早期重放。
 
-真实当前主树只读命令为`node /workspace/zil-326/tools/handoff.mjs --check --legacy-audit`，输入主树头c1a61ccb36067af253fbd6ff4cbdd52d2c70ee0c。实际`CurrentPass`/0当前错误，同时`LegacyAuditFail`、exit1、1924条严格历史错误；274条历史中220Unavailable、54Unreviewed，claims_revalidated=false。实际权威为main，origin/main本地跟踪值0d7d74f7；这些观察不等于326执行了远端操作。
+真实当前主树只读命令为`node /workspace/zil-326/tools/handoff.mjs --check --legacy-audit`，起始主树头0afd64bd94f054b50f67316dfa17b2c11a0d9c02，结束current HEAD观测为c1a61ccb36067af253fbd6ff4cbdd52d2c70ee0c；期间root提交前进，二者分别保留，不充当冻结源码的正式联合验收。实际`CurrentPass`/0当前错误，同时`LegacyAuditFail`、exit1、1924条严格历史错误；274条历史中220Unavailable、54Unreviewed，claims_revalidated=false。实际权威为main，origin/main本地跟踪值0d7d74f7；这些观察不等于326执行了远端操作。
 
 早期可丢弃本地共享clone亦得到同样的分离结果，快照原字节SHA08ba15ebb24629e7786fef357529aa5d776d211a80a2ee73ed1eae1350b3f550不变。首次从原树显式指定另一仓clone时正确触发authority拒绝；改从clone真实cwd检查后通过，没有修改源码或root权威。两次环境中断不计Pass；未落地的canonical尾补丁在恢复后重新核实、实施和限测。
 
 精简机器结果位于迁移清单的`/validation`，历史原记录仍在`/records`，二者的证据等级和状态分开。未改其它任务文件，不生成权威snapshot，不跑正式全量或语言/原生/产品验收，不push或自审。root及非作者仍负责最终集成和独审。
+
+收尾静态校对首次错误地要求起始/结束HEAD相同而失败；已按实际只读跨度修正文档并在validation保留该错误。工具/测试字节与历史原记录未变，最终权威snapshot仍由root生成。

@@ -11315,7 +11315,9 @@
         "remote_claim": "Tracking ref only; no push or remote merge performed by 326"
       },
       "report_sha256": "bf35ef72d9a13df83c18c9c36fc98853c22434ce9528112068655d3b8dc76c99",
-      "authority_snapshot_generated": false
+      "authority_snapshot_generated": false,
+      "input_head_changed_during_read": true,
+      "interpretation": "Live metadata observation across root HEAD advance; not a frozen-source formal acceptance. Root generates the final authoritative snapshot."
     },
     "earlier_real_input_probe": {
       "composition": "d315af23a48ba5c91ab8bdb0b29a58e66a7911c6",
@@ -11334,6 +11336,11 @@
       "No authority snapshot generation",
       "No full suite, language/native/product acceptance or independent self-review",
       "Old outcomes remain Unavailable/Unreviewed with claims_revalidated=false; source tests do not revalidate them"
-    ]
+    ],
+    "retained_closeout_check_failure": {
+      "stage": "Static author closeout check",
+      "error": "Initial authority HEAD was first incorrectly compared with the end current HEAD; root advanced 0afd64bd94f054b50f67316dfa17b2c11a0d9c02 to c1a61ccb36067af253fbd6ff4cbdd52d2c70ee0c during the read.",
+      "resolution": "Preserve both actual observations and label the read as non-frozen; no tool, source test or historical record changed."
+    }
   }
 }
