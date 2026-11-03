@@ -335,10 +335,11 @@ fn normalize(
             combined.items.push(item);
         }
     }
-    let has_trait_instances = combined.items.iter().any(|item| {
-        matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty())
-            || matches!(&item.kind, ItemKind::Enum(e) if generics::record_enums::profile(e))
-    });
+    let has_trait_instances = combined
+        .items
+        .iter()
+        .any(|item| matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty()));
+    let has_trait_instances = has_trait_instances || budget.has_enum_profiles();
     let instance_limits = if has_trait_instances {
         budget.remaining_limits()
     } else {

@@ -1,15 +1,37 @@
 //! Source labels are resolved against one declaration before positional IR.
 use super::*;
 
-pub(crate) fn profile(declaration: &EnumDecl) -> bool {
-    declaration
-        .variants
-        .iter()
-        .any(|v| matches!(v.fields, VariantFields::Record(_)))
-        || declaration.generics.iter().any(|p| {
-            matches!(&p.kind,
-            GenericParamKind::Type(bounds) if bounds.iter().any(copy::is_bound))
-        })
+pub(crate) fn is_copy_bound(ty: &TypeRef) -> bool {
+    copy::is_bound(ty)
+}
+
+pub(super) fn variables(declaration: &EnumDecl, budget: &mut Budget<'_>) -> R<BTreeSet<String>> {
+    let mut variables = BTreeSet::new();
+    for parameter in &declaration.generics {
+        budget.node(parameter.span, 0)?;
+        budget.text(&parameter.name, parameter.span)?;
+        variables.insert(parameter.name.clone());
+    }
+    Ok(variables)
+}
+
+pub(super) fn unresolved(
+    variables: &BTreeSet<String>,
+    found: &BTreeMap<String, TypeRef>,
+    hint: &TypeRef,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    for variable in variables {
+        budget.node(hint.span, 0)?;
+        budget.text(variable, hint.span)?;
+        if !found.contains_key(variable) {
+            budget.ty(hint)?;
+            if enums::contains(hint, variable) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 pub(crate) fn variant<'a>(
@@ -211,11 +233,7 @@ impl Engine<'_> {
             &mut self.budget,
         )?;
         let mut found = BTreeMap::new();
-        let variables = declaration
-            .generics
-            .iter()
-            .map(|p| p.name.clone())
-            .collect::<BTreeSet<_>>();
+        let variables = variables(declaration, &mut self.budget)?;
         if let Some(explicit) = explicit {
             if explicit.len() != declaration.generics.len() {
                 return Err(error(span, "record enum type argument arity mismatch"));
@@ -232,23 +250,38 @@ impl Engine<'_> {
         let expected = expected.map(|ty| self.original_type(ty)).transpose()?;
         enums::context(declaration, expected.as_ref(), &mut found, &mut self.budget)?;
         for (supplied, index) in supplied.iter_mut().zip(order) {
-            let value = supplied.value.as_mut().ok_or_else(|| {
-                unsupported(supplied.span, "record enum shorthand is not implemented")
-            })?;
+            if supplied.value.is_none() {
+                self.budget.node(supplied.span, depth + 1)?;
+                self.budget.text(&supplied.name, supplied.span)?;
+                supplied.value = Some(Expr {
+                    kind: ExprKind::Name(supplied.name.clone()),
+                    span: supplied.span,
+                });
+            }
+            let value = supplied
+                .value
+                .as_mut()
+                .expect("explicit or shorthand value");
             let field = &declared[index];
             let hint = enums::substituted(&field.ty, &found, &mut self.budget)?;
-            let unresolved = variables
-                .iter()
-                .any(|v| !found.contains_key(v) && enums::contains(&hint, v));
+            let unresolved = unresolved(&variables, &found, &hint, &mut self.budget)?;
             let actual =
                 self.expr_expected(value, env, (!unresolved).then_some(&hint), depth + 1)?;
             let actual = match actual {
                 Some(actual) => actual,
-                None => self
-                    .value_hint(value, env, depth + 1, true)?
-                    .ok_or_else(|| {
-                        error(supplied.span, "record enum payload type cannot be inferred")
-                    })?,
+                None => match self.value_hint(value, env, depth + 1, true)? {
+                    Some(actual) => actual,
+                    None if !unresolved => {
+                        self.budget.ty(&hint)?;
+                        hint.clone()
+                    }
+                    None => {
+                        return Err(error(
+                            supplied.span,
+                            "record enum payload type cannot be inferred",
+                        ));
+                    }
+                },
             };
             let actual = self.original_type(&actual)?;
             unify(
@@ -343,5 +376,143 @@ impl Engine<'_> {
             self.enum_pattern(&mut supplied.pattern, Some(&field_type), env, depth + 1)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod record_enum329_ledger {
+    use super::*;
+    use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+
+    fn exhausted<T>(result: CompileResult<T>) {
+        let errors = match result {
+            Ok(_) => panic!("record enum received a fresh downstream allowance"),
+            Err(errors) => errors,
+        };
+        assert!(!errors.is_empty());
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn source_alias_and_downstream_expansion_share_one_ledger() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "record329.zil",
+            "type Int=i32;enum E{V{value:Int,flag:bool}}fn main()->i32{let e=E.V{flag:true,value:7};match e{E.V{value:n,flag:_}=>{return n-7}}}",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let mut products = products::Products::default();
+        specialize_products(&syntax, &limits, &mut products).unwrap();
+        assert!(products.record_variants && products.metered());
+        let remaining = products.allowance.as_ref().unwrap();
+        let work = limits.max_analysis_steps - remaining.max_analysis_steps;
+        let nodes = limits.max_nodes - remaining.max_nodes;
+        let (alias, alias_budget) =
+            aliases::normalize_with_budget(&syntax, Budget::new(&limits)).unwrap();
+        let alias = alias.unwrap();
+        let alias_remaining = alias_budget.remaining_limits();
+        let mut engine = products::Products::default();
+        specialize_with_budget(
+            &alias.module,
+            &limits,
+            &alias.pattern_types,
+            Budget::new(&limits),
+            &mut engine,
+        )
+        .unwrap();
+        let engine_remaining = engine.allowance.unwrap();
+        assert!(
+            work >= (limits.max_analysis_steps - alias_remaining.max_analysis_steps)
+                + (limits.max_analysis_steps - engine_remaining.max_analysis_steps)
+        );
+        assert!(
+            nodes
+                >= (limits.max_nodes - alias_remaining.max_nodes)
+                    + (limits.max_nodes - engine_remaining.max_nodes)
+        );
+        for selected in [
+            Limits {
+                max_analysis_steps: work,
+                ..limits.clone()
+            },
+            Limits {
+                max_nodes: nodes,
+                ..limits.clone()
+            },
+        ] {
+            let mut exact = products::Products::default();
+            specialize_products(&syntax, &selected, &mut exact).unwrap();
+            exhausted(crate::expand_with_map_limits(&source, &syntax, &selected));
+        }
+        crate::expand_with_map_limits(&source, &syntax, &limits).unwrap();
+        println!(
+            "329 source specialization work={work}, nodes={nodes}; exhausted actual balances reject downstream expansion"
+        );
+    }
+
+    #[test]
+    fn module_normalization_and_named_lowering_share_the_remainder() {
+        let sources = [
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                "import data;fn main()->i32{let e=data.E.V{value:7,flag:true};match e{data.E.V{flag:_,value:n}=>{return n-7}}}",
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "data.zil",
+                "pub enum E{V{flag:bool,value:i32}}",
+            ),
+        ];
+        let syntax = sources
+            .iter()
+            .map(|s| zil_syntax::parse(s).into_result().unwrap())
+            .collect::<Vec<_>>();
+        let modules = syntax.iter().collect::<Vec<_>>();
+        let imports = [
+            vec![zil_ir::CoreImport {
+                alias: "data".into(),
+                module: ModuleId(1),
+                span: syntax[0].items[0].span,
+            }],
+            Vec::new(),
+        ];
+        let limits = Limits::default();
+        let mut products = products::Products::default();
+        crate::modules::specialize(&sources, &modules, &imports, &limits, &mut products).unwrap();
+        assert!(products.record_variants);
+        let remaining = products.allowance.as_ref().unwrap();
+        let work = limits.max_analysis_steps - remaining.max_analysis_steps;
+        let nodes = limits.max_nodes - remaining.max_nodes;
+        for selected in [
+            Limits {
+                max_analysis_steps: work,
+                ..limits.clone()
+            },
+            Limits {
+                max_nodes: nodes,
+                ..limits.clone()
+            },
+        ] {
+            let mut exact = products::Products::default();
+            crate::modules::specialize(&sources, &modules, &imports, &selected, &mut exact)
+                .unwrap();
+            exhausted(crate::expand_program_with_limits(
+                &sources, &modules, &imports, &selected,
+            ));
+        }
+        crate::expand_program_with_limits(&sources, &modules, &imports, &limits).unwrap();
+        println!(
+            "329 project specialization work={work}, nodes={nodes}; exhausted actual balances reject downstream expansion"
+        );
     }
 }

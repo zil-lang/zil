@@ -344,7 +344,8 @@ impl Parser<'_> {
                         let start = p.peek().span;
                         let attributes = p.attributes()?;
                         let public = p.eat_word("pub");
-                        fields.push(p.field_after_prefix(start, attributes, public, false)?);
+                        let manages = p.eat_word("manages");
+                        fields.push(p.field_after_prefix(start, attributes, public, manages)?);
                         p.separators();
                     }
                     p.expect(Symbol::RBrace)?;

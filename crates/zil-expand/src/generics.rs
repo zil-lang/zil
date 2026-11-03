@@ -142,11 +142,7 @@ pub(super) fn specialize_products<'a>(
                 .items
                 .iter()
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
-            && !normalized
-                .module
-                .items
-                .iter()
-                .any(|item| matches!(&item.kind, ItemKind::Enum(e) if record_enums::profile(e)))
+            && !names_budget.has_enum_profiles()
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -165,10 +161,7 @@ pub(super) fn specialize_products<'a>(
             .items
             .iter()
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
-        && !module
-            .items
-            .iter()
-            .any(|item| matches!(&item.kind, ItemKind::Enum(e) if record_enums::profile(e)))
+        && !names_budget.has_enum_profiles()
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -345,16 +338,19 @@ impl<'a> Engine<'a> {
             }
         }
         // Validate the parametric subset even when a template is not instantiated.
-        for item in &module.items {
-            if let ItemKind::Enum(declaration) = &item.kind
-                && record_enums::profile(declaration)
-            {
-                record_enums::validate(
-                    declaration,
-                    &engine.nominals,
-                    &engine.traits,
-                    &mut engine.budget,
-                )?;
+        if engine.budget.has_enum_profiles() {
+            for item in &module.items {
+                engine.budget.node(item.span, 0)?;
+                if let ItemKind::Enum(declaration) = &item.kind
+                    && engine.budget.enum_profile(item.span)
+                {
+                    record_enums::validate(
+                        declaration,
+                        &engine.nominals,
+                        &engine.traits,
+                        &mut engine.budget,
+                    )?;
+                }
             }
         }
         let mut helper_dependencies = helper_graph::Dependencies::default();
@@ -439,7 +435,7 @@ impl<'a> Engine<'a> {
                 )?;
             }
             if let ItemKind::Enum(e) = &item.kind
-                && !record_enums::profile(e)
+                && !engine.budget.enum_profile(item.span)
             {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
@@ -501,10 +497,7 @@ impl<'a> Engine<'a> {
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
         self.products.trait_instances = self.traits.has_instances;
-        self.products.record_variants = module
-            .items
-            .iter()
-            .any(|item| matches!(&item.kind, ItemKind::Enum(e) if record_enums::profile(e)));
+        self.products.record_variants = self.budget.has_enum_profiles();
         self.collect_products(module)?;
         let mut result = Module {
             id: module.id,

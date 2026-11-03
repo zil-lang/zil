@@ -117,15 +117,30 @@ impl<'a> Expander<'a> {
         let mut bindings = Vec::new();
         let mut payload = vec![None; declared.len()];
         for (field, index) in fields.iter().zip(order) {
-            let value = field.value.as_ref().ok_or_else(|| {
-                Diagnostic::unsupported(
-                    Phase::Expand,
-                    "record enum shorthand is not implemented",
-                    Some(field.span),
-                )
-            })?;
+            let shorthand;
+            let value = if let Some(value) = &field.value {
+                value
+            } else {
+                self.enum_meter(|meter| {
+                    meter.node(field.span, 0)?;
+                    meter.text(&field.name, field.span)
+                })?;
+                shorthand = s::Expr {
+                    kind: s::ExprKind::Name(field.name.clone()),
+                    span: field.span,
+                };
+                &shorthand
+            };
             let expected = type_ref(&declared[index].ty);
+            self.enum_meter(|meter| meter.node(field.span, 0))?;
             let value = self.expr_expected(value, Some(&expected));
+            let value = self.expr_node(
+                CoreExprKind::Ascribed {
+                    ty: expected,
+                    value: Box::new(value),
+                },
+                field.span,
+            );
             let digits = self
                 .next_temporary
                 .checked_ilog10()
@@ -133,7 +148,7 @@ impl<'a> Expander<'a> {
             self.enum_meter(|meter| {
                 meter.node(field.span, 0)?;
                 meter.node(field.span, 0)?;
-                for _ in 0..2 {
+                for _ in 0..3 {
                     meter.text("$enum_field_", field.span)?;
                     for _ in 0..digits {
                         meter.text("0", field.span)?;
