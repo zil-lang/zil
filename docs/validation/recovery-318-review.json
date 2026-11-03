@@ -238,7 +238,8 @@
     "315 initial c88cbe1f7: impl224 11/12; only the subsequently authorized mutable signature oracle failed.",
     "Reviewer first expected Analyze to reject forged same-root loans; it produced an unverified candidate. Corrected review expectation after inspecting the established independent Verify loan architecture; Verify raw/Wire rejected the same attack.",
     "Generic tuple expected-success native probe failed at Expand before code generation; original source and diagnostic retained for 321.",
-    "Reviewer first recovery317 retained-output run: source test passed; native test failed before compilation because the chosen /tmp report parent did not exist (fs::create_dir NotFound). Created the parent and reran unchanged source/tests: 2/0, with all 12 observations retained separately."
+    "Reviewer first recovery317 retained-output run: source test passed; native test failed before compilation because the chosen /tmp report parent did not exist (fs::create_dir NotFound). Created the parent and reran unchanged source/tests: 2/0, with all 12 observations retained separately.",
+    "Targeted reviewer-test Clippy first rejected a collapsible_if in the existing independent same-root probe. Collapsed the equivalent condition without changing assertions; targeted -D warnings passed."
   ],
   "limits": "No full suite, final combined 313-321 acceptance, Windows, async or product/Rust comparison verdict. Limited passing results do not upgrade B0 or full language/ZUI.",
   "test_only_followup": {
@@ -250,5 +251,28 @@
     "findings": "Only the exhaustive statement label and existing differential coverage matrix changed. Tuple initializer contains a call and a second origin, so traversal effects are exercised. Unique statement variants rise 16 to 17; total matrix uses 27 expression cases plus 17 statement cases = 44, equivalent to (26+18). No production behavior or oracle weakening.",
     "execution": "Not rerun by reviewer; root reported the exact existing coverage test 1/0."
   },
-  "final_tested_composition": "b343644ab0767e41ec7e0b00da858129b1364783"
+  "final_tested_composition": "b343644ab0767e41ec7e0b00da858129b1364783",
+  "historical_223_oracle_adjudication": {
+    "reported_composition": "6907974e9aa57c19dea5c10da0aba9405cc844f0",
+    "reviewed_315_implementation": "c88cbe1f7b640caef158b7994ce5630957158ccf",
+    "reviewer_tested_base": "b7267f6bd9e9a330260e84792e9d1958939e7f89",
+    "classification": "Historical Unsupported boundary superseded by the explicit 315 finite synchronous Product mutable-helper profile; not an unsafe permission gain.",
+    "failed_tests": [
+      "impl223_product_store::store_qualification_cannot_open_an_incoming_mutable_product_address",
+      "review223_boundaries::unused_mutable_nested_product_parameter_cannot_gain_a_write_capability",
+      "review223_replay::frozen_mutable_product_raw_and_wire_must_be_rejected"
+    ],
+    "actual_type_and_operation": "Incoming &mut Root contains only recursive child Products with Managed finite-Copy user-resource heads and Copy i32 companions. The helper only projects top-level index 1 and writes i32(7). No Store, new capture, owned-field write, child deep write or escaping return. Immutable binding p does not remove the pointee authority of its &mut type.",
+    "contract_reason": "315 explicitly permits complete Product windows from mutable ordinary locals and synchronous helper parameter reborrows. Raw incoming &mut parameters carry that boundary precondition; no call in an unused function manufactures or consumes a window. Source callers must still establish completeness and exclusivity.",
+    "independent_probe": "review318_frozen223_product_parameter_has_real_exclusive_authority: 1/0; existing impl238 target only. Frozen schema32 raw/Wire accepted; source equivalent O0/O2 returns 0. Inconsistent shared downgrade rejected E-VERIFY-TYPE raw/Wire; coherent shared downgrade retaining WriteAddress rejected E-VERIFY-ADDRESS raw/Wire. Missing child call rejected Analyze E-ANALYZE-IR; live shared and exclusive parent conflicts rejected Verify E-BORROW-CONFLICT.",
+    "fixture_sha256": {
+      "mutable_control.zil": "b3f19abd09088e6686ebb12eb50a0058429ba38a8568274c789050160716f75a",
+      "mutable-product-original.wire": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+      "schema32-mutable-product.wire": "8cc0e4a565e57b71135b3c692079dcaa65dfa4ce6f49dbe36c253182df497862",
+      "ORACLE.json": "d4e9dcc8e54b2a3029e9d9820e0ccfe65885a7c19f22eef7193ff00a263ecb94"
+    },
+    "migration_recommendation": "Retain original source, all wire versions, hashes, frozen historical oracle and first full-suite failures. Add a current-contract acceptance ledger plus the nearest completeness/permission/loan conflicts. Old transport versions still reject. No production tightening or safety-oracle disabling is justified by these three cases.",
+    "mutation_scope": "No root source, original fixture or frozen oracle changed by reviewer; only an independent existing-target test and this additive review record.",
+    "targeted_clippy": "impl238_product_replacement --features llvm-api -D warnings: Pass; reviewer corrected its earlier collapsible_if test-only lint with the equivalent if-let-chain, matching root eb25bf61e."
+  }
 }
