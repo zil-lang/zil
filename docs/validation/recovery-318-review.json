@@ -15,7 +15,7 @@
       "scope": "Concrete finite Copy tuple ordinary bindings, exact nested arity, all-discard qualification, RHS before bindings, lexical scope, mutability, existing TypedIR/Wire and bounded traversal.",
       "tests": "aggregates: 16 passed; independent RHS probe: native O0/O2 output 2125",
       "budget": "Types analysis N=51, N-1=50 ResourceLimit, fresh N success",
-      "open_combination": "Ordinary generic Copy tuple binding remains Unsupported at the parametric AST definition checker; assigned to 321.",
+      "open_combination": "Original generic tuple gap closed by exact 321 commit 5d854592ebcd77b283fa43deb43fbe3cdd0bbd83 and independent original-fixture native probe.",
       "walker_followup": {
         "scope": "Read-only audit of all production CoreStatementKind consumers; no runtime implementation changed.",
         "checked": [
@@ -28,7 +28,7 @@
         ],
         "fast_paths": "CT unchanged_shape rejects the new node and falls back to the complete walker; scalar incremental fingerprint similarly falls back. Dedicated selection/generation Return/Expression matches consume synthetic one-statement shapes, not arbitrary function bodies.",
         "limited_probe": "review318_tuple_defer_capture_and_scoped_initialization: 1 passed; defer tuple mutable capture O0/O2=42, RHS-only outer capture mutation O0/O2=67, scope escape and hidden unknown RHS E-UNKNOWN-NAME, invalid defer return E-DEFER-CONTROL.",
-        "verdict": "No additional traversal defect found in the checked concrete profile; generic definition gap remains tracked by 321."
+        "verdict": "No additional traversal defect found in the checked concrete profile; generic definition gap subsequently closed and independently exercised under 321."
       }
     },
     "315": {
@@ -78,7 +78,12 @@
       "excluded": "General trait/where constraints, Package/Resource bounds and whole-Struct Copy inference."
     },
     "321": {
-      "verdict": "Pending"
+      "implementation_commit": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
+      "tested_composition": "36592623537692e1962024842b35884bef1d45ab",
+      "verdict": "PassLimited",
+      "checks": "generic_tuple filter in review194_composition: 4/0; original gap Verify/native, 4 native source programs at O0/O2, 4 unused legal definitions, 18 unsupported/invalid neighbors, Expand exact N=357/N-1/fresh.",
+      "independent_probe": "review318_original_generic_gap_and_mixed_copy_record_obligations: 1/0. Original expected-success fixture directly built and run O0/O2=42. Unused Pair<T:Copy,U:Copy> tuple is valid; unbound U or generic T shadowing an external Copy record remains definition-time E-GENERIC-ARGUMENT.",
+      "scope": "Symbolic Copy qualification, exact tuple shape, binder identity and let/var capability; no numeric/field authority inferred from Copy."
     }
   },
   "independent_probes": {
@@ -95,7 +100,12 @@
         "end": 52
       },
       "input_fingerprint": "1844c002cf30509edf62589fd9e9ff489d29d2583f951c6ef70bc082e2e2755a",
-      "tracking": "321; retained as an expected-success source gap, not a permanent negative test."
+      "tracking": "321; retained as an expected-success source gap, not a permanent negative test.",
+      "resolution": {
+        "commit": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
+        "status": "Success",
+        "verification": "original source through Verify and native O0/O2=42; no replacement or permanent negative assertion"
+      }
     }
   },
   "commands": [

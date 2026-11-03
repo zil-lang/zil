@@ -160,6 +160,25 @@ fn review318_tuple_defer_capture_and_scoped_initialization() {
     }
 }
 #[test]
+fn review318_original_generic_gap_and_mixed_copy_record_obligations() {
+    native(include_str!("../../../tests/language-readiness/recovery/review318-generic-tuple-gap.zil"), Some(42));
+    let valid = "struct Pair<T:Copy,U>{first:T;second:U}fn hidden<T:Copy,U:Copy>(p:Pair<T,U>)->Pair<T,U>{let(x,_)=(p,());return x}fn result()->i32{return 0}";
+    let report = compile_source(&source(valid), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    for text in [
+        "struct T{n:i32}fn hidden<T>(value:T){let(_,_)=(value,());}fn result()->i32{return 0}",
+        "struct Pair<T:Copy,U>{first:T;second:U}fn hidden<T:Copy,U>(p:Pair<T,U>){let(_,_)=(p,());}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        eprintln!("review318/symbolic obligation: {}", report.to_json());
+        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert!(report.diagnostics.iter().any(|d| d.code == "E-GENERIC-ARGUMENT"));
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+#[test]
 fn tuple_binding_nested_mutable_typed_discard_and_single_evaluation() {
     let llvm = native(
         "fn pair(count: &mut i32) -> (i32,(i32,i32)) { *count += 1; return (*count,(*count+1,*count+2)); } fn result()->i32 { var count=0; let (a,(b,_)):(i32,(i32,i32))=pair(&mut count); var (c,(d,e))=(a,(b,7)); c+=10; d+=20; e+=30; let ()=(); let (_,)= (9,); return count*1000+a*100+b*10+c+d+e; }",
