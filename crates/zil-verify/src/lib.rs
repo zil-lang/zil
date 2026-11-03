@@ -949,14 +949,14 @@ fn check_reference_return_bound(f: &TypedFunction, budget: &mut Budget) -> Check
         reject(
             "E-VERIFY-LIFE",
             Some(f.span),
-            "invalid shared direct return-life upper bound",
+            "invalid address direct return-life upper bound",
         )
     };
     if bound.is_empty()
         || f.environment.is_some()
         || f.foreign.is_some()
         || f.callable_contract.is_some()
-        || !matches!(&f.return_type,Type::Address{mutable:false,inner} if inner.is_address_pointee())
+        || !matches!(&f.return_type,Type::Address{inner,..} if inner.is_address_pointee())
     {
         return Err(fail());
     }
@@ -971,8 +971,7 @@ fn check_reference_return_bound(f: &TypedFunction, budget: &mut Budget) -> Check
             .and_then(|id| f.locals.get(id.0 as usize))
             .ok_or_else(fail)?;
         resources::charge_payload(&parameter.ty, budget)?;
-        if !matches!(&parameter.ty,Type::Address{mutable:false,inner} if inner.is_address_pointee())
-        {
+        if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee()) {
             return Err(fail());
         }
         previous = Some(position);
