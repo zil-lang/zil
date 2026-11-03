@@ -224,6 +224,13 @@ fn review329_ct_quote_keeps_labels_separate_from_hygienic_bindings() {
     review329_native(
         &[(
             "main",
+            "enum E{V{x:i32}}fn generated()->Syntax<Stmt>{return quote<Stmt>{let x=7;let e=E.V{x};match e{E.V{x:y}=>{return y}}}}fn result()->i32{let x=100;#splice(generated())}",
+        )],
+        7,
+    );
+    review329_native(
+        &[(
+            "main",
             "enum E{V{Type:i32,left:i32}}fn generated()->Syntax<Stmt>{return quote<Stmt>{match (E.V{Type:1,left:2}){E.V{left:Type,Type:left}=>{return left*10+Type}}}}fn result()->i32{let Type=100;#splice(generated())}",
         )],
         12,
