@@ -10,6 +10,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         headers: Vec<*const s::TypeRef>,
         trait_scope: bool,
         impl_scope: bool,
+        mutable_life: bool,
     }
     fn reference(ty: &s::TypeRef) -> &s::TypeRef {
         match &ty.kind {
@@ -43,9 +44,12 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             let old_headers = std::mem::take(&mut self.headers);
             let old_trait = self.trait_scope;
             let old_impl = self.impl_scope;
+            let old_mutable_life = self.mutable_life;
+            self.mutable_life = false;
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
             self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
+                self.mutable_life = only_life(f);
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
@@ -62,7 +66,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 if !self.binders.is_empty()
                     && (self.trait_scope
                         || matches!(item.kind, s::ItemKind::Extern { .. })
-                        || !(only_life(f) || !self.impl_scope && copy_life(f))
+                        || !(self.mutable_life || !self.impl_scope && copy_life(f))
                         || !f.where_clause.is_empty())
                 {
                     return Err(vec![Diagnostic::unsupported(
@@ -83,6 +87,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.headers = old_headers;
             self.trait_scope = old_trait;
             self.impl_scope = old_impl;
+            self.mutable_life = old_mutable_life;
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
@@ -101,7 +106,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 for _ in 0..self.headers.len() {
                     self.budget.text("h", ty.span).map_err(|e| vec![e])?;
                 }
-                if *mutable || !self.headers.contains(&std::ptr::from_ref(ty)) {
+                if (*mutable && !self.mutable_life)
+                    || !self.headers.contains(&std::ptr::from_ref(ty))
+                {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Expand,
                         "explicit life in this type position is not implemented",
@@ -125,6 +132,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         headers: Vec::new(),
         trait_scope: false,
         impl_scope: false,
+        mutable_life: false,
     };
     for item in &module.items {
         ct_selection::Visitor::item(&mut walk, item, 0)?;
@@ -203,7 +211,8 @@ pub(super) fn contract(
     if !present {
         return Ok(None);
     }
-    if !(only_life(function) || copy_life(function)) || !function.where_clause.is_empty() {
+    let mutable_life = only_life(function);
+    if !(mutable_life || copy_life(function)) || !function.where_clause.is_empty() {
         return Err(Diagnostic::unsupported(
             Phase::Expand,
             "life with type/callable/const parameters or where clauses is not implemented",
@@ -239,9 +248,10 @@ pub(super) fn contract(
         ty: &s::TypeRef,
         binders: &[String],
         remaining: &mut usize,
+        mutable_life: bool,
     ) -> Result<Option<u32>, Diagnostic> {
         match &ty.kind {
-            s::TypeKind::Group(inner) => tag(inner, binders, remaining),
+            s::TypeKind::Group(inner) => tag(inner, binders, remaining, mutable_life),
             s::TypeKind::Reference {
                 lifetime: Some(name),
                 mutable,
@@ -256,10 +266,10 @@ pub(super) fn contract(
                     .iter()
                     .position(|b| b == name)
                     .ok_or_else(|| failure(ty.span, "undeclared life name"))?;
-                if *mutable {
+                if *mutable && !mutable_life {
                     return Err(Diagnostic::unsupported(
                         Phase::Expand,
-                        "explicit life on mutable addresses is not implemented",
+                        "mutable life with ordinary type parameters is not implemented",
                         Some(ty.span),
                     ));
                 }
@@ -269,18 +279,18 @@ pub(super) fn contract(
         }
     }
     let parameter_lives = parameters
-        .map(|p| tag(&p.ty, &binders, remaining))
+        .map(|p| tag(&p.ty, &binders, remaining, mutable_life))
         .collect::<Result<Vec<_>, _>>()?;
     let result_life = function
         .return_type
         .as_ref()
-        .map(|t| tag(t, &binders, remaining))
+        .map(|t| tag(t, &binders, remaining, mutable_life))
         .transpose()?
         .flatten();
     if result_life.is_some_and(|result| !parameter_lives.contains(&Some(result))) {
         return Err(failure(
             function.span,
-            "returned life must name a nonempty shared input parameter set",
+            "returned life must name a nonempty address input parameter set",
         ));
     }
     Ok(Some(CoreLifeContract {
