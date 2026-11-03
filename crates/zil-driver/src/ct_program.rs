@@ -913,6 +913,10 @@ impl Collector<'_> {
     fn expression(&mut self, module: ModuleId, e: &CoreExpr, depth: usize) -> CompileResult<()> {
         self.charge(depth)?;
         match &e.kind {
+            CoreExprKind::Call { callee, .. } if self.query
+                && matches!(&callee.kind, CoreExprKind::Name(name) if name == "thread_scope") => {
+                return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-FORBIDDEN", Some(e.span), "structured threads cannot enter a compile-time query")]);
+            }
             CoreExprKind::TypeApply {
                 callee,
                 type_arguments,

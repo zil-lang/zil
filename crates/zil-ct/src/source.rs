@@ -1915,6 +1915,9 @@ impl<'a> Walker<'a> {
                 )]);
             }
             match &e.kind {
+                CoreExprKind::Call { callee, .. } if matches!(&callee.kind, CoreExprKind::Name(name) if name == "thread_scope") => {
+                    return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-FORBIDDEN", Some(e.span), "structured threads are runtime-only")]);
+                }
                 CoreExprKind::TypeApply { .. } => {
                     return Err(forbidden_type_application(e.span));
                 }
