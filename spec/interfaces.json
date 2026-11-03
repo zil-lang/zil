@@ -234,6 +234,34 @@
       "representation": "Complete trait declaration/module+ordered actual arguments+concrete Self; static method targets retain selected bound instance",
       "responsibility": "All premises, unused definitions, coherence, alias binder scopes and substituted signatures checked; no structural capability from nominal impl",
       "compatibility": "No runtime dictionary or new Typed node; preserves life metadata during normalization"
+    },
+    "record_enum_329": {
+      "authority": "_zil_design.md §15.2 profile329",
+      "representation": "Syntax PatternKind::RecordConstructor { path, fields: Vec<RecordPatternField{name,pattern,span}> }; label validation then existing Core/Typed Enum and Sequence preparations",
+      "consumers": "parser/AST visitors -> bounded generic/module/CT normalization -> existing Enum/Copy matching -> independent kernels and native backends",
+      "limits": "Explicit complete named fields only; no default/pub/manages or new ref/rest/owner authority; enum Copy premises checked at definition and actual arguments"
+    },
+    "trait_defaults_330": {
+      "authority": "_zil_design.md §18.1 profile330",
+      "representation": "Symbolically checked default source, complete declaration/trait args/Self identity, private (impl,member) target map; no new public IR",
+      "consumers": "generic/default/module index -> existing static targets -> independent kernels/native; one cumulative budget through publication"
+    },
+    "parent_closure_threads_332": {
+      "authority": "_zil_design.md §11.1 profile332",
+      "representation": "Existing WithScopedThread/Wire34 and actual ClosureDefinition entry; no new permission boolean",
+      "consumers": "Types closure inference -> independently Analyze and Verify actual entry and body ownership -> existing pthread lowering/CGU/cache"
+    },
+    "large_copy_abi_333": {
+      "authority": "_zil_design.md §19.4",
+      "representation": "Versioned .lc1 ZIL-generated symbol; large Copy copy-in pointers and hidden first out pointer; source Value semantics unchanged",
+      "compatibility": "Small and foreign/C ABI unchanged; default External linkage retained; legacy generated large ABI requires rebuild, unsupported consumers fail before artifacts",
+      "consumers": "Definitions/direct calls/function refs/ordinary indirect calls/CGU/actual machine cache keys; no Typed/Wire version change assumed"
+    },
+    "type_life_generics_331": {
+      "authority": "_zil_design.md §18.1 profile331",
+      "representation": "One ordinary Copy type binder plus lexical life binders; type arguments substitute T while preserving CoreLifeContract and actual parameter positions",
+      "consumers": "Unused symbolic checks/alias scope -> ordinary instantiation -> existing Core life/Typed bound -> independent kernels, CT/interface/cache",
+      "compatibility": "No new Typed/Wire fields; existing schema34 consumers remain responsible for actual metadata/CFG"
     }
   },
   "schemas": [

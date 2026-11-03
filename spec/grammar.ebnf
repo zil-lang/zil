@@ -67,7 +67,8 @@ ContractTerm = Qualified, [TypeArgs], [("(", [ContractTerms], ")") | ("[", Contr
 Block = "{", {Statement | MetaStatement | Terminator}, "}" ;
 Statement = Binding | Return | Yield | Break | Continue | Defer | IfStmt | WhileStmt | ForStmt | LoopStmt | MatchStmt | WithStmt | UnsafeBlock | (Expr, [AssignOp, Expr], End) ;
 Binding = ("let" | "var"), Pattern, [":", Type], "=", Expr, End ;
-Pattern = IDENT | Literal | "_" | "ref", ["mut"], Pattern | "(", [PatternList], ")" | Qualified, "(", [PatternList], ")" ;
+Pattern = IDENT | Literal | "_" | "ref", ["mut"], Pattern | "(", [PatternList], ")" | Qualified, "(", [PatternList], ")" | Qualified, "{", [RecordPatternFields], "}" ;
+RecordPatternFields = IDENT, ":", Pattern, {",", IDENT, ":", Pattern}, [","] ;
 PatternList = Pattern, {",", Pattern}, [","] ;
 Return = "return", [Expr], End ;
 Yield = "yield", Expr, End ;
