@@ -138,3 +138,37 @@ pending与实际Fn/FnMut/FnOnce/nested组合得到表达增量，未测完整框
 闭包可拥有一次body并进入真实结构化线程，包括嵌套失败收口；完整语言四目标
 合取、一般Transfer/Share、callable helper、async/SABI及Mutex仍未完成。非作者
 审核、root整合与正式全量待执行，不据本地限定结果宣称main/CI晋升。
+
+## 独审累计费用缺口与实际修复
+
+原`cb17b74ab`中新增capture查找只扣各闭包私有Graph，未汇入请求State。
+两核N的通过不能证明Types累计收费；该原结果和独立反例保留，不能倒记成通过。
+root于`ea8cd11f8`冻结窄修补，生产修复为`301adc398`及`96c0ad4b1`。
+
+新thread分支的纯Graph操作使用`thread_query`/`thread_work`租约：先取私有Graph
+与共享State剩余量的较小值，结束后按实际消耗扣同一State；私有Graph恢复为
+进入时余额减实际消耗。部分执行后失败也结算，不恢复共享额度，不从State给
+耗尽的私有Graph授额。pending body使用其自身Graph，不能误扣caller Graph。
+worker签名保留、payload绑定、实际body签名重建/clone、返回tuple约束，以及
+Builder的parent签名读取/body结果约束都计入共享余额。嵌套thread各直接操作
+各计一次，未用包围整个expr的收据重复计算内层操作。
+
+capture名字查找直接State预付有序scope查找及候选数×名字宽度。worker的
+`direct`/`callee`重复查询也在执行前预付：两次scopes/outer、有序signature表，
+qualified Member命名字节、import alias/module/member查询路径上限。未将
+通用callee/expr递归和既有Graph历史算法借本片统一迁移；旧通用Graph收费
+债务另记。本次不增默认限额、不改公共表示、两核或机器ABI。
+
+原独立强反例为两个真实parent，各25个capture、body名字518字节，新增共享
+扫描最低25950步。旧版Types N=13145仍接受，原失败断言保留；同一源及oracle
+不变，修后Types N=47722，N−1为ResourceLimit，fresh N重复成功。其余Types
+N为short751、long-worker2208、long-capture1267、four-parents15106、nested793；
+每项均实测N/N−1/fresh。部分短/嵌套例被既有前置费用遮住，不要求所有N上涨。
+Analyze/Verify N仍26216/92685，旧325两核N仍6873/10587。
+
+source env后target332、jobs1、显式llvm-api，`cargo test -p zil-driver
+--features llvm-api --test generic_regressions -- --nocapture`实际26/0，零忽略/
+过滤；其中7个thread332限定测试也全部通过，含原52机器场景重放，不累计成
+新增覆盖。fmt通过。联合Types/Driver all-targets Clippy的首轮被独审raw测试的
+needless_range_loop挡住，生产代码无lint错误；该测试样式由独审者单独修复，
+最终lint结果另续，不把本轮失败记为通过。
