@@ -49,7 +49,7 @@ root管理规范、主树工单和剩余语言文档。不改schema/Wire、Types
 另一新record-variant程序在Expand命中既有fnptr结果无法推断enum模式问题；使用
 明确`Message`类型注解后再核验，本单不改frontend或放宽未核来源。
 
-338新增借入大Enum的closure正源在普通2MiB Rust API test worker明确stack overflow/SIGABRT，
+338新增借入大Enum的closure候选源在普通2MiB Rust API test worker明确stack overflow/SIGABRT，
 未到Codegen；当前不改变测试/compiler栈。原实际输入固定为
 `large-copy-enum-error-borrow-capture.zil`，单列KnownIncomplete，以普通CLI另核阶段与机器结果；
 不把小栈失败计作Unsupported、正常机器结果或本单栈修复。默认target不保留会中止整进程的
@@ -102,3 +102,40 @@ RUST_MIN_STACK=2097152 ZIL_338_SUM_CHILD=llvm-api-O0 ZIL_338_CASE=capture-check 
 累计原余额且默认额度保持，没有Rust编译速度结论。实证增量为原a12 Unsupported和
 原规模有限失败边界得到普通源至机器路径；完整语言/B0/ZUI、四目标合取与产品净突破
 未建立，2MiB API可靠性继续KnownIncomplete。
+
+
+## 捕获探针的阶段与合法性更正
+
+早先作者把`stop_after Verify`请求称作“Verify API栈失败”，并把原capture候选称作
+“正源”，这两项表述过强。实际请求包含Types等前置阶段；开始/未完成标记只证明
+该请求期间API abort，崩溃确切阶段Unknown、在Codegen之前，不能定位到Verify。
+原固定源831cfff使用`let f`调用FnMut，普通CLI在Types以`E-CLOSURE-MUTABILITY`
+正确SafeReject、Verify0。原2MiB abort是对非法输入的诊断可靠性失败，不能计成合法
+程序运行失败，也不应把CLI拒绝算作新机器回退。旧API rlib同源结果保持原观察。
+
+另固定唯一修正`let f`为`var f`的合法近邻`large-copy-enum-error-borrow-capture-var.zil`，
+SHA256 `4d31498969db08b1cb2fe5f64a8900aca4c98a869ee5c73c5feb03b3a832a267`；
+CLI与API结果各自另记，不用其中一项替代另一项，也不扩大338的closure准入或栈范围。
+
+
+## 最终CLI与分账收口
+
+生产/测试冻结提交`d952e7fb26d80f139dfbbc4ddb38e065bf2cab9d`，clean同HEAD始末，
+同target小型`cargo build -p zil-cli --offline`实际0.46s完成。CLI SHA256
+`e5bf30b58140c427f04fe4a73395a0bb31f7ee9a75669ba96825cc788a0bb809`，
+不再改生产源码或重建。最终另加合法var输入和文档，不声称该输入此前已在构建树中。
+
+四份原a12 payload/empty/unused固定源×Clang/API×O0/O2共16次native0，原前两份
+字节SHA保持，全部Verify1、实际backend/pipeline、fallback=null。原B可成功的empty/
+unused源现使用正确`.lc1`指针输入/结果，不再遗留旧同名巨型SSA入口。合法var捕获
+近邻同四配置native输出`30\n`、exit0；普通CLI栈限实为8388608B，未增加它。
+原非法let输入四配置均Types SafeReject/Verify0。独立审者以同一合法var字节复核
+CLI Verify1，current与retained-C的2MiB API均SIGABRT；明确保留为合法输入的API
+可靠性未完成。不能用CLI8MiB成功冒称API2MiB通过。
+
+最终author receipt见`docs/validation/large-copy-338.json`，包含CLI构建身份、固定源
+SHA、实际正/反结果和费用历史。独审另有24次源native、四个C机器payload消费者及
+cache暖控；其来源、精确提交和限定裁决由审者/root维护，不计入本作者运行数。
+最初CLI收据脚本误把JSON已解析的object_reports当字符串检pipeline，已修正脚本，
+复用既有不可变报告并再次核回实际pipeline；这不是compiler失败。独审元数据
+container费最初只看名字loop而遗漏helper顶部批量precharge，已逐行确认无漏费。
