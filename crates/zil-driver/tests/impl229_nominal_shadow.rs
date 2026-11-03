@@ -118,13 +118,14 @@ fn real_collision_paths_have_measured_fresh_and_exhausted_boundaries() {
         let work = minimum(text, false);
         let nodes = minimum(text, true);
         // Original accepted collision path: inline 281/131, where 380/173.
-        // Scoped nominal protection is now paid before symbolic validation.
+        // Prior scoped nominal checks cost 837/188 and 936/230; 322
+        // additionally pays its complete type-position validation walk.
         assert_eq!(
             (work, nodes),
             if label == "inline" {
-                (837, 188)
+                (922, 229)
             } else {
-                (936, 230)
+                (1021, 270)
             }
         );
         fs::write(out.join("costs.csv"), format!("{label},{work},{nodes}\n")).unwrap();
