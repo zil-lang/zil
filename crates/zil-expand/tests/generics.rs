@@ -71,6 +71,7 @@ fn generic_error_union_call_constraints_are_independent_of_argument_order() {
 fn generic_enum_payload_uses_declared_callable_result() {
     for text in [
         "enum Choice<T>{None,Some(T)}fn sink(v:Choice<i32>!i32)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{return sink(Choice.Some(f()))}fn main()->i32{let f=()->i32=>7;return run(f)}",
+        "enum Choice<T>{None,Some(T)}fn sink(v:Choice<i32>!i32)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{return sink(Choice::<i32>.Some(f()))}fn main()->i32{let f=()->i32=>7;return run(f)}",
     ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "union-fn-result.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
@@ -115,6 +116,62 @@ fn generic_error_union_symbolic_alternatives_require_distinctness() {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "union-symbolic.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+    }
+}
+
+#[test]
+fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
+    for (name, text, steps, nodes) in [
+        (
+            "binding",
+            include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
+            880,
+            301,
+        ),
+        (
+            "argument",
+            include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
+            844,
+            284,
+        ),
+        (
+            "independent",
+            "enum Choice<T>{None,Some(T)}fn sink<T>(value:Choice<T>!i32,witness:T)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{f();return sink(Choice.None,true)}fn main()->i32{let f=()->i32=>1;return run(f)}",
+            1286,
+            413,
+        ),
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let expected = zil_expand::expand(&source, &parsed).unwrap();
+        for (work, amount) in [(true, steps), (false, nodes)] {
+            let mut limits = zil_base::Limits::default();
+            if work {
+                limits.max_analysis_steps = amount
+            } else {
+                limits.max_nodes = amount
+            }
+            let fresh = zil_syntax::parse(&source).into_result().unwrap();
+            for syntax in [&parsed, &fresh] {
+                assert_eq!(
+                    zil_expand::expand_with_map_limits(&source, syntax, &limits)
+                        .unwrap()
+                        .core,
+                    expected
+                );
+            }
+            if work {
+                limits.max_analysis_steps -= 1
+            } else {
+                limits.max_nodes -= 1
+            }
+            assert!(
+                zil_expand::expand_with_map_limits(&source, &parsed, &limits)
+                    .unwrap_err()
+                    .iter()
+                    .all(|error| error.category == ResultCategory::ResourceLimit)
+            );
+        }
     }
 }
 
