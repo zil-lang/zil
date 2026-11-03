@@ -277,6 +277,83 @@
         }
       ],
       "verification_runs": 0
+    },
+    {
+      "source": "tests/language-readiness/controls/mutable-copy-record-helper-control.zil",
+      "sha256": "f170b3e08f3218e8107427f3c9ccbea6c4036371509351a774350af9be58bdfb",
+      "classification": "controls",
+      "observed_status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/pending/mutable-product-helper-gap.zil",
+      "sha256": "c602d0d0151359f1683bece3a0d97053e5379ba4d0f079c4754bca42a3d1329d",
+      "classification": "pending",
+      "observed_status": "Unsupported",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "address targets must be finite Copy values or actual shared user-resource heads; descriptors and nested addresses are not head positions",
+          "phase": "types"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "source": "tests/language-readiness/controls/mutable-product-local-control.zil",
+      "sha256": "efd2f7636f125d123bcf4a7f0e146564843b634558db35660169fcb2aad1d499",
+      "classification": "controls",
+      "observed_status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/controls/owned-closure-return-control.zil",
+      "sha256": "104becb3e63d3ff829c6e51c3395e11fb600973e0f5990974bebdbec87b8a18a",
+      "classification": "controls",
+      "observed_status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/design-probes/returned-captured-handler.zil",
+      "sha256": "c9e2d12cc6548eb95810d9c96638872cfee01c16bf7eec7ab54f981d0b68b4d9",
+      "classification": "design-probes",
+      "observed_status": "SafeReject",
+      "diagnostics": [
+        {
+          "code": "E-FFI-CALLBACK",
+          "message": "stored callables and closures cannot become C callbacks",
+          "phase": "types"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "source": "tests/language-readiness/controls/returned-static-guard.zil",
+      "sha256": "2f822f098dd6f46b43b6ed7e4ff12a99414b5079d8dcfd59c5e090ee35ddcf61",
+      "classification": "controls",
+      "observed_status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/controls/scoped-control.zil",
+      "sha256": "4957bb53a10272fb27e1ed2f27cea9657c7148bbd3f5cf772d5212c4f4c47e80",
+      "classification": "controls",
+      "observed_status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/controls/mutable-store-helper-control.zil",
+      "sha256": "122b63ab418aca12012906690deff9ee1d8dc5caa00db0820f315fdd9652d5ce",
+      "classification": "controls",
+      "observed_status": "Success",
+      "diagnostics": [],
+      "verification_runs": 1
     }
-  ]
+  ],
+  "binary_sha256": "a098b796703ed1c7f7e8e289a5eaf73aaa185a5a4840b48f6dd464b36440c7a2"
 }
