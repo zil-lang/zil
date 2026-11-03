@@ -581,6 +581,66 @@ fn record_enum329_request_budgets_are_exact_cold_warm_and_fresh() {
 }
 
 #[test]
+fn primitive_binder329_request_budget_is_shared_cold_warm_and_fresh() {
+    use zil_driver::CompilationSession;
+    let input = source(
+        "enum E<T:Copy>{V{x:T}}fn identity<i64:Copy>(x:i64)->i64{return x}fn read<i64:Copy>(e:E<i64>)->i64{match e{E.V{x:n}=>{return n}}}fn main()->i32{return read::<i32>(E::<i32>.V{x:identity::<i32>(7)})-7}",
+    );
+    for ledger in ["work", "nodes"] {
+        let options = |n| {
+            let mut options = CompileOptions::default();
+            if ledger == "work" {
+                options.limits.max_analysis_steps = n;
+            } else {
+                options.limits.max_nodes = n;
+            }
+            options
+        };
+        let mut low = 1;
+        let mut high = if ledger == "work" {
+            Limits::default().max_analysis_steps
+        } else {
+            Limits::default().max_nodes
+        };
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&input, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        assert!(low > 1);
+        assert!(
+            low < if ledger == "work" {
+                Limits::default().max_analysis_steps
+            } else {
+                Limits::default().max_nodes
+            }
+        );
+        let mut warm = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            let report = warm.compile_source(&input, &options(n));
+            assert_eq!(report.status, expected, "{}", report.to_json());
+            if expected == ResultCategory::ResourceLimit {
+                assert!(!report.diagnostics.is_empty());
+            }
+            let fresh = CompilationSession::default().compile_source(&input, &options(n));
+            assert_eq!(fresh.status, expected, "{}", fresh.to_json());
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!(
+            "329 primitive binder full request {ledger} N={low}; N-1 ResourceLimit, cold/warm/fresh agree"
+        );
+    }
+}
+
+#[test]
 fn record_enum329_raw_and_wire_preserve_typed_enum_integrity() {
     let input = source(
         "enum E{V{number:i64,flag:bool},U}fn result()->i64{let e=E.V{flag:true,number:7};match e{E.V{flag:_,number:n}=>{return n},E.U()=>{return 0}}}",
