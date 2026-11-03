@@ -1,6 +1,7 @@
 mod arrays;
 mod byte_buffer;
 mod constant_divisors;
+mod copy_aggregates;
 mod drop_plan;
 mod dynamic_store;
 mod enums;
@@ -101,6 +102,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     jobs: usize,
 ) -> CompileResult<(m::Module, bool)> {
     let sum_helpers = bind_lir(verified, lir, options.entry)?;
+    let copy_plans = copy_aggregates::plan(lir, verified.limits())?;
     let functions = lir
         .functions
         .iter()
@@ -192,6 +194,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             prepared_leaves
                 .as_ref()
                 .map(|leaves| &leaves[start..start + batch.len()]),
+            &copy_plans,
         )
     })?;
     let mut batches = batches.into_iter();
@@ -211,6 +214,9 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     }
     let mut text = m::Code::new();
     text.append(sum_helpers);
+    if copy_plans.values().any(|plan| !plan.is_empty()) {
+        text.append(copy_aggregates::declarations());
+    }
     for closure in lir.closures {
         let mut fields = closure
             .captures
@@ -430,6 +436,7 @@ fn lower_function_batch(
     summaries: Option<&BTreeMap<FunctionId, Constant>>,
     collected: Option<&BTreeSet<FunctionId>>,
     prepared_leaves: Option<&[Option<scalar_leaf::Prepared>]>,
+    copy_plans: &BTreeMap<FunctionId, copy_aggregates::Plan>,
 ) -> CompileResult<FunctionBatch> {
     let mut intrinsics = BTreeSet::new();
     // Finish each function before retaining it: no whole-project Event buffer.
@@ -487,6 +494,7 @@ fn lower_function_batch(
             continuation: 0,
             partial_packages: BTreeSet::new(),
             safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
+            copy_values: &copy_plans[&function.id],
         }
         .emit()?
         .into_items()
@@ -1028,6 +1036,7 @@ struct FunctionEmitter<'a> {
     // Complete values retain the existing inline ABI and whole-local path.
     partial_packages: BTreeSet<LocalId>,
     safe_divisors: Option<BTreeSet<ValueId>>,
+    copy_values: &'a copy_aggregates::Plan,
 }
 
 impl FunctionEmitter<'_> {
@@ -1071,6 +1080,7 @@ impl FunctionEmitter<'_> {
             blocks: None,
         }));
         self.event(m::Event::Label("entry".into()));
+        self.copy_allocations();
         let mut address_taken = BTreeSet::new();
         let mut package_views = BTreeMap::new();
         for instruction in self
@@ -1168,6 +1178,9 @@ impl FunctionEmitter<'_> {
             if let InstructionKind::ExtractIndex { aggregate, .. }
             | InstructionKind::UpdateIndex { aggregate, .. } = &instruction.kind
             {
+                if self.copy_values.contains_key(aggregate) {
+                    continue;
+                }
                 let result = instruction.result.expect("verified index result");
                 let ty = &self.function.values[aggregate.0 as usize];
                 self.event(m::Event::Instruction(m::Inst::new(
@@ -1244,6 +1257,9 @@ impl FunctionEmitter<'_> {
     }
 
     fn instruction(&mut self, instruction: &Instruction) -> CompileResult<()> {
+        if self.copy_instruction(instruction)? {
+            return Ok(());
+        }
         match &instruction.kind {
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
@@ -2726,7 +2742,7 @@ impl FunctionEmitter<'_> {
         format!("%tmp.{id}")
     }
     fn event(&mut self, event: m::Event) {
-        self.text.push(event);
+        self.copy_event(event);
     }
 
     fn line(&mut self, code: m::Code) {
