@@ -41,3 +41,18 @@ driver204另三阶段保持Types196/Analyze2232/Verify2492；driver246两个Type
 原失败保留：测量时expand202普通Store仍断言2255而实测2713（16/1）；driver200
 旧1938断言与2358不符（0/1），driver204旧Expand2与97不符（0/1）。这不是语义
 或安全反例，旧输入默认Core及其他阶段通过。最终固定常量后的限定执行待填。
+
+## 固定常量后的限定执行
+
+独立target-budget-migration-by324、jobs1：
+
+- `cargo test -p zil-expand --test generics --test impl202_store_templates --test impl240_generic_enum_budget --offline -- --nocapture --test-threads=1`：分别14/0、17/0、2/0。
+- `cargo test -p zil-driver --test impl200_independent --test impl204_review --test impl246_front --offline -- --nocapture --test-threads=1`：分别10/0、21/0、12/0。
+
+六个既有target合计76/0，零忽略/过滤；包括原最近反例、完整旧源码消费者及所有
+原N−1/fresh/冷暖控制。检查全部Rust引号字面量，只有两条断言说明文字改变；
+ZIL源字符串/片段和include夹具均原样，未用临时测量器替代最终固定N断言。
+本地日志为/tmp/budget322-expand-final.log与/tmp/budget322-driver-final.log。
+
+这只是旧预算控制的透明迁移，不新增语言/安全权限、运行表示或产品突破；运行/
+内存、维护和编译速度的Rust比较未测，不升级已有product-gates，不属于324自审。
