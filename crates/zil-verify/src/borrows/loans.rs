@@ -795,8 +795,11 @@ pub(super) fn check(
                     &flow.values[body.0 as usize],
                     std::slice::from_ref(callback),
                 ),
-                InstructionKind::WithScopedThread { body, .. } => {
-                    (&flow.values[body.0 as usize], &[])
+                InstructionKind::WithScopedThread { argument, body, .. } => {
+                    let arguments = if matches!(&f.values[argument.0 as usize], Type::Address { .. }) {
+                        std::slice::from_ref(argument)
+                    } else { &[] };
+                    (&flow.values[body.0 as usize], arguments)
                 }
                 InstructionKind::Call { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
@@ -847,7 +850,31 @@ pub(super) fn check(
                     }
                 }
             }
-            if let InstructionKind::WithScopedThread { body, .. } = instruction.kind {
+            if let InstructionKind::WithScopedThread { argument, body, .. } = instruction.kind {
+                if matches!(&f.values[argument.0 as usize], Type::Address { .. }) {
+                    check_pairs(&[argument, body], module, f, &flow, span, apart_ref, budget)?;
+                    let roots = &facts.values[argument.0 as usize];
+                    if roots.is_empty() { return Err(reject("E-THREAD-WORKER", Some(span), "shared thread input lacks an actual storage origin")); }
+                    for root in roots {
+                        budget.spend(1)?;
+                        let ty = match root {
+                            Root::Local(local) => f.locals.get(local.0 as usize).map(|local| &local.ty),
+                            Root::Parameter(index) => f.parameters.get(*index as usize).and_then(|local| f.locals.get(local.0 as usize)).map(|local| &local.ty),
+                            Root::Capture(index) => f.environment.and_then(|id| module.closures.get(id.0 as usize)).and_then(|definition| definition.captures.get(*index as usize)),
+                            _ => None,
+                        };
+                        let stable = match root {
+                            Root::Local(_) => ty == Some(&Type::I32),
+                            Root::Parameter(_) => matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32),
+                            Root::Capture(_) => ty == Some(&Type::I32) || matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32),
+                            _ => false,
+                        };
+                        if !stable { return Err(unsupported("shared thread dynamic, lending or owning projection storage is not implemented", Some(span))); }
+                    }
+                    for &loan in &flow.values[argument.0 as usize] {
+                        access.check(&flow.values[argument.0 as usize], &flow.roots[loan], false, budget)?;
+                    }
+                }
                 for &loan in &flow.values[body.0 as usize] {
                     access.check(
                         &flow.values[body.0 as usize],

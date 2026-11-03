@@ -10,7 +10,8 @@ impl Signature {
             && self.type_parameter.is_none()
             && self.template.is_none()
             && self.receiver.is_none()
-            && self.parameters.as_slice() == [Type::I32]
+            && (self.parameters.as_slice() == [Type::I32]
+                || matches!(self.parameters.as_slice(), [Type::Address { mutable: false, inner }] if **inner == Type::I32))
             && self.result == Type::I32
     }
 }
@@ -97,12 +98,13 @@ impl Builder<'_, '_> {
             return Err(error(
                 "E-THREAD-WORKER",
                 worker.span,
-                "thread worker must be a concrete ordinary fn(i32)->i32",
+                "thread worker must be a concrete ordinary fn(i32)->i32 or fn(&i32)->i32",
             ));
         }
         let worker = signature.concrete_id(worker.span)?;
-        let (argument_value, argument_type) = self.expr(argument, Some(&Type::I32))?;
-        self.same(&argument_type, &Type::I32, argument.span)?;
+        let payload_type = &signature.parameters[0];
+        let (argument_value, argument_type) = self.expr(argument, Some(payload_type))?;
+        self.same(&argument_type, payload_type, argument.span)?;
         let (body_value, body_type) = self.transfer_expr(body, None)?;
         let Type::Closure(id) = body_type else {
             return Err(error(
