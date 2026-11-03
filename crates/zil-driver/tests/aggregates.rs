@@ -256,6 +256,54 @@ fn review329_shared_record_pun_capture_neighbor() {
 }
 
 #[test]
+fn review329_unused_variant_attributes_do_not_disappear() {
+    let report = compile_source(
+        &source("enum E{#[cfg(true)] V{x:i32}}fn result()->i32{return 0}"),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"));
+}
+
+#[test]
+fn review329_symbolic_primitive_spelling_patterns_do_not_gain_scalar_permissions() {
+    for text in [
+        "enum E<T:Copy>{V{x:T}}fn keep<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:n}=>{return 0}}}fn result()->i32{return 0}",
+        "fn scalar()->i64{return 1}fn keep<i64:Copy>(x:i64)->i32{let n=scalar();match n{1=>{return 1},_=>{return 0}}}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    let mut accepted = Vec::new();
+    for text in [
+        "enum E<T:Copy>{V{x:T}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        eprintln!("review329 symbolic pattern {text}: {}", report.to_json());
+        if report.status == ResultCategory::Success {
+            accepted.push(text);
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "symbolic primitive-spelling patterns accepted: {accepted:?}"
+    );
+}
+
+#[test]
 fn record_enum329_quote_shorthand_preserves_value_hygiene() {
     // Reviewer 6c6481d08's legal-category source; author regression, not review.
     native(
