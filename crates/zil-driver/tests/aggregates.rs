@@ -889,11 +889,24 @@ fn large_copy_abi_special_closure_is_explicitly_unsupported() {
         )
         .spawn(|| {
             let first = "[0]".repeat(13);
-            for body in [
-                "let f=(value:Big)->Big=>value;return 0;".to_owned(),
-                format!("let f=move()=>i32(a12{first});return f();"),
+            for (prefix, body) in [
+                ("", "let f=(value:Big)->Big=>value;return 0;".to_owned()),
+                ("", format!("let f=move()=>i32(a12{first});return f();")),
+                (
+                    "",
+                    "let f=(pointer:fn(Big,i32)->i32)->i32=>0;return 0;".to_owned(),
+                ),
+                (
+                    "",
+                    "let pointer=inspect;let f=()=>{let held=pointer;return 0};return f();"
+                        .to_owned(),
+                ),
+                (
+                    "resource Holder{call:fn(Big,i32)->i32}",
+                    "let holder=Holder{call:inspect};return 0;".to_owned(),
+                ),
             ] {
-                let text = large_copy_program(&body);
+                let text = format!("{prefix}{}", large_copy_program(&body));
                 eprintln!(
                     "333 capture probe: Verify API begins; move_capture={}",
                     body.contains("move")
@@ -1059,6 +1072,7 @@ fn large_copy_abi_cgu_cache_and_canonical_function_reference() {
                     &CompileOptions {
                         backend,
                         optimization,
+                        incremental_o2: optimization == Optimization::O2,
                         stop_after: Stage::Build,
                         object_cache: (backend == NativeBackend::LlvmApi)
                             .then(|| out.0.join("objects")),
@@ -1186,4 +1200,107 @@ fn large_copy_abi_borrow_capture_keeps_pointer_environment() {
             }
         }
     }).unwrap().join().unwrap();
+}
+
+#[test]
+fn large_copy_abi_recursive_carrier_symbols_and_old_link_rejection() {
+    use zil_driver::{NativeBackend, Optimization};
+    let input = include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-copy-version-carriers.zil"
+    );
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = Temp::new();
+            let report = compile_source(
+                &source(input),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(out.0.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+            for id in 0..=12 {
+                let base = format!("@zil.fn.{id}");
+                let expected = if id <= 8 {
+                    format!("{base}.lc1(")
+                } else {
+                    format!("{base}(")
+                };
+                assert!(
+                    llvm.lines()
+                        .any(|line| line.starts_with("define ") && line.contains(&expected)),
+                    "missing {expected}"
+                );
+            }
+            assert!(llvm.contains("ptr @zil.fn.1.lc1()"));
+            assert!(llvm.contains("i32 @zil.fn.2.lc1(ptr %arg.0)"));
+            let actual = Command::new("timeout")
+                .args(["-s", "KILL", "5s"])
+                .arg(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+            let symbols = Command::new("nm")
+                .arg("-g")
+                .arg(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(symbols.status.success());
+            let symbols = String::from_utf8(symbols.stdout).unwrap();
+            for id in 0..=8 {
+                assert!(
+                    symbols
+                        .lines()
+                        .any(|line| line.ends_with(&format!(" T zil.fn.{id}.lc1")))
+                );
+                assert!(
+                    !symbols
+                        .lines()
+                        .any(|line| line.ends_with(&format!(" T zil.fn.{id}")))
+                );
+            }
+            if backend == NativeBackend::Clang && optimization == Optimization::O0 {
+                let object = out.0.join("definitions.o");
+                let built = Command::new("clang")
+                    .args(["-x", "ir", "-O0", "-c"])
+                    .arg(&report.artifacts["llvm"])
+                    .arg("-o")
+                    .arg(&object)
+                    .output()
+                    .unwrap();
+                assert!(built.status.success(), "{built:?}");
+                for (suffix, success) in [("", false), (".lc1", true)] {
+                    let probe = out.0.join("consumer.c");
+                    fs::write(&probe,format!("extern void *factory(void) __asm__(\"zil.fn.1{suffix}\");void *consume_factory(void){{return factory();}}\n")).unwrap();
+                    let linked = Command::new("clang")
+                        .arg(&probe)
+                        .arg(&object)
+                        .arg("-o")
+                        .arg(out.0.join("consumer"))
+                        .output()
+                        .unwrap();
+                    assert_eq!(linked.status.success(), success, "{linked:?}");
+                    if !success {
+                        let error = String::from_utf8_lossy(&linked.stderr);
+                        assert!(
+                            error.contains("undefined reference") && error.contains("zil.fn.1"),
+                            "{error}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 }

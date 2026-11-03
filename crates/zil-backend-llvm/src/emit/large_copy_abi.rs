@@ -299,3 +299,149 @@ impl FunctionEmitter<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn worker() -> Type {
+        Type::FunctionPointer {
+            parameters: vec![Type::Array {
+                element: Box::new(Type::U8),
+                length: 4096,
+            }],
+            result: Box::new(Type::I32),
+        }
+    }
+    #[test]
+    fn version_dependency_covers_carriers_without_changing_pointer_physics() {
+        let limits = Limits::default();
+        let fp = worker();
+        let carriers = vec![
+            fp.clone(),
+            Type::Array {
+                element: Box::new(fp.clone()),
+                length: 1,
+            },
+            Type::Tuple(vec![Type::Unit, fp.clone()]),
+            Type::Record {
+                name: "Handle".into(),
+                fields: vec![("call".into(), fp.clone())],
+            },
+            Type::Package {
+                name: "Package".into(),
+                fields: vec![("call".into(), fp.clone())],
+            },
+            Type::Enum {
+                name: "Choice".into(),
+                variants: vec![("No".into(), vec![]), ("Yes".into(), vec![fp.clone()])],
+            },
+            Type::ErrorUnion {
+                error: Box::new(Type::I32),
+                result: Box::new(fp.clone()),
+            },
+            Type::Address {
+                mutable: false,
+                inner: Box::new(fp.clone()),
+            },
+            Type::Desc(Box::new(fp.clone())),
+            Type::Managed(Box::new(fp.clone())),
+            Type::Opaque {
+                identity: zil_base::NodeId(0),
+                hidden: Box::new(fp.clone()),
+            },
+            Type::FunctionPointer {
+                parameters: vec![],
+                result: Box::new(fp),
+            },
+        ];
+        for carrier in carriers {
+            let mut remaining = limits.max_analysis_steps;
+            let abi = signature(
+                std::iter::once(&carrier),
+                &Type::Unit,
+                &mut remaining,
+                &limits,
+            )
+            .unwrap();
+            assert!(abi.versioned);
+            assert!(
+                !abi.large(),
+                "carrier pointer/aggregate must retain its physical convention"
+            );
+        }
+        let data = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Array {
+                element: Box::new(Type::U8),
+                length: 4096,
+            }),
+        };
+        let mut remaining = limits.max_analysis_steps;
+        let abi = signature(std::iter::once(&data), &Type::Unit, &mut remaining, &limits).unwrap();
+        assert!(!abi.versioned && !abi.large());
+        let c_pointer = Type::ForeignCallback {
+            parameters: vec![Type::I32],
+            result: Box::new(Type::I32),
+        };
+        assert!(
+            !signature(std::iter::empty(), &c_pointer, &mut remaining, &limits)
+                .unwrap()
+                .versioned
+        );
+        let foreign = Type::ForeignCallback {
+            parameters: vec![worker()],
+            result: Box::new(Type::I32),
+        };
+        assert_eq!(
+            dependency(&foreign, &mut remaining, &limits, 0).unwrap_err()[0].category,
+            zil_base::ResultCategory::Unsupported
+        );
+    }
+    #[test]
+    fn recursive_dependency_cost_shares_the_existing_remainder_exactly() {
+        let limits = Limits::default();
+        let carrier = Type::Tuple(vec![
+            worker(),
+            Type::Address {
+                mutable: false,
+                inner: Box::new(worker()),
+            },
+        ]);
+        let mut remaining = limits.max_analysis_steps;
+        signature(
+            std::iter::once(&carrier),
+            &Type::Unit,
+            &mut remaining,
+            &limits,
+        )
+        .unwrap();
+        let cost = limits.max_analysis_steps - remaining;
+        for available in [cost, cost] {
+            let mut remaining = available;
+            assert!(
+                signature(
+                    std::iter::once(&carrier),
+                    &Type::Unit,
+                    &mut remaining,
+                    &limits
+                )
+                .unwrap()
+                .versioned
+            );
+            assert_eq!(remaining, 0);
+        }
+        let mut remaining = cost - 1;
+        assert_eq!(
+            signature(
+                std::iter::once(&carrier),
+                &Type::Unit,
+                &mut remaining,
+                &limits
+            )
+            .err()
+            .unwrap()[0]
+                .category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+    }
+}

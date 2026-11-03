@@ -119,7 +119,7 @@ E-UNSUPPORTED，无LLVM/executable。这是尚未贯通的大物理move环境，
 
 独立的KnownIncomplete：Rust API在2MiB工作线程处理该move capture时，明确在
 Verify API调用开始与完成标记之间stack overflow/SIGABRT，尚未进入Codegen。
-Syntax/Expand/Types/Analyze/Verify/Lower源码相对40fb基线零差异；这是未修的API
+在6b首次固定该复现时，Syntax/Expand/Types/Analyze/Verify/Lower源码相对40fb基线零差异；这是未修的API
 小栈可靠性问题，不计成Unsupported或ABI修复成功。未重建旧baseline binary来
 声称旧binary实跑过。默认8MiB测试线程只匹配本轮普通CLI测试前置，不改变compiler
 线程栈、预算或语义，也不把8MiB通过宣称2MiB问题已修。core0、无repo core。
@@ -148,3 +148,31 @@ root/impl317在6b确认：factory返回受影响薄fnptr、apply接收fnptr、�
 函数指针约定。依赖walk与旧snapshot/ABI layout共同扣同一个remaining，逐节点预付，
 不reset。普通小物理direct call也必须使用实际abi_symbol。未贯通closure显式接口/
 隐式env、resource/teardown等helper若带该依赖，在产物前Unsupported。
+
+
+### 版本修补的固定验收结果
+
+规范5eb历史合并带入root330/331/332共同生产；本作者只改上述backend版本传播。
+因此“六frontend零diff”只描述6b原始发现时点，不描述修补后的整个共同树；本轮
+不宣称其它root生产已经全仓回归，也未用大测试栈结清已保留的小栈可靠性问题。
+
+- 审者原扩展source原样保存`codegen-pending/large-copy-version-carriers.zil`，
+  SHA256 `c4b67bd65c0c5436c34b42e9e0b3db769c52dcf42899109a72ff780e545544ba`。
+  两后端O0/O2实际native0，nm全部0–8为External T `.lc1`且不存在旧T名称；
+  9–12（纯&Big、小array、小fnptr工厂、main）保持旧名。factory/apply物理header
+  仍ptr。真实C机器consumer旧`zil.fn.1`链接undefined reference，`.lc1`可链接。
+- structural模型2/0：完整carrier依赖、纯数据Address<Big>旧约定、普通C callback
+  旧约定、禁止C callback混入受影响language pointer；共享剩余额度N/N−1/fresh。
+- API aggregates本轮ABI限定8/0；其中五类special正源先Verify1再Codegen
+  Unsupported，无LLVM/executable：物理大closure参数/结果、大move capture、
+  薄受影响fnptr显式closure接口、薄受影响fnptr环境、resource helper。合法
+  mutable借入Big物理ptr环境仍四组合native45。没有按源referent大就盲拒。
+- 同一个累计预算下a18函数指针实际N从356839增为356960，N−1仍Codegen
+  ResourceLimit，fresh与API暖缓存控制均通过；旧local-a18从323041增为323042。
+  增费来自真实完整signature dependency遍历，未提高默认额度或新开预算。
+- 三模块CGU/cache标准O0/O2控制已过；另将O2明确开启incremental_o2完整直接调用
+  副本模式后，两后端cold/warm/body-change三轮实际native也过，仍实际units>=2、
+  无fallback、API暖全hit，引用保持canonical版本化fnptr。
+- 修补后backend两feature alltargets Clippy、API aggregates Clippy/fmt通过。
+  旧整target31/0是6b收口历史，不冒称最终共同树33用例已整target复跑；本轮按
+  root要求只重跑受影响限定控制，原a18独立非作者复验由impl317绑定最终交付。
