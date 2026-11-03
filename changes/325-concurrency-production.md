@@ -102,3 +102,64 @@ Verify/raw-Wire核验，另一个可拆点是 backend pthread adapter。最终�
 raw/Wire须覆盖实际worker替换及body重复消费，保持阶段/诊断归因。新预算测
 N/N−1/fresh并留旧控制。受测固定源码、实际命令、阶段IR/机器结果之后补记，
 不把本提案或普通同名函数当作实现完成。
+
+## 实施和实际结果
+
+生产源码最终固定 `e62240223`，公共接点来自root的`87d984c93`（Wire/schema34、
+opcode95，life33之后独立发布），生产pthread后端来自328 `7a1b191e8`。
+root `0afd64bd9`的§11.1进一步澄清body允许父线程借用、调用位置限普通Direct及
+全部CFG块保守扫描；325不私改公共版本或主树规范。Lower沿现有VerifiedModule
+能力保留完整节点，raw/Wire正控实际进入LIR；没有把raw模型当源码验收。
+
+实际命令（加载`/workspace/.zil-env/env.sh`，显式target325、jobs1）：
+
+```sh
+ZIL_TEST_REPORT_DIR=/tmp/thread325-report cargo test -p zil-driver --features llvm-api --test generic_regressions -- --nocapture
+cargo clippy -p zil-driver --features llvm-api --test generic_regressions -- -D warnings
+cargo fmt --all -- --check
+```
+
+本地已有目标最终 **18 passed / 0 failed / 0 ignored / 0 filtered**，含325三项及
+既有15项；不是全仓。限定Clippy与fmt check通过。主四模块在Clang O0/O2、
+LLVM API O0/O2各运行成功、提前业务错误、创建失败、join失败，**16次**；
+父body真实借用对照另**4次**，合计本片**20次**机器执行。重放不累加。
+主源各输入的实际stdout/退出逐字匹配README表；join失败确为SIGABRT，
+stderr为空。四份真实backend报告为clang/clang/llvm-api/llvm-api，各Verify一次、
+fallback=null；API均是builder、verify_before_after=true、parse_ns=0。
+API O2请求4个编译单元、实际3个，实际静态worker依赖及私有start/helper贯通。
+
+父body借用可到Verify及机器；共享窗口冲突仍在Verify / E-BORROW-CONFLICT拒绝。
+foreign/stored worker、错误body在Types拒；传递FFI或地址worker在Analyze拒；
+CT在CT / E-CT-FORBIDDEN拒。跨模块private worker通过实际resolver以
+E-MODULE-PRIVATE拒绝。同模块无关FFI/资源不被worker子图检查误拒。
+两份pending分别Types/Expand Unsupported；另用完整合法closure元数据的raw
+调用位置变体核实Analyze和Verify均为Unsupported。
+
+实际TypedIR→Wire→独立Verify→LIR保留两个WithScopedThread。worker越界、
+hidden teardown身份替换、同一拥有body SSA重复消费，均由两核拒绝。
+当前原始双scope正控的Analyze精确N=6873，Verify N=10587；各N、fresh再次N
+通过，N−1返回ResourceLimit。旧15项回归同一目标保持通过，默认限额未升。
+
+最终阶段产物在`/tmp/thread325-report/thread325-22713-{0,1,2,3}`，不入库堆积；
+API O0源fingerprint为`6412120012fccae96a19158f36cff2176797470d080ea525763fa446c7935744`，
+真实`verified.txt` SHA-256为`1ceca54e31657bf6fe995751784d39b163b53c31477b06838594c1a317d21c1a`。
+实际LLVM声明`pthread_create(ptr,ptr,ptr,ptr)`、`pthread_join(i64,ptr)`，handle槽为
+`alloca i64, align 8`；生成start entry与稳定context，join错误分支调用abort，
+成功join之后才读取child结果。上述是实际生成产物观察，不是手填IR/手写C计算。
+
+## 原失败和剩余边界
+
+首轮driver CT拒绝分支的Err参数少Vec造成编译错误，已修后进入真实消费者。
+最初CT源先报unknown worker，补legacy collector/source边界后明确E-CT-FORBIDDEN。
+root审查指出父closure/helper位置不应当SafeReject；改为Unsupported后，closure
+预捕获Checker还先报unknown thread_scope，已补该入口。补入口时一次错误变量名
+导致编译失败，改用实际span后限定检查通过。环境两次中断，未返回的Clippy状态
+不记成绩；恢复后的16个dirty经逐文件正规化核实13个纯fmt、3个含实际改动，
+检查点`f64972611`保留。原计费增加及Unary正向白名单也据实保存。
+
+Rust四目标：有限实际迁移资格、body责任及真实join的安全证据已增加，完整语言
+安全和独立最终审核未由作者自测代替；有真实OS同步和内联context，未做Rust运行/
+内存配对；普通源可直接组合并行纯worker与拥有父body，框架维护收益未测；新增
+工作有N/N−1/fresh，未证明编译成本优势。实质增量是源码至机器的真实结构化
+线程，非同名record或普通CFFI包装。未跑正式全量、Windows或产品性能门，
+完整async/SABI、Mutex、一般Transfer/Share及完整ZUI/B0仍未完成。
