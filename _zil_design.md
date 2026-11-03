@@ -780,7 +780,7 @@ Transfer/Share 由所有被迁移或共同操作的数据、环境、Cleanup、R
 
 `thread_scope(worker, payload, body)` 是不可遮蔽的保留调用。worker是实际静态普通函数符号、精确`fn(i32)->i32`，payload为按源位置求值一次的i32，body为具体`FnOnce()->i32`并在父线程执行，沿既有规则允许合法的父线程捕获与借用。依次准备payload和body后尝试创建一个真实OS线程；成功时worker在子线程运行一次，body在父线程运行一次并按原规则消费/清理环境，再join子线程，返回普通`(created:bool, worker_result:i32, body_result:i32)`。创建失败返回`(false,0,0)`，不执行worker或body，准确清理已准备body环境；不得同步fallback或join未初始化handle。join不能证明静止时固定abort，不返回或释放仍被子线程访问的栈context。Direct trap/panic采用当前目标固定abort，不承诺unwind后异步排空。
 
-首片仅Linux x86_64可信pthread适配；create发布完整输入，父child结果分别占不相交槽，成功join提供真实happens-before后父线程才能读取child结果，context从创建到join保持稳定。跨线程载荷只有i32，不把父线程body环境或仅由父线程保活的资源伪作子线程载荷。worker及其实际可达静态调用子图须逐函数、类型、指令独立核验为有限纯标量路径；白名单只含Unit/bool/u8/u16/i32/i64及相应局部、标量运算/分支/直接调用，不开放地址、聚合资源、环境、FFI、TLS、allocator、teardown、未知间接调用或嵌套thread_scope。无关的同模块声明不因此被拒，未知新指令默认不合格。
+首片调用位置限无环境、无callable合同的普通Direct函数；在闭包入口或callback/helper合同函数内部调用暂报Unsupported，不把尚未实现的调用位置判为worker不安全。首片仅Linux x86_64可信pthread适配；create发布完整输入，父child结果分别占不相交槽，成功join提供真实happens-before后父线程才能读取child结果，context从创建到join保持稳定。跨线程载荷只有i32，不把父线程body环境或仅由父线程保活的资源伪作子线程载荷。worker及其实际可达静态调用子图须逐函数、类型、指令独立核验为有限纯标量路径；白名单只含Unit/bool/u8/u16/i32/i64及相应局部、标量运算/分支/直接调用，不开放地址、聚合资源、环境、FFI、TLS、allocator、teardown、未知间接调用或嵌套thread_scope。调用图按静态直接调用边求闭包，并保守扫描每个入图函数的全部CFG块，包括源条件不可达的块；本片不做路径敏感资格证明。无关的同模块声明不因此被拒，未知新指令默认不合格。
 
 Types构造未核候选，Analyze与Verify分别重建实际worker调用图、精确签名、body责任及全部SSA使用/作用域/活性，不能共用资格证明。body只在父线程执行，无需伪造其Transfer，但实际消费及创建失败清理仍必须核实。新节点进入Wire/指纹、Lower、两后端、CGU静态依赖和缓存身份；CT显式拒绝，新增遍历在现有限额内预付。本片是真实Direct结构化线程，不授权可脱离handle、共享payload借用、Mutex/Atomic、取消、Suspend/SABI或一般Transfer/Share trait；这些终态义务继续保留。
 
