@@ -245,6 +245,7 @@ fn model() -> (m::Module, LirModule) {
                 continuation: 0,
                 partial_packages: BTreeSet::new(),
                 safe_divisors: None,
+                copy_values: &BTreeMap::new(),
             }
             .emit()
             .unwrap(),
