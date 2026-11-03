@@ -2229,3 +2229,204 @@ fn review329_astra_lexical_builtin_controls() {
         assert_eq!(report.verification_runs, 1, "{label}");
     }
 }
+
+#[test]
+fn large_copy_enum_error_original_scale_all_backends() {
+    // Isolate LLVM failures and cap each compiler process. This remains one
+    // existing Cargo integration target and preserves the original input bytes.
+    if let Ok(profile) = std::env::var("ZIL_338_SUM_CHILD") {
+        use zil_driver::{NativeBackend, Optimization};
+        let (backend, optimization) = match profile.as_str() {
+            "clang-O0" => (NativeBackend::Clang, Optimization::O0),
+            "clang-O2" => (NativeBackend::Clang, Optimization::O2),
+            "llvm-api-O0" => (NativeBackend::LlvmApi, Optimization::O0),
+            "llvm-api-O2" => (NativeBackend::LlvmApi, Optimization::O2),
+            _ => panic!("unknown child profile"),
+        };
+        let out = Temp::new();
+        let case = std::env::var("ZIL_338_CASE").unwrap();
+        let input = match case.as_str() {
+            "enum" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a18.zil"
+            ),
+            "error" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-error-a18.zil"
+            ),
+            "empty" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-empty-a18.zil"
+            ),
+            _ => panic!("unknown ABI case"),
+        };
+        let report = compile_source(
+            &source(input),
+            &CompileOptions {
+                backend,
+                optimization,
+                stop_after: Stage::Build,
+                cancellation: zil_driver::CancellationToken::with_timeout(
+                    std::time::Duration::from_secs(45),
+                ),
+                output: Some(out.0.join("program")),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+        assert!(llvm.contains(".lc1("), "versioned definition/call absent");
+        assert!(llvm.contains("@zil.copy.bytes"));
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.backend, backend);
+        assert!(codegen.fallback.is_none());
+        if backend == NativeBackend::LlvmApi {
+            let pipeline = format!("\"pipeline\":\"default<{optimization:?}>\"");
+            assert!(!codegen.object_reports.is_empty());
+            assert!(codegen.object_reports.iter().all(|r| r.contains(&pipeline)));
+        } else {
+            let flag = if optimization == Optimization::O0 {
+                "-O0"
+            } else {
+                "-O2"
+            };
+            assert!(
+                report
+                    .commands
+                    .iter()
+                    .any(|command| command.iter().any(|arg| arg == flag))
+            );
+        }
+        let actual = Command::new("timeout")
+            .args(["-s", "KILL", "5s"])
+            .arg(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+        assert!(actual.stdout.is_empty());
+        assert!(actual.stderr.is_empty());
+        return;
+    }
+    for backend in ["clang", "llvm-api"] {
+        if backend == "llvm-api" && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in ["O0", "O2"] {
+            for case in ["enum", "error", "empty"] {
+                let actual = Command::new("timeout")
+                    .args([
+                        "-s",
+                        "KILL",
+                        "55s",
+                        "bash",
+                        "-c",
+                        "ulimit -c 0; ulimit -t 45; ulimit -v 2097152; exec \"$@\"",
+                        "--",
+                    ])
+                    .arg(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "large_copy_enum_error_original_scale_all_backends",
+                        "--nocapture",
+                        "--test-threads=1",
+                    ])
+                    .env("ZIL_338_CASE", case)
+                    .env("ZIL_338_SUM_CHILD", format!("{backend}-{optimization}"))
+                    .output()
+                    .unwrap();
+                assert!(
+                    actual.status.success(),
+                    "{backend}-{optimization}: {} {}",
+                    String::from_utf8_lossy(&actual.stdout),
+                    String::from_utf8_lossy(&actual.stderr)
+                );
+                eprintln!(
+                    "338 a18 Sum ABI {case} {backend}-{optimization}: backend matched, requested pipeline, fallback=null, native_exit=0"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn large_copy_enum_error_value_order_alignment_and_canonical_small_payloads() {
+    let first = "[0]".repeat(13);
+    let body = format!(
+        "var original=a12;var message=Message.Data{{unit:(),flag:true,n:9,bytes:original}};let saved=message;let score=read(message,empty(&mut message));let pointer:fn(Message)->Message=keep;let returned=pointer(saved);original{first}=4u8;let small=Message.Small{{pair:(true,7),unit:()}};let small_score=read(small,0);match returned{{Message.Data{{unit:_,flag:ok,n:n,bytes:bytes}}=>{{if !ok{{return -1}}return i32(bytes{first})*1000+i32(original{first})*100+i32(n)*10+score+small_score}},Message.Empty()=>{{return -2}},Message.Small{{pair:_,unit:_}}=>{{return -3}}}}"
+    );
+    let declarations = format!(
+        "enum Message{{Data{{unit:(),flag:bool,n:i64,bytes:Big}},Empty,Small{{pair:(bool,i64),unit:()}}}}fn keep(value:Message)->Message{{var changed=value;changed=Message.Empty;return value}}fn empty(value:&mut Message)->i32{{*value=Message.Empty;return 1}}fn read(value:Message,marker:i32)->i32{{match value{{Message.Data{{unit:_,flag:_,n:_,bytes:bytes}}=>{{return i32(bytes{first})+marker}},Message.Empty()=>{{return 0}},Message.Small{{pair:(flag,n),unit:_}}=>{{if flag{{return i32(n)}}return -4}}}}}}"
+    );
+    let text = format!("{declarations}{}", large_copy_program(&body));
+    review329_native(&[("main", &text)], 3501);
+}
+
+#[test]
+fn large_copy_enum_error_both_arms_propagation_and_failure_cleanup() {
+    use zil_driver::{NativeBackend, Optimization};
+    let first = "[0]".repeat(13);
+    let prefix = large_copy_program("");
+    let prefix = &prefix[..prefix.find("fn result").unwrap()];
+    let init = (0..=12)
+        .map(|n| {
+            if n == 0 {
+                "let a0=[3u8];".to_owned()
+            } else {
+                format!("let a{n}=[a{},a{}];", n - 1, n - 1)
+            }
+        })
+        .collect::<String>();
+    for ok in [true, false] {
+        let text = format!(
+            r#"{prefix}extern "C" fn putchar(code:i32)->i32;resource Token{{code:i32}}impl Drop for Token{{fn drop(self:Self){{unsafe{{putchar(.code)}}}}}}struct Fault{{bytes:Big,flag:bool}}fn produce(ok:bool,bytes:Big)->Fault!Big{{if ok{{return bytes}}return Fault{{bytes,flag:true}}}}fn relay(value:Fault!Big)->Fault!Big{{return value}}fn work()->Fault!i32{{{init}let token=Token{{code:65}};var original=a12;let pointer:fn(Fault!Big)->Fault!Big=relay;let saved=pointer(produce({ok},original));original{first}=9u8;let bytes=saved?;return i32(bytes{first})}}fn main()->Fault!i32{{return work()?}}"#
+        );
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let out = Temp::new();
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(out.0.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let observed = Command::new("timeout")
+                    .args(["-s", "KILL", "5s"])
+                    .arg(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    observed.status.code(),
+                    Some(if ok { 3 } else { 1 }),
+                    "{observed:?}"
+                );
+                assert_eq!(observed.stdout, b"A");
+                assert!(observed.stderr.is_empty());
+                let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+                assert!(llvm.contains(".lc1(ptr %lc1.result, ptr %arg.0)"));
+                assert!(
+                    !llvm.contains("extractvalue { i1, {"),
+                    "large error must use memory projections"
+                );
+            }
+        }
+    }
+}
