@@ -294,6 +294,171 @@ fn trait330_default_body_keeps_private_helper_module_and_actual_host_dependencie
 }
 
 #[test]
+fn trait336_original_global_function_value_reaches_both_native_backends() {
+    native_both(&[(
+        "main",
+        include_str!(
+            "../../../tests/language-readiness/followup334/default-global-fnptr-known-incomplete.zil"
+        ),
+    )]);
+}
+
+#[test]
+fn trait336_private_function_values_keep_trait_module_and_full_signature() {
+    native_both(&[
+        (
+            "main",
+            include_str!("../../../tests/language-readiness/followup336/private-fnptr/main.zil"),
+        ),
+        (
+            "rules",
+            include_str!("../../../tests/language-readiness/followup336/private-fnptr/rules.zil"),
+        ),
+        (
+            "component",
+            include_str!("../../../tests/language-readiness/followup336/private-fnptr/component.zil"),
+        ),
+    ]);
+}
+
+#[test]
+fn trait336_real_local_bindings_and_existing_fnptr_forwarding_take_precedence() {
+    native_both(&[(
+        "main",
+        include_str!("../../../tests/language-readiness/followup336/local-shadow.zil"),
+    )]);
+}
+
+#[test]
+fn trait336_unused_and_overridden_function_values_keep_complete_symbolic_identity() {
+    for text in [
+        "fn identity(value:i32)->i32{return value}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
+        "fn identity(value:i32)->i32{return value}trait Factory<R:Copy>{fn handler(self:&Self)->fn(i32)->i32{return identity}}struct P{}impl Factory<bool> for P{fn handler()->fn(i32)->i32{return identity}}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+    }
+    for declaration in [
+        "fn identity(value:i64)->i32{return 0}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}",
+        "fn identity(value:i32)->i64{return 0}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}",
+        "fn identity(value:i32,other:i32)->i32{return value}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}",
+        "struct A{n:i32}struct B{n:i32}fn identity(value:A)->A{return value}trait Factory{fn handler(self:&Self)->fn(B)->B{return identity}}",
+        "struct Tag<A:Copy,B:Copy>{}fn identity(value:Tag<i32,bool>)->Tag<i32,bool>{return value}trait Factory{fn handler(self:&Self)->fn(Tag<bool,i32>)->Tag<bool,i32>{return identity}}",
+        "fn identity(value:i32)->i32{return value}trait Factory{fn handler(self:&Self)->fn(i32)->i32{let identity=7;return identity}}",
+    ] {
+        for suffix in [
+            "fn main(){}",
+            "struct P{}impl Factory for P{fn handler()->fn(i32)->i32{return fallback}}fn fallback(value:i32)->i32{return value}fn main(){}",
+        ] {
+            // An unrelated/wrong override cannot hide the original bad default.
+            let report = check(&format!("{declaration}{suffix}"));
+            assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+            assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+            assert_eq!(report.diagnostics[0].code, "E-GENERIC-ARGUMENT", "{}", report.to_json());
+            assert!(report.diagnostics[0].message.contains("before concrete instantiation"), "{}", report.to_json());
+            assert_eq!(report.verification_runs, 0);
+        }
+    }
+    let symbolic = "fn identity(value:i32)->i32{return value}trait Factory<R:Copy>{fn handler(self:&Self)->fn(R)->R{return identity}}";
+    for suffix in [
+        "fn main(){}",
+        "struct P{}impl Factory<i32> for P{}fn main(){}",
+        "struct P{}impl Factory<i32> for P{fn handler()->fn(i32)->i32{return identity}}fn main(){}",
+    ] {
+        reject(&format!("{symbolic}{suffix}"), "before concrete instantiation");
+    }
+}
+
+#[test]
+fn trait336_foreign_generic_inferred_and_noncopy_function_values_stay_explicitly_unsupported() {
+    for text in [
+        "fn identity<T:Copy>(value:T)->T{return value}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
+        "fn identity(value:i32){return value}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
+        "fn identity(value:&i32)->i32{return *value}trait Factory{fn handler(self:&Self)->fn(&i32)->i32{return identity}}fn main(){}",
+        "resource R{}fn identity(value:R)->R{return value}trait Factory{fn handler(self:&Self)->fn(R)->R{return identity}}fn main(){}",
+        "extern \"C\"{fn identity(value:i32)->i32;}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(report.status, ResultCategory::Unsupported, "{}", report.to_json());
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, "E-UNSUPPORTED", "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn trait336_function_value_lookup_keeps_private_names_and_unknown_names_closed() {
+    let report = compile_project(
+        &project(&[
+            ("main", "import hidden;trait Factory{fn handler(self:&Self)->fn(i32)->i32{return hidden.identity}}fn main(){}"),
+            ("hidden", "fn identity(value:i32)->i32{return value}"),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert_eq!(report.diagnostics[0].code, "E-MODULE-PRIVATE", "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+    reject("trait Factory{fn handler(self:&Self)->fn(i32)->i32{return missing}}fn main(){}", "unknown value");
+}
+
+#[test]
+fn trait336_default_function_value_request_budgets_are_exact_across_cache_replay() {
+    use zil_driver::CompilationSession;
+    let unit = source(include_str!(
+        "../../../tests/language-readiness/followup334/default-global-fnptr-known-incomplete.zil"
+    ));
+    for ledger in ["work", "nodes", "functions"] {
+        let mut low = 1;
+        let mut high = match ledger {
+            "work" => Limits::default().max_analysis_steps,
+            "nodes" => Limits::default().max_nodes,
+            _ => Limits::default().max_functions,
+        };
+        let options = |n| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                _ => options.limits.max_functions = n,
+            }
+            options
+        };
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&unit, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut session = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                session.compile_source(&unit, &options(n)),
+                CompilationSession::default().compile_source(&unit, &options(n)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                if expected == ResultCategory::Success {
+                    assert_eq!(report.verification_runs, 1);
+                } else {
+                    assert!(!report.diagnostics.is_empty());
+                    assert!(report.diagnostics.iter().all(|d| d.category == ResultCategory::ResourceLimit));
+                }
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        println!("336 default function value request {ledger} N={low}; N-1 ResourceLimit, cold/warm/fresh agree");
+    }
+}
+
+#[test]
 fn trait330_recursive_default_is_a_static_call_edge() {
     native_both(&[(
         "main",
