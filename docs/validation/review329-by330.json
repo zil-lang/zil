@@ -2,56 +2,10 @@
   "schema_version": 1,
   "reviewer": "/root/impl314",
   "implementation_author": "/root/recovery_audit",
-  "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
-  "verdict": "Fail",
+  "implementation_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+  "verdict": "PassLimited",
   "scope": "329 named Copy enum constructors and explicit complete named match patterns, symbolic Copy premises, alias/module identity and CT/hygiene consumers; not a review of author-owned 330",
-  "blocking_findings": [
-    {
-      "id": "review329-primitive-spelling-pattern-authority",
-      "sources": [
-        "enum E<T:Copy>{V{x:T}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
-        "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}"
-      ],
-      "observed": "Both uncalled invalid definitions compile Success/Verify1 on candidate A. A type binder named i64 or bool with only Copy is being treated as the primitive scalar for literal patterns.",
-      "fingerprints": [
-        "da73dc364ab961843bdfecd1f2dfe4c6631fa4dcbe89728b6ae0332c471a44e2",
-        "7353375179ac51a1c622dfa9695148073bddf09d579ff0e7759915b65ca4c9fb"
-      ],
-      "cause": "generic_check_enum::pattern integer/boolean predicates inspect the type spelling without preserving the lexical binder distinction.",
-      "impact": "Unused-template scalar permission is accepted without a declared premise; no memory unsafety demonstrated.",
-      "positive_controls": [
-        "enum E<T:Copy>{V{x:T}}fn keep<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:n}=>{return 0}}}fn result()->i32{return 0}",
-        "fn scalar()->i64{return 1}fn keep<i64:Copy>(x:i64)->i32{let n=scalar();match n{1=>{return 1},_=>{return 0}}}fn result()->i32{return 0}"
-      ],
-      "positive_observed": "Both compile Success/Verify1 on candidate A; the callee scalar result is a real builtin i64 from its own declaration scope and must not be mistaken for the caller type binder.",
-      "fixture_commit": "50c60bf22",
-      "status": "Reported to author/root/Astra investigation; original sources and expected rejection retained."
-    }
-  ],
-  "tests": [
-    {
-      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ -- --nocapture",
-      "result": "3 passed, 1 failed, 30 filtered; failure at this run was invalid reviewer quote category, before hygiene. The other three independent groups passed with 24 native executions.",
-      "observed_controls": "Source evaluation order 2112; declaration-order payload and crossed/nested field labels; i64 context; ordinary shorthand and empty record/unit distinctions; complete field sets, tuple/record misuse, duplicate binders; unused phantom aliases before/after enum declaration and through another alias; T:Copy literal lacks numeric authority; same-spelled public enums remain nominally distinct and private enum access rejects."
-    },
-    {
-      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ct_quote -- --nocapture",
-      "result": "After category and receiving-slot corrections: 0 passed, 1 failed, 33 filtered; actual machine result reproduces blocking finding. Remaining two quote controls have not executed because the first case fails."
-    },
-    {
-      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ -- --nocapture",
-      "commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
-      "result": "6 passed, 1 failed, 41 filtered",
-      "native_executions": 40,
-      "observed": "Original quote/ordinary pun sources now return 7, crossed labels and Type-spelling hygiene return 12, all Clang/API O0/O2 with no fallback. Unused variant cfg attribute explicitly Unsupported. New primitive-spelling symbolic pattern group exposes the blocking acceptance."
-    },
-    {
-      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_symbolic -- --nocapture",
-      "commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
-      "result": "0 passed, 1 failed, 47 filtered",
-      "observed": "Both original i64/bool bad definitions accepted; both lexical-builtin/wildcard near positives succeed."
-    }
-  ],
+  "blocking_findings": [],
   "review_fixture_history": [
     {
       "commit": "090b77c2a33b43e7d471c4fcde6be95b22bfcd75",
@@ -77,7 +31,8 @@
     "checkout": "/workspace/zil-review329",
     "target_dir": "/workspace/.zil-env/target330",
     "build_jobs": 1,
-    "features": "llvm-api explicitly enabled; native controls assert actual Clang/API backend, API builder input and no fallback"
+    "features": "llvm-api explicitly enabled; native controls assert actual Clang/API backend, API builder input and no fallback",
+    "setup": "source /workspace/.zil-env/env.sh; explicit CARGO_TARGET_DIR and CARGO_BUILD_JOBS=1; tests above ran with HEAD exactly at B before this metadata-only commit."
   },
   "handoff_observation": {
     "status": "CurrentFail at review startup",
@@ -85,9 +40,10 @@
     "reason": "Historical task specification snapshots 313/314/315/316/317/320/321 stale; root acknowledged maintenance work. No main-tree task was edited by this reviewer."
   },
   "limitations": [
-    "Review remains failing until the original symbolic primitive-spelling sources reject and the positive lexical-builtin/wildcard controls still succeed on a fixed exact candidate.",
-    "Full aggregate/CT regression targets, budget controls and Clippy have not yet been independently rerun on a final candidate.",
-    "No full workspace run, general enum/pattern/language completeness or Rust performance claim."
+    "No formal full-workspace run was performed by this reviewer; full aggregate target includes unrelated component executions which are not claimed as a fresh independent review of those components.",
+    "Explicit complete named match fields only; no pattern shorthand/rest/new ref permission. Constructor shorthand follows ordinary record grammar. Owning record payloads and pub/default/manages field modifiers remain outside this finite Copy profile.",
+    "ct_artifact/compiler_cfg.rs still has explicit error branches for interpreting named-record match data in that Type/Syntax evaluator path; successful quote generation/materialization and legacy CT enum consumers tested above do not claim that separate evaluator path.",
+    "No production files or main-tree task records edited by this reviewer. Historical invalid fixture setup and actual 803/A failures remain recorded separately."
   ],
   "resolved_findings": [
     {
@@ -103,14 +59,138 @@
         "observed": "Same 803a compiler: Verify1 and Clang O0/no fallback, stdout [49,48,48,10] instead of [55,10]. This confirms the shared Record shorthand path; no separate historical 40fb execution is claimed."
       },
       "status": "Closed by d308a74fefb4998ca9b7b9f4a4b3f75f93666871; original corrected enum and ordinary-record sources both pass all four Clang/API O0/O2 profiles on candidate A."
+    },
+    {
+      "id": "review329-primitive-spelling-pattern-authority",
+      "sources": [
+        "enum E<T:Copy>{V{x:T}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}"
+      ],
+      "observed": "Both uncalled invalid definitions compile Success/Verify1 on candidate A. A type binder named i64 or bool with only Copy is being treated as the primitive scalar for literal patterns.",
+      "fingerprints": [
+        "da73dc364ab961843bdfecd1f2dfe4c6631fa4dcbe89728b6ae0332c471a44e2",
+        "7353375179ac51a1c622dfa9695148073bddf09d579ff0e7759915b65ca4c9fb"
+      ],
+      "cause": "generic_check_enum::pattern integer/boolean predicates inspect the type spelling without preserving the lexical binder distinction.",
+      "impact": "Unused-template scalar permission is accepted without a declared premise; no memory unsafety demonstrated.",
+      "positive_controls": [
+        "enum E<T:Copy>{V{x:T}}fn keep<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:n}=>{return 0}}}fn result()->i32{return 0}",
+        "fn scalar()->i64{return 1}fn keep<i64:Copy>(x:i64)->i32{let n=scalar();match n{1=>{return 1},_=>{return 0}}}fn result()->i32{return 0}"
+      ],
+      "positive_observed": "Both compile Success/Verify1 on candidate A; the callee scalar result is a real builtin i64 from its own declaration scope and must not be mistaken for the caller type binder.",
+      "fixture_commit": "50c60bf22",
+      "status": "Closed by ac2dc7deb92217f4ec1bf9eb1798a8483ab9c8e6: original bad sources both Expand/Unsupported/E-UNSUPPORTED/Verify0 on B; original wildcard and callee-builtin positives still Success/Verify1."
     }
   ],
-  "component_commit": "d308a74fefb4998ca9b7b9f4a4b3f75f93666871",
+  "component_commit": "ac2dc7deb92217f4ec1bf9eb1798a8483ab9c8e6",
   "common_candidate_review": {
+    "reviewer": "/root/impl314",
+    "implementation_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+    "verdict": "PassLimited",
+    "scope": "329 named Copy enum constructors and explicit complete named match patterns, symbolic Copy premises, alias/module identity and CT/hygiene consumers; not a review of author-owned 330",
+    "checks": "Exact B checkout: aggregates51/0 + CT enum13/0, both zero ignored/filtered; source-ledger2/0 (7 unrelated lib tests filtered); old enum-budget2/0; targeted Clippy Pass.",
+    "independent_controls": "All seven reviewer groups pass, including 40 native Clang/API O0/O2 executions, original corrected enum/ordinary quoted pun sources, field-label/Type-binder hygiene, aliases before/after declarations, concrete i64 context versus symbolic Copy, module identity/private access and unused variant attributes.",
+    "history": "803a both quote-pun native outputs100 instead of7 and A symbolic primitive-pattern Success/Verify1 are retained as historical Fail findings, not converted retroactively into Pass."
+  },
+  "historical_runs": [
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ -- --nocapture",
+      "result": "3 passed, 1 failed, 30 filtered; failure at this run was invalid reviewer quote category, before hygiene. The other three independent groups passed with 24 native executions.",
+      "observed_controls": "Source evaluation order 2112; declaration-order payload and crossed/nested field labels; i64 context; ordinary shorthand and empty record/unit distinctions; complete field sets, tuple/record misuse, duplicate binders; unused phantom aliases before/after enum declaration and through another alias; T:Copy literal lacks numeric authority; same-spelled public enums remain nominally distinct and private enum access rejects."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ct_quote -- --nocapture",
+      "result": "After category and receiving-slot corrections: 0 passed, 1 failed, 33 filtered; actual machine result reproduces blocking finding. Remaining two quote controls have not executed because the first case fails."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ -- --nocapture",
+      "commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+      "result": "6 passed, 1 failed, 41 filtered",
+      "native_executions": 40,
+      "observed": "Original quote/ordinary pun sources now return 7, crossed labels and Type-spelling hygiene return 12, all Clang/API O0/O2 with no fallback. Unused variant cfg attribute explicitly Unsupported. New primitive-spelling symbolic pattern group exposes the blocking acceptance."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_symbolic -- --nocapture",
+      "commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+      "result": "0 passed, 1 failed, 47 filtered",
+      "observed": "Both original i64/bool bad definitions accepted; both lexical-builtin/wildcard near positives succeed."
+    }
+  ],
+  "historical_candidate_review": {
     "reviewer": "/root/impl314",
     "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
     "verdict": "Fail",
     "scope": "329 named Copy enum constructors and explicit complete named match patterns, symbolic Copy premises, alias/module identity and CT/hygiene consumers; not a review of author-owned 330",
     "result": "6 independent groups pass, 1 fails (41 filtered). 40 native controls pass; only the uncalled symbolic-pattern permission group fails."
+  },
+  "authority": {
+    "file": "_zil_design.md",
+    "sections": [
+      "15.2",
+      "16.7",
+      "18.1"
+    ],
+    "sha256": "3e29cc65a8e6e7298e79b1351e015f8d3a30710e5b7d679610abf5579428f052"
+  },
+  "scope_delta": {
+    "component_to_B_unchanged": "git diff --exit-code ac2..B for zil-syntax/src, record_enums.rs, generic_record_enum.rs and driver ct_artifact/ct_selection trees is empty.",
+    "shared_entry_review": "Reviewed B generics.rs retaining has_defaults and has_alias in the same paid loop. Primitive binder protection uses the existing scoped normalizer before symbolic use, with complete AST preflight and the same names_budget; it preserves the callee actual builtin type. Module specialization retains paid default detection and ORs enum-profile/primitive-binder flags before carrying remaining budgets through redistribution.",
+    "other_changes": "B includes 330 defaults, 331 type/life, 332 parent threads and 333 large ABI changes. This verdict covers their 329 consumer interaction demonstrated here, not an independent review of author-owned 330 or a new general review of those components."
+  },
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates --test impl105_ct_enum -- --nocapture",
+      "commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+      "result": "aggregates 51 passed / 0 failed / 0 ignored / 0 filtered; impl105_ct_enum 13 passed / 0 failed / 0 ignored / 0 filtered",
+      "reviewer_native_executions": 40,
+      "observed": "All original reviewer source strings preserved. Generated-local pun returns7 on both machines/O0/O2; crossed labels and Type-spelling hygiene return12; source field evaluation order2112; same-spelled module enums remain distinct. Literal pattern on i64/bool Copy binder now Unsupported in Expand/Verify0; real builtin/callee and pure binding/wildcard controls succeed."
+    },
+    {
+      "command": "cargo test -p zil-expand --lib record_enum329_ledger -- --nocapture",
+      "commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+      "result": "2 passed / 0 failed / 0 ignored / 7 filtered",
+      "observed": "Source-derived single specialization work753/nodes290 and project work1013/nodes295; exact exhausted specialization allowance succeeds for specialization then rejects downstream expansion. Alias/engine and normalization fees accumulate rather than reset."
+    },
+    {
+      "command": "cargo test -p zil-expand --test impl240_generic_enum_budget -- --nocapture",
+      "commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+      "result": "2 passed / 0 failed / 0 ignored / 0 filtered",
+      "observed": "Existing attributed Copy enum work/nodes and actual owned-field rejection controls still pass."
+    },
+    {
+      "command": "cargo clippy -p zil-driver --features llvm-api --test aggregates --test impl105_ct_enum -- -D warnings",
+      "commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+      "result": "Pass; reviewer test edits had rustfmt and diff-check, final metadata JSON parsed and diff-check passed."
+    }
+  ],
+  "budgets": {
+    "named_enum_request": {
+      "work": 2397,
+      "nodes": 860,
+      "instances": 3,
+      "control": "Each exact N accepts, N-1 is ResourceLimit, cold/warm/fresh agree."
+    },
+    "single_specialization": {
+      "work": 753,
+      "nodes": 290
+    },
+    "project_specialization": {
+      "work": 1013,
+      "nodes": 295
+    },
+    "limits": "Default limits unchanged; no inference of global compile-speed advantage."
+  },
+  "supplementary_review": {
+    "reviewer": "/root/astra_symbolic",
+    "commit": "edddbaadb976405fff520ea126926319945e5d10",
+    "file": "docs/validation/review329-astra.json",
+    "scope": "Separate fixed 43-source primitive-binder investigation on B. Its results supplement identity coverage; not added to this review test/native totals and not treated as independent N evidence."
+  },
+  "rust_goals": {
+    "safety": "Finite named fields, lexical identities and source Copy premises independently checked; general patterns/language safety not established.",
+    "runtime_memory": "Real two-backend behavior and field evaluation order observed; no same-semantics Rust timing/RSS comparison.",
+    "expression_maintenance": "Named Copy Sum construction/matching and quote composition work; framework maintenance advantage unmeasured.",
+    "compile_cost": "Request N/N-1/fresh and downstream depleted-ledger controls pass; no Rust compilation-speed claim.",
+    "breakthrough": "Finite expression capability improved; complete product four-goal conjunction and net Rust advantage remain unproved."
   }
 }
