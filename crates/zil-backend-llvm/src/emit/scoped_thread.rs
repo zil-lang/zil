@@ -1,9 +1,9 @@
-//! Linux x86-64 pthread adapter. Only the i32 payload/result cross threads.
+//! Linux x86-64 pthread adapter. The checked payload is i32 or shared &i32.
 //! The parent's private helper activation owns stable context until join.
 use super::*;
 
-fn context_type() -> m::Ty {
-    m::Ty::Struct(vec![m::Ty::Int(32), m::Ty::Int(32)])
+fn context_type(payload: &m::Ty) -> m::Ty {
+    m::Ty::Struct(vec![payload.clone(), m::Ty::Int(32)])
 }
 fn result_type() -> m::Ty {
     m::Ty::Struct(vec![m::Ty::Int(1), m::Ty::Int(32), m::Ty::Int(32)])
@@ -29,11 +29,11 @@ fn call(name: Option<&str>, ty: m::Ty, callee: String, args: Vec<m::Arg>) -> m::
         },
     )
 }
-fn field(name: &str, base: &str, index: u32) -> m::Event {
+fn field(name: &str, base: &str, index: u32, payload: &m::Ty) -> m::Event {
     inst(
         Some(name.into()),
         m::Op::Gep {
-            ty: context_type(),
+            ty: context_type(payload),
             ptr: m::local(base.into()),
             indices: vec![
                 m::Arg::new(m::Ty::Int(32), 0),
@@ -142,12 +142,13 @@ impl FunctionEmitter<'_> {
             );
         };
         let body_id = *body_id;
+        let payload = llvm_type(self.value_type(argument)?)?;
         self.event(call(
             Some(&format!("v.{}", id.0)),
             result_type(),
             helper(self.function.id, id),
             vec![
-                m::Arg::new(m::Ty::Int(32), m::val(value(argument))),
+                m::Arg::new(payload, m::val(value(argument))),
                 m::Arg::new(environment_type(body_id), m::val(value(body))),
             ],
         ));
@@ -179,6 +180,11 @@ impl FunctionEmitter<'_> {
             )]);
         }
         let id = result(instruction)?;
+        let InstructionKind::WithScopedThread { argument, .. } = instruction.kind else {
+            unreachable!()
+        };
+        let payload = llvm_type(self.value_type(argument)?)?;
+        let payload_align = if payload == m::Ty::Ptr { 8 } else { 4 };
         let Type::Closure(body_id) = self.value_type(body)? else {
             return invalid(
                 "E-CODEGEN-CFG",
@@ -202,7 +208,7 @@ impl FunctionEmitter<'_> {
             signature: m::Signature::new(
                 result_type(),
                 vec![
-                    m::Param::new(m::Ty::Int(32), "thread.argument"),
+                    m::Param::new(payload.clone(), "thread.argument"),
                     m::Param::new(environment_type(body_id), "thread.body.value"),
                 ],
             ),
@@ -211,19 +217,19 @@ impl FunctionEmitter<'_> {
         }));
         self.event(m::Event::Label("entry".into()));
         for (name, ty, align) in [
-            ("thread.context", context_type(), 4),
+            ("thread.context", context_type(&payload), payload_align),
             ("thread.handle.slot", m::Ty::Int(64), 8),
             ("thread.body", environment_type(body_id), body_align),
         ] {
             self.event(inst(Some(name.into()), m::Op::Alloca { ty, align }));
         }
-        self.event(field("thread.argument.ptr", "thread.context", 0));
-        self.event(field("thread.result.ptr", "thread.context", 1));
+        self.event(field("thread.argument.ptr", "thread.context", 0, &payload));
+        self.event(field("thread.result.ptr", "thread.context", 1, &payload));
         self.event(store(
-            m::Ty::Int(32),
+            payload.clone(),
             m::local("thread.argument".into()),
             "thread.argument.ptr",
-            4,
+            payload_align,
         ));
         self.event(store(
             m::Ty::Int(32),
@@ -397,15 +403,20 @@ impl FunctionEmitter<'_> {
             blocks: None,
         }));
         self.event(m::Event::Label("entry".into()));
-        self.event(field("argument.ptr", "context", 0));
-        self.event(load("argument", m::Ty::Int(32), "argument.ptr", 4));
+        self.event(field("argument.ptr", "context", 0, &payload));
+        self.event(load(
+            "argument",
+            payload.clone(),
+            "argument.ptr",
+            payload_align,
+        ));
         self.event(call(
             Some("worker.result"),
             m::Ty::Int(32),
             symbol(worker),
-            vec![m::Arg::new(m::Ty::Int(32), m::local("argument".into()))],
+            vec![m::Arg::new(payload.clone(), m::local("argument".into()))],
         ));
-        self.event(field("result.ptr", "context", 1));
+        self.event(field("result.ptr", "context", 1, &payload));
         self.event(store(
             m::Ty::Int(32),
             m::local("worker.result".into()),

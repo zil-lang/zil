@@ -42,6 +42,195 @@ impl Root {
 type Roots = BTreeSet<Root>;
 type State = BTreeMap<LocalId, Roots>;
 
+// This is a private access map, not a permission in ValueHold. Keeping it
+// separate preserves which actual capture carried exclusive authority: a
+// closure sharing x while mutating y must not make the x root exclusive.
+fn thread_exclusive_type(
+    module: &TypedModule,
+    ty: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.spend(1, "thread capture access traversal allocation")?;
+    let mut pending = vec![ty];
+    let mut seen = BTreeSet::new();
+    while let Some(ty) = pending.pop() {
+        budget.spend(1, "thread capture access shape")?;
+        match ty {
+            Type::Address { mutable: true, .. } => return Ok(true),
+            Type::Closure(id) => {
+                budget.lookup(seen.len(), "thread nested capture access lookup")?;
+                if seen.insert(*id) {
+                    let definition = module
+                        .closures
+                        .get(id.0 as usize)
+                        .ok_or_else(|| bad("thread captured closure is absent"))?;
+                    budget.spend(
+                        definition.captures.len().saturating_add(1),
+                        "thread nested capture access allocation",
+                    )?;
+                    pending.extend(&definition.captures);
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+
+fn thread_access_step(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    values: &[Roots],
+    exclusive: &mut [Roots],
+    state: &mut State,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.spend(1, "thread per-capture access transfer")?;
+    let mut found = Roots::new();
+    match &instruction.kind {
+        InstructionKind::MakeClosure { captures, .. } => {
+            for value in captures {
+                budget.spend(1, "thread actual capture access")?;
+                let ty = &f.values[value.0 as usize];
+                if matches!(ty, Type::Address { mutable: true, .. } | Type::Closure(_)) {
+                    extend(&mut found, &exclusive[value.0 as usize], budget)?;
+                }
+            }
+        }
+        InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+            budget.lookup(state.len(), "thread actual local access lookup")?;
+            if let Some(roots) = state.get(local) {
+                extend(&mut found, roots, budget)?;
+            }
+            if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
+                state.remove(local);
+            }
+        }
+        InstructionKind::Store { local, value } => {
+            budget.lookup(state.len(), "thread access local store")?;
+            budget.spend(
+                exclusive[value.0 as usize].len().saturating_add(1),
+                "thread access local copy",
+            )?;
+            if exclusive[value.0 as usize].is_empty() {
+                state.remove(local);
+            } else {
+                state.insert(*local, exclusive[value.0 as usize].clone());
+            }
+        }
+        InstructionKind::StorageLive(local)
+        | InstructionKind::StorageDead(local)
+        | InstructionKind::DropClosure { local } => {
+            budget.lookup(state.len(), "thread access local activation change")?;
+            state.remove(local);
+        }
+        InstructionKind::ReadCapture { index }
+        | InstructionKind::TakeCapture { index }
+        | InstructionKind::BorrowCapture { index, .. } => {
+            if let Some(value) = instruction.result
+                && thread_exclusive_type(module, &f.values[value.0 as usize], budget)?
+            {
+                budget.spend(1, "thread actual capture exclusive root")?;
+                found.insert(Root::Capture(*index));
+            }
+        }
+        InstructionKind::BorrowLocalMut { local } => {
+            if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
+                budget.spend(1, "thread exclusive environment position")?;
+                found.insert(Root::Local(*local));
+                if let Some(held) = state.get(local) {
+                    extend(&mut found, held, budget)?;
+                }
+            } else if let Some(value) = instruction.result {
+                extend(&mut found, &values[value.0 as usize], budget)?;
+            }
+        }
+        InstructionKind::ReborrowAddress {
+            address,
+            mutable: true,
+        } => {
+            extend(&mut found, &exclusive[address.0 as usize], budget)?;
+        }
+        _ => {}
+    }
+    if let Some(value) = instruction.result {
+        // Ordinary mutable address producers (including direct lending
+        // helpers and mutable projections) all retain their independently
+        // inferred pointee roots. An environment position is special: its
+        // retained shared pointees are not writable just because it is &mut.
+        if matches!(&f.values[value.0 as usize], Type::Address { mutable: true, inner } if !matches!(inner.as_ref(), Type::Closure(_)))
+        {
+            extend(&mut found, &values[value.0 as usize], budget)?;
+        }
+        extend(&mut exclusive[value.0 as usize], &found, budget)
+    } else {
+        Ok(false)
+    }
+}
+
+fn shared_thread_window(
+    module: &TypedModule,
+    f: &TypedFunction,
+    instruction: &Instruction,
+    values: &[Roots],
+    exclusive: &[Roots],
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    let InstructionKind::WithScopedThread { argument, body, .. } = instruction.kind else {
+        return Ok(());
+    };
+    if !matches!(&f.values[argument.0 as usize], Type::Address { mutable: false, inner } if **inner == Type::I32)
+    {
+        return Ok(());
+    }
+    let roots = &values[argument.0 as usize];
+    if roots.is_empty() {
+        return Err(bad("shared thread payload has no actual storage origin"));
+    }
+    for root in roots {
+        budget.spend(1, "shared thread stable storage qualification")?;
+        let ty = match root {
+            Root::Local(local) => f.locals.get(local.0 as usize).map(|local| &local.ty),
+            Root::Parameter(index) => f
+                .parameters
+                .get(*index as usize)
+                .and_then(|local| f.locals.get(local.0 as usize))
+                .map(|local| &local.ty),
+            Root::Capture(index) => f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .and_then(|definition| definition.captures.get(*index as usize)),
+            _ => None,
+        };
+        let supported = match root {
+            Root::Local(_) => ty == Some(&Type::I32),
+            Root::Parameter(_) => {
+                matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+            }
+            Root::Capture(_) => {
+                ty == Some(&Type::I32)
+                    || matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+            }
+            _ => false,
+        };
+        if !supported {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "shared thread dynamic, lending or aggregate payload storage is not implemented",
+                Some(instruction.span),
+            )]);
+        }
+    }
+    if overlaps(roots, &exclusive[body.0 as usize], budget)? {
+        return Err(window_conflict(
+            instruction,
+            "shared child payload overlaps an exclusive body capture, including nested captures",
+        ));
+    }
+    Ok(())
+}
+
 fn window_conflict(instruction: &Instruction, message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         Phase::Analyze,
@@ -882,6 +1071,15 @@ fn infer_with_private(
     budget: &mut Budget,
     private: Option<&mut Vec<Roots>>,
 ) -> CompileResult<Vec<ValueHold>> {
+    let thread_windows = if budget.shared_thread_functions.is_empty() {
+        false
+    } else {
+        budget.lookup(
+            budget.shared_thread_functions.len(),
+            "shared thread function lookup",
+        )?;
+        budget.shared_thread_functions.contains(&f.id)
+    };
     let scoped = if budget.scoped_functions.is_empty() {
         false
     } else {
@@ -959,6 +1157,17 @@ fn infer_with_private(
     budget.spend(f.blocks.len(), "sparse Hold CFG states")?;
     let mut values = vec![Roots::new(); v];
     let mut outputs = vec![State::new(); f.blocks.len()];
+    let mut exclusive = if thread_windows {
+        budget.spend(v.saturating_add(f.blocks.len()), "thread access tables")?;
+        vec![Roots::new(); v]
+    } else {
+        Vec::new()
+    };
+    let mut exclusive_outputs = if thread_windows {
+        vec![State::new(); f.blocks.len()]
+    } else {
+        Vec::new()
+    };
     loop {
         let mut changed = false;
         for (b, block) in f.blocks.iter().enumerate() {
@@ -967,6 +1176,7 @@ fn infer_with_private(
                 continue;
             }
             let mut state = State::new();
+            let mut exclusive_state = State::new();
             if b == f.entry.0 as usize {
                 budget.spend(f.parameters.len(), "incoming Hold parameters")?;
                 for (index, local) in f.parameters.iter().enumerate() {
@@ -975,6 +1185,16 @@ fn infer_with_private(
                         || captured_address(&f.locals[local.0 as usize].ty, budget)?
                     {
                         state.insert(*local, Roots::from([Root::Parameter(index as u32)]));
+                        if thread_windows
+                            && matches!(
+                                f.locals[local.0 as usize].ty,
+                                Type::Address { mutable: true, .. }
+                            )
+                        {
+                            budget.spend(1, "thread incoming exclusive address")?;
+                            exclusive_state
+                                .insert(*local, Roots::from([Root::Parameter(index as u32)]));
+                        }
                     }
                 }
             } else {
@@ -986,6 +1206,13 @@ fn infer_with_private(
                     for (local, incoming) in &outputs[predecessor] {
                         budget.lookup(state.len(), "Hold local join")?;
                         extend(state.entry(*local).or_default(), incoming, budget)?;
+                    }
+                    if thread_windows {
+                        for (local, incoming) in &exclusive_outputs[predecessor] {
+                            budget
+                                .lookup(exclusive_state.len(), "thread access predecessor join")?;
+                            extend(exclusive_state.entry(*local).or_default(), incoming, budget)?;
+                        }
                     }
                 }
             }
@@ -1219,6 +1446,17 @@ fn infer_with_private(
                         .ok_or_else(|| bad("Hold result outside table"))?;
                     changed |= extend(value, &found, budget)?;
                 }
+                if thread_windows {
+                    changed |= thread_access_step(
+                        module,
+                        f,
+                        instruction,
+                        &values,
+                        &mut exclusive,
+                        &mut exclusive_state,
+                        budget,
+                    )?;
+                }
             }
             state_cost(&state, budget)?;
             state_cost(&outputs[b], budget)?;
@@ -1226,9 +1464,28 @@ fn infer_with_private(
                 outputs[b] = state;
                 changed = true;
             }
+            if thread_windows {
+                state_cost(&exclusive_state, budget)?;
+                state_cost(&exclusive_outputs[b], budget)?;
+                if exclusive_state != exclusive_outputs[b] {
+                    exclusive_outputs[b] = exclusive_state;
+                    changed = true;
+                }
+            }
         }
         if !changed {
             break;
+        }
+    }
+    if thread_windows {
+        for (block, reachable) in f.blocks.iter().zip(reachable) {
+            if !reachable {
+                continue;
+            }
+            for instruction in &block.instructions {
+                budget.spend(1, "shared thread completed concurrent window")?;
+                shared_thread_window(module, f, instruction, &values, &exclusive, budget)?;
+            }
         }
     }
     if scoped {

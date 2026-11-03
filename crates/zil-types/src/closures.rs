@@ -3107,22 +3107,38 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         .work_left
                         .checked_sub(1)
                         .ok_or_else(|| limit("thread worker signature budget exceeded", span))?;
-                    if !self.callee(worker)?.scalar_thread_worker() {
+                    let worker_signature = self.callee(worker)?;
+                    if !worker_signature.scalar_thread_worker() {
                         return Err(error(
                             "E-THREAD-WORKER",
                             worker.span,
-                            "thread worker must be a concrete ordinary fn(i32)->i32",
+                            "thread worker must be a concrete ordinary fn(i32)->i32 or fn(&i32)->i32",
                         ));
                     }
-                    // The accepted declaration is exactly these two scalar
-                    // types with no callable bounds; reserve its actual work.
+                    let shared_payload =
+                        matches!(&worker_signature.parameters[0], Type::Address { .. });
+                    if shared_payload {
+                        *self.work_left = self.work_left.checked_sub(2).ok_or_else(|| {
+                            limit("thread shared payload construction budget exceeded", span)
+                        })?;
+                    }
+                    let payload_type = if shared_payload {
+                        Type::Address {
+                            mutable: false,
+                            inner: Box::new(Type::I32),
+                        }
+                    } else {
+                        Type::I32
+                    };
+                    // The accepted shapes are closed. Shared construction is
+                    // prepaid above; graph traversal reserves the actual type.
                     self.graph.thread_query(self.work_left, |graph| {
-                        graph.reserve_type(&Type::I32, 0, worker.span)?;
+                        graph.reserve_type(&payload_type, 0, worker.span)?;
                         graph.reserve_type(&Type::I32, 0, worker.span)
                     })?;
-                    let value = self.expr_expected(argument, Some(&Type::I32), depth + 1)?;
+                    let value = self.expr_expected(argument, Some(&payload_type), depth + 1)?;
                     self.graph.thread_work(self.work_left, |graph| {
-                        value.bind(graph, &Type::I32, argument.span)
+                        value.bind(graph, &payload_type, argument.span)
                     })?;
                     let value = self.expr(body, depth + 1)?;
                     let signature = match value {

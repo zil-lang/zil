@@ -239,6 +239,7 @@ struct Budget {
     current_function: Option<usize>,
     private_slot_functions: Option<Vec<bool>>,
     scoped_functions: Option<Vec<bool>>,
+    shared_thread_functions: Option<Vec<bool>>,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -251,6 +252,7 @@ impl Budget {
             current_function: None,
             private_slot_functions: None,
             scoped_functions: None,
+            shared_thread_functions: None,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
