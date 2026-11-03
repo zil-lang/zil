@@ -263,6 +263,8 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             partial_packages: BTreeSet::new(),
             safe_divisors: None,
             copy_values: &BTreeMap::new(),
+            abi_plans: &large_copy_abi::Plans::default(),
+            unsupported_large_copy: false,
         }
         .emit()
         .expect("raw machine lowering"),
