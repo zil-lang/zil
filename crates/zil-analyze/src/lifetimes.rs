@@ -82,6 +82,28 @@ pub(super) fn returns(
                         "actual return origins exceed the declared life input set",
                     ));
                 }
+                if matches!(f.return_type, Type::Address { mutable: true, .. }) {
+                    // A declared upper bound may include shared parameters.
+                    // Only actual exclusive input authority can ground this
+                    // mutable result; the label itself grants no permission.
+                    budget.spend(row.roots.len(), "mutable life actual input permissions")?;
+                    if row.roots.iter().any(|root| {
+                        let HoldRoot::Parameter(index) = root else {
+                            return true;
+                        };
+                        !f.parameters
+                            .get(*index as usize)
+                            .and_then(|local| f.locals.get(local.0 as usize))
+                            .is_some_and(|local| {
+                                matches!(local.ty, Type::Address { mutable: true, .. })
+                            })
+                    }) {
+                        return Err(error(
+                            f,
+                            "mutable life result requires exclusive actual input authority",
+                        ));
+                    }
+                }
             }
         }
     }
