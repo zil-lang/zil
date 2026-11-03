@@ -1,5 +1,13 @@
 # ZIL 施工总计划
 
+## 2026-11-04：十方面缺口与有限语言组合验收
+
+记录式Copy枚举、有限静态trait默认方法、类型/life组合、具体父闭包内结构化线程与大型Copy内部按值ABI已共同验收。编译器B=`14832d5a35630b7002c79e4df47b0cbb007570b6`，完整受测C=`65c25910616196eae76911afb13818dc79b73012`；生产输入逐字节相同。默认4166/0、reference4057/0，各422组零忽略/过滤，双Clippy/fmt、文本65/0、迁移9/0及工具门通过。跨特性组件/原CT源12机器组与清理消费者16构建/128运行亦通过。
+
+Astra和其它非作者独审关闭CT简写卫生、未用属性、原生名泛型绑定权限及线程累计费用遗漏；实际失败与新增固定源保留。十方面仍有大量有限范围外义务，原52源当前27/13/12不代表完成率；详见docs/LANGUAGE-GAPS-20261104.md与docs/LANGUAGE-REMAINING.md。原规模a18及其内部按值/返回/函数指针路径已有机器修复，2MiB API Verify栈及一般大型Enum/ErrorUnion ABI仍待修。
+
+旧卡stale历史registry不追改，改以B/C新scope复核与精确交付记录承接；当前handoff、历史Unavailable和legacy Fail分账。PR30与远端main以GitHub实际状态为准，已观察CI因支付/额度未启动。父B0 Doing、完整语言/ZUI NotSatisfied、产品/原生Windows/Rust同语义成本NotRun保持。
+
 ## 2026-11-03：life/trait、结构化线程与大数组本地有限验收
 
 上一批有限语言成果已由PR28合入实际远端main `0d7d74f7d4b013f893f313b469fc7bd233c9f918`；GitHub任务未启动的原因是账号支付/额度检查，不是通过CI。下面旧段的“远端main未更新”和“大数组待实现”是该批历史断点。

@@ -1,6 +1,6 @@
 # 完整语言还缺什么
 
-2026-11-03本轮本地共同候选为`14832d5a35630b7002c79e4df47b0cbb007570b6`（B）。以实际新release CLI重新检查原52份源，得到27 Success、13 Unsupported、12 SafeReject；原25源现在为9/6/10，原正控和保护反例均无回退。五项晋升是记录式变体、两份默认方法源、Copy类型/life组合和具体父闭包内线程。精确差异见[334当前复核](validation/language-gaps-334-final.json)。
+2026-11-04本轮共同编译器源码为`14832d5a35630b7002c79e4df47b0cbb007570b6`（B），最终完整受测C与其生产输入逐字节相同，默认4166/0、reference4057/0及双Clippy等门通过，见[验收记录](LANGUAGE-GAPS-20261104.md)。以实际新release CLI重新检查原52份源，得到27 Success、13 Unsupported、12 SafeReject；原25源现在为9/6/10，原正控和保护反例均无回退。五项晋升是记录式变体、两份默认方法源、Copy类型/life组合和具体父闭包内线程。精确差异见[334当前复核](validation/language-gaps-334-final.json)。
 
 [原334的52源及18次native收据](validation/language-gaps-334.json)仍锁定历史40fb基线且字节不改；root以同一旧CLI重放时52项观察和18项机器结果逐项一致。旧89891e CLI、A探索候选及其全量通过均不代表B验收：A后续发现真实primitive Type binder被当作原生类型，未用定义误接受，B修补绑定身份并保留life命名空间和累计预算；这不是源码UB结论。
 

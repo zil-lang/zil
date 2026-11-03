@@ -420,3 +420,9 @@ Package完整拥有数组字段、真实共享用户资源头、有限动态Stor
 共同实现 4d7bbb762eb34987ffd05c9ab23a6ad6bc6fae41 保留作者与非作者审查身份；正式候选 f4c742fd8bb9567120902812c9a7117928784e5c 的 PR run41088376020 通过；原PR9合并39e52ef7的main run41101248493保留Fail。stdin测试驱动修复经非作者复核后进入新的主线合并 ccae8c60c96a2c174b137b2fab084e9e8a97a02f，其 main run41106864272 全部必需门通过。默认 2861/0/0、参考 2826/0/0；机器故障控制、Clippy、text-reference与迁移门均按实际原收据核回。原Fail/Incomplete和Superseded分别保留，不叠加本地132/19或作者/独审重放。
 
 施工7原29份check输入现15成功/12Unsupported/2原语法无效，0native、旧成功零回退。本轮有限#for、完整Product Store及同步共享Product已能组合；defer普通lowering、&Product闭包捕获、拥有捕获Store<Product>、完整Type/Syntax和更深拥有/长期外部生命周期继续保留。B0/181、完整1.4、全部ZUI、原生Windows及Rust产品四目标未因此完成；编译性能研究分支独立。详见 docs/LANGUAGE-222-224.md 与 evidence/integration/222-224/closeout/ACCEPTANCE.json。
+# 2026-11-04 有限语言组合补齐
+
+记录式Copy枚举、有限默认方法、类型/life与父闭包线程组合已有实际源码、独立核验和机器消费者。原规模262144B大型Copy按值/返回/函数指针从已复现编译器崩溃变为两后端O0/O2可执行，并以递归ABI版本隔离旧消费者；这是有限工程能力的实证增量。Astra固定43源关闭primitive绑定权限误授，线程累计费用保留原13145失败并以47722满足25950下界；不能以全仓测试数替代这些实际义务。
+
+此轮没有建立完整语言安全、同语义Rust运行时间/RSS、完整框架维护成本或编译性能优势，也没有产品级可重复净突破。部分库组合成本降低仅按新增可表达消费者报告。默认预算与product-gates原字节不变；B0 Doing、完整语言/ZUI NotSatisfied、产品及原生Windows/Rust成本门NotRun保持。身份、原失败和未完成范围见[本轮记录](LANGUAGE-GAPS-20261104.md)。
+
