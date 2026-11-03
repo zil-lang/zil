@@ -182,6 +182,47 @@ fn copy_record_bound_runtime_nested_and_phantom_arguments() {
 }
 
 #[test]
+fn copy_record_bound_original_ct_source_reaches_native() {
+    use zil_driver::Optimization;
+    for text in [
+        include_str!("../../../tests/language-readiness/pending/ct-type-generic-record.zil"),
+        "struct Box<T:Copy>{value:T} fn select(x:Box<i32>)->Type{if x.value==7{return i32}return i64} fn main()->i32{let n:#(select(Box::<i32>{value:8}))=3000000000;return i32(n-3000000000)}",
+    ] {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = std::env::temp_dir().join(format!(
+                "zil-copy-record-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&out).unwrap();
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    optimization,
+                    output: Some(out.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let actual = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+            assert!(actual.stdout.is_empty(), "{actual:?}");
+            assert!(actual.stderr.is_empty(), "{actual:?}");
+            fs::remove_dir_all(out).unwrap();
+        }
+    }
+}
+
+#[test]
 fn copy_record_bound_unused_and_phantom_obligations_are_checked() {
     for text in [
         "struct Box<T:Copy>{value:T} struct Bad<U>{inner:Box<U>} fn result()->i32{return 0}",
@@ -190,6 +231,8 @@ fn copy_record_bound_unused_and_phantom_obligations_are_checked() {
         "struct Phantom<T:Copy>{n:i32} fn unused<U>(v:Phantom<U>)->i32{return 0} fn result()->i32{return 0}",
         "struct Phantom<T:Copy>{n:i32} fn unused(v:Phantom<&i32>)->i32{return 0} fn result()->i32{return 0}",
         "struct Phantom<T:Copy>{n:i32} fn result()->i32{let x=Phantom::<&i32>{n:1};return x.n}",
+        "struct Phantom<T:Copy>{n:i32} fn result()->i32{let x=Phantom::<[&i32;0]>{n:1};return x.n}",
+        "resource R{n:i32} struct Phantom<T:Copy>{n:i32} fn result()->i32{let x=Phantom::<R>{n:1};return x.n}",
         "struct Box<T:Copy>{value:T} fn result()->i32{var n=1;let x=Box::<&mut i32>{value:&mut n};return n}",
         "struct Box<T:Copy>{value:T} struct Bad<T:Copy>{inner:Box<T,i32>} fn result()->i32{return 0}",
         "struct Box<T:Copy>{value:T} struct Bad<T:Copy>{inner:Box} fn result()->i32{return 0}",
