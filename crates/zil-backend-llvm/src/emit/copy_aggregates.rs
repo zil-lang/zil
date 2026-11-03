@@ -9,7 +9,7 @@ const MIN_BYTES: u64 = 4096;
 pub(super) struct Slot {
     pub(super) ty: m::Ty,
     pub(super) bytes: u64,
-    align: u32,
+    pub(super) align: u32,
     work: usize,
 }
 pub(super) type Plan = BTreeMap<ValueId, Slot>;
@@ -25,7 +25,11 @@ pub(super) fn plan(
         for (index, ty) in function.values.iter().enumerate() {
             if !matches!(
                 ty,
-                Type::Array { .. } | Type::Tuple(_) | Type::Record { .. }
+                Type::Array { .. }
+                    | Type::Tuple(_)
+                    | Type::Record { .. }
+                    | Type::Enum { .. }
+                    | Type::ErrorUnion { .. }
             ) {
                 continue;
             }
@@ -39,6 +43,13 @@ pub(super) fn plan(
             let machine = llvm_type(ty)?;
             let (bytes, align) = layout(&machine)?;
             if bytes >= MIN_BYTES {
+                if matches!(ty, Type::Enum { .. }) {
+                    // make_variant/read_variant clone the source enum as well
+                    // as its machine layout. Source names are absent from the
+                    // machine type; pay their bytes before retaining the slot,
+                    // then include this fee in repeated emission reservations.
+                    reserve_enum_metadata(ty, &mut work, 0, limits)?;
+                }
                 values.insert(
                     ValueId(index as u32),
                     Slot {
@@ -57,7 +68,8 @@ pub(super) fn plan(
             let shape = values.values().map(|slot| slot.work).max().unwrap();
             for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
                 let operands = match &instruction.kind {
-                    InstructionKind::MakeAggregate { fields } => fields.len(),
+                    InstructionKind::MakeAggregate { fields }
+                    | InstructionKind::MakeVariant { fields, .. } => fields.len(),
                     InstructionKind::Call { arguments, .. }
                     | InstructionKind::CallIndirect { arguments, .. } => arguments.len(),
                     _ => 2,
@@ -72,6 +84,29 @@ pub(super) fn plan(
                         Some(instruction.span),
                     )]
                 })?;
+                if let InstructionKind::MakeVariant { fields, .. } = &instruction.kind
+                    && instruction
+                        .result
+                        .is_some_and(|id| values.contains_key(&id))
+                {
+                    // Small fields retain canonical enum payload stores. Their
+                    // recursive scalar expansion (including array cardinality)
+                    // must be paid before store_payload grows event buffers.
+                    // Large fields use one already-paid snapshot memcpy.
+                    for field in fields {
+                        if !values.contains_key(field) {
+                            let cost = canonical_payload_work(&function.values[field.0 as usize])
+                                .saturating_mul(16);
+                            work = work.checked_sub(cost).ok_or_else(|| {
+                                vec![Diagnostic::limit(
+                                    Phase::Codegen,
+                                    "Copy enum canonical payload budget exceeded",
+                                    Some(instruction.span),
+                                )]
+                            })?;
+                        }
+                    }
+                }
             }
             plans.insert(function.id, values);
         }
@@ -91,6 +126,90 @@ pub(super) fn plan(
         functions: abi.functions,
         indirect: abi.indirect,
     })
+}
+
+fn reserve_enum_metadata(
+    ty: &Type,
+    work: &mut usize,
+    depth: usize,
+    limits: &Limits,
+) -> CompileResult<()> {
+    let exhausted = || {
+        vec![Diagnostic::limit(
+            Phase::Codegen,
+            "Copy enum source metadata budget exceeded",
+            None,
+        )]
+    };
+    let containers = match ty {
+        Type::Enum { variants, .. } => variants.len().saturating_mul(16),
+        _ => 0,
+    };
+    // Every variant owns a String/Vec header even when its payload is empty.
+    // Reserve all those fixed containers before inspecting names or fields.
+    *work = work
+        .checked_sub(16usize.saturating_add(containers))
+        .ok_or_else(exhausted)?;
+    if depth > limits.max_call_depth {
+        return Err(exhausted());
+    }
+    let mut name = |name: &str| -> CompileResult<()> {
+        *work = work.checked_sub(name.len()).ok_or_else(exhausted)?;
+        Ok(())
+    };
+    match ty {
+        Type::Named(text) | Type::Unsupported(text) => name(text)?,
+        Type::Record { name: text, fields } | Type::Package { name: text, fields } => {
+            name(text)?;
+            for (text, _) in fields {
+                name(text)?;
+            }
+            for (_, field) in fields {
+                reserve_enum_metadata(field, work, depth + 1, limits)?;
+            }
+        }
+        Type::Enum {
+            name: text,
+            variants,
+        } => {
+            name(text)?;
+            for (text, _) in variants {
+                name(text)?;
+            }
+            for (_, fields) in variants {
+                for field in fields {
+                    reserve_enum_metadata(field, work, depth + 1, limits)?;
+                }
+            }
+        }
+        Type::Array { element, .. }
+        | Type::Slice { element }
+        | Type::OwnedStore { element }
+        | Type::Address { inner: element, .. }
+        | Type::Managed(element)
+        | Type::Desc(element)
+        | Type::Opaque {
+            hidden: element, ..
+        } => reserve_enum_metadata(element, work, depth + 1, limits)?,
+        Type::Tuple(fields) => {
+            for field in fields {
+                reserve_enum_metadata(field, work, depth + 1, limits)?;
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            reserve_enum_metadata(error, work, depth + 1, limits)?;
+            reserve_enum_metadata(result, work, depth + 1, limits)?;
+        }
+        Type::FunctionPointer { parameters, result }
+        | Type::ForeignCallback { parameters, result } => {
+            for parameter in parameters {
+                reserve_enum_metadata(parameter, work, depth + 1, limits)?;
+            }
+            reserve_enum_metadata(result, work, depth + 1, limits)?;
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 pub(super) fn reserve(
@@ -155,7 +274,11 @@ pub(super) fn classify(
 ) -> CompileResult<Option<Slot>> {
     if !matches!(
         ty,
-        Type::Array { .. } | Type::Tuple(_) | Type::Record { .. }
+        Type::Array { .. }
+            | Type::Tuple(_)
+            | Type::Record { .. }
+            | Type::Enum { .. }
+            | Type::ErrorUnion { .. }
     ) {
         return Ok(None);
     }
@@ -302,6 +425,30 @@ pub(super) fn pointer(value: ValueId) -> m::Val {
     m::local(format!("copy.value.{}", value.0))
 }
 
+// reserve has already bounded/paid this complete type walk and its depth.
+// Estimate the existing canonical store's actual repeated field operations
+// without allocating aggregate_fields or expanding an array in the planner.
+fn canonical_payload_work(ty: &Type) -> usize {
+    match ty {
+        Type::Unit => 0,
+        Type::Bool => 2,
+        Type::Array { element, length } => canonical_payload_work(element)
+            .saturating_add(2)
+            .saturating_mul(*length as usize),
+        Type::Tuple(fields) => fields.iter().fold(0usize, |n, field| {
+            n.saturating_add(canonical_payload_work(field).saturating_add(2))
+        }),
+        Type::Record { fields, .. } => fields.iter().fold(0usize, |n, (_, field)| {
+            n.saturating_add(canonical_payload_work(field).saturating_add(2))
+        }),
+        Type::ErrorUnion { error, result } => canonical_payload_work(error)
+            .saturating_add(canonical_payload_work(result))
+            .saturating_add(8),
+        Type::Enum { .. } => 8,
+        _ => 1,
+    }
+}
+
 impl FunctionEmitter<'_> {
     pub(super) fn copy_allocations(&mut self) {
         for (id, slot) in self.copy_values {
@@ -332,7 +479,26 @@ impl FunctionEmitter<'_> {
             },
         )));
     }
-    fn copy_read(&mut self, output: ValueId, source: m::Val) -> CompileResult<()> {
+    pub(super) fn copy_zero(&mut self, output: ValueId) {
+        self.text.push(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Call {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                callee: m::global("zil.zero.bytes".into()),
+                args: vec![
+                    m::Arg::new(m::Ty::Ptr, pointer(output)),
+                    m::Arg::new(m::Ty::Int(8), 0),
+                    m::Arg::new(
+                        m::Ty::Int(64),
+                        m::Val::Int(i128::from(self.copy_values[&output].bytes)),
+                    ),
+                ],
+                vararg: None,
+            },
+        )));
+    }
+    pub(super) fn copy_read(&mut self, output: ValueId, source: m::Val) -> CompileResult<()> {
         if let Some(slot) = self.copy_values.get(&output) {
             self.copy_bytes(pointer(output), source, slot.bytes);
         } else if self.value_type(output)? != &Type::Unit {
@@ -347,7 +513,7 @@ impl FunctionEmitter<'_> {
         }
         Ok(())
     }
-    fn copy_write(&mut self, destination: m::Val, input: ValueId) -> CompileResult<()> {
+    pub(super) fn copy_write(&mut self, destination: m::Val, input: ValueId) -> CompileResult<()> {
         if let Some(slot) = self.copy_values.get(&input) {
             self.copy_bytes(destination, pointer(input), slot.bytes);
         } else {
@@ -370,7 +536,7 @@ impl FunctionEmitter<'_> {
         }
         Ok(())
     }
-    fn copy_field(&mut self, aggregate: ValueId, index: m::Arg) -> m::Val {
+    pub(super) fn copy_field(&mut self, aggregate: ValueId, index: m::Arg) -> m::Val {
         let address = self.temp();
         let slot = &self.copy_values[&aggregate];
         self.text.push(m::Event::Instruction(m::Inst::new(

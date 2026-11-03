@@ -1,0 +1,750 @@
+{
+  "task": "338",
+  "status": "PassLimitedAuthorEvidence; independent/root acceptance separate",
+  "scope": "Ordinary Copy Enum/ErrorUnion >=4096B x64 LLVM snapshot/copy-in/out/lc1 ABI; no ownership/foreign/closure permission expansion",
+  "production_commit": "d952e7fb26d80f139dfbbc4ddb38e065bf2cab9d",
+  "baseline_source_commit": "e5a4d51d844e29c4f4f5184eaff5704b1b27dd24",
+  "cli_build": {
+    "head_start": "d952e7fb26d80f139dfbbc4ddb38e065bf2cab9d",
+    "head_end": "d952e7fb26d80f139dfbbc4ddb38e065bf2cab9d",
+    "clean_start": true,
+    "clean_end": true,
+    "command": [
+      "cargo",
+      "build",
+      "-p",
+      "zil-cli",
+      "--offline"
+    ],
+    "target": "/workspace/.zil-env/target338",
+    "jobs": 1,
+    "debug_info": 0,
+    "incremental": false,
+    "binary": "/workspace/.zil-env/target338/debug/zil",
+    "binary_sha256": "e5bf30b58140c427f04fe4a73395a0bb31f7ee9a75669ba96825cc788a0bb809"
+  },
+  "source_fixtures": [
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture-var.zil",
+      "sha256": "4d31498969db08b1cb2fe5f64a8900aca4c98a869ee5c73c5feb03b3a832a267",
+      "bytes": 745
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture.zil",
+      "sha256": "831cfff1e98460dbba53095706e3ffc5601bdc40388f99416eb6b48c0b2f6201",
+      "bytes": 745
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a12.zil",
+      "sha256": "a2a8f54308afb6181f7e667b0003ecbe6599eba827736b7983acedf3fe1ff4cb",
+      "bytes": 450
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a18.zil",
+      "sha256": "2675a292e5c8024f89ba6b934eef8aceadf80c54429c92ff359bbd951d95f6db",
+      "bytes": 600
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-enum-empty-a12.zil",
+      "sha256": "79a165db0d7de38d13726ca6eac7a76d0b8c9f6545c4bb4443ce1749a9127679",
+      "bytes": 187
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-enum-empty-a18.zil",
+      "sha256": "ab697a908f49aa63fbaee3c2236dfd115fb2467fa557320ebcad0c84bc9c890c",
+      "bytes": 211
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-enum-fnptr-a18.zil",
+      "sha256": "2ab1ece50154ec24ba3c8d252ce1d2d43e3eb6768d28c18ab4b6392e81583755",
+      "bytes": 631
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-error-a12.zil",
+      "sha256": "74365008b3fba73675fabf079d0f885b65c569ed18ec72f146b082f90347c12a",
+      "bytes": 429
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-error-a18.zil",
+      "sha256": "e6516360d0c70b1d2db5e766ee6e8f0df36d03254fff1b30c2af3848320bdf1c",
+      "bytes": 579
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-error-fnptr-a18.zil",
+      "sha256": "7840a6c8457249b25ff38691c490584b695d5353c503977d1f5c75ca82037bdb",
+      "bytes": 622
+    },
+    {
+      "path": "tests/language-readiness/codegen-pending/large-copy-enum-error-error-unused-a12.zil",
+      "sha256": "35ab6f68cce20ba5c4e0ba1cc4916a5bd3c7ea00d2b080b04712deebb225e1fe",
+      "bytes": 149
+    }
+  ],
+  "baseline": {
+    "compiler_binary": "/workspace/.zil-env/target-mainline-release/release/zil",
+    "limits": {
+      "cpu_seconds": 45,
+      "address_space_bytes": 2147483648,
+      "wall_seconds": 55,
+      "core_bytes": 0,
+      "native_wall_seconds": 5
+    },
+    "enum_payload_a12": {
+      "check": "Success",
+      "verification_runs": 1,
+      "build_backend": "llvm-api",
+      "optimization": "O0",
+      "build_status": "Unsupported",
+      "phase": "Codegen",
+      "code": "E-UNSUPPORTED"
+    },
+    "error_payload_a12": {
+      "check": "Success",
+      "verification_runs": 1,
+      "build_backend": "llvm-api",
+      "optimization": "O0",
+      "build_status": "Unsupported",
+      "phase": "Codegen",
+      "code": "E-UNSUPPORTED"
+    },
+    "enum_empty_a12": {
+      "build_status": "Success",
+      "native_exit": 0,
+      "unversioned_abi": "{ i32, [4096 x i8] } by value"
+    },
+    "error_unused_a12": {
+      "build_status": "Success",
+      "native_exit": 0
+    },
+    "enum_empty_a18": {
+      "source_sha256": "ab697a908f49aa63fbaee3c2236dfd115fb2467fa557320ebcad0c84bc9c890c",
+      "returncode": -9,
+      "seconds": 48.475,
+      "status": "Resource-bounded incompletion; no unconstrained crash claim",
+      "json_output": false
+    }
+  },
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --test aggregates --features llvm-api --offline large_copy_enum_error_ -- --nocapture --test-threads=1",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 52
+    },
+    {
+      "command": "cargo test -p zil-backend-llvm --lib --features llvm-api --offline emit::large_copy_abi::tests -- --nocapture",
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 141
+    },
+    {
+      "command": "cargo test -p zil-driver --test aggregates --features llvm-api --offline large_copy_abi_ -- --skip large_copy_abi_special_closure_is_explicitly_unsupported --nocapture --test-threads=1",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 51,
+      "note": "Before final scoped Enum metadata fee; old333 exact budget separately repeated after it."
+    },
+    {
+      "command": "cargo test -p zil-driver --test aggregates --features llvm-api --offline large_copy_abi_codegen_budget_exact_and_fresh -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "note": "After final production metadata/container fee; N=356960 unchanged."
+    },
+    {
+      "command": "cargo clippy -p zil-backend-llvm --all-targets --features llvm-api --offline -- -D warnings",
+      "exit": 0
+    },
+    {
+      "command": "cargo clippy -p zil-driver --test aggregates --features llvm-api --offline -- -D warnings",
+      "exit": 0
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit": 0
+    }
+  ],
+  "budget": {
+    "shared_request_budget": true,
+    "default_limit_increased": false,
+    "default_max_analysis_steps": 10000000,
+    "enum_a18_final_N": 945883,
+    "enum_a18_pre_metadata_N": 450910,
+    "enum_a18_name_fee_before_container_fee_N": 904955,
+    "long_name_short_N": 694720,
+    "long_name_long_N": 1778112,
+    "old333_a18_fnptr_N": 356960,
+    "all_N_minus_1": "Codegen ResourceLimit",
+    "fresh_at_N": 2,
+    "api_warm_cache_N_minus_1": "Codegen ResourceLimit, no executable; fresh/warm restored at normal budget"
+  },
+  "native_test_groups": {
+    "a18_original_scale_enum_error_empty_and_two_indirect_sources": 20,
+    "source_value_rhs_replacement_alignment": 4,
+    "error_success_failure_cleanup": 8,
+    "thin_fnptr_carrier_helpers": 2,
+    "cgu_cold_warm_body_change": 12,
+    "note": "Execution counts for one latest test receipt set, not unique feature coverage. Prior repeats and independent receipts not added."
+  },
+  "cgu_cache": {
+    "source_modules": 3,
+    "actual_units_min": 2,
+    "backends": [
+      "clang",
+      "llvm-api"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "incremental_o2": true,
+    "rounds": [
+      "cold",
+      "warm",
+      "callee-body-change"
+    ],
+    "canonical_versioned_fnptr": true,
+    "api_warm_all_hit": true,
+    "body_change_miss_and_native_change": true,
+    "fallback": null
+  },
+  "final_cli_receipts": [
+    {
+      "case": "enum-a12",
+      "source_sha256": "a2a8f54308afb6181f7e667b0003ecbe6599eba827736b7983acedf3fe1ff4cb",
+      "backend": "clang",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1"
+      ]
+    },
+    {
+      "case": "enum-a12",
+      "source_sha256": "a2a8f54308afb6181f7e667b0003ecbe6599eba827736b7983acedf3fe1ff4cb",
+      "backend": "clang",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1"
+      ]
+    },
+    {
+      "case": "enum-a12",
+      "source_sha256": "a2a8f54308afb6181f7e667b0003ecbe6599eba827736b7983acedf3fe1ff4cb",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1"
+      ]
+    },
+    {
+      "case": "enum-a12",
+      "source_sha256": "a2a8f54308afb6181f7e667b0003ecbe6599eba827736b7983acedf3fe1ff4cb",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1"
+      ]
+    },
+    {
+      "case": "error-a12",
+      "source_sha256": "74365008b3fba73675fabf079d0f885b65c569ed18ec72f146b082f90347c12a",
+      "backend": "clang",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1",
+        "define void @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "error-a12",
+      "source_sha256": "74365008b3fba73675fabf079d0f885b65c569ed18ec72f146b082f90347c12a",
+      "backend": "clang",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1",
+        "define void @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "error-a12",
+      "source_sha256": "74365008b3fba73675fabf079d0f885b65c569ed18ec72f146b082f90347c12a",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1",
+        "define void @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "error-a12",
+      "source_sha256": "74365008b3fba73675fabf079d0f885b65c569ed18ec72f146b082f90347c12a",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1",
+        "define void @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "enum-empty-a12",
+      "source_sha256": "79a165db0d7de38d13726ca6eac7a76d0b8c9f6545c4bb4443ce1749a9127679",
+      "backend": "clang",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1",
+        "define i32 @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "enum-empty-a12",
+      "source_sha256": "79a165db0d7de38d13726ca6eac7a76d0b8c9f6545c4bb4443ce1749a9127679",
+      "backend": "clang",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1",
+        "define i32 @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "enum-empty-a12",
+      "source_sha256": "79a165db0d7de38d13726ca6eac7a76d0b8c9f6545c4bb4443ce1749a9127679",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1",
+        "define i32 @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "enum-empty-a12",
+      "source_sha256": "79a165db0d7de38d13726ca6eac7a76d0b8c9f6545c4bb4443ce1749a9127679",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1",
+        "define i32 @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "error-unused-a12",
+      "source_sha256": "35ab6f68cce20ba5c4e0ba1cc4916a5bd3c7ea00d2b080b04712deebb225e1fe",
+      "backend": "clang",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1"
+      ]
+    },
+    {
+      "case": "error-unused-a12",
+      "source_sha256": "35ab6f68cce20ba5c4e0ba1cc4916a5bd3c7ea00d2b080b04712deebb225e1fe",
+      "backend": "clang",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1"
+      ]
+    },
+    {
+      "case": "error-unused-a12",
+      "source_sha256": "35ab6f68cce20ba5c4e0ba1cc4916a5bd3c7ea00d2b080b04712deebb225e1fe",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1"
+      ]
+    },
+    {
+      "case": "error-unused-a12",
+      "source_sha256": "35ab6f68cce20ba5c4e0ba1cc4916a5bd3c7ea00d2b080b04712deebb225e1fe",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define void @zil.fn.0.lc1"
+      ]
+    },
+    {
+      "case": "borrow-capture",
+      "source_sha256": "831cfff1e98460dbba53095706e3ffc5601bdc40388f99416eb6b48c0b2f6201",
+      "backend": "clang",
+      "optimization": "O0",
+      "compiler_exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-CLOSURE-MUTABILITY",
+          "message": "FnMut call requires a mutable closure position; bind it with var",
+          "span": {
+            "file": 0,
+            "start": 733,
+            "end": 736
+          },
+          "notes": []
+        }
+      ],
+      "native": null
+    },
+    {
+      "case": "borrow-capture",
+      "source_sha256": "831cfff1e98460dbba53095706e3ffc5601bdc40388f99416eb6b48c0b2f6201",
+      "backend": "clang",
+      "optimization": "O2",
+      "compiler_exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-CLOSURE-MUTABILITY",
+          "message": "FnMut call requires a mutable closure position; bind it with var",
+          "span": {
+            "file": 0,
+            "start": 733,
+            "end": 736
+          },
+          "notes": []
+        }
+      ],
+      "native": null
+    },
+    {
+      "case": "borrow-capture",
+      "source_sha256": "831cfff1e98460dbba53095706e3ffc5601bdc40388f99416eb6b48c0b2f6201",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "compiler_exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-CLOSURE-MUTABILITY",
+          "message": "FnMut call requires a mutable closure position; bind it with var",
+          "span": {
+            "file": 0,
+            "start": 733,
+            "end": 736
+          },
+          "notes": []
+        }
+      ],
+      "native": null
+    },
+    {
+      "case": "borrow-capture",
+      "source_sha256": "831cfff1e98460dbba53095706e3ffc5601bdc40388f99416eb6b48c0b2f6201",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "compiler_exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-CLOSURE-MUTABILITY",
+          "message": "FnMut call requires a mutable closure position; bind it with var",
+          "span": {
+            "file": 0,
+            "start": 733,
+            "end": 736
+          },
+          "notes": []
+        }
+      ],
+      "native": null
+    },
+    {
+      "case": "borrow-capture-var",
+      "source_sha256": "4d31498969db08b1cb2fe5f64a8900aca4c98a869ee5c73c5feb03b3a832a267",
+      "backend": "clang",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "30\n",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define i32 @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "borrow-capture-var",
+      "source_sha256": "4d31498969db08b1cb2fe5f64a8900aca4c98a869ee5c73c5feb03b3a832a267",
+      "backend": "clang",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "30\n",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define i32 @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "borrow-capture-var",
+      "source_sha256": "4d31498969db08b1cb2fe5f64a8900aca4c98a869ee5c73c5feb03b3a832a267",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "30\n",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define i32 @zil.fn.1.lc1"
+      ]
+    },
+    {
+      "case": "borrow-capture-var",
+      "source_sha256": "4d31498969db08b1cb2fe5f64a8900aca4c98a869ee5c73c5feb03b3a832a267",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "compiler_exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "native": {
+        "exit": 0,
+        "stdout": "30\n",
+        "stderr": ""
+      },
+      "versioned_definitions": [
+        "define i32 @zil.fn.1.lc1"
+      ]
+    }
+  ],
+  "final_cli_latest_receipt_counts": {
+    "successful_builds": 20,
+    "native_executions": 20,
+    "expected_source_SafeReject": 4,
+    "repeated_prior_builds_not_added": true
+  },
+  "known_incomplete": {
+    "existing333_large_move_capture_2MiB_API": "Unfixed; not reclassified as Unsupported or tested with increased stack.",
+    "original_capture_invalid_source": {
+      "source_sha256": "831cfff1e98460dbba53095706e3ffc5601bdc40388f99416eb6b48c0b2f6201",
+      "reason": "let-bound FnMut requires var",
+      "ordinary_cli": "Types SafeReject E-CLOSURE-MUTABILITY Verify0",
+      "requested_API_stop_after": "Verify",
+      "API_stack_bytes": 2097152,
+      "API_returncode": -6,
+      "actual_crash_phase": "Unknown before Codegen; request includes earlier phases",
+      "earlier_overstatement": "Calling a Verify-only request a crash in Verify or a valid positive was too strong; corrected and retained."
+    },
+    "legal_var_sibling": {
+      "source_sha256": "4d31498969db08b1cb2fe5f64a8900aca4c98a869ee5c73c5feb03b3a832a267",
+      "ordinary_cli": "Verify1 + Clang/API O0/O2 native stdout30 newline exit0",
+      "current_API_2MiB": "Independent reviewer observed SIGABRT(-6)",
+      "retained_C_API_2MiB": "Independent reviewer observed SIGABRT(-6); exact immutable rlib provenance bound by reviewer/root",
+      "compiler_or_test_stack_increased": false
+    }
+  },
+  "failures_retained": [
+    "Original native large Copy Fault!i32 main used old unversioned SSA entry consumer; Link E-LLVM-COMPILE undefined @zil.fn.7. Fixed by shared ABI-aware native entry wrapper.",
+    "Record-variant fnptr result inference source required explicit Message annotation; no frontend change.",
+    "First author CLI harness assumed valid let-bound FnMut capture; corrected by preserving rejected input and separate var sibling.",
+    "Author CLI harness initially expected object_reports serialized strings; CLI JSON already parses them as objects. Corrected harness assertion and reused existing immutable reports; no compiler change."
+  ],
+  "not_run_or_not_claimed": [
+    "Full suite and integration acceptance",
+    "Native Windows",
+    "New foreign/owned Sum/large closure ABI scope",
+    "Rust same-semantics runtime/RSS/compiler-cost comparison",
+    "B0/full language/ZUI/product completion"
+  ],
+  "rust_four_goals": {
+    "safety": "Existing independent permission kernels unchanged; API small-stack reliability remains incomplete.",
+    "runtime_memory": "Private stack Copy snapshots; no implicit heap/RC/lock; no Rust performance equivalence claim.",
+    "expression_maintenance": "Ordinary large Enum/error helpers, factories, direct/indirect consumers execute; framework maintenance unmeasured.",
+    "compile_cost": "New node/name/container/canonical emission prepaid from one remainder; default limits unchanged; Rust compile speed unmeasured.",
+    "breakthrough": "Concrete previously Unsupported ordinary source now reaches native; product-level net breakthrough and conjunction not established."
+  },
+  "cli_stack_limit_bytes": 8388608
+}

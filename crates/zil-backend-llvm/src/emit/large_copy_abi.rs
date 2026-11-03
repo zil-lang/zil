@@ -175,6 +175,24 @@ pub(super) fn plan(
             remaining,
             limits,
         )?;
+        if function.name == "main"
+            && let Some(slot) = &abi.result
+            && matches!(&function.return_type, Type::ErrorUnion { result, .. }
+                if matches!(result.as_ref(), Type::I32 | Type::Unit))
+        {
+            // A native main wrapper must call this same physical signature.
+            // Reserve its complete type clones and fixed tag/success events
+            // before the wrapper grows a machine event buffer.
+            copy_aggregates::reserve(&function.return_type, remaining, 0, limits)?;
+            *remaining = remaining.checked_sub(64).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Codegen,
+                    "large Copy entry wrapper budget exceeded",
+                    Some(function.span),
+                )]
+            })?;
+            debug_assert!(slot.bytes >= 4096);
+        }
         if abi.versioned && (function.foreign.is_some() || function.environment.is_some()) {
             return unsupported(
                 "large Copy foreign or closure entry ABI",
@@ -209,6 +227,105 @@ pub(super) fn plan(
         }
     }
     Ok(plans)
+}
+
+// Only ordinary Copy ErrorUnion mains are classified. Owned entry cleanup
+// remains in the original wrapper; here the error boundary only consumes a tag.
+pub(super) fn entry_error_wrapper(
+    mut code: m::Code,
+    symbol: &str,
+    slot: &Slot,
+    result: &Type,
+) -> m::Code {
+    code.append(m::Code::from(vec![
+        m::Event::Instruction(m::Inst::new(
+            Some("entry.storage".into()),
+            m::Op::Alloca {
+                ty: slot.ty.clone(),
+                align: slot.align,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Call {
+                result: m::Ty::Void,
+                result_attrs: vec![],
+                callee: m::global(symbol.into()),
+                args: vec![m::Arg::new(m::Ty::Ptr, m::local("entry.storage".into()))],
+                vararg: None,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("entry.tag".into()),
+            m::Op::Gep {
+                ty: slot.ty.clone(),
+                ptr: m::local("entry.storage".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), 0),
+                    m::Arg::new(m::Ty::Int(32), 0),
+                ],
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            Some("entry.error".into()),
+            m::Op::Load {
+                ty: m::Ty::Int(1),
+                ptr: m::local("entry.tag".into()),
+                align: 1,
+            },
+        )),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::CondBranch {
+                condition: m::local("entry.error".into()),
+                yes: "error".into(),
+                no: "success".into(),
+            },
+        )),
+        m::Event::Label("error".into()),
+        m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(32), 1))),
+        )),
+        m::Event::Label("success".into()),
+    ]));
+    if *result == Type::I32 {
+        code.append(m::Code::from(vec![
+            m::Event::Instruction(m::Inst::new(
+                Some("entry.success.address".into()),
+                m::Op::Gep {
+                    ty: slot.ty.clone(),
+                    ptr: m::local("entry.storage".into()),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), 0),
+                        m::Arg::new(m::Ty::Int(32), 2),
+                    ],
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                Some("entry.success".into()),
+                m::Op::Load {
+                    ty: m::Ty::Int(32),
+                    ptr: m::local("entry.success.address".into()),
+                    align: 4,
+                },
+            )),
+            m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Return(Some(m::Arg::new(
+                    m::Ty::Int(32),
+                    m::local("entry.success".into()),
+                ))),
+            )),
+        ]));
+    } else {
+        code.push(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(32), 0))),
+        )));
+    }
+    code.push(m::Event::End);
+    code
 }
 impl FunctionEmitter<'_> {
     pub(super) fn abi(&self) -> &Signature {
@@ -303,6 +420,101 @@ impl FunctionEmitter<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sum_threshold_and_nested_function_pointer_carriers_share_the_lc1_plan() {
+        let limits = Limits::default();
+        for (sum, bytes) in [
+            (
+                Type::Enum {
+                    name: "AtThreshold".into(),
+                    variants: vec![(
+                        "Data".into(),
+                        vec![Type::Array {
+                            element: Box::new(Type::U8),
+                            length: 4092,
+                        }],
+                    )],
+                },
+                4096,
+            ),
+            (
+                Type::ErrorUnion {
+                    error: Box::new(Type::Bool),
+                    result: Box::new(Type::Array {
+                        element: Box::new(Type::U8),
+                        length: 4094,
+                    }),
+                },
+                4096,
+            ),
+        ] {
+            let mut remaining = limits.max_analysis_steps;
+            let direct = signature(std::iter::once(&sum), &sum, &mut remaining, &limits).unwrap();
+            assert!(direct.versioned && direct.large());
+            assert_eq!(direct.parameters[0].as_ref().unwrap().bytes, bytes);
+            assert_eq!(direct.result.unwrap().bytes, bytes);
+            let worker = Type::FunctionPointer {
+                parameters: vec![sum.clone()],
+                result: Box::new(sum.clone()),
+            };
+            for carrier in [
+                Type::Enum {
+                    name: "Handle".into(),
+                    variants: vec![("Call".into(), vec![worker.clone()])],
+                },
+                Type::ErrorUnion {
+                    error: Box::new(Type::Bool),
+                    result: Box::new(worker),
+                },
+            ] {
+                let abi = signature(std::iter::empty(), &carrier, &mut remaining, &limits).unwrap();
+                assert!(abi.versioned && !abi.large());
+            }
+            let address = Type::Address {
+                mutable: false,
+                inner: Box::new(sum.clone()),
+            };
+            let abi = signature(
+                std::iter::once(&address),
+                &Type::I32,
+                &mut remaining,
+                &limits,
+            )
+            .unwrap();
+            assert!(!abi.versioned && !abi.large());
+            let foreign = Type::ForeignCallback {
+                parameters: vec![sum],
+                result: Box::new(Type::I32),
+            };
+            assert_eq!(
+                dependency(&foreign, &mut remaining, &limits, 0).unwrap_err()[0].category,
+                zil_base::ResultCategory::Unsupported
+            );
+        }
+        for small in [
+            Type::Enum {
+                name: "BelowThreshold".into(),
+                variants: vec![(
+                    "Data".into(),
+                    vec![Type::Array {
+                        element: Box::new(Type::U8),
+                        length: 4088,
+                    }],
+                )],
+            },
+            Type::ErrorUnion {
+                error: Box::new(Type::Bool),
+                result: Box::new(Type::Array {
+                    element: Box::new(Type::U8),
+                    length: 4093,
+                }),
+            },
+        ] {
+            let mut remaining = limits.max_analysis_steps;
+            let abi = signature(std::iter::once(&small), &small, &mut remaining, &limits).unwrap();
+            assert!(!abi.versioned && !abi.large());
+        }
+    }
     fn worker() -> Type {
         Type::FunctionPointer {
             parameters: vec![Type::Array {
