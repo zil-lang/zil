@@ -535,6 +535,14 @@ pub enum CoreStatementKind {
         ty: Option<Type>,
         initializer: Option<CoreExpr>,
     },
+    /// Untrusted irrefutable tuple pattern; Types must check exact shape and
+    /// Copy eligibility before introducing any of its lexical bindings.
+    TupleBinding {
+        pattern: CorePattern,
+        mutable: bool,
+        ty: Option<Type>,
+        initializer: CoreExpr,
+    },
     Assign {
         target: CoreExpr,
         value: CoreExpr,
