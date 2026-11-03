@@ -129,6 +129,55 @@ fn large_copy_read_address_snapshot_and_bounds_trap() {
 }
 
 #[test]
+fn large_copy_record_unit_padding_and_tail_snapshot() {
+    let first = "[0]".repeat(13);
+    let text = large_copy_program(&format!(
+        "var record=Envelope{{unit:(),flag:true,body:a12,tail:9}};let before=record;record.body{first}=7u8;record.tail=11;record.flag=false;if before.flag{{return i32(before.body{first})*1000+i32(record.body{first})*100+i32(before.tail)*10+i32(record.tail)}}return 0;"
+    ));
+    let text = format!("struct Envelope{{unit:();flag:bool;body:Big;tail:i64}}{text}");
+    native(&text, Some(3801));
+}
+
+#[test]
+fn large_copy_current_codegen_budget_is_exact_and_fresh() {
+    let src = source(include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-array-a18.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = TargetProfile::default();
+    let defaults = Limits::default();
+    let typed = zil_types::check(&core, &target, &defaults).unwrap();
+    let candidate = zil_analyze::analyze(&typed, &defaults).unwrap();
+    let emit = |steps| {
+        let limits = Limits {
+            max_analysis_steps: steps,
+            ..defaults.clone()
+        };
+        let verified =
+            zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)?;
+        let lir = zil_lower::lower(&verified)?;
+        zil_backend_llvm::emit(&verified, &lir)
+    };
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    assert!(emit(high).is_ok());
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if emit(middle).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    let failed = emit(low - 1).unwrap_err();
+    assert_eq!(failed[0].category, ResultCategory::ResourceLimit);
+    assert_eq!(failed[0].phase, Phase::Codegen);
+    assert!(emit(low).is_ok());
+    assert!(emit(low).is_ok());
+    eprintln!("324 original a18 Codegen exact work limit: {low}");
+}
+
+#[test]
 fn large_copy_a18_native_all_backends() {
     // Isolate LLVM failures and cap each compiler process. This remains one
     // existing Cargo integration target and preserves the original input bytes.

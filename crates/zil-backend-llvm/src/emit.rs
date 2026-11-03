@@ -435,6 +435,7 @@ fn lower_function_batch(
     copy_plans: &BTreeMap<FunctionId, copy_aggregates::Plan>,
 ) -> CompileResult<FunctionBatch> {
     let mut intrinsics = BTreeSet::new();
+    let empty_copy_plan = copy_aggregates::Plan::new();
     // Finish each function before retaining it: no whole-project Event buffer.
     let mut body =
         Vec::with_capacity(collected.map_or(batch.len(), |needed| needed.len().min(batch.len())));
@@ -490,7 +491,7 @@ fn lower_function_batch(
             continuation: 0,
             partial_packages: BTreeSet::new(),
             safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
-            copy_values: &copy_plans[&function.id],
+            copy_values: copy_plans.get(&function.id).unwrap_or(&empty_copy_plan),
         }
         .emit()?
         .into_items()
