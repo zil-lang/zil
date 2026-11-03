@@ -125,6 +125,12 @@ pub(super) fn validate(
     let mut variants = Vec::<&str>::new();
     for variant in &declaration.variants {
         budget.node(variant.span, 0)?;
+        if !variant.attributes.is_empty() {
+            return Err(unsupported(
+                variant.span,
+                "unexecuted generic enum variant attribute",
+            ));
+        }
         for previous in &variants {
             budget.text(previous, variant.span)?;
             budget.text(&variant.name, variant.span)?;
