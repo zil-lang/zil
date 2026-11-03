@@ -1,0 +1,73 @@
+{
+  "task": 332,
+  "reviewer": "/root/impl315",
+  "implementation_author": "/root/impl317",
+  "candidate": "cb17b74ab64f2e9a8690238c22b050517890f58e",
+  "status": "ConfirmedAccountingBlock",
+  "scope": "Concrete parent closure thread entry identity, actual owned-body consumption, independent raw/Wire rejection, bounded native failure cleanup and shared inference budget.",
+  "normative_authority": "Main tree .task/impl/332.md and design section11.1; repair boundary ea8cd11f83ae91abacafb9e22b153e014a182301 clarified by60c88433c.",
+  "semantic_results": {
+    "original_thread332_targets": "4/4 Pass independently rerun with explicit llvm-api; this replay is not new author coverage.",
+    "independent_source_and_raw": "2/2 Pass. Real parent captures an already-owned concrete body closure, including source Group syntax; Typed parent is FnOnce with parameter i32 and a real Closure capture. Parent reuse rejects Analyze/E-UNINITIALIZED; callable helper original source remains Expand/Unsupported/E-UNSUPPORTED.",
+    "raw": "11 independent actual-source parent mutations: caller.id, out-of-range env, different existing env, definition.id, definition.function, definition parameter Type, parameter LocalId, result mode, result Type, absent env and false shared Fn kind. Analyze plus Verify raw/Wire all SafeReject with precise phase/code locked in existing generic_regressions target.",
+    "raw_verify_codes": [
+      "E-VERIFY-ID",
+      "E-VERIFY-CLOSURE-ENTRY",
+      "E-VERIFY-CLOSURE-ENTRY",
+      "E-VERIFY-CLOSURE",
+      "E-VERIFY-CLOSURE-ENTRY",
+      "E-VERIFY-CLOSURE-ENTRY",
+      "E-VERIFY-ID",
+      "E-VERIFY-RESOURCE",
+      "E-VERIFY-CLOSURE-ENTRY",
+      "E-VERIFY-CLOSURE-ENTRY",
+      "E-VERIFY-CLOSURE-CALL"
+    ],
+    "native": "Original52 scenarios actually rerun: both backends O0/O2, owned and nested success/error/create-failure/join-failure with exact stdout/status/SIGABRT, no fallback, actual multi-CGU where declared. Independent captured-body source additionally executed both backends O0/O2 (4 runs), exit0. Replays are separated from new programs.",
+    "kernel_budget": {
+      "Analyze": 26216,
+      "Verify": 92685,
+      "result": "N success, N-1 ResourceLimit, freshN success; does not prove Types charging."
+    }
+  },
+  "accounting_block": {
+    "cause": "New capture name scan charges Graph::spend_count; Graph has a private per-closure Cell from Graph::new(limits). State.work_left is separate and the new charge is not merged. Author and root confirmed. New pending signature Graph queries also require scoped accounting repair.",
+    "source_counterexample": "Two real parent entries, each with24 ordinary Copy captures used in flat bindings before its captured owned body. Body identifier is body_ plus512 c characters plus one digit: length518. Actual Typed definitions each contain25 captures. Current explicit scan fee is25*(518+1)=12975 per parent, shared minimum25950.",
+    "actual": "Same source Types succeeds at13145;13144 ResourceLimit; fresh13145 identical. Default-limit Typed source also independently passes Analyze and Verify. Lower-bound assertion intentionally fails on cb17 rather than letting dynamic N search report Pass.",
+    "test": "thread332_reviewer_types_work_is_shared_across_names_and_parent_entries",
+    "other_baselines": {
+      "short": 751,
+      "long_worker": 1267,
+      "long_capture": 1267,
+      "four_parents": 5580,
+      "nested": 793
+    },
+    "baseline_limits_note": "Small public boundary bottleneck is source closure constraint preflight. Correct added State charging need not change every such N; internal pending-Graph ledger tests are separately authorized.",
+    "not_a_safety_execution_claim": "No source UB or invalid parent entry was accepted. This is a reproducible request-work accounting failure.",
+    "repair": "Root-approved narrow thread-branch Graph leases and shared capture prepayment; defaults unchanged. Generic non-thread historical Graph accounting remains a separate debt."
+  },
+  "probe_setup_history": {
+    "initial_stress": "A24-term dummy addition expression on the default Rust test thread overflowed its stack before the budget control completed. This is not fixed or counted as a budget result. The ledger counterexample instead uses24 flat bindings, with identical24 real Copy captures and the same body lookup cost. No user input or safety oracle was replaced.",
+    "subsequent_flat_source": "Default success and actual25-capture definitions confirmed; shared lower-bound Fail reproduced."
+  },
+  "commands": [
+    "source /workspace/.zil-env/env.sh; export CARGO_TARGET_DIR=/workspace/.zil-env/target331 CARGO_BUILD_JOBS=1",
+    "cargo test -p zil-driver --test generic_regressions --features llvm-api --offline thread332_ -- --nocapture",
+    "cargo test -p zil-driver --test generic_regressions --features llvm-api --offline thread332_reviewer -- --nocapture",
+    "cargo test -p zil-driver --test generic_regressions --features llvm-api --offline thread332_reviewer_types -- --nocapture"
+  ],
+  "remaining": [
+    "Await exact repaired production SHA",
+    "Rerun original frozen source/raw controls and lower-bound test unchanged",
+    "Add authorized cfg(test) actual pending-Graph shared lease zero/N/failed-budget control",
+    "Scoped Clippy and common-candidate scope binding"
+  ],
+  "not_run": [
+    "formal full workspace suite",
+    "final repaired review",
+    "common329-333 production candidate review"
+  ],
+  "blocking_findings": [
+    "Types thread inference private Graph charges do not accumulate in request State allowance; independently demonstrated25950 minimum versus13145 acceptance."
+  ]
+}
