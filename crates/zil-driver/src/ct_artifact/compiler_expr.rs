@@ -633,6 +633,9 @@ impl Builder<'_, '_> {
                 result
             }
             s::TypeKind::Named { path, args } => {
+                if path.len() == 1 && self.compiler.binding(&path[0], ty.span)?.is_some() {
+                    return Err(error(ty.span,"CT type binder takes no type arguments"));
+                }
                 let (owner, item) = self.compiler.named_item(module, path, ty.span)?;
                 let nominal = self.compiler.symbol(owner, item.span)?;
                 let mut arguments = Vec::new();
@@ -955,17 +958,12 @@ impl Builder<'_, '_> {
         if let (Some(pattern), Some(actual)) = (&d.function.return_type, expected) {
             self.compiler.infer(d.module, pattern, actual, &names, &mut slots, depth + 1)?;
         }
-        let known = slots.iter().all(Option::is_some);
         let mut actual = Vec::new();
         let mut actual_types = Vec::new();
-        let concrete = if known {
-            for ty in slots.iter().flatten() { self.compiler.budget.copy_ty(ty, 0, span)?; }
-            slots.iter().flatten().cloned().collect::<Vec<_>>()
-        } else { Vec::new() };
-        let hints = if known { Some(self.compiler.instance_header(declaration, &concrete)?.0) } else { None };
         for (i, argument) in arguments.iter().enumerate() {
             self.compiler.budget.node(argument.span)?;
-            let value = self.expr(&argument.value, hints.as_ref().map(|types| &types[i]), depth + 1)?;
+            let hint=self.compiler.partial_type(d.module,&d.function.params[i].ty,&names,&slots,depth+1)?;
+            let value = self.expr(&argument.value, hint.as_ref(), depth + 1)?;
             self.compiler.infer(d.module, &d.function.params[i].ty, &value.ty, &names, &mut slots, depth + 1)?;
             actual.push(value.id);
             actual_types.push(value.ty);
