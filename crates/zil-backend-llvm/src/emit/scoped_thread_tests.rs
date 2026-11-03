@@ -278,6 +278,84 @@ fn model() -> (m::Module, LirModule) {
 }
 
 #[test]
+fn scoped_thread_partition_preserves_private_context_and_worker_dependency() {
+    let (module, mut lir) = model();
+    for function in &mut lir.functions {
+        function.span.file = zil_base::FileId(function.id.0);
+    }
+    let plan = crate::machine_cgu::partition(module, &lir, crate::EntryPoint::None, 4);
+    assert!(
+        plan.units.len() >= 2,
+        "worker and parent use different source files"
+    );
+    let mut worker_definitions = 0;
+    let mut scoped_definitions = 0;
+    for unit in &plan.units {
+        zil_llvm_api::validate_module(unit).unwrap();
+        let definitions = unit
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                m::Item::Function(function) if function.blocks.is_some() => {
+                    Some(function.name.as_str())
+                }
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        worker_definitions += usize::from(definitions.contains("zil.fn.1"));
+        if definitions.contains("zil.thread.scope.0.2") {
+            scoped_definitions += 1;
+            assert!(definitions.contains("zil.fn.0"));
+            assert!(definitions.contains("zil.thread.start.0.2"));
+            assert!(
+                unit.items
+                    .iter()
+                    .any(|item| matches!(item, m::Item::Function(f) if f.name == "zil.fn.1"))
+            );
+        }
+    }
+    assert_eq!(worker_definitions, 1);
+    assert_eq!(scoped_definitions, 1);
+}
+
+#[test]
+fn scoped_thread_runtime_binds_target_and_existing_foreign_abi() {
+    let (_, mut lir) = model();
+    lir.target.triple = "x86_64-pc-windows-msvc".into();
+    let errors = scoped_thread::runtime(&lir.as_view()).unwrap_err();
+    assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
+    let (_, mut lir) = model();
+    let declaration = lir.functions.last_mut().unwrap();
+    declaration.foreign.as_mut().unwrap().symbol = "abort".into();
+    let errors = scoped_thread::runtime(&lir.as_view()).unwrap_err();
+    assert_eq!(errors[0].code, "E-CODEGEN-FOREIGN");
+    lir.functions.last_mut().unwrap().return_type = Type::Unit;
+    let declarations = scoped_thread::runtime(&lir.as_view())
+        .unwrap()
+        .into_items()
+        .unwrap();
+    assert_eq!(declarations.len(), 2);
+    assert!(
+        !declarations
+            .iter()
+            .any(|item| matches!(item, m::Item::Function(f) if f.name == "abort"))
+    );
+    lir.target.triple = "x86_64-pc-windows-msvc".into();
+    for block in &mut lir.functions[0].blocks {
+        block
+            .instructions
+            .retain(|i| !matches!(i.kind, InstructionKind::WithScopedThread { .. }));
+    }
+    assert!(
+        scoped_thread::runtime(&lir.as_view())
+            .unwrap()
+            .into_items()
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn scoped_thread_model_runs_real_thread_and_create_join_failures() {
     let (module, lir) = model();

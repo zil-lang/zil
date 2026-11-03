@@ -22,3 +22,45 @@ body沿既有inline环境、按指针/按值调用ABI和closure drop helper；�
 
 本单不自审后端，不宣称Suspend/SABI、Mutex、取消、一般Transfer/Share或产品
 四目标完成。原生Windows、Rust运行/内存/维护/编译成本比较未测。
+
+## 作者限定执行与交付
+
+生产checkpoint为`7a1b191e8a6689080a36302fa4a9f03f9e8d264b`；目标/ABI诊断及
+分区模型补充为`45e406cd8d7c7b3f5008625db7c1675f0d10d323`，包含325消费者
+`98def1064a5da5c665298cb39ac93ab9daab1d7c`。以下均在环境恢复后重新实际执行，
+不把丢失的旧/tmp日志当作新执行，也不冒充非作者审核或root组合验收。
+
+加载`/workspace/.zil-env/env.sh`，固定`CARGO_TARGET_DIR=/workspace/.zil-env/target328`
+及`CARGO_BUILD_JOBS=1`：
+
+- `cargo test -p zil-driver --features llvm-api --test generic_regressions thread325 -- --nocapture`：
+  3/0。真实main分别以Clang/API、O0/O2执行成功/业务错误/create失败/join失败，
+  共16次；另父body真实借用控制4次。stdout分别`PECBDJA`、`PECBDJA`、`PECDA`、
+  `PECBDX`，join失败为SIGABRT；多模块API O2实际分区且无fallback。
+  source/raw/Wire及Analyze N=6871、Verify N=10587的N/N−1/fresh同次检查通过。
+- `cargo test -p zil-backend-llvm --features llvm-api --lib scoped_thread -- --nocapture`：3/0。
+  原生机器模型Clang/API×O0/O2×三个模式，共12次；这是模型级控制，不当作ZIL源
+  接受证据。另核private helper/start共置、worker跨文件依赖及单一定义、目标与
+  foreign ABI冲突关闭。`--no-default-features`同过滤3/0，重复参考结果不相加。
+- 两种feature配置的`cargo clippy -p zil-backend-llvm ... --lib --tests -- -D warnings`
+  均通过；本写集六个Rust文件的`rustfmt --edition 2024 --check`通过。
+
+本次本地日志及SHA256：
+
+| /tmp/zil-328-前缀后的文件 | SHA256 |
+| --- | --- |
+| source-final.log | 3c719f282adcab586b3b54b6cff16d566311b40f0e3db5c56b636a858b5029a7 |
+| model-final.log | 59ef7f2a4c76b569d1d0b4ba455c7de8e6c1c92dde541a7575e943bf34490c25 |
+| model-reference-final.log | 95779403d341e628c9c13a0f86d228314cd3b6b996daf136c9e711a723538cad |
+| clippy-final.log | a11a1de8037a032bda7e33f88e31dc898d0129cfe94956add639cd289d2ce985 |
+| clippy-reference-final.log | e5de9e6aa17fdd5ae05ec69d5e3826ea389ad7975d24d7363dfe7e9ad84333c1 |
+
+第一次模型构建被尚未合入的Verify新variant消费者阻塞；合入325语义后再执行，
+未在后端伪造Verify放行。两次环境不可用分别中断了工作，源码checkpoint均保留。
+root随后组合324发现其新增FunctionEmitter.copy_values字段需要补模型构造；
+该集成适配由root处理，本单独立树的通过不代表后续组合已通过。
+
+本单作者负责机器实现，不自审328。独审由root/324实施者另行绑定精确提交。
+实证推进为真实OS线程及创建失败清理，不再停留于同步FFI名字或SC模型；适配器
+context无新增heap盒，pthread自身栈/创建成本及Rust性能/内存/维护比较未测，
+完整安全/语言/SABI/Mutex与产品条件不升级。

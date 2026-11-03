@@ -75,11 +75,11 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
         return Ok(code);
     }
     if lir.target.triple != "x86_64-unknown-linux-gnu" {
-        return invalid(
-            "E-UNSUPPORTED",
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Codegen,
             "scoped pthread ABI requires x86_64-unknown-linux-gnu",
             None,
-        );
+        )]);
     }
     // On this target pthread_t is unsigned long (i64), with pointer-aligned
     // storage; start_routine has the actual C void* (void*) calling convention.
@@ -172,11 +172,11 @@ impl FunctionEmitter<'_> {
         body: ValueId,
     ) -> CompileResult<()> {
         if self.target.triple != "x86_64-unknown-linux-gnu" {
-            return invalid(
-                "E-UNSUPPORTED",
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Codegen,
                 "scoped pthread ABI requires x86_64-unknown-linux-gnu",
                 Some(instruction.span),
-            );
+            )]);
         }
         let id = result(instruction)?;
         let Type::Closure(body_id) = self.value_type(body)? else {
