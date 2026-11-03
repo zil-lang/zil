@@ -2961,8 +2961,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     if let CoreExprKind::Name(name) = &body.kind
                         && self.lookup(name).is_none()
                     {
-                        self.graph
-                            .spend_count(self.captures.len().saturating_add(name.len()), span)?;
+                        self.graph.spend_count(
+                            self.captures
+                                .len()
+                                .saturating_mul(name.len().saturating_add(1)),
+                            span,
+                        )?;
                         if let Some(capture) = self
                             .captures
                             .iter_mut()

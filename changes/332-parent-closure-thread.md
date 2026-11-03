@@ -54,3 +54,73 @@ parent kind、真实父body资源/借用、创建失败Drop、nested roots、Onc
 worker子图不能进入线程的近邻；新增工作模块累计预付并核N/N−1/fresh。
 
 限定结果和精确提交将在实际完成后补记，当前提案不计实现通过。
+
+## 实施与限定结果
+
+公共合同冻结于root `e28e08d8825085e9a3c6bae57d2a85d3a2418481`
+（主树§11.1、changes/329-333-public-profiles.md；施工读取主树权威）。
+生产checkpoint `514b4634c`，消费者checkpoint `72333cf76`。本片没有新增
+IR、Wire字段/schema版本、线程机器ABI或backend修改；schema34的同一个
+WithScopedThread节点由既有Lower及Clang/LLVM API真实消费。
+
+InferBuilder核实际静态worker及payload/body签名；旧Copy推断器的私有函数
+签名只用于推断，Builder仍要求真实Closure，因此普通thin函数指针不能成为
+body。转交捕获body明确moved+consumed，父入口能力由真实用途推导，不强制
+把全部parent标成FnOnce。Builder从pending恢复实际入口，Analyze与Verify各自
+核ClosureDefinition的id/function、environment、参数LocalId/完整Type、返回
+类型和result PassingMode；没有把worker图的environment/资源/thread禁区放开。
+各自既有capture/借用/清理核继续独立检查，不复用对方证明。
+
+原pending/parent_closure.zil路径与字节和40fbcca6基线相同，现为成功正控；
+pending/callable_wrapper.zil仍在Expand明确E-UNSUPPORTED。新增正控涵盖真实
+Fn/FnMut/FnOnce、带i32及共享地址参数的parent、两次合法Fn/FnMut调用、父body
+合法借用、两个嵌套scope、实际拥有body转交。最近反例固定阶段/代码：
+
+- Once父闭包复用：Analyze E-UNINITIALIZED；
+- 父body借用仍活时写参数：Analyze E-BORROW-CONFLICT；移除唯一写入即成功；
+- worker可达子图含thread_scope：Analyze E-THREAD-WORKER；
+- thin函数指针冒充body：Types E-THREAD-BODY；
+- 父闭包内CT thread_scope：Ct E-CT-FORBIDDEN，未执行线程。
+
+实际源码→TypedIR→Wire34 roundtrip→独立Verify→Lower通过。raw控制不依赖
+Types许可：旧普通函数转实际无capture父闭包成功；坏env索引、坏function绑定、
+错结果、错参数数及错结果模式分别由两核拒绝；把真实消费父环境伪成共享Fn也
+由两核拒绝。原worker越界/teardown/重复body负控保留。
+
+所有命令source /workspace/.zil-env/env.sh，CARGO_TARGET_DIR为target332，
+CARGO_BUILD_JOBS=1，显式启用llvm-api。限定命令：
+
+```sh
+cargo test -p zil-driver --features llvm-api --test generic_regressions -- --nocapture
+cargo clippy -p zil-types -p zil-analyze -p zil-verify -p zil-driver --features llvm-api --all-targets -- -D warnings
+cargo fmt --all -- --check
+```
+
+本轮既有generic_regressions目标23/0、零忽略/过滤；Clippy和fmt通过。没有跑
+workspace全量。两核在同一请求累计新parent工作，实际三kind源码N/N−1/fresh：
+Analyze N=26216，Verify N=92685；旧325控制N=6873/10587不变。新增捕获名查找
+按候选数及比较长度预付，入口完整类型比较也在执行前预付；默认限额未提高。
+
+本片新增52个独立机器场景，重复重放不累计：
+
+- owned父闭包：两backend×O0/O2×成功/业务错误/create失败/join失败=16；
+- kinds、nested、borrow、原pending四个源码控制×两backend×O0/O2=16；
+- 两scope的成功、内层create失败、外层create失败、内层join失败、外层join
+  失败×两backend×O0/O2=20。
+
+每次构建断言actual backend及无fallback；LLVM API核builder输入及前后verify，
+owned API O2实际多CGU。单文件nested明确units1。机器oracle核精确stdout、退出
+码或SIGABRT、父线程body/Drop、真实异线程production start、内层先join、失败
+不调用body/不join未启动handle及准确环境Drop。嵌套观察器延迟外层child进入
+production start，直到内层scope结果/Drop/join后才放行，核两context地址不同并
+保留外层context到最终join；不以worker先完成掩盖栈活性问题。观察C仅包装真实
+pthread入口，不提供语言线程实现或同步fallback。既有325/317等消费者在23/0
+目标内重放，不并入这52个新增场景。
+
+四目标反思：有限父环境消费/借用及worker资格有独立安全核和机器实证；表示
+沿用稳定栈和现有清理，无新增隐式Box/RC/锁，未测Rust运行/RSS对照；原合法
+pending与实际Fn/FnMut/FnOnce/nested组合得到表达增量，未测完整框架维护收益；
+新增检查有累计预算和精确耗尽边界，未证明Rust编译性能优势。有限突破是父
+闭包可拥有一次body并进入真实结构化线程，包括嵌套失败收口；完整语言四目标
+合取、一般Transfer/Share、callable helper、async/SABI及Mutex仍未完成。非作者
+审核、root整合与正式全量待执行，不据本地限定结果宣称main/CI晋升。
