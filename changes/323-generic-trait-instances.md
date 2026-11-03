@@ -8,7 +8,7 @@
 
 同 Self 的不同 Read 实参是不同合法 impl 头，各有确定独立方法目标；唯一 generic bound 选择真实目标。直接方法调用遇到多个候选在调用处报歧义，不把声明当作重叠。相同完整实例的重复 impl 拒绝；不新增 specialization、安全失败回溯或外来 Self 权限。
 
-所有索引、类型键/比较、替换、源调用改写和队列增长先收费并累计到请求；命中继续收费，默认限额不增。实例计数在已计费的插入时累计，后续读取不重新扫描全部实现。新 trait 路径不擦除 Reference lifetime 或 CoreFunction.life；与 322 的公共字段及入口由 root 串行整合。未触及新实例及下述 alias 签名正规化缺陷的既有路径保持原费用。
+所有索引、类型键/比较、替换、源调用改写和队列增长先收费并累计到请求；命中继续收费，默认限额不增。实例计数在已计费的插入时累计，后续读取不重新扫描全部实现。新 trait 的 names→alias→engine、模块 normalize/restore、lower/static conformance 和最终 publish 传递实际 work/node 余额；无新 trait 入口沿既有兼容路径。字段/方法碰撞和声明/impl 成员查找在每次访问前收费。新 trait 路径不擦除 Reference lifetime 或 CoreFunction.life；与 322 的公共字段及入口由 root 串行整合。未触及新实例及下述 alias 签名正规化缺陷的既有路径保持原费用。
 
 限定验证复用已有 trait 测试目标，覆盖原探针、跨模块、多个实参/同布局/phantom、同 Self 实例、unused坏定义、前提/签名/可见性、N/N−1/fresh/冷暖和真实 O0/O2。正式全量、公共规范/schema及集成由 root 管理；未运行项目不登记通过。
 
@@ -31,12 +31,16 @@ life 公共迁移来自集成方 `8e46a4615`，已合入本片；方法重命名
 
 ```text
 cargo test -p zil-driver --test impl162_trait_bounds --test impl147_static_traits --test impl233_modules --test impl231_where_traits --test review231_independent -- --nocapture
+cargo test -p zil-expand --lib trait_request_ledger -- --nocapture
 cargo clippy -p zil-driver --test impl162_trait_bounds --test impl147_static_traits --test impl233_modules --test impl231_where_traits -- -D warnings
+cargo clippy -p zil-expand --lib --tests -- -D warnings
 ```
 
-结果分别为 22/0、12/0、9/0、14/0、8/0，共 65 项，无忽略/过滤；Clippy 通过，修改文件 rustfmt 与 diff 空白检查通过。162 的新原生输入及 231 的两份 alias 形式使用实际 clang/LLVM 23.1.4、Linux x86_64 O0/O2，每次完整编译均有一次独立 Verify，机器程序退出 0。原生机器证据不记为 LLVM API、原生 Windows 或同语义 Rust 性能结果。
+driver 五目标结果分别为 22/0、12/0、9/0、14/0、8/0，共 65 项，无忽略/过滤；新增两个 ledger unit 控制 2/0（限定筛选，另 3 项未运行）。两组 Clippy 通过，修改文件 rustfmt 与 diff 空白检查通过。162 的新原生输入及 231 的两份 alias 形式使用实际 clang/LLVM 23.1.4、Linux x86_64 O0/O2，每次完整编译均有一次独立 Verify，机器程序退出 0。原生机器证据不记为 LLVM API、原生 Windows 或同语义 Rust 性能结果。
 
-包含同 Self 两个实际 trait 参数和两个 bound 调用的完整请求，work N=3797、nodes N=656、instances N=5；各自 N 成功、N−1 ResourceLimit，cold/warm/fresh 一致且查询退出后无活跃请求。旧 233 的无 trait、Drop、静态 trait work 硬边界 242/1568/1432 保持。新测试的重复重放不累计覆盖成绩。
+独审发现并保留的预算回修：`d626c5ad4`/`de33ad2ef` 的原 3797/656/5 只覆盖了局部上限，alias→engine 与下游默认 allowance 的重置使它不能证明累计计费。`a0adf510e` 将本片新 trait 入口全部接到同一剩余链，并补上新扫描逐访问费用；原结果不登记为最终累计通过。
+
+修后包含同 Self 两个实际 trait 参数和两个 bound 调用的完整请求，work N=3797、nodes N=734、instances N=5；各自 N 成功、N−1 ResourceLimit，cold/warm/fresh 一致且查询退出后无活跃请求。另用真实源独立测量阶段费用：单源 alias+专门化 work=1235/nodes=365，项目 normalize+专门化 work=1489/nodes=326。各自精确额度可完成专门化，但不能再完成下游 public Expand；单源还断言完整费用包含真实 alias 与 engine 的费用之和，直接防止只取最大子 pass。旧 233 的无 trait、Drop、静态 trait work 硬边界 242/1568/1432 保持。新测试的重复重放不累计覆盖成绩。
 
 | Rust 四目标 | 本片实证与限制 |
 | --- | --- |

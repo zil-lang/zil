@@ -545,3 +545,147 @@ impl CallRewrite<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod trait_request_ledger {
+    use super::*;
+    use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+
+    const SOURCE: &str = "type Number=i32;trait Read<R>{fn read(self:&Self)->R;}struct P{n:Number}impl Read<Number> for P{fn read()->Number{return .n}}fn main()->i32{let p=P{n:7};return p.read()-7}";
+
+    fn resource_limit<T>(result: CompileResult<T>) {
+        let errors = match result {
+            Ok(_) => panic!("downstream expansion unexpectedly received a fresh allowance"),
+            Err(errors) => errors,
+        };
+        assert!(
+            !errors.is_empty(),
+            "ResourceLimit must carry an actual diagnostic"
+        );
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn single_source_alias_and_lowering_consume_one_ledger() {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "ledger323.zil", SOURCE);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let mut products = products::Products::default();
+        super::super::specialize_products(&syntax, &limits, &mut products).unwrap();
+        assert!(products.trait_instances);
+        let remaining = products.allowance.as_ref().unwrap();
+        let specialized_work = limits.max_analysis_steps - remaining.max_analysis_steps;
+        let specialized_nodes = limits.max_nodes - remaining.max_nodes;
+
+        // Measure real alias and real engine passes over the same source-derived
+        // syntax. The integrated ledger includes their sum, not their maximum.
+        let (alias, alias_budget) =
+            aliases::normalize_with_budget(&syntax, Budget::new(&limits)).unwrap();
+        let alias = alias.unwrap();
+        let alias_left = alias_budget.remaining_limits();
+        let mut engine_products = products::Products::default();
+        super::super::specialize_with_budget(
+            &alias.module,
+            &limits,
+            &alias.pattern_types,
+            Budget::new(&limits),
+            &mut engine_products,
+        )
+        .unwrap();
+        let engine_left = engine_products.allowance.unwrap();
+        assert!(
+            specialized_work
+                >= (limits.max_analysis_steps - alias_left.max_analysis_steps)
+                    + (limits.max_analysis_steps - engine_left.max_analysis_steps)
+        );
+        assert!(
+            specialized_nodes
+                >= (limits.max_nodes - alias_left.max_nodes)
+                    + (limits.max_nodes - engine_left.max_nodes)
+        );
+
+        // These exact allowances suffice for specialization itself. They must
+        // not buy free downstream static conformance or source-map construction.
+        for selected in [
+            Limits {
+                max_analysis_steps: specialized_work,
+                ..limits.clone()
+            },
+            Limits {
+                max_nodes: specialized_nodes,
+                ..limits.clone()
+            },
+        ] {
+            let mut exact = products::Products::default();
+            super::super::specialize_products(&syntax, &selected, &mut exact).unwrap();
+            resource_limit(crate::expand_with_map_limits(&source, &syntax, &selected));
+        }
+        crate::expand_with_map_limits(&source, &syntax, &limits).unwrap();
+        println!(
+            "323 single ledger specialization work={specialized_work}, nodes={specialized_nodes}; both exhausted balances reject downstream expansion"
+        );
+    }
+
+    #[test]
+    fn module_normalization_and_lowering_share_the_remainder() {
+        let sources = [
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                "import rules;struct P{n:i32}impl rules.Read<i32> for P{fn read()->i32{return .n}}fn main()->i32{let p=P{n:7};return p.read()-7}",
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "rules.zil",
+                "pub trait Read<R>{fn read(self:&Self)->R;}",
+            ),
+        ];
+        let syntax = sources
+            .iter()
+            .map(|s| zil_syntax::parse(s).into_result().unwrap())
+            .collect::<Vec<_>>();
+        let modules = syntax.iter().collect::<Vec<_>>();
+        let imports = [
+            vec![zil_ir::CoreImport {
+                alias: "rules".into(),
+                module: ModuleId(1),
+                span: syntax[0].items[0].span,
+            }],
+            Vec::new(),
+        ];
+        let limits = Limits::default();
+        let mut products = products::Products::default();
+        crate::modules::specialize(&sources, &modules, &imports, &limits, &mut products).unwrap();
+        let remaining = products.allowance.as_ref().unwrap();
+        let work = limits.max_analysis_steps - remaining.max_analysis_steps;
+        let nodes = limits.max_nodes - remaining.max_nodes;
+        for selected in [
+            Limits {
+                max_analysis_steps: work,
+                ..limits.clone()
+            },
+            Limits {
+                max_nodes: nodes,
+                ..limits.clone()
+            },
+        ] {
+            let mut exact = products::Products::default();
+            crate::modules::specialize(&sources, &modules, &imports, &selected, &mut exact)
+                .unwrap();
+            resource_limit(crate::expand_program_with_limits(
+                &sources, &modules, &imports, &selected,
+            ));
+        }
+        crate::expand_program_with_limits(&sources, &modules, &imports, &limits).unwrap();
+        println!(
+            "323 project ledger specialization work={work}, nodes={nodes}; both exhausted balances reject downstream expansion"
+        );
+    }
+}
