@@ -3,21 +3,23 @@
   "reviewer": "resume_analyze",
   "author": "resume_consumer",
   "baseline": "4bea9c88142a22447a834f6c707ee9f8f3704b52",
-  "verdict": "Pass within changes/294-generic-context-injection.md and the root-authorized symbolic Return consistency fix",
-  "final_production": "baaacdcd8fa05ee62f9e791ff9a3f338a3b5369f",
+  "verdict": "Pass within the finite generic specialization profile after correcting the over-strict symbolic distinctness rule; supersedes the original baa verdict",
+  "final_production": "12b6af4f258d19314959d556e1312d0fd2313c6d",
   "review_chain": [
     "77f4bd08",
     "1732af2b",
     "0fc32696",
     "07ec1efd",
     "fb1a95eac127f39ddd7c8548c32aaf96c8770490",
-    "baaacdcd8fa05ee62f9e791ff9a3f338a3b5369f"
+    "baaacdcd8fa05ee62f9e791ff9a3f338a3b5369f",
+    "12b6af4f258d19314959d556e1312d0fd2313c6d"
   ],
   "identity": {
-    "final_archive_inputs_byte_equal": 920,
     "archive_build": "/tmp/zil-review-296-base",
     "target": "/workspace/.zil-env/target-296",
-    "jobs": 1
+    "jobs": 1,
+    "previous_baa_archive_inputs_byte_equal": 920,
+    "final_archive_inputs_byte_equal": 920
   },
   "original_sources": [
     {
@@ -35,7 +37,7 @@
   ],
   "fb1_evidence": {
     "expand_probes": 53,
-    "result": "all matched intended acceptance/rejection; source/hash pairs below make inputs recoverable",
+    "result": "53 outcomes matched the then-written matrix; six Reject expectations were subsequently corrected against design section 18.1 and CI compatibility evidence",
     "api": "Two preserved pending inputs, four argument-order/phantom witness positives, Choice.Some(f()), and both actual lookahead sources reach independent Verify. Symbolic unused Return rejects in Expand.",
     "pipeline_positive_count": 9,
     "pipeline_negative_count": 1,
@@ -59,7 +61,8 @@
       "/tmp/zil-review-296-final-generics.log",
       "/tmp/zil-review-296-final-enum-budget.log",
       "/tmp/zil-review-296-final-defer.log"
-    ]
+    ],
+    "status": "Historical observations preserved; the six potentially-equal-template Reject oracles were a mistaken normative interpretation, superseded below"
   },
   "baa_delta": {
     "review": "Only context-mode, nonopaque declared returns independent of callee variables can supply a result hint without inspecting nested arguments. The source-order argument pass remains mandatory; range mode is untouched. Variable/type scans are prepaid. Reused fb1 evidence rather than rerunning its matrix.",
@@ -121,12 +124,12 @@
         126
       ]
     },
-    "static": "Nonunion fastpath retains its existing prepayment; recursive dependency/type/key and independent-input scans are prepaid. Symbolic-variable observation shares the already paid canonical-key walk; additional distinctness comparison is separately prepaid."
+    "static": "Existing type-key prepayment is retained; the extra symbolic dependency observer and universal-distinctness scan are removed. Literal/default i32 is an actual known payload, not a new numeric capability for U."
   },
   "symbolic_return_history": {
     "source": "fn unused<U>(w:U)->U!i32{let n:i32=7;return n}fn main()->i32{return 0}\n",
-    "baseline_api": "Verify Success, materialized functions only [main]; bad unused template was erased. Calling with U=i32 rejects in Types E-ERROR-INJECTION-AMBIGUOUS; U=bool previously verifies.",
-    "candidate": "Definition-time Expand E-GENERIC-ARGUMENT, before materialization; full symbolic union values still pass, and known distinct nominal heads remain accepted.",
+    "baseline_api": "Verify Success, only [main] materialized for the unused template. This is legal in the finite specialization profile, not an erased invalid template. Actual U=i32 rejected in Types E-ERROR-INJECTION-AMBIGUOUS and U=bool verified.",
+    "candidate": "Historical baa definition-time rejection was an acceptance regression, corrected by 12b6. Whole symbolic union values continue to pass.",
     "log": "/tmp/zil-review-296/baseline-pipeline.log"
   },
   "consumer_review": {
@@ -166,7 +169,8 @@
     "Early 77f rejected Choice.Some(f()); original positive retained and declared callable result restored.",
     "07ec rejected the actual sink(f(),witness()) order sources; fb1 restores independent actual result information.",
     "fb1 rejected nested witness_value(7); baa reads its independent declared bool result and still rejects a real i64 argument mismatch.",
-    "A draft delta negative used an invalid numeric suffix and stopped in Lex; it was corrected to i64(7), and only the actual Expand rejection is counted."
+    "A draft delta negative used an invalid numeric suffix and stopped in Lex; it was corrected to i64(7), and only the actual Expand rejection is counted.",
+    "99de full default CI found two real compatibility regressions from the new universal-distinctness guard. Review interpretation and six matrix oracles corrected; observed failures preserved above. The first estimate that only three typed controls needed reclassification was incomplete: default-i32 literal counterparts are also legitimate symbolic injections under the new contexts."
   ],
   "commands": [
     "source /workspace/.zil-env/env.sh",
@@ -176,7 +180,10 @@
     "CARGO_TARGET_DIR=/workspace/.zil-env/target-296 CARGO_BUILD_JOBS=1 cargo test --manifest-path /tmp/zil-review-296-base/Cargo.toml -p zil-expand --test impl240_generic_enum_budget -- --nocapture (fb1)",
     "CARGO_TARGET_DIR=/workspace/.zil-env/target-296 CARGO_BUILD_JOBS=1 cargo test --manifest-path /tmp/zil-review-296-base/Cargo.toml -p zil-expand --test impl227_generic_defer -- --nocapture (fb1)",
     "CARGO_TARGET_DIR=/workspace/.zil-env/target-296 CARGO_BUILD_JOBS=1 cargo test --manifest-path /tmp/zil-review-296-base/Cargo.toml -p zil-expand --test generics generic_error_union_contexts_have_exact_prepaid_boundaries -- --exact --nocapture (baa)",
-    "rustc --edition=2021 check_pipeline.rs -L dependency=<target-296/debug/deps> --extern <zil_base,zil_syntax,zil_expand,zil_types,zil_analyze,zil_verify rlibs> -o <probe>; invoke on the listed source inputs (fb1, then baa delta only)"
+    "rustc --edition=2021 check_pipeline.rs -L dependency=<target-296/debug/deps> --extern <zil_base,zil_syntax,zil_expand,zil_types,zil_analyze,zil_verify rlibs> -o <probe>; invoke on the listed source inputs (fb1, then baa delta only)",
+    "CARGO_TARGET_DIR=/workspace/.zil-env/target-296 CARGO_BUILD_JOBS=1 cargo build --manifest-path /tmp/zil-review-296-base/Cargo.toml -p zil-expand (exact 12b6 snapshot)",
+    "Recompile check_expand.rs and check_pipeline.rs against exact 12b6 Expand plus unchanged baseline kernel libraries; run corrected 53-source matrix and 27 listed API controls",
+    "CARGO_TARGET_DIR=/workspace/.zil-env/target-296 CARGO_BUILD_JOBS=1 cargo test --manifest-path /tmp/zil-review-296-base/Cargo.toml -p zil-expand --test {generics,impl240_generic_enum_budget,impl227_generic_defer} -- --nocapture (three separate commands, exact 12b6)"
   ],
   "api_probe_source": "use zil_base::{FileId,ModuleId,SourceUnit,Limits,TargetProfile};fn main(){let l=Limits::default();let t=TargetProfile::host_llvm();for p in std::env::args().skip(1){let s=SourceUnit::new(FileId(0),ModuleId(0),&p,std::fs::read_to_string(&p).unwrap());let mut functions=Vec::new();let r=(||{let a=zil_syntax::parse(&s).into_result()?;let c=zil_expand::expand(&s,&a)?;let c=zil_types::infer_source_closures(&c,&l)?;let m=zil_types::check(&c,&t,&l)?;functions=m.functions.iter().map(|f|f.name.clone()).collect();let plan=zil_analyze::analyze(&m,&l)?;zil_verify::verify_module(m,plan,&t,&l).map(|_|())})();println!(\"{p}: {r:?}; materialized={functions:?}\");}}\n",
   "replay": "Restore source strings below into temporary .zil files. On the recorded production tree, invoke Expand for each expected result and the included API probe for the listed Verify subset. Temporary log paths are supplementary; required inputs and expected results are tracked here.",
@@ -417,15 +424,19 @@
     },
     {
       "name": "outer-unknown-binding",
-      "expected": "Reject",
+      "expected": "Pass",
       "source": "fn unused<U>(w:U)->i32{let value:U!i32=7;return 0}fn main()->i32{return 0}\n",
-      "sha256": "b6e1402072f6a621631e471b5fca24355d80044e4f1a3758393d2648df066f07"
+      "sha256": "b6e1402072f6a621631e471b5fca24355d80044e4f1a3758393d2648df066f07",
+      "historical_baa_expected": "Reject",
+      "classification_correction": "Potential future equality is checked after actual specialization; symbolic distinct keys may inject now. Actual equal payloads still reject."
     },
     {
       "name": "outer-unknown-call",
-      "expected": "Reject",
+      "expected": "Pass",
       "source": "fn sink<T>(v:T!i32,w:T)->i32{return 0}fn unused<U>(w:U)->i32{return sink(7,w)}fn main()->i32{return 0}\n",
-      "sha256": "56e3f72c5f0a8874973344ea63a8cb74ed6fb47532319ca6adf4647d8bbe19cd"
+      "sha256": "56e3f72c5f0a8874973344ea63a8cb74ed6fb47532319ca6adf4647d8bbe19cd",
+      "historical_baa_expected": "Reject",
+      "classification_correction": "Potential future equality is checked after actual specialization; symbolic distinct keys may inject now. Actual equal payloads still reject."
     },
     {
       "name": "outer-whole-binding",
@@ -441,9 +452,11 @@
     },
     {
       "name": "outer-unknown-return-baseline",
-      "expected": "Reject",
+      "expected": "Pass",
       "source": "fn unused<U>(w:U)->U!i32{return 7}fn main()->i32{return 0}\n",
-      "sha256": "dd4aa7a7c8306de03b1a36ab4fbfcd3558f414a95175b11a7a5e67e296bc193c"
+      "sha256": "dd4aa7a7c8306de03b1a36ab4fbfcd3558f414a95175b11a7a5e67e296bc193c",
+      "historical_baa_expected": "Reject",
+      "classification_correction": "Potential future equality is checked after actual specialization; symbolic distinct keys may inject now. Actual equal payloads still reject."
     },
     {
       "name": "missing-witness",
@@ -465,21 +478,27 @@
     },
     {
       "name": "outer-typed-binding",
-      "expected": "Reject",
+      "expected": "Pass",
       "source": "fn unused<U>(w:U)->i32{let n:i32=7;let value:U!i32=n;return 0}fn main()->i32{return 0}\n",
-      "sha256": "e89a4e7b9807106c9cb89717fd5b94df813486e328680dbe40341463c60ddf2c"
+      "sha256": "e89a4e7b9807106c9cb89717fd5b94df813486e328680dbe40341463c60ddf2c",
+      "historical_baa_expected": "Reject",
+      "classification_correction": "Potential future equality is checked after actual specialization; symbolic distinct keys may inject now. Actual equal payloads still reject."
     },
     {
       "name": "outer-typed-call",
-      "expected": "Reject",
+      "expected": "Pass",
       "source": "fn sink<T>(v:T!i32,w:T)->i32{return 0}fn unused<U>(w:U)->i32{let n:i32=7;return sink(n,w)}fn main()->i32{return 0}\n",
-      "sha256": "0ce3f6f07580c3a0b79de6f589b9000d14cdfd71c92abc2e3cfccd3c1028a69a"
+      "sha256": "0ce3f6f07580c3a0b79de6f589b9000d14cdfd71c92abc2e3cfccd3c1028a69a",
+      "historical_baa_expected": "Reject",
+      "classification_correction": "Potential future equality is checked after actual specialization; symbolic distinct keys may inject now. Actual equal payloads still reject."
     },
     {
       "name": "outer-typed-return-legacy",
-      "expected": "Reject",
+      "expected": "Pass",
       "source": "fn unused<U>(w:U)->U!i32{let n:i32=7;return n}fn main()->i32{return 0}\n",
-      "sha256": "eeb563814ba5fa9b90f5ff707634a625ba7add9565681006f7a9e06338256922"
+      "sha256": "eeb563814ba5fa9b90f5ff707634a625ba7add9565681006f7a9e06338256922",
+      "historical_baa_expected": "Reject",
+      "classification_correction": "Potential future equality is checked after actual specialization; symbolic distinct keys may inject now. Actual equal payloads still reject."
     },
     {
       "name": "outer-known-distinct-binding",
@@ -504,5 +523,259 @@
     "No reviewer full workspace, native/backend matrix, Windows or performance/RSS comparison.",
     "No public IR/schema, ABI, default-limit or ownership/callable permission extension established by this change.",
     "Rust four-goal product conjunction, full language/ZUI and B0 remain incomplete; this is an incremental existing-rule composition fix."
-  ]
+  ],
+  "finite_specialization_correction": {
+    "production": "12b6af4f258d19314959d556e1312d0fd2313c6d",
+    "verdict": "Pass, bounded independent review; no full workspace or native rerun by reviewer",
+    "normative_basis": {
+      "design": "_zil_design.md sections 18.1, lines 1182 and 1196 at baseline 4bea9c88",
+      "rule": "Definition-time bound/capability checks remain mandatory even for unused templates. For this finite profile, ordinary T is concretized before F instantiation and the complete actual body/result/bound is checked again. A symbolic U is not a universal promise that it differs from i32, nor must the unused template prove all future substitutions inject uniquely. Determined T!T and an actually equal instantiated union still reject."
+    },
+    "reviewer_correction": "The reviewer incorrectly promoted potential future equality in an unused symbolic template to a definition-time bug. That enlarged the contract and caused two existing legal CI programs to reject. The original baa Pass verdict did not establish compatibility. This section explicitly retracts that interpretation without deleting observed failures.",
+    "ci_failure_history": {
+      "candidate": "99de375e",
+      "log": "/workspace/.zil-env/297-ci-main-failed.log",
+      "default_failures": 2,
+      "tests": [
+        "impl178_generic_store::cross_module_helpers_preserve_two_nominal_elements_and_failure_returns",
+        "impl194_copy_callable::copy_error_results_and_early_returns_keep_environment_and_local_cleanup_order"
+      ],
+      "symptom": "Expand E-GENERIC-ARGUMENT: error union alternative may match an unresolved type parameter; no Verify run",
+      "legal_oracles_unchanged": [
+        "StoreElement T!void return () with native BCA/0",
+        "bool!T with actual T=i32, success/error both clean up BA, exit 0/1"
+      ]
+    },
+    "minimal_fix": "Restore prepaid complete symbolic type-key XOR in shared same_return, remove provably_distinct and its unused observer. Do not relax context_unresolved, actual complete-type ambiguity, bounds, or source-order checks.",
+    "matrix": {
+      "tested": 53,
+      "matched": 53,
+      "reclassified": [
+        "outer-typed-binding",
+        "outer-typed-call",
+        "outer-typed-return-legacy",
+        "outer-unknown-binding",
+        "outer-unknown-call",
+        "outer-unknown-return-baseline"
+      ],
+      "other_outcomes_unchanged": 47,
+      "log": "/tmp/zil-review-296/12b6/matrix.log"
+    },
+    "api_controls": [
+      {
+        "name": "outer-typed-binding-unused",
+        "source": "fn unused<U>(w:U)->i32{let n:i32=7;let value:U!i32=n;return 0}fn main()->i32{return 0}\n",
+        "expected": "Verify",
+        "sha256": "e89a4e7b9807106c9cb89717fd5b94df813486e328680dbe40341463c60ddf2c",
+        "actual": "Ok(()); materialized=[\"main\"]"
+      },
+      {
+        "name": "outer-typed-binding-bool",
+        "source": "fn unused<U>(w:U)->i32{let n:i32=7;let value:U!i32=n;return 0}fn main()->i32{unused(true);return 0}\n",
+        "expected": "Verify",
+        "sha256": "04af76925e95df5517f7e2a0dfebd18b193b37e095c7eb6b10654317a9b6fcbe",
+        "actual": "Ok(()); materialized=[\"main\", \"$generic_unused_0\"]"
+      },
+      {
+        "name": "outer-typed-binding-i32",
+        "source": "fn unused<U>(w:U)->i32{let n:i32=7;let value:U!i32=n;return 0}fn main()->i32{unused(0);return 0}\n",
+        "expected": "Reject",
+        "sha256": "5e78499a69803261ffefa367d0c6cf7575a5852afcb65ca054442710264557c7",
+        "actual": "Err([Diagnostic { phase: Types, category: SafeReject, code: \"E-ERROR-INJECTION-AMBIGUOUS\", message: \"the value matches both error and success; equal payload types need an explicit tagged value\", span: Some(Span { file: FileId(0), start: 51, end: 52 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "outer-typed-call-unused",
+        "source": "fn sink<T>(v:T!i32,w:T)->i32{return 0}fn unused<U>(w:U)->i32{let n:i32=7;return sink(n,w)}fn main()->i32{return 0}\n",
+        "expected": "Verify",
+        "sha256": "0ce3f6f07580c3a0b79de6f589b9000d14cdfd71c92abc2e3cfccd3c1028a69a",
+        "actual": "Ok(()); materialized=[\"main\"]"
+      },
+      {
+        "name": "outer-typed-call-bool",
+        "source": "fn sink<T>(v:T!i32,w:T)->i32{return 0}fn unused<U>(w:U)->i32{let n:i32=7;return sink(n,w)}fn main()->i32{unused(true);return 0}\n",
+        "expected": "Verify",
+        "sha256": "710f40517af59b6dce86599a038c383ac2e364ae58b5f94314f7c5f65ef70c42",
+        "actual": "Ok(()); materialized=[\"main\", \"$generic_unused_0\", \"$generic_sink_1\"]"
+      },
+      {
+        "name": "outer-typed-call-i32",
+        "source": "fn sink<T>(v:T!i32,w:T)->i32{return 0}fn unused<U>(w:U)->i32{let n:i32=7;return sink(n,w)}fn main()->i32{unused(0);return 0}\n",
+        "expected": "Reject",
+        "sha256": "b6bac00894c77444fc44f6328e87c183dc317e141fda26a0546a2c7388283d3c",
+        "actual": "Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"error union payload matches both sides\", span: Some(Span { file: FileId(0), start: 85, end: 86 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "outer-typed-return-legacy-unused",
+        "source": "fn unused<U>(w:U)->U!i32{let n:i32=7;return n}fn main()->i32{return 0}\n",
+        "expected": "Verify",
+        "sha256": "eeb563814ba5fa9b90f5ff707634a625ba7add9565681006f7a9e06338256922",
+        "actual": "Ok(()); materialized=[\"main\"]"
+      },
+      {
+        "name": "outer-typed-return-legacy-bool",
+        "source": "fn unused<U>(w:U)->U!i32{let n:i32=7;return n}fn main()->i32{unused(true);return 0}\n",
+        "expected": "Verify",
+        "sha256": "e7b7be065b8a6f359ed3a0ffed0aa933e267ad0c8657d74579bc3eedc50cf6eb",
+        "actual": "Ok(()); materialized=[\"main\", \"$generic_unused_0\"]"
+      },
+      {
+        "name": "outer-typed-return-legacy-i32",
+        "source": "fn unused<U>(w:U)->U!i32{let n:i32=7;return n}fn main()->i32{unused(0);return 0}\n",
+        "expected": "Reject",
+        "sha256": "f2835e163c31593fada7c39f0a3bd44946cc7ac70ee58c07110b73a9f94d6a9e",
+        "actual": "Err([Diagnostic { phase: Types, category: SafeReject, code: \"E-ERROR-INJECTION-AMBIGUOUS\", message: \"the value matches both error and success; equal payload types need an explicit tagged value\", span: Some(Span { file: FileId(0), start: 44, end: 45 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "mixed-left-i32",
+        "source": "fn run<T:Copy,F:Fn(T)->T>(f:&F,x:T,fail:bool)->bool!T{if fail{return false}return f(x)}fn main()->i32{let f=(n:i32)=>n;run(&f,7,false);return 0}",
+        "expected": "Verify",
+        "sha256": "eb8edb57fe8f6981be3646b84debe0239f3195890421f9ced9a52b9110684891",
+        "actual": "Ok(()); materialized=[\"main\", \"$closure0\", \"@module0:helper14:env0\"]"
+      },
+      {
+        "name": "mixed-left-bool",
+        "source": "fn run<T:Copy,F:Fn(T)->T>(f:&F,x:T,fail:bool)->bool!T{if fail{return false}return f(x)}fn main()->i32{let f=(n:bool)=>n;run(&f,true,false);return 0}",
+        "expected": "Reject",
+        "sha256": "cf5dfccf115e82c54536f11b7195dddf8ac7da173be04780eb09457b6690bc56",
+        "actual": "Err([Diagnostic { phase: Types, category: SafeReject, code: \"E-ERROR-INJECTION-AMBIGUOUS\", message: \"the value matches both error and success; equal payload types need an explicit tagged value\", span: Some(Span { file: FileId(0), start: 69, end: 74 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "mixed-right-i32",
+        "source": "fn run<F:Fn(T)->T,T:Copy>(f:&F,x:T,fail:bool)->bool!T{if fail{return false}return f(x)}fn main()->i32{let f=(n:i32)=>n;run(&f,7,false);return 0}",
+        "expected": "Verify",
+        "sha256": "2af9e67fc195b9228e06c88a161407524c415eddddd0bfa03621361e68baa68e",
+        "actual": "Ok(()); materialized=[\"main\", \"$closure0\", \"@module0:helper14:env0\"]"
+      },
+      {
+        "name": "mixed-right-bool",
+        "source": "fn run<F:Fn(T)->T,T:Copy>(f:&F,x:T,fail:bool)->bool!T{if fail{return false}return f(x)}fn main()->i32{let f=(n:bool)=>n;run(&f,true,false);return 0}",
+        "expected": "Reject",
+        "sha256": "bd6db6173154db4d66dc7e6025668fe0ef9cd7dbe5f55297952ea8a388bb1ae2",
+        "actual": "Err([Diagnostic { phase: Types, category: SafeReject, code: \"E-ERROR-INJECTION-AMBIGUOUS\", message: \"the value matches both error and success; equal payload types need an explicit tagged value\", span: Some(Span { file: FileId(0), start: 69, end: 74 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "same-symbolic-return",
+        "source": "fn bad<T:Copy>(v:T)->T!T{return v}fn main()->i32{return 0}",
+        "expected": "Reject",
+        "sha256": "7dba65916d81d70a24068357b10f4b42674799f24310f1c1d7887fbedf5526ed",
+        "actual": "Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"error union payload matches both sides\", span: Some(Span { file: FileId(0), start: 25, end: 33 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "same-symbolic-binding",
+        "source": "fn bad<T:Copy>(v:T)->i32{let x:T!T=v;return 0}fn main()->i32{return 0}",
+        "expected": "Reject",
+        "sha256": "493c2487fc437ccd9c4da55ba5e12304bd95eeaf6ece5b08236ebef5019ab85c",
+        "actual": "Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"error union payload matches both sides\", span: Some(Span { file: FileId(0), start: 25, end: 37 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "same-symbolic-call",
+        "source": "fn sink<T:Copy>(v:T!T,w:T)->i32{return 0}fn bad<U:Copy>(v:U)->i32{return sink(v,v)}fn main()->i32{return 0}",
+        "expected": "Reject",
+        "sha256": "8ac18ccc6d1aa1a6c90f4c0a1b261e9930ce563d85ed891792c03dca02e44ec0",
+        "actual": "Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"error union payload matches both sides\", span: Some(Span { file: FileId(0), start: 73, end: 82 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "unpermitted-unused-add",
+        "source": "fn bad<T:Copy>(v:T)->T{return v+v}fn main()->i32{return 0}",
+        "expected": "Reject",
+        "sha256": "720aeef4509c860ddfc8459ceac3b551e0fad0bda86bfc276d0b5c23b27b918f",
+        "actual": "Err([Diagnostic { phase: Expand, category: Unsupported, code: \"E-UNSUPPORTED\", message: \"operation on an unconstrained type parameter requires a declared bound\", span: Some(Span { file: FileId(0), start: 30, end: 33 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "unconstrained-call",
+        "source": "fn sink<T:Copy>(v:T!i32)->i32{return 0}fn main()->i32{return sink(7)}",
+        "expected": "Reject",
+        "sha256": "56bc63dba9a70d87144738dedaa12d19eee7089940fad76807d5383fd158e256",
+        "actual": "Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"generic parameter does not match argument type\", span: Some(Span { file: FileId(0), start: 66, end: 67 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "outer-unknown-binding-bool",
+        "source": "fn unused<U>(w:U)->i32{let value:U!i32=7;return 0}fn main()->i32{unused(true);return 0}\n",
+        "expected": "Verify",
+        "sha256": "d606ce7522086ba6d3d943bbb0b8e7718493f45274ca5ab949dbd3a20b5b5daf",
+        "actual": "Ok(()); materialized=[\"main\", \"$generic_unused_0\"]"
+      },
+      {
+        "name": "outer-unknown-binding-i32",
+        "source": "fn unused<U>(w:U)->i32{let value:U!i32=7;return 0}fn main()->i32{unused(0);return 0}\n",
+        "expected": "Reject",
+        "sha256": "ca24434ce4b054b029fe79e83964b1c74b6dffd834a657ec674aa10261892700",
+        "actual": "Err([Diagnostic { phase: Types, category: SafeReject, code: \"E-ERROR-INJECTION-AMBIGUOUS\", message: \"the value matches both error and success; equal payload types need an explicit tagged value\", span: Some(Span { file: FileId(0), start: 39, end: 40 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "outer-unknown-call-bool",
+        "source": "fn sink<T>(v:T!i32,w:T)->i32{return 0}fn unused<U>(w:U)->i32{return sink(7,w)}fn main()->i32{unused(true);return 0}\n",
+        "expected": "Verify",
+        "sha256": "cece02f9248e2fbb034ab8fb082bac51d88bed31e84be511b0c33881b193c8a1",
+        "actual": "Ok(()); materialized=[\"main\", \"$generic_unused_0\", \"$generic_sink_1\"]"
+      },
+      {
+        "name": "outer-unknown-call-i32",
+        "source": "fn sink<T>(v:T!i32,w:T)->i32{return 0}fn unused<U>(w:U)->i32{return sink(7,w)}fn main()->i32{unused(0);return 0}\n",
+        "expected": "Reject",
+        "sha256": "e36cbb82c7ae854f23c4bb5a6c9bfa83ff3518de4fba95fc0894a150130445c5",
+        "actual": "Err([Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"error union payload matches both sides\", span: Some(Span { file: FileId(0), start: 73, end: 74 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "outer-unknown-return-baseline-bool",
+        "source": "fn unused<U>(w:U)->U!i32{return 7}fn main()->i32{unused(true);return 0}\n",
+        "expected": "Verify",
+        "sha256": "2efda900e29857d60d8b50fcfbe57de7762a4b6bd7e661833e07c7ef20476ac4",
+        "actual": "Ok(()); materialized=[\"main\", \"$generic_unused_0\"]"
+      },
+      {
+        "name": "outer-unknown-return-baseline-i32",
+        "source": "fn unused<U>(w:U)->U!i32{return 7}fn main()->i32{unused(0);return 0}\n",
+        "expected": "Reject",
+        "sha256": "d886e23b4c30678efe60b11cbcd30709befb18def40c693a7b1ce0783de74834",
+        "actual": "Err([Diagnostic { phase: Types, category: SafeReject, code: \"E-ERROR-INJECTION-AMBIGUOUS\", message: \"the value matches both error and success; equal payload types need an explicit tagged value\", span: Some(Span { file: FileId(0), start: 32, end: 33 }), notes: [] }]); materialized=[]"
+      },
+      {
+        "name": "outer-unknown-binding",
+        "source": "fn unused<U>(w:U)->i32{let value:U!i32=7;return 0}fn main()->i32{return 0}\n",
+        "expected": "Verify",
+        "sha256": "b6e1402072f6a621631e471b5fca24355d80044e4f1a3758393d2648df066f07",
+        "actual": "Ok(()); materialized=[\"main\"]"
+      },
+      {
+        "name": "outer-unknown-call",
+        "source": "fn sink<T>(v:T!i32,w:T)->i32{return 0}fn unused<U>(w:U)->i32{return sink(7,w)}fn main()->i32{return 0}\n",
+        "expected": "Verify",
+        "sha256": "56e3f72c5f0a8874973344ea63a8cb74ed6fb47532319ca6adf4647d8bbe19cd",
+        "actual": "Ok(()); materialized=[\"main\"]"
+      },
+      {
+        "name": "outer-unknown-return-baseline",
+        "source": "fn unused<U>(w:U)->U!i32{return 7}fn main()->i32{return 0}\n",
+        "expected": "Verify",
+        "sha256": "dd4aa7a7c8306de03b1a36ab4fbfcd3558f414a95175b11a7a5e67e296bc193c",
+        "actual": "Ok(()); materialized=[\"main\"]"
+      }
+    ],
+    "tests": {
+      "expand_generics": [
+        14,
+        0
+      ],
+      "old_enum_budget": [
+        2,
+        0
+      ],
+      "generic_defer": [
+        3,
+        0
+      ],
+      "budget_result": "All persistent N/N-1/fresh assertions passed; new binding880/301, argument871/290, independent1440/457 and five old controls unchanged"
+    },
+    "logs": [
+      "/tmp/zil-review-296-12b6-build.log",
+      "/tmp/zil-review-296/12b6/pipeline.log",
+      "/tmp/zil-review-296/12b6/literal-pipeline.log",
+      "/tmp/zil-review-296/12b6/literal-unused-pipeline.log",
+      "/tmp/zil-review-296-12b6-generics.log",
+      "/tmp/zil-review-296-12b6-enum-budget.log",
+      "/tmp/zil-review-296-12b6-defer.log"
+    ],
+    "author_separate_evidence": "Author reports original unchanged impl178 target15/0, impl194 target19/0 including both BA cleanup branches, driver/API generics8/0 including 15 new instance cases, and Clippy/fmt. Reviewer read the exact old source/oracles and new test but did not rerun native."
+  }
 }
