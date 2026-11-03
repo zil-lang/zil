@@ -104,3 +104,21 @@ Expand/E-GENERIC-ARGUMENT；用`first::<i64>(point.read())`验证既有Self/life
 完整保留。该既有复杂表达式推导限制未在本片开放。循环内若改变外部引用来源，
 符号核暂Unsupported，未以一轮执行冒充固定点。尚待旧借用/泛型/cache目标及
 Clippy限定回归；此checkpoint不记最终验收。
+
+## 作者冻结结果
+
+受测生产/测试提交为`51ff1af892788e0bc54fe3395d049b66222d703c`，本节仅补
+结果登记。实际命令均先source `/workspace/.zil-env/env.sh`，再设
+`CARGO_TARGET_DIR=/workspace/.zil-env/target331 CARGO_BUILD_JOBS=1`：
+
+- `cargo test -p zil-driver --test cross_function_borrows --test generics --test review194_composition --test semantic_cache --features llvm-api --offline -- --nocapture`：分别28/14/9/8 Pass，0 Fail。322原99/95/714/993及321原N=439控制原样通过。日志只在临时`/tmp/zil331-limited.log`，不归档大evidence。
+- `cargo clippy -p zil-expand -p zil-types -p zil-analyze -p zil-verify -p zil-driver --test cross_function_borrows --features zil-driver/llvm-api --offline -- -D warnings`：Pass。
+- `git diff --check`：Pass。没有运行正式全量、reference后端全仓或组合329–333；非作者审核及最终共同候选集成由root负责，不把本作者结果登记成独审通过。
+
+按既有Rust四目标反思：有限泛型life来源现在有定义期符号检查与具体CFG两核
+实证，完整life/trait/异步安全仍未建立；实际O0/O2沿原地址ABI，没有新增运行时
+对象或分配，但未做同语义Rust运行/RSS比较；普通Copy类型与life现在可自然组合，
+receiver复杂表达式推导、完整框架维护成本仍有边界；累计费用与精确预算通过，
+没有编译性能或Rust成本优势结论。本片实质增量是原mixed binder Unsupported
+源能保持声明、符号Copy、实际来源直到机器执行，产品四目标合取与相对Rust
+可重复净突破尚未建立，不改既有product-gates条件。
