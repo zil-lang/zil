@@ -18,7 +18,7 @@ node tools/handoff.mjs --check --main-tree PATH
 
 现代清单模式的`status`是`CurrentPass`或`CurrentFail`，并明确给出`current_gate`。`historical_status`单独显示`Unavailable`或`Unreviewed`、各自数量及`claims_revalidated=false`。原有工单首行状态完整保留在历史记录中；退出当前工作队列不等于任务Done或语言义务取消。
 
-`--legacy-audit`强制只读，另外逐条执行原历史规范快照、Git对象、证据、审核及祖先关系核验。`LegacyAuditFail`保留这些真实失败，不能用当前门通过覆盖。缺清单的旧API保持原严格`Pass`/`Fail`行为和检查条件，不提供历史豁免。缺Git或基础设施故障仍失败。
+`--legacy-audit`强制只读，另外逐条执行清单内原历史记录的规范快照、Git对象、证据、审核及祖先关系核验；当前任务继续按当前字段核验，保留的historical字段不反向充当旧验收。`LegacyAuditFail`保留这些真实失败，不能用当前门通过覆盖。缺清单的旧API保持原严格`Pass`/`Fail`行为和检查条件，不提供历史豁免。缺Git或基础设施故障仍失败。
 
 生成快照仍须在已验证权威checkout根运行不带`--check`的命令；分树仅检查。快照省略运行时绝对根路径，接续须重新检查。历史清理丢失的对象/证据不会由旧bundle提示自动恢复。
 
@@ -39,3 +39,5 @@ review优先读取精确`review_commit`中的JSON，再按明确selector/commit�
 ## 验证和边界
 
 沿用`tests/handoff.test.mjs`的真实临时Git仓库与CLI。原13族保持；新增场景检查当前/历史隔离、冻结与未提交清单、未列当前错误、历史笔记、work权威、docs和symlink、精确review selector、有限范围、metadata-only与当前规范必需集合。检查只验证记录关系，不认证人员身份、评审质量、ZIL安全或产品胜出。
+
+最终源ef2e14994的限定自测25/0、129断言；真实主树CurrentPass/0与历史audit的1924项失败同时保留。清单`/validation`只保存工具验证结果，可用显式selector引用；`/records`原历史仍Unavailable/Unreviewed，不能从验证工具的Pass推导历史Pass。权威snapshot留给root最终生成。

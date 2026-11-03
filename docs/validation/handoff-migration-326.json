@@ -11232,5 +11232,108 @@
   "task_directories": [
     ".task",
     ".task/impl"
-  ]
+  ],
+  "validation": {
+    "status": "Pass",
+    "scope": "326 handoff tool integrity tests and read-only metadata probes; not historical Pass, language acceptance or independent review",
+    "implementation_source_commit": "ef2e14994035afec02e05021ec4bc49d56638c73",
+    "executed": 25,
+    "assertions": 129,
+    "source_hashes": {
+      "tools/handoff.mjs": "a79f0efa3bf048438db1dc690f0424bfebd975ce7be5f8ac4551ff8545f153ea",
+      "tests/handoff.test.mjs": "989d60eb0f786259e32515c78b6587271be8f83c51fdcc74b8a09fa7eaae5cfa"
+    },
+    "inventory_records_sha256": "3f8c65d27ea07761de9494515094eb47c21a05511deceb698ae92f3411b4e387",
+    "self_test": {
+      "command": "ZIL_HANDOFF_REPORT=/tmp/handoff326-closeout-check.json node --test tests/handoff.test.mjs",
+      "exit_code": 0,
+      "passed": 25,
+      "failed": 0,
+      "skipped": 0,
+      "original_scenarios": {
+        "count": 13,
+        "passed": 13,
+        "assertions": 69
+      },
+      "required_ids": [
+        "handoff-001",
+        "handoff-002",
+        "handoff-003",
+        "handoff-004",
+        "handoff-005",
+        "handoff-006",
+        "handoff-007",
+        "handoff-008",
+        "handoff-009",
+        "handoff-010",
+        "handoff-011",
+        "handoff-012",
+        "handoff-013",
+        "handoff-014",
+        "handoff-015",
+        "handoff-016",
+        "handoff-017",
+        "handoff-018",
+        "handoff-019",
+        "handoff-020",
+        "handoff-021",
+        "handoff-022",
+        "handoff-023",
+        "handoff-024",
+        "handoff-025"
+      ],
+      "report_sha256": "0f3907e31472a0103bec2625147454086f66a1b1192974ad4ad88a87518b4461",
+      "note": "Execution began before the source-only commit; measured tool/test file hashes exactly match the committed ef2e14994 bytes."
+    },
+    "real_metadata_probe": {
+      "command": "node /workspace/zil-326/tools/handoff.mjs --check --legacy-audit",
+      "cwd": "/workspace/zil",
+      "input_main_head": "0afd64bd94f054b50f67316dfa17b2c11a0d9c02",
+      "observed_current_head": "c1a61ccb36067af253fbd6ff4cbdd52d2c70ee0c",
+      "current_gate": {
+        "status": "CurrentPass",
+        "error_count": 0
+      },
+      "historical_status": {
+        "status": "Unavailable",
+        "archived": 274,
+        "unavailable": 220,
+        "unreviewed": 54,
+        "claims_revalidated": false,
+        "source_commit": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072"
+      },
+      "legacy_audit": {
+        "status": "Fail",
+        "exit_code": 1,
+        "strict_errors": 1924
+      },
+      "authority": {
+        "verified": true,
+        "branch": "main",
+        "current_is_main": true,
+        "origin_main_tracking_head": "0d7d74f7d4b013f893f313b469fc7bd233c9f918",
+        "remote_claim": "Tracking ref only; no push or remote merge performed by 326"
+      },
+      "report_sha256": "bf35ef72d9a13df83c18c9c36fc98853c22434ce9528112068655d3b8dc76c99",
+      "authority_snapshot_generated": false
+    },
+    "earlier_real_input_probe": {
+      "composition": "d315af23a48ba5c91ab8bdb0b29a58e66a7911c6",
+      "kind": "Disposable shared local clone; no root branch or remote changed",
+      "current_gate": "CurrentPass/0",
+      "historical_unavailable": 220,
+      "historical_unreviewed": 54,
+      "legacy_exit_code": 1,
+      "legacy_strict_errors": 1924,
+      "snapshot_sha256_unchanged": "08ba15ebb24629e7786fef357529aa5d776d211a80a2ee73ed1eae1350b3f550",
+      "retained_first_attempt": "Calling from the source tree with an explicit different-repository clone authority was correctly rejected with two authority errors and both verified/current_is_main=false. Re-running in that clone cwd succeeded without source changes."
+    },
+    "retained_interruptions": "Two environment outages interrupted work. The final canonical-path tail was confirmed absent after recovery, then applied and included in the measured 25/129 source. Interrupted runs have no Pass claim.",
+    "limits": [
+      "No current or historical task file changed by 326",
+      "No authority snapshot generation",
+      "No full suite, language/native/product acceptance or independent self-review",
+      "Old outcomes remain Unavailable/Unreviewed with claims_revalidated=false; source tests do not revalidate them"
+    ]
+  }
 }
