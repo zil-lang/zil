@@ -1006,35 +1006,38 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                 assert_eq!(actual.stdout, stdout.as_bytes(), "{actual:?}");
                 assert!(actual.stderr.is_empty(), "{actual:?}");
             }
-            // A body using a real parent local keeps the existing borrow rules.
-            let text =
-                fs::read_to_string(thread325_root().join("controls/parent_borrow.zil")).unwrap();
-            let report = compile_source(
-                &source(&text),
-                &CompileOptions {
-                    backend,
-                    optimization,
-                    stop_after: Stage::Build,
-                    output: Some(directory.join("borrow")),
-                    ..CompileOptions::default()
-                },
-            );
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-            assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
-            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-            let actual = Command::new(&report.artifacts["executable"])
-                .output()
-                .unwrap();
-            assert_eq!(actual.status.code(), Some(0), "{actual:?}");
-            assert!(
-                actual.stdout.is_empty() && actual.stderr.is_empty(),
-                "{actual:?}"
-            );
+            // Parent borrowing and explicit life/trait composition reach both machines.
+            for control in ["parent_borrow", "life_trait"] {
+                let text =
+                    fs::read_to_string(thread325_root().join(format!("controls/{control}.zil")))
+                        .unwrap();
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(directory.join(control)),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let actual = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+                assert!(
+                    actual.stdout.is_empty() && actual.stderr.is_empty(),
+                    "{actual:?}"
+                );
+            }
             if retained.is_none() {
                 fs::remove_dir_all(directory).unwrap();
             }
