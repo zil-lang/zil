@@ -15,6 +15,27 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn trait330_original_pending_sources() {
+    // Keep the original source bytes and baseline rejection in Git history;
+    // the implementation will promote these exact inputs after the profile freezes.
+    for text in [
+        include_str!("../../../tests/language-readiness/pending/default-trait-method.zil"),
+        include_str!("../../../tests/language-readiness/recovery/pending/trait-default-method.zil"),
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+        eprintln!("330 baseline: {}", report.to_json());
+    }
+}
+
+#[test]
 fn review327_generic_trait_declaration_and_ordered_argument_identity() {
     native(&[
         (

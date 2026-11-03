@@ -68,7 +68,10 @@ Verify与机器生成。显式覆盖也仍按真实trait声明签名检查。默
 发布，不重新取默认预算。无default旧路径不添加新遍历。每次源扫描、成员/索引
 访问、完整key比较、替换和正文复制均增长前预费，生成方法受现有函数上限约束。
 新增default路径须启用现有Products累计trait费用链；不能因无trait类型参数而落回
-旧单模块collector默认额度。递归/重复实例查询仍扣访问费，队列不按调用树扩张。
+旧单模块collector默认额度。`modules.rs`现有三个has_trait_instances预算链接点也需
+识别无参default。发现default所需的新增member扫描会显式收费；若无default旧控制
+因此发生实际费用迁移，保留原源/旧N并报告，不把检测声称为免费。递归/重复实例
+查询仍扣访问费，队列不按调用树扩张。
 
 限定既有`impl162_trait_bounds`和`impl233_modules`目标。拟覆盖原待实现源、常量
 默认方法、required委托、覆盖、同Self多实例/phantom、跨模块同名helper与私有身份；
@@ -76,3 +79,12 @@ Verify与机器生成。显式覆盖也仍按真实trait声明签名检查。默
 资源接收者及不支持方法泛型保持精确拒绝。真实消费者走两backend O0/O2；新默认
 委托以实际source累计N/N−1/fresh及多实例控制核收费，默认额度不升。只限定测试，
 不替代root正式全量及非作者审核。实际结果待实现后填写。
+
+## 基线实际探针
+
+`target330`、jobs1、显式`llvm-api`，现有`impl162_trait_bounds`目标仅过滤`trait330_`：
+两份原文件按原字节输入，均为`Unsupported/Types/E-UNSUPPORTED`且Verify0。静态
+Expand收集的unsupported feature在Types发布，不能把实际阶段记成Expand。首次
+探针误期待Expand，1项失败；修正阶段断言后1 passed/0 failed/24 filtered。两个输入
+fingerprint分别为`3ca5160507dc27302ae1a8f71f19ede492cfe974171eb4b204155e881275cb98`
+与`29c6d48a71a4a9ad40a142c70d84d5d698f713559e2bf1cc5fa433ae4dadeca2`。
