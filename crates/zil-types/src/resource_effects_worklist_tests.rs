@@ -634,6 +634,15 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
             ty: None,
             initializer: Some(name("a")),
         },
+        CoreStatementKind::TupleBinding {
+            pattern: pattern(P::Tuple(vec![
+                pattern(P::Name("inner".into())),
+                pattern(P::Wildcard),
+            ])),
+            mutable: false,
+            ty: None,
+            initializer: expr(CoreExprKind::Tuple(vec![call_expr(), name("b")])),
+        },
         alias_assign().kind,
         CoreStatementKind::Expression(call_expr()),
         CoreStatementKind::Return(Some(call_expr())),
@@ -699,7 +708,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
             .map(statement_variant)
             .collect::<BTreeSet<_>>()
             .len(),
-        16
+        17
     );
     for kind in statements {
         let label = statement_variant(&kind);
@@ -715,7 +724,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
         ]);
         compared += compare_transfers(&core, label);
     }
-    assert_eq!(compared, (26 + 17) * 16 * 2);
+    assert_eq!(compared, (26 + 18) * 16 * 2);
 }
 
 #[test]
