@@ -640,6 +640,7 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
                     fuel = fuel.checked_sub(block.statements.len())?;
                     for s in &block.statements {
                         match &s.kind {
+                            CoreStatementKind::TupleBinding { .. } => return None,
                             CoreStatementKind::Binding {
                                 ty, initializer, ..
                             } => {
@@ -1156,6 +1157,24 @@ impl<'a> Walker<'a> {
         for s in &block.statements {
             self.charge(depth + 1, s.span)?;
             let kind = match &s.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    mutable,
+                    ty,
+                    initializer,
+                } => {
+                    if let Some(ty) = ty {
+                        self.pattern_type_shape(ty, depth + 1, s.span)?;
+                    }
+                    let initializer = self.expr(initializer, ty.as_ref(), depth + 1)?;
+                    self.bind_pattern(pattern, depth + 1)?;
+                    CoreStatementKind::TupleBinding {
+                        pattern: pattern.clone(),
+                        mutable: *mutable,
+                        ty: ty.clone(),
+                        initializer,
+                    }
+                }
                 CoreStatementKind::Binding {
                     name,
                     mutable,

@@ -1093,6 +1093,18 @@ impl Collector<'_> {
                 self.pattern(pattern, depth + 1)?;
             }
             match &statement.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    ty,
+                    initializer,
+                    ..
+                } => {
+                    self.pattern(pattern, depth + 1)?;
+                    if let Some(ty) = ty {
+                        self.ty(ty, depth + 1)?;
+                    }
+                    self.expression(module, initializer, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     name,
                     ty,
@@ -1257,6 +1269,7 @@ fn strip_expr(e: &mut CoreExpr) {
 fn strip_block(block: &mut CoreBlock) {
     for statement in &mut block.statements {
         match &mut statement.kind {
+            CoreStatementKind::TupleBinding { initializer, .. } => strip_expr(initializer),
             CoreStatementKind::Binding { initializer, .. }
             | CoreStatementKind::Return(initializer) => {
                 if let Some(e) = initializer {

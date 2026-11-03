@@ -116,6 +116,14 @@ impl Names<'_> {
         for s in &b.statements {
             self.charge(depth + 1, s.span)?;
             match &s.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    initializer,
+                    ..
+                } => {
+                    self.expr(initializer, receiver, depth + 1)?;
+                    self.pattern(pattern, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     name, initializer, ..
                 } => {

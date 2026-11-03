@@ -1774,6 +1774,7 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Package { .. }) =>
                 {
                     let ty = &f.locals[local.0 as usize].ty;
@@ -1781,15 +1782,25 @@ impl Flow<'_> {
                     let Type::Package { fields, .. } = ty else {
                         unreachable!("Package borrow")
                     };
-                    budget.spend(fields.len(), "shared Product completeness")?;
+                    let mutable = matches!(i.kind, InstructionKind::BorrowLocalMut { .. });
+                    budget.spend(
+                        fields.len(),
+                        if mutable {
+                            "Product borrow completeness"
+                        } else {
+                            "shared Product completeness"
+                        },
+                    )?;
                     if check {
                         if !exact(
                             &copied(state, Place::Local(*local), budget)?,
                             Life::Available,
                         ) {
-                            return Err(error(
-                                "shared Product borrow requires a live complete shell",
-                            ));
+                            return Err(error(if mutable {
+                                "Product borrow requires a live complete shell"
+                            } else {
+                                "shared Product borrow requires a live complete shell"
+                            }));
                         }
                         for (index, (_, field)) in fields.iter().enumerate() {
                             if package_owned_field(field, budget)?
@@ -1805,9 +1816,11 @@ impl Flow<'_> {
                                     Life::Available,
                                 )
                             {
-                                return Err(error(
-                                    "shared Product borrow requires every owned child live",
-                                ));
+                                return Err(error(if mutable {
+                                    "Product borrow requires every owned child live"
+                                } else {
+                                    "shared Product borrow requires every owned child live"
+                                }));
                             }
                         }
                     }

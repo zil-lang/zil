@@ -887,6 +887,13 @@ impl Expander<'_> {
         self.role(read.id, ExpansionRole::TemporaryRead, Vec::new());
         Some((target, read))
     }
+    fn tuple_binding_pattern(pattern: &s::Pattern) -> bool {
+        match &pattern.kind {
+            s::PatternKind::Name(_) | s::PatternKind::Wildcard => true,
+            s::PatternKind::Tuple(fields) => fields.iter().all(Self::tuple_binding_pattern),
+            _ => false,
+        }
+    }
     fn stmt(&mut self, s: &s::Stmt) -> CoreStatement {
         let kind = match &s.kind {
             s::StmtKind::Binding {
@@ -895,6 +902,28 @@ impl Expander<'_> {
                 ty,
                 value,
             } => {
+                if matches!(pattern.kind, s::PatternKind::Tuple(_)) {
+                    if !Self::tuple_binding_pattern(pattern) {
+                        return self.statement(
+                            CoreStatementKind::Unsupported(
+                                "tuple binding requires names, discards and tuple patterns".into(),
+                            ),
+                            s.span,
+                        );
+                    }
+                    let ty = ty.as_ref().map(|t| self.type_ref(t));
+                    let initializer = self.expr_expected(value, ty.as_ref());
+                    let pattern = self.pattern(pattern);
+                    return self.statement(
+                        CoreStatementKind::TupleBinding {
+                            pattern,
+                            mutable: *mutable,
+                            ty,
+                            initializer,
+                        },
+                        s.span,
+                    );
+                }
                 let name = match &pattern.kind {
                     s::PatternKind::Name(n) => n.clone(),
                     s::PatternKind::Wildcard => format!("$discard{}", self.next),

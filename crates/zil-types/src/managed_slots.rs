@@ -104,6 +104,9 @@ impl Rewriter<'_> {
         let mut shadow = shadow.clone();
         for s in &mut b.statements {
             self.statement(s, &shadow, depth + 1, true)?;
+            if let CoreStatementKind::TupleBinding { pattern, .. } = &s.kind {
+                self.pattern(pattern, &mut shadow, depth + 1)?;
+            }
             if let CoreStatementKind::Binding { name, .. } = &s.kind {
                 shadow.insert(name.clone());
             }
@@ -119,6 +122,9 @@ impl Rewriter<'_> {
     ) -> R<()> {
         self.charge(depth, s.span)?;
         match &mut s.kind {
+            CoreStatementKind::TupleBinding { initializer, .. } => {
+                self.expr(initializer, shadow, depth + 1)?;
+            }
             CoreStatementKind::Binding { initializer, .. } => {
                 if let Some(e) = initializer {
                     self.expr(e, shadow, depth + 1)?
@@ -374,6 +380,14 @@ impl BindingScan {
     fn statement(&mut self, s: &CoreStatement, d: usize) -> R<()> {
         self.charge(1, d, s.span)?;
         match &s.kind {
+            CoreStatementKind::TupleBinding {
+                pattern,
+                initializer,
+                ..
+            } => {
+                self.expr(initializer, d + 1)?;
+                self.pattern(pattern, d + 1)?;
+            }
             CoreStatementKind::Binding {
                 name,
                 mutable,

@@ -381,6 +381,12 @@ Analyze与Verify分别按实际SSA/Local及子树叶位置重建每个Managed叶
 
 普通Product借入与Store元素窗口分别建立资格，不能互相借用分类结果授信；Analyze与Verify各自从实际位置、来源、完整性与指令重建。借入返回/长期捕获/异步及 `&mut Product` 不由本片开放。布局内联、schema/Wire27、默认预算和产品门不变；实际准入以source/raw/Wire、活跃/结束窗口反例、预算和O0/O2机器证据为准。
 
+#### 8.1.2.1 普通局部 Product 的同步可变借入（315）
+
+§8.1.1 的完整 Product 可从可写普通局部建立同步不逃逸的 `&mut Product`，并经普通 helper 参数转借。形状限既有 Copy 伴随字段、直接 Managed ByteBuffer/有限 Copy 头用户资源和完整递归 child；本片不增加 Store、具体 Closure、拥有 Sum/数组或借入字段资格。建立窗口时须独立核验实际可写存储、shell 及全部拥有 child 完整，字段投影保留真实根。可通过地址更新已有 Copy 字段；不可通过该地址消费、替换或写入拥有 child/Managed 字段，新的可变 child 深投影仍待实现。
+
+普通局部、参数、Store 元素和捕获来源分别重建，不能互借分类结果授信。Analyze 与 Verify 各自核验完整性、实际来源及共享/独占冲突，父子重借、末用恢复及移动/替换/清理失效沿既有窗口规则。该准入不开放可变捕获、借入返回、长期登记或异步；schema/Wire、ABI 和默认预算保持。须有原源、最近反例、独立 raw/Wire 核验及 O0/O2 实际行为与清理结果后才能宣称本片实现。
+
 #### 8.1.3 普通 Product 完整拥有 Store 字段（235）
 
 普通完整Product允许直接拥有既有合法 `Store<T>` 字段，或含此类字段的完整child Product；T仍逐项满足既有StoreElement资格。Store在父中保留真实头、初始化前缀与唯一责任，按每层字段声明序清理，即使没有用户teardown也必须执行内建前缀及分配释放。有限递归by-value继续拒绝；同型两个字段或child不得合并实例、来源或清理义务。
