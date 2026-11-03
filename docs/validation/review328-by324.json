@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/impl313",
+  "implementation_author": "/root/recovery_audit",
+  "implementation_commit": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
+  "verdict": "Pass",
+  "scope": "328 finite Linux x86_64 pthread backend only; not a self-review of 324 or general thread/lifetime kernels",
+  "production_commits": [
+    "7a1b191e8a6689080a36302fa4a9f03f9e8d264b",
+    "45e406cd8d7c7b3f5008625db7c1675f0d10d323"
+  ],
+  "blocking_findings": [],
+  "source_review": [
+    "pthread_create is C i32(ptr,ptr,ptr,ptr); pthread_join is i32(i64,ptr); pthread_t has separate 8-byte aligned storage on x86_64-unknown-linux-gnu; other targets and incompatible existing declarations close generation.",
+    "Private helper context is {i32 argument,i32 result}, both initialized before create. Child only receives its stable pointer, reads argument, calls the verified static worker, writes its independent result field, then returns null.",
+    "Parent body uses the existing closure by-pointer/by-value ABI and real remaining-ownership drop. Create failure drops prepared body without calling it or loading/joining an uninitialized handle; result is false/0/0.",
+    "Success consumes/drops parent body, joins the actual created handle, then reads child result. Failed join calls abort followed by unreachable; context never returns while quiescence is unproved. POSIX create/join provide publication/completion HB; no invented source noalias or Transfer fact.",
+    "Private helper/start references remain co-located; static worker edge is included in CGU selection and layout cache input. Machine item hashing binds helper/worker code to object-cache identity; -pthread is emitted only when WithScopedThread is present in LIR."
+  ],
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test generic_regressions thread325 --offline -- --nocapture --test-threads=1",
+      "commit": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
+      "result": "3 passed, 15 filtered",
+      "evidence_level": "real ZIL source through native plus source/raw/Wire controls",
+      "native_executions": 20,
+      "observed": "Clang/API O0/O2 success, business error, create failure, join SIGABRT and parent borrowing; API O2 uses actual multiple CGUs, no fallback; Analyze 6871/6870/fresh and Verify 10587/10586/fresh"
+    },
+    {
+      "command": "cargo test -p zil-backend-llvm --features llvm-api --lib scoped_thread --offline -- --nocapture --test-threads=1",
+      "commit": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
+      "result": "3 passed, 138 filtered",
+      "evidence_level": "machine-model controls, not source acceptance",
+      "native_executions": 12,
+      "observed": "target/ABI conflict closure, CGU dependencies and real pthread model success/create failure/join abort"
+    },
+    {
+      "command": "python3 /tmp/review328-probes/run.py then /tmp/review328-probes/rest.py",
+      "commit": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
+      "evidence_level": "additional independent real ZIL source",
+      "native_executions": 11,
+      "observed": "negative i32 payload/results and payload-before-body borrowed-local mutation each passed all four Clang/API O0/O2 profiles (8); API O2 cache cold miss1/native0, warm hit1/native0 with Verify1/current preflight, worker-only change miss1/native3 as expected (3). Every build includes -pthread and actual backend/no fallback."
+    }
+  ],
+  "placement_limit": {
+    "initial_probe": "/tmp/review328-probes/nested_scope.zil",
+    "observed_at_original_commit": "Types SafeReject E-UNKNOWN-NAME unknown function thread_scope before backend",
+    "current_authority": "main-tree _zil_design.md section 11.1, clarified by 0afd64bd9: first slice only ordinary Direct functions without closure/callable-helper contract; future caller placements remain unsupported",
+    "front_end_migration": "e622402234b62958a156c93947d42eb59cf6f479, independently applied as 19cec359556aad7a306a087f64b2d1abe7c54525",
+    "backend_diff_from_original": "empty across crates/zil-backend-llvm/src",
+    "migration_check": "cargo test -p zil-driver --features llvm-api --test generic_regressions thread325 --offline -- --skip thread325_native_os_join_parent_cleanup_and_failure --nocapture --test-threads=1: 2 passed, 16 filtered; parent-closure/callable-wrapper are explicit Unsupported and raw future placements also Unsupported",
+    "disposition": "recorded finite-profile limitation, not claimed supported or treated as a blocking backend defect"
+  },
+  "environment": {
+    "target_dir": "/workspace/.zil-env/target-review328-by324",
+    "build_jobs": 1,
+    "core_dump_bytes": 0,
+    "independent_probe_limits": "20 CPU seconds, 2 GiB VM, build wall25s, native5s",
+    "host": "x86_64 Linux / LLVM23.1.4"
+  },
+  "logs": [
+    {
+      "path": "/tmp/review328-source.log",
+      "sha256": "d686296981fb9aedaf74b94ee543c7a7ae92cbba61ac9cc86b8da5d1e5ffb7bc",
+      "archived_in_git": false
+    },
+    {
+      "path": "/tmp/review328-model.log",
+      "sha256": "9993c17a1ccac639bd7c979ef4e1ecfdca681b35bf8242e3eee5f4ab70dcfa12",
+      "archived_in_git": false
+    },
+    {
+      "path": "/tmp/review328-probes.log",
+      "sha256": "daca74cfb2f277fe1becfa186a8f3d2b274375da951272beadfb1b19b51f3ad8",
+      "archived_in_git": false
+    },
+    {
+      "path": "/tmp/review328-rest.log",
+      "sha256": "053a2c81475631317ed6af261cd489a5db919708013c54cc529f325d2619f9ba",
+      "archived_in_git": false
+    },
+    {
+      "path": "/tmp/review328-placements.log",
+      "sha256": "2f7274919456c7bd39130f42949e42399ab0dc93ca3e5a1c4a6f640245bf8960",
+      "archived_in_git": false
+    }
+  ],
+  "limitations": [
+    "No full workspace run or Windows support claim.",
+    "Tests are bounded executions, not a proof of every scheduler interleaving or general Transfer/Share/async safety.",
+    "Root combination c1a61ccb3 adds the 324 copy_values fixture adapter; this review binds original 328 backend bytes, not an independent review of author-owned 324 changes."
+  ]
+}
