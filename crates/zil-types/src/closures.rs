@@ -22,6 +22,165 @@ pub(super) struct Capture {
     pub declared_kind: Option<CallableKind>,
     pub span: Span,
 }
+
+#[cfg(test)]
+mod reviewer332_thread_lease {
+    use super::*;
+
+    // Internal accounting fixtures only: they carry no source or CFG proof.
+    fn pending_state(result: Option<Type>, count: usize) -> State {
+        let limits = Limits::default();
+        let mut state = State::new(0, &limits);
+        for index in 0..count {
+            let mut graph = Graph::new(&limits);
+            let parameter = graph.fresh(I32, false);
+            let value = graph.fresh(VALUE, false);
+            if let Some(result) = &result {
+                graph.bind(value, result, Span::default()).unwrap();
+            }
+            state.pending.push(Pending {
+                id: ClosureId(index as u32),
+                function: FunctionId(index as u32),
+                parameters: vec![CoreClosureParameter {
+                    name: "value".into(),
+                    ty: Some(Type::I32),
+                    mode: PassingMode::Infer,
+                    span: Span::default(),
+                }],
+                body: CoreBlock {
+                    statements: vec![],
+                    span: Span::default(),
+                },
+                span: Span::default(),
+                captures: vec![],
+                owns_leaf_store: false,
+                defer_action: false,
+                inference: Inference {
+                    graph,
+                    parameters: vec![parameter],
+                    result: value,
+                },
+                typed: None,
+            });
+        }
+        state
+    }
+
+    fn exhausted<T>(result: R<T>) {
+        let error = result
+            .err()
+            .expect("a fresh private Graph quota bypassed shared exhaustion");
+        assert_eq!(error.phase, Phase::Types);
+        assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+    }
+
+    #[test]
+    fn two_pending_graphs_share_the_current_remainder_and_cannot_renew_it() {
+        let mut state = pending_state(Some(Type::I32), 2);
+        state.work_left = 2;
+        let before0 = state.pending[0].inference.graph.work_left.get();
+        let before1 = state.pending[1].inference.graph.work_left.get();
+        assert_eq!(state.thread_result(ClosureId(0)).unwrap(), Some(Type::I32));
+        assert_eq!(state.work_left, 1);
+        assert_eq!(
+            state.thread_parameter(ClosureId(1), 0).unwrap(),
+            Some(Type::I32)
+        );
+        assert_eq!(state.work_left, 0);
+        assert_eq!(
+            state.pending[0].inference.graph.work_left.get(),
+            before0 - 1
+        );
+        assert_eq!(
+            state.pending[1].inference.graph.work_left.get(),
+            before1 - 1
+        );
+        exhausted(state.thread_result(ClosureId(1)));
+        exhausted(state.thread_parameter(ClosureId(0), 0));
+        assert_eq!(state.work_left, 0);
+        assert_eq!(
+            state.pending[0].inference.graph.work_left.get(),
+            before0 - 1
+        );
+        assert_eq!(
+            state.pending[1].inference.graph.work_left.get(),
+            before1 - 1
+        );
+        let mut limited = pending_state(Some(Type::I32), 1);
+        limited.pending[0].inference.graph.work_left.set(1);
+        limited.work_left = 1000;
+        limited.thread_result(ClosureId(0)).unwrap();
+        assert_eq!(limited.work_left, 999);
+        exhausted(limited.thread_result(ClosureId(0)));
+        assert_eq!(limited.work_left, 999);
+        assert_eq!(limited.pending[0].inference.graph.work_left.get(), 0);
+    }
+
+    #[test]
+    fn actual_pending_signature_clone_receipt_has_exact_n_and_failed_n_minus_one() {
+        let ty = Type::Tuple(vec![Type::I32, Type::I32]);
+        let mut ample = pending_state(Some(ty.clone()), 1);
+        let before_shared = ample.work_left;
+        let before_graph = ample.pending[0].inference.graph.work_left.get();
+        assert_eq!(ample.thread_result(ClosureId(0)).unwrap(), Some(ty.clone()));
+        let work = before_graph - ample.pending[0].inference.graph.work_left.get();
+        assert!(work > 1);
+        assert_eq!(before_shared - ample.work_left, work);
+        for amount in [work, work - 1, work] {
+            let mut current = pending_state(Some(ty.clone()), 1);
+            current.work_left = amount;
+            let before = current.pending[0].inference.graph.work_left.get();
+            let result = current.thread_result(ClosureId(0));
+            if amount == work {
+                assert_eq!(result.unwrap(), Some(ty.clone()));
+                assert_eq!(current.work_left, 0);
+            } else {
+                exhausted(result);
+            }
+            assert_eq!(
+                amount - current.work_left,
+                before - current.pending[0].inference.graph.work_left.get()
+            );
+            assert!(current.work_left <= amount);
+        }
+    }
+
+    #[test]
+    fn mutable_pending_expectation_debits_the_same_graph_work_once_even_on_failure() {
+        let mut ample = pending_state(None, 1);
+        let shared = ample.work_left;
+        let graph = ample.pending[0].inference.graph.work_left.get();
+        ample
+            .thread_expect_result(ClosureId(0), &Type::I32, Span::default())
+            .unwrap();
+        let work = graph - ample.pending[0].inference.graph.work_left.get();
+        assert!(work > 0);
+        assert_eq!(shared - ample.work_left, work);
+        for amount in [work, work - 1, work] {
+            let mut current = pending_state(None, 1);
+            current.work_left = amount;
+            let graph = current.pending[0].inference.graph.work_left.get();
+            let result = current.thread_expect_result(ClosureId(0), &Type::I32, Span::default());
+            if amount == work {
+                result.unwrap();
+                assert_eq!(current.work_left, 0);
+            } else {
+                exhausted(result);
+            }
+            assert_eq!(
+                amount - current.work_left,
+                graph - current.pending[0].inference.graph.work_left.get()
+            );
+            assert!(current.work_left <= amount);
+        }
+        let mut zero = pending_state(None, 1);
+        zero.work_left = 0;
+        let before = zero.pending[0].inference.graph.work_left.get();
+        exhausted(zero.thread_expect_result(ClosureId(0), &Type::I32, Span::default()));
+        assert_eq!(zero.work_left, 0);
+        assert_eq!(zero.pending[0].inference.graph.work_left.get(), before);
+    }
+}
 impl Capture {
     pub fn stored_type(&self) -> Type {
         if let Type::Managed(payload) = &self.ty {
