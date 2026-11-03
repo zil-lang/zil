@@ -148,16 +148,31 @@ fn review318_copy_record_binders_and_nested_unused_obligations() {
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         eprintln!("review318 Copy-bound control: {}", report.to_json());
-        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
     }
     for text in [
         "struct Tag<T:Copy>{n:i32} struct Outer<V>{value:Tag<(i32,Tag<V>)>} fn result()->i32{return 0}",
         "struct Tag<T:Copy>{n:i32} struct Pair<T:Copy,U>{value:T} struct Outer<V>{value:Pair<Tag<V>,bool>} fn result()->i32{return 0}",
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
-        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
         assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
-        assert!(report.diagnostics.iter().any(|d| d.code == "E-GENERIC-ARGUMENT"));
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-GENERIC-ARGUMENT")
+        );
     }
 }
 

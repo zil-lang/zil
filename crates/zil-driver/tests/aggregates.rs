@@ -148,23 +148,49 @@ fn review318_tuple_defer_capture_and_scoped_initialization() {
         Some(67),
     );
     for (text, code) in [
-        ("fn result()->i32{if true{let(a,b)=(1,2)}return a}", "E-UNKNOWN-NAME"),
-        ("fn result()->i32{let f=()=>{let(a,b)=(missing,1);return a+b};return f()}", "E-UNKNOWN-NAME"),
-        ("fn result()->i32{var(a,b)=(1,2);defer{let(x,y)=(a,b);return x+y}return 0}", "E-DEFER-CONTROL"),
+        (
+            "fn result()->i32{if true{let(a,b)=(1,2)}return a}",
+            "E-UNKNOWN-NAME",
+        ),
+        (
+            "fn result()->i32{let f=()=>{let(a,b)=(missing,1);return a+b};return f()}",
+            "E-UNKNOWN-NAME",
+        ),
+        (
+            "fn result()->i32{var(a,b)=(1,2);defer{let(x,y)=(a,b);return x+y}return 0}",
+            "E-DEFER-CONTROL",
+        ),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
-        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
-        assert!(report.diagnostics.iter().any(|d| d.code == code), "{}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{}",
+            report.to_json()
+        );
         assert!(!report.artifacts.contains_key("executable"));
         eprintln!("review318/walker rejection: {}", report.to_json());
     }
 }
 #[test]
 fn review318_original_generic_gap_and_mixed_copy_record_obligations() {
-    native(include_str!("../../../tests/language-readiness/recovery/review318-generic-tuple-gap.zil"), Some(42));
+    native(
+        include_str!("../../../tests/language-readiness/recovery/review318-generic-tuple-gap.zil"),
+        Some(42),
+    );
     let valid = "struct Pair<T:Copy,U>{first:T;second:U}fn hidden<T:Copy,U:Copy>(p:Pair<T,U>)->Pair<T,U>{let(x,_)=(p,());return x}fn result()->i32{return 0}";
     let report = compile_source(&source(valid), &CompileOptions::default());
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     assert_eq!(report.verification_runs, 1);
     for text in [
         "struct T{n:i32}fn hidden<T>(value:T){let(_,_)=(value,());}fn result()->i32{return 0}",
@@ -172,9 +198,19 @@ fn review318_original_generic_gap_and_mixed_copy_record_obligations() {
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         eprintln!("review318/symbolic obligation: {}", report.to_json());
-        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
         assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
-        assert!(report.diagnostics.iter().any(|d| d.code == "E-GENERIC-ARGUMENT"));
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-GENERIC-ARGUMENT")
+        );
         assert!(!report.artifacts.contains_key("executable"));
     }
 }

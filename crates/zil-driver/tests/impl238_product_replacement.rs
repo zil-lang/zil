@@ -38,42 +38,115 @@ fn review318_nested_missing_child_and_same_root_raw_attacks() {
     let source = "resource Mark{n:i32}package Child{manages mark:Mark;count:i32}package Root{child:Child;count:i32}fn bump(p:&mut Root){p.count+=1}fn main()->i32{var root=Root{child:Child{mark:Mark{n:3},count:0},count:0};bump(&mut root);let removed=root.child;return 0}";
     let mut nested = typed(source);
     let plan = zil_analyze::analyze(&nested, &Limits::default()).unwrap();
-    zil_verify::verify_module(nested.clone(), plan.clone(), &nested.target, &Limits::default()).unwrap();
-    let f = nested.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    zil_verify::verify_module(
+        nested.clone(),
+        plan.clone(),
+        &nested.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let f = nested
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
     let root = f.locals.iter().find(|l| l.name == "root").unwrap().id;
-    let b = f.blocks.iter_mut().find(|b| b.instructions.iter().any(|i| matches!(i.kind, I::BorrowLocalMut { local } if local == root))).unwrap();
-    let at = b.instructions.iter().position(|i| matches!(i.kind, I::TakePackageField { local, .. } if local == root)).unwrap();
+    let b = f
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::BorrowLocalMut { local } if local == root))
+        })
+        .unwrap();
+    let at = b
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::TakePackageField { local, .. } if local == root))
+        .unwrap();
     let moved = b.instructions.remove(at);
-    let before = b.instructions.iter().position(|i| matches!(i.kind, I::BorrowLocalMut { local } if local == root)).unwrap();
+    let before = b
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::BorrowLocalMut { local } if local == root))
+        .unwrap();
     b.instructions.insert(before, moved);
     let e = zil_analyze::analyze(&nested, &Limits::default()).expect_err("nested child omission");
     eprintln!("review318/nested/analyze: {e:?}");
-    assert!(e.iter().all(|e| e.category != ResultCategory::ResourceLimit));
-    raw_reject315("review318-nested-missing-child", nested, plan, "E-VERIFY-RESOURCE");
+    assert!(
+        e.iter()
+            .all(|e| e.category != ResultCategory::ResourceLimit)
+    );
+    raw_reject315(
+        "review318-nested-missing-child",
+        nested,
+        plan,
+        "E-VERIFY-RESOURCE",
+    );
 
-    let source = product315("var other=Panel{mark:Mark{n:9},count:0};both(&mut panel,&mut other);return panel.count+other.count-3", "fn both(a:&mut Panel,b:&mut Panel){a.count+=1;b.count+=2}");
+    let source = product315(
+        "var other=Panel{mark:Mark{n:9},count:0};both(&mut panel,&mut other);return panel.count+other.count-3",
+        "fn both(a:&mut Panel,b:&mut Panel){a.count+=1;b.count+=2}",
+    );
     let mut aliases = typed(&source);
     let mut plan = zil_analyze::analyze(&aliases, &Limits::default()).unwrap();
-    zil_verify::verify_module(aliases.clone(), plan.clone(), &aliases.target, &Limits::default()).unwrap();
-    let f = aliases.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    zil_verify::verify_module(
+        aliases.clone(),
+        plan.clone(),
+        &aliases.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let f = aliases
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
     let panel = f.locals.iter().find(|l| l.name == "panel").unwrap().id;
     let other = f.locals.iter().find(|l| l.name == "other").unwrap().id;
     for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
-        if let I::BorrowLocalMut { local } = &mut i.kind { if *local == other { *local = panel; } }
+        if let I::BorrowLocalMut { local } = &mut i.kind {
+            if *local == other {
+                *local = panel;
+            }
+        }
     }
-    let fp = plan.functions.iter_mut().find(|p| p.function == f.id).unwrap();
-    for hold in &mut fp.holds { for root in &mut hold.roots { if *root == HoldRoot::Local(other) { *root = HoldRoot::Local(panel); } } }
+    let fp = plan
+        .functions
+        .iter_mut()
+        .find(|p| p.function == f.id)
+        .unwrap();
+    for hold in &mut fp.holds {
+        for root in &mut hold.roots {
+            if *root == HoldRoot::Local(other) {
+                *root = HoldRoot::Local(panel);
+            }
+        }
+    }
     let result = zil_analyze::analyze(&aliases, &Limits::default());
-    eprintln!("review318/same-root/analyze candidate accepted: {}", result.is_ok());
+    eprintln!(
+        "review318/same-root/analyze candidate accepted: {}",
+        result.is_ok()
+    );
     plan.module_fingerprint = aliases.fingerprint();
     let wire = zil_ir::wire::encode_module_candidate(&aliases, &plan, &Limits::default()).unwrap();
     for (route, result) in [
-        ("raw", zil_verify::verify_module(aliases.clone(), plan, &aliases.target, &Limits::default())),
-        ("wire", zil_verify::verify_module_bytes(&wire, &aliases.target, &Limits::default())),
+        (
+            "raw",
+            zil_verify::verify_module(aliases.clone(), plan, &aliases.target, &Limits::default()),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&wire, &aliases.target, &Limits::default()),
+        ),
     ] {
         let e = result.expect_err("same-root forgery");
         eprintln!("review318/same-root/{route}: {e:?}");
-        assert!(e.iter().all(|e| e.category != ResultCategory::ResourceLimit && !e.message.contains("fingerprint")));
+        assert!(
+            e.iter().all(|e| e.category != ResultCategory::ResourceLimit
+                && !e.message.contains("fingerprint"))
+        );
         assert!(e.iter().any(|e| e.code == "E-BORROW-CONFLICT"));
     }
 }
