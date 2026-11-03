@@ -1492,6 +1492,7 @@ fn product_may_store_write(
                         }
                         InstructionKind::CallClosure { callee, .. }
                         | InstructionKind::CallClosureOnce { callee, .. }
+                        | InstructionKind::WithScopedThread { body: callee, .. }
                         | InstructionKind::CallClosureBorrowed { callee, .. } => {
                             Some(&function.values[callee.0 as usize])
                         }
@@ -2007,6 +2008,7 @@ fn parameter_product_windows(
                     }
                     InstructionKind::CallClosure { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
+                    | InstructionKind::WithScopedThread { body: callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. } => {
                         Some(&f.values[callee.0 as usize])
                     }

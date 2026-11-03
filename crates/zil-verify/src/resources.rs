@@ -1665,9 +1665,14 @@ impl Transfer<'_> {
                         fresh_result = Some(INPUT);
                     }
                 }
-                InstructionKind::WithForeignCallback { callback, body, .. } => {
+                InstructionKind::WithForeignCallback { .. } | InstructionKind::WithScopedThread { .. } => {
                     // Even registration failure consumes and cleans the prepared body.
-                    for callee in [callback, body] {
+                    let (callbacks, body) = match &instruction.kind {
+                        InstructionKind::WithForeignCallback { callback, body, .. } => ([Some(callback), Some(body)], body),
+                        InstructionKind::WithScopedThread { body, .. } => ([None, Some(body)], body),
+                        _ => unreachable!(),
+                    };
+                    for callee in callbacks.into_iter().flatten() {
                         if let Some(row) = slots.desc_value[callee.0 as usize] {
                             let ty = &f.values[callee.0 as usize];
                             let entry = effect_closure_target(self.module, ty, span)?;
@@ -2109,6 +2114,7 @@ fn effect_dependents(
                     }
                     InstructionKind::CallClosureBorrowed { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
+                    | InstructionKind::WithScopedThread { body: callee, .. }
                     | InstructionKind::CallClosure { callee, .. } => {
                         let ty = function.values.get(callee.0 as usize).ok_or_else(|| {
                             bad(instruction.span, "resource effect closure value is absent")
