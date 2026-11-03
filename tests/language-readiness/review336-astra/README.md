@@ -41,7 +41,47 @@ tests are prepared but were filtered out on the 337-only candidate. A raw return
 type mismatch deliberately records Analyze candidate success followed by Verify
 rejection; Analyze is not claimed to duplicate complete raw instruction typing.
 
-The 337 review conclusion is in `docs/validation/review337-astra.json`. No 339
-candidate result, full-workspace result, independent budget-boundary execution or
-Rust product comparison is claimed here. Original sources and compact receipts
-are retained; temporary machine artifacts were hashed and removed.
+The 337 review conclusion is in `docs/validation/review337-astra.json`. That
+receipt's tested harness remains unchanged at review commit `55c40de63` and in
+the current `raw.rs`; later 339 attacks are in a separate `raw339.rs` that reuses
+the two prepared tests once.
+
+339 is independently reviewed at final commit
+`7423b4946e3787aa2a60764b473cde8307919bb7`. Production and tests are identical to
+executed `4d7c8b020c595f745a25c060bac7242532548e63`; only three result documents
+differ. The original 582312 candidate's failure receipts remain unchanged:
+`boundary339-initial.json` records ordinary parent `identity(&x)` rejected by an
+overly narrow producer walk, and `helper-return339-initial.json` records a lost
+Analyze exclusive root after a mutable-return helper. Verify rejected the latter
+unsafe source throughout; it was never executed natively. Completed independent
+Verify facts and complete plain mutable-address origin propagation close those
+findings on the original source bytes.
+
+`candidate339.json` contains 20 source cases: ten Success, seven safety rejects,
+one worker-profile reject, and two explicit Unsupported origin cases. The
+additional Analyze-only command rechecks the original helper-return conflict;
+it is not another source count. Earlier nonowning Store-capture probes stop at
+existing Unsupported boundaries and are not counted as safety proof. A supported
+`give Store` helper instead rejects actual owner transfer while its shared
+pointer remains required by the same invocation. Safe helper/capture retention
+cases establish the corresponding accepted preconditions.
+
+`raw339.json` records three source-derived raw/Wire attacks and one exact budget
+test. Actual new-source boundaries are Types 557, Analyze 6544 and Verify 20261;
+N-1 returns ResourceLimit and fresh N succeeds. All linked rlib hashes remained
+unchanged across the standalone build/run. Three older 337 tests were filtered.
+
+`native339.json` separates the existing author's pthread observer replay
+(four builds, sixteen executions) from three independently authored source
+consumers (twelve builds/executions). Both backends and O0/O2 pass; API O2's
+observer build uses two actual CGUs. The observer verifies real child-thread and
+pointer identity, delays child reads until parent body cleanup, and exercises
+normal/business/create-failure/join-abort outcomes. It does not implement the ZIL
+worker or grant transfer authority. Exact commands, source and artifact hashes,
+backend reports and process observations are retained compactly.
+
+The 339 conclusion is in `docs/validation/review339-astra.json`. Complementary
+resource-lender/caller precondition review `b9177c458` is referenced separately;
+its counts are not added here. No full-workspace result or Rust product
+comparison is claimed. Original sources and compact receipts are retained;
+temporary machine artifacts were hashed and removed.
