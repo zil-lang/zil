@@ -52,3 +52,57 @@ Expand91/Types95/Analyze702/Verify985，各核 N−1 ResourceLimit 与 fresh N�
 授权继续迁移测试定位并保留 hit/tamper/invalidation 与旧 v2 不复用控制。
 接口身份探针首轮把待比较函数写为 private，比较到了空 exports，出现 17/18；
 修正为 pub 后 18/18，不改变生产检查或上界。
+
+## 最终作者限定交付（schema/Wire33）
+
+生产/测试冻结提交为 `e86e79a0a0730e7533ceae2dcee6e4d11c59ce68`；前置
+checkpoint 为 `f71f8049b`、`8acbada61`，公共字段由 root 的 `8e46a4615`
+提供。本节仅记录已执行范围，不把 root 的 schema34/thread 组合当作本次受测。
+
+```text
+source /workspace/.zil-env/env.sh
+export CARGO_TARGET_DIR=/workspace/.zil-env/target322 CARGO_BUILD_JOBS=1
+cargo test -p zil-driver --features llvm-api --test cross_function_borrows --test semantic_cache --offline -- --nocapture
+cargo clippy -p zil-driver --features llvm-api --test cross_function_borrows --test semantic_cache --offline -- -D warnings
+git diff --check
+```
+
+```json
+{
+  "cross_function_borrows": {"passed": 18, "failed": 0, "new322_tests": 7},
+  "semantic_cache": {"passed": 8, "failed": 0, "retained_tests": 7, "new_version_boundary_test": 1},
+  "new322_native": {"backend": "Clang", "optimizations": ["O0", "O2"], "executions": 12},
+  "new322_source_rejections": 13,
+  "new322_core_metadata_rejections": 5,
+  "new322_typed_attacks": {"cases": 6, "analyze_rejects": 6, "verify_raw_and_wire_rejects": 12},
+  "life_ct_and_warm_hit": "Pass; one fresh Verify per warm request",
+  "interface_identity": "declared upper bound changes signature; actual source changes verified contract",
+  "original_phase_N": {"expand": 99, "types": 95, "analyze": 714, "verify": 993},
+  "each_phase_N_minus_one": "ResourceLimit",
+  "each_phase_fresh_N": "Success",
+  "targeted_clippy_D_warnings": "Pass",
+  "diff_check": "Pass",
+  "formal_full_suite": "NotRun by author",
+  "schema34_combination": "NotRun by author",
+  "native_windows": "NotRun",
+  "rust_product_comparison": "NotRun"
+}
+```
+
+补齐实际重复 shared Copy/slice 资格遍历与源 binder/header 查找的预费后，原源
+N 从 checkpoint 的 91/95/702/985 变为 99/95/714/993；Types 增费未改变其主导
+边界。默认限额不改，没有以保留旧数跳过工作。无 life 的正文推导、选择返回、
+递归、实际最后使用和旧悬垂/冲突反例均随原目标完整复验。
+
+缓存旧 0/7 已核实为两处测试定位仍指 semantic-v2；仅迁为生产 semantic-v3，
+原命中、篡改、失效、权限、取消和发布断言全部保留。新增控制将有效 current
+候选放到旧 v2 目录，要求当前路径重新从源编译且旧文件不改；又将 current 目录
+中的 semantic 载荷头改为 ZILSEM02 并重算外层完整性摘要，要求旧格式不能命中。
+它不是伪称归档的 v2 完整载荷。首个控制版本误把外层 ZILRAW02 头当 semantic
+头导致 7/8；修正为载荷位置后 8/8，不改生产拒绝。
+
+Rust 四目标：显式 life 现在有可执行来源合同，减少普通库表达缺口；内存安全
+依旧取决于真实来源与独立 Verify，未引入运行时 life 表或新分配。运行/内存、
+维护工作量及编译成本未作 Rust 配对，N 边界不是速度优势，产品级突破仍未建立。
+混合 T/F、可变 life、HRTB/间接调用、借入存储及一般 life/Self/trait 组合继续
+未完成；完整语言、B0、ZUI 和产品门不由本片升级。
