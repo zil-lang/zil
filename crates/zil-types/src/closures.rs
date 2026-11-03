@@ -1922,6 +1922,33 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         for statement in &block.statements {
             self.visit(depth + 1, statement.span)?;
             match &statement.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    ty,
+                    initializer,
+                    ..
+                } => {
+                    let variable = self.expr_expected(initializer, ty.as_ref(), depth + 1)?;
+                    if let Some(ty) = ty {
+                        variable.bind(&mut self.graph, ty, statement.span)?;
+                    }
+                    let value = variable.scalar(statement.span)?;
+                    for (name, variable, span) in self.graph.pattern_bind(pattern, value)? {
+                        if self
+                            .scopes
+                            .last_mut()
+                            .expect("scope")
+                            .insert(name.clone(), LocalType::Scalar(variable))
+                            .is_some()
+                        {
+                            return Err(error(
+                                "E-NAME-DUPLICATE",
+                                span,
+                                format!("duplicate local {name}"),
+                            ));
+                        }
+                    }
+                }
                 CoreStatementKind::Binding {
                     name,
                     ty,

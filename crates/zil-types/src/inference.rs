@@ -847,6 +847,18 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
     for statement in &block.statements {
         budget.node(depth + 1, statement.span)?;
         match &statement.kind {
+            CoreStatementKind::TupleBinding {
+                pattern,
+                ty,
+                initializer,
+                ..
+            } => {
+                validate_pattern(pattern, depth + 1, budget)?;
+                if let Some(ty) = ty {
+                    validate_type(ty, depth + 1, statement.span, budget)?;
+                }
+                found |= expression_has_closure(initializer, depth + 1, budget)?;
+            }
             CoreStatementKind::Binding {
                 name,
                 ty,
@@ -2446,6 +2458,23 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let index = self.statement_index;
             self.statement_index += 1;
             match &statement.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    mutable,
+                    ty,
+                    initializer,
+                } => {
+                    let value = self.expr_expected(initializer, ty.as_ref(), depth + 1, false)?;
+                    let value = self.value_term(value, statement.span)?;
+                    if let Some(ty) = ty {
+                        self.bind_term(&value, ty, statement.span)?;
+                    }
+                    let variable = self.scalar(&value, statement.span)?;
+                    self.binding_types.insert(index, value.clone());
+                    for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
+                        self.insert(&name, Term::Scalar(variable), *mutable, span)?;
+                    }
+                }
                 CoreStatementKind::Binding {
                     name,
                     mutable,
@@ -4092,6 +4121,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let index = *statement;
             *statement += 1;
             match &mut item.kind {
+                CoreStatementKind::TupleBinding {
+                    ty, initializer, ..
+                } => {
+                    self.normalize_expr(initializer, expression, statement)?;
+                    if let Some(Term::Scalar(variable)) = self.binding_types.get(&index) {
+                        *ty = Some(self.resolved(*variable, item.span)?);
+                    }
+                }
                 CoreStatementKind::Binding {
                     ty, initializer, ..
                 } => {

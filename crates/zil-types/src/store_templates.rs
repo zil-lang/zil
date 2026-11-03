@@ -809,6 +809,14 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
         for statement in &mut block.statements {
             self.node(depth + 1)?;
             match &mut statement.kind {
+                CoreStatementKind::TupleBinding {
+                    ty, initializer, ..
+                } => {
+                    if let Some(ty) = ty {
+                        self.ty(ty, depth + 2)?;
+                    }
+                    self.expr(initializer, depth + 2)?;
+                }
                 CoreStatementKind::Binding {
                     ty, initializer, ..
                 } => {

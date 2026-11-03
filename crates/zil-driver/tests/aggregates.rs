@@ -30,12 +30,15 @@ fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "aggregate.zil", text)
 }
 fn native(text: &str, expected: Option<i64>) -> String {
+    native_entry(text, "result", expected)
+}
+fn native_entry(text: &str, entry: &str, expected: Option<i64>) -> String {
     let out = Temp::new();
     let report = compile_source(
         &source(text),
         &CompileOptions {
             stop_after: Stage::Build,
-            entry: Some("result".into()),
+            entry: Some(entry.into()),
             output: Some(out.0.join("plain")),
             ..CompileOptions::default()
         },
@@ -118,6 +121,152 @@ fn empty_unit_bool_tuples_and_nested_arrays() {
         "struct Empty {} struct Bits { unit: (); flag: bool; } fn id(x: Empty) -> Empty { return x; } fn result() -> i32 { let e = id(Empty {}); let z: [i64; 0] = []; var t = (Bits { unit: (), flag: true }, [3, 7]); t.1[0] = 5; t.0.unit = (); if t.0.flag { return t.1[0] * 10 + t.1[1] }; return 0; }",
         Some(57),
     );
+}
+#[test]
+fn tuple_binding_original_readiness_source() {
+    native_entry(
+        include_str!("../../../tests/language-readiness/pending/runtime-tuple-binding.zil"),
+        "main",
+        Some(0),
+    );
+}
+#[test]
+fn tuple_binding_nested_mutable_typed_discard_and_single_evaluation() {
+    let llvm = native(
+        "fn pair(count: &mut i32) -> (i32,(i32,i32)) { *count += 1; return (*count,(*count+1,*count+2)); } fn result()->i32 { var count=0; let (a,(b,_)):(i32,(i32,i32))=pair(&mut count); var (c,(d,e))=(a,(b,7)); c+=10; d+=20; e+=30; let ()=(); let (_,)= (9,); return count*1000+a*100+b*10+c+d+e; }",
+        Some(1190),
+    );
+    assert!(llvm.contains("extractvalue"));
+    assert!(!llvm.contains("malloc"));
+}
+#[test]
+fn tuple_binding_shadow_closure_and_copy_fields() {
+    native(
+        "struct P { x:i32; } fn result()->i32 { let x=5; if true { let (x,y)=(x+1,2); let f=()=>{ let (a,b)=(x,y); return a+b; }; var (p,a,flag,u)=(P{x:f()},[3,4],true,()); p.x+=1; a[1]=7; if flag { return p.x*100+a[0]*10+a[1]; } }; return 0; }",
+        Some(937),
+    );
+}
+#[test]
+fn tuple_binding_shape_and_permission_neighbors() {
+    for (text, code) in [
+        (
+            "fn result()->i32 { let (a,)=(1,2); return a; }",
+            "E-MATCH-ARITY",
+        ),
+        (
+            "fn result()->i32 { let (a,b,c)=(1,2); return a; }",
+            "E-MATCH-ARITY",
+        ),
+        (
+            "fn result()->i32 { let (a,(b,))=(1,(2,3)); return a; }",
+            "E-MATCH-ARITY",
+        ),
+        (
+            "fn result()->i32 { let (a,b)=1; return a; }",
+            "E-MATCH-TYPE",
+        ),
+        (
+            "fn result()->i32 { let ()=(1,2); return 0; }",
+            "E-MATCH-ARITY",
+        ),
+        (
+            "fn result()->i32 { let (a,a)=(1,2); return a; }",
+            "E-MATCH-BINDING",
+        ),
+        (
+            "fn result()->i32 { let (a,b):(i32,bool)=(1,2); return a; }",
+            "E-TYPE-MISMATCH",
+        ),
+        (
+            "fn result()->i32 { let (a,b)=(1,2); a=3; return a; }",
+            "E-IMMUTABLE-ASSIGNMENT",
+        ),
+        (
+            "fn result()->i32 { let (self,b)=(1,2); return b; }",
+            "E-RECEIVER-RESERVED-NAME",
+        ),
+    ] {
+        reject(text, code);
+    }
+    for text in [
+        "fn result()->i32 { let (ref a,b)=(1,2); return b; }",
+        "fn result()->i32 { let (ref mut a,b)=(1,2); return b; }",
+        "fn result()->i32 { let (1,b)=(1,2); return b; }",
+        "fn result()->i32 { var a=1; let (_,_) = (&mut a,2); return a; }",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+#[test]
+fn tuple_binding_existing_ir_wire_and_independent_projection_check() {
+    let src = source("fn result()->i32 { let (a,(b,_))=(1,(2,3)); return a+b; }");
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            .unwrap()
+            .module(),
+        &typed
+    );
+    let mut damaged = typed.clone();
+    let field = damaged.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|i| matches!(i.kind, InstructionKind::ExtractField { .. }))
+        .unwrap();
+    if let InstructionKind::ExtractField { index, .. } = &mut field.kind {
+        *index = 99;
+    }
+    let mut claims = plan;
+    claims.module_fingerprint = damaged.fingerprint();
+    let error = zil_verify::verify_module(damaged, claims, &target, &limits).unwrap_err();
+    assert_eq!(error[0].phase, Phase::Verify);
+    assert!(error[0].code.starts_with("E-VERIFY-"));
+}
+#[test]
+fn tuple_binding_pattern_work_has_exact_fresh_limit() {
+    let src = source("fn result()->i32 { let (a,(b,_))=(1,(2,3)); return a+b; }");
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = TargetProfile::default();
+    let succeeds = |steps| {
+        zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            },
+        )
+    };
+    let (mut lo, mut hi) = (1, Limits::default().max_analysis_steps);
+    assert!(succeeds(hi).is_ok());
+    while lo < hi {
+        let middle = lo + (hi - lo) / 2;
+        if succeeds(middle).is_ok() {
+            hi = middle;
+        } else {
+            lo = middle + 1;
+        }
+    }
+    let failed = succeeds(lo - 1).unwrap_err();
+    assert_eq!(failed[0].category, ResultCategory::ResourceLimit);
+    assert!(succeeds(lo).is_ok());
+    assert!(succeeds(lo).is_ok());
+    eprintln!("tuple binding Types exact analysis limit: {lo}");
 }
 #[test]
 fn record_defaults_context_and_inferred_updates() {
