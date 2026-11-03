@@ -237,17 +237,36 @@ fn generic_injection_295_context_identity_and_unused_controls() {
             report.to_json()
         );
     }
+}
+
+#[test]
+fn generic_injection_295_ambiguous_and_wrong_nominal_controls_reject() {
     let negatives = [
         "enum Fault{Bad} fn run<F:Fn()->i32>(f:F)->i32{let x:Fault!Fault=Fault.Bad;return 0}fn main(){}",
         "enum Fault{Bad} enum Other{Bad} fn run<F:Fn()->i32>(f:F)->i32{let x:Fault!i32=Other.Bad;return 0}fn main(){}",
         "enum Box<T>{None,Some(T)} fn sink(v:Box<i32>!Box<i64>)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{return sink(Box.None)} fn main(){}",
         "enum Box<T>{None,Some(T)} fn sink(v:Box<u8>!Box<i64>)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{return sink(Box.Some(7))} fn main(){}",
+        "enum Box<T>{None,Some(T)} fn require<T>(x:T)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{return require(Box.None)} fn main(){}",
     ];
     for text in negatives {
         let report = compile_source(&source(text), &CompileOptions::default());
-        assert_ne!(
+        assert_eq!(
             report.status,
-            ResultCategory::Success,
+            ResultCategory::SafeReject,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            zil_base::Phase::Expand,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .all(|d| d.code == "E-GENERIC-ARGUMENT"),
             "{text}: {}",
             report.to_json()
         );
