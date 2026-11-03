@@ -570,6 +570,75 @@ fn recovery317_component_native_success_error_and_null_cleanup() {
 }
 
 #[cfg(target_os = "linux")]
+const THREAD325_RETURN_FACTORY: &str = "fn worker(n:i32)->i32{return n+1}fn make()->impl Fn()->i32{let result=thread_scope(worker,7,()->i32=>1);let x=result.1;return move()->i32=>x}fn main()->i32{let f=make();return f()-8}";
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread325_review_direct_factory_scalar_graph_and_once_body() {
+    let report = compile_source(
+        &source(THREAD325_RETURN_FACTORY),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let src = source(THREAD325_RETURN_FACTORY);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let factory = typed.functions.iter().find(|f| f.name == "make").unwrap();
+    assert!(factory.environment.is_none());
+    assert!(factory.callable_contract.is_none());
+    assert!(factory.callable_return_contract.is_some());
+
+    for (name, text, code) in [
+        (
+            "unreachable_address",
+            "fn worker(n:i32)->i32{if false{let p=&n;return *p}return n+1}fn main()->i32{let r=thread_scope(worker,7,()->i32=>1);return r.1-8}",
+            "E-THREAD-WORKER",
+        ),
+        (
+            "once_reuse",
+            "resource Mark{n:i32}impl Drop for Mark{fn drop(self:Self){}}fn worker(n:i32)->i32{return n+1}fn main()->i32{let a=Mark{n:7};let body=move()->i32=>a.n;let first=thread_scope(worker,7,body);let second=thread_scope(worker,9,body);return first.1+second.1}",
+            "E-UNINITIALIZED",
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            zil_base::Phase::Analyze,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == code && d.phase == zil_base::Phase::Analyze && d.span.is_some()),
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[cfg(target_os = "linux")]
 fn thread325_root() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/mainline/concurrency325")
@@ -1009,11 +1078,14 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                 assert_eq!(actual.stdout, stdout.as_bytes(), "{actual:?}");
                 assert!(actual.stderr.is_empty(), "{actual:?}");
             }
-            // Parent borrowing and explicit life/trait composition reach both machines.
-            for control in ["parent_borrow", "life_trait"] {
-                let text =
+            // Parent borrowing, life/trait composition, and a Direct factory reach both machines.
+            for control in ["parent_borrow", "life_trait", "return_factory"] {
+                let text = if control == "return_factory" {
+                    THREAD325_RETURN_FACTORY.to_owned()
+                } else {
                     fs::read_to_string(thread325_root().join(format!("controls/{control}.zil")))
-                        .unwrap();
+                        .unwrap()
+                };
                 let report = compile_source(
                     &source(&text),
                     &CompileOptions {
