@@ -65,12 +65,8 @@ pub(super) fn compile(
                 inference::type_snapshot_work(&parameter.ty, parameter.span, limits)?,
                 parameter.span,
             )?;
-            if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee())
-            {
-                return Err(invalid(
-                    f,
-                    "life parameter must be a Copy or slice address",
-                ));
+            if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee()) {
+                return Err(invalid(f, "life parameter must be a Copy or slice address"));
             }
         }
     }

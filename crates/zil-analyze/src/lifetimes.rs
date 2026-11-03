@@ -38,8 +38,13 @@ pub(super) fn headers(module: &TypedModule, budget: &mut Budget) -> CompileResul
             if let Some(actual) = actual {
                 budget.type_work(&actual.ty, true, "life input address qualification")?;
             }
-            if !actual.is_some_and(|l|matches!(&l.ty,Type::Address{inner,..} if inner.is_address_pointee())) {
-                return Err(error(f,"life return bound names a missing or non-address parameter"));
+            if !actual.is_some_and(
+                |l| matches!(&l.ty,Type::Address{inner,..} if inner.is_address_pointee()),
+            ) {
+                return Err(error(
+                    f,
+                    "life return bound names a missing or non-address parameter",
+                ));
             }
         }
     }

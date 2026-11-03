@@ -24,7 +24,7 @@ pub struct CoreProgram {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScalarFunction {
-    /// Declared shared-return upper bound, included in signature identity.
+    /// Declared address-return upper bound, included in signature identity.
     /// Verified actual result origins are published separately.
     pub reference_return_bound: Option<Vec<u32>>,
     pub name: String,

@@ -558,8 +558,15 @@ fn explicit_life_definitions_reject_wrong_binders_and_unsupported_positions() {
             "E-LIFE-RETURN",
         );
     }
-    for text in [
+    // 337 admits the mutable life header. Returning its mutable value directly
+    // into a shared result still requires an explicit shared reborrow.
+    reject(
         "fn f<life a>(p:&'a mut i32)->&'a i32{return p}fn main(){}",
+        ResultCategory::SafeReject,
+        Phase::Types,
+        "E-TYPE-MISMATCH",
+    );
+    for text in [
         "fn f<life a>(p:&'a i32)->&'a i32{let local:&'a i32=p;return local}fn main(){}",
         "fn f<life a>(p:fn(&'a i32)->i32){}fn main(){}",
         include_str!("../../../tests/language-readiness/recovery/pending/life-higher-rank.zil"),

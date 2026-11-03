@@ -971,8 +971,7 @@ fn check_reference_return_bound(f: &TypedFunction, budget: &mut Budget) -> Check
             .and_then(|id| f.locals.get(id.0 as usize))
             .ok_or_else(fail)?;
         resources::charge_payload(&parameter.ty, budget)?;
-        if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee())
-        {
+        if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee()) {
             return Err(fail());
         }
         previous = Some(position);
