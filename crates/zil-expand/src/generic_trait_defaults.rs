@@ -104,147 +104,6 @@ fn direct_reference_parameter<'a>(
     Ok(None)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
-
-    fn limited<T>(result: CompileResult<T>) {
-        let errors = result
-            .err()
-            .expect("downstream default expansion received a fresh budget");
-        assert!(!errors.is_empty());
-        assert!(
-            errors
-                .iter()
-                .all(|e| e.category == ResultCategory::ResourceLimit),
-            "{errors:?}"
-        );
-    }
-
-    #[test]
-    fn trait330_no_argument_default_alias_engine_and_collector_share_one_ledger() {
-        let source = SourceUnit::new(
-            FileId(0),
-            ModuleId(0),
-            "default330.zil",
-            "type Number=i32;trait Read{fn read(self:&Self)->Number{return 7}}struct P{}impl Read for P{}fn main()->i32{let p=P{};return p.read()-7}",
-        );
-        let syntax = zil_syntax::parse(&source).into_result().unwrap();
-        let limits = Limits::default();
-        let mut products = products::Products::default();
-        super::super::specialize_products(&syntax, &limits, &mut products).unwrap();
-        assert!(
-            products.trait_instances,
-            "no-argument defaults must activate the shared ledger"
-        );
-        let remaining = products.allowance.as_ref().unwrap();
-        let work = limits.max_analysis_steps - remaining.max_analysis_steps;
-        let nodes = limits.max_nodes - remaining.max_nodes;
-        let (alias, budget) =
-            aliases::normalize_with_budget(&syntax, Budget::new(&limits)).unwrap();
-        let alias = alias.unwrap();
-        let alias_remaining = budget.remaining_limits();
-        let mut engine = products::Products::default();
-        super::super::specialize_with_budget(
-            &alias.module,
-            &limits,
-            &alias.pattern_types,
-            Budget::new(&limits),
-            &mut engine,
-        )
-        .unwrap();
-        let engine_remaining = engine.allowance.unwrap();
-        assert!(
-            work >= limits.max_analysis_steps - alias_remaining.max_analysis_steps
-                + limits.max_analysis_steps
-                - engine_remaining.max_analysis_steps
-        );
-        assert!(
-            nodes
-                >= limits.max_nodes - alias_remaining.max_nodes + limits.max_nodes
-                    - engine_remaining.max_nodes
-        );
-        for selected in [
-            Limits {
-                max_analysis_steps: work,
-                ..limits.clone()
-            },
-            Limits {
-                max_nodes: nodes,
-                ..limits.clone()
-            },
-        ] {
-            let mut exact = products::Products::default();
-            super::super::specialize_products(&syntax, &selected, &mut exact).unwrap();
-            limited(crate::expand_with_map_limits(&source, &syntax, &selected));
-        }
-        crate::expand_with_map_limits(&source, &syntax, &limits).unwrap();
-        println!(
-            "330 single default specialization work={work}, nodes={nodes}; exhausted remainder rejects collector/publication"
-        );
-    }
-
-    #[test]
-    fn trait330_project_no_argument_default_keeps_normalization_and_downstream_ledger() {
-        let sources = [
-            SourceUnit::new(
-                FileId(0),
-                ModuleId(0),
-                "main.zil",
-                "import rules;struct P{}impl rules.Read for P{}fn main()->i32{let p=P{};return p.read()-7}",
-            ),
-            SourceUnit::new(
-                FileId(1),
-                ModuleId(1),
-                "rules.zil",
-                "fn helper()->i32{return 7}pub trait Read{fn read(self:&Self)->i32{return helper()}}",
-            ),
-        ];
-        let syntax = sources
-            .iter()
-            .map(|s| zil_syntax::parse(s).into_result().unwrap())
-            .collect::<Vec<_>>();
-        let modules = syntax.iter().collect::<Vec<_>>();
-        let imports = [
-            vec![zil_ir::CoreImport {
-                alias: "rules".into(),
-                module: ModuleId(1),
-                span: syntax[0].items[0].span,
-            }],
-            vec![],
-        ];
-        let limits = Limits::default();
-        let mut products = products::Products::default();
-        crate::modules::specialize(&sources, &modules, &imports, &limits, &mut products).unwrap();
-        assert!(products.trait_instances);
-        let remaining = products.allowance.as_ref().unwrap();
-        let work = limits.max_analysis_steps - remaining.max_analysis_steps;
-        let nodes = limits.max_nodes - remaining.max_nodes;
-        for selected in [
-            Limits {
-                max_analysis_steps: work,
-                ..limits.clone()
-            },
-            Limits {
-                max_nodes: nodes,
-                ..limits.clone()
-            },
-        ] {
-            let mut exact = products::Products::default();
-            crate::modules::specialize(&sources, &modules, &imports, &selected, &mut exact)
-                .unwrap();
-            limited(crate::expand_program_with_limits(
-                &sources, &modules, &imports, &selected,
-            ));
-        }
-        crate::expand_program_with_limits(&sources, &modules, &imports, &limits).unwrap();
-        println!(
-            "330 project default specialization work={work}, nodes={nodes}; exhausted remainder rejects collector/publication"
-        );
-    }
-}
-
 impl Engine<'_> {
     pub(super) fn validate_trait_defaults(&mut self, module: &Module) -> R<()> {
         if !self.traits.has_defaults {
@@ -618,5 +477,146 @@ impl Engine<'_> {
             span,
         )?;
         Ok(format!("$trait_default_{}", hash.digest()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+
+    fn limited<T>(result: CompileResult<T>) {
+        let errors = result
+            .err()
+            .expect("downstream default expansion received a fresh budget");
+        assert!(!errors.is_empty());
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.category == ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn trait330_no_argument_default_alias_engine_and_collector_share_one_ledger() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "default330.zil",
+            "type Number=i32;trait Read{fn read(self:&Self)->Number{return 7}}struct P{}impl Read for P{}fn main()->i32{let p=P{};return p.read()-7}",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let limits = Limits::default();
+        let mut products = products::Products::default();
+        super::super::specialize_products(&syntax, &limits, &mut products).unwrap();
+        assert!(
+            products.trait_instances,
+            "no-argument defaults must activate the shared ledger"
+        );
+        let remaining = products.allowance.as_ref().unwrap();
+        let work = limits.max_analysis_steps - remaining.max_analysis_steps;
+        let nodes = limits.max_nodes - remaining.max_nodes;
+        let (alias, budget) =
+            aliases::normalize_with_budget(&syntax, Budget::new(&limits)).unwrap();
+        let alias = alias.unwrap();
+        let alias_remaining = budget.remaining_limits();
+        let mut engine = products::Products::default();
+        super::super::specialize_with_budget(
+            &alias.module,
+            &limits,
+            &alias.pattern_types,
+            Budget::new(&limits),
+            &mut engine,
+        )
+        .unwrap();
+        let engine_remaining = engine.allowance.unwrap();
+        assert!(
+            work >= limits.max_analysis_steps - alias_remaining.max_analysis_steps
+                + limits.max_analysis_steps
+                - engine_remaining.max_analysis_steps
+        );
+        assert!(
+            nodes
+                >= limits.max_nodes - alias_remaining.max_nodes + limits.max_nodes
+                    - engine_remaining.max_nodes
+        );
+        for selected in [
+            Limits {
+                max_analysis_steps: work,
+                ..limits.clone()
+            },
+            Limits {
+                max_nodes: nodes,
+                ..limits.clone()
+            },
+        ] {
+            let mut exact = products::Products::default();
+            super::super::specialize_products(&syntax, &selected, &mut exact).unwrap();
+            limited(crate::expand_with_map_limits(&source, &syntax, &selected));
+        }
+        crate::expand_with_map_limits(&source, &syntax, &limits).unwrap();
+        println!(
+            "330 single default specialization work={work}, nodes={nodes}; exhausted remainder rejects collector/publication"
+        );
+    }
+
+    #[test]
+    fn trait330_project_no_argument_default_keeps_normalization_and_downstream_ledger() {
+        let sources = [
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                "import rules;struct P{}impl rules.Read for P{}fn main()->i32{let p=P{};return p.read()-7}",
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "rules.zil",
+                "fn helper()->i32{return 7}pub trait Read{fn read(self:&Self)->i32{return helper()}}",
+            ),
+        ];
+        let syntax = sources
+            .iter()
+            .map(|s| zil_syntax::parse(s).into_result().unwrap())
+            .collect::<Vec<_>>();
+        let modules = syntax.iter().collect::<Vec<_>>();
+        let imports = [
+            vec![zil_ir::CoreImport {
+                alias: "rules".into(),
+                module: ModuleId(1),
+                span: syntax[0].items[0].span,
+            }],
+            vec![],
+        ];
+        let limits = Limits::default();
+        let mut products = products::Products::default();
+        crate::modules::specialize(&sources, &modules, &imports, &limits, &mut products).unwrap();
+        assert!(products.trait_instances);
+        let remaining = products.allowance.as_ref().unwrap();
+        let work = limits.max_analysis_steps - remaining.max_analysis_steps;
+        let nodes = limits.max_nodes - remaining.max_nodes;
+        for selected in [
+            Limits {
+                max_analysis_steps: work,
+                ..limits.clone()
+            },
+            Limits {
+                max_nodes: nodes,
+                ..limits.clone()
+            },
+        ] {
+            let mut exact = products::Products::default();
+            crate::modules::specialize(&sources, &modules, &imports, &selected, &mut exact)
+                .unwrap();
+            limited(crate::expand_program_with_limits(
+                &sources, &modules, &imports, &selected,
+            ));
+        }
+        crate::expand_program_with_limits(&sources, &modules, &imports, &limits).unwrap();
+        println!(
+            "330 project default specialization work={work}, nodes={nodes}; exhausted remainder rejects collector/publication"
+        );
     }
 }
