@@ -757,48 +757,29 @@ fn thread325_source_and_worker_boundaries() {
         );
         assert!(!report.artifacts.contains_key("executable"));
     }
-    for (name, phase) in [
-        ("parent_closure", zil_base::Phase::Types),
-        ("callable_wrapper", zil_base::Phase::Expand),
-    ] {
-        let path = thread325_root().join(format!("pending/{name}.zil"));
-        let text = std::fs::read_to_string(path).unwrap();
-        let report = compile_source(&source(&text), &CompileOptions::default());
-        assert_eq!(
-            report.status,
-            ResultCategory::Unsupported,
-            "{name}: {}",
-            report.to_json()
-        );
-        assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
-        assert!(
-            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"),
-            "{name}: {}",
-            report.to_json()
-        );
-        assert!(!report.artifacts.contains_key("executable"));
-    }
-    for (name, phase) in [
-        ("parent_closure", zil_base::Phase::Types),
-        ("callable_wrapper", zil_base::Phase::Expand),
-    ] {
-        let path = thread325_root().join(format!("pending/{name}.zil"));
-        let text = std::fs::read_to_string(path).unwrap();
-        let report = compile_source(&source(&text), &CompileOptions::default());
-        assert_eq!(
-            report.status,
-            ResultCategory::Unsupported,
-            "{name}: {}",
-            report.to_json()
-        );
-        assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
-        assert!(
-            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"),
-            "{name}: {}",
-            report.to_json()
-        );
-        assert!(!report.artifacts.contains_key("executable"));
-    }
+    // 332 promotes this exact historical source; the path and bytes stay fixed.
+    let text =
+        std::fs::read_to_string(thread325_root().join("pending/parent_closure.zil")).unwrap();
+    let report = compile_source(&source(&text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let text =
+        std::fs::read_to_string(thread325_root().join("pending/callable_wrapper.zil")).unwrap();
+    let report = compile_source(&source(&text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Expand);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"));
+    assert!(!report.artifacts.contains_key("executable"));
 }
 
 #[test]
@@ -886,8 +867,8 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
             "variant {variant}: {errors:?}"
         );
     }
-    // A well-formed concrete parent closure is a future legal placement, not
-    // a forged worker authority. Both raw kernels must report Unsupported.
+    // 332 admits this well-formed concrete parent entry after reconstructing
+    // its actual binding; the added environment bit alone is not authority.
     let mut future = typed.clone();
     let id = zil_ir::ClosureId(future.closures.len() as u32);
     future.functions[caller].environment = Some(id);
@@ -900,20 +881,35 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
         kind: zil_ir::CallableKind::Fn,
         lending_captures: vec![],
     });
-    let errors = zil_analyze::analyze(&future, &limits).unwrap_err();
-    assert_eq!(
-        errors[0].category,
-        ResultCategory::Unsupported,
-        "{errors:?}"
-    );
-    let mut claim = plan.clone();
-    claim.module_fingerprint = future.fingerprint();
-    let errors = zil_verify::verify_module(future, claim, &target, &limits).unwrap_err();
-    assert_eq!(
-        errors[0].category,
-        ResultCategory::Unsupported,
-        "{errors:?}"
-    );
+    let future_plan = zil_analyze::analyze(&future, &limits).unwrap();
+    zil_verify::verify_module(future.clone(), future_plan.clone(), &target, &limits).unwrap();
+    for variant in 0..5 {
+        let mut forged = future.clone();
+        match variant {
+            0 => forged.functions[caller].environment = Some(zil_ir::ClosureId(u32::MAX)),
+            1 => forged.closures[id.0 as usize].function = zil_ir::FunctionId(u32::MAX),
+            2 => forged.closures[id.0 as usize].result = zil_ir::Type::Bool,
+            3 => forged.closures[id.0 as usize]
+                .parameters
+                .push(zil_ir::Type::I32),
+            4 => forged.functions[caller].result_mode = zil_ir::PassingMode::Move,
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "parent variant {variant}: {errors:?}"
+        );
+        let mut claim = future_plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let errors = zil_verify::verify_module(forged, claim, &target, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "parent variant {variant}: {errors:?}"
+        );
+    }
     // Exact worker traversal work comes from the current request, not a fresh per-worker budget.
     for verify in [false, true] {
         let mut low = 0;
@@ -969,6 +965,25 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
 #[test]
 #[cfg(target_os = "linux")]
 fn thread325_native_os_join_parent_cleanup_and_failure() {
+    thread_native_parent_observer("direct");
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_native_concrete_parent_cleanup_and_failure() {
+    thread_native_parent_observer("owned");
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_native_nested_roots_and_failures() {
+    thread_native_parent_observer("nested");
+}
+
+#[cfg(target_os = "linux")]
+fn thread_native_parent_observer(profile: &str) {
+    let concrete_parent = profile != "direct";
+    let nested = profile == "nested";
     use std::{
         fs,
         io::Write,
@@ -1006,7 +1021,11 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
             let observer = directory.join("observer.o");
             let compiled = Command::new(&clang)
                 .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
-                .arg(thread325_root().join("observer.c"))
+                .arg(thread325_root().join(if nested {
+                    "parent332/nested_observer.c"
+                } else {
+                    "observer.c"
+                }))
                 .arg("-o")
                 .arg(&observer)
                 .output()
@@ -1015,13 +1034,33 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
             let wrapper = directory.join("link.sh");
             fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -pthread -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join\nfi\nexec {} \"$@\"\n", quote(&clang), quote(&observer), quote(&clang))).unwrap();
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-            let units = if backend == NativeBackend::LlvmApi && optimization == Optimization::O2 {
-                4
-            } else {
-                1
-            };
+            let units =
+                if !nested && backend == NativeBackend::LlvmApi && optimization == Optimization::O2
+                {
+                    4
+                } else {
+                    1
+                };
+            let mut project = thread325_project();
+            if concrete_parent {
+                let path = thread325_root().join(if nested {
+                    "parent332/nested_owned.zil"
+                } else {
+                    "parent332/owned_main.zil"
+                });
+                project.modules[0] = SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    path.to_string_lossy().into_owned(),
+                    fs::read_to_string(path).unwrap(),
+                );
+            }
+            if nested {
+                project.modules.truncate(1);
+                project.paths.clear();
+            }
             let report = zil_driver::compile_project(
-                &thread325_project(),
+                &project,
                 &CompileOptions {
                     backend,
                     optimization,
@@ -1058,12 +1097,23 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                         && r.contains("\"parse_ns\":0,")
                 }));
             }
-            for (mode, status, signal, stdout) in [
-                (b'0', Some(0), None, "PECBDJA"),
-                (b'1', Some(1), None, "PECBDJA"),
-                (b'2', Some(2), None, "PECDA"),
-                (b'3', None, Some(6), "PECBDX"),
-            ] {
+            let cases = if nested {
+                &[
+                    (b'0', Some(0), None, "CBCbIjaOJA"),
+                    (b'1', Some(3), None, "CBCIaOJA"),
+                    (b'2', Some(2), None, "COA"),
+                    (b'3', None, Some(6), "CBCbIx"),
+                    (b'4', None, Some(6), "CBCbIjaOX"),
+                ][..]
+            } else {
+                &[
+                    (b'0', Some(0), None, "PECBDJA"),
+                    (b'1', Some(1), None, "PECBDJA"),
+                    (b'2', Some(2), None, "PECDA"),
+                    (b'3', None, Some(6), "PECBDX"),
+                ][..]
+            };
+            for &(mode, status, signal, stdout) in cases {
                 let mut child = Command::new(&report.artifacts["executable"])
                     .current_dir(&directory)
                     .stdin(Stdio::piped())
@@ -1100,8 +1150,22 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                 assert!(actual.stderr.is_empty(), "{actual:?}");
             }
             // Parent borrowing, life/trait composition, and a Direct factory reach both machines.
-            for control in ["parent_borrow", "life_trait", "return_factory"] {
-                let text = if control == "return_factory" {
+            let controls = if nested {
+                &[][..]
+            } else if concrete_parent {
+                &["kinds", "nested", "borrow", "parent_closure"][..]
+            } else {
+                &["parent_borrow", "life_trait", "return_factory"][..]
+            };
+            for control in controls {
+                let text = if concrete_parent {
+                    let path = if *control == "parent_closure" {
+                        "pending/parent_closure.zil".to_owned()
+                    } else {
+                        format!("parent332/{control}.zil")
+                    };
+                    fs::read_to_string(thread325_root().join(path)).unwrap()
+                } else if *control == "return_factory" {
                     THREAD325_RETURN_FACTORY.to_owned()
                 } else {
                     fs::read_to_string(thread325_root().join(format!("controls/{control}.zil")))
@@ -1128,7 +1192,11 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                 let actual = Command::new(&report.artifacts["executable"])
                     .output()
                     .unwrap();
-                assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+                assert_eq!(
+                    actual.status.code(),
+                    Some(if *control == "parent_closure" { 14 } else { 0 }),
+                    "{control}: {actual:?}"
+                );
                 assert!(
                     actual.stdout.is_empty() && actual.stderr.is_empty(),
                     "{actual:?}"
@@ -1138,5 +1206,534 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                 fs::remove_dir_all(directory).unwrap();
             }
         }
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_concrete_parent_kinds_and_nested_source() {
+    use zil_ir::{CallableKind, InstructionKind};
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for name in ["kinds", "nested", "borrow"] {
+        let text = std::fs::read_to_string(thread325_root().join(format!("parent332/{name}.zil")))
+            .unwrap();
+        let src = source(&text);
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let core = zil_expand::expand(&src, &ast).unwrap();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let kinds = typed
+            .functions
+            .iter()
+            .filter(|f| {
+                f.blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. }))
+            })
+            .map(|f| typed.closures[f.environment.unwrap().0 as usize].kind)
+            .collect::<Vec<_>>();
+        if name == "kinds" {
+            assert!(kinds.contains(&CallableKind::Fn), "{kinds:?}");
+            assert!(kinds.contains(&CallableKind::FnMut), "{kinds:?}");
+            assert!(kinds.contains(&CallableKind::FnOnce), "{kinds:?}");
+        } else if name == "nested" {
+            assert_eq!(kinds.len(), 2);
+        } else {
+            assert_eq!(kinds.len(), 1);
+        }
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        if name == "kinds" {
+            thread332_budget(&typed, &plan);
+            // Forcing a shared entry must not copy the parent's owned body.
+            let mut forged = typed.clone();
+            let once = forged
+                .closures
+                .iter_mut()
+                .find(|c| {
+                    c.kind == CallableKind::FnOnce
+                        && c.captures
+                            .iter()
+                            .any(|t| matches!(t, zil_ir::Type::Managed(_)))
+                })
+                .unwrap();
+            once.kind = CallableKind::Fn;
+            let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+            let mut claim = plan.clone();
+            claim.module_fingerprint = forged.fingerprint();
+            let errors = zil_verify::verify_module(forged, claim, &target, &limits).unwrap_err();
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+        }
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        let verified = zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+        zil_lower::lower(&verified).unwrap();
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_parent_boundaries() {
+    for (name, phase, code) in [
+        ("once_reuse", zil_base::Phase::Analyze, "E-UNINITIALIZED"),
+        ("thin_body", zil_base::Phase::Types, "E-THREAD-BODY"),
+        ("ct_parent", zil_base::Phase::Ct, "E-CT-FORBIDDEN"),
+        ("nested_worker", zil_base::Phase::Analyze, "E-THREAD-WORKER"),
+        (
+            "borrow_conflict",
+            zil_base::Phase::Analyze,
+            "E-BORROW-CONFLICT",
+        ),
+    ] {
+        let text = std::fs::read_to_string(thread325_root().join(format!("parent332/{name}.zil")))
+            .unwrap();
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+        if name == "borrow_conflict" {
+            let positive = text.replace("        *input=4\n", "");
+            let report = compile_source(&source(&positive), &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+        }
+    }
+}
+
+const REVIEW332_CAPTURED_BODY: &str = "resource Token{value:i32}impl Drop for Token{fn drop(self:Self){}}fn worker(value:i32)->i32{return value+1}fn main()->i32{let token=Token{value:42};let body=move()->i32=>token.value;let other=(offset:i32)->i32=>offset;let parent=move(offset:i32)->i32=>{let flag=true;let result=thread_scope(worker,offset,(body));if !flag{return 1}return result.1+result.2};return parent(5)-48}";
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_reviewer_types_work_is_shared_across_names_and_parent_entries() {
+    fn program(worker: &str, capture: &str, count: usize, dummy_captures: usize) -> String {
+        let mut text = format!(
+            "resource Token{{value:i32}}impl Drop for Token{{fn drop(self:Self){{}}}}fn {worker}(value:i32)->i32{{return value+1}}fn main()->i32{{var total=0;"
+        );
+        for index in 0..count {
+            for dummy in 0..dummy_captures {
+                text.push_str(&format!("let dummy{index}_{dummy}=0;"));
+            }
+            let padding = (0..dummy_captures)
+                .map(|dummy| format!("let padding{dummy}=dummy{index}_{dummy};"))
+                .collect::<String>();
+            text.push_str(&format!("let token{index}=Token{{value:42}};let {capture}{index}=move()->i32=>token{index}.value;let parent{index}=move(offset:i32)->i32=>{{let result=thread_scope({worker},offset,{capture}{index});return result.1+result.2}};total+=parent{index}(5);"));
+            if dummy_captures != 0 {
+                text = text.replace(
+                    &format!("let parent{index}=move(offset:i32)->i32=>{{let result="),
+                    &format!("let parent{index}=move(offset:i32)->i32=>{{{padding}let result="),
+                );
+            }
+        }
+        text.push_str(&format!("return total-{};}}", 48 * count));
+        text
+    }
+    let long_worker = format!("worker_{}", "w".repeat(128));
+    let long_capture = format!("body_{}", "c".repeat(128));
+    let wide_capture = format!("body_{}", "c".repeat(512));
+    let nested="resource Token{value:i32}impl Drop for Token{fn drop(self:Self){}}fn worker(value:i32)->i32{return value+1}fn main()->i32{let token=Token{value:42};let deepest=move()->i32=>token.value;let inner=move()->i32=>{let result=thread_scope(worker,1,deepest);return result.1+result.2};let outer=move()->i32=>{let result=thread_scope(worker,2,inner);return result.1+result.2};return outer()-47}".to_owned();
+    let mut measured = Vec::new();
+    for (label, text) in [
+        ("short", program("worker", "body", 1, 0)),
+        ("long-worker", program(&long_worker, "body", 1, 0)),
+        ("long-capture", program("worker", &long_capture, 1, 0)),
+        ("four-parents", program(&long_worker, &long_capture, 4, 0)),
+        (
+            "two-wide-parents",
+            program(&long_worker, &wide_capture, 2, 24),
+        ),
+        ("nested", nested),
+    ] {
+        let src = source(&text);
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let core = zil_expand::expand(&src, &ast).unwrap();
+        let limits = Limits::default();
+        let target = zil_base::TargetProfile::default();
+        let run = |n| {
+            zil_types::check(
+                &core,
+                &target,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..limits.clone()
+                },
+            )
+        };
+        let expected = run(limits.max_analysis_steps).unwrap();
+        if label == "two-wide-parents" {
+            let parents = expected
+                .functions
+                .iter()
+                .filter(|f| {
+                    f.blocks
+                        .iter()
+                        .flat_map(|b| &b.instructions)
+                        .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }))
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(parents.len(), 2);
+            for parent in parents {
+                assert_eq!(
+                    expected.closures[parent.environment.unwrap().0 as usize]
+                        .captures
+                        .len(),
+                    25
+                );
+            }
+            let plan = zil_analyze::analyze(&expected, &limits).unwrap();
+            zil_verify::verify_module(expected.clone(), plan, &target, &limits).unwrap();
+        }
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    high = middle;
+                }
+                Err(errors) => {
+                    assert!(!errors.is_empty());
+                    assert!(
+                        errors.iter().all(|d| d.phase == zil_base::Phase::Types
+                            && d.category == ResultCategory::ResourceLimit),
+                        "{label}/{middle}: {errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        assert_eq!(run(high).unwrap(), expected);
+        let errors = run(high - 1).unwrap_err();
+        assert!(!errors.is_empty());
+        assert!(
+            errors.iter().all(|d| d.phase == zil_base::Phase::Types
+                && d.category == ResultCategory::ResourceLimit),
+            "{label}: {errors:?}"
+        );
+        assert_eq!(run(high).unwrap(), expected);
+        eprintln!(
+            "review332 Types {label} boundary error: {}",
+            errors[0].message
+        );
+        eprintln!("review332 Types {label} N={high}, N-1 ResourceLimit, fresh N identical");
+        measured.push((label, high));
+    }
+    eprintln!("review332 Types boundaries: {measured:?}");
+    let wide = measured
+        .iter()
+        .find(|(label, _)| *label == "two-wide-parents")
+        .unwrap()
+        .1;
+    // Each parent has 24 actual Copy captures before its owned body capture.
+    // These are two separate environment lookups in the same Types request.
+    // cb17 gives each Graph a fresh allowance, so a dynamic N search alone
+    // would incorrectly pass its missing cumulative charge.
+    let required = 2 * 25 * (wide_capture.len() + 2);
+    assert!(
+        wide >= required,
+        "two real parent lookups cost at least {required} shared steps, Types admitted at {wide}"
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_reviewer_real_owned_body_forces_parent_once_before_actual_entry() {
+    let src = source(REVIEW332_CAPTURED_BODY);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let parent = typed
+        .functions
+        .iter()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, zil_ir::InstructionKind::WithScopedThread { .. }))
+        })
+        .unwrap();
+    let definition = &typed.closures[parent.environment.unwrap().0 as usize];
+    assert_eq!(definition.function, parent.id);
+    assert_eq!(definition.parameters, [zil_ir::Type::I32]);
+    assert_eq!(definition.kind, zil_ir::CallableKind::FnOnce);
+    assert!(
+        definition
+            .captures
+            .iter()
+            .any(|t| matches!(t, zil_ir::Type::Closure(_)))
+    );
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed, plan, &target, &limits).unwrap();
+    let reused = REVIEW332_CAPTURED_BODY.replace(
+        "return parent(5)-48",
+        "let first=parent(5);return first+parent(6)-97",
+    );
+    let report = compile_source(&source(&reused), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(
+        report.phase,
+        zil_base::Phase::Analyze,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.diagnostics[0].code, "E-UNINITIALIZED");
+    let helper =
+        std::fs::read_to_string(thread325_root().join("pending/callable_wrapper.zil")).unwrap();
+    let report = compile_source(&source(&helper), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(
+        report.phase,
+        zil_base::Phase::Expand,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.diagnostics[0].code, "E-UNSUPPORTED");
+    use std::{
+        process::{Command, Stdio},
+        time::{Duration, Instant},
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let directory =
+        std::env::temp_dir().join(format!("zil-review332-owned-{}", std::process::id()));
+    std::fs::create_dir(&directory).unwrap();
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_source(
+                &src,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(directory.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let mut child = Command::new(&report.artifacts["executable"])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while child.try_wait().unwrap().is_none() {
+                if Instant::now() > deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!("independent captured parent join timed out");
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            let output = child.wait_with_output().unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {output:?}"
+            );
+            assert!(
+                output.stdout.is_empty() && output.stderr.is_empty(),
+                "{output:?}"
+            );
+        }
+    }
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_reviewer_raw_parent_metadata_and_shared_once_claims_are_not_proofs() {
+    use zil_ir::{
+        CallableKind, ClosureId, FunctionId, InstructionKind, LocalId, PassingMode, Type,
+    };
+    let src = source(REVIEW332_CAPTURED_BODY);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let parent = typed
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. }))
+        })
+        .unwrap();
+    let id = typed.functions[parent].environment.unwrap();
+    let other = typed
+        .closures
+        .iter()
+        .find(|c| c.id != id && c.parameters == [Type::I32] && c.result == Type::I32)
+        .unwrap()
+        .id;
+    let positive = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&positive, &target, &limits).unwrap();
+    let expected = [
+        ("E-ANALYZE-IR", "E-VERIFY-ID"),
+        ("E-ANALYZE-IR", "E-VERIFY-CLOSURE-ENTRY"),
+        ("E-THREAD-WORKER", "E-VERIFY-CLOSURE-ENTRY"),
+        ("E-THREAD-WORKER", "E-VERIFY-CLOSURE"),
+        ("E-THREAD-WORKER", "E-VERIFY-CLOSURE-ENTRY"),
+        ("E-THREAD-WORKER", "E-VERIFY-CLOSURE-ENTRY"),
+        ("E-ANALYZE-IR", "E-VERIFY-ID"),
+        ("E-THREAD-WORKER", "E-VERIFY-RESOURCE"),
+        ("E-THREAD-WORKER", "E-VERIFY-CLOSURE-ENTRY"),
+        ("E-ANALYZE-IR", "E-VERIFY-CLOSURE-ENTRY"),
+        ("E-ANALYZE-IR", "E-VERIFY-CLOSURE-CALL"),
+    ];
+    for (variant, (analyze_code, verify_code)) in expected.into_iter().enumerate() {
+        let mut changed = typed.clone();
+        match variant {
+            0 => changed.functions[parent].id = FunctionId(0),
+            1 => {
+                changed.functions[parent].environment =
+                    Some(ClosureId(changed.closures.len() as u32))
+            }
+            2 => changed.functions[parent].environment = Some(other),
+            3 => changed.closures[id.0 as usize].id = other,
+            4 => {
+                changed.closures[id.0 as usize].function =
+                    changed.closures[other.0 as usize].function
+            }
+            5 => changed.closures[id.0 as usize].parameters[0] = Type::Bool,
+            6 => {
+                changed.functions[parent].parameters[0] =
+                    LocalId(changed.functions[parent].locals.len() as u32)
+            }
+            7 => changed.functions[parent].result_mode = PassingMode::Move,
+            8 => changed.functions[parent].return_type = Type::Bool,
+            9 => changed.functions[parent].environment = None,
+            10 => changed.closures[id.0 as usize].kind = CallableKind::Fn,
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&changed, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].phase,
+            zil_base::Phase::Analyze,
+            "{variant}: {errors:?}"
+        );
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "{variant}: {errors:?}"
+        );
+        assert_eq!(errors[0].code, analyze_code, "{variant}: {errors:?}");
+        let mut claim = plan.clone();
+        claim.module_fingerprint = changed.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&changed, &claim, &limits).unwrap();
+        for (form, result) in [
+            (
+                "Verify raw",
+                zil_verify::verify_module(changed.clone(), claim, &target, &limits),
+            ),
+            (
+                "Verify Wire",
+                zil_verify::verify_module_bytes(&bytes, &target, &limits),
+            ),
+        ] {
+            let errors = result.unwrap_err();
+            assert_eq!(
+                errors[0].phase,
+                zil_base::Phase::Verify,
+                "{variant}/{form}: {errors:?}"
+            );
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "{variant}/{form}: {errors:?}"
+            );
+            assert_eq!(errors[0].code, verify_code, "{variant}/{form}: {errors:?}");
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn thread332_budget(typed: &zil_ir::TypedModule, plan: &zil_ir::CandidatePlan) {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for verify in [false, true] {
+        let mut low = 0;
+        let mut high = limits.max_analysis_steps;
+        while low + 1 < high {
+            let selected = Limits {
+                max_analysis_steps: (low + high) / 2,
+                ..limits.clone()
+            };
+            let accepted = if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected).is_ok()
+            } else {
+                zil_analyze::analyze(typed, &selected).is_ok()
+            };
+            if accepted {
+                high = selected.max_analysis_steps;
+            } else {
+                low = selected.max_analysis_steps;
+            }
+        }
+        for amount in [high, high - 1, high] {
+            let selected = Limits {
+                max_analysis_steps: amount,
+                ..limits.clone()
+            };
+            let result = if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected)
+                    .map(|_| ())
+            } else {
+                zil_analyze::analyze(typed, &selected).map(|_| ())
+            };
+            if amount == high {
+                result.unwrap();
+            } else {
+                assert_eq!(
+                    result.unwrap_err()[0].category,
+                    ResultCategory::ResourceLimit
+                );
+            }
+        }
+        eprintln!(
+            "thread332 {} cumulative parent work N={high}",
+            if verify { "Verify" } else { "Analyze" }
+        );
     }
 }

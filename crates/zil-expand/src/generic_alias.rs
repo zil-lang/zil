@@ -122,6 +122,31 @@ pub(super) fn normalize_with_budget<'a>(
         visitor.resolver.budget.item(item)?;
     }
     let pattern_types = visitor.pattern_types;
+    if resolver.budget.has_enum_profiles() {
+        // Aliases disappear before Engine sees ordinary type applications.
+        // Validate their normalized targets while concrete phantom arguments
+        // still exist. Alias parameters remain conditional type recipes, not
+        // function capabilities; each actual use is checked again downstream.
+        let index = trait_bounds::Index::declarations_only(&output, &mut resolver.budget)?;
+        for alias in resolver.resolved.values() {
+            let mut variables = BTreeSet::new();
+            let mut conditional = trait_bounds::Bounds::new();
+            for name in &alias.parameters {
+                resolver.budget.node(alias.target.span, 0)?;
+                resolver.budget.text(name, alias.target.span)?;
+                resolver.budget.text(name, alias.target.span)?;
+                variables.insert(name.clone());
+                conditional.insert(name.clone(), vec![trait_bounds::Bound::Copy]);
+            }
+            index.store_types(
+                &alias.target,
+                &conditional,
+                &variables,
+                &mut resolver.budget,
+                callable::StoreCallbacks::None,
+            )?;
+        }
+    }
     Ok((
         Some(Normalized {
             module: output,
@@ -458,6 +483,40 @@ impl Visitor<'_, '_, '_> {
                     self.pattern(p, types, values, depth + 1)?;
                 }
             }
+            PatternKind::RecordConstructor { path, fields } => {
+                if path.len() == 2
+                    && !types.contains(&path[0])
+                    && let Some(alias) = self.resolver.resolved.get(&path[0])
+                {
+                    if !alias.parameters.is_empty() {
+                        return Err(error(
+                            p.span,
+                            "generic alias pattern requires a concrete alias",
+                        ));
+                    }
+                    let alias = &alias.target;
+                    self.resolver.budget.ty_depth(alias, depth)?;
+                    let TypeKind::Named { path: target, args } = &grouped(alias).kind else {
+                        return Err(error(
+                            p.span,
+                            "record pattern alias requires a nominal enum",
+                        ));
+                    };
+                    if !args.is_empty() {
+                        let marker = format!("$alias_pattern_{}", self.pattern_types.len());
+                        self.resolver.budget.text(&marker, p.span)?;
+                        self.pattern_types.insert(marker.clone(), alias.clone());
+                        path[0] = marker;
+                    } else {
+                        path[0] = target.join(".");
+                    }
+                }
+                for field in fields {
+                    self.resolver.budget.node(field.span, depth + 1)?;
+                    self.resolver.budget.text(&field.name, field.span)?;
+                    self.pattern(&mut field.pattern, types, values, depth + 1)?;
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -472,7 +531,9 @@ impl Visitor<'_, '_, '_> {
             _ => params(item),
         };
         for g in generics {
-            types.insert(g.name.clone());
+            if matches!(g.kind, GenericParamKind::Type(_)) {
+                types.insert(g.name.clone());
+            }
         }
         match &mut item.kind {
             ItemKind::Function(f) | ItemKind::Extern { function: f, .. } => {

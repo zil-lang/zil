@@ -33,9 +33,20 @@ impl Expander<'_> {
                         }
                     })
                     .collect(),
-                s::VariantFields::Record(_) => {
-                    self.unsupported("record enum variants", variant.span);
-                    Vec::new()
+                s::VariantFields::Record(fields) => {
+                    if let Err(error) = self.enum_meter(|meter| {
+                        for field in fields {
+                            meter.node(field.span, 0)?;
+                            meter.text(&field.name, field.span)?;
+                            meter.ty(&field.ty)?;
+                        }
+                        Ok(())
+                    }) {
+                        self.diagnostics.push(error);
+                        Vec::new()
+                    } else {
+                        fields.iter().map(|field| type_ref(&field.ty)).collect()
+                    }
                 }
             };
             variants.push((variant.name.clone(), fields));
@@ -59,7 +70,10 @@ impl Expander<'_> {
         let arms = arms
             .iter()
             .map(|arm| {
+                let previous = self.named_match;
+                self.named_match = true;
                 let pattern = self.pattern(&arm.pattern);
+                self.named_match = previous;
                 let body = match &arm.body {
                     s::ArrowBody::Block(block) => self.block(block),
                     s::ArrowBody::Expression(expression) => {
@@ -101,6 +115,15 @@ impl Expander<'_> {
                     ty: Type::Named(path[..path.len() - 1].join(".")),
                     variant: path.last().expect("nonempty path").clone(),
                     fields: arguments.iter().map(|p| self.pattern(p)).collect(),
+                }
+            }
+            s::PatternKind::RecordConstructor { path, fields } => {
+                match self.record_enum_pattern(path, fields, pattern.span) {
+                    Ok(pattern) => pattern,
+                    Err(error) => {
+                        self.diagnostics.push(error);
+                        CorePatternKind::Wildcard
+                    }
                 }
             }
             _ => {

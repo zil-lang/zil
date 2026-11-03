@@ -15,13 +15,18 @@ fn error(span: Span, message: &str) -> Vec<Diagnostic> {
     )]
 }
 
+pub(super) trait Context {
+    fn owner_type(&mut self, ident: &CtIdent, span: Span) -> CompileResult<s::TypeRef>;
+    fn prepay_record_shorthand(&mut self, work: u64, bytes: u64) -> CompileResult<()>;
+}
+
 struct Renamer<'a> {
     rendered: &'a RenderedSyntax,
     origins: &'a [CtOrigin],
     invocation: Span,
     next: u64,
     scopes: Vec<BTreeMap<(u32, String), String>>,
-    owner_type: &'a mut dyn FnMut(&CtIdent, Span) -> CompileResult<s::TypeRef>,
+    context: &'a mut dyn Context,
 }
 impl Renamer<'_> {
     fn region(&self, mut id: CtOriginId) -> u32 {
@@ -102,6 +107,14 @@ impl Renamer<'_> {
         match &mut pattern.kind {
             s::PatternKind::Name(name) => self.bind(name, pattern.span),
             s::PatternKind::Reference { pattern, .. } => self.pattern(pattern),
+            s::PatternKind::RecordConstructor { fields, .. } => {
+                // Only value binders are renamed. Member labels retain their
+                // source spelling for the later nominal field check.
+                for field in fields {
+                    self.pattern(&mut field.pattern)?;
+                }
+                Ok(())
+            }
             s::PatternKind::Tuple(parts) => {
                 for part in parts {
                     self.pattern(part)?;
@@ -310,7 +323,7 @@ impl Renamer<'_> {
                         })
                         .cloned();
                     if let Some(ident) = ident {
-                        let owner = (self.owner_type)(&ident, expr.span)?;
+                        let owner = self.context.owner_type(&ident, expr.span)?;
                         *member = s::MemberName::Constrained {
                             name: name.clone(),
                             owner: Box::new(owner),
@@ -357,6 +370,26 @@ impl Renamer<'_> {
                 for field in fields {
                     if let Some(value) = &mut field.value {
                         self.expr(value)?;
+                    } else {
+                        // A pun contains a member label and a separate value
+                        // reference. Rename only the latter, before later
+                        // passes can resolve an accidental caller binding.
+                        let width = (field.name.len() as u64).saturating_add(1);
+                        let visits = (self.rendered.tokens.len() as u64)
+                            .saturating_add(self.origins.len() as u64)
+                            .saturating_add(1);
+                        let work = visits
+                            .saturating_mul(width)
+                            .saturating_mul(self.scopes.len() as u64 + 1)
+                            .saturating_mul(16);
+                        let bytes = width.saturating_add(80).saturating_mul(3);
+                        self.context.prepay_record_shorthand(work, bytes)?;
+                        let mut name = field.name.clone();
+                        self.reference(&mut name, field.span)?;
+                        field.value = Some(s::Expr {
+                            kind: s::ExprKind::Name(name),
+                            span: field.span,
+                        });
                     }
                 }
                 Ok(())
@@ -476,7 +509,7 @@ pub(super) fn rename(
     rendered: &RenderedSyntax,
     origins: &[CtOrigin],
     invocation: Span,
-    owner_type: &mut dyn FnMut(&CtIdent, Span) -> CompileResult<s::TypeRef>,
+    context: &mut dyn Context,
 ) -> CompileResult<()> {
     let mut renamer = Renamer {
         rendered,
@@ -484,7 +517,7 @@ pub(super) fn rename(
         invocation,
         next: 0,
         scopes: vec![BTreeMap::new()],
-        owner_type,
+        context,
     };
     match syntax {
         GeneratedSyntax::Expr(expr) => renamer.expr(expr),

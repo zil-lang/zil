@@ -5,6 +5,7 @@ mod copy_aggregates;
 mod drop_plan;
 mod dynamic_store;
 mod enums;
+mod large_copy_abi;
 pub use enums::ct_layout_of_checked_type;
 mod errors;
 mod foreign;
@@ -214,7 +215,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     }
     let mut text = m::Code::new();
     text.append(sum_helpers);
-    if copy_plans.values().any(|plan| !plan.is_empty()) {
+    if copy_plans.needs_helpers() {
         text.append(copy_aggregates::declarations());
     }
     for closure in lir.closures {
@@ -436,7 +437,7 @@ fn lower_function_batch(
     summaries: Option<&BTreeMap<FunctionId, Constant>>,
     collected: Option<&BTreeSet<FunctionId>>,
     prepared_leaves: Option<&[Option<scalar_leaf::Prepared>]>,
-    copy_plans: &BTreeMap<FunctionId, copy_aggregates::Plan>,
+    copy_plans: &large_copy_abi::Plans,
 ) -> CompileResult<FunctionBatch> {
     let mut intrinsics = BTreeSet::new();
     let empty_copy_plan = copy_aggregates::Plan::new();
@@ -495,7 +496,12 @@ fn lower_function_batch(
             continuation: 0,
             partial_packages: BTreeSet::new(),
             safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
-            copy_values: copy_plans.get(&function.id).unwrap_or(&empty_copy_plan),
+            copy_values: copy_plans
+                .values
+                .get(&function.id)
+                .unwrap_or(&empty_copy_plan),
+            abi_plans: copy_plans,
+            unsupported_large_copy: false,
         }
         .emit()?
         .into_items()
@@ -1038,6 +1044,8 @@ struct FunctionEmitter<'a> {
     partial_packages: BTreeSet<LocalId>,
     safe_divisors: Option<BTreeSet<ValueId>>,
     copy_values: &'a copy_aggregates::Plan,
+    abi_plans: &'a large_copy_abi::Plans,
+    unsupported_large_copy: bool,
 }
 
 impl FunctionEmitter<'_> {
@@ -1052,13 +1060,28 @@ impl FunctionEmitter<'_> {
                 if *ty == Type::Unit {
                     Ok(None)
                 } else {
-                    Ok(Some(m::Param::new(llvm_type(ty)?, format!("arg.{index}"))))
+                    Ok(Some(m::Param::new(
+                        if self
+                            .abi()
+                            .parameters
+                            .get(index)
+                            .is_some_and(Option::is_some)
+                        {
+                            m::Ty::Ptr
+                        } else {
+                            llvm_type(ty)?
+                        },
+                        format!("arg.{index}"),
+                    )))
                 }
             })
             .collect::<CompileResult<Vec<_>>>()?
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
+        if self.abi().result.is_some() {
+            parameters.insert(0, m::Param::new(m::Ty::Ptr, "lc1.result"));
+        }
         if let Some(environment) = self.function.environment {
             let ty = if resource_closures::by_pointer(self.closure_definition(environment)?) {
                 "ptr".into()
@@ -1069,10 +1092,14 @@ impl FunctionEmitter<'_> {
         }
 
         self.event(m::Event::Begin(m::Function {
-            name: symbol(self.function.id),
+            name: self.abi_symbol(self.function.id),
             linkage: m::Linkage::External,
             signature: m::Signature {
-                result: llvm_type(&self.function.return_type)?,
+                result: if self.abi().result.is_some() {
+                    m::Ty::Void
+                } else {
+                    llvm_type(&self.function.return_type)?
+                },
                 result_attrs: vec![],
                 params: parameters,
                 variadic: false,
@@ -1195,6 +1222,14 @@ impl FunctionEmitter<'_> {
         }
         for (index, local) in self.function.parameters.iter().enumerate() {
             let ty = self.local_type(*local)?;
+            if let Some(slot) = self.abi().parameters.get(index).and_then(Option::as_ref) {
+                self.copy_bytes(
+                    m::local(format!("local.{}", local.0)),
+                    m::local(format!("arg.{index}")),
+                    slot.bytes,
+                );
+                continue;
+            }
             if *ty != Type::Unit {
                 self.event(m::Event::Instruction(m::Inst::new(
                     None,
@@ -1253,6 +1288,12 @@ impl FunctionEmitter<'_> {
                 self.scoped_callback_helper(instruction, register, close, callback, body)?;
                 self.scoped_callback_trampoline(instruction, callback)?;
             }
+        }
+        if self.unsupported_large_copy {
+            return unsupported(
+                "large Copy value requires an unsupported callable/helper ABI",
+                Some(self.function.span),
+            );
         }
         Ok(self.text)
     }
@@ -1734,6 +1775,16 @@ impl FunctionEmitter<'_> {
                         Some(instruction.span),
                     );
                 }
+                if self.abi_plans.functions[function].large() {
+                    let signature = self.abi_plans.functions[function].clone();
+                    self.large_copy_call(
+                        instruction,
+                        &signature,
+                        m::global(self.abi_symbol(*function)),
+                        arguments,
+                    )?;
+                    return Ok(());
+                }
                 // Reuse a fact about this exact bound source before constructing
                 // a machine call that a later pass would have to rediscover.
                 // The bounded evaluator proves a returning, effect-free scalar
@@ -1771,7 +1822,7 @@ impl FunctionEmitter<'_> {
                     m::Op::Call {
                         result: llvm_type(&callee.return_type)?,
                         result_attrs: vec![],
-                        callee: m::global(symbol(*function)),
+                        callee: m::global(self.abi_symbol(*function)),
                         args: emitted_arguments,
                         vararg: None,
                     },
@@ -1804,11 +1855,26 @@ impl FunctionEmitter<'_> {
                     Some(format!("v.{}", result(instruction)?.0)),
                     m::Op::Freeze(m::Arg::new(
                         m::Ty::Ptr,
-                        m::global(symbol(*function).to_string()),
+                        m::global(self.abi_symbol(*function)),
                     )),
                 )));
             }
             InstructionKind::CallIndirect { callee, arguments } => {
+                if let Some(signature) = self
+                    .abi_plans
+                    .indirect
+                    .get(&(self.function.id, *callee))
+                    .filter(|s| s.large())
+                    .cloned()
+                {
+                    self.large_copy_call(
+                        instruction,
+                        &signature,
+                        m::local(format!("v.{}", callee.0)),
+                        arguments,
+                    )?;
+                    return Ok(());
+                }
                 let Type::FunctionPointer {
                     result: return_type,
                     ..
@@ -2561,6 +2627,27 @@ impl FunctionEmitter<'_> {
     fn terminator(&mut self, terminator: &Terminator) -> CompileResult<()> {
         match terminator {
             Terminator::Return(value) => {
+                if let Some(slot) = &self.abi().result {
+                    let bytes = slot.bytes;
+                    let returned = value.ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            Phase::Codegen,
+                            "E-CODEGEN-CFG",
+                            Some(self.function.span),
+                            "large return has no value",
+                        )]
+                    })?;
+                    self.copy_bytes(
+                        m::local("lc1.result".into()),
+                        copy_aggregates::pointer(returned),
+                        bytes,
+                    );
+                    self.event(m::Event::Instruction(m::Inst::new(
+                        None,
+                        m::Op::Return(None),
+                    )));
+                    return Ok(());
+                }
                 if self.function.return_type == Type::Unit {
                     self.event(m::Event::Instruction(m::Inst::new(
                         None,

@@ -9,6 +9,699 @@ use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Targ
 use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
+    zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: files
+            .iter()
+            .enumerate()
+            .map(|(index, (name, text))| {
+                SourceUnit::new(
+                    FileId(index as u32),
+                    ModuleId(index as u32),
+                    format!("{name}.zil"),
+                    *text,
+                )
+            })
+            .collect(),
+        paths: files
+            .iter()
+            .enumerate()
+            .skip(1)
+            .map(|(index, (name, _))| (vec![(*name).to_owned()], ModuleId(index as u32)))
+            .collect(),
+    }
+}
+
+fn review329_native(files: &[(&str, &str)], expected: i64) {
+    use zil_driver::{NativeBackend, Optimization};
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let directory = Temp::new();
+            let report = zil_driver::compile_project(
+                &review329_project(files),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("result".into()),
+                    output: Some(directory.0.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            if backend == NativeBackend::LlvmApi {
+                assert!(!codegen.object_reports.is_empty());
+                assert!(
+                    codegen
+                        .object_reports
+                        .iter()
+                        .all(|object| object.contains("\"input_kind\":\"builder\""))
+                );
+            }
+            let observed = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(
+                observed.status.success(),
+                "{backend:?}/{optimization:?}: {observed:?}"
+            );
+            assert_eq!(observed.stdout, format!("{expected}\n").as_bytes());
+            assert!(observed.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
+fn review329_field_evaluation_binding_labels_and_i64_context_are_native() {
+    for (text, expected) in [
+        (
+            "enum Pair{Item{a:i32,b:i32}}fn mark(trace:&mut i32,n:i32)->i32{*trace=*trace*10+n;return n}fn result()->i32{var trace=0;let p=Pair.Item{b:mark(&mut trace,2),a:mark(&mut trace,1)};match p{Pair.Item{b:right,a:left}=>{return trace*100+left*10+right}}}",
+            2112,
+        ),
+        (
+            "enum Event<T:Copy>{Data{code:T,tail:i32}}fn result()->i64{let e:Event<i64>=Event.Data{tail:2,code:1};match e{Event.Data{tail:y,code:x}=>{return x+i64(y)}}}",
+            3,
+        ),
+        (
+            "enum Color{N{value:i32}}enum Packet{P{left:Color,right:i32}}fn result()->i32{let value=100;let p=Packet.P{right:2,left:Color.N{value:7}};match p{Packet.P{right:left,left:Color.N{value:right}}=>{return right*10+left+value}}}",
+            172,
+        ),
+        (
+            "enum E{V{x:i32}}fn result()->i32{let x=7;let v=E.V{x};match v{E.V{x:n}=>{return n}}}",
+            7,
+        ),
+        (
+            "enum E{V{},U}fn result()->i32{let v=E.V{};match v{E.V{}=>{return 7},E.U()=>{return 0}}}",
+            7,
+        ),
+    ] {
+        review329_native(&[("main", text)], expected);
+    }
+}
+
+#[test]
+fn review329_field_sets_forms_and_uninstantiated_copy_aliases_reject() {
+    for text in [
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1};return 0}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,y:2,z:3};return 0}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,x:2};return 0}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V(1,2);return 0}",
+        "enum E{V(i32,i32)}fn result()->i32{let e=E.V{x:1,y:2};return 0}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,y:2};match e{E.V{x:n,y:n}=>{return n}}}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,y:2};match e{E.V{x:n}=>{return n}}}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,y:2};match e{E.V(x,y)=>{return x+y}}}",
+        "enum E{V{},U}fn result()->i32{let e=E.V();return 0}",
+        "enum E{V{},U}fn result()->i32{let e=E.U{};return 0}",
+        "enum E{V{x:i32}}fn result()->i32{let e=E.V{x:1};match e{E.V{x}=>{return x}}}",
+        "type Bad=Token<&i32>;enum Token<T:Copy>{Data{n:i32}}fn result()->i32{return 0}",
+        "enum Token<T:Copy>{Data{n:i32}}type Bad=Token<&i32>;fn result()->i32{return 0}",
+        "type Borrow=&i32;type Bad=Token<Borrow>;enum Token<T:Copy>{Data{n:i32}}fn result()->i32{return 0}",
+        "enum E<T:Copy>{V{x:T}}fn bad<T:Copy>(x:T)->i64{let e:E<i64>=E.V{x:x};return 0}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert!(!report.diagnostics.is_empty());
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+    let bad = "enum E<T:Copy>{V{x:T}}fn bad<T:Copy>(x:T)->E<T>{return E.V{x:7}}fn result()->i32{return 0}";
+    let report = compile_source(&source(bad), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"));
+    let report = compile_source(
+        &source(
+            "enum E<T:Copy>{V{x:T}}fn good<T:Copy>(x:T)->E<T>{return E.V{x:x}}fn result()->i32{return 0}",
+        ),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn review329_module_nominals_and_visibility_remain_distinct() {
+    let files = [
+        (
+            "main",
+            "import left;import right;fn result()->i32{return left.read(left.make())+right.read(right.make())}",
+        ),
+        (
+            "left",
+            "pub enum E{V{x:i32}}pub fn make()->E{return E.V{x:7}}pub fn read(e:E)->i32{match e{E.V{x:n}=>{return n}}}",
+        ),
+        (
+            "right",
+            "pub enum E{V{x:i32}}pub fn make()->E{return E.V{x:9}}pub fn read(e:E)->i32{match e{E.V{x:n}=>{return n}}}",
+        ),
+    ];
+    review329_native(&files, 16);
+    let mut confused = files;
+    confused[0].1 = "import left;import right;fn result()->i32{return right.read(left.make())}";
+    let report =
+        zil_driver::compile_project(&review329_project(&confused), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let report = zil_driver::compile_project(
+        &review329_project(&[
+            (
+                "main",
+                "import data;fn result()->i32{let x=data.Hidden.V{x:1};return 0}",
+            ),
+            ("data", "enum Hidden{V{x:i32}}"),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-MODULE-PRIVATE")
+    );
+}
+
+#[test]
+fn review329_ct_quote_keeps_labels_separate_from_hygienic_bindings() {
+    review329_native(
+        &[(
+            "main",
+            "enum E{V{x:i32}}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let e=E.V{x};match e{E.V{x:y}=>{return y}}}}fn result()->i32{let x=100;#emit generated()}",
+        )],
+        7,
+    );
+    review329_native(
+        &[(
+            "main",
+            "enum E{V{Type:i32,left:i32}}fn generated()->Syntax<StmtList>{return quote<StmtList>{match (E.V{Type:1,left:2}){E.V{left:Type,Type:left}=>{return left*10+Type}}}}fn result()->i32{let Type=100;#emit generated()}",
+        )],
+        12,
+    );
+    review329_native(
+        &[(
+            "main",
+            "enum E{V{left:i32,right:i32}}fn generated()->Syntax<StmtList>{return quote<StmtList>{match (E.V{left:1,right:2}){E.V{right:left,left:right}=>{return right*10+left}}}}fn result()->i32{let left=100;#emit generated()}",
+        )],
+        12,
+    );
+}
+
+#[test]
+fn review329_shared_record_pun_capture_neighbor() {
+    review329_native(
+        &[(
+            "main",
+            "struct P{x:i32}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let p=P{x};return p.x}}fn result()->i32{let x=100;#emit generated()}",
+        )],
+        7,
+    );
+}
+
+#[test]
+fn review329_unused_variant_attributes_do_not_disappear() {
+    let report = compile_source(
+        &source("enum E{#[cfg(true)] V{x:i32}}fn result()->i32{return 0}"),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"));
+}
+
+#[test]
+fn review329_symbolic_primitive_spelling_patterns_do_not_gain_scalar_permissions() {
+    for text in [
+        "enum E<T:Copy>{V{x:T}}fn keep<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:n}=>{return 0}}}fn result()->i32{return 0}",
+        "fn scalar()->i64{return 1}fn keep<i64:Copy>(x:i64)->i32{let n=scalar();match n{1=>{return 1},_=>{return 0}}}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    let mut accepted = Vec::new();
+    for text in [
+        "enum E<T:Copy>{V{x:T}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        eprintln!("review329 symbolic pattern {text}: {}", report.to_json());
+        if report.status == ResultCategory::Success {
+            accepted.push(text);
+        }
+    }
+    assert!(
+        accepted.is_empty(),
+        "symbolic primitive-spelling patterns accepted: {accepted:?}"
+    );
+}
+
+#[test]
+fn record_enum329_quote_shorthand_preserves_value_hygiene() {
+    // Reviewer 6c6481d08's legal-category source; author regression, not review.
+    native(
+        "enum E{V{x:i32}}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let e=E.V{x};match e{E.V{x:y}=>{return y}}}}fn result()->i32{let x=100;#emit generated()}",
+        Some(7),
+    );
+    native(
+        "struct P{x:i32}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let p=P{x};return p.x}}fn result()->i32{let x=100;#emit generated()}",
+        Some(7),
+    );
+}
+
+#[test]
+fn record_enum329_unused_variant_attributes_remain_explicit() {
+    let report = compile_source(
+        &source("enum E<T>{#[cfg(false)] Row{value:T}}fn main(){}"),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert_eq!(report.diagnostics[0].code, "E-UNSUPPORTED");
+}
+
+#[test]
+fn record_enum329_named_source_order_and_exact_values() {
+    native(
+        r#"
+enum Message{Data{left:i64,right:i64,flag:bool},Empty{}}
+fn mark(log:&mut i64,digit:i64)->i64{*log=*log*10+digit;return digit}
+fn result()->i64{
+ var log:i64=0;
+ let message=Message.Data{right:mark(&mut log,2),flag:true,left:mark(&mut log,1)};
+ if log!=21{return -1}
+ match message{
+  Message.Data{flag:true,left:left,right:right}=>{if left!=1{return -2}if right!=2{return -3}return log*100+left*10+right},
+  Message.Data{left:_,right:_,flag:false}=>{return -4},
+  Message.Empty{}=>{return -5}
+ }
+}
+"#,
+        Some(2112),
+    );
+    native(
+        r#"
+enum E{Data{left:i64,right:i64},Empty{},Unit,Tuple(i64)}
+fn read(e:E)->i64{match e{E.Data{right:r,left:l}=>{return l*100+r},E.Empty{}=>{return 1},E.Unit()=>{return 2},E.Tuple(n)=>{return n}}}
+fn result()->i64{let left:i64=7;let right:i64=9;return read(E.Data{right,left})+read(E.Empty{})+read(E.Unit)+read(E.Tuple(3))}
+"#,
+        Some(715),
+    );
+}
+
+#[test]
+fn record_enum329_nested_generic_copy_and_phantom_identity() {
+    native(
+        r#"
+struct P{n:i64}
+enum E{Named{p:P},Old(P)}
+fn result()->i64{let a=E.Named{p:{n:7}};let b=E.Old(P{n:9});match a{E.Named{p:p}=>{match b{E.Old(q)=>{return p.n*10+q.n},E.Named{p:_}=>{return -1}}},E.Old(_)=>{return -2}}}
+"#,
+        Some(79),
+    );
+    native(
+        r#"
+struct Box<T:Copy>{value:T}
+enum Message<T:Copy,P:Copy>{Data{boxed:Box<T>,ok:bool}}
+fn make<T:Copy,P:Copy>(value:T)->Message<T,P>{return Message::<T,P>.Data{ok:true,boxed:Box::<T>{value:value}}}
+fn read<T:Copy,P:Copy>(message:Message<T,P>)->T{match message{Message.Data{ok:_,boxed:box}=>{return box.value}}}
+fn result()->i64{let a=make::<i64,bool>(7);let b=make::<i64,i32>(9);return read::<i64,bool>(a)*10+read::<i64,i32>(b)}
+"#,
+        Some(79),
+    );
+    native(
+        r#"
+enum Inner{Only{x:i64,flag:bool}}
+enum Outer{Wrap{inner:Inner,pair:(i64,bool)},Other}
+fn result()->i64{let value=Outer.Wrap{pair:(7,true),inner:Inner.Only{flag:false,x:5}};match value{Outer.Wrap{pair:(a,true),inner:Inner.Only{x:b,flag:false}}=>{let read=()=>a*10+b;return read()},Outer.Wrap{inner:_,pair:_}=>{return -1},Outer.Other()=>{return -2}}}
+"#,
+        Some(75),
+    );
+}
+
+#[test]
+fn record_enum329_labels_shapes_and_unused_definitions_reject() {
+    for text in [
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V{x:1};}",
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V{x:1,y:true,z:2};}",
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V{x:1,x:2,y:true};}",
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V{x:true,y:1};}",
+        "enum E{V{x:i32,y:bool}}fn main(){let x=E.V(1,true);}",
+        "enum E{V(i32,bool)}fn main(){let x=E.V{x:1,y:true};}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V{x:x}=>{}}}fn main(){}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V{x:x,y:y,z:_}=>{}}}fn main(){}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V{x:a,x:b,y:_}=>{}}}fn main(){}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V{x:n,y:n}=>{}}}fn main(){}",
+        "enum E{V{x:i32,y:bool}}fn unused(e:E){match e{E.V(x,y)=>{}}}fn main(){}",
+        "enum E{V(i32,bool)}fn unused(e:E){match e{E.V{x:x,y:y}=>{}}}fn main(){}",
+        "enum A{V{x:i32}}enum B{V{x:i32}}fn unused(e:A){match e{B.V{x:_}=>{}}}fn main(){}",
+        "enum E<T:Copy>{V{x:T}}fn unused<T>(x:T){let value=E.V{x:x};}fn main(){}",
+        "enum E<T:Copy,P:Copy>{V{x:T}}fn unused<T:Copy,P>(e:E<T,P>){}fn main(){}",
+        "enum E<T:Copy,P:Copy>{V{x:T}}fn only(e:E<i32,bool>){}fn main(){let e:E<i32,i64>=E.V{x:7};only(e)}",
+        "enum E<T:Copy,P:Copy>{V{x:T}}type Bad=E<i32,ByteBuffer>;fn main(){}",
+        "enum E<T:Copy>{V{x:T}}type A<T>=E<T>;fn unused<T>(x:T)->A<T>{return A::<T>.V{x:x}}fn main(){}",
+        "struct Box<T:Copy>{value:T}enum E<T>{V{value:Box<T>}}fn main(){}",
+        "enum E{V{x:i32,x:i32}}fn main(){}",
+        "enum E{V{x:&i32}}fn main(){}",
+        "enum E{V{x:ByteBuffer}}fn main(){}",
+        "enum E{V{x:E}}fn main(){}",
+        "enum E<T>{V{x:T}}fn unused<T>(x:T){let value=E.V{x:x};let again=x;}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert!(!report.diagnostics.is_empty(), "{text}");
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+    for text in [
+        "enum E<T>{R{r:T}}fn bad<T:Copy>()->E<T>{return E::<T>.R{r:7}}fn main(){}",
+        "enum E{V{x:i32=7}}fn main(){}",
+        "enum E{V{pub x:i32}}fn main(){}",
+        "resource R{x:i32}enum E{V{manages owner:R}}fn main(){}",
+        "resource R{x:i32}enum E{V{x:i32},Other(manages R)}fn main(){}",
+        "enum E{V{x:i32}}fn unused(e:E){if let E.V{x:x}=e{}}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert!(!report.diagnostics.is_empty());
+    }
+    for text in [
+        "enum E<T:Copy>{V{x:T}}fn unused<T:Copy>(x:T){let value=E.V{x:x};}fn main(){}",
+        "enum E<T>{R{r:T}}fn good<T:Copy>(r:T)->E<T>{return E::<T>.R{r:r}}fn main(){}",
+        "enum E<T:Copy>{V{x:T}}type A<T>=E<T>;fn unused<T:Copy>(x:T)->A<T>{return A::<T>.V{x:x}}fn main(){}",
+        "enum E<T:Copy,P:Copy>{V{x:T}}fn unused<T:Copy,P:Copy>(e:E<T,P>){}fn main(){}",
+        "struct Box<T:Copy>{value:T}enum E<T:Copy>{V{value:Box<T>}}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn record_enum329_public_module_alias_and_field_label_dependency() {
+    use zil_driver::{CompilationSession, ProjectSources};
+    let main = "import model;type Alias=model.Message<i64>;fn main()->i32{let e:Alias=model.Message.Data{value:7,flag:true};match e{Alias.Data{flag:true,value:n}=>{if n!=7{return 1}return 0},Alias.Data{flag:false,value:_}=>{return 2}}}";
+    let model = "pub enum Message<T:Copy>{Data{flag:bool,value:T}}";
+    let project = |provider: &str| ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            source(main),
+            SourceUnit::new(FileId(1), ModuleId(1), "model.zil", provider),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["model".into()], ModuleId(1))]),
+    };
+    for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+        let out = Temp::new();
+        let report = zil_driver::compile_project(
+            &project(model),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                output: Some(out.0.join("program")),
+                optimization,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let result = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(0), "{result:?}");
+        assert!(result.stdout.is_empty() && result.stderr.is_empty());
+    }
+    let mut session = CompilationSession::default();
+    let options = CompileOptions::default();
+    assert_eq!(
+        session.compile_project(&project(model), &options).status,
+        ResultCategory::Success
+    );
+    // Same payload types/layout, different source member identity. Neither a
+    // warm source cache nor positional Enum IR may retain the removed label.
+    let renamed = model.replace("value:T", "renamed:T");
+    let fresh = CompilationSession::default().compile_project(&project(&renamed), &options);
+    assert_eq!(
+        fresh.status,
+        ResultCategory::SafeReject,
+        "{}",
+        fresh.to_json()
+    );
+    let warm = session.compile_project(&project(&renamed), &options);
+    assert_eq!(
+        warm.status,
+        ResultCategory::SafeReject,
+        "{}",
+        warm.to_json()
+    );
+    assert_eq!(session.active_query_count(), 0);
+    assert_eq!(
+        session.compile_project(&project(model), &options).status,
+        ResultCategory::Success
+    );
+}
+
+#[test]
+fn record_enum329_request_budgets_are_exact_cold_warm_and_fresh() {
+    use zil_driver::CompilationSession;
+    let input = source(
+        "enum E<T:Copy,P:Copy>{V{value:T,flag:bool}}fn make<T:Copy,P:Copy>(x:T)->E<T,P>{return E::<T,P>.V{flag:true,value:x}}fn read<T:Copy,P:Copy>(e:E<T,P>)->T{match e{E.V{flag:_,value:n}=>{return n}}}fn main()->i32{return read::<i32,bool>(make::<i32,bool>(7))-7}",
+    );
+    for ledger in ["work", "nodes", "instances"] {
+        let options = |n| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                _ => options.limits.max_functions = n,
+            }
+            options
+        };
+        let mut low = 1;
+        let mut high = match ledger {
+            "work" => Limits::default().max_analysis_steps,
+            "nodes" => Limits::default().max_nodes,
+            _ => Limits::default().max_functions,
+        };
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&input, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut warm = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            assert_eq!(warm.compile_source(&input, &options(n)).status, expected);
+            assert_eq!(
+                CompilationSession::default()
+                    .compile_source(&input, &options(n))
+                    .status,
+                expected
+            );
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!("329 full request {ledger} N={low}; N-1 ResourceLimit, cold/warm/fresh agree");
+    }
+}
+
+#[test]
+fn primitive_binder329_request_budget_is_shared_cold_warm_and_fresh() {
+    use zil_driver::CompilationSession;
+    let input = source(
+        "enum E<T:Copy>{V{x:T}}fn identity<i64:Copy>(x:i64)->i64{return x}fn read<i64:Copy>(e:E<i64>)->i64{match e{E.V{x:n}=>{return n}}}fn main()->i32{return read::<i32>(E::<i32>.V{x:identity::<i32>(7)})-7}",
+    );
+    for ledger in ["work", "nodes"] {
+        let options = |n| {
+            let mut options = CompileOptions::default();
+            if ledger == "work" {
+                options.limits.max_analysis_steps = n;
+            } else {
+                options.limits.max_nodes = n;
+            }
+            options
+        };
+        let mut low = 1;
+        let mut high = if ledger == "work" {
+            Limits::default().max_analysis_steps
+        } else {
+            Limits::default().max_nodes
+        };
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&input, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        assert!(low > 1);
+        assert!(
+            low < if ledger == "work" {
+                Limits::default().max_analysis_steps
+            } else {
+                Limits::default().max_nodes
+            }
+        );
+        let mut warm = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            let report = warm.compile_source(&input, &options(n));
+            assert_eq!(report.status, expected, "{}", report.to_json());
+            if expected == ResultCategory::ResourceLimit {
+                assert!(!report.diagnostics.is_empty());
+            }
+            let fresh = CompilationSession::default().compile_source(&input, &options(n));
+            assert_eq!(fresh.status, expected, "{}", fresh.to_json());
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!(
+            "329 primitive binder full request {ledger} N={low}; N-1 ResourceLimit, cold/warm/fresh agree"
+        );
+    }
+}
+
+#[test]
+fn record_enum329_raw_and_wire_preserve_typed_enum_integrity() {
+    let input = source(
+        "enum E{V{number:i64,flag:bool},U}fn result()->i64{let e=E.V{flag:true,number:7};match e{E.V{flag:_,number:n}=>{return n},E.U()=>{return 0}}}",
+    );
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_verify::verify_module_bytes(&wire, &target, &limits)
+            .unwrap()
+            .module(),
+        &typed
+    );
+    for attack in 0..3 {
+        let mut damaged = typed.clone();
+        let function = &mut damaged.functions[0];
+        if attack < 2 {
+            let op = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::MakeVariant { .. }))
+                .unwrap();
+            let InstructionKind::MakeVariant { variant, fields } = &mut op.kind else {
+                unreachable!()
+            };
+            if attack == 0 {
+                fields.swap(0, 1)
+            } else {
+                *variant = 99
+            }
+        } else {
+            let op = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::ReadVariant { .. }))
+                .unwrap();
+            let InstructionKind::ReadVariant { index, .. } = &mut op.kind else {
+                unreachable!()
+            };
+            *index = 99;
+        }
+        let mut claims = plan.clone();
+        claims.module_fingerprint = damaged.fingerprint();
+        let raw = zil_verify::verify_module(damaged.clone(), claims.clone(), &target, &limits)
+            .unwrap_err();
+        let bytes = zil_ir::wire::encode_module_candidate(&damaged, &claims, &limits).unwrap();
+        let transported = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+        for errors in [raw, transported] {
+            assert!(!errors.is_empty());
+            assert_eq!(errors[0].phase, Phase::Verify);
+            assert!(errors[0].code.starts_with("E-VERIFY-"));
+        }
+    }
+}
+
 struct Temp(PathBuf);
 impl Temp {
     fn new() -> Self {
@@ -283,6 +976,129 @@ fn large_copy_a18_native_all_backends() {
     }
 }
 #[test]
+fn large_copy_a18_by_value_abi_native_all_backends() {
+    // Isolate LLVM failures and cap each compiler process. This remains one
+    // existing Cargo integration target and preserves the original input bytes.
+    if let Ok(profile) = std::env::var("ZIL_333_LARGE_COPY_CHILD") {
+        use zil_driver::{NativeBackend, Optimization};
+        let (backend, optimization) = match profile.as_str() {
+            "clang-O0" => (NativeBackend::Clang, Optimization::O0),
+            "clang-O2" => (NativeBackend::Clang, Optimization::O2),
+            "llvm-api-O0" => (NativeBackend::LlvmApi, Optimization::O0),
+            "llvm-api-O2" => (NativeBackend::LlvmApi, Optimization::O2),
+            _ => panic!("unknown child profile"),
+        };
+        let out = Temp::new();
+        let case = std::env::var("ZIL_333_CASE").unwrap();
+        let input = match case.as_str() {
+            "argument" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-array-a18-by-value.zil"
+            ),
+            "return" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-array-a18-return.zil"
+            ),
+            "pointer" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-array-a18-function-pointer.zil"
+            ),
+            _ => panic!("unknown ABI case"),
+        };
+        let report = compile_source(
+            &source(input),
+            &CompileOptions {
+                backend,
+                optimization,
+                stop_after: Stage::Build,
+                cancellation: zil_driver::CancellationToken::with_timeout(
+                    std::time::Duration::from_secs(45),
+                ),
+                output: Some(out.0.join("program")),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+        assert!(llvm.contains(".lc1("), "versioned definition/call absent");
+        assert!(llvm.contains("@zil.copy.bytes"));
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.backend, backend);
+        assert!(codegen.fallback.is_none());
+        if backend == NativeBackend::LlvmApi {
+            let pipeline = format!("\"pipeline\":\"default<{optimization:?}>\"");
+            assert!(!codegen.object_reports.is_empty());
+            assert!(codegen.object_reports.iter().all(|r| r.contains(&pipeline)));
+        } else {
+            let flag = if optimization == Optimization::O0 {
+                "-O0"
+            } else {
+                "-O2"
+            };
+            assert!(
+                report
+                    .commands
+                    .iter()
+                    .any(|command| command.iter().any(|arg| arg == flag))
+            );
+        }
+        let actual = Command::new("timeout")
+            .args(["-s", "KILL", "5s"])
+            .arg(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+        assert!(actual.stdout.is_empty());
+        assert!(actual.stderr.is_empty());
+        return;
+    }
+    for backend in ["clang", "llvm-api"] {
+        if backend == "llvm-api" && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in ["O0", "O2"] {
+            for case in ["argument", "return", "pointer"] {
+                let actual = Command::new("timeout")
+                    .args([
+                        "-s",
+                        "KILL",
+                        "55s",
+                        "bash",
+                        "-c",
+                        "ulimit -c 0; ulimit -t 45; ulimit -v 2097152; exec \"$@\"",
+                        "--",
+                    ])
+                    .arg(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "large_copy_a18_by_value_abi_native_all_backends",
+                        "--nocapture",
+                        "--test-threads=1",
+                    ])
+                    .env("ZIL_333_CASE", case)
+                    .env(
+                        "ZIL_333_LARGE_COPY_CHILD",
+                        format!("{backend}-{optimization}"),
+                    )
+                    .output()
+                    .unwrap();
+                assert!(
+                    actual.status.success(),
+                    "{backend}-{optimization}: {} {}",
+                    String::from_utf8_lossy(&actual.stdout),
+                    String::from_utf8_lossy(&actual.stderr)
+                );
+                eprintln!(
+                    "333 a18 ABI {case} {backend}-{optimization}: backend matched, requested pipeline, fallback=null, native_exit=0"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn records_nested_update_parameter_and_return() {
     let llvm = native(
         include_str!("../../../examples/aggregates/main.zil"),
@@ -324,6 +1140,33 @@ fn tuple_binding_original_readiness_source() {
         "main",
         Some(0),
     );
+}
+
+#[test]
+fn common313_discard_still_checks_copy_and_evaluates_record_rhs_once() {
+    review329_native(
+        &[(
+            "main",
+            "enum Envelope{Value{left:i32,right:i32}}fn mark(trace:&mut i32,n:i32)->i32{*trace=*trace*10+n;return n}fn result()->i32{var trace=0;let(_,_)=(Envelope.Value{right:mark(&mut trace,2),left:mark(&mut trace,1)},());return trace}",
+        )],
+        21,
+    );
+    for text in [
+        "fn result()->i32{let value=7;let(_,_)=(&value,0);return value}",
+        "resource Token{value:i32}impl Drop for Token{fn drop(self:Self){}}fn result()->i32{let(_,_)=(Token{value:7},0);return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, "E-UNSUPPORTED");
+        assert_eq!(report.verification_runs, 0);
+        assert!(!report.artifacts.contains_key("executable"));
+    }
 }
 #[test]
 fn review318_tuple_rhs_order_and_ct_traversal() {
@@ -736,5 +1579,653 @@ fn raw_aggregate_shapes_obey_work_and_depth_limits_before_identity_checks() {
             zil_verify::verify_module(damaged, plan.clone(), &target, &limits).unwrap_err();
         assert_eq!(checked[0].category, ResultCategory::ResourceLimit);
         assert_eq!(checked[0].phase, Phase::Verify);
+    }
+}
+
+#[test]
+fn large_copy_abi_copy_in_and_rhs_order() {
+    let first = "[0]".repeat(13);
+    let text = large_copy_program(&format!(
+        "var original=a12;let pointer:fn(Big)->Big=keep;let returned=pointer(original);let observed=pair(original,touch(&mut original));return i32(returned{first})*100+i32(original{first})*10+observed;"
+    ));
+    let text = format!(
+        "fn keep(value:Big)->Big{{var changed=value;changed{first}=9u8;return value}}fn pair(value:Big,marker:i32)->i32{{var changed=value;changed{first}=8u8;return i32(value{first})+marker}}{text}"
+    );
+    let llvm = native(&text, Some(344));
+    assert!(llvm.contains(".lc1(ptr %lc1.result, ptr %arg.0)"));
+    assert!(!llvm.contains("define internal void @zil.fn."));
+}
+
+#[test]
+fn large_copy_abi_special_closure_is_explicitly_unsupported() {
+    // Match the ordinary CLI's 8 MiB main-thread stack. The recursive closure
+    // metadata check exceeds Rust's smaller default test-worker stack.
+    std::thread::Builder::new()
+        .stack_size(
+            std::env::var("ZIL_333_CAPTURE_STACK_BYTES")
+                .ok()
+                .map(|n| n.parse().unwrap())
+                .unwrap_or(8 * 1024 * 1024),
+        )
+        .spawn(|| {
+            let first = "[0]".repeat(13);
+            for (prefix, body) in [
+                ("", "let f=(value:Big)->Big=>value;return 0;".to_owned()),
+                ("", format!("let f=move()=>i32(a12{first});return f();")),
+                (
+                    "",
+                    "let f=(pointer:fn(Big,i32)->i32)->i32=>0;return 0;".to_owned(),
+                ),
+                (
+                    "",
+                    "let pointer=inspect;let f=()=>{let held=pointer;return 0};return f();"
+                        .to_owned(),
+                ),
+                (
+                    "resource Holder{call:fn(Big,i32)->i32}",
+                    "let holder=Holder{call:inspect};return 0;".to_owned(),
+                ),
+            ] {
+                let text = format!("{prefix}{}", large_copy_program(&body));
+                eprintln!(
+                    "333 capture probe: Verify API begins; move_capture={}",
+                    body.contains("move")
+                );
+                let verified = compile_source(&source(&text), &CompileOptions::default());
+                assert_eq!(
+                    verified.status,
+                    ResultCategory::Success,
+                    "{}",
+                    verified.to_json()
+                );
+                eprintln!("333 capture probe: Verify API completed; Build API begins");
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        entry: Some("result".into()),
+                        stop_after: Stage::Build,
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Unsupported,
+                    "{}",
+                    report.to_json()
+                );
+                assert!(report.diagnostics.iter().any(|d| d.phase == Phase::Codegen));
+                assert!(!report.artifacts.contains_key("llvm"));
+                assert!(!report.artifacts.contains_key("executable"));
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn large_copy_abi_codegen_budget_exact_and_fresh() {
+    let src = source(include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-array-a18-function-pointer.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = TargetProfile::default();
+    let defaults = Limits::default();
+    let typed = zil_types::check(&core, &target, &defaults).unwrap();
+    let candidate = zil_analyze::analyze(&typed, &defaults).unwrap();
+    let emit = |steps| {
+        let limits = Limits {
+            max_analysis_steps: steps,
+            ..defaults.clone()
+        };
+        let verified =
+            zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)?;
+        let lir = zil_lower::lower(&verified)?;
+        zil_backend_llvm::emit(&verified, &lir)
+    };
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    assert!(emit(high).is_ok());
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if emit(middle).is_ok() {
+            high = middle
+        } else {
+            low = middle + 1
+        }
+    }
+    let errors = emit(low - 1).unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+    assert_eq!(errors[0].phase, Phase::Codegen);
+    assert!(emit(low).unwrap().contains(".lc1"));
+    assert!(emit(low).unwrap().contains(".lc1"));
+    if cfg!(feature = "llvm-api") {
+        let out = Temp::new();
+        let options = CompileOptions {
+            backend: zil_driver::NativeBackend::LlvmApi,
+            stop_after: Stage::Build,
+            object_cache: Some(out.0.join("objects")),
+            output: Some(out.0.join("program")),
+            ..CompileOptions::default()
+        };
+        let cold = compile_source(&src, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        assert!(cold.native_codegen.as_ref().unwrap().object_cache.misses > 0);
+        let failed = compile_source(
+            &src,
+            &CompileOptions {
+                limits: Limits {
+                    max_analysis_steps: low - 1,
+                    ..defaults.clone()
+                },
+                ..options.clone()
+            },
+        );
+        assert_eq!(
+            failed.status,
+            ResultCategory::ResourceLimit,
+            "{}",
+            failed.to_json()
+        );
+        assert_eq!(failed.phase, Phase::Codegen);
+        assert!(!failed.artifacts.contains_key("executable"));
+        let warm = compile_source(&src, &options);
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.native_codegen.as_ref().unwrap().object_cache.misses, 0);
+        assert!(warm.native_codegen.as_ref().unwrap().object_cache.hits > 0);
+    }
+    eprintln!("333 a18 function-pointer Codegen exact work limit: {low}");
+}
+
+#[test]
+fn large_copy_abi_cgu_cache_and_canonical_function_reference() {
+    use zil_driver::{
+        CodegenOptions, NativeBackend, Optimization, ProjectSources, compile_project,
+    };
+    let mut ty = "[u8;1]".to_owned();
+    let mut initialization = "let a0=[3u8];".to_owned();
+    for n in 1..=12 {
+        ty = format!("[{ty};2]");
+        initialization.push_str(&format!("let a{n}=[a{},a{}];", n - 1, n - 1));
+    }
+    let first = "[0]".repeat(13);
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = Temp::new();
+            for (round, changed) in [(0, false), (1, false), (2, true)] {
+                let body = if changed {
+                    format!("var changed=value;changed{first}=9u8;return changed")
+                } else {
+                    "return value".into()
+                };
+                let modules=[
+              ("main",format!("import model;import factory;fn main()->i32{{{initialization}let p=factory.pointer();let value=p(a12);return i32(value{first})}}")),
+              ("model",format!("pub type Big={ty};pub fn identity(value:Big)->Big{{{body}}}")),
+              ("factory","import model;pub fn pointer()->fn(model.Big)->model.Big{return model.identity}".into()),
+            ];
+                let project = ProjectSources {
+                    root: ModuleId(0),
+                    modules: modules
+                        .iter()
+                        .enumerate()
+                        .map(|(n, (name, text))| {
+                            SourceUnit::new(
+                                FileId(n as u32),
+                                ModuleId(n as u32),
+                                format!("{name}.zil"),
+                                text.clone(),
+                            )
+                        })
+                        .collect(),
+                    paths: [
+                        (vec!["model".into()], ModuleId(1)),
+                        (vec!["factory".into()], ModuleId(2)),
+                    ]
+                    .into_iter()
+                    .collect(),
+                };
+                let report = compile_project(
+                    &project,
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        incremental_o2: optimization == Optimization::O2,
+                        stop_after: Stage::Build,
+                        object_cache: (backend == NativeBackend::LlvmApi)
+                            .then(|| out.0.join("objects")),
+                        codegen: CodegenOptions { units: 3, jobs: 1 },
+                        output: Some(out.0.join(format!("program{round}"))),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let actual = Command::new("timeout")
+                    .args(["-s", "KILL", "5s"])
+                    .arg(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(if changed { 9 } else { 3 }),
+                    "{actual:?}"
+                );
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert!(codegen.actual_units >= 2, "{}", report.to_json());
+                assert!(codegen.fallback.is_none(), "{}", report.to_json());
+                if backend == NativeBackend::LlvmApi {
+                    assert!(codegen.object_cache.enabled, "{}", report.to_json());
+                    if round == 1 {
+                        assert_eq!(codegen.object_cache.hits, codegen.actual_units);
+                        assert_eq!(codegen.object_cache.misses, 0);
+                    } else {
+                        assert!(codegen.object_cache.misses > 0);
+                    }
+                }
+                let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+                assert!(llvm.contains(".lc1"));
+            }
+        }
+    }
+}
+
+#[test]
+fn large_copy_abi_record_tuple_unit_padding_roundtrip_all_backends() {
+    use zil_driver::{NativeBackend, Optimization};
+    let first = "[0]".repeat(13);
+    let text = large_copy_program(&format!(
+        "let pair=(a12,());var record=Envelope{{unit:(),flag:true,body:a12,tail:9}};let pointer:fn((Big,()),Envelope)->(Envelope,Big)=relay;let kept=pointer(pair,record);record.body{first}=7u8;return i32(kept.0.body{first})*1000+i32(kept.1{first})*100+i32(record.body{first})*10+i32(kept.0.tail);"
+    ));
+    let text = format!(
+        "struct Envelope{{unit:();flag:bool;body:Big;tail:i64}}fn relay(pair:(Big,()),record:Envelope)->(Envelope,Big){{var changed=record;changed.body{first}=9u8;changed.tail=11;return (changed,pair.0)}}{text}"
+    );
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = Temp::new();
+            let report = compile_source(
+                &source(&text),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    entry: Some("result".into()),
+                    stop_after: Stage::Build,
+                    output: Some(out.0.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let observed = Command::new("timeout")
+                .args(["-s", "KILL", "5s"])
+                .arg(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(observed.status.success(), "{observed:?}");
+            assert_eq!(observed.stdout, b"9381\n");
+            let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+            assert!(llvm.contains(".lc1(ptr %lc1.result, ptr %arg.0, ptr %arg.1)"));
+        }
+    }
+}
+
+#[test]
+fn large_copy_abi_unit_erasure_small_signature_and_void_return() {
+    let first = "[0]".repeat(13);
+    let text = large_copy_program(
+        "var observed=0;consume((),a12,2,&mut observed);let scalar=small([4u8]);return observed+i32(scalar[0]);",
+    );
+    let text = format!(
+        "fn consume(unit:(),value:Big,marker:i32,output:&mut i32)->(){{*output=i32(value{first})+marker;return ()}}fn small(value:[u8;1])->[u8;1]{{return value}}{text}"
+    );
+    let llvm = native(&text, Some(9));
+    assert!(llvm.contains(".lc1(ptr %arg.1, i32 %arg.2, ptr %arg.3)"));
+    let small = llvm
+        .lines()
+        .find(|line| line.starts_with("define [1 x i8] @zil.fn."))
+        .unwrap();
+    assert!(!small.contains(".lc1"));
+}
+
+#[test]
+fn large_copy_abi_borrow_capture_keeps_pointer_environment() {
+    // The captured source variable is Big, but its mutable borrowed environment
+    // field is one pointer. LargeCopy guards must inspect the physical value.
+    std::thread::Builder::new().stack_size(8*1024*1024).spawn(|| {
+        use zil_driver::{NativeBackend,Optimization};
+        let first="[0]".repeat(13);
+        let text=large_copy_program(&format!("var original=a12;var f=()=>{{original{first}+=1u8;return i32(original{first})}};return f()*10+f();"));
+        for backend in [NativeBackend::Clang,NativeBackend::LlvmApi] {
+            if backend==NativeBackend::LlvmApi && !cfg!(feature="llvm-api") {continue;}
+            for optimization in [Optimization::O0,Optimization::O2] {
+                let out=Temp::new();
+                let report=compile_source(&source(&text),&CompileOptions {backend,optimization,entry:Some("result".into()),stop_after:Stage::Build,output:Some(out.0.join("program")),..CompileOptions::default()});
+                assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+                let actual=Command::new("timeout").args(["-s","KILL","5s"]).arg(&report.artifacts["executable"]).output().unwrap();
+                assert!(actual.status.success(),"{actual:?}");
+                assert_eq!(actual.stdout,b"45\n");
+            }
+        }
+    }).unwrap().join().unwrap();
+}
+
+#[test]
+fn large_copy_abi_recursive_carrier_symbols_and_old_link_rejection() {
+    use zil_driver::{NativeBackend, Optimization};
+    let input = include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-copy-version-carriers.zil"
+    );
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = Temp::new();
+            let report = compile_source(
+                &source(input),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(out.0.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+            for id in 0..=12 {
+                let base = format!("@zil.fn.{id}");
+                let expected = if id <= 8 {
+                    format!("{base}.lc1(")
+                } else {
+                    format!("{base}(")
+                };
+                assert!(
+                    llvm.lines()
+                        .any(|line| line.starts_with("define ") && line.contains(&expected)),
+                    "missing {expected}"
+                );
+            }
+            assert!(llvm.contains("ptr @zil.fn.1.lc1()"));
+            assert!(llvm.contains("i32 @zil.fn.2.lc1(ptr %arg.0)"));
+            let actual = Command::new("timeout")
+                .args(["-s", "KILL", "5s"])
+                .arg(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+            let symbols = Command::new("nm")
+                .arg("-g")
+                .arg(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(symbols.status.success());
+            let symbols = String::from_utf8(symbols.stdout).unwrap();
+            for id in 0..=8 {
+                assert!(
+                    symbols
+                        .lines()
+                        .any(|line| line.ends_with(&format!(" T zil.fn.{id}.lc1")))
+                );
+                assert!(
+                    !symbols
+                        .lines()
+                        .any(|line| line.ends_with(&format!(" T zil.fn.{id}")))
+                );
+            }
+            if backend == NativeBackend::Clang && optimization == Optimization::O0 {
+                let object = out.0.join("definitions.o");
+                let built = Command::new("clang")
+                    .args(["-x", "ir", "-O0", "-c"])
+                    .arg(&report.artifacts["llvm"])
+                    .arg("-o")
+                    .arg(&object)
+                    .output()
+                    .unwrap();
+                assert!(built.status.success(), "{built:?}");
+                for (suffix, success) in [("", false), (".lc1", true)] {
+                    let probe = out.0.join("consumer.c");
+                    fs::write(&probe,format!("extern void *factory(void) __asm__(\"zil.fn.1{suffix}\");void *consume_factory(void){{return factory();}}\n")).unwrap();
+                    let linked = Command::new("clang")
+                        .arg(&probe)
+                        .arg(&object)
+                        .arg("-o")
+                        .arg(out.0.join("consumer"))
+                        .output()
+                        .unwrap();
+                    assert_eq!(linked.status.success(), success, "{linked:?}");
+                    if !success {
+                        let error = String::from_utf8_lossy(&linked.stderr);
+                        assert!(
+                            error.contains("undefined reference") && error.contains("zil.fn.1"),
+                            "{error}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn review329_astra_symbolic_copy_does_not_grant_primitive_operations() {
+    for (label, text) in [
+        (
+            "named_i32",
+            "enum E<T:Copy>{V{x:T}}fn bad<i32:Copy>(e:E<i32>)->u8{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_i32",
+            "enum E<T:Copy>{V(T)}fn bad<i32:Copy>(e:E<i32>)->u8{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_i64",
+            "enum E<T:Copy>{V{x:T}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_i64",
+            "enum E<T:Copy>{V(T)}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_u8",
+            "enum E<T:Copy>{V{x:T}}fn bad<u8:Copy>(e:E<u8>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_u8",
+            "enum E<T:Copy>{V(T)}fn bad<u8:Copy>(e:E<u8>)->i32{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_u16",
+            "enum E<T:Copy>{V{x:T}}fn bad<u16:Copy>(e:E<u16>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_u16",
+            "enum E<T:Copy>{V(T)}fn bad<u16:Copy>(e:E<u16>)->i32{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_bool",
+            "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_bool",
+            "enum E<T:Copy>{V(T)}fn bad<bool:Copy>(e:E<bool>)->i32{match e{E.V(true)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "named_T",
+            "enum E<T:Copy>{V{x:T}}fn bad<T:Copy>(e:E<T>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "tuple_T",
+            "enum E<T:Copy>{V(T)}fn bad<T:Copy>(e:E<T>)->i32{match e{E.V(1)=>{return 1},E.V(_)=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "alias_i64",
+            "enum E<T:Copy>{V{x:T}}type Alias<T>=E<T>;fn bad<i64:Copy>(e:Alias<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "nested_i64",
+            "enum E<T:Copy>{V{x:(T,bool)}}fn bad<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:(1,_)}=>{return 1},E.V{x:(_,_) }=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "scalar_bool",
+            "fn bad<bool:Copy>(b:bool)->i32{match b{true=>{return 1},false=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "bool_construct",
+            "enum E<T:Copy>{V{x:T}}fn bad<bool:Copy>()->E<bool>{return E::<bool>.V{x:true}}fn result()->i32{return 0}",
+        ),
+        (
+            "bool_return",
+            "fn bad<bool:Copy>()->bool{return true}fn result()->i32{return 0}",
+        ),
+        (
+            "bool_condition",
+            "fn bad<bool:Copy>(b:bool)->i32{if b{return 1}return 0}fn result()->i32{return 0}",
+        ),
+        (
+            "i64_conversion",
+            "fn bad<i64:Copy>(x:i64)->i32{return i32(x)}fn result()->i32{return 0}",
+        ),
+        (
+            "i64_index",
+            "fn bad<i64:Copy>(a:[i32;2],i:i64)->i32{return a[i]}fn result()->i32{return 0}",
+        ),
+        (
+            "enum_shadow_named",
+            "enum E{V{x:i32}}fn bad<E:Copy>(e:E)->i32{match e{E.V{x:x}=>{return x}}}fn result()->i32{return 0}",
+        ),
+        (
+            "enum_shadow_tuple",
+            "enum E{V(i32)}fn bad<E:Copy>(e:E)->i32{match e{E.V(x)=>{return x}}}fn result()->i32{return 0}",
+        ),
+        (
+            "enum_shadow_construct",
+            "enum E{V{x:i32}}fn bad<E:Copy>()->E{return E.V{x:1}}fn result()->i32{return 0}",
+        ),
+        (
+            "struct_shadow_field",
+            "struct P{x:i32}fn bad<P:Copy>(p:P)->i32{return p.x}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_slice",
+            "fn bad<i64:Copy>(a:[i32;2],i:i64){let s=&a[i..i]}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_while",
+            "fn bad<bool:Copy>(b:bool){while b{break}}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_conversion_output",
+            "fn bad<i64:Copy>()->i64{return i64(1)}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_ordinary_call",
+            "fn consume(x:i64){}fn bad<i64:Copy>(x:i64){consume(x)}fn result()->i32{return 0}",
+        ),
+        (
+            "negative_unrelated_alias",
+            "type Alias=i32;fn bad<bool:Copy>()->bool{return true}fn result()->i32{return 0}",
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{label}: {}", report.to_json());
+        assert_eq!(report.verification_runs, 0, "{label}");
+    }
+}
+
+#[test]
+fn review329_astra_lexical_builtin_controls() {
+    for (label, text) in [
+        (
+            "legal_life_bool_type_i64",
+            "fn keep<i64:Copy,life bool>(x:&'bool i64)->&'bool i64{return x}fn result()->i32{let x=1;return *keep(&x)}",
+        ),
+        (
+            "legal_life_alias_type_i64",
+            "type A=i32;fn keep<i64:Copy,life A>(x:&'A i64)->&'A i64{return x}fn result()->A{let x=1;return *keep(&x)}",
+        ),
+        (
+            "legal_life_i64_only",
+            "fn trigger<bool:Copy>(x:bool)->bool{return x}fn keep<life i64>(x:&'i64 i64)->&'i64 i64{return x}fn result()->i64{let x:i64=1;return *keep(&x)}",
+        ),
+        (
+            "legal_concrete_named",
+            "enum E<T:Copy>{V{x:T}}fn good<T:Copy>(unused:T,e:E<i64>)->i32{match e{E.V{x:1}=>{return 1},E.V{x:_}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "legal_dependent_named",
+            "enum E<T:Copy>{V{x:T}}fn good<i64:Copy>(e:E<i64>)->i64{match e{E.V{x:x}=>{return x}}}fn result()->i32{return 0}",
+        ),
+        (
+            "legal_bool_concrete",
+            "enum E<T:Copy>{V{x:T}}fn good<T:Copy>(unused:T,e:E<bool>)->i32{match e{E.V{x:true}=>{return 1},E.V{x:false}=>{return 0}}}fn result()->i32{return 0}",
+        ),
+        (
+            "legal_callee_i64",
+            "fn scalar()->i64{return 1}fn keep<i64:Copy>(x:i64)->i32{let n=scalar();match n{1=>{return 1},_=>{return 0}}}fn result()->i32{return keep(true)}",
+        ),
+        (
+            "legal_declared_i64_field",
+            "enum E<T:Copy>{V{x:T,y:i64}}fn good<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:_,y:1}=>{return 1},E.V{x:_,y:_}=>{return 0}}}fn result()->i32{return good(E::<bool>.V{x:true,y:i64(1)})}",
+        ),
+        (
+            "legal_callee_bool",
+            "fn scalar()->bool{return true}fn keep<bool:Copy>(x:bool)->i32{if scalar(){return 1}return 0}fn result()->i32{return keep(7)}",
+        ),
+        (
+            "legal_renamed_identity",
+            "fn keep<i64:Copy>(x:i64)->i64{return x}fn result()->i32{if keep::<bool>(true){return 1}return 0}",
+        ),
+        (
+            "legal_alias_identity",
+            "type A<i64>=i64;fn keep<bool:Copy>(x:A<bool>)->A<bool>{return x}fn result()->i32{return keep(1)}",
+        ),
+        (
+            "legal_renamed_enum_binder",
+            "enum E<bool:Copy>{V{x:bool,y:i64}}fn wrap<bool:Copy>(x:bool)->E<bool>{return E::<bool>.V{x:x,y:i64(7)}}fn result()->i64{match wrap(1){E.V{x:_,y:y}=>{return y}}}",
+        ),
+        (
+            "legal_declared_i64_field_unsuffixed",
+            "enum E<T:Copy>{V{x:T,y:i64}}fn good<i64:Copy>(e:E<i64>)->i32{match e{E.V{x:_,y:1}=>{return 1},E.V{x:_,y:_}=>{return 0}}}fn result()->i32{return good(E::<bool>.V{x:true,y:1})}",
+        ),
+        (
+            "legal_renamed_enum_binder_unsuffixed",
+            "enum E<bool:Copy>{V{x:bool,y:i64}}fn wrap<bool:Copy>(x:bool)->E<bool>{return E::<bool>.V{x:x,y:7}}fn result()->i64{match wrap(1){E.V{x:_,y:y}=>{return y}}}",
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1, "{label}");
     }
 }

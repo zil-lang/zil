@@ -148,12 +148,61 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 else {
                     continue;
                 };
-                if caller.environment.is_some() || caller.callable_contract.is_some() {
+                if caller.callable_contract.is_some() {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
-                        "thread_scope is implemented only in ordinary Direct functions; closure and callable helper entries are not implemented",
+                        "thread_scope in callable parameter/helper entries is not implemented",
                         Some(instruction.span),
                     )]);
+                }
+                if let Some(id) = caller.environment {
+                    budget.spend(2, "thread parent concrete entry lookup")?;
+                    let definition = module.closures.get(id.0 as usize).ok_or_else(|| {
+                        reject(instruction.span, "thread parent closure identity is absent")
+                    })?;
+                    budget.spend(
+                        definition.parameters.len().saturating_add(1),
+                        "thread parent parameter inventory",
+                    )?;
+                    budget.type_work(
+                        &definition.result,
+                        false,
+                        "thread parent result comparison",
+                    )?;
+                    if definition.id != id
+                        || definition.function != caller.id
+                        || caller.foreign.is_some()
+                        || caller.result_mode != PassingMode::Infer
+                        || definition.parameters.len() != caller.parameters.len()
+                        || definition.result != caller.return_type
+                        || !matches!(
+                            definition.kind,
+                            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+                        )
+                    {
+                        return Err(reject(
+                            instruction.span,
+                            "thread parent metadata differs from its actual concrete entry",
+                        ));
+                    }
+                    for (parameter, expected) in
+                        caller.parameters.iter().zip(&definition.parameters)
+                    {
+                        budget.type_work(
+                            expected,
+                            false,
+                            "thread parent actual parameter comparison",
+                        )?;
+                        let local = caller.locals.get(parameter.0 as usize).ok_or_else(|| {
+                            reject(instruction.span, "thread parent parameter local is absent")
+                        })?;
+                        if local.id != *parameter || &local.ty != expected {
+                            return Err(reject(
+                                instruction.span,
+                                "thread parent parameter differs from its actual entry",
+                            ));
+                        }
+                    }
                 }
                 if caller.values.get(argument.0 as usize) != Some(&Type::I32)
                     || instruction

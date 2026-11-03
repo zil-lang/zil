@@ -13,6 +13,8 @@ pub(crate) struct Products {
     pub(crate) allowance: Option<Limits>,
     pub(crate) trait_signatures: trait_instances::Signatures,
     pub(crate) trait_instances: bool,
+    pub(crate) record_variants: bool,
+    pub(crate) protected_binders: bool,
 }
 #[derive(Clone)]
 pub(super) struct Scope {
@@ -192,9 +194,12 @@ impl Engine<'_> {
     }
 }
 impl Products {
+    pub(crate) fn metered(&self) -> bool {
+        self.trait_instances || self.record_variants || self.protected_binders
+    }
     pub(crate) fn trait_limits(&self, limits: &Limits) -> Limits {
         let mut selected = limits.clone();
-        if self.trait_instances
+        if self.metered()
             && let Some(remaining) = &self.allowance
         {
             selected.max_nodes = selected.max_nodes.min(remaining.max_nodes);

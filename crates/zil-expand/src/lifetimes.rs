@@ -9,6 +9,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         binders: Vec<String>,
         headers: Vec<*const s::TypeRef>,
         trait_scope: bool,
+        impl_scope: bool,
     }
     fn reference(ty: &s::TypeRef) -> &s::TypeRef {
         match &ty.kind {
@@ -17,6 +18,20 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         }
     }
     impl ct_selection::Visitor for Walk<'_, '_> {
+        fn type_binder(&mut self, name: &str, span: Span) -> CompileResult<()> {
+            self.budget
+                .note_type_binder(name, span)
+                .map_err(|e| vec![e])
+        }
+        fn enum_bound(&mut self, owner: Span, bound: &s::TypeRef, _: usize) -> CompileResult<()> {
+            if generics::record_enums::is_copy_bound(bound) {
+                self.budget.note_enum_profile(owner).map_err(|e| vec![e])?;
+            }
+            Ok(())
+        }
+        fn record_variant(&mut self, owner: Span, _: usize) -> CompileResult<()> {
+            self.budget.note_enum_profile(owner).map_err(|e| vec![e])
+        }
         fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
             self.budget.node(span, depth).map_err(|e| vec![e])
         }
@@ -27,7 +42,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             let old_binders = std::mem::take(&mut self.binders);
             let old_headers = std::mem::take(&mut self.headers);
             let old_trait = self.trait_scope;
+            let old_impl = self.impl_scope;
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
+            self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
@@ -45,7 +62,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 if !self.binders.is_empty()
                     && (self.trait_scope
                         || matches!(item.kind, s::ItemKind::Extern { .. })
-                        || !only_life(f)
+                        || !(only_life(f) || !self.impl_scope && copy_life(f))
                         || !f.where_clause.is_empty())
                 {
                     return Err(vec![Diagnostic::unsupported(
@@ -65,6 +82,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.binders = old_binders;
             self.headers = old_headers;
             self.trait_scope = old_trait;
+            self.impl_scope = old_impl;
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
@@ -106,6 +124,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         binders: Vec::new(),
         headers: Vec::new(),
         trait_scope: false,
+        impl_scope: false,
     };
     for item in &module.items {
         ct_selection::Visitor::item(&mut walk, item, 0)?;
@@ -119,6 +138,27 @@ pub(super) fn only_life(function: &s::Function) -> bool {
             .generics
             .iter()
             .all(|p| matches!(p.kind, s::GenericParamKind::Lifetime))
+}
+
+/// The type namespace and the life namespace are independent. This finite
+/// profile introduces exactly one ordinary Copy binder, never a callable,
+/// StoreElement or unconstrained type parameter.
+pub(super) fn copy_life(function: &s::Function) -> bool {
+    let mut types = 0;
+    let mut lives = 0;
+    for parameter in &function.generics {
+        match &parameter.kind {
+            s::GenericParamKind::Lifetime => lives += 1,
+            s::GenericParamKind::Type(bounds)
+                if matches!(bounds.as_slice(), [s::TypeRef { kind: s::TypeKind::Named { path, args }, .. }]
+                    if path.as_slice() == ["Copy"] && args.is_empty()) =>
+            {
+                types += 1
+            }
+            _ => return false,
+        }
+    }
+    types == 1 && lives > 0
 }
 
 fn failure(span: Span, text: &str) -> Diagnostic {
@@ -163,12 +203,7 @@ pub(super) fn contract(
     if !present {
         return Ok(None);
     }
-    if function
-        .generics
-        .iter()
-        .any(|p| !matches!(p.kind, s::GenericParamKind::Lifetime))
-        || !function.where_clause.is_empty()
-    {
+    if !(only_life(function) || copy_life(function)) || !function.where_clause.is_empty() {
         return Err(Diagnostic::unsupported(
             Phase::Expand,
             "life with type/callable/const parameters or where clauses is not implemented",
@@ -185,7 +220,11 @@ pub(super) fn contract(
         function.span,
     )?;
     let mut binders = Vec::new();
-    for p in &function.generics {
+    for p in function
+        .generics
+        .iter()
+        .filter(|p| matches!(p.kind, s::GenericParamKind::Lifetime))
+    {
         spend(
             remaining,
             p.name.len().saturating_mul(binders.len().saturating_add(2)),

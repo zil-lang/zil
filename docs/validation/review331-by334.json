@@ -1,0 +1,760 @@
+{
+  "task": "331",
+  "reviewer": "/root/language_map",
+  "implementation_author": "/root/impl315",
+  "verdict": "PassLimited",
+  "implementation_commit": "0ecb774253de1824cf3688d852e6759b9b1bc727",
+  "scope": "Non-author review of the frozen331 finite ordinary Copy type plus life profile and its existing322 kernels/CT/cache chain. Not full life/generics, combined329-332, B0/ZUI or formal full-suite acceptance.",
+  "baseline_source_commit": "40fbcca6ef506f3cb8e1d40a4f8995c788627da0",
+  "profile_revision": "e28e08d8825085e9a3c6bae57d2a85d3a2418481",
+  "profile_spec_hash": "0c389bb14213ab8e5fc6a24633bf366923a3d5ccf1a79abd816ac1c69b2a36f4",
+  "profile_normative_hash": "2c1e312fbfa4abd9d4e1fbe2b005d47f39708fe7e2cb71bb0d7c29580b1135f3",
+  "source_dependencies": {
+    "tests/language-readiness/review331/project/api.zil": "49e4936da7db102bdc09c2e380110b5127fbba038390eaca24bbecfb5f7e3b82"
+  },
+  "candidate_review_plan": [
+    "Ordinary type/life binder order and dense TypeArg count, inference and explicit T across i32/i64.",
+    "Life name does not hide an external type alias.",
+    "Unused wrong root and Copy-only numeric operations reject at definition time, also when a concrete i32 call would otherwise fit.",
+    "Cross-callee origin substitution follows actual input positions, not equal lifetime spelling; renamed/reordered caller keeps only the real source.",
+    "Cross-module CT type query rebuilding retains the declared bound, actual origins and interface identity.",
+    "Actual cold/warm/live/restored cache paths must retain current Verify and source-bound invalidation; no warm/cache claim from rejected baseline sources.",
+    "Once the exact candidate freezes, use existing cross_function_borrows target with independent target334/jobs1. No new Cargo target or full suite."
+  ],
+  "component_plan": {
+    "source": "tests/language-readiness/review331/component-planned.zil",
+    "status": "PlannedNotAccepted",
+    "dependencies": [
+      "329",
+      "330",
+      "331",
+      "332"
+    ],
+    "flow": "View<T> -> shared field borrow -> default Read.adjusted -> named Message.Value payload -> concrete parent closure -> thread_scope worker/body -> integer result",
+    "expected_native_after_all_dependencies": {
+      "entry": "main",
+      "stdout": "0\n",
+      "exit_code": 0
+    },
+    "constraint": "Self impl is concrete Meter, not a generic View<T> impl. Child payload is i32; the borrowed view stays in the parent body. No dyn, owning ABI, HRTB, async or Mutex is presumed."
+  },
+  "production_and_author_test_commit": "51ff1af892788e0bc54fe3395d049b66222d703c",
+  "delivery_difference": "0ecb7742 differs from tested51ff only in changes/331-type-life-generics.md. Reviewer production source is identical; only independent tests/docs/source fixtures differ.",
+  "baseline_compiler": {
+    "path": "/workspace/.zil-env/target-mainline-release/release/zil",
+    "sha256": "89891e131177e2fdc8d5e9febb90fbb37521a9fc815869e76b56f74ae575df67",
+    "observed_source_commit": "f2122be4deb5d6b00abbc3847f8d144a919035fe",
+    "same_production_baseline_proof": "docs/validation/language-gaps-334.json"
+  },
+  "baseline_observations": [
+    {
+      "source": "tests/language-readiness/review331/callee-same-spelling-wrong-root.zil",
+      "sha256": "ba7c85656a8aa751976b850e0f7639fdec812450da55617689e55fa6f3269efd",
+      "intent_after_implementation": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/callee-same-spelling-wrong-root.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "48fcec3b37bbbda56d840bf9b82a9b0321cb4bbcbad7a5e4b881f728492d3c04",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/component-planned.zil",
+      "sha256": "822b49eaffd11ce6d201a9d8569c27ad01e5777c96715ea75dbf75ad6315af5f",
+      "intent_after_implementation": "PlannedCombinedPositive329330331332",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/component-planned.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 1,
+        "status": "SafeReject",
+        "phase": "parse",
+        "diagnostics": [
+          {
+            "phase": "parse",
+            "category": "SafeReject",
+            "code": "E-PARSE-PATTERN",
+            "message": "qualified patterns require a constructor argument list"
+          },
+          {
+            "phase": "parse",
+            "category": "SafeReject",
+            "code": "E-PARSE-TERMINATOR",
+            "message": "expected a semicolon, logical newline, or closing brace after the complete statement"
+          },
+          {
+            "phase": "parse",
+            "category": "SafeReject",
+            "code": "E-PARSE-MODULE-STATEMENT",
+            "message": "module scope requires a declaration; executable statements belong inside a function"
+          },
+          {
+            "phase": "parse",
+            "category": "SafeReject",
+            "code": "E-PARSE-MODULE-STATEMENT",
+            "message": "module scope requires a declaration; executable statements belong inside a function"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "355ef1b8248d5b25c8d9d7f78f50e5f67886ee72c5a4e271a1f22cd7e12a3018",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/life-does-not-shadow-alias.zil",
+      "sha256": "afb5f071123628f1cfba84e429e0e23a86efc9a68138c49a1ef2e08b3f97b82e",
+      "intent_after_implementation": "Positive331",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/life-does-not-shadow-alias.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "3678c45c95e4d753c4c1a27b0ea50907dcbede002a3ec89abcd5d205cd89cb1d",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/order-and-explicit-type.zil",
+      "sha256": "43340aa72fd14641b25078d2a71ca6af077fd5fa7c701734f674e75a0f0093fe",
+      "intent_after_implementation": "Positive331",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/order-and-explicit-type.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "9ca2b0557b0abd96fb289e3cc418d93bdac41c738954959ce62bf5f2cbf8f360",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/renamed-and-permuted-callee.zil",
+      "sha256": "ab0e2b8d6be48f2781274d763124c91c6aab126aea00d6fc78d87da1c597e33d",
+      "intent_after_implementation": "Positive331",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/renamed-and-permuted-callee.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "6d9798de8365463de531ca95eb476043a86720f761a52dd5d4d388c58b59bd6c",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/unused-copy-is-not-numeric.zil",
+      "sha256": "23f70b4b36382260b11e685fe161772028070a428a55765197e57d2ab1338927",
+      "intent_after_implementation": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/unused-copy-is-not-numeric.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "93d40daec8317921797c6546273eb348c0bd754f40a4e43f406225f7dc76f1fe",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/unused-wrong-return-root.zil",
+      "sha256": "f067e2b0fe2e5d6b9d181d138e9ff8896ce2a46a29c4b4c32d81e902ffc9bea4",
+      "intent_after_implementation": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/unused-wrong-return-root.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "a1a1448637afab9c9930996108b9aacc530640292ae57f75e6f64a1d53e30fb7",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/used-copy-is-not-numeric.zil",
+      "sha256": "d63ace8f4b245308519a1d7d7360bd4924ce98465f3fa0accb2bd1910210cd9f",
+      "intent_after_implementation": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/used-copy-is-not-numeric.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "de48ff966629b8ef2ce432671c09afa881b2b3d18370c60f36a5b817ed467f7b",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/project/main.zil",
+      "sha256": "fa847e70d41595cf62abd884a7f78ded953e7904ff22badcfcaa3dd830647078",
+      "intent_after_implementation": "Positive331",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/project/main.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "78d744b57a157568b88f8c54df7c30e433d9b7b4fa00e2688403b82b7de02ed5",
+        "stderr": ""
+      }
+    }
+  ],
+  "preflight_not_run": [
+    "Author WIP or final331 implementation",
+    "Native execution",
+    "Raw candidate/Wire attacks",
+    "Live/restored cache dynamics",
+    "Combined329-332 acceptance",
+    "Full suite",
+    "Push or main-tree edits"
+  ],
+  "compiler": {
+    "path": "/workspace/.zil-env/target334/debug/zil",
+    "sha256": "afc1ef30710bb4f0a30200c38393e181431ffee0610f78c256c5ff9d6db239cb",
+    "built_for_production_commit": "51ff1af892788e0bc54fe3395d049b66222d703c",
+    "build_command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target334 CARGO_BUILD_JOBS=1 cargo build -p zil-cli --features llvm-api --locked --offline",
+    "build_exit_code": 0,
+    "build_log_sha256": "eae820703c79c4011c4492797cdd9af7be23a5372f2e8ee040d976b512dc988f"
+  },
+  "independent_fixture_commit": "2a8b230d0260fb2aee3cc6c4105d9c0c49ba9ec3",
+  "independent_cache_test_commit": "057abceb9ea84190d8701a8809cf188beed67bab",
+  "independent_cache_test_sha256": "44011a44721a8dcbb0e55aa3dae54411362f6706a04219da42139c8a8638b8b5",
+  "independent_source_bytes_preserved": true,
+  "candidate_observations": [
+    {
+      "source": "tests/language-readiness/review331/callee-same-spelling-wrong-root.zil",
+      "sha256": "ba7c85656a8aa751976b850e0f7639fdec812450da55617689e55fa6f3269efd",
+      "intent": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-LIFE-ORIGIN",
+          "message": "generic return source is outside its declared shared input life set",
+          "span": {
+            "file": 0,
+            "start": 148,
+            "end": 166
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "stdout_sha256": "e85a92f1e42552469a90de92687271871121132eb547d0d320afd2402108b478",
+      "stderr": ""
+    },
+    {
+      "source": "tests/language-readiness/review331/life-does-not-shadow-alias.zil",
+      "sha256": "afb5f071123628f1cfba84e429e0e23a86efc9a68138c49a1ef2e08b3f97b82e",
+      "intent": "Positive331",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "stdout_sha256": "9edfa9d32324afeb460a14049ab55f347a316d5001b2f77be168a5993e02beaa",
+      "stderr": ""
+    },
+    {
+      "source": "tests/language-readiness/review331/order-and-explicit-type.zil",
+      "sha256": "43340aa72fd14641b25078d2a71ca6af077fd5fa7c701734f674e75a0f0093fe",
+      "intent": "Positive331",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "stdout_sha256": "0a8c713dd29626e7d9e6e0bd7b74d22bd9d6ac0359be586b65bbeed8db74bf89",
+      "stderr": ""
+    },
+    {
+      "source": "tests/language-readiness/review331/renamed-and-permuted-callee.zil",
+      "sha256": "ab0e2b8d6be48f2781274d763124c91c6aab126aea00d6fc78d87da1c597e33d",
+      "intent": "Positive331",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "stdout_sha256": "12f00d04308d17bccb1b0aec6eeb88728c1ffd79c344165f72e97db47aced782",
+      "stderr": ""
+    },
+    {
+      "source": "tests/language-readiness/review331/unused-copy-is-not-numeric.zil",
+      "sha256": "23f70b4b36382260b11e685fe161772028070a428a55765197e57d2ab1338927",
+      "intent": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 47,
+            "end": 60
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "stdout_sha256": "497e6fc7e806d6dcd208d4680f232a645b0da286d34e7c11f0dd7ce7aa76a609",
+      "stderr": ""
+    },
+    {
+      "source": "tests/language-readiness/review331/unused-wrong-return-root.zil",
+      "sha256": "f067e2b0fe2e5d6b9d181d138e9ff8896ce2a46a29c4b4c32d81e902ffc9bea4",
+      "intent": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-LIFE-ORIGIN",
+          "message": "generic return source is outside its declared shared input life set",
+          "span": {
+            "file": 0,
+            "start": 71,
+            "end": 77
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "stdout_sha256": "fb83dc024c275a00abad87a874c7e9e191f17ea5600f7b872cd6bd210669e978",
+      "stderr": ""
+    },
+    {
+      "source": "tests/language-readiness/review331/used-copy-is-not-numeric.zil",
+      "sha256": "d63ace8f4b245308519a1d7d7360bd4924ce98465f3fa0accb2bd1910210cd9f",
+      "intent": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "operation on an unconstrained type parameter requires a declared bound",
+          "span": {
+            "file": 0,
+            "start": 47,
+            "end": 60
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "stdout_sha256": "45637bacc8ec740a004dc3fd4fb66147470a20f34fd595556feee8458428a849",
+      "stderr": ""
+    },
+    {
+      "source": "tests/language-readiness/review331/project/main.zil",
+      "sha256": "fa847e70d41595cf62abd884a7f78ded953e7904ff22badcfcaa3dd830647078",
+      "intent": "Positive331",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "stdout_sha256": "97b9c3a1117d823bcbe894e935d93255bf70495f3b54b637d3f0ae9db00ee76f",
+      "stderr": ""
+    }
+  ],
+  "candidate_source_summary": {
+    "selected_programs": 8,
+    "success": 4,
+    "safe_reject": 2,
+    "unsupported": 2,
+    "wrong_origins": "Expand E-LIFE-ORIGIN, including unused swapped callee arguments with equal life spellings.",
+    "copy_numeric": "Expand E-UNSUPPORTED: operation on an unconstrained type parameter requires a declared bound. Both unused and explicitly instantiated i32 source reject; this is not counted as a feature success."
+  },
+  "independent_native": {
+    "distinct_programs": 4,
+    "builds": 8,
+    "runs": 8,
+    "backend": "llvm-api",
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "fallback": null,
+    "passed": 8,
+    "executions": [
+      {
+        "source": "tests/language-readiness/review331/life-does-not-shadow-alias.zil",
+        "opt": "O0",
+        "build_exit_code": 0,
+        "status": "Success",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "build_stdout_sha256": "cbfae733fcb55de0d27eb839666008b1beebca294c9c20853bd3ee1bb034afa4",
+        "actual": {
+          "exit_code": 0,
+          "stdout": "0\n",
+          "stderr": ""
+        },
+        "executable_sha256": "672e24d8ce378eca18ac1e89e342b5f3617cef4d787eac0bf0717afa78992e88"
+      },
+      {
+        "source": "tests/language-readiness/review331/life-does-not-shadow-alias.zil",
+        "opt": "O2",
+        "build_exit_code": 0,
+        "status": "Success",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "build_stdout_sha256": "21d29ad4944e6d2c166f449b1a8192f891ba79ef68c81efa2fd5b35d261762a4",
+        "actual": {
+          "exit_code": 0,
+          "stdout": "0\n",
+          "stderr": ""
+        },
+        "executable_sha256": "59ba01f7bc71c221e330baf92de41d65dd0bc2f7c051db25539656e03d9fa5bd"
+      },
+      {
+        "source": "tests/language-readiness/review331/order-and-explicit-type.zil",
+        "opt": "O0",
+        "build_exit_code": 0,
+        "status": "Success",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "build_stdout_sha256": "09ff1f7e5cce3bb7ea791ff150cdc26a4e83c5511cf9069717a45a974799b23c",
+        "actual": {
+          "exit_code": 0,
+          "stdout": "0\n",
+          "stderr": ""
+        },
+        "executable_sha256": "05252f4a3ed9679c6a37cdb4abd7990eb9c19635f5ac132859c8f1da0bad9cd8"
+      },
+      {
+        "source": "tests/language-readiness/review331/order-and-explicit-type.zil",
+        "opt": "O2",
+        "build_exit_code": 0,
+        "status": "Success",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "build_stdout_sha256": "9b3c9939c39b0a36180388cdc75277430810953995f5c7a28c17ebb8cb9bb9c2",
+        "actual": {
+          "exit_code": 0,
+          "stdout": "0\n",
+          "stderr": ""
+        },
+        "executable_sha256": "c69ac4882c28da139ba00d3bb3db4b6a776c4e418d71ddf952845aa5fb682622"
+      },
+      {
+        "source": "tests/language-readiness/review331/renamed-and-permuted-callee.zil",
+        "opt": "O0",
+        "build_exit_code": 0,
+        "status": "Success",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "build_stdout_sha256": "fa0af57ab1e514a9b3dc1b78480df4ad827638320cacb5e541152b23b3f23072",
+        "actual": {
+          "exit_code": 0,
+          "stdout": "0\n",
+          "stderr": ""
+        },
+        "executable_sha256": "dd7fa710aac84fc0e923425f671fa72619cd751f7f17d1d85821b87531b9c5cb"
+      },
+      {
+        "source": "tests/language-readiness/review331/renamed-and-permuted-callee.zil",
+        "opt": "O2",
+        "build_exit_code": 0,
+        "status": "Success",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "build_stdout_sha256": "9ace873fa209cb66174b87b62469cb42e849a1a3958d5263b6782ff06c021ee2",
+        "actual": {
+          "exit_code": 0,
+          "stdout": "0\n",
+          "stderr": ""
+        },
+        "executable_sha256": "5872655f601137790d7d6e38d89efec6dc88f375cdcacacf88c5e59a03364ff3"
+      },
+      {
+        "source": "tests/language-readiness/review331/project/main.zil",
+        "opt": "O0",
+        "build_exit_code": 0,
+        "status": "Success",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "build_stdout_sha256": "76a53bbc59fbc807c15181d3539e1275a5196dd4ce21ae4ba3bde2c9d942bb3b",
+        "actual": {
+          "exit_code": 0,
+          "stdout": "0\n",
+          "stderr": ""
+        },
+        "executable_sha256": "b16dcb4a9d31ac1490d5216100d35e50dc8b2a3f6178073fe7aff79ffd088bfa"
+      },
+      {
+        "source": "tests/language-readiness/review331/project/main.zil",
+        "opt": "O2",
+        "build_exit_code": 0,
+        "status": "Success",
+        "backend": "llvm-api",
+        "fallback": null,
+        "verification_runs": 1,
+        "build_stdout_sha256": "374e3a0b0286b368132e8582078b3087534962c8c40c92c9853dec6dadb77c7c",
+        "actual": {
+          "exit_code": 0,
+          "stdout": "0\n",
+          "stderr": ""
+        },
+        "executable_sha256": "59ba01f7bc71c221e330baf92de41d65dd0bc2f7c051db25539656e03d9fa5bd"
+      }
+    ]
+  },
+  "independent_cli_disk_cache": [
+    {
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "disk_cache": "missing",
+      "verification_runs": 1,
+      "stdout_sha256": "92de235693dc3c57ae241a57228d84d483b10e21a996b6f112849df1913ef792",
+      "mode": "cold-disk",
+      "interface_json_sha256": "ec77b30db92316620b07232847e408822c97ad4dd78356d4a3880489192899df"
+    },
+    {
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "disk_cache": "hit",
+      "verification_runs": 1,
+      "stdout_sha256": "05a587969f93fecc946f8f0bfd0c669583e4f7b73c127d3ad94bdae3ab4fa6f0",
+      "mode": "fresh-process-disk-hit-1",
+      "interface_json_sha256": "ec77b30db92316620b07232847e408822c97ad4dd78356d4a3880489192899df"
+    },
+    {
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "disk_cache": "hit",
+      "verification_runs": 1,
+      "stdout_sha256": "22c0d563af33580fe76892941893c8269f6078cb60e38de54dfe356f1ab7f8a3",
+      "mode": "fresh-process-disk-hit-2",
+      "interface_json_sha256": "ec77b30db92316620b07232847e408822c97ad4dd78356d4a3880489192899df"
+    }
+  ],
+  "independent_cache_test": {
+    "status": "Pass",
+    "method": "A real CompilationSession compiles the independent cross-module CT source, repeats the same request live, then restores it in a fresh session from disk. All successful requests run one Verify and preserve interface relations.",
+    "declaration_mutation": "Equal-length header change makes input2 share input1 life: bound[0] becomes[0,1], signature/contract fingerprints change, verified actual result_origins remain equal, and the caller may still mutate the unrelated second object. Live and disk/fresh paths both succeed.",
+    "source_invalidation": "Equal-length body change return value -> return other under the original narrow declaration is rejected in both live and fresh paths at Expand E-LIFE-ORIGIN with Verify0.",
+    "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target334 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test cross_function_borrows independent331_cache --locked --offline -- --nocapture",
+    "exit_code": 0,
+    "passed": 1,
+    "failed": 0,
+    "filtered": 28,
+    "log_sha256": "33a3c005fd2f559c27cde6153da435a63f95ab4d68faf3d84fc96709ce7b0483"
+  },
+  "static_review": {
+    "namespace": "Only GenericParamKind::Type enters ordinary type scopes in alias/modules/trait-bound resolution. Life binders are retained independently; the independent Context alias appears as an actual shared pointee and succeeds.",
+    "dense_type_arguments": "Instantiation, call hints, symbolic call inference and expected-result hints count only type_parameters. Life names survive in concrete function.generics until CoreLifeContract construction and do not consume TypeArgs.",
+    "definition_authority": "Every mixed template is symbolically checked before instantiation/removal. Copy qualification does not grant numeric/member operations. Source return roots track actual parameter positions, local sentinel, aliases/reborrows/projections and branch joins; unresolved forwarding/loop relations retain explicit Unsupported.",
+    "callee_substitution": "Declared callee return life selects its real parameter positions, then maps each selected actual argument through current caller origins. Label spelling does not identify values across functions; independent positive and negative swapped-call sources execute this distinction.",
+    "layout_vs_permission": "Reference lifetime text no longer enters layout type keys. A prior bounded full-AST declaration scan and the separate symbolic origin check retain the life contract; concrete instances still enter Types and two independent CFG kernels.",
+    "ct_cache_kernels": "No production Types/Analyze/Verify/CT/cache edits in331. Concrete Core life metadata and typed bounds pass the existing schema34 chain. Existing raw test mutates five instantiated upper bounds and demands independent Analyze plus direct/Wire Verify rejection; scalar live/restore tests reject six malformed Core headers in both cache modes.",
+    "budget": "The life header compiler uses the current symbolic budget remainder, and new origins are charged before copy/join/growth. Four new Expand boundaries and old322/321 boundaries were re-executed, with N-1 ResourceLimit and fresh N identical."
+  },
+  "executions": [
+    {
+      "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target334 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test cross_function_borrows --test generics --test review194_composition --test semantic_cache --locked --offline -- --nocapture",
+      "exit_code": 0,
+      "targets": {
+        "cross_function_borrows": 28,
+        "generics": 14,
+        "review194_composition": 9,
+        "semantic_cache": 8
+      },
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log_sha256": "3092457b52650932eae183633ae65d7e538fc127acf8b7789beefc0d46acdb49"
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target334 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test cross_function_borrows --locked --offline -- --nocapture",
+      "exit_code": 0,
+      "passed": 29,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log_sha256": "5501393ca2066ad4002a071bc40a3bf0b380305f34951c14091bfa3c9a301e87"
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target334 CARGO_BUILD_JOBS=1 cargo clippy -p zil-driver --features llvm-api --test cross_function_borrows --test generics --test review194_composition --test semantic_cache --locked --offline -- -D warnings",
+      "exit_code": 0,
+      "log_sha256": "71f5aa98eaf1a41a8973bee3905b2932a3b697674decadab17025924104cb60a"
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "budgets": {
+    "new_expand_N": {
+      "original": 757,
+      "symbolic_callee_positions": 1229,
+      "unused_symbolic": 205,
+      "module_alias": 1369
+    },
+    "retained_322_N": {
+      "expand": 99,
+      "types": 95,
+      "analyze": 714,
+      "verify": 993
+    },
+    "retained_322_scalar_live_and_restored_N": 79,
+    "retained_321_expand_N": 439,
+    "boundary_outcome": "N Success, N-1 ResourceLimit, fresh N equal"
+  },
+  "setup_attempt": {
+    "exit_code": 101,
+    "tests_executed": 0,
+    "reason": "Reviewer initially guessed a non-existent callable_composition target. Corrected to the exact existing targets in the author change record; no source changes or production failure.",
+    "log_sha256": "fb7467554b1b1d9ec5526c6f90de2335f5df7fa68f081239606e098dcfb8f55a"
+  },
+  "integration_requirements": [
+    {
+      "owner": "root",
+      "status": "PendingAtReview",
+      "observed_main_commit": "2aa95d63dd1441c120238ec6cfa3769813aefec2",
+      "action": "Register E-LIFE-ORIGIN as the Expand SafeReject diagnostic for the new symbolic shared-source bound failure in spec/diagnostics.json. Reviewer/author do not modify the normative registry."
+    }
+  ],
+  "open_code_blocking_findings": 0,
+  "remaining_limits": [
+    "Necessary shared-return forwarding through an unannotated callee and loops changing external reference origins remain Unsupported, not permanent unsafe-source classifications.",
+    "Existing receiver-result type hints can need explicit ordinary type arguments; this slice does not implement generic methods.",
+    "No HRTB/FP, mixed F/StoreElement/const/where life/storage, new trait lending, new schema, async/Mutex or full lifetime solution.",
+    "The planned View/default/record/parent-closure-thread consumer remains unexecuted pending all329-332 dependencies.",
+    "No formal full suite, Windows, Rust same-semantics performance/cost measurement, source push, or main-tree modifications by reviewer."
+  ],
+  "counting": "Final distinct Rust tests:29 borrow +14 generics +9 composition +8 cache =60. Do not add earlier59/1 filtered replays. Eight source CLI observations and eight native optimization runs are separate levels."
+}
