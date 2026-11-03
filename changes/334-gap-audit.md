@@ -32,3 +32,29 @@ target，机器产物仅存在临时目录。当前规范hash与派工一致；C
 输入同一性、每份源hash及真实类别/阶段在`docs/validation/language-gaps-334.json`。
 本片没有生产修改、正式全量、Windows、弱内存或Rust同语义成本测量；Rust四目标
 与完整语言仍未完成，也不把审计本身称为新的产品突破。
+
+## 共同B当前投影与普通组件复核
+
+历史JSON维持SHA256 `ce3aadadfba28d9d5299a698e36664b7b4316a38d0ebd4a4e8bf39871ea125b0`。
+root按旧CLI独立重放时52观察与18机器结果逐项一致；这只重放40fb历史。
+共同A的29借用/37 CT限定通过亦保留为探索：后来独审确认真实primitive Type
+binder被按拼写当成原生类型，未用定义权限误放；B修补身份、life命名空间与
+共享余额，不以A全量或源码UB推论代替新验收。
+
+最终有限复核绑定B `14832d5a35630b7002c79e4df47b0cbb007570b6`，实际新release
+CLI SHA256 `beebbe5900ab5e615a33c66e640950e8c71656fa24d9aee7f0c4a1c3b7d0fc73`。
+原52源的新check投影为27/13/12，原25为9/6/10，五项真实晋升且原正控/保护反例
+无回退。组合source保持2a8字节，Core life/map、Typed bound/thread/Enum与Verify
+贯通，两后端O0/O2四组native0；314原两CT源另八组native0。B现成borrow29、
+generics15和CT37限定共81项通过，不叠加旧运行或当作正式全量。
+
+独立331原8源保持字节/结果，B新增两个primitive Type/life同名最近控制分别
+Verify成功和数值权限符号拒绝；live/disk、上界/实际来源分离、raw/Wire和cache
+重核随原borrow目标通过。原331审核JSON不覆盖，当前B复核另在final的
+`reviews/331_common`；314当前范围在`reviews/314`，两者均为有限非作者裁决。
+
+default直接返回全局函数名作thin fnptr仍为合法KnownIncomplete；独立源确认
+Expand unknown-value SafeReject，不注册永久负控，也不抹去已支持的fnptr参数
+forward。第一次该补充探针因独立/tmp满而stdout打印panic134，未产生JSON，单列
+基础设施失败；移用workspace TMPDIR后重试才取得实际语言结果。原失败不改写。
+正式B全量/远端CI/工单由root最后裁决，完整语言、ZUI及Rust四目标保持未完成。

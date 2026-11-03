@@ -1,8 +1,8 @@
 {
   "task": "334",
   "implementation_author": "/root/language_map",
-  "status": "AwaitingCommonCandidate",
-  "common_candidate": null,
+  "status": "FiniteCurrentAuditComplete",
+  "common_candidate": "14832d5a35630b7002c79e4df47b0cbb007570b6",
   "historical_replay": {
     "status": "MatchesHistoricalBaseline",
     "historical_source_commit": "40fbcca6ef506f3cb8e1d40a4f8995c788627da0",
@@ -24,38 +24,11 @@
     },
     "meaning": "Root independently replayed the same historical CLI89891e and source bytes. This is not evidence of new330-333 behavior. Four normative files changed as expected, so current semantics are not inferred from the old CLI."
   },
-  "pending_matrix_delta": {
-    "observed_main_commit": "45ad1e38c04096deeedc6a7874c62f4adfac86f3",
-    "normative_profile_commit": "5eb792fafafc7db3ff003b4e1c7a275d75195665",
-    "integrated_with_independent_branch_reviews": [
-      "330 finite trait defaults",
-      "331 Copy-T plus life",
-      "332 concrete parent-closure thread entry"
-    ],
-    "not_yet_common_accepted": [
-      "329 named Copy enum variants",
-      "333 internal large-copy byvalue ABI"
-    ],
-    "rows_requiring_update": [
-      1,
-      2,
-      3,
-      8,
-      10
-    ],
-    "rows_without_new_completion_claim": [
-      4,
-      5,
-      6,
-      7,
-      9
-    ]
-  },
   "component_plan": {
     "source": "tests/language-readiness/review331/component-planned.zil",
     "sha256": "822b49eaffd11ce6d201a9d8569c27ad01e5777c96715ea75dbf75ad6315af5f",
     "source_byte_changes": false,
-    "status": "PlannedUntilCommonCandidate",
+    "status": "ExecutedFinitePassOnB",
     "required_tasks": [
       "329",
       "330",
@@ -86,7 +59,78 @@
       "stderr": "",
       "exit_code": 0
     },
-    "method_after_freeze": "Use the exact common candidate CLI with verified source identity, check stage semantics and actual backend/no-fallback, execute all four configurations, record compact hashes/outcomes. No old89891e reuse for new features."
+    "method_after_freeze": "Use the exact common candidate CLI with verified source identity, check stage semantics and actual backend/no-fallback, execute all four configurations, record compact hashes/outcomes. No old89891e reuse for new features.",
+    "implementation_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+    "phase_check": {
+      "source": "tests/language-readiness/review331/component-planned.zil",
+      "source_sha256": "822b49eaffd11ce6d201a9d8569c27ad01e5777c96715ea75dbf75ad6315af5f",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "artifacts": {
+        "candidate": {
+          "sha256": "8d347369b04ef20dbd0c9a5533ee64262bd0b3e5844633d6e065c3fe75356221",
+          "bytes": 29808
+        },
+        "core": {
+          "sha256": "5a6f600eba09d53d68bcaabad6b0ea265b009958a1ee82b103091d1016a7598a",
+          "bytes": 131974
+        },
+        "ct-core": {
+          "sha256": "1ff3ec67cf682acc3a1a80a06e13b7a88a0a52aa8b76547e1dec2295173d57de",
+          "bytes": 140150
+        },
+        "interfaces": {
+          "sha256": "87a63c89a1d2fba24fca624377a3b5e8cea9a0e9b3e7db21bc7ce266c2bd9f84",
+          "bytes": 1723
+        },
+        "source-map": {
+          "sha256": "570b813d38094b1db700353bbb703050a5e75fb84fc705585e812b8ed49feea4",
+          "bytes": 64121
+        },
+        "syntax": {
+          "sha256": "90c6c38a1ccd3a9b23ec35c2524c818e5f81351202f857f67a8912c6e3de5d97",
+          "bytes": 255875
+        },
+        "typed": {
+          "sha256": "40642da9cbe5ff961ef381b4403113b8b4fb0e2ceef25061af4a4bebd192fb9e",
+          "bytes": 171911
+        },
+        "verified": {
+          "sha256": "8427e39c760f5f76beec5b3bc406c37a6aaa5cfe5c77dc1f6f822ca385762a86",
+          "bytes": 171988
+        },
+        "verified-interfaces": {
+          "sha256": "aa716357fe8260b7f97dc7bd5420dab518156e2fbc3191c104e4a63450462b0d",
+          "bytes": 2673
+        }
+      },
+      "stdout_sha256": "34cfb3e3e0ad671abd630f0722c6f2dabf68775d827a98fa8bbf88d33ee7b42b",
+      "semantic_anchors": {
+        "core_life_contract": true,
+        "core_life_parameter_map": true,
+        "typed_return_bound": true,
+        "typed_real_thread": true,
+        "typed_enum": true
+      }
+    },
+    "native": [
+      {"source":"tests/language-readiness/review331/component-planned.zil","source_sha256":"822b49eaffd11ce6d201a9d8569c27ad01e5777c96715ea75dbf75ad6315af5f","requested_backend":"clang","optimization":"O0","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"clang","fallback":null,"build_stdout_sha256":"406de71e8e87455ff6c26c5be286a3e9eebfb2a92886d01f85ce920ad598917e","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"b90072bd2076e0f6d63a63bcbf99ed15dd61469c1fa95d48700036270d19985e","llvm_sha256":"cc56519813b28ed02a02e49364292b4605eb3fcc2065b176e703348b40c7cd66","pass":true},
+      {"source":"tests/language-readiness/review331/component-planned.zil","source_sha256":"822b49eaffd11ce6d201a9d8569c27ad01e5777c96715ea75dbf75ad6315af5f","requested_backend":"clang","optimization":"O2","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"clang","fallback":null,"build_stdout_sha256":"e9d5b4ac8fafeeee8fc3242e86155db65cb315ad293e3ab329ac603709cd4f42","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"ab36f8a4259224541a03c180f9633e5678419ed015c5d21eef636cc2c26de7e6","llvm_sha256":"cc56519813b28ed02a02e49364292b4605eb3fcc2065b176e703348b40c7cd66","pass":true},
+      {"source":"tests/language-readiness/review331/component-planned.zil","source_sha256":"822b49eaffd11ce6d201a9d8569c27ad01e5777c96715ea75dbf75ad6315af5f","requested_backend":"llvm-api","optimization":"O0","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"llvm-api","fallback":null,"build_stdout_sha256":"9e6cd642c6e32b20cde2a8928a55091308963b426e2a7b754edaefcfb67845e9","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"8b06dfa551c9bf3d3f6f52eb440659e2084130e7548ee1cca7b8c9bdf3e02f1e","llvm_sha256":"cc56519813b28ed02a02e49364292b4605eb3fcc2065b176e703348b40c7cd66","pass":true},
+      {"source":"tests/language-readiness/review331/component-planned.zil","source_sha256":"822b49eaffd11ce6d201a9d8569c27ad01e5777c96715ea75dbf75ad6315af5f","requested_backend":"llvm-api","optimization":"O2","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"llvm-api","fallback":null,"build_stdout_sha256":"38f83ffa0d71dfe3ce8af646a3f3c416279ebdf92a7eb54e00ea9907165a7a69","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"2ad3978621d74c64e10bc78b03624914efa7c722debe0ead967f14ebc6813001","llvm_sha256":"cc56519813b28ed02a02e49364292b4605eb3fcc2065b176e703348b40c7cd66","pass":true}
+    ],
+    "counting": "One original component source, one phase/artifact check and four native builds/executions; excluded from historical52/18 and from314 native8."
   },
   "metadata_diagnostic_advice": {
     "observed_main_commit": "45ad1e38c04096deeedc6a7874c62f4adfac86f3",
@@ -112,17 +156,17 @@
     }
   },
   "not_run": [
-    "New common CLI/component execution",
-    "Formal full suite",
-    "Windows/Rust cost/weak-memory gates",
-    "Push or authority task edits"
+    "Integrator-owned formal full B suite is reported separately; this review did not run it.",
+    "Native Windows/Rust same-semantics cost/weak-memory gates",
+    "All remaining language/ZUI/B0 obligations",
+    "Push, Git history changes, old-object rewrites or authority task edits by this agent"
   ],
   "reviews": {
     "314": {
       "reviewer": "/root/language_map",
       "implementation_author": "/root/impl314",
-      "verdict": "AwaitingCommonCandidate",
-      "implementation_commit": null,
+      "verdict": "PassLimited",
+      "implementation_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
       "legacy_implementation_commit": "d53b846af0e8075224697d4d600b8459362f0d6a",
       "legacy_review_commit": "2c3da1661e6c6e2588b38bf30b8e0964d3a2b598",
       "scope": "Finite ordinary Copy generic CT functions returning Type/Syntax and concrete pure generic record CT consumers. Diff the actual shared compiler dependencies from legacy delivery to common, then check the two original source bytes and execute actual native consumers. Not a new acceptance of all CT or generics.",
@@ -130,8 +174,361 @@
         "tests/language-readiness/pending/ct-type-generic-function.zil": "e921543f9a9ed6b3e279ee44b3b7ebb16565c024978db093bf8bc4da30ed1838",
         "tests/language-readiness/pending/ct-type-generic-record.zil": "fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49"
       },
-      "planned_execution": "Candidate CLI source-to-Verify plus native O0/O2 for both original sources, separately counted from the component four-configuration run.",
-      "historical_results_preserved": true
+      "historical_results_preserved": true,
+      "scope_diff": {
+        "from_legacy": "d53b846af0e8075224697d4d600b8459362f0d6a",
+        "actual_contacts": [
+          "crates/zil-driver/src/ct_artifact/compiler_selection.rs",
+          "crates/zil-driver/src/ct_artifact/hygiene.rs",
+          "crates/zil-driver/src/ct_artifact/materialize.rs",
+          "crates/zil-driver/src/ct_selection/context.rs",
+          "crates/zil-driver/src/ct_selection/hygiene.rs",
+          "crates/zil-driver/src/ct_selection/materialize.rs",
+          "crates/zil-expand/src/generics.rs",
+          "crates/zil-expand/src/generic_check.rs",
+          "crates/zil-expand/src/generic_alias.rs",
+          "crates/zil-expand/src/modules.rs",
+          "crates/zil-ct/src/source.rs",
+          "crates/zil-ir/src/wire.rs",
+          "crates/zil-driver/src/semantic_cache.rs",
+          "crates/zil-backend-llvm/src/emit/large_copy_abi.rs"
+        ],
+        "finding": "New record patterns are walked with their field labels and nested bindings. Syntax hygiene renames value bindings rather than member labels, and shorthand elaboration prepays the shared CT work/node/byte ledger. Type-only binder namespace/dense argument changes preserve ordinary CT variables; B additionally protects actual primitive-named binders before symbolic checking. Public life/thread schema34 and installed-compiler-bound semantic-v3 transport retain source/target identity and current Verify. Large-copy ABI/versioning affects the shared backend, so the two original small pure Copy consumers were rebuilt through both real backends. No new314 production capability is inferred from these other profiles."
+      },
+      "execution": {
+        "original_source_bytes_preserved": true,
+        "phase_checks": [
+          {"source":"tests/language-readiness/pending/ct-type-generic-function.zil","source_sha256":"e921543f9a9ed6b3e279ee44b3b7ebb16565c024978db093bf8bc4da30ed1838","exit_code":0,"status":"Success","phase":"verify","diagnostics":[],"verification_runs":1,"executed_phases":["parse","expand","ct","types","analyze","verify"],"artifacts":{"candidate":{"sha256":"66f3a31dcd31ed882d4ac11dca15457f54d863180e2ed823b546d4c5a894d372","bytes":2367},"core":{"sha256":"29c7a54d7924fa819abcdb08daf62abbd0d2d3c4287147df27df7b6e06546cf3","bytes":8848},"ct-core":{"sha256":"29c7a54d7924fa819abcdb08daf62abbd0d2d3c4287147df27df7b6e06546cf3","bytes":8848},"ct-syntax":{"sha256":"2f92f3684176de375750f5f876d2f901d03cac4e5c93106c486f6a9e959943d5","bytes":234},"interfaces":{"sha256":"08ac344f65115984b78af18b3bad6d93c722d185a50e7a26cf6995103d1d2365","bytes":1729},"source-map":{"sha256":"caea34b17dbf8bcc81aa91f4aa070d6733f81674eb3d8225dc884554f1caf5ef","bytes":4426},"syntax":{"sha256":"52e9b27be84053c1e99e0366dcf5823286cc4c49f4814f65693983963575a43c","bytes":34121},"typed":{"sha256":"e3dc2ed7784c9a6d839b85c3460a39e4ce081623c364e3a1bfbfc7ae361e064d","bytes":9999},"verified":{"sha256":"3d2bdd0ac5d4e503f4ccf8fac0857870919ecc1ad09626b58b44d017f104f16c","bytes":10076},"verified-interfaces":{"sha256":"cf55a038f9ac00d77d9da5a5c396756950e0007aa4ec90893d17d8c1c83217d2","bytes":2679}},"stdout_sha256":"cba2b1fea98af39f78673d680ae11df4f7eb097705dae8fa9dee3f6cb947b1be"},
+          {"source":"tests/language-readiness/pending/ct-type-generic-record.zil","source_sha256":"fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49","exit_code":0,"status":"Success","phase":"verify","diagnostics":[],"verification_runs":1,"executed_phases":["parse","expand","ct","types","analyze","verify"],"artifacts":{"candidate":{"sha256":"470efb929ecfb4b1d2e476f1db62ce7cabdb5db4f3383d070b411c50da037a5b","bytes":2365},"core":{"sha256":"ca16396129bec839fbe3bcb25ced9cbc0a46af218aaff2fe71b214c6ce09461d","bytes":8857},"ct-core":{"sha256":"ca16396129bec839fbe3bcb25ced9cbc0a46af218aaff2fe71b214c6ce09461d","bytes":8857},"ct-syntax":{"sha256":"23d1b314154fbf0370934f32f2dea2dcd6a5f8a9663a341bdcd6db1f190fbf79","bytes":236},"interfaces":{"sha256":"9b030a549354fbb4053ee6749cfd0c02953611d70de78c53bb28defc6e620720","bytes":1722},"source-map":{"sha256":"5b6a74124dc5ef5f333424957d13e48eb314705b34099c7aa5f53176362f393d","bytes":4439},"syntax":{"sha256":"987aa222e1ba5958f5ac1d565ca49ce06a7454637301a971d6295b1312132c23","bytes":61445},"typed":{"sha256":"c02335ea0f15d0487aad08288036d8542b1a1252633085aff5a15e129bfeb7c7","bytes":10024},"verified":{"sha256":"60a5f52f69aa0abc868e6febd1e7ffd11823d8533f92ba8ceda54ab371cbf6cb","bytes":10101},"verified-interfaces":{"sha256":"a18b3210d19b6abda4bb5096f4df5038d3d5fca61d6155eec0b4502962dea9e7","bytes":2672}},"stdout_sha256":"e7294e7538bd1197c8c1c1afc1b74b78290d33dee167831e20d05595aa71b7f1"}
+        ],
+        "native": [
+          {"source":"tests/language-readiness/pending/ct-type-generic-function.zil","source_sha256":"e921543f9a9ed6b3e279ee44b3b7ebb16565c024978db093bf8bc4da30ed1838","requested_backend":"clang","optimization":"O0","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"clang","fallback":null,"build_stdout_sha256":"24a809952393a5db80deabaf76a56b654e9e6d1d1b4e3805486b4ca69395035b","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"712e43136dbe7cca2264d478ebed16c045d61d6ff7719fd226aecdf3eaf42d4c","llvm_sha256":"5258aefc6e578d99363f97313a401d0b45997df0ebd83ccd3240474e912aa22e","pass":true},
+          {"source":"tests/language-readiness/pending/ct-type-generic-function.zil","source_sha256":"e921543f9a9ed6b3e279ee44b3b7ebb16565c024978db093bf8bc4da30ed1838","requested_backend":"clang","optimization":"O2","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"clang","fallback":null,"build_stdout_sha256":"dfc9fac01b860b36a287de64bd56432bf35fa4f9964a597f2fe26dd84aae5b60","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"04a4f9be6e20466207e0ffc6452f30cfe6aee5f26c9a30efb2679dff6445750c","llvm_sha256":"5258aefc6e578d99363f97313a401d0b45997df0ebd83ccd3240474e912aa22e","pass":true},
+          {"source":"tests/language-readiness/pending/ct-type-generic-function.zil","source_sha256":"e921543f9a9ed6b3e279ee44b3b7ebb16565c024978db093bf8bc4da30ed1838","requested_backend":"llvm-api","optimization":"O0","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"llvm-api","fallback":null,"build_stdout_sha256":"e44d6a201e705af793847ff60ca722287b5436d9c88c61ddc374031d43e58edc","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"0e37a9eee742bbcb2bf8fb80ffe0ab1c08aabaa27b4f65f1d5fc2b848808692a","llvm_sha256":"5258aefc6e578d99363f97313a401d0b45997df0ebd83ccd3240474e912aa22e","pass":true},
+          {"source":"tests/language-readiness/pending/ct-type-generic-function.zil","source_sha256":"e921543f9a9ed6b3e279ee44b3b7ebb16565c024978db093bf8bc4da30ed1838","requested_backend":"llvm-api","optimization":"O2","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"llvm-api","fallback":null,"build_stdout_sha256":"d4777361fd559767901893882d3a39a2efa4daf3fe19453f0adebbe243c6730a","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"c62f32456b3948a10acba6bdf13140778b9d1fd9f1159460dbe7426d6360543e","llvm_sha256":"5258aefc6e578d99363f97313a401d0b45997df0ebd83ccd3240474e912aa22e","pass":true},
+          {"source":"tests/language-readiness/pending/ct-type-generic-record.zil","source_sha256":"fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49","requested_backend":"clang","optimization":"O0","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"clang","fallback":null,"build_stdout_sha256":"d94c6c335db862dad4d382d7a7178bbcbca02fedd7456d18b709e1814afcb43c","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"712e43136dbe7cca2264d478ebed16c045d61d6ff7719fd226aecdf3eaf42d4c","llvm_sha256":"b84a05a08f886d49d963dde2f324c2ce428e18bdded51cee4fe648e8f8e80468","pass":true},
+          {"source":"tests/language-readiness/pending/ct-type-generic-record.zil","source_sha256":"fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49","requested_backend":"clang","optimization":"O2","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"clang","fallback":null,"build_stdout_sha256":"4f8b9f62f51d27317010cf3d231697139230c4df61ef5dcab47e9c722c7c1fac","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"04a4f9be6e20466207e0ffc6452f30cfe6aee5f26c9a30efb2679dff6445750c","llvm_sha256":"b84a05a08f886d49d963dde2f324c2ce428e18bdded51cee4fe648e8f8e80468","pass":true},
+          {"source":"tests/language-readiness/pending/ct-type-generic-record.zil","source_sha256":"fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49","requested_backend":"llvm-api","optimization":"O0","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"llvm-api","fallback":null,"build_stdout_sha256":"fa1c50eea8b2858e3742922dbccb3a603c8ec63aaa710c29673fbf5c571ffde4","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"0e37a9eee742bbcb2bf8fb80ffe0ab1c08aabaa27b4f65f1d5fc2b848808692a","llvm_sha256":"b84a05a08f886d49d963dde2f324c2ce428e18bdded51cee4fe648e8f8e80468","pass":true},
+          {"source":"tests/language-readiness/pending/ct-type-generic-record.zil","source_sha256":"fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49","requested_backend":"llvm-api","optimization":"O2","build_exit_code":0,"build_status":"Success","diagnostics":[],"verification_runs":1,"actual_backend":"llvm-api","fallback":null,"build_stdout_sha256":"0c01c0c3c4e7ea05989b13b85dcd45fbea70b3d9cf8d4c3087966f6461bf14e7","actual":{"exit_code":0,"stdout":"0\n","stderr":""},"executable_sha256":"c62f32456b3948a10acba6bdf13140778b9d1fd9f1159460dbe7426d6360543e","llvm_sha256":"b84a05a08f886d49d963dde2f324c2ce428e18bdded51cee4fe648e8f8e80468","pass":true}
+        ],
+        "native_builds_and_runs": 8,
+        "actual_backends": [
+          "clang",
+          "llvm-api"
+        ],
+        "optimizations": [
+          "O0",
+          "O2"
+        ],
+        "failed": 0,
+        "fallback": null,
+        "existing_target": "impl260_compiler",
+        "existing_target_passed": 37,
+        "source_authority_wire_nominal_alias_budget_controls": "Pass; includes retained review319 cases and full two-query request N924 with cold/warm/fresh/N-1 controls."
+      },
+      "remaining_scope": "Limited original ordinary Copy CT/Type/Syntax and pure record path; not all CT, all generics, whole schema34, large values, or formal acceptance."
+    },
+    "331_common": {
+      "reviewer": "/root/language_map",
+      "verdict": "PassLimited",
+      "implementation_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+      "prior_implementation_commit": "0ecb774253de1824cf3688d852e6759b9b1bc727",
+      "prior_review": "docs/validation/review331-by334.json",
+      "prior_review_sha256": "fb2821cb669947349109a07a71f81d280e8f67723daa3868d3474b8389c310a6",
+      "prior_review_modified": false,
+      "scope": "Finite ordinary Copy-T/life composition and its source definition, CT/module, independent origin and cache dependencies on common B. No full life/trait or async claim.",
+      "scope_diff": {
+        "contacts": [
+          "crates/zil-expand/src/lifetimes.rs",
+          "crates/zil-expand/src/generics.rs",
+          "crates/zil-expand/src/generic_check.rs",
+          "crates/zil-expand/src/generic_check_enum.rs",
+          "crates/zil-expand/src/generic_alias.rs",
+          "crates/zil-expand/src/modules.rs",
+          "crates/zil-expand/src/generic_budget.rs"
+        ],
+        "finding": "Life scanning now notes new enum profiles and actual primitive Type-binder collisions. The original mixed life origin calculation is retained; the symbolic checker wrapper can accept declared default-method bounds but ordinary functions keep their own bounds. B runs the existing scoped Type normalizer before specialization only on the real collision path, retaining life names and the same remaining request ledger. New primitive Type/life same-name controls confirm a bool instance and a separately declared real-i64 callee remain legal, while Copy still cannot grant numeric operations. Existing Types/Analyze life checks, direct/Wire Verify and scalar live/restore guards remain independently active."
+      },
+      "independent_original_sources": [
+        {"source":"tests/language-readiness/review331/callee-same-spelling-wrong-root.zil","sha256":"ba7c85656a8aa751976b850e0f7639fdec812450da55617689e55fa6f3269efd","exit_code":1,"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-LIFE-ORIGIN","message":"generic return source is outside its declared shared input life set","span":{"file":0,"start":148,"end":166},"notes":[]}],"verification_runs":0,"stdout_sha256":"04b60a627cdecda3550a3d5b7dc44dcf7092af488e3e71efade4c1eeb38a4ebd"},
+        {"source":"tests/language-readiness/review331/life-does-not-shadow-alias.zil","sha256":"afb5f071123628f1cfba84e429e0e23a86efc9a68138c49a1ef2e08b3f97b82e","exit_code":0,"status":"Success","phase":"verify","diagnostics":[],"verification_runs":1,"stdout_sha256":"bd63dcdd8cd102e0faffd4d1bf74bfba76684d645b30efa966cd428fcc25dd4d"},
+        {"source":"tests/language-readiness/review331/order-and-explicit-type.zil","sha256":"43340aa72fd14641b25078d2a71ca6af077fd5fa7c701734f674e75a0f0093fe","exit_code":0,"status":"Success","phase":"verify","diagnostics":[],"verification_runs":1,"stdout_sha256":"31ebb86001e183c5537be46d38aa0a6481b2ac161601caca20c4d79b3b4c1577"},
+        {"source":"tests/language-readiness/review331/renamed-and-permuted-callee.zil","sha256":"ab0e2b8d6be48f2781274d763124c91c6aab126aea00d6fc78d87da1c597e33d","exit_code":0,"status":"Success","phase":"verify","diagnostics":[],"verification_runs":1,"stdout_sha256":"c2d1f04cd92ba108480c1cbcf9ffc12980862e719230e1f0828eb77daaa40c3b"},
+        {"source":"tests/language-readiness/review331/unused-copy-is-not-numeric.zil","sha256":"23f70b4b36382260b11e685fe161772028070a428a55765197e57d2ab1338927","exit_code":3,"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"operation on an unconstrained type parameter requires a declared bound","span":{"file":0,"start":47,"end":60},"notes":[]}],"verification_runs":0,"stdout_sha256":"1d47c435f0096759ba00b66b64e6726ee09d34e1dd70ee9a84e6ba314f175012"},
+        {"source":"tests/language-readiness/review331/unused-wrong-return-root.zil","sha256":"f067e2b0fe2e5d6b9d181d138e9ff8896ce2a46a29c4b4c32d81e902ffc9bea4","exit_code":1,"status":"SafeReject","phase":"expand","diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-LIFE-ORIGIN","message":"generic return source is outside its declared shared input life set","span":{"file":0,"start":71,"end":77},"notes":[]}],"verification_runs":0,"stdout_sha256":"d7ca65f7c81b831517a6e47fb2839033ddea486a7ad8221cdd8798ccb2022b64"},
+        {"source":"tests/language-readiness/review331/used-copy-is-not-numeric.zil","sha256":"d63ace8f4b245308519a1d7d7360bd4924ce98465f3fa0accb2bd1910210cd9f","exit_code":3,"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"operation on an unconstrained type parameter requires a declared bound","span":{"file":0,"start":47,"end":60},"notes":[]}],"verification_runs":0,"stdout_sha256":"64ef554bd7ac32a2f2b21a69253fad6a53cab8af53d8f8865f17b64657b37dd2"},
+        {"source":"tests/language-readiness/review331/project/main.zil","sha256":"fa847e70d41595cf62abd884a7f78ded953e7904ff22badcfcaa3dd830647078","exit_code":0,"status":"Success","phase":"verify","diagnostics":[],"verification_runs":1,"stdout_sha256":"bcd4fbdaadae62624470cbf116b04721cb6bf69af0c8920cdab8b7d3a94b2779"}
+      ],
+      "B_primitive_binder_nearest_controls": [
+        {"source":"tests/language-readiness/review331/primitive-binder-life-positive.zil","sha256":"714aa6172f8d07264cc07adf31ce0755ace43083c125882b9f30ca467eeac1af","exit_code":0,"status":"Success","phase":"verify","diagnostics":[],"verification_runs":1,"stdout_sha256":"f9c7950e8dfa8990b4d3465da3ccd925c6dd3f0b7cb85623f8c873e3c98bb21e"},
+        {"source":"tests/language-readiness/review331/primitive-binder-life-numeric-negative.zil","sha256":"71bdd815e69628ea8694048fa682e90215ab8050f862a3203f2585fa46a86b9a","exit_code":3,"status":"Unsupported","phase":"expand","diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"operation on an unconstrained type parameter requires a declared bound","span":{"file":0,"start":53,"end":66},"notes":[]}],"verification_runs":0,"stdout_sha256":"b3e002b55cf17533e2e3b40554c14013042112031127392bdcb0f2ed021d7b7d"}
+      ],
+      "execution": {
+        "cross_function_borrows_passed": 29,
+        "generics_passed": 15,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0,
+        "independent_cache_control": "Live/disk header identity, declared bound widening with unchanged actual roots, and equal-length wrong-body invalidation all pass within the existing borrow target. Installed compiler identity uses the current executable, preventing reuse across changed builds.",
+        "raw_controls": "Current Core header and typed upper-bound forgeries still reject in both kernels/direct+Wire and in live/restored FunctionSession paths.",
+        "component_connection": "Original View<T> shared field return, retained life map/Typed bound and nested parent capture are present in B phase artifacts and execute in the four component configurations."
+      },
+      "remaining_limits": [
+        "Unannotated callee forwarding requiring new symbolic origin knowledge and loops changing reference origins remain explicitly incomplete.",
+        "No mutable life/HRTB/borrow FP/storage or mixed F/const/general lending completion."
+      ],
+      "integration_requirements_resolved": [
+        "E-LIFE-ORIGIN is registered in the B normative diagnostic input; the prior331 review PendingAt2aa observation is retained unchanged as history."
+      ]
+    }
+  },
+  "spec_hash": "3e29cc65a8e6e7298e79b1351e015f8d3a30710e5b7d679610abf5579428f052",
+  "normative_hash": "5e64822c7c48e22829e479d5862d011ca9ecf3bc75e6aef139bd8270a2a5afb4",
+  "compiler_build": {
+    "status": "BuildCompletedAcceptancePending",
+    "source_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+    "source_observation": "Actual clean checkout unchanged at build start and finish; external observed identity, not binary self-authentication",
+    "command": "cargo build --release --locked --offline -p zil-cli --features llvm-api",
+    "cli": "/workspace/.zil-env/target-mainline-release/release/zil",
+    "cli_sha256": "beebbe5900ab5e615a33c66e640950e8c71656fa24d9aee7f0c4a1c3b7d0fc73",
+    "build_log_sha256": "bfef645a5edd8a8feefe9e9e28a98a881aa157ab45f63302d2f2005b4eb32d4e",
+    "receipt_sha256": "f9d6d2ef8de892085fbe0a19b4f1f3a373ca6f49015c4d63a7b84e55ddbd5ebc"
+  },
+  "review_checkout_production_matches_common": true,
+  "superseded_candidates": [
+    {
+      "implementation_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+      "status": "KnownBlockingExplorationOnly",
+      "reason": "Independent329 review found literal numeric/boolean record-pattern operations accepted for real generic Type binders named like primitives. A global passing suite did not close that definition-authority error. B protects lexical Type identity and retains life namespace/budget; no source UB claim.",
+      "reviewer_executions": {
+        "cross_function_borrows": 29,
+        "impl260_compiler": 37,
+        "failed": 0,
+        "log_sha256": "bbfa220fc89231f8ef61aeb01748ec922ef9bf64e650447c99f8c7faa3ff68d0"
+      },
+      "release_hash_prefix": "5e42",
+      "used_for_final_machine_evidence": false
+    }
+  ],
+  "current_projection": {
+    "implementation_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+    "command": "source /workspace/.zil-env/env.sh; python3 tests/language-readiness/current334/check-current.py --zil /workspace/.zil-env/target-mainline-release/release/zil --compiler-source 14832d5a35630b7002c79e4df47b0cbb007570b6 --output /tmp/zil334-current-B.json",
+    "exit_code": 0,
+    "collector_sha256": "071c2bf54be366cba7a43a11b50db4f29ffc5affbdcf555f5c3210915e730073",
+    "raw_projection_sha256": "4954e9ff5a35e8487ad0f5a97979fc3eaadc9e1a6492a72600c5b0ae9d28be4a",
+    "selected": 52,
+    "counts": {
+      "Success": 27,
+      "Unsupported": 13,
+      "SafeReject": 12
+    },
+    "recovery25_counts": {
+      "Success": 9,
+      "Unsupported": 6,
+      "SafeReject": 10
+    },
+    "regressions": [],
+    "infrastructure": [],
+    "changes": [
+      {"source":"examples/mainline/concurrency325/pending/parent_closure.zil","before":{"status":"Unsupported","phase":"types","exit_code":3,"verification_runs":0},"after":{"status":"Success","phase":"verify","exit_code":0,"verification_runs":1},"before_codes":["E-UNSUPPORTED"],"after_codes":[]},
+      {"source":"tests/language-readiness/current334/type-life-copy.zil","before":{"status":"Unsupported","phase":"expand","exit_code":3,"verification_runs":0},"after":{"status":"Success","phase":"verify","exit_code":0,"verification_runs":1},"before_codes":["E-UNSUPPORTED"],"after_codes":[]},
+      {"source":"tests/language-readiness/pending/default-trait-method.zil","before":{"status":"Unsupported","phase":"types","exit_code":3,"verification_runs":0},"after":{"status":"Success","phase":"verify","exit_code":0,"verification_runs":1},"before_codes":["E-UNSUPPORTED","E-UNSUPPORTED"],"after_codes":[]},
+      {"source":"tests/language-readiness/pending/record-variant.zil","before":{"status":"Unsupported","phase":"types","exit_code":3,"verification_runs":0},"after":{"status":"Success","phase":"verify","exit_code":0,"verification_runs":1},"before_codes":["E-UNSUPPORTED"],"after_codes":[]},
+      {"source":"tests/language-readiness/recovery/pending/trait-default-method.zil","before":{"status":"Unsupported","phase":"types","exit_code":3,"verification_runs":0},"after":{"status":"Success","phase":"verify","exit_code":0,"verification_runs":1},"before_codes":["E-UNSUPPORTED","E-UNSUPPORTED","E-UNSUPPORTED","E-UNSUPPORTED"],"after_codes":[]}
+    ],
+    "observations": [
+      {"source":"examples/mainline/concurrency325/controls/life_trait.zil","sha256":"f0cfe63fddcd8ffaac18355a2339cf6c5b84039b889a6abffa0dbe1c05688daf","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"0c117aa9cd010c98766cc3fc88def3e9e589074736b10f9ce5a46cce836ff388"},
+      {"source":"examples/mainline/concurrency325/controls/parent_borrow.zil","sha256":"0f069b0c5c88322892d0fd14fb6f6952020dbcf49243af9796a47cfdeb7be45a","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"d5c00ac138d89eb011ef5463e43baff050c58c6a5a80dd60a487e87566528229"},
+      {"source":"examples/mainline/concurrency325/pending/parent_closure.zil","sha256":"6f31aea2493cb1cc9154cf01373294ac3b9efa760778e96d34127dd8db638f79","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"d77dad1e819e3a4f1f6340f6c67ddbfba5f74adb64764bf6c267c6c7a356a5b7"},
+      {"source":"examples/mainline/state_bindings203/main.zil","sha256":"a73bfba066bdb67cf44fcfb09705461d4e5f7e17de6a70e5b3f0153e6bcbd140","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"e0448c3645b526e28a9cf97781665af26ab4abfe8c9cf42e05e987face993f90"},
+      {"source":"tests/language-readiness/controls/copy-pattern-control.zil","sha256":"d20a812bad2327befcb00108b7773169728306ba9bba797719946b10f77a2737","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"e57fc8df5f86856443966849ab2872f3b1b1dcf88b5f4fae2e688c02c8074feb"},
+      {"source":"tests/language-readiness/controls/mutable-copy-record-helper-control.zil","sha256":"f170b3e08f3218e8107427f3c9ccbea6c4036371509351a774350af9be58bdfb","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"766286ef966e315b696e02757a0e0e879f3ad4c0571d178319c6d4d85ea143b9"},
+      {"source":"tests/language-readiness/controls/mutable-product-local-control.zil","sha256":"efd2f7636f125d123bcf4a7f0e146564843b634558db35660169fcb2aad1d499","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"cccc5adc9e7e5bbb62060994b47a5647eb16818bc17ab542d91e2bdf4499dc95"},
+      {"source":"tests/language-readiness/controls/mutable-store-helper-control.zil","sha256":"122b63ab418aca12012906690deff9ee1d8dc5caa00db0820f315fdd9652d5ce","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"ae01513818fc309519e75e0994cc46bca906af35f84e6d2c5ac8abb5db1bab24"},
+      {"source":"tests/language-readiness/current334/partial-copy-tuple.zil","sha256":"aac8eb00f66c9479594fad30d4c15c242a4510644c04d8d3743099dd52c5920f","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"51027179540b106422df0c66fcdf109cb80410dae00d48f31e41846dc32f8101"},
+      {"source":"tests/language-readiness/current334/type-life-copy.zil","sha256":"cd62684565613695a870841fe92391a31b27823a09670df0962fce3c98e1d5f4","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"408754aec7d45edf61e1e7c848312e8cae99d4837128c24ecd46a15c1c6960fd"},
+      {"source":"tests/language-readiness/current334/u64-chain.zil","sha256":"cc0ed72d30485a60d187ad820680be766caaa030feb7ea49ade9308f785bd272","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"return type Named(\"u64\")"},{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"parameter type Named(\"u64\")"}],"stdout_sha256":"ac0951bedf14f6416c6aceb9b69ae04a2462f690521d6bdb4dd78dc857b1a3d0"},
+      {"source":"tests/language-readiness/current334/usize-chain.zil","sha256":"e06aaa5f1e4fed3d82be0938a06a4173998713a5b57b2aae13a33dac804edc23","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"return type Named(\"usize\")"},{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"parameter type Named(\"usize\")"}],"stdout_sha256":"14c201cdb05ae813d683de166f984e30c565485bf360826789c5dd430293cfe9"},
+      {"source":"tests/language-readiness/design-probes/returned-captured-handler.zil","sha256":"c9e2d12cc6548eb95810d9c96638872cfee01c16bf7eec7ab54f981d0b68b4d9","exit_code":1,"status":"SafeReject","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"SafeReject","code":"E-FFI-CALLBACK","message":"stored callables and closures cannot become C callbacks"}],"stdout_sha256":"08ddfc99657b9c3eb2964a6f44aa273630286787e1b32c90ed82f6c84ce55084"},
+      {"source":"tests/language-readiness/pending/associated-type.zil","sha256":"030d6c1028e34e76c004821b4ea7366ea7f9d898e47ff365f3441429e3b82708","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"associated trait items are not in the static local trait slice"},{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"trait declarations outside the finite local subset"}],"stdout_sha256":"485dbe8cdeb27ba6f0146ff8a6ac1c1198a318da62c3591c4bf70d142ed58d34"},
+      {"source":"tests/language-readiness/pending/const-generic-corrected.zil","sha256":"37c093c97d1946c8cc2184002909867e6c73a7a5e45afcc5e2db85cf4debb03a","exit_code":3,"status":"Unsupported","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"generic bound, lifetime or const parameter requires its semantic solver"}],"stdout_sha256":"5089a9e586f69de6235595b761ededd13a7846606144c9f74d04c127b62342d3"},
+      {"source":"tests/language-readiness/pending/ct-type-generic-function.zil","sha256":"e921543f9a9ed6b3e279ee44b3b7ebb16565c024978db093bf8bc4da30ed1838","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"5b29138ac8178cc0e1aa3560aa5e107dd4823367f37781195747de35d5236c16"},
+      {"source":"tests/language-readiness/pending/ct-type-generic-record.zil","sha256":"fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"1baab9affe19ca85ffac6da549cfafa45598cef0128b73a0426a8a5d44ad8b60"},
+      {"source":"tests/language-readiness/pending/default-trait-method.zil","sha256":"3ca5160507dc27302ae1a8f71f19ede492cfe974171eb4b204155e881275cb98","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"80a3b09aa877ab5111959550d8ef304efd14a2bb88bdfc788cce93d336639559"},
+      {"source":"tests/language-readiness/pending/dyn-trait.zil","sha256":"a871681990f261dd6e4b75543720ce09a98c8c2941e4f941c9e83943772a83c2","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"parameter type Address { mutable: false, inner: Unsupported(\"type form is not yet lowered\") }"},{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"resource/address parameter mode"}],"stdout_sha256":"f2c460ac8a3961ce5473e38fa1dca37ead1af36de6ad1d38295029190031b452"},
+      {"source":"tests/language-readiness/pending/generic-trait.zil","sha256":"656eb357d994b66cc8670b1a7946e3fafbd7162ccd771c01dc07cc6053090804","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"8a5eef98a0ec1d0cf5b636f1396df966f845217b865e80bc166805f5b2a308f4"},
+      {"source":"tests/language-readiness/pending/life-generic.zil","sha256":"6f9fe02f1d94822252bcb3330358e731b2a0c52592b029d4bb0d7cee1af07152","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"7a590f9d125c9e8412c8281e64d035219fde97344b81a16efa9b2d2ff341047d"},
+      {"source":"tests/language-readiness/pending/mutable-product-helper-gap.zil","sha256":"c602d0d0151359f1683bece3a0d97053e5379ba4d0f079c4754bca42a3d1329d","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"647c5a1d2f27a80911ba5c45525b53683947f53c6c32f2babf5bb983268145a9"},
+      {"source":"tests/language-readiness/pending/optional.zil","sha256":"81e93e1e50295be42761b28a999aaddf80541d568310dae53e7c11dd1288d17c","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"parameter type Unsupported(\"type form is not yet lowered\")"}],"stdout_sha256":"f18cb6a7471c270bc7572ace26284bd620d64b2a7d6889d1967cc3486fc6e31c"},
+      {"source":"tests/language-readiness/pending/record-variant.zil","sha256":"02e73100aa5123e80eae1d0dc23503d3dfe1a6df2bb23cb1ff17f1eaec8e8fda","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"d064d60f2bf2923adfe6d6d48f269332bed7689cf58985604e2daee3280e8c0e"},
+      {"source":"tests/language-readiness/pending/ref-pattern.zil","sha256":"f73549a15c6a9f5fc068e244b73cc8a8a8a38c9a37aa6adf0a2be9d38332066c","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"binding destructuring"}],"stdout_sha256":"d29a000c7d5e6ef23b8c922de43c0506b9e5d6e9d4a9af8e2e30c7b48b978ba2"},
+      {"source":"tests/language-readiness/pending/runtime-tuple-binding.zil","sha256":"0ee29d7d58b2f5c36e3acc0fca2847a8041578285f0aa9fd096dba29265a1afa","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"f39442314a9fd009b0bff328cbe0e0979d60db9ee130ffedd595ddda044a77a8"},
+      {"source":"tests/language-readiness/pending/std-io.zil","sha256":"1b87691cf1626286a32605d430adaae5c46f1831a3cc87168ffc0145389e895b","exit_code":1,"status":"SafeReject","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-STD-IMPORT","message":"only ordinary imports of std.meta and std.syntax are available"}],"stdout_sha256":"15d01a8e56195885744ae5a2c7acd0b0e1918b66e564d8681ddc2621b4a4b373"},
+      {"source":"tests/language-readiness/recovery/controls/borrow-parameter-return.zil","sha256":"613710bbbcb130bb907ebf78d5f420a9ddbb9abaebfa9337a80070d857ead292","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"eebd32290b7b76ac5eca02a0007c450235d12104026eaa1d1985297688eab794"},
+      {"source":"tests/language-readiness/recovery/controls/borrow-selected-parameter.zil","sha256":"1c3eda05cae128d0b3bbc2e5e537ccf1af5adb30e94cff28ec689e65e0e1f315","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"21df86c6063e40e1b07da3812ec285f61a6605218ab6402727434cc499a68ab3"},
+      {"source":"tests/language-readiness/recovery/controls/ordinary-mutex-poll-names.zil","sha256":"ead606ae6e53753149bf11bd673bed8c8eaacdb2776cf7e0e60a0d84a9491aee","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"1548a09cfb9659c3753354877cb81ce83201e023e98a36691646e4ad8b40539a"},
+      {"source":"tests/language-readiness/recovery/controls/scalar-function-pointer.zil","sha256":"0a4000fd8da9683d6b30cf8e78fc88ca8592f06d762b72b69cb6ec32193f0472","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"abbd591516d5ea3bf212079b0ac050d7eb95fda44ba866ebc681e27e8a406628"},
+      {"source":"tests/language-readiness/recovery/controls/scoped-callback.zil","sha256":"2631cdb14a5d988797f0c5692229edd0330ff4a7e0f5b25626e74916a7fa7170","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"5f30b10b4d4db0e657e425ac897ea35277d4d0cee6513a846a1496c5e5c00cd8"},
+      {"source":"tests/language-readiness/recovery/controls/static-trait.zil","sha256":"3cc61f30eab43d506564381c7c7df69b34fa483d9b10e622d9bc3161920078c5","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"02706cf513b5fa0bb628c5c651965e88bacc7a453ef9919d644d6579ea56895c"},
+      {"source":"tests/language-readiness/recovery/pending/borrow-function-pointer.zil","sha256":"27465663c52c081f8918e54306042fb6b8386e7d60a416f66ee7f503f264120c","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"parameter type FunctionPointer { parameters: [Address { mutable: false, inner: I32 }], result: I32 }"}],"stdout_sha256":"7bafdc082db04a7f27988cc03de601ed399009a536a50e178f6892a81f9869dd"},
+      {"source":"tests/language-readiness/recovery/pending/life-higher-rank.zil","sha256":"5dd950ccf7145c6362ace96ae3b5297784a1f602df1928dc5a786bbf327f611f","exit_code":3,"status":"Unsupported","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"Unsupported","code":"E-UNSUPPORTED","message":"higher-rank life is not implemented"}],"stdout_sha256":"2d7a622d14085f054280a80f261321ddb3736f9c073d7f4466d7d87a470ec275"},
+      {"source":"tests/language-readiness/recovery/pending/life-parameter-return.zil","sha256":"6cb3da355768cc822c58e29b44ff91c00046c3bec521de610cc89596ea297b0d","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"2ac2b3d74109bfb164b89db163561defd309c640bf6c9e7733b0883e4f51ad9e"},
+      {"source":"tests/language-readiness/recovery/pending/share-bound.zil","sha256":"9d82590dac90a6a7cff05a55eec31f247e9a205a79bc35b4b6f7fb3ee63dc712","exit_code":1,"status":"SafeReject","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"generic bound Share is not a declared nominal trait"}],"stdout_sha256":"22ff3bd392617c38d0b02f963bffde769465cc802a2ded146b43bd8188e3c954"},
+      {"source":"tests/language-readiness/recovery/pending/spawn-contract.zil","sha256":"8d7b884b49dd349fa2f7307b8bef26d1e1b4d2d22fe3d815b9ccb986b9cd7b18","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"callable contract clause outside finite resource results"},{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"callable contract clause outside finite resource results"}],"stdout_sha256":"7d154e549cecc1b06a967c41cf22236d8450630b45df17b6e74fa4c75e6a9c9d"},
+      {"source":"tests/language-readiness/recovery/pending/suspend-contract.zil","sha256":"bcd6e9653a8664424c9e0d2bd6885daf0588628e08dd2f83024b0f63ebc31fb9","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"callable contract clause outside finite resource results"}],"stdout_sha256":"408de3ddce1f2777b6a1f0dfddb8ffcf16439b3e15b0e866cd7bbaabb1822bc0"},
+      {"source":"tests/language-readiness/recovery/pending/trait-associated-type.zil","sha256":"d25597df6054cc27cbe1f08b3f19c37bb3a30cd47650604eff728b229a6ca28a","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"associated trait items are not in the static local trait slice"},{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"trait declarations outside the finite local subset"}],"stdout_sha256":"1b59687c2269436a2b6afb4f2cc740cc00111098d1e44c6dd85809ebe991ac6b"},
+      {"source":"tests/language-readiness/recovery/pending/trait-default-method.zil","sha256":"29c6d48a71a4a9ad40a142c70d84d5d698f713559e2bf1cc5fa433ae4dadeca2","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"d0be2753c74ff8c0070f4001ab6e0ebd5383992e3e893c21246c30e224b0f3b9"},
+      {"source":"tests/language-readiness/recovery/pending/trait-generic-impl.zil","sha256":"7b74e0d6eac2171a3df3ddcc46b7af21084037ddbf1039c88adfbeac2fffbf96","exit_code":3,"status":"Unsupported","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"trait impl requires concrete local nominal names"},{"phase":"types","category":"Unsupported","code":"E-UNSUPPORTED","message":"trait implementation resolution"}],"stdout_sha256":"1115a8318a03eaa4bcd67edc3850f024218df0c8c89f20ec57d9f08b2effbe5f"},
+      {"source":"tests/language-readiness/recovery/pending/trait-type-argument.zil","sha256":"85c5bd2b19e2e98056d9e1ee123f6a43c71e915127cf1c06e0c7e42163437a2f","exit_code":0,"status":"Success","phase":"verify","verification_runs":1,"diagnostics":[],"stdout_sha256":"bba3751caf288d84c78f76c8728851bdcda198f38c85d78e1347727169ea860c"},
+      {"source":"tests/language-readiness/recovery/pending/transfer-bound.zil","sha256":"577e0ca431e8caff58891be9c0a4c8265b9e87ac59ab56f5fde8a52bc31408c2","exit_code":1,"status":"SafeReject","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"generic bound Transfer is not a declared nominal trait"}],"stdout_sha256":"a7b8e850433ef66601e077efcf61c50862588444dcfe2632f8ee1491f96adbc7"},
+      {"source":"tests/language-readiness/recovery/probes/mismatched-undeclared-life.zil","sha256":"95102abfc7e1c9832ab5e3bcb0abea356558e84b57e8c6035408713e34660b79","exit_code":1,"status":"SafeReject","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-LIFE-DECLARATION","message":"undeclared life name"}],"stdout_sha256":"81e0c9bca7c5237a432a21f73f36c0252303a276b0cfc9045da3eb1e10104280"},
+      {"source":"tests/language-readiness/recovery/probes/receiver-undeclared-life.zil","sha256":"6e8b5f50c0bbe7d06365141845cf908f00275f4c75dc0c1b1acc1ce6844b5e06","exit_code":1,"status":"SafeReject","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-LIFE-DECLARATION","message":"undeclared life name"}],"stdout_sha256":"4ba93237b46a7ec11f8e6360583825e8ca0b7a448adfb463ce99f7fdbc34a7b4"},
+      {"source":"tests/language-readiness/recovery/probes/undeclared-life.zil","sha256":"5fb5697cbbdef6853a99817747d3def992432c9a455211c1df15c97b55b5ff3b","exit_code":1,"status":"SafeReject","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-LIFE-DECLARATION","message":"undeclared life name"}],"stdout_sha256":"b89187841ddd487c865b36b2c5e5c379bde0b5b2f519f1ede6d7560ee80e342e"},
+      {"source":"tests/language-readiness/recovery/rejects/borrow-local-return.zil","sha256":"762c28b83dc0d7fc27a95a8ddfbf7e11488363ace3b785f84f97289243c7c474","exit_code":1,"status":"SafeReject","phase":"verify","verification_runs":1,"diagnostics":[{"phase":"verify","category":"SafeReject","code":"E-BORROW-ESCAPE","message":"returned reference would outlive its local or closure storage"}],"stdout_sha256":"7b30986791ca0eea698e05d3e90894205fff417a0f8e097b656127f3855233ef"},
+      {"source":"tests/language-readiness/recovery/rejects/borrow-overlapping-call.zil","sha256":"d944fdd2ba2cb501b15b800e24a81995c1f058d1f216f72edd3c1b1e85ae81e6","exit_code":1,"status":"SafeReject","phase":"verify","verification_runs":1,"diagnostics":[{"phase":"verify","category":"SafeReject","code":"E-BORROW-CONFLICT","message":"access overlaps an active address window without its delegated authority"}],"stdout_sha256":"670edaef201a315210f8c00ab925039e1e96ea8fbe66c7cad1411fbec0f52d8b"},
+      {"source":"tests/language-readiness/recovery/rejects/returned-captured-callback.zil","sha256":"78b5e9a4b30f9bd2ee0f3320c0be3370f5f834e8cdd5ffbf43a095893d4a9222","exit_code":1,"status":"SafeReject","phase":"types","verification_runs":0,"diagnostics":[{"phase":"types","category":"SafeReject","code":"E-FFI-CALLBACK","message":"stored callables and closures cannot become C callbacks"}],"stdout_sha256":"70926dcb5c382a443dd785a82a177be09297ac7dbccd3643f838d9d979f8c868"},
+      {"source":"tests/language-readiness/recovery/rejects/trait-empty-transfer.zil","sha256":"c7092729a538fd84656e24c46c9be3a77ccae04e6e734c3858c523259e850deb","exit_code":1,"status":"SafeReject","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-TRAIT-RESERVED","message":"built-in capability and cleanup traits cannot be redeclared"}],"stdout_sha256":"190c77cfb2b3a37efd9eaa0eb292fb22d13bd5d4d76a2e2f9590d6cb5d20c930"},
+      {"source":"tests/language-readiness/recovery/rejects/trait-missing-impl.zil","sha256":"9b8f29f022f89d0569a1631cc3aa91c50169359fbd9791aef69c291f1fbf7c71","exit_code":1,"status":"SafeReject","phase":"expand","verification_runs":0,"diagnostics":[{"phase":"expand","category":"SafeReject","code":"E-GENERIC-ARGUMENT","message":"type $module0_Point does not satisfy nominal trait bound $module0_Read"}],"stdout_sha256":"00033fb0942616befab38772587fc30a4d0b59d9af12e2f1ff639161498f9471"}
+    ],
+    "native_runs": 0,
+    "historical_input_and_receipt_bytes_unchanged": true
+  },
+  "common_rust_checks": {
+    "implementation_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+    "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target334 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test impl260_compiler --test cross_function_borrows --test generics --locked --offline -- --nocapture",
+    "exit_code": 0,
+    "targets": {
+      "cross_function_borrows": 29,
+      "generics": 15,
+      "impl260_compiler": 37
+    },
+    "distinct_tests": 81,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "log_sha256": "5c54b99c671cf2146214569edb111bb421811947ab8b970fd2be128c9b47b01a",
+    "budgets": {
+      "type_life_expand_N": [
+        757,
+        1229,
+        205,
+        1369
+      ],
+      "original_life_N": [
+        99,
+        95,
+        714,
+        993
+      ],
+      "CT_two_query_full_request_N": 924,
+      "boundary": "N succeeds, N-1 ResourceLimit, fresh N identical; cold/warm cases run in the existing targets."
+    }
+  },
+  "known_incomplete330": {
+    "source": "tests/language-readiness/followup334/default-global-fnptr-known-incomplete.zil",
+    "source_sha256": "b7840ba2c00ccd1df99cc3389bc6363e25a49b764311c8c14c9ac07a76628696",
+    "exit_code": 1,
+    "status": "SafeReject",
+    "phase": "expand",
+    "diagnostics": [
+      {
+        "phase": "expand",
+        "category": "SafeReject",
+        "code": "E-GENERIC-ARGUMENT",
+        "message": "unknown value $module0_increment in generic body",
+        "span": {
+          "file": 0,
+          "start": 103,
+          "end": 112
+        },
+        "notes": []
+      }
+    ],
+    "verification_runs": 0,
+    "stdout_sha256": "a2801999a8dbf151c52b636f11016564b4233c9a8251f0c14ebeb2996dbf189a",
+    "stderr": "",
+    "classification": "KnownIncompleteLegalDefaultExpression; not a permanent negative expectation",
+    "interpretation": "Direct global function-name return as a thin fnptr value in a default body remains a legal unimplemented expression. Do not register it as a permanent reject or infer all fnptr forwarding is missing; the existing parameter-forwarding subset is supported."
+  },
+  "setup_failures": [
+    {
+      "stage": "Independent KnownIncomplete330 probe after all primaryB runs",
+      "exit_code": 134,
+      "language_status": null,
+      "reason": "Separate /tmp filesystem was full; CLI panicked while printing JSON: No space left on device (os error28). Output was empty; subsequent JSON parse failed. This is infrastructure, not a language rejection or source UB.",
+      "original_empty_output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "resolution": "Root preserved/moved ended temporary native directories. Retry used TMPDIR=/workspace/.zil-env/tmp-gaps-finish and actual B, producing the separately recorded KnownIncomplete result."
+    }
+  ],
+  "matrix_delta": {
+    "historical_rows": 10,
+    "updated_rows": [
+      1,
+      2,
+      3,
+      8,
+      10
+    ],
+    "new_current_successes": 5,
+    "still_incomplete": [
+      "Option/usize/u64 and general ref/nonCopy patterns",
+      "generic/conditional impl, associated items, supertraits and generic methods",
+      "default body global thin-function-name value",
+      "general lifetime/FP/HRTB/storage/dyn",
+      "general state protocol and post-return external registration",
+      "Suspend/SABI/cancel/drain/late notifications/Transfer/Share/Mutex/Atomic",
+      "full String/collections/iteration/ZUI",
+      "general large Enum/ErrorUnion and special ABI carriers",
+      "float/anonymous-union definition, nativeWindows and Rust same-semantics cost goals"
+    ],
+    "source_policy": "Original source files, historical52 JSON and original331 review remain byte-identical. pending/planned names are historical paths, not permanent expected failures."
+  },
+  "counting": "Current52 check projection, 81 existing Rust tests, component4 native and314 two-source8 native are separate levels. The extra10 source controls and KnownIncomplete confirmation are separate observations. Do not add A29/37, historical52/18, old3318 native or repeated source checks into final coverage.",
+  "pre_freeze_matrix_observation": {
+    "observed_main_commit": "45ad1e38c04096deeedc6a7874c62f4adfac86f3",
+    "normative_profile_commit": "5eb792fafafc7db3ff003b4e1c7a275d75195665",
+    "integrated_with_independent_branch_reviews": [
+      "330 finite trait defaults",
+      "331 Copy-T plus life",
+      "332 concrete parent-closure thread entry"
+    ],
+    "not_yet_common_accepted": [
+      "329 named Copy enum variants",
+      "333 internal large-copy byvalue ABI"
+    ],
+    "rows_requiring_update": [
+      1,
+      2,
+      3,
+      8,
+      10
+    ],
+    "rows_without_new_completion_claim": [
+      4,
+      5,
+      6,
+      7,
+      9
+    ]
+  },
+  "integration_note": {
+    "reported_by": "root",
+    "accepted_candidate": "65c25910616196eae76911afb13818dc79b73012",
+    "actual_compiler_and_independent_review_source": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+    "basis": "Root verified exact production source/Cargo/native equivalence B to C. Active implementation identities remain B; acceptance/integration use C. This artifact does not invent a C compiler build or repeat its B executions.",
+    "formal_gates_reported_by_root": {
+      "default": {
+        "passed": 4166,
+        "failed": 0
+      },
+      "reference": {
+        "passed": 4057,
+        "failed": 0
+      },
+      "groups_each": 422,
+      "ignored": 0,
+      "filtered": 0,
+      "dual_clippy_fmt_tools": "Pass"
     }
   }
 }
