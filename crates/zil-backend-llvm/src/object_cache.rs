@@ -690,7 +690,7 @@ mod tests {
             key,
             key_matching_unbuffered(Fingerprint::of(b"other-toolchain"), &a)
         );
-        let changes: [fn(&mut Module); 8] = [
+        let changes: [fn(&mut Module); 9] = [
             |m| m.triple = "x86_64-pc-windows-msvc".into(),
             |m| {
                 if let Item::Function(f) = &mut m.items[0] {
@@ -705,6 +705,11 @@ mod tests {
             |m| {
                 if let Item::Function(f) = &mut m.items[0] {
                     f.attrs.push(Attr::NonLazyBind);
+                }
+            },
+            |m| {
+                if let Item::Function(f) = &mut m.items[0] {
+                    f.attrs.push(Attr::NoInline);
                 }
             },
             |m| {

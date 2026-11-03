@@ -31,5 +31,43 @@ root发布公共Attr::NoInline（c0e8068c0，本树独立接入71c9169a3）。�
 copy/zero helper使用该属性，helper保留真正LLVM memcpy/memset及动态字节数，
 不使用optnone，不修改请求优化级别。边界使O2不在调用者把大内存复制展成海量SSA。
 
-随后已有aggregates目标的限额子进程用原a18字节实际通过两后端O0/O2四组合，
-每组实际backend匹配、fallback=null且原生退出0。其它语义测试与完整限定结果待收尾。
+随后默认aggregates目标通过，但最初错误地把测试代码的四组循环当作四组实证；
+恢复后逐组日志确认driver默认未启用llvm-api，实际只执行Clang O0/O2。撤回此前
+API已通过的断言；显式开启llvm-api后才能形成四组成绩，不把cfg跳过记为Pass。
+
+## 最终限定结果
+
+恢复后重新执行（独立target324、jobs1，Rust1.99.1/LLVM23.1.4，Linux x64）：
+
+- `cargo test -p zil-driver --test aggregates --offline -- --nocapture --test-threads=1`
+  24/0，59.48s；其中a18实际只执行Clang O0/O2。
+- 同命令显式增加 `--features llvm-api`：24/0，66.46s。逐组日志实际确认原a18
+  Clang O0、Clang O2、API O0、API O2均原生退出0、backend匹配、fallback=null；
+  Clang argv核-O0/-O2，API报告核default<O0>/default<O2>，不是只读请求选项。
+  每组CPU45s/VM2GiB/wall55s/core0，原源SHA256仍为
+  `d1ee96ab93bf289321231369c79f9c54a329d2690c394785633e2bb333899ea3`。
+- 五个新增test覆盖原a18、可变local旧值、ReadAddress快照、嵌套动态索引及越界trap、
+  分支循环合流、RHS副作用和4096B按值参数桥接。Record用真实Unit空struct、bool
+  与i64尾字段核7字节padding；布局从llvm_type结果计算，不假定Unit占1字节。
+- 原a18当前Codegen预算N=323040：N及fresh成功，N−1=323039在Codegen返回
+  ResourceLimit。新计划有模块累计预付；小aggregate机器路径虽不变，计划预检会
+  新增Codegen费用，不声称全部旧输入费用不变。既有tuple Types51/50控制保持。
+- `cargo test -p zil-backend-llvm --lib key_binds_all_machine_changes --offline`
+  1/0。machine_key哈希namespace、triple和完整module.items；helper及NoInline
+  均进入键，诊断source fingerprint不作为对象许可。新增NoInline键变化反控通过。
+- 后端lib Clippy（默认及llvm-api，`-- -D warnings`）、格式及diff检查通过。
+
+恢复后的日志在/tmp/324-aggregates-final.log、324-aggregates-api.log、
+324-cache-key.log、324-clippy.log、324-clippy-api.log；旧离线前日志已丢失，
+不把聊天记录冒充保存的原件。测试辅助字段/argv类型初次书写导致过编译失败，
+修为正确CancellationToken及argv逐元素检查，不改生产规则。
+
+`large-array-a18-by-value.zil`只保存ABI边界后续输入，本轮未执行；不把它标为
+已复现的新崩溃或通过。一般大按值参数/返回、闭包及enum/error特殊消费者仍会
+实体化旧SSA桥接，未由本片修复；没有新增拒绝入口。未跑正式全量、Windows或
+Rust性能比较。
+
+Rust四目标：Copy快照/别名/范围沿原独立核且真实源正反控通过，完整安全未完成；
+原a18四组合及无隐式heap有证，额外栈槽/helper成本存在，未测同语义Rust运行/RSS；
+合法大数组从后端崩溃进入正常机器执行，框架维护收益未测；新增编译工作有共享
+预算边界，无编译速度优势结论。该修复是实际突破，不升级B0、完整语言/ZUI或产品门。

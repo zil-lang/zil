@@ -10,6 +10,7 @@ pub(super) struct Slot {
     ty: m::Ty,
     bytes: u64,
     align: u32,
+    work: usize,
 }
 pub(super) type Plan = BTreeMap<ValueId, Slot>;
 
@@ -55,6 +56,13 @@ pub(super) fn plan(
                 reserve(error, work, depth + 1, limits)?;
                 reserve(result, work, depth + 1, limits)?;
             }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                for parameter in parameters {
+                    reserve(parameter, work, depth + 1, limits)?;
+                }
+                reserve(result, work, depth + 1, limits)?;
+            }
             _ => {}
         }
         Ok(())
@@ -72,6 +80,7 @@ pub(super) fn plan(
             }
             // Reserve all recursive predicates, layout construction and bounded
             // metadata clones before examining or retaining the complete shape.
+            let before = work;
             reserve(ty, &mut work, 0, limits)?;
             if !ty.is_copy_value() {
                 continue;
@@ -85,11 +94,45 @@ pub(super) fn plan(
                         ty: machine,
                         bytes,
                         align,
+                        work: before - work,
                     },
                 );
             }
         }
-        plans.insert(function.id, values);
+        if !values.is_empty() {
+            // Reserve repeated machine-type clones, slot accesses and emitted
+            // operations before growing function event buffers. Use a paid
+            // shape upper bound; wide construction/call operands count too.
+            let shape = values.values().map(|slot| slot.work).max().unwrap();
+            for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+                let operands = match &instruction.kind {
+                    InstructionKind::MakeAggregate { fields } => fields.len(),
+                    InstructionKind::Call { arguments, .. }
+                    | InstructionKind::CallIndirect { arguments, .. } => arguments.len(),
+                    _ => 2,
+                };
+                let cost = shape
+                    .saturating_mul(operands.saturating_add(4))
+                    .saturating_add(32);
+                work = work.checked_sub(cost).ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Codegen,
+                        "Copy aggregate snapshot emission budget exceeded",
+                        Some(instruction.span),
+                    )]
+                })?;
+            }
+            plans.insert(function.id, values);
+        }
+    }
+    if !plans.is_empty() {
+        work.checked_sub(256).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Codegen,
+                "Copy helper emission budget exceeded",
+                None,
+            )]
+        })?;
     }
     Ok(plans)
 }
