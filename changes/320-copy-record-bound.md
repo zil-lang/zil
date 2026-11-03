@@ -17,3 +17,18 @@ bound 守门拒绝。本片仅开放普通 Struct 的直接保留 Copy bound；�
 正反例覆盖原 CT record、普通运行时/嵌套/phantom、多实参、非 Copy 实参、
 未用非法定义、名义异型和边界；限定测试写已有 generics.rs。实际结果待执行，
 不继承 314 的 CT 成绩，不宣称完整语言或产品门完成。
+
+## 本轮实际检查
+
+规范采用 root 发布的 `_zil_design.md` 320 条款（575b05b98）：仅约束具名
+binder，允许其它无 bound 参数，不据此推断整体 Struct 为 Copy。
+
+独立 target320、jobs1、Rust 1.99.1、clang 23.1.4：
+`cargo test -p zil-driver --test generics copy_record_bound --offline -- --nocapture`
+为 4/0、8 filtered。一个运行时组合源经 O0/O2 返回17；另2个未用合法定义通过；
+15个形状/phantom/未用义务/名义身份/关闭入口反例按实际阶段拒绝。新嵌套输入
+Expand精确 work N=740、旧无bound控制N=255，各N−1拒绝、N及fresh通过。
+首次测试为2/1：名义异型已在Expand正确拒绝，测试最初误期望Types诊断；
+修正为实际E-GENERIC-ARGUMENT，原源保留，未改生产规则。
+
+CT组合及既有完整generics target尚待后续限定执行；未跑正式全量或性能比较。

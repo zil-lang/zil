@@ -8,14 +8,14 @@ mod cfg;
 mod domain;
 #[path = "compiler_expr.rs"]
 mod expr;
+#[path = "compiler_generics.rs"]
+mod generics;
 #[path = "compiler_quote.rs"]
 mod quote;
 #[path = "compiler_selection.rs"]
 mod selection;
 #[path = "compiler_types.rs"]
 mod types;
-#[path = "compiler_generics.rs"]
-mod generics;
 use std::collections::{BTreeMap, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, Span};
 use zil_ir::ct_artifact::*;
@@ -176,10 +176,21 @@ impl<'a> Budget<'a> {
     fn copy_ty(&mut self, ty: &CtTy, depth: usize, span: Span) -> R<()> {
         self.depth(depth, span)?;
         self.node(span)?;
-        Self::take(&mut self.bytes, std::mem::size_of::<CtTy>(), span, "CT source temporary type bytes exhausted")?;
+        Self::take(
+            &mut self.bytes,
+            std::mem::size_of::<CtTy>(),
+            span,
+            "CT source temporary type bytes exhausted",
+        )?;
         match ty {
-            CtTy::Tuple(fields) => for field in fields { self.copy_ty(field,depth+1,span)?; },
-            CtTy::Array {element,..} | CtTy::List(element) => self.copy_ty(element,depth+1,span)?,
+            CtTy::Tuple(fields) => {
+                for field in fields {
+                    self.copy_ty(field, depth + 1, span)?;
+                }
+            }
+            CtTy::Array { element, .. } | CtTy::List(element) => {
+                self.copy_ty(element, depth + 1, span)?
+            }
             _ => {}
         }
         Ok(())
@@ -210,6 +221,9 @@ struct Compiler<'a> {
     pending: VecDeque<(usize, Vec<CtTy>, CtFunctionId)>,
     bindings: Vec<(String, CtTy)>,
     symbolic: Vec<CtTy>,
+    checking_generics: bool,
+    checked_generics: Vec<usize>,
+    classification_binders: Vec<String>,
     functions: Vec<Option<CtFunction>>,
     constants: Vec<CtConstant>,
     records: Vec<CtRecordSchema>,
@@ -250,6 +264,9 @@ impl<'a> Compiler<'a> {
             pending: VecDeque::new(),
             bindings: Vec::new(),
             symbolic: Vec::new(),
+            checking_generics: false,
+            checked_generics: Vec::new(),
+            classification_binders: Vec::new(),
             functions: Vec::new(),
             constants: Vec::new(),
             records: Vec::new(),
@@ -618,7 +635,8 @@ pub(crate) fn definitions_entry(
         drop(compiler);
         limits.max_analysis_steps = remaining.max_analysis_work as usize;
         limits.max_nodes = initial_nodes - (indexed_nodes - remaining.max_generated_nodes as usize);
-        limits.max_source_bytes = initial_bytes - (indexed_bytes - remaining.max_temporary_bytes as usize);
+        limits.max_source_bytes =
+            initial_bytes - (indexed_bytes - remaining.max_temporary_bytes as usize);
         limits.max_functions = remaining.max_instances as usize;
         return Err(errors);
     }
@@ -627,7 +645,8 @@ pub(crate) fn definitions_entry(
     for index in 0..compiler.declarations.len() {
         let declaration = compiler.declarations[index];
         if declaration.function.generics.is_empty()
-            && compiler.ct_only_function(declaration.module, declaration.function)? {
+            && compiler.ct_only_function(declaration.module, declaration.function)?
+        {
             entry = Some(compiler.symbol(declaration.module, declaration.item.span)?);
             break;
         }
@@ -636,7 +655,8 @@ pub(crate) fn definitions_entry(
     drop(compiler);
     limits.max_analysis_steps = remaining.max_analysis_work as usize;
     limits.max_nodes = initial_nodes - (indexed_nodes - remaining.max_generated_nodes as usize);
-    limits.max_source_bytes = initial_bytes - (indexed_bytes - remaining.max_temporary_bytes as usize);
+    limits.max_source_bytes =
+        initial_bytes - (indexed_bytes - remaining.max_temporary_bytes as usize);
     limits.max_functions = remaining.max_instances as usize;
     Ok((entry, definitions))
 }

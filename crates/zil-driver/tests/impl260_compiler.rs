@@ -134,7 +134,12 @@ impl zil_verify::CtArtifactAuthority for Authority<'_> {
         symbol: &CtSymbolId,
         usage: zil_verify::CtSymbolUsage,
     ) -> bool {
-        if matches!(usage,zil_verify::CtSymbolUsage::Schema | zil_verify::CtSymbolUsage::TypeName | zil_verify::CtSymbolUsage::TypeApply) {
+        if matches!(
+            usage,
+            zil_verify::CtSymbolUsage::Schema
+                | zil_verify::CtSymbolUsage::TypeName
+                | zil_verify::CtSymbolUsage::TypeApply
+        ) {
             return self.raw.record_schemas.iter().any(|s| &s.name == symbol)
                 || self.raw.enum_schemas.iter().any(|s| &s.name == symbol);
         }
@@ -640,40 +645,81 @@ fn typed_range_and_reverse_literal_operands_keep_i64_context() {
 #[test]
 fn copy_generic_type_function_infers_and_keeps_all_instances() {
     let source = "fn select<T:Copy>(x:T)->Type{return T} fn entry()->Type{let a=select(7);let b=select::<i64>(7);let c=select(8);return b}";
-    assert_eq!(run(source,"entry",&[]), CtValue::Type(CtTypeRef {
-        nodes:vec![CtTypeNode::Primitive(CtScalarTy::I64)], root:CtTypeNodeId(0),
-    }));
-    let raw = build(source,"entry");
-    assert_eq!(raw.functions.len(),3,"one wrapper and two actual select instances");
-    assert_eq!(raw.functions.iter().filter(|f| f.parameter_types==vec![CtTy::Scalar(CtScalarTy::I32)]).count(),1);
-    assert_eq!(raw.functions.iter().filter(|f| f.parameter_types==vec![CtTy::Scalar(CtScalarTy::I64)]).count(),1);
+    assert_eq!(
+        run(source, "entry", &[]),
+        CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
+            root: CtTypeNodeId(0),
+        })
+    );
+    let raw = build(source, "entry");
+    assert_eq!(
+        raw.functions.len(),
+        3,
+        "one wrapper and two actual select instances"
+    );
+    assert_eq!(
+        raw.functions
+            .iter()
+            .filter(|f| f.parameter_types == vec![CtTy::Scalar(CtScalarTy::I32)])
+            .count(),
+        1
+    );
+    assert_eq!(
+        raw.functions
+            .iter()
+            .filter(|f| f.parameter_types == vec![CtTy::Scalar(CtScalarTy::I64)])
+            .count(),
+        1
+    );
 }
 
 #[test]
 fn copy_generic_record_and_nested_calls_execute_in_verified_vm() {
     let source = "struct Box<T:Copy>{value:T} fn id<T>(x:T)->T where T:Copy,T:Copy{return x} fn select(x:Box<i32>)->Type{if id(x.value)==7{return i32}return i64} fn entry()->Type{return select(Box::<i32>{value:7})}";
-    assert_eq!(run(source,"entry",&[]),CtValue::Type(CtTypeRef {
-        nodes:vec![CtTypeNode::Primitive(CtScalarTy::I32)], root:CtTypeNodeId(0),
-    }));
-    let source="fn select<T:Copy>(x:T,n:i64)->Type{if n==1{return T}return bool}fn entry()->Type{return select(7,1)}";
-    assert_eq!(run(source,"entry",&[]),CtValue::Type(CtTypeRef {nodes:vec![CtTypeNode::Primitive(CtScalarTy::I32)],root:CtTypeNodeId(0)}));
+    assert_eq!(
+        run(source, "entry", &[]),
+        CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+            root: CtTypeNodeId(0),
+        })
+    );
+    let source = "fn select<T:Copy>(x:T,n:i64)->Type{if n==1{return T}return bool}fn entry()->Type{return select(7,1)}";
+    assert_eq!(
+        run(source, "entry", &[]),
+        CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+            root: CtTypeNodeId(0)
+        })
+    );
 }
 
 #[test]
 fn ct_generic_nominal_and_phantom_arguments_do_not_merge() {
-    let raw = build("struct A{x:i32}struct B{x:i32}type Alias=A;struct Config<T:Copy,P:Copy>{value:T} fn take<T:Copy,P:Copy>(x:Config<T,P>)->Type{return T} fn entry()->Type{let a=take(Config::<A,bool>{value:A{x:1}});let b=take(Config::<B,bool>{value:B{x:1}});let c=take(Config::<Alias,bool>{value:A{x:1}});let d=take(Config::<A,i32>{value:A{x:1}});return d}","entry");
-    assert_eq!(raw.functions.len(),4,"A,bool and Alias,bool normalize; B,bool and A,i32 remain separate");
-    assert_eq!(raw.record_schemas.len(),5,"A/B plus three complete Config identities");
-    let authority = Authority {raw:&raw};
-    let bytes=zil_ir::ct_wire::encode_program(&raw,&Limits::default()).unwrap();
-    let decoded=zil_ir::ct_wire::decode_program(&bytes,&Limits::default()).unwrap();
-    assert_eq!(decoded,raw);
-    zil_verify::verify_ct_artifact(decoded,&Limits::default(),&authority).unwrap();
-    zil_verify::verify_ct_artifact(raw.clone(),&Limits::default(),&authority).unwrap();
-    let mut tampered=raw.clone();
-    let last=tampered.functions.len()-1;
-    tampered.functions[last].parameter_types=tampered.functions[1].parameter_types.clone();
-    assert!(zil_verify::verify_ct_artifact(tampered,&Limits::default(),&authority).is_err());
+    let raw = build(
+        "struct A{x:i32}struct B{x:i32}type Alias=A;struct Config<T:Copy,P:Copy>{value:T} fn take<T:Copy,P:Copy>(x:Config<T,P>)->Type{return T} fn entry()->Type{let a=take(Config::<A,bool>{value:A{x:1}});let b=take(Config::<B,bool>{value:B{x:1}});let c=take(Config::<Alias,bool>{value:A{x:1}});let d=take(Config::<A,i32>{value:A{x:1}});return d}",
+        "entry",
+    );
+    assert_eq!(
+        raw.functions.len(),
+        4,
+        "A,bool and Alias,bool normalize; B,bool and A,i32 remain separate"
+    );
+    assert_eq!(
+        raw.record_schemas.len(),
+        5,
+        "A/B plus three complete Config identities"
+    );
+    let authority = Authority { raw: &raw };
+    let bytes = zil_ir::ct_wire::encode_program(&raw, &Limits::default()).unwrap();
+    let decoded = zil_ir::ct_wire::decode_program(&bytes, &Limits::default()).unwrap();
+    assert_eq!(decoded, raw);
+    zil_verify::verify_ct_artifact(decoded, &Limits::default(), &authority).unwrap();
+    zil_verify::verify_ct_artifact(raw.clone(), &Limits::default(), &authority).unwrap();
+    let mut tampered = raw.clone();
+    let last = tampered.functions.len() - 1;
+    tampered.functions[last].parameter_types = tampered.functions[1].parameter_types.clone();
+    assert!(zil_verify::verify_ct_artifact(tampered, &Limits::default(), &authority).is_err());
 }
 
 #[test]
@@ -695,87 +741,244 @@ fn unused_ct_generic_definitions_check_only_declared_copy_capabilities() {
         "fn bad<T:Copy>(x:T)->Type where T:i32{return T}",
         "fn bad<T:Copy>(x:T)->Type{if false{let y=x.field}return T}",
     ] {
-        let source=format!("{bad} fn entry()->Type{{return i32}}");
-        assert!(try_build(&source,"entry").is_err(),"{source}");
+        let source = format!("{bad} fn entry()->Type{{return i32}}");
+        assert!(try_build(&source, "entry").is_err(), "{source}");
     }
-    build("fn okay<T:Copy,U:Copy>(x:T,y:U)->Type{let z=x;var a=x;a=z;return T}fn entry()->Type{return i32}","entry");
+    build(
+        "fn okay<T:Copy,U:Copy>(x:T,y:U)->Type{let z=x;var a=x;a=z;return T}fn entry()->Type{return i32}",
+        "entry",
+    );
+}
+
+#[test]
+fn generic_value_helpers_reached_from_ct_still_check_symbolic_bounds() {
+    for source in [
+        "fn bad<T:Copy>(x:T)->T{return x+1}fn entry()->Type{let y=bad(7);return i32}",
+        "fn bad<T:Copy>(x:T)->T{return x+1}fn outer<T:Copy>(x:T)->Type{let y=bad(7);return T}fn entry()->Type{return outer(1)}",
+    ] {
+        assert!(try_build(source, "entry").is_err(), "{source}");
+    }
+}
+
+#[test]
+fn generic_type_binders_shadow_ct_builtins_and_outer_ct_nominals() {
+    use zil_driver::{CompileOptions, Stage, compile_source};
+    for source in [
+        "fn identity<Type:Copy>(value:Type)->Type{return value}fn main()->i32{return identity(7)-7}",
+        "fn identity<Syntax:Copy>(value:Syntax)->Syntax{return value}fn main()->i32{return identity(7)-7}",
+    ] {
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "314-shadow.zil", source),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{source}: {}",
+            report.to_json()
+        );
+    }
+    let mut raw = build(
+        "struct T{value:Type}fn identity<T:Copy>(value:T)->T{return value}fn entry()->Type{let y=identity(7);return i32}",
+        "entry",
+    );
+    let definitions = ct_only_definitions(&mut raw).unwrap();
+    assert!(
+        !definitions.iter().any(|s| s.declaration == NodeId(1)),
+        "outer T must not classify identity's binder"
+    );
+    assert!(
+        raw.functions
+            .iter()
+            .any(|f| f.definition.declaration == NodeId(1)
+                && f.parameter_types == vec![CtTy::Scalar(CtScalarTy::I32)])
+    );
 }
 
 #[test]
 fn generic_record_array_argument_keeps_ordinary_copy_shape() {
-    let source="struct Box<T:Copy>{value:T}fn inspect(x:Box<[i32;2]>)->Type{if x.value[1]==2{return i32}return i64}fn entry()->Type{return inspect(Box::<[i32;2]>{value:[1,2]})}";
-    assert_eq!(run(source,"entry",&[]),CtValue::Type(CtTypeRef {nodes:vec![CtTypeNode::Primitive(CtScalarTy::I32)],root:CtTypeNodeId(0)}));
+    let source = "struct Box<T:Copy>{value:T}fn inspect(x:Box<[i32;2]>)->Type{if x.value[1]==2{return i32}return i64}fn entry()->Type{return inspect(Box::<[i32;2]>{value:[1,2]})}";
+    assert_eq!(
+        run(source, "entry", &[]),
+        CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+            root: CtTypeNodeId(0)
+        })
+    );
 }
 
 #[test]
 fn generic_type_binder_cannot_capture_alias_definition_scope() {
-    let raw=build("struct T{x:i32}type Alias=T;fn select<T:Copy>(x:T)->Type{return Alias}fn entry()->Type{return select(7)}","entry");
+    let raw = build(
+        "struct T{x:i32}type Alias=T;fn select<T:Copy>(x:T)->Type{return Alias}fn entry()->Type{return select(7)}",
+        "entry",
+    );
     // Source declaration 0 is the outer nominal T, not select's scalar binder.
-    assert!(raw.functions.iter().flat_map(|f|&f.blocks).flat_map(|b|&b.instructions).any(|i|matches!(&i.kind,CtInstructionKind::TypeName(s) if s.declaration==NodeId(0))));
-    assert!(!raw.functions.iter().flat_map(|f|&f.blocks).flat_map(|b|&b.instructions).any(|i|matches!(i.kind,CtInstructionKind::TypePrimitive(CtScalarTy::I32))));
+    assert!(
+        raw.functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(&i.kind,CtInstructionKind::TypeName(s) if s.declaration==NodeId(0)))
+    );
+    assert!(
+        !raw.functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, CtInstructionKind::TypePrimitive(CtScalarTy::I32)))
+    );
 }
 
 #[test]
 fn function_phantom_copy_arguments_and_recursive_cache_hits_keep_identity() {
-    let raw=build("struct A{x:i32}struct B{x:i32}type Alias=A;fn phantom<T:Copy>()->Type{return i32}fn entry()->Type{let a=phantom::<A>();let b=phantom::<B>();return phantom::<Alias>()}","entry");
-    assert_eq!(raw.functions.len(),3);
-    assert_eq!(raw.functions[1].parameter_types,raw.functions[2].parameter_types);
-    assert_ne!(raw.functions[1].id,raw.functions[2].id);
-    let source="fn recurse<T:Copy>(x:T,n:i32)->Type{if n==0{return T}return recurse(x,n-1)}fn entry()->Type{return recurse(7,4)}";
-    assert_eq!(run(source,"entry",&[]),CtValue::Type(CtTypeRef {nodes:vec![CtTypeNode::Primitive(CtScalarTy::I32)],root:CtTypeNodeId(0)}));
-    assert_eq!(build(source,"entry").functions.len(),2);
+    let raw = build(
+        "struct A{x:i32}struct B{x:i32}type Alias=A;fn phantom<T:Copy>()->Type{return i32}fn entry()->Type{let a=phantom::<A>();let b=phantom::<B>();return phantom::<Alias>()}",
+        "entry",
+    );
+    assert_eq!(raw.functions.len(), 3);
+    assert_eq!(
+        raw.functions[1].parameter_types,
+        raw.functions[2].parameter_types
+    );
+    assert_ne!(raw.functions[1].id, raw.functions[2].id);
+    let source = "fn recurse<T:Copy>(x:T,n:i32)->Type{if n==0{return T}return recurse(x,n-1)}fn entry()->Type{return recurse(7,4)}";
+    assert_eq!(
+        run(source, "entry", &[]),
+        CtValue::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+            root: CtTypeNodeId(0)
+        })
+    );
+    assert_eq!(build(source, "entry").functions.len(), 2);
 }
 
 #[test]
 fn ct_generic_project_resolution_keeps_source_visibility() {
     use std::collections::BTreeMap;
-    use zil_driver::{CompileOptions,ProjectSources,Stage,compile_project};
-    let options=CompileOptions {stop_after:Stage::Verify,..CompileOptions::default()};
-    let main="import model;fn main()->i32{let n:#(model.select(7))=7;return n-7}";
-    for (library,success) in [
-        ("pub fn select<T>(x:T)->Type where T:Copy{return T}",true),
-        ("fn select<T:Copy>(x:T)->Type{return T}",false),
-        ("pub fn select<T:Copy>(x:T)->Type{return T}fn unused<U:Copy>(x:U)->Type{let y=x.field;return U}",false),
-        ("struct T{field:i32}type Alias=T;pub fn select<T:Copy>(x:T)->Type{return Alias}",false),
+    use zil_driver::{CompileOptions, ProjectSources, Stage, compile_project};
+    let options = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let main = "import model;fn main()->i32{let n:#(model.select(7))=7;return n-7}";
+    for (library, success) in [
+        ("pub fn select<T>(x:T)->Type where T:Copy{return T}", true),
+        ("fn select<T:Copy>(x:T)->Type{return T}", false),
+        (
+            "pub fn select<T:Copy>(x:T)->Type{return T}fn unused<U:Copy>(x:U)->Type{let y=x.field;return U}",
+            false,
+        ),
+        (
+            "struct T{field:i32}type Alias=T;pub fn select<T:Copy>(x:T)->Type{return Alias}",
+            false,
+        ),
     ] {
-        let report=compile_project(&ProjectSources {
-            root:ModuleId(0),
-            modules:vec![SourceUnit::new(FileId(0),ModuleId(0),"main.zil",main),SourceUnit::new(FileId(1),ModuleId(1),"model.zil",library)],
-            paths:BTreeMap::from([(vec!["model".into()],ModuleId(1))]),
-        },&options);
-        assert_eq!(report.status==zil_base::ResultCategory::Success,success,"{library}: {}",report.to_json());
+        let report = compile_project(
+            &ProjectSources {
+                root: ModuleId(0),
+                modules: vec![
+                    SourceUnit::new(FileId(0), ModuleId(0), "main.zil", main),
+                    SourceUnit::new(FileId(1), ModuleId(1), "model.zil", library),
+                ],
+                paths: BTreeMap::from([(vec!["model".into()], ModuleId(1))]),
+            },
+            &options,
+        );
+        assert_eq!(
+            report.status == zil_base::ResultCategory::Success,
+            success,
+            "{library}: {}",
+            report.to_json()
+        );
     }
 }
 
 #[test]
 fn generic_definition_without_invocation_rejects_before_runtime_pipeline() {
-    use zil_driver::{CompileOptions,Stage,compile_source};
-    let options=CompileOptions {stop_after:Stage::Verify,..CompileOptions::default()};
-    for (body,success) in [("let y=x;return T",true),("let y:T={};return T",false),("let y=x.field;return T",false),("return T;let y=x+1",false)] {
-        let text=format!("fn unused<T:Copy>(x:T)->Type{{{body}}}fn main()->i32{{return 0}}");
-        let report=compile_source(&SourceUnit::new(FileId(0),ModuleId(0),"314-unused.zil",text),&options);
-        assert_eq!(report.status==zil_base::ResultCategory::Success,success,"{}",report.to_json());
-        if !success { assert!(report.diagnostics.iter().any(|d|d.phase==zil_base::Phase::Ct)); }
+    use zil_driver::{CompileOptions, Stage, compile_source};
+    let options = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    for (body, success) in [
+        ("let y=x;return T", true),
+        ("let y:T={};return T", false),
+        ("let y=x.field;return T", false),
+        ("return T;let y=x+1", false),
+    ] {
+        let text = format!("fn unused<T:Copy>(x:T)->Type{{{body}}}fn main()->i32{{return 0}}");
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "314-unused.zil", text),
+            &options,
+        );
+        assert_eq!(
+            report.status == zil_base::ResultCategory::Success,
+            success,
+            "{}",
+            report.to_json()
+        );
+        if !success {
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.phase == zil_base::Phase::Ct)
+            );
+        }
     }
 }
 
 #[test]
 fn ct_generic_other_ledgers_have_exact_fresh_boundaries() {
-    let source="struct Box<T:Copy,P:Copy>{value:T}fn select<T:Copy,P:Copy>(x:Box<T,P>)->Type{return T}fn entry()->Type{let a=select(Box::<i32,bool>{value:7});let b=select(Box::<i64,bool>{value:7});return a}";
-    for name in ["nodes","bytes","instances","depth"] {
-        let mut low=0;
-        let mut high=match name {"nodes"=>Limits::default().max_nodes,"bytes"=>Limits::default().max_source_bytes,"instances"=>Limits::default().max_functions,_=>Limits::default().max_call_depth};
-        let set=|n|{let mut l=Limits::default();match name {"nodes"=>l.max_nodes=n,"bytes"=>l.max_source_bytes=n,"instances"=>l.max_functions=n,_=>l.max_call_depth=n};l};
-        while low<high {
-            let n=low+(high-low)/2;
-            match try_build_with_limits(source,"entry",&set(n)) {
-                Ok(_)=>high=n,
-                Err(errors)=>{assert!(errors.iter().all(|d|d.category==zil_base::ResultCategory::ResourceLimit),"{name}: {errors:?}");low=n+1;},
+    let source = "struct Box<T:Copy,P:Copy>{value:T}fn select<T:Copy,P:Copy>(x:Box<T,P>)->Type{return T}fn entry()->Type{let a=select(Box::<i32,bool>{value:7});let b=select(Box::<i64,bool>{value:7});return a}";
+    for name in ["nodes", "bytes", "instances", "depth"] {
+        let mut low = 0;
+        let mut high = match name {
+            "nodes" => Limits::default().max_nodes,
+            "bytes" => Limits::default().max_source_bytes,
+            "instances" => Limits::default().max_functions,
+            _ => Limits::default().max_call_depth,
+        };
+        let set = |n| {
+            let mut l = Limits::default();
+            match name {
+                "nodes" => l.max_nodes = n,
+                "bytes" => l.max_source_bytes = n,
+                "instances" => l.max_functions = n,
+                _ => l.max_call_depth = n,
+            };
+            l
+        };
+        while low < high {
+            let n = low + (high - low) / 2;
+            match try_build_with_limits(source, "entry", &set(n)) {
+                Ok(_) => high = n,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit),
+                        "{name}: {errors:?}"
+                    );
+                    low = n + 1;
+                }
             }
         }
-        let a=try_build_with_limits(source,"entry",&set(low)).unwrap();
-        assert_eq!(a,try_build_with_limits(source,"entry",&set(low)).unwrap());
-        assert!(try_build_with_limits(source,"entry",&set(low-1)).unwrap_err().iter().all(|d|d.category==zil_base::ResultCategory::ResourceLimit));
+        let a = try_build_with_limits(source, "entry", &set(low)).unwrap();
+        assert_eq!(
+            a,
+            try_build_with_limits(source, "entry", &set(low)).unwrap()
+        );
+        assert!(
+            try_build_with_limits(source, "entry", &set(low - 1))
+                .unwrap_err()
+                .iter()
+                .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+        );
         println!("314 {name} N={low}, N-1 ResourceLimit, fresh exact identity");
     }
 }
@@ -790,95 +993,171 @@ fn ordinary_copy_ct_actuals_reject_resource_address_and_ct_data() {
         "select(Holder{value:i32})",
         "select::<i32,bool>(7)",
     ] {
-        let source=format!("struct Holder{{value:Type}}fn select<T:Copy>(x:T)->Type{{return T}}fn entry()->Type{{return {bad}}}");
-        assert!(try_build(&source,"entry").is_err(),"{source}");
+        let source = format!(
+            "struct Holder{{value:Type}}fn select<T:Copy>(x:T)->Type{{return T}}fn entry()->Type{{return {bad}}}"
+        );
+        assert!(try_build(&source, "entry").is_err(), "{source}");
     }
 }
 
 #[test]
 fn original_pending_ct_generics_reach_runtime_verify() {
-    use zil_driver::{CompileOptions,Stage,compile_source};
-    for (name,text) in [
-        ("function",include_str!("../../../tests/language-readiness/pending/ct-type-generic-function.zil")),
-        ("record",include_str!("../../../tests/language-readiness/pending/ct-type-generic-record.zil")),
-        ("syntax","import std.syntax as syntax;struct Config<T:Copy,P:Copy>{value:T}fn value_type<T:Copy>(x:T)->Type{return T}fn expression(x:Config<i32,bool>)->Syntax<Expr>{return quote<Expr>{$(syntax.literal(x.value))}}fn main()->i32{let n:#(value_type(7))=#splice(expression(Config::<i32,bool>{value:7}));return n-7}"),
+    use zil_driver::{CompileOptions, Stage, compile_source};
+    for (name, text) in [
+        (
+            "function",
+            include_str!("../../../tests/language-readiness/pending/ct-type-generic-function.zil"),
+        ),
+        (
+            "record",
+            include_str!("../../../tests/language-readiness/pending/ct-type-generic-record.zil"),
+        ),
+        (
+            "syntax",
+            "import std.syntax as syntax;struct Config<T:Copy,P:Copy>{value:T}fn value_type<T:Copy>(x:T)->Type{return T}fn expression(x:Config<i32,bool>)->Syntax<Expr>{return quote<Expr>{$(syntax.literal(x.value))}}fn main()->i32{let n:#(value_type(7))=#splice(expression(Config::<i32,bool>{value:7}));return n-7}",
+        ),
     ] {
-        let source=SourceUnit::new(FileId(0),ModuleId(0),format!("314-{name}.zil"),text);
-        let report=compile_source(&source,&CompileOptions {stop_after:Stage::Verify,..CompileOptions::default()});
-        assert!(report.diagnostics.is_empty(),"{name}: {:?}",report.diagnostics);
-        assert_eq!(report.status,zil_base::ResultCategory::Success);
-        assert_eq!(report.verification_runs,1);
+        let source = SourceUnit::new(FileId(0), ModuleId(0), format!("314-{name}.zil"), text);
+        let report = compile_source(
+            &source,
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert!(
+            report.diagnostics.is_empty(),
+            "{name}: {:?}",
+            report.diagnostics
+        );
+        assert_eq!(report.status, zil_base::ResultCategory::Success);
+        assert_eq!(report.verification_runs, 1);
     }
 }
 
 #[test]
 fn ct_generic_analysis_budget_has_exact_fresh_boundary() {
-    let source="struct Box<T:Copy,P:Copy>{value:T}fn select<T:Copy,P:Copy>(x:Box<T,P>)->Type{return T}fn entry()->Type{let a=select(Box::<i32,bool>{value:7});let b=select(Box::<i64,bool>{value:7});return a}";
-    let mut low=0;
-    let mut high=Limits::default().max_analysis_steps;
-    while low<high {
-        let mid=low+(high-low)/2;
-        let limits=Limits {max_analysis_steps:mid,..Limits::default()};
-        match try_build_with_limits(source,"entry",&limits) {
-            Ok(_)=>high=mid,
-            Err(errors)=>{
-                assert!(errors.iter().all(|d|d.category==zil_base::ResultCategory::ResourceLimit),"{errors:?}");
-                low=mid+1;
+    let source = "struct Box<T:Copy,P:Copy>{value:T}fn select<T:Copy,P:Copy>(x:Box<T,P>)->Type{return T}fn entry()->Type{let a=select(Box::<i32,bool>{value:7});let b=select(Box::<i64,bool>{value:7});return a}";
+    let mut low = 0;
+    let mut high = Limits::default().max_analysis_steps;
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: mid,
+            ..Limits::default()
+        };
+        match try_build_with_limits(source, "entry", &limits) {
+            Ok(_) => high = mid,
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.category == zil_base::ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                low = mid + 1;
             }
         }
     }
-    let limits=Limits {max_analysis_steps:low,..Limits::default()};
-    let a=try_build_with_limits(source,"entry",&limits).unwrap();
-    let b=try_build_with_limits(source,"entry",&limits).unwrap();
-    assert_eq!(a,b);
-    let errors=try_build_with_limits(source,"entry",&Limits{max_analysis_steps:low-1,..Limits::default()}).unwrap_err();
-    assert!(errors.iter().all(|d|d.category==zil_base::ResultCategory::ResourceLimit));
+    let limits = Limits {
+        max_analysis_steps: low,
+        ..Limits::default()
+    };
+    let a = try_build_with_limits(source, "entry", &limits).unwrap();
+    let b = try_build_with_limits(source, "entry", &limits).unwrap();
+    assert_eq!(a, b);
+    let errors = try_build_with_limits(
+        source,
+        "entry",
+        &Limits {
+            max_analysis_steps: low - 1,
+            ..Limits::default()
+        },
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+    );
     println!("314 generic source attribution N={low}, N-1 ResourceLimit, fresh exact identity");
 }
 
 #[test]
 fn generic_wire_roundtrip_executes_concrete_phantom_record_instances() {
-    let source="struct Config<T:Copy,P:Copy>{value:T}fn value<T:Copy,P:Copy>(x:Config<T,P>)->T{return x.value}fn entry()->i32{let a=value(Config::<i32,bool>{value:7});let b=value(Config::<i64,i32>{value:8});return a}";
-    let raw=build(source,"entry");
-    let limits=Limits::default();
-    let bytes=zil_ir::ct_wire::encode_program(&raw,&limits).unwrap();
-    let decoded=zil_ir::ct_wire::decode_program(&bytes,&limits).unwrap();
-    assert_eq!(decoded,raw);
-    let authority=Authority{raw:&raw};
-    let verified=zil_verify::verify_ct_artifact(decoded.clone(),&limits,&authority).unwrap();
-    let mut budget=zil_ct::CtExecutionBudget::new(raw.budget);
-    let (value,_)=zil_ct::evaluate_ct_artifact(&verified,&[],&Reader,&mut budget).unwrap();
-    assert_eq!(value,CtValue::Scalar(zil_ir::Constant::I32(7)));
-    let mut wrong=decoded;
-    wrong.record_schemas.swap(0,1);
-    assert!(zil_verify::verify_ct_artifact(wrong,&limits,&authority).is_err());
+    let source = "struct Config<T:Copy,P:Copy>{value:T}fn value<T:Copy,P:Copy>(x:Config<T,P>)->T{return x.value}fn entry()->i32{let a=value(Config::<i32,bool>{value:7});let b=value(Config::<i64,i32>{value:8});return a}";
+    let raw = build(source, "entry");
+    let limits = Limits::default();
+    let bytes = zil_ir::ct_wire::encode_program(&raw, &limits).unwrap();
+    let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+    assert_eq!(decoded, raw);
+    let authority = Authority { raw: &raw };
+    let verified = zil_verify::verify_ct_artifact(decoded.clone(), &limits, &authority).unwrap();
+    let mut budget = zil_ct::CtExecutionBudget::new(raw.budget);
+    let (value, _) = zil_ct::evaluate_ct_artifact(&verified, &[], &Reader, &mut budget).unwrap();
+    assert_eq!(value, CtValue::Scalar(zil_ir::Constant::I32(7)));
+    let mut wrong = decoded;
+    wrong.record_schemas.swap(0, 1);
+    assert!(zil_verify::verify_ct_artifact(wrong, &limits, &authority).is_err());
 }
 
 #[test]
 fn multiple_generic_queries_share_request_budget_on_cold_and_warm_sessions() {
-    use zil_driver::{CompilationSession,CompileOptions,Stage,compile_source};
-    let source=SourceUnit::new(FileId(0),ModuleId(0),"314-two-queries.zil","fn select<T:Copy>(x:T)->Type{return T}fn main()->i32{let a:#(select(7))=7;let b:#(select(i64(8)))=8;return a-7}");
-    let mut low=1;
-    let mut high=Limits::default().max_analysis_steps;
-    let options=|n|CompileOptions {stop_after:Stage::Verify,limits:Limits{max_analysis_steps:n,..Limits::default()},..CompileOptions::default()};
-    while low<high {
-        let n=low+(high-low)/2;
-        let report=compile_source(&source,&options(n));
-        if report.status==zil_base::ResultCategory::Success {high=n;} else {
-            assert_eq!(report.status,zil_base::ResultCategory::ResourceLimit,"{}",report.to_json());
-            low=n+1;
+    use zil_driver::{CompilationSession, CompileOptions, Stage, compile_source};
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "314-two-queries.zil",
+        "fn select<T:Copy>(x:T)->Type{return T}fn main()->i32{let a:#(select(7))=7;let b:#(select(i64(8)))=8;return a-7}",
+    );
+    let mut low = 1;
+    let mut high = Limits::default().max_analysis_steps;
+    let options = |n| CompileOptions {
+        stop_after: Stage::Verify,
+        limits: Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    while low < high {
+        let n = low + (high - low) / 2;
+        let report = compile_source(&source, &options(n));
+        if report.status == zil_base::ResultCategory::Success {
+            high = n;
+        } else {
+            assert_eq!(
+                report.status,
+                zil_base::ResultCategory::ResourceLimit,
+                "{}",
+                report.to_json()
+            );
+            low = n + 1;
         }
     }
-    let mut session=CompilationSession::default();
+    let mut session = CompilationSession::default();
     for _ in 0..2 {
-        let report=session.compile_source(&source,&options(low));
-        assert_eq!(report.status,zil_base::ResultCategory::Success,"{}",report.to_json());
+        let report = session.compile_source(&source, &options(low));
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
     }
     for _ in 0..2 {
-        let report=session.compile_source(&source,&options(low-1));
-        assert_eq!(report.status,zil_base::ResultCategory::ResourceLimit,"{}",report.to_json());
+        let report = session.compile_source(&source, &options(low - 1));
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::ResourceLimit,
+            "{}",
+            report.to_json()
+        );
     }
-    assert_eq!(compile_source(&source,&options(low)).status,zil_base::ResultCategory::Success);
+    assert_eq!(
+        compile_source(&source, &options(low)).status,
+        zil_base::ResultCategory::Success
+    );
     println!("314 two-query full request N={low}; cold/warm/fresh N success, N-1 ResourceLimit");
 }
 

@@ -193,11 +193,20 @@ impl<'a> Environment<'a> {
                 .max_analysis_work
                 .saturating_sub(limits.max_analysis_steps as u64),
         )?;
-        self.budget.reserve_generated_nodes(before.max_generated_nodes.saturating_sub(limits.max_nodes as u64))?;
-        let temporary_bytes=before.max_temporary_bytes.saturating_sub(limits.max_source_bytes as u64);
+        self.budget.reserve_generated_nodes(
+            before
+                .max_generated_nodes
+                .saturating_sub(limits.max_nodes as u64),
+        )?;
+        let temporary_bytes = before
+            .max_temporary_bytes
+            .saturating_sub(limits.max_source_bytes as u64);
         self.budget.reserve_temporary_bytes(temporary_bytes)?;
         self.budget.release_temporary_bytes(temporary_bytes);
-        for _ in 0..before.max_instances.saturating_sub(limits.max_functions as u64) {
+        for _ in 0..before
+            .max_instances
+            .saturating_sub(limits.max_functions as u64)
+        {
             self.budget.reserve_instance()?;
         }
         let (entry, generic_definitions) = result?;
