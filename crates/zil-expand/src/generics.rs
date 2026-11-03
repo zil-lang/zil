@@ -1540,38 +1540,62 @@ impl<'a> Engine<'a> {
                 let mut actual = Vec::new();
                 let mut contextual_constraints = false;
                 for index in 0..arguments.len() {
-                    if hints
-                        .as_ref()
-                        .map(|h| h.unresolved_context(index, &mut self.budget))
-                        .transpose()?
-                        .unwrap_or(false)
-                    {
-                        contextual_constraints = true;
-                        for (other_index, argument) in arguments.iter().enumerate() {
-                            self.budget.node(argument.span, depth + 1)?;
-                            if let Some(ty) =
-                                self.value_hint(&argument.value, env, depth + 1, true)?
-                            {
-                                let ty = self.original_type(&ty)?;
-                                hints
-                                    .as_mut()
-                                    .expect("contextual call hints")
-                                    .independent_constraint(
-                                        other_index,
-                                        &ty,
-                                        argument.span,
-                                        &mut self.budget,
-                                    )?;
-                            }
-                        }
-                    }
-                    let arg = &mut arguments[index];
-                    let hint = hints
+                    let mut hint = hints
                         .as_ref()
                         .map(|h| h.hint(index, &mut self.budget))
                         .transpose()?
                         .flatten();
+                    if hint.is_none()
+                        && hints
+                            .as_ref()
+                            .map(|h| h.unresolved_context(index, &mut self.budget))
+                            .transpose()?
+                            .unwrap_or(false)
+                    {
+                        contextual_constraints = true;
+                        for union_pass in [false, true] {
+                            for (other_index, argument) in arguments.iter().enumerate() {
+                                self.budget.node(argument.span, depth + 1)?;
+                                if !hints
+                                    .as_ref()
+                                    .expect("contextual call hints")
+                                    .independent_input(other_index, union_pass, &mut self.budget)?
+                                {
+                                    continue;
+                                }
+                                if let Some(ty) =
+                                    self.value_hint(&argument.value, env, depth + 1, true)?
+                                {
+                                    let ty = self.original_type(&ty)?;
+                                    hints
+                                        .as_mut()
+                                        .expect("contextual call hints")
+                                        .independent_constraint(
+                                            other_index,
+                                            &ty,
+                                            argument.span,
+                                            &mut self.budget,
+                                        )?;
+                                }
+                            }
+                        }
+                        hint = hints
+                            .as_ref()
+                            .map(|h| h.hint(index, &mut self.budget))
+                            .transpose()?
+                            .flatten();
+                    }
+                    let arg = &mut arguments[index];
                     let ty = self.expr_expected(&mut arg.value, env, hint.as_ref(), depth + 1)?;
+                    let ty = if ty.is_none()
+                        && hint
+                            .as_ref()
+                            .is_some_and(|ty| matches!(grouped(ty).kind, TypeKind::Error { .. }))
+                    {
+                        self.value_hint(&arg.value, env, depth + 1, true)?
+                    } else {
+                        ty
+                    };
                     if value_inference_allowed
                         && let Some(ty) = &ty
                         && self.inferred_state_value(ty, 0)?
@@ -2446,11 +2470,11 @@ fn unify_argument(
     span: Span,
     budget: &mut Budget<'_>,
 ) -> R<()> {
+    budget.ty(pattern)?;
+    budget.ty(actual)?;
     if context_argument(pattern, actual, variables, found, span, None, budget)? {
         return Ok(());
     }
-    budget.ty(pattern)?;
-    budget.ty(actual)?;
     let mut pattern = pattern;
     while let TypeKind::Group(inner) = &pattern.kind {
         pattern = inner;
@@ -2520,6 +2544,23 @@ fn context_unresolved(
         }
     }
     Ok(false)
+}
+fn independent_input(
+    pattern: &TypeRef,
+    variables: &BTreeSet<String>,
+    found: &BTreeMap<String, TypeRef>,
+    union_pass: bool,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    budget.ty(pattern)?;
+    if matches!(grouped(pattern).kind, TypeKind::Error { .. }) != union_pass {
+        return Ok(false);
+    }
+    if union_pass {
+        context_unresolved(pattern, variables, found, budget)
+    } else {
+        Ok(true)
+    }
 }
 fn unify_bounded(
     pattern: &TypeRef,
