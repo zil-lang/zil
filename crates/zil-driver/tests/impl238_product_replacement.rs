@@ -152,7 +152,7 @@ fn review318_nested_missing_child_and_same_root_raw_attacks() {
 }
 #[test]
 fn review318_frozen223_product_parameter_has_real_exclusive_authority() {
-    let bytes = include_bytes!("review223_fixtures/schema32-mutable-product.wire");
+    let bytes = include_bytes!("review223_fixtures/v34/mutable-product.wire");
     let limits = Limits::default();
     let (module, plan) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
     let write = module.functions.iter().find(|f| f.name == "write").unwrap();
