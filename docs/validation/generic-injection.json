@@ -1,5 +1,5 @@
 {
-  "status": "R2 candidate; first full-suite failure corrected, final full CI pending",
+  "status": "Accepted: independent reviews, local full workspace and both R2 CI workflows passed",
   "generic_implementation_commit": "12b6af4f258d19314959d556e1312d0fd2313c6d",
   "closure_implementation_commit": "ac737c9113e9498bab252478b279698e0a033bfe",
   "independent_reviews": {
@@ -123,6 +123,179 @@
       "id": 41567154028,
       "result": "failure; default and reference tests failed"
     },
-    "repair": "12b6af4f; original178/194 test files unchanged; whole targets15/0 and19/0 plus exact default failures each1/0; literal/typed unused templates, unambiguous instances and actual same-type rejection separately tested."
+    "repair": "12b6af4f; original178/194 test files unchanged; whole targets15/0 and19/0 plus exact default failures each1/0; literal/typed unused templates, unambiguous instances and actual same-type rejection separately tested.",
+    "ci_reference": {
+      "passed": 3894,
+      "failed": 2,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "ci_text_reference": {
+      "passed": 64,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    }
+  },
+  "candidate_commit": "33542bff29621d271c3d82208ebb4770aeacf20e",
+  "integration_commit": "8bbb38f2d9e0c34a8bc28a44d12b309d6ff48392",
+  "pr": "https://github.com/zil-lang/zil/pull/27",
+  "local_R2_full": {
+    "source": "2e4f1e9b86a7bf2c49a88b4a6ec239588e75b9f1",
+    "command": "CARGO_BUILD_JOBS=2 CARGO_TARGET_DIR=/workspace/.zil-env/target-297 cargo test --locked --workspace --no-fail-fast",
+    "passed": 4005,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "source_identity": "Candidate differs only in documentation, review receipts and README. All Rust/ZIL/Cargo/spec/tool/product-gate inputs byte-identical; the tested full tree is not claimed to be 33542."
+  },
+  "final_ci": [
+    {
+      "id": 41570552193,
+      "name": "Main source verification",
+      "url": "https://github.com/zil-lang/zil/actions/runs/41570552193",
+      "headSha": "33542bff29621d271c3d82208ebb4770aeacf20e",
+      "conclusion": "success",
+      "steps": "All steps succeeded",
+      "results": {
+        "Complete workspace tests": {
+          "passed": 4005,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        },
+        "Reference-only build and explicit unavailable control": {
+          "passed": 3897,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        },
+        "Explicit LLVM text-reference boundary": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        }
+      },
+      "test_summary_lines": {
+        "Complete workspace tests": 422,
+        "Reference-only build and explicit unavailable control": 422,
+        "Explicit LLVM text-reference boundary": 10
+      },
+      "replays_added_to_native_coverage": false
+    },
+    {
+      "id": 41570552239,
+      "name": "Research LLVM verification",
+      "url": "https://github.com/zil-lang/zil/actions/runs/41570552239",
+      "headSha": "33542bff29621d271c3d82208ebb4770aeacf20e",
+      "conclusion": "success",
+      "steps": "All steps succeeded",
+      "results": {
+        "Complete workspace tests": {
+          "passed": 4005,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        },
+        "Reference-only build and explicit unavailable control": {
+          "passed": 3897,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        },
+        "Explicit LLVM text-reference boundary": {
+          "passed": 64,
+          "failed": 0,
+          "ignored": 0,
+          "filtered": 0
+        }
+      },
+      "test_summary_lines": {
+        "Complete workspace tests": 422,
+        "Reference-only build and explicit unavailable control": 422,
+        "Explicit LLVM text-reference boundary": 10
+      },
+      "replays_added_to_native_coverage": false
+    }
+  ],
+  "integration_review": {
+    "reviewer": "finish_flow",
+    "implementation_commit": "33542bff29621d271c3d82208ebb4770aeacf20e",
+    "verdict": "Pass",
+    "static_scope": "Exact Expand/Types blobs match independently reviewed12b6/ac737; old178/194 files and generic_factory unchanged from baseline; source/test/review scope, original regressions and unique native counts checked. Conditional source review is now closed by local full and both final CI successes.",
+    "pr_body": "Root fetched and checked remote PR27 body; overstrict symbolic rule explicitly withdrawn, old legal concrete programs preserved."
+  },
+  "task_reviews": [
+    {
+      "task": "294",
+      "reviewer": "resume_analyze",
+      "verdict": "Pass",
+      "implementation_commit": "12b6af4f258d19314959d556e1312d0fd2313c6d",
+      "evidence": [
+        "docs/validation/generic-injection.json"
+      ],
+      "scope": "Final production reviewed independently, exact source in generic review."
+    },
+    {
+      "task": "295",
+      "reviewer": "resume_analyze",
+      "verdict": "Pass",
+      "implementation_commit": "b37c450da94cb89f527bcabf7c9b484ece7d8074",
+      "evidence": [
+        "docs/validation/generic-injection.json"
+      ],
+      "scope": "Consumer sources, native oracle, actual backend/no fallback and result identity reviewed by296; full final replay by root/CI."
+    },
+    {
+      "task": "296",
+      "reviewer": "/root",
+      "verdict": "Pass",
+      "implementation_commit": "5b635a1a900304b24653997269d12658e3ec4d3a",
+      "evidence": [
+        "docs/validation/generic-injection.json"
+      ],
+      "scope": "Root checked exact corrected review against design18.1, unchanged old178/194 inputs, preserved failure history and concrete-instance controls; no false universal template restriction remains."
+    },
+    {
+      "task": "297",
+      "reviewer": "finish_flow",
+      "verdict": "Pass",
+      "implementation_commit": "33542bff29621d271c3d82208ebb4770aeacf20e",
+      "evidence": [
+        "docs/validation/generic-injection.json"
+      ],
+      "scope": "Non-author finish_flow reviewed exact combined candidate; formal local and both CI gates now pass."
+    },
+    {
+      "task": "298",
+      "reviewer": "finish_verify",
+      "verdict": "Pass",
+      "implementation_commit": "ac737c9113e9498bab252478b279698e0a033bfe",
+      "evidence": [
+        "docs/validation/generic-injection.json"
+      ],
+      "scope": "Final production and20 native scenarios independently reviewed; final combined full checks pass."
+    },
+    {
+      "task": "299",
+      "reviewer": "/root",
+      "verdict": "Pass",
+      "implementation_commit": "495a947d03f78b150bdfa8ef1ea2ad80a94325ef",
+      "evidence": [
+        "docs/validation/generic-injection.json"
+      ],
+      "scope": "Root checked exact closure review againstac737 code and fixtures, bounded local command/results and combined CI; no full-language or Windows claim."
+    }
+  ],
+  "legacy_metadata_checks": {
+    "plan": {
+      "command": "python3 tools/check-plan.py --self-test",
+      "exit_code": 1,
+      "errors": 28,
+      "affected": "Existing14 formal cards B0,T01-T09,W1-W4 each have stale/missing spec_hash and normative_hash.",
+      "baseline_identity": "All formal cards, checker and spec/conformance/validation inputs byte-identical to4bea9c88; this is pre-existing plan metadata debt, not a new language or source CI failure."
+    },
+    "handoff": "Existing recovery/handoff metadata still references removed evidence history; not reported as Pass or repaired by widening this language slice."
   }
 }

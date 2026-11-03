@@ -8,7 +8,7 @@
 
 相关阶段：[拥有回调](LANGUAGE-OWNED-CALLBACK-20261102.md)、[原值转交](LANGUAGE-CALLABLE-FORWARD-20261102.md)、[同步核心](LANGUAGE-CORE-20261102.md)、[共享参数](LANGUAGE-SHARED-PARAMETER.md)、[生成链](LANGUAGE-TYPE-SYNTAX.md)、[外部回调](LANGUAGE-SCOPED-CALLBACK.md)。历史状态页中的旧“未实现”不覆盖这些新验收。
 
-本轮候选已补泛型显式绑定、普通函数实参、已知具体闭包实参的错误联合注入，以及独立约束、实际回调返回和具体实例的歧义检查；当前限定源/机器检查通过，最终整仓CI待完成。详见[本轮结果](LANGUAGE-GENERIC-INJECTION.md)。
+本轮PR27已补泛型显式绑定、普通函数实参、已知具体闭包实参的错误联合注入，以及独立约束、实际回调返回和具体实例的歧义检查；独立审核、本地完整工作区和两套最终CI通过。详见[本轮结果](LANGUAGE-GENERIC-INJECTION.md)。
 
 ## 实质缺口
 
