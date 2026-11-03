@@ -150,6 +150,13 @@ pub(super) fn instruction(
         ));
     };
     let body = closures::definition(module, *body_id, span)?;
+    budget.spend(1)?;
+    let entry = module.functions.get(body.function.0 as usize)
+        .ok_or_else(|| invalid(span, "thread body actual entry is absent"))?;
+    if entry.environment != Some(*body_id) || entry.foreign.is_some()
+        || !entry.parameters.is_empty() || entry.return_type != Type::I32
+        || entry.result_mode != PassingMode::Infer
+    { return Err(invalid(span, "thread body metadata differs from its actual entry")); }
     budget.spend(
         body.parameters
             .len()

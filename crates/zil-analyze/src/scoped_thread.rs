@@ -171,6 +171,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     .closures
                     .get(id.0 as usize)
                     .ok_or_else(|| reject(instruction.span, "thread body entry is absent"))?;
+                budget.spend(1, "thread body actual entry")?;
+                let entry_function = module.functions.get(definition.function.0 as usize)
+                    .ok_or_else(|| reject(instruction.span, "thread body function is absent"))?;
+                if entry_function.environment != Some(*id) || entry_function.foreign.is_some()
+                    || !entry_function.parameters.is_empty() || entry_function.return_type != Type::I32
+                    || entry_function.result_mode != PassingMode::Infer
+                { return Err(reject(instruction.span, "thread body metadata differs from its actual concrete entry")); }
                 if !definition.parameters.is_empty()
                     || definition.result != Type::I32
                     || !definition.lending_captures.is_empty()
