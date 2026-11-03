@@ -30,5 +30,12 @@ target334/jobs1，不创建新Cargo target。
 `component-planned.zil`是单源普通消费者：`View<T>`共享字段借用，经具体Meter的
 默认协议形成具名Message，再由具体父闭包调用thread_scope。impl Self仍为具体
 Meter；worker只接收i32，借入view只被父线程body读取，未假定泛型impl或跨线程
-借入资格。它依赖329、330、331、332；当前基线首先在record模式解析拒绝，未构建
-或执行。计划的显式main harness输出为`0\n`、exit0；不能据源或预期升级任何任务。
+借入资格。它依赖329、330、331、332；原40fb基线首先在record模式解析拒绝。
+共同B保原2a8字节，已到Core/Typed/独立Verify并通过Clang/API×O0/O2四配置，
+显式main harness实际输出`0\n`、exit0；精确新复核在334 final JSON，文件名保留历史。
+
+B的共用原生名绑定修补后，另增两份不属于原8源/历史52源的控制：
+`primitive-binder-life-positive.zil`把真实Type binder与life都命名为i64，并在正文
+调用另一个返回真实原生i64的普通函数；应保留callee词法类型且以bool实例成功。
+`primitive-binder-life-numeric-negative.zil`要求未用同名Type binder仍不能从Copy
+取得数值权限。精确B实测结果另在334 final报告，不追改原331审核结论。

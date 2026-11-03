@@ -1,5 +1,11 @@
 # 语言完整性来源样本
 
+当前共同候选B `14832d5a35630b7002c79e4df47b0cbb007570b6`的增量结果在
+`docs/validation/language-gaps-334-final.json`：同52输入当前27/13/12，下面的
+52/18收据仍属于历史40fb。新的组合component另四配置，原两CT源另八次native；
+不将旧CLI结果归给B。记录变体、有限default、Copy-T/life和具体父闭包线程已
+有限贯通，完整Option/trait/life/dyn/异步/库与产品门仍未完成。
+
 当前十方面核查见 `docs/validation/language-gaps-334.json`，基线为已合入main的
 `40fbcca6ef506f3cb8e1d40a4f8995c788627da0`：52源检查和9源的18次API O0/O2
 原生构建/执行分别记账。复跑入口为 `current334/README.md`。历史基线与实际观察
