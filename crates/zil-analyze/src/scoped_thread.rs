@@ -15,12 +15,16 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
     )
 }
+fn shared_i32(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32)
+}
 
 fn worker(
     module: &TypedModule,
     root: FunctionId,
     budget: &mut Budget,
     span: zil_base::Span,
+    shared: bool,
 ) -> CompileResult<()> {
     budget.spend(2, "thread worker traversal allocation")?;
     let mut pending = vec![root];
@@ -54,8 +58,8 @@ fn worker(
             || function.callable_return_contract.is_some()
             || function.result_mode != PassingMode::Infer
             || !scalar(&function.return_type)
-            || function.locals.iter().any(|local| !scalar(&local.ty))
-            || function.values.iter().any(|ty| !scalar(ty))
+            || function.locals.iter().any(|local| !scalar(&local.ty) && !(shared && shared_i32(&local.ty)))
+            || function.values.iter().any(|ty| !scalar(ty) && !(shared && shared_i32(ty)))
             || module
                 .resources
                 .iter()
@@ -72,7 +76,7 @@ fn worker(
                     .locals
                     .get(function.parameters[0].0 as usize)
                     .map(|local| &local.ty)
-                    != Some(&Type::I32)
+                    .is_none_or(|ty| if shared { !shared_i32(ty) } else { *ty != Type::I32 })
                 || function.return_type != Type::I32)
         {
             return Err(reject(
@@ -85,6 +89,21 @@ fn worker(
             for instruction in &block.instructions {
                 budget.spend(1, "thread worker positive instruction whitelist")?;
                 match &instruction.kind {
+                    InstructionKind::ReadAddress { address } if shared => {
+                        if !function.values.get(address.0 as usize).is_some_and(shared_i32)
+                            || instruction.result.and_then(|id| function.values.get(id.0 as usize)) != Some(&Type::I32)
+                        { return Err(reject(instruction.span, "thread read must use an actual shared i32 address")); }
+                    }
+                    InstructionKind::ReborrowAddress { address, mutable: false } if shared => {
+                        if !function.values.get(address.0 as usize).is_some_and(shared_i32)
+                            || !instruction.result.and_then(|id| function.values.get(id.0 as usize)).is_some_and(shared_i32)
+                        { return Err(reject(instruction.span, "thread reborrow cannot upgrade or change the shared pointee")); }
+                    }
+                    InstructionKind::BorrowLocal { local } if shared => {
+                        if function.locals.get(local.0 as usize).map(|local| &local.ty) != Some(&Type::I32)
+                            || !instruction.result.and_then(|id| function.values.get(id.0 as usize)).is_some_and(shared_i32)
+                        { return Err(reject(instruction.span, "thread local borrow requires actual scalar storage")); }
+                    }
                     InstructionKind::Call { function, .. } => {
                         budget.spend(1, "thread static call dependency")?;
                         pending.push(*function);
@@ -204,7 +223,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         }
                     }
                 }
-                if caller.values.get(argument.0 as usize) != Some(&Type::I32)
+                let payload = caller.values.get(argument.0 as usize);
+                let shared = payload.is_some_and(shared_i32);
+                if (payload != Some(&Type::I32) && !shared)
                     || instruction
                         .result
                         .and_then(|value| caller.values.get(value.0 as usize))
@@ -254,7 +275,12 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         "thread body requires one consuming ()->i32 invocation",
                     ));
                 }
-                worker(module, entry, budget, instruction.span)?;
+                if shared {
+                    budget.lookup(budget.shared_thread_functions.len(), "shared thread caller insertion")?;
+                    budget.spend(1, "shared thread caller insertion")?;
+                    budget.shared_thread_functions.insert(caller.id);
+                }
+                worker(module, entry, budget, instruction.span, shared)?;
             }
         }
     }
