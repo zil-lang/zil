@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/impl317",
+  "implementation_author": "/root/impl313",
+  "review_kind": "Independent limited static and bounded real-source native review of 324 only",
+  "implementation_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+  "component_commit": "5825cd582ac6b419d185b59486c7b7fc79f1bedb",
+  "verdict": "PassLimited",
+  "blocking_findings": [],
+  "scope": "Finite Copy Array/Tuple/Record values of at least 4096 physical bytes lowered to private per-ValueId entry-stack snapshots; original 262144-byte a18 source and bounded neighboring Copy/alias/layout/index controls.",
+  "review_tree": "/workspace/zil-review324-by325",
+  "target_dir": "/workspace/.zil-env/target325",
+  "identity": {
+    "tested_head": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+    "production_and_tests_changed_by_reviewer": false,
+    "component_blob_comparison": {
+      "crates/zil-backend-llvm/src/emit/copy_aggregates.rs": {
+        "sha256": "207cd656523e581d88ede18ca4f9dfb18b140ed6bb41ac3e0ff8538bcff68acf",
+        "identical_to_component": true
+      },
+      "crates/zil-backend-llvm/src/emit.rs": {
+        "sha256": "d770624783b2f74857401c2bbc52f4586ab1dd97fbdf4953c268662da9b25c25",
+        "identical_to_component": false
+      },
+      "crates/zil-backend-llvm/src/object_cache.rs": {
+        "sha256": "ba5349d003f055edcf2a17c1526c6831b8f066b38c9669c54c6710a26c30bfe9",
+        "identical_to_component": true
+      },
+      "crates/zil-llvm-api/src/model.rs": {
+        "sha256": "ba0469deb78e8c876c51f6679d2ff3668cd92bf8e6cfe7dc0afb4e46ffafa80b",
+        "identical_to_component": true
+      },
+      "crates/zil-llvm-api/src/preflight.rs": {
+        "sha256": "c91b6a8bcc96f1da024dd5c80d57f4f2f62f5aae714d497fcdee14c8ee117532",
+        "identical_to_component": true
+      },
+      "crates/zil-driver/tests/aggregates.rs": {
+        "sha256": "633ccf3c47b187da6c8e32d6ab2b56e9081f2b898d1d61bbab196737cd7afbe7",
+        "identical_to_component": true
+      },
+      "tests/language-readiness/codegen-pending/large-array-a18.zil": {
+        "sha256": "d1ee96ab93bf289321231369c79f9c54a329d2690c394785633e2bb333899ea3",
+        "identical_to_component": true
+      }
+    },
+    "shared_emit_delta": "Compared with component5825, common022 emit.rs adds only 10 structured-thread integration lines. The 324 planner, snapshot/event paths and tests are unchanged. Thread/325 behavior is excluded from this review.",
+    "normative_source_sha256": "f44dbec60fafda1cf15d204bd0d0c0e3b594f873ec06ec67682ecd42b45c2da9",
+    "authority": "Read current main-tree AGENTS.md, _zil_goal.md, task324 and its frozen scope. Parent full-suite results were not counted as reviewer evidence."
+  },
+  "static_checks": {
+    "verification_boundary": "bind_lir exactly rebinds target, resources, functions, closures and layouts to the supplied immutable VerifiedModule before building copy plans. This backend rewrite grants no new source Copy/borrow/ownership authority.",
+    "snapshot_and_alias": "Plan is keyed by actual FunctionId and ValueId. Each eligible value has a distinct entry alloca; Load/ReadAddress copy at the original definition point. UpdateField/UpdateIndex copy to the output snapshot before mutation; Store/WriteAddress copy out. Source Address creation continues to name ordinary local/parameter storage, never private copy.value pointers. Verified SSA identities keep input/output snapshots distinct for memcpy.",
+    "layout": "Layout is derived from llvm_type, with checked recursive layout and i64 range bounds, on supported little-endian x64 targets. Aggregate Unit is an empty struct, Bool i1 occupies one allocated byte, arrays use full element allocation stride, structs include alignment/tail padding. Constructor memset initializes the destination including padding. Envelope(Unit,Bool,4096-byte array,i64) has the tested seven-byte gap before tail.",
+    "dynamic_index": "widened_index is compared unsigned against array length before GEP. Negative signed indices widen to values that fail the unsigned check; failure branches to the existing defined zil.trap path. Update copies only after bounds success.",
+    "control_and_order": "Current LIR joins go through actual local Store/Load. Static value slots are rewritten at each dynamic definition, with no newly introduced pointer phi. Copy argument preparation before side-effecting RHS is preserved by snapshotting at the LIR position.",
+    "helper_and_optimization": "Private internal zil.copy.bytes/zil.zero.bytes helpers contain real LLVM memcpy/memset with dynamic byte count and nonvolatile flag. Their only added function attribute is NoInline; no optnone or forced O0 was found. Model/name lowering and both emit routes consume this function attribute; machine preflight rejects it in result/parameter positions and rejects duplicate attributes.",
+    "abi_bridge": "copy_argument explicitly materializes an old SSA aggregate when a legacy consumer requires it; signatures and call ABI remain unchanged. This is an admitted limitation, not a silent pointer ABI, changed backend or reduced input.",
+    "cache_key": "Static review of object_cache::machine_key confirms namespace, target triple and complete ordered module.items are hashed, including helper bodies and NoInline attributes. Namespace additionally binds installed compiler/library identity, target/rules and requested optimization/pipeline. Diagnostic fingerprint is intentionally not object authority. No independent cache-hit replay was run here.",
+    "prepayment": "One module-level remaining work pool plans recursive Copy eligibility/layout and bounded metadata before growth; retained plans are read-only during function lowering. Emission reserves a shape/operand upper bound and helper cost. Small aggregate preflight adds Codegen work, so no universal unchanged-old-cost claim is accepted."
+  },
+  "independent_validation": {
+    "environment": "Linux x86_64, Rust 1.99.1, Clang/LLVM 23.1.4",
+    "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target325 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test aggregates large_ -- --nocapture --test-threads=1",
+    "result": {
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 19,
+      "test_seconds": 62.25
+    },
+    "a18": {
+      "source": "tests/language-readiness/codegen-pending/large-array-a18.zil",
+      "sha256": "d1ee96ab93bf289321231369c79f9c54a329d2690c394785633e2bb333899ea3",
+      "payload_bytes": 262144,
+      "profiles": [
+        {
+          "backend": "clang",
+          "optimization": "O0",
+          "actual_backend_asserted": true,
+          "actual_pipeline_or_argv_asserted": true,
+          "fallback": null,
+          "native_exit": 0
+        },
+        {
+          "backend": "clang",
+          "optimization": "O2",
+          "actual_backend_asserted": true,
+          "actual_pipeline_or_argv_asserted": true,
+          "fallback": null,
+          "native_exit": 0
+        },
+        {
+          "backend": "llvm-api",
+          "optimization": "O0",
+          "actual_backend_asserted": true,
+          "actual_pipeline_or_argv_asserted": true,
+          "fallback": null,
+          "native_exit": 0
+        },
+        {
+          "backend": "llvm-api",
+          "optimization": "O2",
+          "actual_backend_asserted": true,
+          "actual_pipeline_or_argv_asserted": true,
+          "fallback": null,
+          "native_exit": 0
+        }
+      ],
+      "limits": "Per profile CPU45s, VM2GiB, wall55s, native5s, core0. Original source was not reduced or replaced."
+    },
+    "semantic_controls": {
+      "actual_profiles": "Existing native_entry helper uses default Clang O0 and explicit Clang -O2 rebuild of emitted LLVM. Enabling llvm-api does not change that helper default; these semantic cases are not claimed as an API four-profile matrix.",
+      "snapshot_alias_rhs_nested_index_loop_join": 33850,
+      "read_address_old_snapshot": 37,
+      "unit_bool_padding_tail_snapshot": 3801,
+      "out_of_bounds": "Both existing Clang runs fail as required; the test checks unsuccessful exit, not an exact signal. The explicit guard-to-trap path was additionally inspected statically.",
+      "near_threshold_by_value": "4096-byte inspect(value,marker) is exercised by the order/alias case; this does not establish general huge by-value ABI support."
+    },
+    "budget": {
+      "phase": "Codegen",
+      "N": 323040,
+      "N_pass": true,
+      "N_minus_1": 323039,
+      "N_minus_1_category": "ResourceLimit",
+      "N_minus_1_phase": "Codegen",
+      "fresh_N_pass": true
+    },
+    "log": "/tmp/review324-by325-large.log",
+    "log_sha256": "5d9be4d8cf07546affb00e959b2f696c90374320d1ad5eb37f08746983b3a236"
+  },
+  "limitations": [
+    "General large by-value parameter/result ABI, closure and enum/error legacy-materialization consumers remain unvalidated/unfixed by this slice. large-array-a18-by-value.zil was not executed here and is not marked as a newly reproduced failure or success.",
+    "The exact budget boundary covers the original a18 path, not a proof of unchanged cost for all old inputs or every legacy ABI bridge.",
+    "Per-value snapshots and noinline calls have real stack/runtime costs; no same-semantics Rust performance/RSS or maintenance comparison was performed.",
+    "No formal full suite, Windows native validation, independent object-cache runtime replay or new broad stress matrix was run by this reviewer.",
+    "Historical crash and O2 resource-limit observations in recovery-large-array.json remain historical; this review adds bounded current-source success and does not rewrite those failures.",
+    "This review excludes 325 concurrency/SABI/Mutex and does not independently certify code authored by the reviewer. Full language/ZUI/B0/product status is not upgraded."
+  ],
+  "reviewer_role": "325 implementation author; non-author reviewer of 324 only"
+}
