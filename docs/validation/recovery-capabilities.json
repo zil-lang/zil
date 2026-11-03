@@ -1,0 +1,1166 @@
+{
+  "schema_version": 1,
+  "kind": "source-to-Verify observations and source inventory; not native/concurrency/full-language acceptance",
+  "source_baseline": "7f039d16dd65c3608dc3a909bc9628f3db9a975a",
+  "collector_checkout": "f27a9330d8a639182f4ab0b91f860068bd0ae0b9",
+  "baseline_crates_tree": "05bb2d9216d470d92d832f8064c682bfd59ef62c",
+  "collector_crates_tree": "05bb2d9216d470d92d832f8064c682bfd59ef62c",
+  "compiler": {
+    "path": "/workspace/.zil-env/target-recovery-root/debug/zil",
+    "sha256": "80d01c596907cf494cc1ae9e3f300466521d60b533eaae5b3b9fbf15850bf1eb",
+    "provenance": "Integrator-built recovery baseline binary; runtime LD_LIBRARY_PATH supplied by /workspace/.zil-env/env.sh."
+  },
+  "normative_sha256": {
+    "_zil_design.md": "9dc121b73440337d631ffe1054bb904a8a25674e39845e7ba0d1ee88f95e3b01",
+    "spec/grammar.ebnf": "707451e45cd6d4ddc1d8e2c34829e0d98a0ed95aa5a29a59bf857c87187caf9c",
+    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+    "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
+    "spec/interfaces.json": "f4065229a2ee321278398ecd6f363635a64e69dad02b8d4990b752e7ac3e5eb0",
+    "spec/diagnostics.json": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8"
+  },
+  "replay": "source /workspace/.zil-env/env.sh && python3 tests/language-readiness/recovery/check.py --zil /workspace/.zil-env/target-recovery-root/debug/zil --output docs/validation/recovery-capabilities.json",
+  "inventory": {
+    "runtime_instruction_decoder": "crates/zil-ir/src/wire.rs",
+    "sha256": "9a6ec9ffb291ea1898496a50e496b86f62b54de5c551aadb7afbc65e2f0f83af",
+    "source_sha256": {
+      "crates/zil-ir/src/lib.rs": "6f5427f78dbc546a9a57586aa44e5063bb02a9db4686df7914fd1a8719072d31",
+      "crates/zil-lower/src/lib.rs": "9aa4abdc9950743fe44b153cec82ab6344e507b6125d242572e8e575fcb19d2d",
+      "crates/zil-expand/src/lib.rs": "ebc53403dac447cb1f7370c589357c55fd64078707d0f850e4da600ac465a009",
+      "crates/zil-expand/src/generics.rs": "cb9b25908465367e090a2d0eda1dbd45dac702e2463cbfae253c6cc95ae809e1",
+      "crates/zil-expand/src/static_traits.rs": "d7b7238e89772c10aa52f274dc1dff9a4a13cde2f2399cfcea30f8e8f7676845",
+      "crates/zil-expand/src/generic_trait_bounds.rs": "b212942f2541205373c6a31ada26a0b89e40ac2513dae68cf85e14072c37aeb9",
+      "crates/zil-types/src/functions.rs": "e67e9208db1ef4229251152ba189fd5394477b32d5994ecfb2154b10da16f8be",
+      "crates/zil-verify/src/borrows.rs": "aa1a5f131fe4abf9332d6fc541dc1a86408a34de659471126523bc8f0f3dbd55"
+    },
+    "decoded_instruction_tags": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      92,
+      93,
+      94,
+      255
+    ],
+    "old_public_tags_121_122_123_present": {
+      "121": false,
+      "122": false,
+      "123": false
+    },
+    "sabi_mutex_thread_implementation": "Absent from current production Type/InstructionKind, decoder, lowering and target primitive inventory; ordinary identifiers are not implementation.",
+    "source_anchors": [
+      "crates/zil-expand/src/lib.rs:type_ref erases reference lifetime field",
+      "crates/zil-expand/src/generics.rs:Engine::new rejects lifetime/const binders",
+      "crates/zil-expand/src/static_traits.rs:collect_trait_declaration and collect_static_traits",
+      "crates/zil-expand/src/generic_trait_bounds.rs:Index::declaration",
+      "crates/zil-types/src/lending.rs:sources",
+      "crates/zil-verify/src/borrows.rs:independent parameter-root reconstruction",
+      "crates/zil-ir/src/lib.rs:Type and InstructionKind",
+      "crates/zil-ir/src/wire.rs:instruction decoder"
+    ]
+  },
+  "collection_status": "Complete",
+  "selected": 25,
+  "observed_counts": {
+    "Success": 9,
+    "Unsupported": 9,
+    "SafeReject": 7
+  },
+  "control_or_safety_regressions": [],
+  "observations": [
+    {
+      "source": "tests/language-readiness/recovery/controls/borrow-parameter-return.zil",
+      "sha256": "613710bbbcb130bb907ebf78d5f420a9ddbb9abaebfa9337a80070d857ead292",
+      "role": "controls",
+      "intent": "Existing parameter-origin shared address return.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/controls/borrow-parameter-return.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "9eda3bf3ed15e2f3e9cee5e1954ab0d74eb4cd7511c64603f026fe8cd3e1e2cb",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/controls/borrow-selected-parameter.zil",
+      "sha256": "1c3eda05cae128d0b3bbc2e5e537ccf1af5adb30e94cff28ec689e65e0e1f315",
+      "role": "controls",
+      "intent": "Existing return summary must include both actual input roots.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/controls/borrow-selected-parameter.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "e9044d86837c9b43fb86ec9355677362ed3fe5cdfd6b69a4db7f786c2a275cf8",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/controls/ordinary-mutex-poll-names.zil",
+      "sha256": "ead606ae6e53753149bf11bd673bed8c8eaacdb2776cf7e0e60a0d84a9491aee",
+      "role": "controls",
+      "intent": "Ordinary struct/function names confer no locking, frame or thread semantics.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/controls/ordinary-mutex-poll-names.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "bd2096afc6700cd239a28bc5f1f208d9609c09148f4b4aac63fd89222402d0b8",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/controls/scalar-function-pointer.zil",
+      "sha256": "0a4000fd8da9683d6b30cf8e78fc88ca8592f06d762b72b69cb6ec32193f0472",
+      "role": "controls",
+      "intent": "Existing pure Copy function pointer; address contracts are a separate missing combination.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/controls/scalar-function-pointer.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "3e896a8e10c4bdd834748fcb3e0ffb50fd6b3496edd9ae56e03fab51b8cd622f",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/controls/scoped-callback.zil",
+      "sha256": "2631cdb14a5d988797f0c5692229edd0330ff4a7e0f5b25626e74916a7fa7170",
+      "role": "controls",
+      "intent": "Existing same-thread Direct callback scope; unsafe external role promises are not executed.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/controls/scoped-callback.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "f928fdc069754ca652c8878ac8bde9726a8d08962bb7dcf43aabe38653c35f57",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/controls/static-trait.zil",
+      "sha256": "3cc61f30eab43d506564381c7c7df69b34fa483d9b10e622d9bc3161920078c5",
+      "role": "controls",
+      "intent": "Existing nominal static trait, concrete Self impl and ordinary generic consumer.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/controls/static-trait.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "dc8a03a9e0d579e3e525d25cd98691d04b427692a4b7edbe7fe031db2838fbc3",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/borrow-function-pointer.zil",
+      "sha256": "27465663c52c081f8918e54306042fb6b8386e7d60a416f66ee7f503f264120c",
+      "role": "pending",
+      "intent": "Indirect borrowed-address parameter contracts are absent even before adding life syntax.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/borrow-function-pointer.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type FunctionPointer { parameters: [Address { mutable: false, inner: I32 }], result: I32 }",
+          "span": {
+            "file": 0,
+            "start": 55,
+            "end": 76
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "9c737438a1d90c3fad8b2a05ac7417a22e4a98afb8cc0225c25ed37e8bfab888",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/life-higher-rank.zil",
+      "sha256": "5dd950ccf7145c6362ace96ae3b5297784a1f602df1928dc5a786bbf327f611f",
+      "role": "pending",
+      "intent": "Higher-ranked per-call life binding requires callable signature and source checking.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/life-higher-rank.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic trait bound requires a concrete nominal trait",
+          "span": {
+            "file": 0,
+            "start": 12,
+            "end": 42
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "65d52d9ae024ba7fab8fe3961534c62304db3a8f332d50bbb497f858d77d19e6",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/life-parameter-return.zil",
+      "sha256": "6cb3da355768cc822c58e29b44ff91c00046c3bec521de610cc89596ea297b0d",
+      "role": "pending",
+      "intent": "Legal finite life binder and matching input/output relation still need implementation.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/life-parameter-return.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic bound, lifetime or const parameter requires its semantic solver",
+          "span": {
+            "file": 0,
+            "start": 12,
+            "end": 18
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "9d9b0f6568cfeaa128d39869b5919f7eceffd5a4bcba5e90db1a1baed8dd8897",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/share-bound.zil",
+      "sha256": "9d82590dac90a6a7cff05a55eec31f247e9a205a79bc35b4b6f7fb3ee63dc712",
+      "role": "pending",
+      "intent": "Built-in structural Share qualification needs actual simultaneous-access and dependency rules.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/share-bound.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic bound Share is not a declared nominal trait",
+          "span": {
+            "file": 0,
+            "start": 12,
+            "end": 17
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "5e5408ae8309f4abbe01726aa93582785185c1a715ff88d1156f868c6aa090a7",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/spawn-contract.zil",
+      "sha256": "8d7b884b49dd349fa2f7307b8bef26d1e1b4d2d22fe3d815b9ccb986b9cd7b18",
+      "role": "pending",
+      "intent": "Normative spawn/resume bound needs actual thread/transfer semantics.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/spawn-contract.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable contract clause outside finite resource results",
+          "span": {
+            "file": 0,
+            "start": 31,
+            "end": 46
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable contract clause outside finite resource results",
+          "span": {
+            "file": 0,
+            "start": 47,
+            "end": 64
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "104d91f232dc914d8c50ee70f7616950312c75b1082ad11969ff61097d132632",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/suspend-contract.zil",
+      "sha256": "bcd6e9653a8664424c9e0d2bd6885daf0588628e08dd2f83024b0f63ebc31fb9",
+      "role": "pending",
+      "intent": "Normative suspend effect cannot be implemented by parsing a contract or naming a poll function.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/suspend-contract.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable contract clause outside finite resource results",
+          "span": {
+            "file": 0,
+            "start": 33,
+            "end": 50
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "0f13c303c2321e8280095ab839934585051b3b1c4811f67d867e0b26981d95d6",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/trait-associated-type.zil",
+      "sha256": "d25597df6054cc27cbe1f08b3f19c37bb3a30cd47650604eff728b229a6ca28a",
+      "role": "pending",
+      "intent": "Associated declaration/projection remains a required unimplemented trait profile.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/trait-associated-type.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "associated trait items are not in the static local trait slice",
+          "span": {
+            "file": 0,
+            "start": 13,
+            "end": 23
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait declarations outside the finite local subset",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 60
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "e15a2dc2f5653ef98a87e50db3d051dbc85f77be5fc42d19a5bd3891cf8ca8d8",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/trait-default-method.zil",
+      "sha256": "29c6d48a71a4a9ad40a142c70d84d5d698f713559e2bf1cc5fa433ae4dadeca2",
+      "role": "pending",
+      "intent": "A default trait body is a required future ordinary trait combination.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/trait-default-method.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "default, generic or contract-bearing trait methods require additional trait evidence",
+          "span": {
+            "file": 0,
+            "start": 13,
+            "end": 53
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait impl declaration is not a supported local trait",
+          "span": {
+            "file": 0,
+            "start": 84,
+            "end": 106
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait declarations outside the finite local subset",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 55
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait implementation resolution",
+          "span": {
+            "file": 0,
+            "start": 84,
+            "end": 106
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "46423df3804da83c4fe01f2ce07877abaf42bb9e9f17201d03ad3acb1b5d106f",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/trait-generic-impl.zil",
+      "sha256": "7b74e0d6eac2171a3df3ddcc46b7af21084037ddbf1039c88adfbeac2fffbf96",
+      "role": "pending",
+      "intent": "Generic impl must establish its premises and preserve actual Self instance identity.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/trait-generic-impl.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic bound, lifetime or const parameter requires its semantic solver",
+          "span": {
+            "file": 0,
+            "start": 57,
+            "end": 64
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "bbd28773a46559dc767f5ec96fa3adfa9398af2f710cfa792fb1c9d01eb59588",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/trait-type-argument.zil",
+      "sha256": "85c5bd2b19e2e98056d9e1ee123f6a43c71e915127cf1c06e0c7e42163437a2f",
+      "role": "pending",
+      "intent": "Concrete trait type argument and concrete Self implementation need full nominal instance identity.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/trait-type-argument.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic or supertrait declarations require the full trait solver",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 44
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait impl requires concrete local nominal names",
+          "span": {
+            "file": 0,
+            "start": 73,
+            "end": 136
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait declarations outside the finite local subset",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 44
+          },
+          "notes": []
+        },
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "trait implementation resolution",
+          "span": {
+            "file": 0,
+            "start": 73,
+            "end": 136
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "6a7d687784d17f1401a07da06139a2d7723d15b1b97bef594a47199e583b230d",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/pending/transfer-bound.zil",
+      "sha256": "577e0ca431e8caff58891be9c0a4c8265b9e87ac59ab56f5fde8a52bc31408c2",
+      "role": "pending",
+      "intent": "Built-in structural Transfer qualification needs an implementation, not an empty nominal trait.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/pending/transfer-bound.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic bound Transfer is not a declared nominal trait",
+          "span": {
+            "file": 0,
+            "start": 15,
+            "end": 23
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "065494bfd6b26b647f2667b83b443d6c5625c47fd4648ddb229d64d34db9bd58",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/probes/mismatched-undeclared-life.zil",
+      "sha256": "95102abfc7e1c9832ab5e3bcb0abea356558e84b57e8c6035408713e34660b79",
+      "role": "probes",
+      "intent": "Observed ignored life names must not imply a declared result-source restriction.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/probes/mismatched-undeclared-life.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "7fa1e707aa83150f4fa0a477a93662124bf42ad070e2f9a047bfd38af5ae0c14",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/probes/receiver-undeclared-life.zil",
+      "sha256": "6e8b5f50c0bbe7d06365141845cf908f00275f4c75dc0c1b1acc1ce6844b5e06",
+      "role": "probes",
+      "intent": "Observed Self receiver life spelling is not a checked life relation.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/probes/receiver-undeclared-life.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "1746052601104b6a8e207bfb4fafd9d0928651b9a3bf915e9bc57bcdc1d2c704",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/probes/undeclared-life.zil",
+      "sha256": "5fb5697cbbdef6853a99817747d3def992432c9a455211c1df15c97b55b5ff3b",
+      "role": "probes",
+      "intent": "Observed undeclared life spelling is not a supported life binder or proof.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/probes/undeclared-life.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "48571e8bc4c65bf7a484a1b9c2e68b1ccec6adb784c82e0fff791530aa7885fa",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/rejects/borrow-local-return.zil",
+      "sha256": "762c28b83dc0d7fc27a95a8ddfbf7e11488363ace3b785f84f97289243c7c474",
+      "role": "rejects",
+      "intent": "Local storage must not escape through an address result.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/rejects/borrow-local-return.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-ESCAPE",
+          "message": "returned reference would outlive its local or closure storage",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 59
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "66d34f6ff08954b1c48b8d3caa5b50b67615c7179502b26a9b6f06c76ca4b282",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/rejects/borrow-overlapping-call.zil",
+      "sha256": "d944fdd2ba2cb501b15b800e24a81995c1f058d1f216f72edd3c1b1e85ae81e6",
+      "role": "rejects",
+      "intent": "Shared/exclusive windows to the same actual object conflict at the call.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/rejects/borrow-overlapping-call.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "phase": "verify",
+          "category": "SafeReject",
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority",
+          "span": {
+            "file": 0,
+            "start": 170,
+            "end": 175
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 1,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct",
+        "types",
+        "analyze",
+        "verify"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "904a8b6206ea5d50a47230840bc2ca611ef56f84d5392b2f3d779afc87b5e19c",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/rejects/returned-captured-callback.zil",
+      "sha256": "78b5e9a4b30f9bd2ee0f3320c0be3370f5f834e8cdd5ffbf43a095893d4a9222",
+      "role": "rejects",
+      "intent": "c_callback cannot expose a returned closure environment without stable storage and close obligations.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/rejects/returned-captured-callback.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-FFI-CALLBACK",
+          "message": "stored callables and closures cannot become C callbacks",
+          "span": {
+            "file": 0,
+            "start": 318,
+            "end": 326
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand",
+        "ct"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "8bfdfe6df6ad9eadc582e717cf90642db45b9eb5d10fc321780c801fc4b95289",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/rejects/trait-empty-transfer.zil",
+      "sha256": "c7092729a538fd84656e24c46c9be3a77ccae04e6e734c3858c523259e850deb",
+      "role": "rejects",
+      "intent": "An empty user trait/impl cannot manufacture Transfer capability.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/rejects/trait-empty-transfer.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-TRAIT-RESERVED",
+          "message": "built-in capability and cleanup traits cannot be redeclared",
+          "span": {
+            "file": 0,
+            "start": 0,
+            "end": 17
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "7f7add310c9dc699db8f5f6d4dbf90cab4d79c966f36f8328a2015b6232bc610",
+      "stderr": "",
+      "native_executed": false
+    },
+    {
+      "source": "tests/language-readiness/recovery/rejects/trait-missing-impl.zil",
+      "sha256": "9b8f29f022f89d0569a1631cc3aa91c50169359fbd9791aef69c291f1fbf7c71",
+      "role": "rejects",
+      "intent": "A matching method name or data shape cannot replace nominal impl evidence.",
+      "command": [
+        "/workspace/.zil-env/target-recovery-root/debug/zil",
+        "check",
+        "tests/language-readiness/recovery/rejects/trait-missing-impl.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "type $module0_Point does not satisfy nominal trait bound $module0_Read",
+          "span": {
+            "file": 0,
+            "start": 196,
+            "end": 208
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0,
+      "executed_phases": [
+        "parse",
+        "expand"
+      ],
+      "result_origins": [],
+      "stdout_sha256": "8c733feefb792c9e5c55474453d5e90b26e5f522815120d811db136728313c53",
+      "stderr": "",
+      "native_executed": false
+    }
+  ],
+  "limits": [
+    "pending cases remain legal targets and are not permanent reject tests",
+    "probe Success does not validate the ignored lifetime annotations",
+    "no native execution, weak-memory model, target synchronization, full-suite or product measurement",
+    "source checks cannot prove unsafe external declaration promises",
+    "old unrecovered 301-312 objects and their results are not inherited"
+  ],
+  "initial_infrastructure_attempt": {
+    "command": "/workspace/.zil-env/target-recovery-root/debug/zil --help",
+    "exit_code": 127,
+    "stderr": "error while loading shared libraries: libLLVM.so.23.1: cannot open shared object file: No such file or directory",
+    "resolution": "Source existing /workspace/.zil-env/env.sh; no toolchain or production modification.",
+    "language_verdict": null
+  },
+  "initial_collector_failure": {
+    "command": "python3 tests/language-readiness/recovery/check.py --zil /workspace/.zil-env/target-recovery-root/debug/zil --output docs/validation/recovery-capabilities.json",
+    "exit_code": 1,
+    "error": "TypeError: 'NoneType' object is not iterable at scalar_interfaces/result_origins extraction",
+    "resolution": "Treat absent optional interface/origin lists as empty; no compiler or source change.",
+    "language_verdict": null
+  }
+}
