@@ -49,3 +49,13 @@ fn main(){}
 本文件先于生产编辑提交工作区；后续结果按实际命令和精确提交追加。
 完整语言、B0/ZUI、一般 lending/异步和 Rust 四目标仍未完成；没有新增
 运行/RSS、维护或编译性能比较，也没有产品级净突破结论。
+
+## 独立审核发现的生产者责任
+
+Astra 在 checkpoint `dbad2f8ce6fd565be9388cc83b3f4f75c0cf0f98` 指出：
+声明上界可以包含共享输入，但 mutable 返回的实际 CFG 来源必须全为独占
+输入。原 Analyze 仅核上界，raw 将参数及其 Load 类型改共享、保留 mutable
+Reborrow 时仍能生成候选；Verify raw/Wire 已独立以 E-VERIFY-ADDRESS 拒绝。
+本片补 Analyze 实际来源模式核验，并对额外根访问累计收费；混合模式上界
+中的未返回共享输入不被机械拒绝。Analyze 不是全套 raw 指令类型核，单纯
+返回声明/值模式不一致仍由 Types/独立 Verify 的 E-VERIFY-RETURN 拒绝。

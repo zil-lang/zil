@@ -237,6 +237,9 @@ fn mutable_life_raw_and_wire_cannot_upgrade_shared_authority() {
             *mutable = false;
         }
         let analyzed = zil_analyze::analyze(&changed, &Limits::default());
+        if mode == 0 {
+            assert!(analyzed.as_ref().unwrap_err().iter().any(|d| d.code == "E-LIFE-RETURN"));
+        }
         println!(
             "337 raw authority attack={mode}: Analyze={:?}",
             analyzed
