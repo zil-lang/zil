@@ -292,7 +292,12 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                     )]);
                 }
                 InstructionKind::WithScopedThread { .. } => {
-                    return Err(vec![Diagnostic::error(Phase::Ct, "E-CT-FORBIDDEN", Some(instruction.span), "structured threads are forbidden during compile-time execution")]);
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(instruction.span),
+                        "structured threads are forbidden during compile-time execution",
+                    )]);
                 }
                 InstructionKind::WithForeignCallback { .. } => {
                     return Err(vec![Diagnostic::error(

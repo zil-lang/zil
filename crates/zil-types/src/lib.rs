@@ -724,7 +724,11 @@ impl<'a, 'c> Builder<'a, 'c> {
         start: bool,
     ) -> R<LocalId> {
         if name == "thread_scope" {
-            return Err(error("E-THREAD-NAME", span, "thread_scope is a reserved structured primitive and cannot be rebound"));
+            return Err(error(
+                "E-THREAD-NAME",
+                span,
+                "thread_scope is a reserved structured primitive and cannot be rebound",
+            ));
         }
         if name == "c_with_callback" {
             return Err(error(
