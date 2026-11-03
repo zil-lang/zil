@@ -35,21 +35,80 @@
       "observed": "target/ABI conflict closure, CGU dependencies and real pthread model success/create failure/join abort"
     },
     {
-      "command": "python3 /tmp/review328-probes/run.py then /tmp/review328-probes/rest.py",
       "commit": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
       "evidence_level": "additional independent real ZIL source",
       "native_executions": 11,
-      "observed": "negative i32 payload/results and payload-before-body borrowed-local mutation each passed all four Clang/API O0/O2 profiles (8); API O2 cache cold miss1/native0, warm hit1/native0 with Verify1/current preflight, worker-only change miss1/native3 as expected (3). Every build includes -pthread and actual backend/no fallback."
+      "observed": "negative i32 payload/results and payload-before-body borrowed-local mutation each passed all four Clang/API O0/O2 profiles (8); API O2 cache cold miss1/native0, warm hit1/native0 with Verify1/current preflight, worker-only change miss1/native3 as expected (3). Every build includes -pthread and actual backend/no fallback.",
+      "historical_invocation": "python3 /tmp/review328-probes/run.py then /tmp/review328-probes/rest.py",
+      "replay_instructions": "tests/fixtures/thread328-review/README.md",
+      "input_recovery": "Complete source strings recovered from the original, still-present run.py AST without executing it; body-order and final cache input were byte-compared to the existing files. The cache-before source is exactly negative_payload.zil.",
+      "sources": [
+        {
+          "path": "tests/fixtures/thread328-review/negative_payload.zil",
+          "sha256": "0d367e35125e70e0b7af6f4dfa070703050aea533a4126f500af0448c6811f7d",
+          "expected_native_exit": 0,
+          "role": "negative payload and cache before/cold/warm"
+        },
+        {
+          "path": "tests/fixtures/thread328-review/payload_body_order.zil",
+          "sha256": "7c26da79cdba7b218dfe3d199b8266dd18697bfbfb09aa64495f48c7fac6f81d",
+          "expected_native_exit": 0,
+          "role": "payload evaluated before parent borrowed-body mutation"
+        },
+        {
+          "path": "tests/fixtures/thread328-review/cache_worker_after.zil",
+          "sha256": "88fd47fc99214d1d57a0ea674a6af2dfc7868e62e5a77dcd45b4f1e49c2c04f2",
+          "expected_native_exit": 3,
+          "role": "cache after worker-only change"
+        }
+      ],
+      "execution_groups": [
+        {
+          "source": "negative_payload.zil",
+          "profiles": [
+            "clang/O0",
+            "clang/O2",
+            "llvm-api/O0",
+            "llvm-api/O2"
+          ],
+          "native_executions": 4,
+          "native_exit": 0
+        },
+        {
+          "source": "payload_body_order.zil",
+          "profiles": [
+            "clang/O0",
+            "clang/O2",
+            "llvm-api/O0",
+            "llvm-api/O2"
+          ],
+          "native_executions": 4,
+          "native_exit": 0
+        },
+        {
+          "before": "negative_payload.zil",
+          "after": "cache_worker_after.zil",
+          "profile": "llvm-api/O2",
+          "native_executions": 3,
+          "observed": [
+            "cold miss1/native0",
+            "warm hit1/native0/current Verify1 and preflight",
+            "worker-only edit miss1/native3"
+          ]
+        }
+      ]
     }
   ],
   "placement_limit": {
-    "initial_probe": "/tmp/review328-probes/nested_scope.zil",
+    "initial_probe": "tests/fixtures/thread328-review/nested_parent_scope.zil",
     "observed_at_original_commit": "Types SafeReject E-UNKNOWN-NAME unknown function thread_scope before backend",
     "current_authority": "main-tree _zil_design.md section 11.1, clarified by 0afd64bd9: first slice only ordinary Direct functions without closure/callable-helper contract; future caller placements remain unsupported",
     "front_end_migration": "e622402234b62958a156c93947d42eb59cf6f479, independently applied as 19cec359556aad7a306a087f64b2d1abe7c54525",
     "backend_diff_from_original": "empty across crates/zil-backend-llvm/src",
     "migration_check": "cargo test -p zil-driver --features llvm-api --test generic_regressions thread325 --offline -- --skip thread325_native_os_join_parent_cleanup_and_failure --nocapture --test-threads=1: 2 passed, 16 filtered; parent-closure/callable-wrapper are explicit Unsupported and raw future placements also Unsupported",
-    "disposition": "recorded finite-profile limitation, not claimed supported or treated as a blocking backend defect"
+    "disposition": "recorded finite-profile limitation, not claimed supported or treated as a blocking backend defect",
+    "initial_probe_sha256": "e5d9a045c413a82c2bb86bef7cd041aaa4e183de38a9853abc737fd25627eada",
+    "replay_note": "At original 0c297f7 Types E-UNKNOWN-NAME; after e622 migration Unsupported. This input is not one of the 11 successful native executions."
   },
   "environment": {
     "target_dir": "/workspace/.zil-env/target-review328-by324",
@@ -123,5 +182,6 @@
     "source_evidence_reuse": "Exact-0c real-source and native evidence above remains the basis for unchanged pthread adapter, CGU/layout and link implementation. No repeated workspace-wide run was performed.",
     "placement_migration": "Current main section11.1 limits closure/callable-helper placements. e622 supplemental source/raw Unsupported tests were independently run as recorded above; nested parent thread_scope is not claimed supported.",
     "blocking_findings": []
-  }
+  },
+  "recoverable_probe_sources_note": "Added source/replay metadata only after root identified path-only evidence. No production changes, native rerun, or new Cargo target accompanies this source-recovery commit."
 }
