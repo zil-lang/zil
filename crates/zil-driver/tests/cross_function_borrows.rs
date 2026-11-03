@@ -112,6 +112,380 @@ fn typed(text: &str) -> TypedModule {
 const LIFE_IDENTITY322: &str =
     include_str!("../../../tests/language-readiness/recovery/pending/life-parameter-return.zil");
 
+const TYPE_LIFE331: &str = "fn first<T:Copy,life a>(p:&'a T)->&'a T{return p}fn result()->i64{let value:i64=42;let flag=true;if *first::<bool>(&flag){return *first(&value)}return 0}";
+
+#[test]
+fn type_life_instances_keep_binders_dense_maps_and_native_copy_types() {
+    native(TYPE_LIFE331, 42);
+    let syntax = zil_syntax::parse(&source(TYPE_LIFE331))
+        .into_result()
+        .unwrap();
+    let core = zil_expand::expand(&source(TYPE_LIFE331), &syntax).unwrap();
+    let instances: Vec<_> = core.functions.iter().filter(|f| f.life.is_some()).collect();
+    assert_eq!(instances.len(), 2, "{core:?}");
+    for function in instances {
+        let life = function.life.as_ref().unwrap();
+        assert_eq!(life.binders, ["a"]);
+        assert_eq!(life.parameter_lives, [Some(0)]);
+        assert_eq!(life.result_life, Some(0));
+        assert!(function.type_parameters.is_empty());
+    }
+    for text in [
+        "fn select<life b,T:Copy,life a>(right:&'b T,left:&'a T)->&'a T{return left}fn relay<T:Copy,life x,life y>(left:&'x T,right:&'y T)->&'x T{return select(right,left)}fn result()->i64{let a:i64=40;let b:i64=2;return *relay(&a,&b)+2}",
+        "fn choose<T:Copy,life a>(p:&'a T,q:&'a T,flag:bool)->&'a T{var r=p;if flag{r=q}return r}fn result()->i64{let a:i64=1;let b:i64=42;return *choose(&a,&b,true)}",
+        "fn reborrow<T:Copy,life a>(p:&'a T)->&'a T{let q=&*p;return q}fn result()->i64{let a:i64=42;return *reborrow(&a)}",
+        "fn tail<T:Copy,life a>(p:&'a[T])->&'a[T]{return &p[1..]}fn result()->i64{let a:[i64;3]=[7,20,22];let p=tail(&a[..]);return p[0]+p[1]}",
+        "struct Pair<T:Copy>{value:T}fn project<T:Copy,life a>(p:&'a Pair<T>)->&'a T{return &p.value}fn result()->i64{let p=Pair::<i64>{value:42};return *project(&p)}",
+        "fn first<T:Copy,life T>(p:&'T T)->&'T T{return p}fn result()->i64{let value:i64=42;return *first(&value)}",
+        "fn first<T:Copy,life a>(p:&'a T,n:i32)->&'a T{if n==0{return p}return first(p,n-1)}fn result()->i64{let value:i64=42;return *first(&value,3)}",
+        "struct Point{value:i64}impl Point{fn read<life b>(self:&'b Self)->&'b i64{return &self.value}}fn first<T:Copy,life a>(p:&'a T)->&'a T{return p}fn constant()->i64{return 2}fn result()->i64{let p=Point{value:40};let extra=#(constant());return *first::<i64>(p.read())+extra}",
+    ] {
+        native(text, 42);
+    }
+}
+
+#[test]
+fn type_life_unused_templates_check_symbolic_copy_and_actual_return_roots() {
+    for text in [
+        "fn bad<T:Copy,life a,life b>(p:&'a T,q:&'b T)->&'a T{return q}fn main(){}",
+        "fn bad<T:Copy,life a>(p:&'a T)->&'a T{let q=*p;return &q}fn main(){}",
+        "fn bad<T:Copy,life a>(p:&'a T,q:T)->&'a T{return &q}fn main(){}",
+        "fn bad<T:Copy,life a,life b>(p:&'a T,q:&'b T,flag:bool)->&'a T{var r=p;if flag{r=q}return r}fn main(){}",
+        "fn bad<T:Copy,life a>(p:&T,q:&'a T)->&'a T{return p}fn main(){}",
+        "fn last<T:Copy,life a,life b>(p:&'a T,q:&'b T)->&'b T{return q}fn bad<T:Copy,life a,life b>(p:&'a T,q:&'b T)->&'a T{return last(p,q)}fn main(){}",
+        "fn bad<T:Copy,life a,life b>(p:&'a T,q:&'b T)->&'a T{return q}fn result()->i64{let value:i64=42;return *bad(&value,&value)}",
+    ] {
+        reject(
+            text,
+            ResultCategory::SafeReject,
+            Phase::Expand,
+            "E-LIFE-ORIGIN",
+        );
+    }
+    for text in [
+        "fn bad<T:Copy,life a>(p:&'a T)->T{return *p+*p}fn main(){}",
+        "fn bad<T:Copy,life a>(p:&'a T)->T{return p.value}fn main(){}",
+        "fn bad<T,life a>(p:&'a T)->&'a T{return p}fn main(){}",
+        "fn bad<T:Copy,U:Copy,life a>(p:&'a T,q:U)->&'a T{return p}fn main(){}",
+        "fn bad<T:Copy,life a>(p:&'a T)->&'a T where T:Copy{return p}fn main(){}",
+        "struct Point{value:i64}impl Point{fn bad<T:Copy,life a>(self:&'a Self,p:&'a T)->&'a T{return p}}fn main(){}",
+        "fn old(p:&i32)->&i32{return p}fn bad<T:Copy,life a>(p:&'a T,q:&i32)->&i32{return old(q)}fn main(){}",
+    ] {
+        reject(
+            text,
+            ResultCategory::Unsupported,
+            Phase::Expand,
+            "E-UNSUPPORTED",
+        );
+    }
+    for text in [
+        "fn bad<T:Copy,life a,life a>(p:&'a T)->&'a T{return p}fn main(){}",
+        "fn bad<T:Copy,life a>(p:&'b T)->&'a T{return p}fn main(){}",
+    ] {
+        reject(
+            text,
+            ResultCategory::SafeReject,
+            Phase::Expand,
+            "E-LIFE-DECLARATION",
+        );
+    }
+    for text in [
+        "fn first<T:Copy,life a>(p:&'a T)->&'a T{return p}fn result()->i64{let p:i64=42;return *first::<i64,bool>(&p)}",
+        "fn first<T:Copy,life a>(p:&'a T)->&'a T{return p}fn result()->i64{let p:i64=42;return *first::<&i64>(&(&p))}",
+    ] {
+        reject(
+            text,
+            ResultCategory::SafeReject,
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+        );
+    }
+}
+
+#[test]
+fn type_life_module_alias_ct_and_source_caches_preserve_the_relation() {
+    let temp = Temp::new();
+    let api =
+        "type A=i64;pub fn first<life A,T:Copy,life b>(p:&'A T,q:&'b T,extra:A)->&'A T{return p}";
+    let project = |api: &str| zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                "import api\nfn constant()->i64{return 2}fn result()->i64{let p:i64=40;let q:i64=2;let extra=#(constant());return *api.first(&p,&q,q)+extra}",
+            ),
+            SourceUnit::new(FileId(1), ModuleId(1), "api.zil", api),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["api".into()], ModuleId(1))]),
+    };
+    let options = CompileOptions {
+        semantic_cache: Some(temp.0.join("cache")),
+        ..CompileOptions::default()
+    };
+    let mut session = zil_driver::CompilationSession::default();
+    let cold = session.compile_project(&project(api), &options);
+    assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+    for warm in [
+        session.compile_project(&project(api), &options),
+        zil_driver::compile_project(&project(api), &options),
+    ] {
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.verification_runs, 1);
+        assert_eq!(warm.scalar_interfaces, cold.scalar_interfaces);
+    }
+    assert_eq!(
+        zil_driver::compile_project(&project(api), &options).disk_cache,
+        zil_driver::DiskCacheStatus::Hit
+    );
+    let wrong = api.replace("return p", "return q");
+    assert_eq!(wrong.len(), api.len());
+    for report in [
+        session.compile_project(&project(&wrong), &options),
+        zil_driver::compile_project(&project(&wrong), &options),
+    ] {
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, "E-LIFE-ORIGIN");
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn type_life_instantiated_raw_bounds_still_need_two_independent_cfg_checks() {
+    let module = typed(
+        "fn select<life b,T:Copy,life a>(right:&'b T,left:&'a T)->&'a T{return left}fn result()->i64{let p:i64=40;let q:i64=2;return *select(&p,&q)}",
+    );
+    let index = module
+        .functions
+        .iter()
+        .position(|f| f.reference_return_bound.is_some())
+        .unwrap();
+    assert_eq!(
+        module.functions[index].reference_return_bound,
+        Some(vec![1])
+    );
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    for bound in [vec![], vec![0], vec![1, 1], vec![1, 0], vec![99]] {
+        let mut changed = module.clone();
+        changed.functions[index].reference_return_bound = Some(bound);
+        assert!(
+            zil_analyze::analyze(&changed, &Limits::default())
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-LIFE-RETURN")
+        );
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &candidate, &Limits::default())
+            .unwrap();
+        for result in [
+            zil_verify::verify_module(
+                changed.clone(),
+                candidate,
+                &changed.target,
+                &Limits::default(),
+            ),
+            zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default()),
+        ] {
+            assert!(
+                result
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.phase == Phase::Verify && d.code == "E-VERIFY-LIFE")
+            );
+        }
+    }
+}
+
+#[test]
+fn type_life_raw_scalar_live_and_restored_reuse_recheck_the_current_header() {
+    let unit = source(
+        "fn scalar<T:Copy,life a,life b>(p:T)->T{let n0=p;let n1=n0;let n2=n1;return n2}fn result()->i32{return scalar(42)}",
+    );
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let original = zil_ir::CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![zil_ir::ProgramModule {
+            core,
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let prepared = zil_types::infer_program_for_ct(&original, &limits)
+        .unwrap()
+        .into_prepared();
+    let mut seed = zil_types::FunctionSession::default();
+    let fresh = seed
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    let encoded = seed.encode_work_products(&target, &limits).unwrap();
+    for restored in [false, true] {
+        let mut session = seed.clone();
+        if restored {
+            session = zil_types::FunctionSession::default();
+            assert!(session.restore_work_products(&encoded, &target, &limits));
+        }
+        assert_eq!(
+            session
+                .check_prepared_program(&prepared, &target, &limits)
+                .unwrap(),
+            fresh
+        );
+        assert!(session.last_stats().reused_functions > 0);
+    }
+    let index = original.modules[0]
+        .core
+        .functions
+        .iter()
+        .position(|f| f.life.is_some())
+        .unwrap();
+    for attack in 0..6 {
+        let mut changed = original.clone();
+        let life = changed.modules[0].core.functions[index]
+            .life
+            .as_mut()
+            .unwrap();
+        match attack {
+            0 => life.binders.clear(),
+            1 => life.binders[1] = life.binders[0].clone(),
+            2 => life.parameter_lives.clear(),
+            3 => life.parameter_lives[0] = Some(0),
+            4 => life.result_life = Some(0),
+            _ => life.result_life = Some(99),
+        }
+        assert!(
+            zil_types::check_program(&changed, &target, &limits)
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-LIFE-CONTRACT")
+        );
+        let prepared = zil_types::infer_program_for_ct(&changed, &limits)
+            .unwrap()
+            .into_prepared();
+        for restored in [false, true] {
+            let mut session = seed.clone();
+            if restored {
+                session = zil_types::FunctionSession::default();
+                assert!(session.restore_work_products(&encoded, &target, &limits));
+            }
+            assert!(
+                session
+                    .check_prepared_program(&prepared, &target, &limits)
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.code == "E-LIFE-CONTRACT")
+            );
+        }
+    }
+}
+
+#[test]
+fn type_life_symbolic_alias_and_module_work_share_exact_fresh_expand_budget() {
+    fn boundary<T: std::fmt::Debug + PartialEq>(
+        label: &str,
+        run: impl Fn(usize) -> Result<T, Vec<zil_base::Diagnostic>>,
+    ) {
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        let expected = run(high).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    high = middle;
+                }
+                Err(errors) => {
+                    assert!(!errors.is_empty());
+                    assert!(
+                        errors.iter().all(|d| d.phase == Phase::Expand
+                            && d.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        assert_eq!(run(high).unwrap(), expected);
+        let errors = run(high - 1).unwrap_err();
+        assert!(!errors.is_empty());
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.phase == Phase::Expand && d.category == ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+        assert_eq!(run(high).unwrap(), expected);
+        println!("331 {label} Expand N={high}; N-1 ResourceLimit; fresh N identical");
+    }
+    let limits = |n| Limits {
+        max_analysis_steps: n,
+        ..Limits::default()
+    };
+    for (label, text) in [
+        ("original", TYPE_LIFE331),
+        (
+            "symbolic-callee-positions",
+            "fn right<life b,T:Copy,life a>(p:&'b T,q:&'a T)->&'a T{return q}fn first<T:Copy,life x,life y>(p:&'x T,q:&'y T)->&'x T{let r=right(q,p);return r}fn result()->i64{let p:i64=42;let q:i64=1;return *first(&p,&q)}",
+        ),
+        (
+            "unused-symbolic",
+            "fn first<T:Copy,life a>(p:&'a T)->&'a T{let r=&*p;return r}fn main(){}",
+        ),
+    ] {
+        let unit = source(text);
+        let ast = zil_syntax::parse(&unit).into_result().unwrap();
+        boundary(label, |n| {
+            zil_expand::expand_with_map_limits(&unit, &ast, &limits(n)).map(|m| m.core)
+        });
+    }
+    let sources = [
+        SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "main.zil",
+            "import api;fn result()->i64{let p:i64=42;return *api.first(&p,p)}",
+        ),
+        SourceUnit::new(
+            FileId(1),
+            ModuleId(1),
+            "api.zil",
+            "type A=i64;pub fn first<life A,T:Copy>(p:&'A T,extra:A)->&'A T{return p}",
+        ),
+    ];
+    let asts = sources
+        .iter()
+        .map(|s| zil_syntax::parse(s).into_result().unwrap())
+        .collect::<Vec<_>>();
+    let imports = [
+        vec![zil_ir::CoreImport {
+            alias: "api".into(),
+            module: ModuleId(1),
+            span: zil_base::Span::default(),
+        }],
+        vec![],
+    ];
+    boundary("module-alias", |n| {
+        zil_expand::expand_program_with_limits(
+            &sources,
+            &asts.iter().collect::<Vec<_>>(),
+            &imports,
+            &limits(n),
+        )
+        .map(|m| m.into_iter().map(|(m, _)| m).collect::<Vec<_>>())
+    });
+}
+
 #[test]
 fn explicit_life_identity_keeps_core_ct_and_actual_native_origins() {
     let r = compile_source(&source(LIFE_IDENTITY322), &CompileOptions::default());

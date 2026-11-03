@@ -603,17 +603,15 @@ impl Engine<'_> {
         let Some(f) = self.signatures.get(name) else {
             return Ok(None);
         };
-        let variables = f
-            .generics
-            .iter()
+        let variables = type_parameters(f)
             .map(|p| p.name.clone())
             .collect::<BTreeSet<_>>();
         let mut found = BTreeMap::new();
         if let Some(args) = explicit {
-            if args.len() != f.generics.len() {
+            if args.len() != type_parameters(f).count() {
                 return Err(error(callee.span, "type argument arity mismatch"));
             }
-            for (p, a) in f.generics.iter().zip(args) {
+            for (p, a) in type_parameters(f).zip(args) {
                 let GenericArg::Type(t) = a else {
                     return Err(unsupported(callee.span, "const generic argument"));
                 };

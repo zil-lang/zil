@@ -62,7 +62,7 @@ where life 及借入存储不随此片开放。首片 Copy 前提采用 inline �
 默认方法由 root 串行整合；额外必须调整 alias/trait-bound 中仅普通类型的词法
 作用域时先向 root 报写集，不将 life 名字错误当成普通类型变量。
 
-本片尚未实施，完整语言、ZUI、life/trait 终态及 Rust 产品四目标未完成；没有
+以上为实施前范围提案；完整语言、ZUI、life/trait 终态及 Rust 产品四目标未完成；没有
 运行/内存、维护成本或编译速度比较，也没有产品级突破结论。
 
 ## 第一阶段源码 checkpoint
@@ -73,3 +73,34 @@ where life 及借入存储不随此片开放。首片 Copy 前提采用 inline �
 循环暂要求外部引用来源不变，不能通过单次扫描猜固定点。实例仍沿322的
 CoreLifeContract和两核独立CFG核。`cargo check -p zil-expand --offline`已过；
 本checkpoint尚未完成原源/机器/缓存/预算限测，不记验收。
+
+## 第二阶段实际限定结果
+
+原型在相同字节下已从Expand Unsupported进入Verify Success，verification_runs=1。
+新增现有borrow目标的6个`type_life`控制现均Pass：9个真实source程序各跑
+LLVM O0/O2，包括i64/bool两个T、显式/推导TypeArg、任意binder序、跨callee
+名称与实参置换、同binder分支合流、重借、slice、Copy名义类型投影、同拼写
+type/life、递归与既有具体Self方法加CT重建。Core实际保留life binder和dense
+map，生成函数不残留普通type parameter。未用错binder、局部根、按值参数根、
+分支坏来源和别名调用均Expand/E-LIFE-ORIGIN；同一调用的实参恰alias也不豁免
+坏定义。仅Copy的数值/member权限仍Unsupported，未声明/重复life仍精确拒。
+
+root额外批准的modules.rs类型作用域/名义保护和generic_enum.rs普通call_hints
+路径均排除life，前者通过真实跨模块同名alias/life项目，后者修复显式::<bool>
+首轮仍把life算作TypeArg的Fail。源级live及磁盘warm仍重建/核验，等长坏来源
+替换仍在Expand拒；合法warm真实Hit且verification_runs=1。具体化Typed的5种
+坏返回上界在Analyze独立拒，Verify raw/Wire各独立拒；生成scalar实例的6种
+坏Core life元数据在fresh及live/restored两种复用均Types/E-LIFE-CONTRACT拒，
+合法live/restored命中仍与fresh相同。没有修改两核证明函数或public schema。
+
+实际新Expand边界为original N=757、symbolic-callee-positions N=1229、
+unused-symbolic N=205、module-alias N=1369；各N−1为ResourceLimit，fresh N
+产出相同Core。所有路径累计使用原请求Budget，没有重置/默认提额。
+
+首轮负控写成`&&p`只触发词法/Parse，已保留其setup失败事实；现改为`&(&p)`
+后确认实际非Copy TypeArg在Expand/E-GENERIC-ARGUMENT拒，没有用Parse充当安全反例。
+普通receiver方法结果目前不为普通泛型推导提供提示：`first(point.read())`曾实际
+Expand/E-GENERIC-ARGUMENT；用`first::<i64>(point.read())`验证既有Self/life消费者
+完整保留。该既有复杂表达式推导限制未在本片开放。循环内若改变外部引用来源，
+符号核暂Unsupported，未以一轮执行冒充固定点。尚待旧借用/泛型/cache目标及
+Clippy限定回归；此checkpoint不记最终验收。

@@ -250,7 +250,7 @@ fn type_parameters(function: &Function) -> impl Iterator<Item = &GenericParam> +
     function
         .generics
         .iter()
-        .filter(|parameter| !matches!(parameter.kind, GenericParamKind::Lifetime))
+        .filter(|parameter| matches!(parameter.kind, GenericParamKind::Type(_)))
 }
 fn name(item: &Item) -> Option<&str> {
     match &item.kind {
@@ -576,7 +576,7 @@ impl<'a> Engine<'a> {
         };
         let parameters: Vec<_> = params(item)
             .iter()
-            .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+            .filter(|p| matches!(p.kind, GenericParamKind::Type(_)))
             .filter(|p| {
                 retained
                     .as_ref()

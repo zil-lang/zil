@@ -472,7 +472,7 @@ impl Visitor<'_, '_, '_> {
             _ => params(item),
         };
         for g in generics {
-            if !matches!(g.kind, GenericParamKind::Lifetime) {
+            if matches!(g.kind, GenericParamKind::Type(_)) {
                 types.insert(g.name.clone());
             }
         }

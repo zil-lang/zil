@@ -716,15 +716,13 @@ impl Check<'_, '_, '_> {
                 // Existing place checking performs the real dereference and
                 // projection type checks. An input reference retains its roots;
                 // a by-value aggregate or array is a function-local place.
-                let roots = match &object.kind {
-                    ExprKind::Name(name)
-                        if state.locals.get(name).is_some_and(|local| {
-                            matches!(group(&local.ty).kind, TypeKind::Reference { .. })
-                        }) =>
-                    {
-                        self.life_expression(object, state)?
-                    }
-                    _ => self.life_place(object, state)?,
+                let roots = if self
+                    .value_hint(object, state, 0, false)?
+                    .is_some_and(|ty| matches!(group(&ty).kind, TypeKind::Reference { .. }))
+                {
+                    self.life_expression(object, state)?
+                } else {
+                    self.life_place(object, state)?
                 };
                 Ok(roots)
             }

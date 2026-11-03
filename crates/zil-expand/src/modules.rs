@@ -57,7 +57,9 @@ pub(super) fn protect_alias_nominals<'a>(
         for parameter in parameters {
             budget.node(parameter.span, depth + 1)?;
             budget.text(&parameter.name, parameter.span)?;
-            names.insert(&parameter.name);
+            if matches!(parameter.kind, GenericParamKind::Type(_)) {
+                names.insert(&parameter.name);
+            }
         }
         for member in members {
             binders(member, names, budget, depth + 1)?;
@@ -648,7 +650,9 @@ impl Visitor<'_, '_, '_> {
             _ => &[],
         };
         for p in params {
-            types.insert(p.name.clone());
+            if matches!(p.kind, GenericParamKind::Type(_)) {
+                types.insert(p.name.clone());
+            }
         }
         let previous = if let Mode::Binders {
             bindings,
