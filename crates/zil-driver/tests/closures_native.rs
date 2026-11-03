@@ -128,3 +128,87 @@ fn unit_capture_and_empty_unit_result_work_through_the_source_pipeline() {
         42,
     );
 }
+
+#[test]
+fn known_error_union_closure_arguments_preserve_tags_order_and_cleanup() {
+    use zil_driver::{NativeBackend, Optimization};
+    let cases: [(&str, &[u8], i32); 5] = [
+        (
+            include_str!(
+                "../../../tests/generic-error-enum/native-context/closure-payload-success.zil"
+            ),
+            b"A",
+            0,
+        ),
+        (
+            include_str!(
+                "../../../tests/generic-error-enum/native-context/closure-payload-error.zil"
+            ),
+            b"BA",
+            1,
+        ),
+        (
+            include_str!(
+                "../../../tests/generic-error-enum/native-context/closure-whole-success.zil"
+            ),
+            b"",
+            0,
+        ),
+        (
+            include_str!(
+                "../../../tests/generic-error-enum/native-context/closure-whole-error.zil"
+            ),
+            b"",
+            1,
+        ),
+        (
+            include_str!(
+                "../../../tests/generic-error-enum/native-context/closure-late-argument-error.zil"
+            ),
+            b"BA",
+            1,
+        ),
+    ];
+    let backends = [
+        NativeBackend::Clang,
+        #[cfg(feature = "llvm-api")]
+        NativeBackend::LlvmApi,
+    ];
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (text, stdout, exit) in cases {
+                let directory = Directory::new();
+                let source =
+                    SourceUnit::new(FileId(0), ModuleId(0), "closure-error-injection.zil", text);
+                let options = CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(directory.0.join("program")),
+                    ..CompileOptions::default()
+                };
+                let report = compile_source(&source, &options);
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let output = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    output.status.code(),
+                    Some(exit),
+                    "{backend:?}/{optimization:?}: {output:?}"
+                );
+                assert_eq!(output.stdout, stdout, "{backend:?}/{optimization:?}");
+                assert!(output.stderr.is_empty(), "{output:?}");
+            }
+        }
+    }
+}

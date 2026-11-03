@@ -1,0 +1,128 @@
+{
+  "status": "R2 candidate; first full-suite failure corrected, final full CI pending",
+  "generic_implementation_commit": "12b6af4f258d19314959d556e1312d0fd2313c6d",
+  "closure_implementation_commit": "ac737c9113e9498bab252478b279698e0a033bfe",
+  "independent_reviews": {
+    "generic": "docs/validation/generic-injection-review.json",
+    "closure": "docs/validation/closure-error-injection-review.json"
+  },
+  "consumer": "docs/validation/generic-injection-consumer.json",
+  "local_combined": {
+    "source": "73930833418880bb3c1d6ce50df8ea012a1101db",
+    "workspace": "/workspace/zil-297",
+    "target": "/workspace/.zil-env/target-297",
+    "tests_command": "cargo test --locked -p zil-driver --features llvm-api --no-fail-fast --test generics --test generic_regressions --test closures_frontend --test closures_native",
+    "totals": {
+      "passed": 47,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "fmt": "cargo fmt --all -- --check: Pass",
+    "clippy": "cargo clippy --locked -p zil-expand -p zil-types -p zil-driver --features zil-driver/llvm-api --all-targets -- -D warnings: Pass",
+    "subsequent_change": "baa nested witness delta followed by12b6 removal of overstrict distinctness proof; both independently reviewed. Final R2 local full suite and CI recorded separately."
+  },
+  "native_new_unique": {
+    "generic": 40,
+    "concrete_closure": 20,
+    "backends": [
+      "LLVM API",
+      "clang"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "replays_added": false,
+    "checks": [
+      "actual backend and no fallback",
+      "success/error results",
+      "forward/reverse side effect order, once each",
+      "defer once on success/error",
+      "FnOnce environment cleanup including later argument failure"
+    ]
+  },
+  "expand_budget": {
+    "binding": {
+      "steps": 880,
+      "nodes": 301
+    },
+    "argument": {
+      "steps": 871,
+      "nodes": 290
+    },
+    "independent_constraints": {
+      "steps": 1440,
+      "nodes": 457
+    },
+    "boundary_checks": "N/N-1 ResourceLimit/fresh",
+    "historical_controls": [
+      [
+        624,
+        242
+      ],
+      [
+        288,
+        144
+      ],
+      [
+        554,
+        279
+      ],
+      [
+        558,
+        281
+      ],
+      [
+        336,
+        126
+      ]
+    ]
+  },
+  "unchanged": [
+    "public IR/schema/Wire32",
+    "ABI",
+    "default limits",
+    "ownership and callable permissions",
+    "Cargo targets"
+  ],
+  "original_failures": [
+    "baseline binding/call argument E-GENERIC-ARGUMENT",
+    "baseline concrete closure E-TYPE-MISMATCH",
+    "intermediate Some(f()) and forward/reverse lookahead false rejections",
+    "0fc four Clippy lints fixed",
+    "first298 native invocation requested API without feature; test corrected to conditionally select enabled backend",
+    "Initial review incorrectly treated possible future type equality as a forbidden unused definition; full CI exposed two regressions, original sources/oracles were kept and the added restriction withdrawn."
+  ],
+  "remaining": "Complete language, B0, ZUI and Rust product comparisons remain incomplete; native Windows not validated.",
+  "declaration_rule": "Preserve declared capabilities and symbolic identity checks. Potential future equality is not a blanket declaration error; definite ambiguity and concrete same-type instances remain rejected before executable verification.",
+  "first_full_attempt": {
+    "source": "99de375e80ae5733b57e66f702c9737a833ff545",
+    "local_default": {
+      "passed": 4002,
+      "failed": 2,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "ci_default": {
+      "passed": 4002,
+      "failed": 2,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "failures": [
+      "impl178_generic_store::cross_module_helpers_preserve_two_nominal_elements_and_failure_returns",
+      "impl194_copy_callable::copy_error_results_and_early_returns_keep_environment_and_local_cleanup_order"
+    ],
+    "cause": "New universal symbolic distinctness guard rejected established legal concrete StoreElement/Copy+F programs; implementation/contract overrestriction, not infrastructure.",
+    "main_workflow": {
+      "id": 41567154029,
+      "result": "cancelled after full default step failed, to retrieve completed failure log; duplicate other workflow continued"
+    },
+    "other_workflow": {
+      "id": 41567154028,
+      "result": "failure; default and reference tests failed"
+    },
+    "repair": "12b6af4f; original178/194 test files unchanged; whole targets15/0 and19/0 plus exact default failures each1/0; literal/typed unused templates, unambiguous instances and actual same-type rejection separately tested."
+  }
+}

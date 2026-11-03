@@ -439,14 +439,20 @@ impl Engine<'_> {
                 let unresolved = vars
                     .iter()
                     .any(|v| !found.contains_key(v) && contains(&hint, v));
-                let actual = self
-                    .expr_expected(
-                        &mut argument.value,
-                        env,
-                        (!unresolved).then_some(&hint),
-                        depth + 1,
-                    )?
-                    .ok_or_else(|| error(argument.span, "enum payload type cannot be inferred"))?;
+                let actual = self.expr_expected(
+                    &mut argument.value,
+                    env,
+                    (!unresolved).then_some(&hint),
+                    depth + 1,
+                )?;
+                let actual = match actual {
+                    Some(actual) => actual,
+                    None => self
+                        .value_hint(&argument.value, env, depth + 1, true)?
+                        .ok_or_else(|| {
+                            error(argument.span, "enum payload type cannot be inferred")
+                        })?,
+                };
                 let actual = self.original_type(&actual)?;
                 unify(field, &actual, &vars, &mut found, span, &mut self.budget)?;
             }
@@ -673,6 +679,67 @@ pub(super) struct CallHints {
     found: BTreeMap<String, TypeRef>,
 }
 impl CallHints {
+    pub(super) fn independent_input(
+        &self,
+        index: usize,
+        union_pass: bool,
+        budget: &mut Budget<'_>,
+    ) -> R<bool> {
+        match self.parameters.get(index) {
+            Some(parameter) => {
+                independent_input(parameter, &self.variables, &self.found, union_pass, budget)
+            }
+            None => Ok(false),
+        }
+    }
+    pub(super) fn unresolved_context(&self, index: usize, budget: &mut Budget<'_>) -> R<bool> {
+        let Some(parameter) = self.parameters.get(index) else {
+            return Ok(false);
+        };
+        if !matches!(grouped(parameter).kind, TypeKind::Error { .. }) {
+            return Ok(false);
+        }
+        context_unresolved(parameter, &self.variables, &self.found, budget)
+    }
+    pub(super) fn independent_constraint(
+        &mut self,
+        index: usize,
+        actual: &TypeRef,
+        span: Span,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        if let Some(parameter) = self.parameters.get(index) {
+            budget.ty(parameter)?;
+            budget.ty(actual)?;
+            if matches!(grouped(parameter).kind, TypeKind::Error { .. }) {
+                if !matches!(grouped(actual).kind, TypeKind::Error { .. }) {
+                    return Ok(());
+                }
+                unify(
+                    parameter,
+                    actual,
+                    &self.variables,
+                    &mut self.found,
+                    span,
+                    budget,
+                )?;
+            } else {
+                self.constrain(index, actual, span, budget)?;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn context_constraints(
+        &self,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<BTreeMap<String, TypeRef>> {
+        for (name, ty) in &self.found {
+            budget.text(name, span)?;
+            budget.ty(ty)?;
+        }
+        Ok(self.found.clone())
+    }
     pub(super) fn symbolic_result(
         &self,
         result: &TypeRef,

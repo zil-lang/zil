@@ -683,3 +683,64 @@ fn c014_22_synthetic_function_budget_is_global_and_checked_before_ct() {
     );
     assert_eq!(result.phase, zil_base::Phase::Types, "{}", result.to_json());
 }
+
+#[test]
+fn known_error_union_closure_arguments_use_unique_payload_injection() {
+    for text in [
+        "enum Fault{Bad}fn main()->i32{let f=(v:Fault!i32)->i32=>0;return f(Fault.Bad)}",
+        "fn forward(v:i32!i32)->i32!i32{let f=(x:i32!i32)->i32!i32=>x;return f(v)}fn main()->i32{return 0}",
+        "enum E{Bad}fn main()->E!i32{let value:E!i32=7;let f=(x)=>x;f(value);return f(E.Bad)}",
+        include_str!(
+            "../../../tests/generic-error-enum/native-context/closure-payload-success.zil"
+        ),
+        include_str!("../../../tests/generic-error-enum/native-context/closure-payload-error.zil"),
+        include_str!("../../../tests/generic-error-enum/native-context/closure-whole-success.zil"),
+        include_str!("../../../tests/generic-error-enum/native-context/closure-whole-error.zil"),
+        include_str!(
+            "../../../tests/generic-error-enum/native-context/closure-late-argument-error.zil"
+        ),
+    ] {
+        let result = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            result.status,
+            ResultCategory::Success,
+            "{}",
+            result.to_json()
+        );
+        assert_eq!(result.verification_runs, 1);
+    }
+    let cases = [
+        (
+            "fn main()->i32{let f=(v:i32!i32)->i32=>0;return f(7)}",
+            "E-ERROR-INJECTION-AMBIGUOUS",
+        ),
+        (
+            "fn main()->i32{let f=(v:i64!bool)->i32=>0;return f(7)}",
+            "E-ERROR-INJECTION",
+        ),
+        (
+            "enum A{Bad}enum B{Bad}fn main()->i32{let f=(v:A!i32)->i32=>0;return f(B.Bad)}",
+            "E-ERROR-INJECTION",
+        ),
+        (
+            "fn main()->i32{let f=(v:bool!i32)->i32=>0;return f(i64(7))}",
+            "E-ERROR-INJECTION",
+        ),
+    ];
+    for (text, code) in cases {
+        let result = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            result.status,
+            ResultCategory::SafeReject,
+            "{}",
+            result.to_json()
+        );
+        assert_eq!(result.phase, zil_base::Phase::Types, "{}", result.to_json());
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == code),
+            "{}",
+            result.to_json()
+        );
+        assert_eq!(result.verification_runs, 0);
+    }
+}

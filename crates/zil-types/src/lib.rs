@@ -2770,6 +2770,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         // Type constraints have no runtime effects. Gather the known argument
         // types before defaulting any integer literal, so f(1, known_i64)
         // constrains both unified parameters to i64 without reordering values.
+        // A known error union supplies an injection context, not an equality
+        // constraint on its payload. Check it through argument_expr below.
         for (index, argument) in arguments.iter().enumerate() {
             self.closures.snapshot(1, argument.span)?;
             if let Some(hint) = self.range_hint(argument, 0)
@@ -2777,7 +2779,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     self.closures.pending[id.0 as usize]
                         .inference
                         .parameter(index)?,
-                    Some(Type::Address { .. })
+                    Some(Type::Address { .. } | Type::ErrorUnion { .. })
                 )
             {
                 self.closures.pending[id.0 as usize].inference.argument(

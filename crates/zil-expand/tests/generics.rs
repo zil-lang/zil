@@ -2,6 +2,189 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::Type;
 
 #[test]
+fn generic_error_union_binding_and_call_contexts_accept_complete_types() {
+    for text in [
+        include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
+        include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
+        "enum Fault{Bad} fn sink(v:Fault!i32)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{let v:Fault!i32=7;return sink(v)+sink(f())} fn main(){}",
+        "enum Choice<T>{None,Some(T)} fn sink<T>(v:Choice<T>!i32)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{f();return sink::<i32>(Choice.None)} fn main(){}",
+        "fn sink<T>(value:T!i32,witness:bool!T)->i32{return 0}fn run<F:Fn()->i32>(f:F,v:bool!i64)->i32{f();return sink(7,v)}fn main()->i32{let f=()->i32=>0;let v:bool!i64=true;return run(f,v)}",
+        "fn sink<T>(value:T!i32,witness:T,other:(bool!i32)!i64)->i32{return 0}fn run<F:Fn()->i32>(f:F,v:bool!i32)->i32{f();return sink(7,true,v)}fn main()->i32{let f=()->i32=>0;let v:bool!i32=true;return run(f,v)}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-context.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+    }
+    for text in [
+        "enum Fault{Bad} enum Other{Bad} fn run<F:Fn()->i32>(f:F)->i32{let v:Fault!i32=Other.Bad;return f()} fn main(){}",
+        "enum Fault{Bad} fn run<F:Fn()->i32>(f:F)->i32{let v:Fault!Fault=Fault.Bad;return f()} fn main(){}",
+        "enum Fault{Bad} fn sink(v:Fault!i64)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{return sink(7)} fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-context-reject.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.phase == Phase::Expand && error.code == "E-GENERIC-ARGUMENT"),
+            "{text}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn generic_error_union_call_constraints_are_independent_of_argument_order() {
+    for (parameters, arguments) in [
+        ("value:T!i32,witness:T", "7,true"),
+        ("witness:T,value:T!i32", "true,7"),
+        ("value:Choice<T>!i32,witness:T", "Choice.None,true"),
+        ("witness:T,value:Choice<T>!i32", "true,Choice.None"),
+        ("value:Choice<T>!i32,witness:T", "Choice.None,id(true)"),
+        ("value:T!i32,witness:T", "f(),witness()"),
+        ("witness:T,value:T!i32", "witness(),f()"),
+        ("value:T!i32,witness:T", "f(),witness_value(7)"),
+    ] {
+        let text = format!(
+            "enum Choice<T>{{None,Some(T)}}fn id<T>(x:T)->T=>x;fn witness()->bool=>true;fn witness_value(value:bool!i32)->bool=>true;fn sink<T>({parameters})->i32{{return 0}}fn run<F:Fn()->i32>(f:F)->i32{{f();return sink({arguments})}}fn main()->i32{{let f=()->i32=>1;return run(f)}}"
+        );
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-order.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed)
+            .unwrap_or_else(|errors| panic!("{}: {errors:?}", source.text));
+    }
+    for (parameters, arguments) in [
+        ("value:T!i32,witness:T", "7,0"),
+        ("witness:T,value:T!i32", "0,7"),
+    ] {
+        let text = format!(
+            "fn sink<T>({parameters})->i32{{return 0}}fn run<F:Fn()->i32>(f:F)->i32{{f();return sink({arguments})}}fn main(){{}}"
+        );
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-order-reject.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.phase == Phase::Expand && error.code == "E-GENERIC-ARGUMENT"),
+            "{}: {errors:?}",
+            source.text
+        );
+    }
+}
+
+#[test]
+fn generic_enum_payload_uses_declared_callable_result() {
+    for text in [
+        "enum Choice<T>{None,Some(T)}fn sink(v:Choice<i32>!i32)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{return sink(Choice.Some(f()))}fn main()->i32{let f=()->i32=>7;return run(f)}",
+        "enum Choice<T>{None,Some(T)}fn sink(v:Choice<i32>!i32)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{return sink(Choice::<i32>.Some(f()))}fn main()->i32{let f=()->i32=>7;return run(f)}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-fn-result.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+    }
+    let text = "enum Choice<T>{None,Some(T)}fn sink(v:Choice<i32>!i32)->i32{return 0}fn run<F:Fn()->i64>(f:F)->i32{return sink(Choice.Some(f()))}fn main(){}";
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "union-fn-wrong-result.zil", text);
+    let parsed = zil_syntax::parse(&source).into_result().unwrap();
+    assert!(
+        zil_expand::expand(&source, &parsed)
+            .unwrap_err()
+            .iter()
+            .all(|error| error.phase == Phase::Expand && error.code == "E-GENERIC-ARGUMENT")
+    );
+}
+
+#[test]
+fn generic_error_union_templates_preserve_symbolic_and_actual_checks() {
+    for text in [
+        "fn unused<U:Copy>(w:U)->U!U{return w}fn main(){}",
+        "fn unused<U:Copy>(w:U)->i32{let value:U!U=w;return 0}fn main(){}",
+        "fn sink<T:Copy>(value:T!T,witness:T)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(w,w)}fn main(){}",
+        "fn sink<T>(value:T!i32)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(7)}fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-symbolic-reject.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.phase == Phase::Expand && error.code == "E-GENERIC-ARGUMENT"),
+            "{text}: {errors:?}"
+        );
+    }
+    for text in [
+        "fn sink<T>(value:T!i32,witness:T)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(7,w)}fn main(){}",
+        "fn sink<T>(witness:T,value:T!i32)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(w,7)}fn main(){}",
+        "fn unused<U:Copy>(w:U)->U!i32{let n:i32=7;return n}fn main(){}",
+        "fn unused<U:Copy>(w:U)->U!i32=>7;fn main(){}",
+        "fn unused<U:Copy>(w:U)->i32{let n:U!i32=7;return 0}fn main(){}",
+        "enum Choice<T>{None,Some(T)}fn unused<U:Copy>(w:U)->Choice<U>!Choice<i32>{let n=Choice::<i32>.None;return n}fn main(){}",
+        "fn sink<T>(value:T!i32,witness:T)->i32{return 0}fn unused<U:Copy>(w:U,v:U!i32)->i32{return sink(v,w)}fn main(){}",
+        "fn unused<U:Copy>(v:U!i32)->U!i32{let n:U!i32=v;return n}fn main(){}",
+        "enum Choice<T>{None,Some(T)}fn unused<U:Copy>(v:Choice<U>)->Choice<U>!i32{let n:Choice<U>!i32=v;return n}fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-symbolic.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+    }
+}
+
+#[test]
+fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
+    for (name, text, steps, nodes) in [
+        (
+            "binding",
+            include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
+            880,
+            301,
+        ),
+        (
+            "argument",
+            include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
+            871,
+            290,
+        ),
+        (
+            "independent",
+            "enum Choice<T>{None,Some(T)}fn sink<T>(value:Choice<T>!i32,witness:T)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{f();return sink(Choice.None,true)}fn main()->i32{let f=()->i32=>1;return run(f)}",
+            1440,
+            457,
+        ),
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let expected = zil_expand::expand(&source, &parsed).unwrap();
+        for (work, amount) in [(true, steps), (false, nodes)] {
+            let mut limits = zil_base::Limits::default();
+            if work {
+                limits.max_analysis_steps = amount
+            } else {
+                limits.max_nodes = amount
+            }
+            let fresh = zil_syntax::parse(&source).into_result().unwrap();
+            for syntax in [&parsed, &fresh] {
+                assert_eq!(
+                    zil_expand::expand_with_map_limits(&source, syntax, &limits)
+                        .unwrap()
+                        .core,
+                    expected
+                );
+            }
+            if work {
+                limits.max_analysis_steps -= 1
+            } else {
+                limits.max_nodes -= 1
+            }
+            assert!(
+                zil_expand::expand_with_map_limits(&source, &parsed, &limits)
+                    .unwrap_err()
+                    .iter()
+                    .all(|error| error.category == ResultCategory::ResourceLimit)
+            );
+        }
+    }
+}
+
+#[test]
 fn generic_enum_error_context_uses_one_complete_nominal_type() {
     for text in [
         include_str!("../../../tests/generic-error-enum/direct.zil"),

@@ -138,6 +138,74 @@ fn generic_enum_error_injection_preserves_native_error_and_success_arms() {
 }
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+#[test]
+fn generic_error_union_templates_defer_potential_equality_to_actual_instances() {
+    for (definition, call, phase, code) in [
+        (
+            "fn run<U:Copy>(w:U)->U!i32{let n:i32=7;return n}",
+            "run(INPUT)",
+            Phase::Types,
+            "E-ERROR-INJECTION-AMBIGUOUS",
+        ),
+        (
+            "fn run<U:Copy>(w:U)->U!i32=>7;",
+            "run(INPUT)",
+            Phase::Types,
+            "E-ERROR-INJECTION-AMBIGUOUS",
+        ),
+        (
+            "fn run<U:Copy>(w:U)->U!i32{let n:U!i32=7;return n}",
+            "run(INPUT)",
+            Phase::Types,
+            "E-ERROR-INJECTION-AMBIGUOUS",
+        ),
+        (
+            "fn sink<T:Copy>(v:T!i32,w:T)->i32{return 0}fn run<U:Copy>(w:U)->i32{return sink(7,w)}",
+            "run(INPUT)",
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+        ),
+        (
+            "fn sink<T:Copy>(w:T,v:T!i32)->i32{return 0}fn run<U:Copy>(w:U)->i32{return sink(w,7)}",
+            "run(INPUT)",
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+        ),
+    ] {
+        for text in [
+            format!("{definition}fn main(){{}}"),
+            format!(
+                "{definition}fn main()->i32{{{};return 0}}",
+                call.replace("INPUT", "true")
+            ),
+        ] {
+            let report = compile_source(&source(&text), &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+        }
+        let text = format!(
+            "{definition}fn main()->i32{{{};return 0}}",
+            call.replace("INPUT", "0")
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, code, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "generic.zil", text)
 }

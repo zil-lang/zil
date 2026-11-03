@@ -305,7 +305,12 @@ fn same(actual: &TypeRef, expected: &TypeRef, span: Span, budget: &mut Budget<'_
         ))
     }
 }
-fn same_return(actual: &TypeRef, expected: &TypeRef, span: Span, budget: &mut Budget<'_>) -> R<()> {
+pub(super) fn same_return(
+    actual: &TypeRef,
+    expected: &TypeRef,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<()> {
     let actual_key = type_key(actual, budget)?;
     if actual_key == type_key(expected, budget)? {
         return Ok(());
@@ -1333,6 +1338,15 @@ impl Check<'_, '_, '_> {
     // an endpoint, consumes a local or constructs a symbolic field position.
     // The ordinary expression check below still validates every operation.
     fn range_hint(&mut self, expression: &Expr, state: &State, depth: usize) -> R<Option<TypeRef>> {
+        self.value_hint(expression, state, depth, false)
+    }
+    fn value_hint(
+        &mut self,
+        expression: &Expr,
+        state: &State,
+        depth: usize,
+        default_integer: bool,
+    ) -> R<Option<TypeRef>> {
         self.budget.node(expression.span, depth)?;
         let span = expression.span;
         match &expression.kind {
@@ -1348,11 +1362,12 @@ impl Check<'_, '_, '_> {
                 Ok(["u8", "u16", "i32", "i64"]
                     .into_iter()
                     .find(|suffix| text.ends_with(suffix))
+                    .or(default_integer.then_some("i32"))
                     .map(|suffix| named(suffix, span)))
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", span))),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
-                self.range_hint(inner, state, depth + 1)
+                self.value_hint(inner, state, depth + 1, default_integer)
             }
             ExprKind::Unary {
                 op: UnaryOp::Not, ..
@@ -1361,7 +1376,7 @@ impl Check<'_, '_, '_> {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
-                let Some(ty) = self.range_hint(operand, state, depth + 1)? else {
+                let Some(ty) = self.value_hint(operand, state, depth + 1, default_integer)? else {
                     return Ok(None);
                 };
                 let TypeKind::Reference { inner, .. } = &group(&ty).kind else {
@@ -1370,7 +1385,9 @@ impl Check<'_, '_, '_> {
                 self.budget.ty(inner)?;
                 Ok(Some(*inner.clone()))
             }
-            ExprKind::Unary { operand, .. } => self.range_hint(operand, state, depth + 1),
+            ExprKind::Unary { operand, .. } => {
+                self.value_hint(operand, state, depth + 1, default_integer)
+            }
             ExprKind::Binary {
                 op:
                     BinaryOp::Equal
@@ -1384,10 +1401,10 @@ impl Check<'_, '_, '_> {
                 ..
             } => Ok(Some(named("bool", span))),
             ExprKind::Binary { left, right, .. } => {
-                if let Some(ty) = self.range_hint(left, state, depth + 1)? {
+                if let Some(ty) = self.value_hint(left, state, depth + 1, default_integer)? {
                     Ok(Some(ty))
                 } else {
-                    self.range_hint(right, state, depth + 1)
+                    self.value_hint(right, state, depth + 1, default_integer)
                 }
             }
             ExprKind::If {
@@ -1395,14 +1412,14 @@ impl Check<'_, '_, '_> {
                 else_value,
                 ..
             } => {
-                if let Some(ty) = self.range_hint(then_value, state, depth + 1)? {
+                if let Some(ty) = self.value_hint(then_value, state, depth + 1, default_integer)? {
                     Ok(Some(ty))
                 } else {
-                    self.range_hint(else_value, state, depth + 1)
+                    self.value_hint(else_value, state, depth + 1, default_integer)
                 }
             }
             ExprKind::Try(operand) => {
-                let Some(ty) = self.range_hint(operand, state, depth + 1)? else {
+                let Some(ty) = self.value_hint(operand, state, depth + 1, default_integer)? else {
                     return Ok(None);
                 };
                 let TypeKind::Error { result, .. } = &group(&ty).kind else {
@@ -1412,7 +1429,7 @@ impl Check<'_, '_, '_> {
                 Ok(Some(*result.clone()))
             }
             ExprKind::Index { object, .. } | ExprKind::Member { object, .. } => {
-                let Some(ty) = self.range_hint(object, state, depth + 1)? else {
+                let Some(ty) = self.value_hint(object, state, depth + 1, default_integer)? else {
                     return Ok(None);
                 };
                 let base = match &group(&ty).kind {
@@ -1487,7 +1504,7 @@ impl Check<'_, '_, '_> {
                 } = &callee.kind
                 {
                     if name == "len"
-                        && self.range_hint(object, state, depth + 1)?.is_some_and(|ty|
+                        && self.value_hint(object, state, depth + 1, default_integer)?.is_some_and(|ty|
                             matches!(&group(&ty).kind, TypeKind::Reference { inner, .. }
                                 if matches!(group(inner).kind, TypeKind::Array { length: None, .. })))
                     {
@@ -1560,7 +1577,9 @@ impl Check<'_, '_, '_> {
                     }
                 }
                 for (parameter, argument) in function.params.iter().zip(arguments) {
-                    if let Some(actual) = self.range_hint(&argument.value, state, depth + 1)? {
+                    if let Some(actual) =
+                        self.value_hint(&argument.value, state, depth + 1, default_integer)?
+                    {
                         unify(
                             &parameter.ty,
                             &actual,
@@ -1885,7 +1904,10 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Literal(Literal::Integer(text)) => {
                 let expected = self.literal_context(expected);
-                if expected.is_some_and(|t| dependent(t, &self.variables)) {
+                if expected.is_some_and(|t| {
+                    !matches!(group(t).kind, TypeKind::Error { .. })
+                        && dependent(t, &self.variables)
+                }) {
                     return Err(needs_bound());
                 }
                 Ok(checked_integer(text, expected, false, e.span)?.0)
@@ -2133,7 +2155,10 @@ impl Check<'_, '_, '_> {
                 operand,
             } if matches!(operand.kind, ExprKind::Literal(Literal::Integer(_))) => {
                 let expected = self.literal_context(expected);
-                if expected.is_some_and(|t| dependent(t, &self.variables)) {
+                if expected.is_some_and(|t| {
+                    !matches!(group(t).kind, TypeKind::Error { .. })
+                        && dependent(t, &self.variables)
+                }) {
                     return Err(needs_bound());
                 }
                 let ExprKind::Literal(Literal::Integer(text)) = &operand.kind else {
@@ -2657,7 +2682,46 @@ impl Check<'_, '_, '_> {
                     if argument.spread {
                         return Err(unsupported(argument.span, "parametric tuple spread"));
                     }
-                    let hint = substituted_type(&parameter.ty, &found, self.budget)?;
+                    let mut hint = substituted_type(&parameter.ty, &found, self.budget)?;
+                    if matches!(group(&hint).kind, TypeKind::Error { .. })
+                        && context_unresolved(&parameter.ty, &variables, &found, self.budget)?
+                    {
+                        // Read-only lookahead collects whole-type constraints;
+                        // actual argument checks below retain source order.
+                        for union_pass in [false, true] {
+                            for (other, value) in function.params.iter().zip(arguments) {
+                                self.budget.node(value.span, 0)?;
+                                if !independent_input(
+                                    &other.ty,
+                                    &variables,
+                                    &found,
+                                    union_pass,
+                                    self.budget,
+                                )? {
+                                    continue;
+                                }
+                                if let Some(actual) =
+                                    self.value_hint(&value.value, state, 0, true)?
+                                {
+                                    self.budget.ty(&other.ty)?;
+                                    self.budget.ty(&actual)?;
+                                    if !matches!(group(&other.ty).kind, TypeKind::Error { .. })
+                                        || matches!(group(&actual).kind, TypeKind::Error { .. })
+                                    {
+                                        unify(
+                                            &other.ty,
+                                            &actual,
+                                            &variables,
+                                            &mut found,
+                                            value.span,
+                                            self.budget,
+                                        )?;
+                                    }
+                                }
+                            }
+                        }
+                        hint = substituted_type(&parameter.ty, &found, self.budget)?;
+                    }
                     if parameter.give
                         && stores::carrier(&hint).is_some()
                         && !self.owning_store_expression(&argument.value, state)
@@ -2673,14 +2737,23 @@ impl Check<'_, '_, '_> {
                         &hint,
                         (!dependent(&hint, &variables)).then_some(&hint),
                     )?;
-                    unify(
+                    if !context_argument(
                         &parameter.ty,
                         &actual,
                         &variables,
-                        &mut found,
+                        &found,
                         e.span,
                         self.budget,
-                    )?;
+                    )? {
+                        unify(
+                            &parameter.ty,
+                            &actual,
+                            &variables,
+                            &mut found,
+                            e.span,
+                            self.budget,
+                        )?;
+                    }
                 }
                 if variables.iter().any(|name| !found.contains_key(name)) {
                     return Err(error(e.span, "unconstrained nested generic argument"));
@@ -3194,7 +3267,11 @@ impl Check<'_, '_, '_> {
                         ),
                     )?;
                     if let Some(ty) = ty {
-                        same(&actual, ty, statement.span, self.budget)?;
+                        if matches!(group(ty).kind, TypeKind::Error { .. }) {
+                            same_return(&actual, ty, statement.span, self.budget)?;
+                        } else {
+                            same(&actual, ty, statement.span, self.budget)?;
+                        }
                     }
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
                     self.factory_bind_value(state.locals[n].id, value, state)?;
