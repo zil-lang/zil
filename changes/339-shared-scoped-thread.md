@@ -57,3 +57,30 @@ Verify费用上升来自此前会早退的非affine路径现在执行完整loan�
 Types/Analyze/Verify为526/7787/15329，原parent332/kinds为1587/26216/92685，
 同一个独立API探针绑定B既有release rlib与339实际debug rlib，各自全部边界逐字相同。
 探针源码shared339/budget_probe.rs保留；不是新Cargo测试目标，也不提供安全判定替代。
+
+## 非作者反例与当前实测
+
+Astra保留的helper_writer原源在首版Analyze成功、Verify E-BORROW-CONFLICT；
+新增exclusive表只处理特殊producer遗漏了普通Call返回的&mut及可变投影。
+修补为每个实际非environment可变Address结果从独立Hold实际根补齐，&mutClosure
+仍只取得environment位置及逐捕获真实exclusive根，不能升级Retained* shared根。
+原反例和独立raw helper_return seed改变thread实际argument均由两核拒绝；原disjoint
+仍成功，最近nested_disjoint把shared x与mutable y同时放在被借入writer内。
+
+更正：最早报告owner_cleanup为SafeReject是不准确的，早期该fixture未进入格式化后
+的测试negative表；现实际为Analyze Unsupported，和lending_pending同属直接未核
+动态来源。此两源已进入精确表。336另交拥有Ticket环境的retained helper正控及
+owned_lender_cleanup移动/销毁反例；后者真实Verify E-BORROW-CONFLICT，不把它
+记作Analyze拒绝。标量Copy lender的parent复制为合法Load，原environment仍活到
+join之后，copied_lender作为正控，不用保守禁止合法复制。
+
+当前339六项进入既有generic_regressions；完整既有目标实际32/0、零过滤/忽略，
+不是workspace正式全量。旧325两核N=6873/10587，旧332两核26216/92685及Types
+全部既有精确边界保持。最终本地disjoint Analyze N为10837（新增实际mutable-root
+工作），Verify46218；basic532/8345/29372，two_scopes632/4175/11774，nested_shared
+477/3769/7724；各项Types/Analyze/Verify均实测N/N−1/fresh。parent_capture Types423。
+
+backend既有scoped_thread三项模型/ABI/分区测试另3/0，不当成新增源码覆盖。
+共享cache测试同目录先i32、再pointer、再warm pointer，三次均重新Verify、实际API
+无fallback，warm明确object-cache命中，三个生成程序均0；不同payload类型和机器ABI
+不会复用旧对象。后续root contract同步后的结果另记，不倒记本次为整合树结果。

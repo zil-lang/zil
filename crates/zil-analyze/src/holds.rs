@@ -155,6 +155,14 @@ fn thread_access_step(
         _ => {}
     }
     if let Some(value) = instruction.result {
+        // Ordinary mutable address producers (including direct lending
+        // helpers and mutable projections) all retain their independently
+        // inferred pointee roots. An environment position is special: its
+        // retained shared pointees are not writable just because it is &mut.
+        if matches!(&f.values[value.0 as usize], Type::Address { mutable: true, inner } if !matches!(inner.as_ref(), Type::Closure(_)))
+        {
+            extend(&mut found, &values[value.0 as usize], budget)?;
+        }
         extend(&mut exclusive[value.0 as usize], &found, budget)
     } else {
         Ok(false)
