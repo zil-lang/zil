@@ -691,6 +691,13 @@ pub(super) fn check(
     descriptor_origins: bool,
     budget: &mut Budget,
 ) -> Check<Apart> {
+    let shared_thread = budget
+        .shared_thread_functions
+        .as_ref()
+        .is_some_and(|rows| rows[f.id.0 as usize]);
+    if budget.shared_thread_functions.is_some() {
+        budget.spend(1)?;
+    }
     let lending = |ty: &Type| {
         let ty = if let Type::Address { inner, .. } = ty {
             inner.as_ref()
@@ -699,7 +706,8 @@ pub(super) fn check(
         };
         matches!(ty, Type::Closure(id) if !module.closures[id.0 as usize].lending_captures.is_empty())
     };
-    if !descriptor_origins
+    if !shared_thread
+        && !descriptor_origins
         && !f
             .environment
             .is_some_and(|id| !module.closures[id.0 as usize].lending_captures.is_empty())

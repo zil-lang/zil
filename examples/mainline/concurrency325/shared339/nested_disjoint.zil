@@ -3,8 +3,8 @@ fn main()->i32 {
     var value=9
     var other=3
     let input=&value
-    var writer=()->i32=>{other=13;return other}
-    let body=()->i32=>*input+writer()
+    var writer=()->i32=>{other=13;return *input+other}
+    let body=()->i32=>writer()
     let(created,child,parent)=thread_scope(worker,input,body)
     if !created { return 2 }
     value=17
