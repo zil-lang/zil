@@ -13,6 +13,11 @@
       "evidence": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ct_quote -- --nocapture; review checkout 6c6481d08 with compiler src byte-identical to implementation_commit; stdout bytes [49,48,48,10], expected [55,10]",
       "cause": "ct_artifact/hygiene.rs visits only Some(field.value). A shorthand record field has no explicit value expression, so the generated local x is renamed while the implicit read remains caller x.",
       "impact": "Incorrect lexical binding and program result; no memory unsafety demonstrated.",
+      "shared_path_control": {
+        "source": "struct P{x:i32}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let p=P{x};return p.x}}fn result()->i32{let x=100;#emit generated()}",
+        "commit": "97502a600",
+        "observed": "Same 803a compiler: Verify1 and Clang O0/no fallback, stdout [49,48,48,10] instead of [55,10]. This confirms the shared Record shorthand path; no separate historical 40fb execution is claimed."
+      },
       "status": "Reported to implementation author and root; original corrected source and expected result retained."
     }
   ],
