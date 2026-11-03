@@ -4,7 +4,8 @@
   "production_commits": [
     "77f4bd085607b96675f51b678b5af70d120110c9",
     "1732af2bb5d8cfd10309effd01feb29963143795",
-    "0fc326966b2968bafe87fbaa1df1de38b006ff66"
+    "0fc326966b2968bafe87fbaa1df1de38b006ff66",
+    "07ec1efd94be88d1f60b48b2ee0f12e89b41d879"
   ],
   "original_sources": {
     "binding_sha256": "42ee898c5535b1144cd6057244381217351afba9956de3a59a9351732f6b447e",
@@ -23,8 +24,14 @@
   "native": {
     "cases": 8,
     "executions": 32,
-    "backends": ["clang", "LLVM API"],
-    "optimization": ["O0", "O2"],
+    "backends": [
+      "clang",
+      "LLVM API"
+    ],
+    "optimization": [
+      "O0",
+      "O2"
+    ],
     "assertions": "Actual backend, no fallback, verification once, exact stdout, empty stderr and exit status",
     "outcomes": {
       "binding_error": "ABB; exit 1",
@@ -38,6 +45,15 @@
     },
     "cleanup": "E is emitted once by defer on both success and error propagation; B in payload controls is emitted while evaluating the argument before sink emits C."
   },
-  "history": "Early 77f4 rejected the legal Choice.Some(f()) payload; original source retained as positive and 1732 restored its actual declared callable return type.",
-  "not_run": ["full workspace", "Windows", "native allocation or performance comparison"]
+  "history": "Early 77f4 rejected the legal Choice.Some(f()) payload; original source retained as positive and 1732 restored its actual declared callable return type. Limited Clippy at 0fc failed on four production lint findings; 07ec fixes them and the same limited check passes.",
+  "not_run": [
+    "full workspace",
+    "Windows",
+    "native allocation or performance comparison"
+  ],
+  "clippy": {
+    "command": "CARGO_BUILD_JOBS=1 CARGO_TARGET_DIR=/workspace/.zil-env/target-295 cargo clippy --offline --locked -p zil-driver --features llvm-api --test generic_regressions -- -D warnings",
+    "status": "Pass",
+    "prior_failure": "0fc candidate had four production collapsible_if lint failures, corrected in 07ec"
+  }
 }
