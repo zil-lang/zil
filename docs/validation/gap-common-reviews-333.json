@@ -1,0 +1,798 @@
+{
+  "schema_version": 1,
+  "reviews": {
+    "330": {
+      "reviewer": "/root/impl313",
+      "implementation_author": "/root/impl314",
+      "candidate_commit": null,
+      "verdict": "AwaitingCommonB",
+      "scope": "Non-author 330 default-method scope only; no self-review or verdict for 333 production.",
+      "original_330_implementation": "d8d4a74303df459110e4e2d1bc9192b532abadac",
+      "previous_review": "docs/validation/review330-by331.json",
+      "A_exploration": {
+        "candidate_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+        "not_final_common_acceptance": true,
+        "reason": "Root identified an independent 329 primitive-binder authority blocker; whole-workspace green counts do not settle that blocker.",
+        "source_blobs": {
+          "generic_trait_defaults.rs": "e5650540b2de7a3ce0a07cd92eb0f243fc6df933",
+          "generic_trait_instances.rs": "2ccbb1a10eb05f25fbcd69d1e9da75896c849c88",
+          "static_traits.rs": "8e713eab818800025c5607bb7c660f56a04eb1b3",
+          "generic_check.rs": "632268920cfa54b3f4c9468575edfc681b6c7ac5",
+          "generic_check_enum.rs": "edcc6a0c2f85597a77daa1dfca8b6ade2716fa20",
+          "generic_trait_bounds.rs": "74f847ba696a4ae0e8984e116221bbb2d3a69bce",
+          "generic_record_enum.rs": "4a25bc171c2993179358909eab97b7fe43d5cde6",
+          "generic_copy.rs": "cd45f3e0f1c93434bfbbca9251e5c190bad8ad84",
+          "generic_products.rs": "718dfa3c14685d0dfd8cc5a7c230a1c36f80492d",
+          "generic_budget.rs": "2397cac7599ad235eef73965e94f16a00c714384",
+          "generics.rs": "be76c5763319c918efd652683b91c7769d7e437a",
+          "modules.rs": "82cb0b780ae66846fe598666b35db103357965bd",
+          "lifetimes.rs": "81027f79aba8899019db609179d800d85e924c0f",
+          "generic_alias.rs": "6f0ddeadc052d7cd2fd3d1b0e3a42088d494571e",
+          "generic_enum.rs": "05319407b8b689fea5d99aae4b0690a18ea7f5e0",
+          "lib.rs": "0446be922eb2e44cf165c4e14f5c34c1275818dd"
+        },
+        "tests": {
+          "impl147_static_traits": {
+            "pass": 12,
+            "fail": 0
+          },
+          "impl162_trait_bounds": {
+            "pass": 38,
+            "fail": 0
+          },
+          "impl233_modules": {
+            "pass": 9,
+            "fail": 0
+          },
+          "expand_trait330_ledger": {
+            "pass": 2,
+            "fail": 0,
+            "filtered": 7
+          }
+        },
+        "retained_boundaries": {
+          "original_unused_implemented_called_borrow_cases": "12/12 Unsupported/Expand/E-UNSUPPORTED, verification_runs=0",
+          "reserved_self": "2 forms SafeReject/Expand/E-RECEIVER-RESERVED-NAME",
+          "independent_raw_wire": "Analyze retains actual Local root; independent raw/Wire Verify each E-BORROW-ESCAPE. No claim Analyze rejects this unannotated return.",
+          "original_independent_native": "3 source programs x two backends x O0/O2 =12 executions passed: actual Ref delegation and parameter shadow, same Self different ordered trait instances, declaration-module private helper. Other author-native executions are not counted as new independent programs."
+        },
+        "budgets": {
+          "default_request": {
+            "work": 10383,
+            "nodes": 1766,
+            "functions": 9,
+            "controls": "N success, N-1 ResourceLimit, cold/warm/fresh agree; source unchanged"
+          },
+          "single_specialization": {
+            "work": 1531,
+            "nodes": 461
+          },
+          "project_specialization": {
+            "work": 3158,
+            "nodes": 588
+          },
+          "ledger_result": "Exhausted source-derived remainder rejects downstream collector/publication; fresh default succeeds."
+        },
+        "clippy": "Selected three driver trait targets/Expand dependency command passed -D warnings; not a workspace/alltargets result. Root separately recorded A items_after_test_module failure.",
+        "fmt": "cargo fmt --all -- --check passed",
+        "independent_probes": [
+          {
+            "name": "record-default-native",
+            "source": "enum Payload<T:Copy>{Row{spare:i32,value:T}}trait Unpack<T:Copy>{fn unpack(self:&Self,payload:Payload<T>)->T{match payload{Payload.Row{value:n,spare:_}=>{return n}}}}struct P{}impl Unpack<i32> for P{}fn main()->i32{let p=P{};let payload=Payload.Row{value:41,spare:7};return p.unpack(payload)-41}",
+            "native": true,
+            "source_sha256": "6e157567f54f2f3a3518da395bf5aa6495d18be7d72a536900c8eae182a95b97",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/record-default-native.zil",
+                  "--backend",
+                  "clang",
+                  "--opt",
+                  "O0",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/record-default-native-clang-O0",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/record-default-native-clang-O0/program",
+                  "--json"
+                ],
+                "compiler_exit": 0,
+                "status": "Success",
+                "phase": "link",
+                "verification_runs": 1,
+                "diagnostics": [],
+                "native_exit": 0,
+                "stdout": "",
+                "stderr": "",
+                "backend": "clang",
+                "opt": "O0",
+                "fallback": null
+              },
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/record-default-native.zil",
+                  "--backend",
+                  "clang",
+                  "--opt",
+                  "O2",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/record-default-native-clang-O2",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/record-default-native-clang-O2/program",
+                  "--json"
+                ],
+                "compiler_exit": 0,
+                "status": "Success",
+                "phase": "link",
+                "verification_runs": 1,
+                "diagnostics": [],
+                "native_exit": 0,
+                "stdout": "",
+                "stderr": "",
+                "backend": "clang",
+                "opt": "O2",
+                "fallback": null
+              },
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/record-default-native.zil",
+                  "--backend",
+                  "llvm-api",
+                  "--opt",
+                  "O0",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/record-default-native-llvm-api-O0",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/record-default-native-llvm-api-O0/program",
+                  "--json"
+                ],
+                "compiler_exit": 0,
+                "status": "Success",
+                "phase": "link",
+                "verification_runs": 1,
+                "diagnostics": [],
+                "native_exit": 0,
+                "stdout": "",
+                "stderr": "",
+                "backend": "llvm-api",
+                "opt": "O0",
+                "fallback": null
+              },
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/record-default-native.zil",
+                  "--backend",
+                  "llvm-api",
+                  "--opt",
+                  "O2",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/record-default-native-llvm-api-O2",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/record-default-native-llvm-api-O2/program",
+                  "--json"
+                ],
+                "compiler_exit": 0,
+                "status": "Success",
+                "phase": "link",
+                "verification_runs": 1,
+                "diagnostics": [],
+                "native_exit": 0,
+                "stdout": "",
+                "stderr": "",
+                "backend": "llvm-api",
+                "opt": "O2",
+                "fallback": null
+              }
+            ]
+          },
+          {
+            "name": "unused-copy-obligation",
+            "source": "enum Payload<T:Copy>{Row{spare:i32,value:T}}trait Bad<T>{fn ignore(self:&Self,value:T)->i32{let wrapped=Payload.Row{spare:0,value};return 0}}fn main(){}",
+            "status": "SafeReject",
+            "phase": "expand",
+            "code": "E-GENERIC-ARGUMENT",
+            "source_sha256": "8af8f0ca9a22a950f28ccab0cbf42096226d67b42eb07ba80bfbe0989861cbca",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "check",
+                  "/tmp/zil-review330-common-8941/unused-copy-obligation.zil",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-GENERIC-ARGUMENT",
+                    "message": "symbolic type does not satisfy its Copy bound",
+                    "span": {
+                      "file": 0,
+                      "start": 84,
+                      "end": 85
+                    },
+                    "notes": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "overridden-copy-obligation",
+            "source": "enum Payload<T:Copy>{Row{spare:i32,value:T}}trait Bad<T>{fn ignore(self:&Self,value:T)->i32{let wrapped=Payload.Row{spare:0,value};return 0}}struct P{}impl Bad<i32> for P{fn ignore(value:i32)->i32{return 0}}fn main(){}",
+            "status": "SafeReject",
+            "phase": "expand",
+            "code": "E-GENERIC-ARGUMENT",
+            "source_sha256": "536da155124df4bac65e651d3e7072d82c22676252d825a1d70d651fc578c933",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "check",
+                  "/tmp/zil-review330-common-8941/overridden-copy-obligation.zil",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-GENERIC-ARGUMENT",
+                    "message": "symbolic type does not satisfy its Copy bound",
+                    "span": {
+                      "file": 0,
+                      "start": 84,
+                      "end": 85
+                    },
+                    "notes": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "ascribed-copy-obligation",
+            "source": "enum Payload<T:Copy>{Row{spare:i32,value:T}}trait Bad<T>{fn ignore(self:&Self,value:T)->i32{let wrapped:Payload<T>=Payload.Row{value,spare:0};return 0}}fn main(){}",
+            "status": "SafeReject",
+            "phase": "expand",
+            "code": "E-GENERIC-ARGUMENT",
+            "source_sha256": "66c421757ff5b4adb2df21eda11f9ca1ca0b74fc88e3f7218220bf9d590f441a",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "check",
+                  "/tmp/zil-review330-common-8941/ascribed-copy-obligation.zil",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-GENERIC-ARGUMENT",
+                    "message": "symbolic type does not satisfy its Copy bound",
+                    "span": {
+                      "file": 0,
+                      "start": 112,
+                      "end": 113
+                    },
+                    "notes": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "self-cannot-gain-copy",
+            "source": "enum Payload<T:Copy>{Row{spare:i32,value:T}}trait Bad{fn ignore(self:Self)->i32{let wrapped=Payload.Row{spare:0,value:self};return 0}}fn main(){}",
+            "status": "SafeReject",
+            "phase": "expand",
+            "code": "E-GENERIC-ARGUMENT",
+            "source_sha256": "79735e53115e3d11e388e5a53f48cdb1007b3e3ae0bb42cd774126d612313960",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "check",
+                  "/tmp/zil-review330-common-8941/self-cannot-gain-copy.zil",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-GENERIC-ARGUMENT",
+                    "message": "symbolic type does not satisfy its Copy bound",
+                    "span": {
+                      "file": 0,
+                      "start": 69,
+                      "end": 73
+                    },
+                    "notes": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "record-pattern-self-shadow",
+            "source": "enum E{Row{value:i32}}trait Bad{fn ignore(self:&Self)->i32{let payload=E.Row{value:7};match payload{E.Row{value:self}=>{return self}}}}fn main(){}",
+            "status": "SafeReject",
+            "phase": "expand",
+            "code": "E-RECEIVER-RESERVED-NAME",
+            "source_sha256": "54f83aca153a71dc6c9cf63ce98b67fec4514dca739bf3fa2fe71e1493a8b68b",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "check",
+                  "/tmp/zil-review330-common-8941/record-pattern-self-shadow.zil",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-RECEIVER-RESERVED-NAME",
+                    "message": "self is reserved for the default method receiver and cannot be rebound",
+                    "span": {
+                      "file": 0,
+                      "start": 17,
+                      "end": 20
+                    },
+                    "notes": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "unused-variant-attribute",
+            "source": "enum E<T>{#[cfg(false)]Row{value:T}}trait Fine{fn f(self:&Self)->i32{return 7}}fn main(){}",
+            "status": "Unsupported",
+            "phase": "expand",
+            "code": "E-UNSUPPORTED",
+            "source_sha256": "74711ebeb5748d9ac58d0fab78d66f2012318f5131bc64bdc970365a865322e4",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "check",
+                  "/tmp/zil-review330-common-8941/unused-variant-attribute.zil",
+                  "--json"
+                ],
+                "compiler_exit": 3,
+                "status": "Unsupported",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "Unsupported",
+                    "code": "E-UNSUPPORTED",
+                    "message": "unexecuted generic enum variant attribute",
+                    "span": {
+                      "file": 0,
+                      "start": 10,
+                      "end": 35
+                    },
+                    "notes": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "record-pattern-local-return",
+            "source": "enum Payload<T:Copy>{Row{spare:i32,value:T}}trait Bad{fn bad(self:&Self)->&i32{let p=Payload.Row{value:7,spare:0};match p{Payload.Row{value:n,spare:_}=>{return &n}}}}fn main(){}",
+            "status": "Unsupported",
+            "phase": "expand",
+            "code": "E-UNSUPPORTED",
+            "source_sha256": "292d17271fa50a037121dd94fe444cc2382b6b56aaacf3b66e730fbc33a1dc2b",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "check",
+                  "/tmp/zil-review330-common-8941/record-pattern-local-return.zil",
+                  "--json"
+                ],
+                "compiler_exit": 3,
+                "status": "Unsupported",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "Unsupported",
+                    "code": "E-UNSUPPORTED",
+                    "message": "new borrows in default bodies require symbolic source-flow checking",
+                    "span": {
+                      "file": 0,
+                      "start": 160,
+                      "end": 162
+                    },
+                    "notes": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "default-global-function-value-known-gap",
+            "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];fn worker(value:Big)->i32{return i32(value[0][0][0][0][0][0][0][0][0][0][0][0][0])}trait Factory{fn pointer(self:&Self)->fn(Big)->i32{return worker}}struct P{}impl Factory for P{}fn main()->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];let p=P{};let pointer=p.pointer();return pointer(a12)-3}",
+            "native": false,
+            "source_sha256": "55f2922ad4b7381176a3127ab2806845a495a91b2d76942fa30ad0d03e2ef45f",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native.zil",
+                  "--backend",
+                  "clang",
+                  "--opt",
+                  "O0",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native-clang-O0",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native-clang-O0/program",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-GENERIC-ARGUMENT",
+                    "message": "unknown value $module0_worker in generic body",
+                    "span": {
+                      "file": 0,
+                      "start": 205,
+                      "end": 211
+                    },
+                    "notes": []
+                  }
+                ]
+              },
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native.zil",
+                  "--backend",
+                  "clang",
+                  "--opt",
+                  "O2",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native-clang-O2",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native-clang-O2/program",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-GENERIC-ARGUMENT",
+                    "message": "unknown value $module0_worker in generic body",
+                    "span": {
+                      "file": 0,
+                      "start": 205,
+                      "end": 211
+                    },
+                    "notes": []
+                  }
+                ]
+              },
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native.zil",
+                  "--backend",
+                  "llvm-api",
+                  "--opt",
+                  "O0",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native-llvm-api-O0",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native-llvm-api-O0/program",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-GENERIC-ARGUMENT",
+                    "message": "unknown value $module0_worker in generic body",
+                    "span": {
+                      "file": 0,
+                      "start": 205,
+                      "end": 211
+                    },
+                    "notes": []
+                  }
+                ]
+              },
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native.zil",
+                  "--backend",
+                  "llvm-api",
+                  "--opt",
+                  "O2",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native-llvm-api-O2",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/default-code-pointer-consumer-native-llvm-api-O2/program",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-GENERIC-ARGUMENT",
+                    "message": "unknown value $module0_worker in generic body",
+                    "span": {
+                      "file": 0,
+                      "start": 205,
+                      "end": 211
+                    },
+                    "notes": []
+                  }
+                ]
+              }
+            ],
+            "classification": "ExistingUnimplementedExpression",
+            "legal_but_not_implemented": true,
+            "desired_terminal": "Success",
+            "review_disposition": "KnownIncomplete, not a permanent rejection or completed expression support"
+          },
+          {
+            "name": "default-input-code-pointer-forwarding-native",
+            "source": "type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];fn worker(value:Big)->i32{return i32(value[0][0][0][0][0][0][0][0][0][0][0][0][0])}trait Factory{fn pointer(self:&Self,function:fn(Big)->i32)->fn(Big)->i32{return function}}struct P{}impl Factory for P{}fn main()->i32{let a0=[3u8];let a1=[a0,a0];let a2=[a1,a1];let a3=[a2,a2];let a4=[a3,a3];let a5=[a4,a4];let a6=[a5,a5];let a7=[a6,a6];let a8=[a7,a7];let a9=[a8,a8];let a10=[a9,a9];let a11=[a10,a10];let a12=[a11,a11];let p=P{};let pointer=p.pointer(worker);return pointer(a12)-3}",
+            "source_sha256": "2c484e9725b0f2eadc6a8d522cfcc53891a8b5b00c1e78a374a6f91a3e768ae2",
+            "native": true,
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native.zil",
+                  "--backend",
+                  "clang",
+                  "--opt",
+                  "O0",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native-clang-O0",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native-clang-O0/program",
+                  "--json"
+                ],
+                "compiler_exit": 0,
+                "status": "Success",
+                "phase": "link",
+                "verification_runs": 1,
+                "diagnostics": [],
+                "native_exit": 0,
+                "stdout": "",
+                "stderr": "",
+                "backend": "clang",
+                "opt": "O0",
+                "fallback": null
+              },
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native.zil",
+                  "--backend",
+                  "clang",
+                  "--opt",
+                  "O2",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native-clang-O2",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native-clang-O2/program",
+                  "--json"
+                ],
+                "compiler_exit": 0,
+                "status": "Success",
+                "phase": "link",
+                "verification_runs": 1,
+                "diagnostics": [],
+                "native_exit": 0,
+                "stdout": "",
+                "stderr": "",
+                "backend": "clang",
+                "opt": "O2",
+                "fallback": null
+              },
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native.zil",
+                  "--backend",
+                  "llvm-api",
+                  "--opt",
+                  "O0",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native-llvm-api-O0",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native-llvm-api-O0/program",
+                  "--json"
+                ],
+                "compiler_exit": 0,
+                "status": "Success",
+                "phase": "link",
+                "verification_runs": 1,
+                "diagnostics": [],
+                "native_exit": 0,
+                "stdout": "",
+                "stderr": "",
+                "backend": "llvm-api",
+                "opt": "O0",
+                "fallback": null
+              },
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "build",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native.zil",
+                  "--backend",
+                  "llvm-api",
+                  "--opt",
+                  "O2",
+                  "--compile-timeout-ms",
+                  "30000",
+                  "--emit-dir",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native-llvm-api-O2",
+                  "-o",
+                  "/tmp/zil-review330-common-8941/default-input-code-pointer-forwarding-native-llvm-api-O2/program",
+                  "--json"
+                ],
+                "compiler_exit": 0,
+                "status": "Success",
+                "phase": "link",
+                "verification_runs": 1,
+                "diagnostics": [],
+                "native_exit": 0,
+                "stdout": "",
+                "stderr": "",
+                "backend": "llvm-api",
+                "opt": "O2",
+                "fallback": null
+              }
+            ]
+          }
+        ],
+        "probe_summary": {
+          "new_native_sources": 2,
+          "new_native_executions": 8,
+          "required_negative_sources": 7,
+          "known_incomplete_legal_sources": 1,
+          "known_incomplete_compiler_requests": 4,
+          "known_incomplete_native_executions": 0
+        },
+        "commands": [
+          "source /workspace/.zil-env/env.sh; export CARGO_TARGET_DIR=/workspace/.zil-env/target333 CARGO_BUILD_JOBS=1",
+          "cargo test -p zil-driver --test impl147_static_traits --test impl162_trait_bounds --test impl233_modules --features llvm-api --offline -- --nocapture",
+          "cargo test -p zil-expand --lib trait330 --offline -- --nocapture",
+          "cargo build -p zil-cli --features llvm-api --offline",
+          "cargo clippy -p zil-expand -p zil-driver --test impl147_static_traits --test impl162_trait_bounds --test impl233_modules --features zil-driver/llvm-api --offline -- -D warnings",
+          "cargo fmt --all -- --check"
+        ],
+        "compiler": {
+          "sha256": "fccbd98391dcbd869a8ec57e4566b5255d79417cd5dc0395fc71fdaa1a543b5e",
+          "build_source_commit": "8941f1cda65aadd6e93d857b6961079d53a6d344",
+          "version": "zil 0.1.0 (ZIL-LANG-1.4; Rust 2024; compiler draft; default backend: llvm-api)",
+          "llvm_clang": "23.1.4",
+          "git_embedding_claim": false
+        },
+        "limits": {
+          "source_cli_cpu_seconds": 30,
+          "source_cli_vm_mib": 2048,
+          "source_cli_wall_seconds": 40,
+          "native_wall_seconds": 5,
+          "core_dump_limit": 0,
+          "build_jobs": 1
+        },
+        "source_replay": "After building this exact candidate and loading env.sh, write each independent_probes[].source verbatim to the .zil path in runs[].command, verify source_sha256, create each --emit-dir, and execute the recorded argv. Success build profiles must use the recorded backend/opt, fallback=null and requested pipeline; then execute the -o program. KnownIncomplete failed builds are observations, not expected permanent semantics. No temporary runner is needed to recover the complete inputs."
+      },
+      "static_scope_notes": [
+        "Default definition checks still precede impl selection; Self gets only the declared current-trait nominal bound, not Copy, concrete fields or unrelated implementations.",
+        "Method generics/where/contracts and trait lifetime/const binders stay Unsupported. Generated Self has empty Type bounds, so the new 331 copy_life lane cannot activate for default helpers.",
+        "Reference-result default gate remains direct actual reference input or current-trait method delegation with real Ref inputs. Local aliases, byvalue Self, new borrows and unknown sources are not proof.",
+        "329 record constructor checks actual expressions and declared labels then actual bounds; layout-only conditional Copy assumptions are not published as default-method bounds.",
+        "Paid trait_defaults::present scan is retained in modules normalization and ORed with enum profiles; Products.metered and remaining min/adopt preserve downstream request accounting.",
+        "Default-method forwarding of an actual fnptr input is a 330 consumer integration check. This review grants no verdict for author-owned 333 backend/ABI production."
+      ],
+      "not_run": [
+        "formal workspace suite",
+        "runtime/RSS or compile-speed comparison with Rust",
+        "full borrowing/life trait default support",
+        "independent review of 333 production"
+      ],
+      "known_incomplete": [
+        "Legal default body returning a global ordinary function value is still SafeReject unknown value in generic body; same relevant ExprKind::Name locals-only branch existed at d8. No native success or correct permanent rejection is claimed.",
+        "Full ordinary default expression coverage, generic methods, supertraits, associated items and general symbolic borrowing remain unfinished."
+      ],
+      "rust_goals": {
+        "safety": "Real unused-definition and independent raw/Wire loan boundaries retained in the tested subset; no full-language safety claim.",
+        "runtime_memory": "Static default dispatch has actual native consumers; no same-work Rust runtime/RSS measurement or superiority claim.",
+        "expression_maintenance": "Record enum construction/pattern and actual fnptr-input forwarding compose with defaults; global fnvalue expression remains incomplete.",
+        "compile_cost": "Exact shared source-derived ledger and N/N-1/cold-warm-fresh controls observed; no Rust compile-speed comparison.",
+        "breakthrough": "Limited composition revalidated after shared checker integration, not a new feature implementation or product-level net breakthrough.",
+        "product_gate": "validation/product-gates.json unchanged; B0/full language/ZUI and four-goal conjunction are not promoted."
+      },
+      "blocking_findings": []
+    }
+  }
+}
