@@ -8,6 +8,7 @@ mod foreign;
 mod generated_spans;
 mod generics;
 mod lifetimes;
+mod record_enums;
 pub use generated_spans::remap_generated_spans;
 mod mapping;
 mod modules;
@@ -185,9 +186,9 @@ pub fn expand_with_map_limits(
         false,
         &lower_limits,
         &products.trait_signatures,
-        products.trait_instances,
+        products.metered(),
     )?;
-    if products.trait_instances {
+    if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
@@ -223,9 +224,9 @@ pub fn expand_program_module_with_limits(
         true,
         &lower_limits,
         &products.trait_signatures,
-        products.trait_instances,
+        products.metered(),
     )?;
-    if products.trait_instances {
+    if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
@@ -409,7 +410,7 @@ pub fn expand_program_with_limits(
                 &project_modules,
                 source_imports,
                 &products.trait_signatures,
-                products.trait_instances,
+                products.metered(),
             ),
             (&remaining, &remaining),
             Some(&defaults),
@@ -505,7 +506,7 @@ pub fn expand_program_with_limits(
         .iter_mut()
         .map(|(module, map)| (&mut module.core, map))
         .collect::<Vec<_>>();
-    if products.trait_instances {
+    if products.metered() {
         products.allowance = Some(remaining);
     }
     products.publish(&mut product_cores, sources, limits)?;
@@ -632,6 +633,7 @@ fn expand_inner_project(
             e.traits.entry(t.name.clone()).or_insert(t);
         }
     }
+    e.enum_sources = project_modules;
     e.collect_resource_drops(module);
     e.collect_static_traits(
         module,
@@ -706,6 +708,8 @@ struct Expander<'a> {
     functions: Vec<CoreFunction>,
     aggregates: Vec<CoreAggregate>,
     enums: Vec<CoreEnum>,
+    enum_sources: &'a [&'a s::Module],
+    named_match: bool,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
@@ -752,6 +756,8 @@ impl<'a> Expander<'a> {
             functions: Vec::new(),
             aggregates: Vec::new(),
             enums: Vec::new(),
+            enum_sources: &[],
+            named_match: false,
             declarations,
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),
@@ -1400,6 +1406,11 @@ impl Expander<'_> {
                 }
             }
             s::ExprKind::Record { ty, base, fields } => {
+                if let Some(value) =
+                    self.record_enum(e.span, ty.as_deref(), base.as_deref(), fields)
+                {
+                    return value;
+                }
                 return self.record(e.span, ty.as_deref(), base.as_deref(), fields, expected);
             }
             s::ExprKind::Closure {

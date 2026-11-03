@@ -36,6 +36,13 @@ impl Selection<'_, '_> {
             s::PatternKind::Reference { pattern, .. } => {
                 self.pattern(locals, pattern, domain, depth + 1)?
             }
+            s::PatternKind::RecordConstructor { fields, .. } => {
+                for field in fields {
+                    self.compiler.budget.node(field.span)?;
+                    self.compiler.budget.text(&field.name, field.span)?;
+                    self.pattern(locals, &field.pattern, domain, depth + 1)?;
+                }
+            }
             s::PatternKind::Tuple(fields)
             | s::PatternKind::Constructor {
                 arguments: fields, ..

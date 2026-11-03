@@ -649,6 +649,39 @@ impl<'a> Index<'a> {
                             }
                         }
                     }
+                    if let Some(Item {
+                        kind: ItemKind::Enum(declaration),
+                        ..
+                    }) = self.nominals.get(&path.join("."))
+                        && declaration.generics.iter().any(|parameter| {
+                            matches!(&parameter.kind,
+                            GenericParamKind::Type(bounds) if bounds.iter().any(copy::is_bound))
+                        })
+                    {
+                        if declaration.generics.len() != args.len() {
+                            return Err(error(ty.span, "Copy enum type argument arity mismatch"));
+                        }
+                        for (parameter, argument) in declaration.generics.iter().zip(args) {
+                            budget.node(parameter.span, 0)?;
+                            if let GenericParamKind::Type(bounds) = &parameter.kind
+                                && bounds.iter().any(copy::is_bound)
+                            {
+                                let GenericArg::Type(actual) = argument else {
+                                    return Err(unsupported(
+                                        ty.span,
+                                        "Copy enum requires type arguments",
+                                    ));
+                                };
+                                copy::require(
+                                    actual,
+                                    &self.nominals,
+                                    available,
+                                    variables,
+                                    budget,
+                                )?;
+                            }
+                        }
+                    }
                     for argument in args {
                         if let GenericArg::Type(ty) = argument {
                             pending.push(ty);

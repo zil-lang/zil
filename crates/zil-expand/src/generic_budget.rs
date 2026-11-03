@@ -481,6 +481,16 @@ impl<'a> Budget<'a> {
                     self.pattern(p, depth + 1)?;
                 }
             }
+            PatternKind::RecordConstructor { path, fields } => {
+                for name in path {
+                    self.text(name, p.span)?;
+                }
+                for field in fields {
+                    self.node(field.span, depth + 1)?;
+                    self.text(&field.name, field.span)?;
+                    self.pattern(&field.pattern, depth + 1)?;
+                }
+            }
             PatternKind::Reference { pattern, .. } => self.pattern(pattern, depth + 1)?,
             PatternKind::Literal(l) => self.literal(l, p.span)?,
             PatternKind::Wildcard => {}

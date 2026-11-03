@@ -315,6 +315,13 @@ impl Dependencies<'_, '_, '_> {
         match &pattern.kind {
             s::PatternKind::Name(name) => self.bind_name(name, pattern.span)?,
             s::PatternKind::Reference { pattern, .. } => self.bind(pattern, depth + 1)?,
+            s::PatternKind::RecordConstructor { fields, .. } => {
+                for field in fields {
+                    self.budget.node(field.span, depth + 1)?;
+                    self.budget.text(&field.name, field.span)?;
+                    self.bind(&field.pattern, depth + 1)?;
+                }
+            }
             s::PatternKind::Tuple(ps) | s::PatternKind::Constructor { arguments: ps, .. } => {
                 for p in ps {
                     self.bind(p, depth + 1)?;
