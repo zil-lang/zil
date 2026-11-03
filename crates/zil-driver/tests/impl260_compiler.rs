@@ -1160,3 +1160,36 @@ fn multiple_generic_queries_share_request_budget_on_cold_and_warm_sessions() {
     );
     println!("314 two-query full request N={low}; cold/warm/fresh N success, N-1 ResourceLimit");
 }
+
+#[test]
+fn review319_lexical_alias_and_phantom_result_types_reach_real_consumers() {
+    use zil_driver::{compile_source, CompileOptions, Stage};
+    for (name, text) in [
+        ("alias", "struct T{value:i32}type Alias=T;fn select<T:Copy>(value:T)->Type{return Alias}fn main()->i32{let value:#(select(7))=T{value:7};return value.value-7}"),
+        ("phantom", "struct Config<T:Copy,P:Copy>{value:T}fn actual<T:Copy>(value:T)->Type{return T}fn chosen()->Type{let left=actual(Config::<i32,bool>{value:7});let right=actual(Config::<i32,i32>{value:7});if left==right{return i64}return i32}fn needs_i32(value:i32)->i32{return value}fn main()->i32{let value:#(chosen())=7;return needs_i32(value)-7}"),
+    ] {
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), format!("review319-{name}.zil"), text),
+            &CompileOptions { stop_after: Stage::Verify, ..CompileOptions::default() },
+        );
+        assert_eq!(report.status, zil_base::ResultCategory::Success, "{name}: {}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+fn review319_generic_binders_shadow_ct_domain_names() {
+    use zil_driver::{compile_source, CompileOptions, Stage};
+    let mut failures = Vec::new();
+    for name in ["Type", "Text", "Ident", "Syntax"] {
+        let text = format!("fn identity<{name}:Copy>(value:{name})->{name}{{return value}}fn main()->i32{{return identity(7)-7}}");
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), format!("review319-{name}.zil"), text),
+            &CompileOptions { stop_after: Stage::Verify, ..CompileOptions::default() },
+        );
+        if report.status != zil_base::ResultCategory::Success || report.verification_runs != 1 {
+            failures.push(format!("{name}: {}", report.to_json()));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
