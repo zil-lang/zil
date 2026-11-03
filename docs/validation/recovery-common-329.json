@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/recovery_audit",
+  "review_kind": "Non-author limited common-candidate revalidation of315 and321 only",
+  "common_candidate": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+  "checkout": "2b0db2842fe071b2b5f54039c2e546e52e1650cf",
+  "candidate_equality": "git diff common_candidate HEAD -- crates tests spec _zil_design.md is empty; local merge only carries prior review documentation ancestry.",
+  "environment": {
+    "tree": "/workspace/zil-327",
+    "target": "/workspace/target327",
+    "jobs": 1,
+    "features": [
+      "llvm-api"
+    ]
+  },
+  "reviews": {
+    "315": {
+      "implementation_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+      "reviewer": "/root/recovery_audit",
+      "verdict": "PassLimited",
+      "scope": "Revalidation of the original315 finite complete local/incoming Product synchronous exclusive helper windows, provenance/completeness, exact Copy-tail writes, cleanup and independent Verify conflicts; excludes new thread/life capabilities.",
+      "historical_implementation_commit": "c479b1d1ef0f03f0f6c8b96433d9c5f633a25d3b",
+      "scope_diff": {
+        "comparison_base": "a57a668b68044e37e870d058684f9364307e04b1",
+        "unchanged": [
+          "crates/zil-types/src/addresses.rs",
+          "crates/zil-types/src/aggregates.rs"
+        ],
+        "reviewed_contacts": [
+          "crates/zil-types/src/program.rs",
+          "crates/zil-types/src/incremental.rs",
+          "crates/zil-analyze/src/resources.rs",
+          "crates/zil-analyze/src/holds.rs",
+          "crates/zil-analyze/src/helper_flow.rs",
+          "crates/zil-verify/src/lib.rs",
+          "crates/zil-verify/src/resources.rs",
+          "crates/zil-verify/src/borrows.rs",
+          "crates/zil-verify/src/borrows/captures.rs",
+          "crates/zil-verify/src/borrows/loans.rs"
+        ],
+        "finding": "315 address/aggregate qualification files are byte-identical. Shared resource/loan walks add actual parent-thread body consumption and life upper-bound validation; ordinary Product completeness and incoming mutable authority guards remain. No new315 capability is inferred from an enum profile or primitive-binder flag."
+      },
+      "execution": {
+        "evidence": [
+          "315-source",
+          "315-raw",
+          "315-223",
+          "315-transports"
+        ],
+        "passed": 12,
+        "failed": 0,
+        "native": "Original helper plus refill, recursive Product, reborrow, independent roots and normal/error cleanup: seven original programs at LLVM API O0/O2, fourteen observations; helper asserts actual backend and no fallback.",
+        "raw_wire": "Original reviewer missing-child, same-root rewire and coherent Hold forgeries plus author permission/completeness/live-window attacks still reject independently. Analyze candidates are unverified; actual strong-loan conflicts are decided by Verify.",
+        "historical_223": "Three original coherent incoming &mut controls pass both raw and Wire; their shared-write/owned-child nearest attacks and missing-child source controls remain checked. Frozen27/29/30/32 bytes remain unchanged and now explicitly reject decode and Verify with E-WIRE-VERSION under schema34.",
+        "phase_budgets": {
+          "Types": 364,
+          "Analyze": 5022,
+          "Verify": 10661,
+          "boundary": "N success, N-1 ResourceLimit, fresh N success"
+        }
+      }
+    },
+    "321": {
+      "implementation_commit": "14832d5a35630b7002c79e4df47b0cbb007570b6",
+      "reviewer": "/root/recovery_audit",
+      "verdict": "PassLimited",
+      "scope": "Original321 definition-time ordinary Copy tuple let/var: complete Copy proof, exact recursive tuple arity, duplicate names, scope, one RHS evaluation, and original generic gap success; no numeric/field permission inferred from Copy.",
+      "historical_implementation_commit": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
+      "scope_diff": {
+        "comparison_base": "a57a668b68044e37e870d058684f9364307e04b1",
+        "tuple_binding_pattern_byte_identical_sha256": "398f1cf95129dfbd7580c98a5da174baa41d542150f6ec28245bf556fdd5ca91",
+        "tuple_binding_statement_lane_byte_identical_sha256": "d76a00c1445a85d2c1682932e75090b2e33ede9fc256bc2c8f219640ed3b73a9",
+        "reviewed_contacts": [
+          "crates/zil-expand/src/generic_check.rs",
+          "crates/zil-expand/src/generic_copy.rs",
+          "crates/zil-expand/src/generic_budget.rs",
+          "crates/zil-expand/src/generic_products.rs",
+          "crates/zil-expand/src/generics.rs",
+          "crates/zil-expand/src/generic_alias.rs",
+          "crates/zil-expand/src/modules.rs",
+          "crates/zil-expand/src/lifetimes.rs"
+        ],
+        "finding": "The original recursive tuple binder and its complete-RHS-before-publish statement lane are byte-identical. Shared331 checks distinguish Type binders from life binders, and life-origin state is opt-in for the declared shared-return lane. Generic Copy recursion still checks all discarded tuple elements; explicit enum obligations are checked before specialization. Paid header/alias/engine remaining balances are retained through the shared entry and project contacts. This review does not independently approve329 code authored by this reviewer."
+      },
+      "execution": {
+        "evidence": [
+          "321",
+          "321-independent"
+        ],
+        "passed": 5,
+        "failed": 0,
+        "native": "Four existing author source programs at Clang O0/O2 (eight observations), plus the unchanged independent original expected-success gap fixture at default Clang O0 and emitted LLVM recompiled by Clang O2 (two observations), exact result42. No LLVM API claim for these default-backend helpers.",
+        "nearest_controls": "Existing unused legal definitions, eighteen bad/unsupported neighbors, refutable/reference patterns, and independent mixed Pair<T:Copy,U:Copy> obligation controls pass their original assertions.",
+        "expand_budget": {
+          "historical_N": 357,
+          "candidate_N": 439,
+          "boundary": "Dynamic non-max source threshold; N success, N-1 nonempty Expand ResourceLimit, fresh N success.",
+          "migration": "The original source and expectations are unchanged; current shared paid life/header pipeline has actual additional work. Historical357 is retained as prior evidence and is not reused as the B threshold."
+        }
+      }
+    }
+  },
+  "evidence": [
+    {
+      "id": "315-source",
+      "log": "/tmp/zil-common-B-315-source.log",
+      "sha256": "4e387df70d6f8d7b21f7be9afadc0a24d45f9ae6a4d568b9ce77cf4ffb5e9269",
+      "passed": 7,
+      "failed": 0,
+      "summary": [
+        "315 phase budgets: types=364 analyze=5022 verify=10661; N/N-1/fresh verified",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.71s"
+      ]
+    },
+    {
+      "id": "315-raw",
+      "log": "/tmp/zil-common-B-315-raw.log",
+      "sha256": "9654f80634bfa9886223bb85edc083a5fd1a48bad33979b0f2f2d65dc9ab557c",
+      "passed": 1,
+      "failed": 0,
+      "summary": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.03s"
+      ]
+    },
+    {
+      "id": "321",
+      "log": "/tmp/zil-common-B-321.log",
+      "sha256": "6cf3140bcd287529cd3363e3c39f3396450fe6ae4d1141d16e56bd068c4d6883",
+      "passed": 4,
+      "failed": 0,
+      "summary": [
+        "321 original Expand N=439; N-1 ResourceLimit; fresh N Success",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.53s"
+      ]
+    },
+    {
+      "id": "321-independent",
+      "log": "/tmp/zil-common-B-321-independent.log",
+      "sha256": "f5016bd1f024b5b571bb75286485bec5615be8aaed905a0cf0169c1843ac398e",
+      "passed": 1,
+      "failed": 0,
+      "summary": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 50 filtered out; finished in 0.10s"
+      ]
+    },
+    {
+      "id": "315-223",
+      "log": "/tmp/zil-common-B-315-223.log",
+      "sha256": "676c7b9cd01e8198f2c9d5bcd27fa2e8dca30dd7b84572099824aecfd8e9cc49",
+      "passed": 3,
+      "failed": 0,
+      "summary": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.04s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "id": "315-transports",
+      "log": "/tmp/zil-common-B-315-transports.log",
+      "sha256": "2ae9c7cfe8e85ed31f5dc9b65d8874f383e69ea53fd21527de66073f9bf0170e",
+      "passed": 1,
+      "failed": 0,
+      "summary": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.01s"
+      ]
+    }
+  ],
+  "commands": [
+    "cargo test -p zil-driver --features llvm-api --test impl238_product_replacement ordinary_local_product_mutable_helper -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test impl238_product_replacement review318_nested_missing_child_and_same_root_raw_attacks -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test review194_composition generic_tuple -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test aggregates review318_original_generic_gap_and_mixed_copy_record_obligations -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test impl223_product_store --test review223_boundaries --test review223_replay promoted_by_315 -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test review223_replay frozen_schema27_29_30_and32_wire_are_rejected_as_old_transports -- --nocapture"
+  ],
+  "command_prefix": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/target327 CARGO_BUILD_JOBS=1",
+  "preserved_history": [
+    "docs/validation/recovery-318-review.json remains unchanged, including initial315 failure, Analyze-candidate architecture correction, original generic tuple gap and223 historical oracle adjudication.",
+    "Original implementation/review/task metadata and the historical registry Fail are not rewritten by this review. Root performs final candidate binding.",
+    "Common A all-suite pass did not close the independent329 symbolic-identity blocker; B fixes and329 acceptance belong to independent reviewers."
+  ],
+  "limits": [
+    "No329 self-review; reviewer authored329 and328.",
+    "No full suite, new Cargo target, production modification, remote CI or Rust/product-level verdict.",
+    "PassLimited covers only the named315/321 old contracts and nearest controls; it does not approve all331, new structured thread semantics, generic trait methods or full language."
+  ]
+}
