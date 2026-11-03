@@ -392,7 +392,7 @@ impl Check<'_, '_, '_> {
             unit(span)
         };
         if let Some(expected) = expected {
-            same_return(&actual, &expected, span, Some(&self.variables), self.budget)?;
+            same_return(&actual, &expected, span, self.budget)?;
         } else {
             self.budget.ty(&actual)?;
             self.result = actual.clone();
