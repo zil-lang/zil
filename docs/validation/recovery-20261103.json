@@ -91,5 +91,13 @@
     "bundle": "/workspace/backups/zil-20261103/stage0.bundle",
     "bundle_sha256": "deaf8a8f4e4a13c1935ca74256679f2adea795153e7a52d73ff507c8341c1e3d",
     "bundle_verify": "Pass"
+  },
+  "later_user_supplied_history": {
+    "source": "zil-restart.txt, historical context only; raw attachment and private environment identifiers not published",
+    "reported_fact": "Old execution agent reported 301–312 work was never pushed and no other backup was known",
+    "independent_finding": "Specified source remains absent from available Git objects, remote refs and snapshots",
+    "causation": "No conclusion that history cleanup caused the loss",
+    "audit_state": "Closed for available sources; reopen only for a new source attachment or platform export",
+    "current_integration": "docs/validation/recovery-integration-20261103.json"
   }
 }

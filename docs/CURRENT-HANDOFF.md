@@ -1,8 +1,12 @@
-# 2026-11-03 恢复后新施工313–317
+# 2026-11-03 恢复后313–317、320–321本地有限验收
 
-本轮入口为 `/workspace/zil`，现有基线 `7f039d16`。用户指定的301–312及集成9c3deb92对象/未提交修改均未恢复，详见[恢复边界](RECOVERY-20261103.md)。旧提交号不得算源码；现存299成果不重做。313–317是基于实际源码缺口的新施工，主树工单与下方历史已验收记录分别保留。
+本轮权威主树 `/workspace/zil`、本地分支 `work`。真实恢复基线为 `7f039d16`；用户指定的301–312及集成9c3deb92、未提交源码均未恢复。补充旧对话说明记载当时未推送，不能归因于历史清理；可用来源审计已关闭，仅新源码附件或平台导出能提供新恢复入口。见[恢复边界](RECOVERY-20261103.md)。
 
-313接有限Copy tuple普通绑定；314接Type/Syntax与普通Copy泛型；315接普通完整Product局部同步可变借入；316核实life/trait及异步并发缺失合同与原源；317进行四模块真实组件消费者。使用sol high/xhigh、独立树和target、已有测试目标；非作者318审查，root集中集成和全量。阶段源码备份到远端 `task/language-recovery-20261103` 与 `task/313`–`task/317`，完整bundle在 `/workspace/backups/zil-20261103/`；任务分支的检查点不表示验收通过。
+313/321有限Copy tuple具体及泛型绑定、314/320 Type/Syntax普通Copy泛型与Struct Copy消费者、315普通完整Product同步可变helper已完成本地有限集成；316只核查life/trait/并发缺口，317以四模块实际组件组合核验。受测提交`a57a668b68044e37e870d058684f9364307e04b1`：默认4055/0、reference3947/0，零忽略/过滤；text64/0、migration9/0、fmt、Clippy、依赖和工具链检查通过。非作者318/319绑定各自精确实现；原失败、223期望迁移与317两后端12次实际机器结果见[本轮报告](LANGUAGE-RECOVERY-20261103.md)。
+
+远端候选备份为`task/language-recovery-20261103`，各任务及review分支同时保存；完整bundle与最终校验清单在`/workspace/backups/zil-20261103/`。远端main仍为恢复基线，未宣称远端CI通过，工单保留待验而非父任务Done。后续报告/交接修改不改变全量受测的生产及注册测试输入。
+
+当前大数组原规模在LLVM23.1.4的O0两后端仍崩溃，源和[精简复现](validation/recovery-large-array.json)已保存，生产修复尚未实现。life/Self/FP、一般trait、异步/线程/shared Mutex及完整基础模式仍待接续；完整1.4/ZUI和产品目标未完成。下一步只读[现行剩余清单](LANGUAGE-REMAINING.md)及[优先级](LANGUAGE-NEXT-PRIORITIES.md)，下方历史“下一步”不覆盖本节。旧handoff最终显式检查1976项错误：历史完整性债务及旧工具对main分支/evidence路径的要求仍不满足；check-plan规范hash债务保留Fail。现行规范注册摘要已核回实际字节，精简报告不迁回原始证据目录。
 
 ## 恢复时的已验收主线记录
 

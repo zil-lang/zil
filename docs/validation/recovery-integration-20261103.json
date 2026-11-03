@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "status": "LocalLimitedAcceptance",
+  "date": "2026-11-03",
+  "integrator": "/root",
+  "base_commit": "7f039d16dd65c3608dc3a909bc9628f3db9a975a",
+  "tested_commit": "a57a668b68044e37e870d058684f9364307e04b1",
+  "tested_tree": "6cdb206c74c04581822546ea6647b8b98fa92142",
+  "scope": "313/314/315/320/321 finite language increments, 316 capability inventory and 317 real synchronous component consumer; no complete-language or async acceptance",
+  "implementation_commits": {
+    "313": "2ef488be92647f4ec7c6f1a6195a6ba551f676b1",
+    "314": "d53b846af0e8075224697d4d600b8459362f0d6a",
+    "315": "c479b1d1ef0f03f0f6c8b96433d9c5f633a25d3b",
+    "316": "165d802f24334a9cb0c0e817cb9ba14ab12a05b0",
+    "317": "260839fd786af6cea1dafec0c42b78fc165c51b7",
+    "320": "4b42752fee6a4b900f027781a8906bdfec078842",
+    "321": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83"
+  },
+  "spec_hash": "47307962ce1c56ac73eae3eb3e587353001888d9e08afc319b10eec2a908fe00",
+  "normative_hash": "14d6e0fd01a700c04dc5e0537eb1faf252a6e3577bb8bbcef80363d79e1ecbda",
+  "toolchain": {
+    "rust": "1.99.1",
+    "llvm_clang": "23.1.4",
+    "environment": "source /workspace/.zil-env/env.sh; per-tree CARGO_TARGET_DIR; CARGO_BUILD_JOBS=2, dev/test debug=0, incremental=0",
+    "host": "x86_64-unknown-linux-gnu"
+  },
+  "gates": [
+    {
+      "gate": "workspace",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": "cargo test --locked --workspace --no-fail-fast",
+      "target_dir": "/workspace/.zil-env/target-recovery-root",
+      "groups": 422,
+      "passed": 4055,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "log_sha256": "6c30868e932e4577deff9c4d98313630da6caa1dcf763e7f4aa99829c7f90b44",
+      "local_log": "/tmp/zil-recovery-workspace-r2.log"
+    },
+    {
+      "gate": "reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": "cargo test --locked --workspace --no-default-features --no-fail-fast",
+      "target_dir": "/workspace/.zil-env/target-recovery-reference",
+      "groups": 422,
+      "passed": 3947,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "log_sha256": "0bba0176a80bc562755872b5693436c185adce477ef3dc9fdd1ea6b50cf01ac9",
+      "local_log": "/tmp/zil-recovery-reference-r2.log"
+    },
+    {
+      "gate": "text_reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": "cargo test --locked -p zil-llvm-api --features text-reference",
+      "target_dir": "/workspace/.zil-env/target-recovery-text",
+      "groups": 10,
+      "passed": 64,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered_out": 0,
+      "log_sha256": "b929b8f1a074ee677f3ecef937c2804059dbc61ce1f6577c21ffb04d37dcb484",
+      "local_log": "/tmp/zil-recovery-text-reference.log"
+    },
+    {
+      "gate": "fmt",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": "cargo fmt --all -- --check",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "local_log": "/tmp/zil-recovery-fmt-r2.log"
+    },
+    {
+      "gate": "clippy",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+      "log_sha256": "5169ee6210354949776b324ebab404ffe40ca3986eb2c4db64a9d9497c93d880",
+      "local_log": "/tmp/zil-recovery-clippy-r3.log"
+    },
+    {
+      "gate": "migration",
+      "status": "Pass",
+      "exit_code": 0,
+      "command": "python3 tools/llvm/test_validate_migration.py",
+      "log_sha256": "1393ebb7eebf7e2622afc9e4e459701f4bbc92ac47f6c4b5e6911c4e0137e7c1",
+      "local_log": "/tmp/zil-recovery-migration.log",
+      "passed": 9
+    }
+  ],
+  "additional_checks": {
+    "architecture": {
+      "status": "Pass",
+      "command": "node tools/check-architecture.mjs --metadata /tmp/zil-recovery-metadata.json",
+      "checked_crates": 15,
+      "checked_edges": 38
+    },
+    "llvm_toolchain": "Pass"
+  },
+  "gate_reuse": "Text reference and migration were completed before the final test-only oracle migration; their source, features, LLVM boundary and runner inputs are unchanged. Final default/reference, fmt and Clippy cover a57a668b6. Later review/report/task updates do not change tested production or registered test inputs.",
+  "reviews": [
+    {
+      "reviewer": "/root/recovery_audit",
+      "commit": "ab4eccd14cbbe77d650ac465fc270f5f745a583c",
+      "report": "docs/validation/recovery-318-review.json",
+      "scope": "313,315,317,320,321 and historical223 migration; PassLimited"
+    },
+    {
+      "reviewer": "/root/language_map",
+      "commit": "2c3da1661e6c6e2588b38bf30b8e0964d3a2b598",
+      "report": "docs/validation/recovery-319-review.json",
+      "scope": "314 independent CT source/identity/budget review; PassLimited"
+    }
+  ],
+  "native317": {
+    "cases": 3,
+    "actual_backends": [
+      "clang",
+      "llvm-api"
+    ],
+    "opt_levels": [
+      "O0",
+      "O2"
+    ],
+    "executions": 12,
+    "expected_outputs_and_exits": [
+      [
+        "REVSPBCAH",
+        0
+      ],
+      [
+        "REVFPBCAH",
+        1
+      ],
+      [
+        "RNBAH",
+        2
+      ]
+    ],
+    "fallback": false,
+    "correction": "First driver build lacked llvm-api and ran only six clang checks; the initial 12 claim was corrected. Later explicit llvm-api feature produced the recorded 12 actual backend runs; replay counts are not added."
+  },
+  "retained_failures": [
+    {
+      "attempt": "first workspace build",
+      "result": "Missing new Core TupleBinding variant in test-only exhaustive walker; fixed with real initializer effect coverage, no suppression",
+      "log_sha256": "5272b86c772628b833f808392e30d73352c299dc7cc7af6b6f90004f383527b2"
+    },
+    {
+      "attempt": "6907974e9 full run",
+      "workspace": {
+        "passed": 4051,
+        "failed": 3,
+        "log_sha256": "d634e2aa82855254a6509fd8038bca36c8769b75fee5cdf741103687fe4a6b76"
+      },
+      "reference": {
+        "passed": 3943,
+        "failed": 3,
+        "log_sha256": "2794d221c19343146006823661e8cf3a1ab25b5ad4b44d4f71f196cd2792549e"
+      },
+      "reason": "Three historical223 blanket mutable Product rejections conflicted with the now implemented315 finite complete Product/top-level Copy write contract",
+      "resolution": "Independent exact source/raw/Wire adjudication plus c479b1d1e oracle migration; original fixture bytes and version27/29/30 E-WIRE-VERSION expectations preserved; precise shared-write/owned-child/missing-child negatives retained or added"
+    },
+    {
+      "attempt": "first final Clippy",
+      "result": "collapsible_if in independent test; fixed without behavior change",
+      "log_sha256": "95b7b2139e6529990d3dc8fa5049b46b5f12e433a2cef33b3029bd2462be06ac"
+    }
+  ],
+  "retained_fixture_tree": "bcc405e24a104718ea36562d2b6ddfbd993c8ce5",
+  "known_incomplete": {
+    "large_array": "docs/validation/recovery-large-array.json: current O0 crashes, production fix pending",
+    "language": "Option/ref and further patterns, full u64/usize chain, life/Self/FP contracts, generic trait/projection, dyn, suspension/cancellation/threads/shared Mutex remain incomplete",
+    "readiness": "316 is 25 source observations, not implementation of missing contracts",
+    "historical_handoff": {
+      "status": "Fail",
+      "initial_errors": 1966,
+      "scope": "Historical object/evidence/hash integrity debt, not a passing gate",
+      "final_status": "Fail",
+      "final_errors": 1976,
+      "final_command": "node tools/handoff.mjs --main-tree /workspace/zil --check",
+      "final_exit_code": 1,
+      "final_log_sha256": "8556fce5b7dcccbc4cccad9e6132abc3514b76a5f13ef702cb6d3e37f6cf3f6b",
+      "current_metadata_limits": "Current normative registry refreshed to actual bytes. Legacy handoff still requires a branch named main and evidence/ paths; local candidate is work and 14 new references use compact docs/validation JSON. Those limitations are reported, not rewritten as Pass or addressed by restoring raw evidence archives."
+    },
+    "historical_check_plan": {
+      "status": "Fail",
+      "errors": 28,
+      "scope": "Existing formal-task specification hash debt; not rewritten as Pass"
+    },
+    "full_ci": "NotRun for this candidate; local gate results only",
+    "product": "B0 Doing; complete1.4/ZUI NotSatisfied; native Windows and Rust performance comparison NotRun"
+  },
+  "backup": {
+    "remote_candidate_ref": "refs/heads/task/language-recovery-20261103",
+    "remote_main": "7f039d16dd65c3608dc3a909bc9628f3db9a975a",
+    "main_updated": false,
+    "strategy": "Batch source/history checkpoints, separate task/review refs and verified bundles; no reset/clean/force push",
+    "final_receipt": "/workspace/backups/zil-20261103/final-manifest.json; records actual pushed SHA after this report is committed, avoiding a self-hash cycle"
+  },
+  "raw_logs_archived_in_git": false
+}
