@@ -197,6 +197,34 @@ fn copy_record_bound_runtime_nested_and_phantom_arguments() {
 }
 
 #[test]
+fn common320_record_enum_phantom_cannot_hide_a_missing_struct_copy_obligation() {
+    let prefix = "enum Ghost<T:Copy>{Empty{n:i32}}struct Box<T:Copy>{value:T}";
+    let bad = compile_source(
+        &source(&format!(
+            "{prefix}struct Outer<U>{{value:Box<Ghost<U>>}}fn result()->i32{{return 0}}"
+        )),
+        &CompileOptions::default(),
+    );
+    assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());
+    assert_eq!(bad.phase, Phase::Expand, "{}", bad.to_json());
+    assert_eq!(bad.diagnostics[0].code, "E-GENERIC-ARGUMENT");
+    assert_eq!(bad.verification_runs, 0);
+    let good = compile_source(
+        &source(&format!(
+            "{prefix}struct Outer<U:Copy>{{value:Box<Ghost<U>>}}fn result()->i32{{return 0}}"
+        )),
+        &CompileOptions::default(),
+    );
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+    native(
+        &format!(
+            "{prefix}fn wrap<U:Copy>(value:Ghost<U>)->Box<Ghost<U>>{{return Box::<Ghost<U>>{{value}}}}fn result()->i32{{let wrapped=wrap(Ghost::<bool>.Empty{{n:7}});match wrapped.value{{Ghost.Empty{{n:value}}=>{{return value}}}}}}"
+        ),
+        7,
+    );
+}
+
+#[test]
 fn copy_record_bound_original_ct_source_reaches_native() {
     use zil_driver::Optimization;
     for text in [
