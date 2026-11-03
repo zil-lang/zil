@@ -11,3 +11,5 @@
 333原a18-by-value已由作者实测O0机器崩溃，O2为资源受限未完成而非证实优化逻辑崩溃。root选择显式版本化大型ZIL生成ABI迁移：受影响生成函数符号加.lc1，默认External契约仍在，不以旧同名符号偷偷改变签名。旧大型机器消费者必须重新生成/链接当前符号；不承诺旧大型ZIL机器ABI兼容adapter。小值和foreign/C回调ABI不变。大参数copy-in与首隐藏out指针、函数引用/普通间接调用、CGU和缓存必须同一映射；尚未接通的特殊消费者在产物前Unsupported，不回巨型SSA桥接或fallback。此决策不增默认额度、不制造借用权限，主树独占公共表示和集成。
 
 330实施自查发现未用默认体创建局部地址/重绑self会绕过具体实例核，root冻结首片有限借用边界：新局部借用Unsupported；返回引用须为真实绑定的引用输入或有依据的required方法委托，显式/隐式借用byvalue self或局部对象不授予来源，不能只扫`&local`语法。复杂合法借用仍保留后续义务，不能称全部default已完成。329构造shorthand沿既有record grammar，pattern仍全部显式field:pattern；此澄清不新增ref权限。
+
+333非作者/root发现首个6b版本计划只检查物理大参数，遗漏factory()->fn(Big)、apply(fn(Big))和小Record(fnptr)的跨版本隔离，已按真实机器IR复现。版本依赖必须递归通过函数指针语义和承载类型/实际隐含入口，不能用新compiler内自洽native替代隔离；普通&Big数据指针旧ABI不因此改变。原失败/源和修复交独立复核，不改变foreign契约。
