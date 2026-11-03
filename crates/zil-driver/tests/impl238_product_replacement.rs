@@ -151,6 +151,127 @@ fn review318_nested_missing_child_and_same_root_raw_attacks() {
     }
 }
 #[test]
+fn review318_frozen223_product_parameter_has_real_exclusive_authority() {
+    let bytes = include_bytes!("review223_fixtures/schema32-mutable-product.wire");
+    let limits = Limits::default();
+    let (module, plan) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
+    let write = module.functions.iter().find(|f| f.name == "write").unwrap();
+    let zil_ir::Type::Address {
+        mutable: true,
+        inner,
+    } = &write.locals[write.parameters[0].0 as usize].ty
+    else {
+        panic!("exclusive incoming address");
+    };
+    let zil_ir::Type::Package { name, fields } = inner.as_ref() else {
+        panic!("ordinary Product");
+    };
+    assert!(name.ends_with(":Root"));
+    assert_eq!(fields.len(), 2);
+    assert_eq!(fields[1].1, zil_ir::Type::I32);
+    assert_eq!(
+        write
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .filter(|i| matches!(i.kind, I::AddressField { index: 1, .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        write
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .filter(|i| matches!(i.kind, I::WriteAddress { .. }))
+            .count(),
+        1
+    );
+    eprintln!(
+        "review318/frozen223: &mut Root, one top-level i32 projection/write; raw and Wire checked"
+    );
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    zil_verify::verify_module_bytes(bytes, &module.target, &limits).unwrap();
+    let mut shared = module.clone();
+    let f = shared
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "write")
+        .unwrap();
+    let parameter = f.parameters[0];
+    if let zil_ir::Type::Address { mutable, .. } = &mut f.locals[parameter.0 as usize].ty {
+        *mutable = false;
+    } else {
+        panic!("address parameter");
+    }
+    raw_reject315(
+        "review318-frozen223-shared-upgrade",
+        shared.clone(),
+        plan.clone(),
+        "E-VERIFY-TYPE",
+    );
+    let f = shared
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "write")
+        .unwrap();
+    for ty in &mut f.values {
+        if let zil_ir::Type::Address { mutable, .. } = ty {
+            *mutable = false;
+        }
+    }
+    raw_reject315(
+        "review318-frozen223-coherent-shared-write",
+        shared,
+        plan,
+        "E-VERIFY-ADDRESS",
+    );
+    let head = "resource R{n:i32}package Leaf{manages owner:R;tag:i32}package Root{child:Leaf;tag:i32}fn write(p:&mut Root){p.tag=7}";
+    native(
+        "review318-frozen223-source",
+        &format!(
+            "{head}fn main()->i32{{var root=Root{{child:Leaf{{owner:R{{n:1}},tag:2}},tag:3}};write(&mut root);return root.tag-7}}"
+        ),
+        "",
+        0,
+    );
+    for (body, code) in [
+        (
+            "let child=root.child;write(&mut root);return 0",
+            "E-ANALYZE-IR",
+        ),
+        (
+            "let held=&root;write(&mut root);return held.tag",
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "let held=&mut root;write(&mut root);return held.tag",
+            "E-BORROW-CONFLICT",
+        ),
+    ] {
+        let source = format!(
+            "{head}fn main()->i32{{var root=Root{{child:Leaf{{owner:R{{n:1}},tag:2}},tag:3}};{body}}}"
+        );
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "frozen223-review.zil", source),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+        eprintln!("review318/frozen223 conflict: {}", report.to_json());
+    }
+}
+#[test]
 fn ordinary_local_product_mutable_helper_original() {
     native("mutable-product-original315", MUTABLE_PRODUCT_HELPER, "", 0);
     let module = typed(MUTABLE_PRODUCT_HELPER);
