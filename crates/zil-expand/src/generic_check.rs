@@ -1024,6 +1024,79 @@ impl Check<'_, '_, '_> {
         // The borrowed preflight checked full AST depth before any cloning.
         self.budget.node(span, 0)
     }
+    fn default_function_value(&mut self, name: &str, span: Span) -> R<Option<TypeRef>> {
+        if !self.definition_bound_context {
+            return Ok(None);
+        }
+        self.budget.node(span, 0)?;
+        self.budget.text(name, span)?;
+        if self.foreign_signatures.contains_key(name) {
+            return Err(unsupported(
+                span,
+                "foreign function values in default bodies require an explicit supported ABI pointer",
+            ));
+        }
+        let Some(function) = self.signatures.get(name) else {
+            return Ok(None);
+        };
+        self.budget.node(function.span, 0)?;
+        self.budget.text(&function.name, span)?;
+        if !function.generics.is_empty()
+            || !function.where_clause.is_empty()
+            || !function.contract.is_empty()
+            || matches!(function.body, FunctionBody::Declaration)
+        {
+            return Err(unsupported(
+                span,
+                "default function values require an ordinary non-generic function without additional contracts",
+            ));
+        }
+        let Some(result) = &function.return_type else {
+            return Err(unsupported(
+                span,
+                "default function values require an explicit result type annotation",
+            ));
+        };
+        // The global signature has its own lexical identity. In particular,
+        // the default's same-spelled type variables grant it no Copy evidence.
+        let bounds = trait_bounds::Bounds::new();
+        let variables = BTreeSet::new();
+        let qualify = |ty: &TypeRef, budget: &mut Budget<'_>| {
+            copy::require(ty, self.nominals, &bounds, &variables, budget).map_err(|diagnostic| {
+                if diagnostic.category == zil_base::ResultCategory::ResourceLimit {
+                    diagnostic
+                } else {
+                    unsupported(
+                        span,
+                        "default function values require pure Copy parameters and result; indirect address or ownership contracts are not implemented",
+                    )
+                }
+            })
+        };
+        self.budget.node(span, 0)?;
+        let mut params = Vec::new();
+        for parameter in &function.params {
+            self.budget.node(parameter.span, 0)?;
+            if parameter.give || !parameter.attributes.is_empty() {
+                return Err(unsupported(
+                    span,
+                    "default function values require ordinary Copy value parameters",
+                ));
+            }
+            qualify(&parameter.ty, self.budget)?;
+            self.budget.ty(&parameter.ty)?;
+            params.push(parameter.ty.clone());
+        }
+        qualify(result, self.budget)?;
+        self.budget.ty(result)?;
+        Ok(Some(TypeRef {
+            kind: TypeKind::Function {
+                params,
+                result: Box::new(result.clone()),
+            },
+            span,
+        }))
+    }
     fn bind_local(&mut self, state: &mut State, name: String, ty: TypeRef) -> R<()> {
         if self.definition_bound_context && name == "self" {
             return Err(Diagnostic::error(
@@ -2149,9 +2222,11 @@ impl Check<'_, '_, '_> {
         };
         match &e.kind {
             ExprKind::Name(name) => {
-                let ty = state.locals.get(name).ok_or_else(|| {
-                    error(e.span, format!("unknown value {name} in generic body"))
-                })?;
+                let Some(ty) = state.locals.get(name) else {
+                    return self.default_function_value(name, e.span)?.ok_or_else(|| {
+                        error(e.span, format!("unknown value {name} in generic body"))
+                    });
+                };
                 self.resource_description_use(ty.description_roots.as_deref(), state, e.span)?;
                 let id = ty.id;
                 let declaration_resource = ty.declaration_resource;

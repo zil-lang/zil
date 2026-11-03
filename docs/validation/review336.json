@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/review336_338",
+  "implementation_author": "/root/trait336",
+  "implementation_commit": "06ab8c3724ed70d8d7af1a07660d5b519b500f57",
+  "verdict": "PassLimited",
+  "scope": "336 frozen default-body ordinary static function values only; no whole-language, B0, ZUI, or product-gate acceptance.",
+  "baseline": "e5a4d51d844e29c4f4f5184eaff5704b1b27dd24",
+  "review_base": "dde8be30124f9fafa0d5cb7ed7c281c9fcecf798",
+  "spec_hash": "4b7ffa384fbd14533b20574cc5d1cfaaaaca49963fe4198fb1341226c52eed5c",
+  "normative_hash": "4906f617ee223d458246d13a8223b044f62aaee5b87127762c6a44e1f7d203d3",
+  "binding": {
+    "compiled_production_and_tests": "6a0b10cfec5f88d4b4bfdefe42d8d24ce689760a",
+    "final_difference": "changes/336-default-global-fnptr.md only; git diff --quiet for crates/tests/Cargo.toml/Cargo.lock exit0",
+    "cli_sha256": "ead3a875ee708673f6fd31ca1af2b12f67e36e20ddf6460ba2a1f59277703fcd",
+    "test_executable_sha256": "013972ef13f122ef535f0b2a177c39bc394b80fa38b3560962bec891fb7db7ba",
+    "execution": "Reviewer independently copied author-built frozen CLI; no reviewer Cargo compilation. LLVM23.1.4/Linux x64, Clang and llvm-api O0/O2."
+  },
+  "source_review": [
+    "Actual locals are checked before fallback function lookup; existing normalization retains definition module/private target.",
+    "Fallback is enabled only in supplied-bound default contexts; ordinary generic function behavior remains closed.",
+    "Actual declaration parameters and explicit result form the pointer type; same/type_key compares complete nominal, phantom, ordered, and symbolic identities.",
+    "Copy requires empty bounds and variable sets; no caller binder evidence can qualify an unrelated global type. Borrowed/owning signatures and give/attributes/generics/contracts/declarations/foreign values stop explicitly.",
+    "New lookup, signature scans, Copy qualification, and clones prepay the same Budget; ResourceLimit is preserved. No safety-kernel, ABI, schema, or default-limit changes."
+  ],
+  "independent_inputs_sha256": {
+    "tests/language-readiness/review336-338/module-private/main.zil": "32126aa88a842b44db073ec949186ddac0185ab9b0a4088a980edef3fbe25812",
+    "tests/language-readiness/review336-338/module-private/model.zil": "3c68749bb9c4a39b60033deb9942a1af096129f68b119550a3d18efb564d8306",
+    "tests/language-readiness/review336-338/module-private/rules.zil": "9325fbc488aaf244fc849d28ed656ca9530433dc44db35fb9c23974880c83985",
+    "tests/language-readiness/review336-338/nested-function-value.zil": "d8a6a811c7c8fc4a32d49eee1df44c1cc5153cd8b630e3d2d90fdc8d10273fd7",
+    "tests/language-readiness/review336-338/noncopy-nested-signature.zil": "e57d73ec1899b409efa087a69e1919db9db2a4352203c1d4a18e4af0294551dd",
+    "tests/language-readiness/review336-338/phantom-signature.zil": "559cb70f7f35dd5fff55f74ce7d3afe7bf7a6ac2b1ec67078a79d1d5074032c0",
+    "tests/language-readiness/review336-338/symbolic-nested-signature.zil": "efa02300a60243470d1f4ae98ec4b1d8100d0bf7888f839458a505c12bd2077a"
+  },
+  "baseline_checks": {
+    "nested-function-value.zil": "SafeReject/Expand E-GENERIC-ARGUMENT unknown global value",
+    "noncopy-nested-signature.zil": "same baseline missing-value rejection",
+    "phantom-signature.zil": "same baseline missing-value rejection",
+    "symbolic-nested-signature.zil": "same baseline missing-value rejection"
+  },
+  "independent_candidate_checks": [
+    {
+      "input": "tests/language-readiness/review336-338/nested-function-value.zil",
+      "sha256": "d8a6a811c7c8fc4a32d49eee1df44c1cc5153cd8b630e3d2d90fdc8d10273fd7",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "input": "tests/language-readiness/review336-338/noncopy-nested-signature.zil",
+      "sha256": "e57d73ec1899b409efa087a69e1919db9db2a4352203c1d4a18e4af0294551dd",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "default function values require pure Copy parameters and result; indirect address or ownership contracts are not implemented",
+          "span": {
+            "file": 0,
+            "start": 138,
+            "end": 146
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "input": "tests/language-readiness/review336-338/phantom-signature.zil",
+      "sha256": "559cb70f7f35dd5fff55f74ce7d3afe7bf7a6ac2b1ec67078a79d1d5074032c0",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic body types must agree before concrete instantiation",
+          "span": {
+            "file": 0,
+            "start": 162,
+            "end": 177
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "input": "tests/language-readiness/review336-338/symbolic-nested-signature.zil",
+      "sha256": "efa02300a60243470d1f4ae98ec4b1d8100d0bf7888f839458a505c12bd2077a",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "generic body types must agree before concrete instantiation",
+          "span": {
+            "file": 0,
+            "start": 134,
+            "end": 149
+          },
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    }
+  ],
+  "independent_native": {
+    "programs": 2,
+    "builds": 8,
+    "runs": 8,
+    "expected_and_actual_exit": 0,
+    "all_verification_runs": 1,
+    "fallback": null,
+    "profiles": [
+      "clang/O0",
+      "clang/O2",
+      "llvm-api/O0",
+      "llvm-api/O2"
+    ],
+    "observations": "Nested fnptr parameter/result roundtrip; separate three-module private helper remains triple(7)=21 despite impl-module triple(7)=63.",
+    "command_template": "zil build INPUT --backend BACKEND --opt OPT --emit-dir DIR -o EXE --json; EXE",
+    "artifacts": [
+      {
+        "input": "tests/language-readiness/review336-338/nested-function-value.zil",
+        "backend": "clang",
+        "executable_sha256": "312793320486aec8d6cb9c47f05d774538b2e7930b473f6de9d67307ad30e4db",
+        "llvm_sha256": "04451895a5ae8b0bac795f93a9fafefebae62bff246f6e871f501bbac35aacad"
+      },
+      {
+        "input": "tests/language-readiness/review336-338/nested-function-value.zil",
+        "backend": "clang",
+        "executable_sha256": "5e59df10482722b7dc8959dd677c9ad424fa49f8a364de65c48de3caeeaa5124",
+        "llvm_sha256": "04451895a5ae8b0bac795f93a9fafefebae62bff246f6e871f501bbac35aacad"
+      },
+      {
+        "input": "tests/language-readiness/review336-338/nested-function-value.zil",
+        "backend": "llvm-api",
+        "executable_sha256": "21c64e481a415d76c883935749d92ec869c17de41d962bd2728736b2df5726d2",
+        "llvm_sha256": "04451895a5ae8b0bac795f93a9fafefebae62bff246f6e871f501bbac35aacad"
+      },
+      {
+        "input": "tests/language-readiness/review336-338/nested-function-value.zil",
+        "backend": "llvm-api",
+        "executable_sha256": "e24a8da200196e0938563c0d3008dc1eb70d089d01850427ca54c4879279a1b2",
+        "llvm_sha256": "04451895a5ae8b0bac795f93a9fafefebae62bff246f6e871f501bbac35aacad"
+      },
+      {
+        "input": "tests/language-readiness/review336-338/module-private/main.zil",
+        "backend": "clang",
+        "executable_sha256": "78509f5c7ded1ca9df5cb72d32ca2cfb0276700af88e3e916e8e59808ec7f742",
+        "llvm_sha256": "ecc696228dde89ee39632e4685c489d4ce79467454d35db9ee1ff38fcbbea5bb"
+      },
+      {
+        "input": "tests/language-readiness/review336-338/module-private/main.zil",
+        "backend": "clang",
+        "executable_sha256": "fcf1d8698bc57a4728a5ea9d9aaeaa70ea894ae0c3df2ace74c460fc0b0aeedf",
+        "llvm_sha256": "ecc696228dde89ee39632e4685c489d4ce79467454d35db9ee1ff38fcbbea5bb"
+      },
+      {
+        "input": "tests/language-readiness/review336-338/module-private/main.zil",
+        "backend": "llvm-api",
+        "executable_sha256": "4ba19ca1d061ee977689764be24041730afb3b2b9ddb97775359405f4eaa5cef",
+        "llvm_sha256": "ecc696228dde89ee39632e4685c489d4ce79467454d35db9ee1ff38fcbbea5bb"
+      },
+      {
+        "input": "tests/language-readiness/review336-338/module-private/main.zil",
+        "backend": "llvm-api",
+        "executable_sha256": "b471e4a66244862bcf7632b5c4769d036af8510b4dab045569e692963aea6efa",
+        "llvm_sha256": "ecc696228dde89ee39632e4685c489d4ce79467454d35db9ee1ff38fcbbea5bb"
+      }
+    ]
+  },
+  "replayed_author_cases": {
+    "command": "impl162_trait_bounds-44929739f53f8de1 trait336_ --nocapture --test-threads=1",
+    "passed": 8,
+    "failed": 0,
+    "filtered_out": 38,
+    "new_coverage": false,
+    "budget_boundaries": {
+      "work": 2310,
+      "nodes": 552,
+      "functions": 4
+    },
+    "budget_observation": "N Success, N-1 ResourceLimit, restored N Success; session warm/cold and fresh agree; active queries cleared."
+  },
+  "findings": [],
+  "limits": [
+    "Qualified module function value Member forms retain the existing closed path; this slice admits normalized Name expressions.",
+    "No general generic/borrowed/owning/foreign function value implementation or full safety proof claimed.",
+    "Native behavior and budget controls provide no Rust runtime/RSS/compile-cost or product-breakthrough comparison."
+  ],
+  "metadata_correction": {
+    "original_receipt_commit": "d703f97e3ef0633e66124a1051489f159421d934",
+    "original_spec_hash": "5be7670c1f8631ac37aac589cadf6060d0d9ddf65061c5f34359ffdfe17d9bd4",
+    "original_normative_hash": "6c6f05b298d6ec279b48be2bb4a2ac68ed1ca452688df79f6bd1ff822d6a3fb4",
+    "reason": "Initial receipt incorrectly used c4 dispatch contract hashes. Final 06ab inherits the dde8/D registry; 336 contract unchanged. Corrected against exact git-show final registry and actual design bytes; no code/test change or rerun claimed."
+  }
+}
