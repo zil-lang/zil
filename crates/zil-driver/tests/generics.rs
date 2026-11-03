@@ -140,6 +140,28 @@ fn generic_enum_error_injection_preserves_native_error_and_success_arms() {
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn review318_copy_record_binders_and_nested_unused_obligations() {
+    for text in [
+        "struct Box<T:Copy>{value:T} fn identity<Box>(value:Box)->Box{return value} fn result()->i32{return identity(17)}",
+        "struct Box<T:Copy>{value:T} struct Holder<Box>{value:Box} fn result()->i32{return 0}",
+        "struct Pair<T:Copy,U>{value:T} struct Holder<V>{inner:Pair<i32,V>} fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        eprintln!("review318 Copy-bound control: {}", report.to_json());
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    }
+    for text in [
+        "struct Tag<T:Copy>{n:i32} struct Outer<V>{value:Tag<(i32,Tag<V>)>} fn result()->i32{return 0}",
+        "struct Tag<T:Copy>{n:i32} struct Pair<T:Copy,U>{value:T} struct Outer<V>{value:Pair<Tag<V>,bool>} fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert!(report.diagnostics.iter().any(|d| d.code == "E-GENERIC-ARGUMENT"));
+    }
+}
+
+#[test]
 fn copy_record_bound_runtime_nested_and_phantom_arguments() {
     native(
         "struct Box<T:Copy>{value:T} struct Pair<T:Copy,U>{first:T;second:U} struct Tag<T:Copy>{n:i32} struct A{x:i32} struct B{x:i32} fn wrap<T:Copy>(value:T)->Box<T>{return Box::<T>{value}} fn result()->i32{let a=wrap(7);let b=Box::<Box<i32>>{value:a};let p=Pair::<i32,bool>{first:3,second:true};let left=Tag::<A>{n:2};let right=Tag::<B>{n:5};return b.value.value+p.first+left.n+right.n}",
