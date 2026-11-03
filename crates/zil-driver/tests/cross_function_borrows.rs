@@ -10,6 +10,9 @@ use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Targ
 use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{HoldRoot, InstructionKind, LocalId, TypedModule};
 
+#[path = "../../../tests/language-readiness/review331/cache.rs"]
+mod independent331_cache;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {
