@@ -846,7 +846,13 @@ impl Check<'_, '_, '_> {
         self.tick(pattern.span)?;
         match &pattern.kind {
             PatternKind::Name(name) => {
-                for _ in 0..seen.len().saturating_add(1).ilog2() as usize + 2 {
+                if name == "self" {
+                    return Err(error(pattern.span, "self is reserved for receiver binding"));
+                }
+                let name_work = seen.len().saturating_add(1).ilog2() as usize
+                    + state.locals.len().saturating_add(1).ilog2() as usize
+                    + 4;
+                for _ in 0..name_work {
                     self.budget.text(name, pattern.span)?;
                 }
                 if !seen.insert(name.clone()) {
@@ -859,11 +865,19 @@ impl Check<'_, '_, '_> {
             }
             PatternKind::Wildcard => Ok(()),
             PatternKind::Tuple(patterns) => {
-                let TypeKind::Tuple(fields) = &group(ty).kind else {
-                    return Err(error(
-                        pattern.span,
-                        "tuple binding requires tuple type before instantiation",
-                    ));
+                let fields = match &group(ty).kind {
+                    TypeKind::Tuple(fields) => fields.as_slice(),
+                    TypeKind::Named { path, args }
+                        if path.as_slice() == ["void"] && args.is_empty() =>
+                    {
+                        &[]
+                    }
+                    _ => {
+                        return Err(error(
+                            pattern.span,
+                            "tuple binding requires tuple type before instantiation",
+                        ));
+                    }
                 };
                 if patterns.len() != fields.len() {
                     return Err(error(pattern.span, "generic tuple binding arity mismatch"));
