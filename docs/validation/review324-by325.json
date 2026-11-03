@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "reviewer": "/root/impl317 (325 author; non-author reviewer of 324)",
+  "reviewer": "/root/impl317",
   "implementation_author": "/root/impl313",
   "review_kind": "Independent limited static and bounded real-source native review of 324 only",
   "implementation_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
@@ -135,5 +135,6 @@
     "No formal full suite, Windows native validation, independent object-cache runtime replay or new broad stress matrix was run by this reviewer.",
     "Historical crash and O2 resource-limit observations in recovery-large-array.json remain historical; this review adds bounded current-source success and does not rewrite those failures.",
     "This review excludes 325 concurrency/SABI/Mutex and does not independently certify code authored by the reviewer. Full language/ZUI/B0/product status is not upgraded."
-  ]
+  ],
+  "reviewer_role": "325 implementation author; non-author reviewer of 324 only"
 }
