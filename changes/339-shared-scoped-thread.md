@@ -26,3 +26,17 @@ helper结果仍为标量，不允许地址返回/留存、可变地址、FFI/环
 
 本文件先记录合同；实际结果与范围/原失败将在完成后补记。无Mutex/Atomic、一般
 Transfer/Share、异步/SABI、Rust运行/内存或编译性能结论；B0/完整语言/ZUI保持未完成。
+
+## 首个实际checkpoint
+
+`cargo check -p zil-driver --features llvm-api`通过。既有generic_regressions目标
+过滤thread339的首次源码/原生两项通过（非正式全量）。新disjoint源码实际
+Analyze N=10829、Verify N=46749，N/N−1/fresh均实测；尚未比较旧控制或完整Types。
+原失败保留：Rust临时borrow编译失败；nested move捕获被既有retained环境门Unsupported，
+非move后未声明var又被E-IMMUTABLE-ASSIGNMENT拒绝；改为真实可变writer后才进入
+实际两核/原生。首轮Clippy发现新重复分支，已改为同一资格匹配；最终lint待重跑。
+
+机器新profile实际两backend×O0/O2，16个带观察器成功/业务错误/create失败/join失败
+场景；另5个源控制×4配置=20个无观察器运行。observer比较body实际&input与pthread
+context所载指针，延迟production start到body Drop之后，核生成worker读出11；未把
+C观察器当语言实现。API O2多CGU，全部实际backend且无fallback。重放不重复计数。
