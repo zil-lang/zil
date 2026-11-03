@@ -1311,10 +1311,12 @@ fn phase_budgets(label: &str, source: &str) -> [usize; 4] {
 fn legacy_byte_capture_has_exact_fresh_budget_control() {
     let source = "fn make()->impl Fn()->i32{let b=bytes_new();return move()=>i32(bytes_len(b))}fn main()->i32{let callback=make();return callback()}";
     // Measured at a94bd81d before any 204 production merge. That complete
-    // production domain equals ee0; retain its old source and fees exactly.
+    // production domain equals ee0; retain its source bytes. Pre322 Expand N2
+    // now becomes97 for the paid full-AST lifetime-position scan. The other
+    // three historical phase fees below remain exact and unchanged.
     let actual = phase_budgets("legacy-byte-capture", source);
     // Schema31 adds one Fresh source tag to each kernel's two metadata scans.
-    assert_eq!(actual, [2, 196, 2230 + 2, 2490 + 2]);
+    assert_eq!(actual, [97, 196, 2230 + 2, 2490 + 2]);
 }
 
 #[test]

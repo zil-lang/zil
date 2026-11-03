@@ -1,4 +1,5 @@
-//! The one explicitly attributed legacy budget migration keeps exact controls.
+//! Attributed 240/322 legacy budget migrations preserve exact source controls.
+//! Pre322 work336/nodes126; paid whole-AST life validation yields403/165.
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
 const SAMPLE: &str = include_str!("../../../tests/fixtures/budgets/generic-enum.zil");
 #[test]
@@ -7,8 +8,8 @@ fn copy_generic_enum_instance_has_exact_attributed_work_and_node_boundaries() {
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let expected = zil_expand::expand(&source, &syntax).unwrap();
     for (work, nodes) in [
-        (336, Limits::default().max_nodes),
-        (Limits::default().max_analysis_steps, 126),
+        (403, Limits::default().max_nodes),
+        (Limits::default().max_analysis_steps, 165),
     ] {
         let limits = Limits {
             max_analysis_steps: work,
@@ -21,14 +22,14 @@ fn copy_generic_enum_instance_has_exact_attributed_work_and_node_boundaries() {
                 .core,
             expected
         );
-        let below = if work == 336 {
+        let below = if work == 403 {
             Limits {
-                max_analysis_steps: 335,
+                max_analysis_steps: 402,
                 ..limits.clone()
             }
         } else {
             Limits {
-                max_nodes: 125,
+                max_nodes: 164,
                 ..limits.clone()
             }
         };
