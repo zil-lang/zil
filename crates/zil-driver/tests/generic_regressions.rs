@@ -169,6 +169,22 @@ fn generic_injection_295_native_contexts_preserve_value_and_order() {
             "ABBD7",
         ),
         (
+            "binding-cleanup-error",
+            include_str!(
+                "../../../tests/generic-error-enum/native-context/binding-cleanup-error.zil"
+            ),
+            1,
+            "ABBE",
+        ),
+        (
+            "binding-cleanup-success",
+            include_str!(
+                "../../../tests/generic-error-enum/native-context/binding-cleanup-success.zil"
+            ),
+            0,
+            "ABBD7E",
+        ),
+        (
             "call-error",
             include_str!("../../../tests/generic-error-enum/native-context/call-error.zil"),
             1,
