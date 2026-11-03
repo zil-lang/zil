@@ -925,8 +925,10 @@ fn legacy_single_field_state_has_fresh_exact_expand_budget_measurement() {
     // Independently measured on exact fff8 production, using this unchanged
     // 197 input, in review/200-legacy-budget-by197 at d2e2cc3b. The initial
     // 200 candidate needed 1807; its extra single-field scan was removed.
+    // Pre322 N1938 now becomes2358 because the complete type-position life
+    // validator is charged through the shared alias/generic budget remainder.
     assert_eq!(
-        expand, 1938,
-        "205 charges the actual State alias checks; the source and default limit are unchanged"
+        expand, 2358,
+        "205 State alias checks plus322 full-AST life validation; source/default unchanged"
     );
 }

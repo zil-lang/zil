@@ -379,15 +379,18 @@ fn dispatch_has_fresh_exact_types_and_expand_work_boundaries() {
 
 #[test]
 fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries() {
+    // Pre322 Expand489/665 now608/836: the unchanged sources pay complete
+    // lifetime/type-position validation. Types420/610 stay exact.
+    // See changes/322-budget-migration-by324.md; N-1/fresh checks remain.
     for (source, expand_n, types_n) in [
         (
             "fn apply<T:Copy,F:Fn(i32)->i32>(f:&F,value:T)->T{f(1);return value}fn main()->i32{let f=(n:i32)=>n+1;return apply(&f,2)-2}",
-            489,
+            608,
             420,
         ),
         (
             include_str!("impl246_fixtures/copy_enum_helper.zil"),
-            665,
+            836,
             610,
         ),
     ] {
