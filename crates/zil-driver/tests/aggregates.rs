@@ -131,6 +131,35 @@ fn tuple_binding_original_readiness_source() {
     );
 }
 #[test]
+fn review318_tuple_rhs_order_and_ct_traversal() {
+    native(
+        "fn step(c:&mut i32)->i32{*c+=1;return *c}fn result()->i32{var count=0;let(a,(b,z))=(step(&mut count),(step(&mut count),#(2+3)));return count*1000+a*100+b*10+z}",
+        Some(2125),
+    );
+}
+#[test]
+fn review318_tuple_defer_capture_and_scoped_initialization() {
+    native(
+        "fn result()->i32{var(a,b)=(1,2);if true{defer{let(x,y)=(b,1);a+=x+y}}return a*10+b}",
+        Some(42),
+    );
+    native(
+        "fn result()->i32{var outer=5;var f=()=>{let(a,b)=(outer,1);outer=a+b;return outer};let first=f();return first*10+f()}",
+        Some(67),
+    );
+    for (text, code) in [
+        ("fn result()->i32{if true{let(a,b)=(1,2)}return a}", "E-UNKNOWN-NAME"),
+        ("fn result()->i32{let f=()=>{let(a,b)=(missing,1);return a+b};return f()}", "E-UNKNOWN-NAME"),
+        ("fn result()->i32{var(a,b)=(1,2);defer{let(x,y)=(a,b);return x+y}return 0}", "E-DEFER-CONTROL"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert!(report.diagnostics.iter().any(|d| d.code == code), "{}", report.to_json());
+        assert!(!report.artifacts.contains_key("executable"));
+        eprintln!("review318/walker rejection: {}", report.to_json());
+    }
+}
+#[test]
 fn tuple_binding_nested_mutable_typed_discard_and_single_evaluation() {
     let llvm = native(
         "fn pair(count: &mut i32) -> (i32,(i32,i32)) { *count += 1; return (*count,(*count+1,*count+2)); } fn result()->i32 { var count=0; let (a,(b,_)):(i32,(i32,i32))=pair(&mut count); var (c,(d,e))=(a,(b,7)); c+=10; d+=20; e+=30; let ()=(); let (_,)= (9,); return count*1000+a*100+b*10+c+d+e; }",
