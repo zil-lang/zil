@@ -24,7 +24,7 @@
 
 规范锚点：基础源面§15.2及`spec/grammar.ebnf`；泛型/trait§14、§16、§18.1；借用与动态抽象§8–9；协议§5；外部/挂起§12；并发§11；Type/Syntax§16.7。
 
-[保存的最小源码](../tests/language-readiness/README.md)和[实际基线观察](validation/language-readiness-baseline.json)覆盖代表性缺口与7个已有能力正控。这批是源到Verify检查，不是原生执行或完整规范覆盖。`pending`是待晋升合法入口，不能把当前失败永久登记成“应拒”。
+[保存的最小源码](../tests/language-readiness/README.md)和[实际基线观察](validation/language-readiness-baseline.json)覆盖代表性缺口与13个已有能力正控。这批是源到Verify检查，不是原生执行或完整规范覆盖。`pending`是待晋升合法入口，不能把当前失败永久登记成“应拒”。
 
 ## 另外两类工作
 

@@ -6,3 +6,9 @@
 
 每份源可用 `zil check <path> --json` 重跑；判定以当前规范及其具名附件为准。
 这些源覆盖典型缺口，不构成完整语言测试集；接口设计仍未固定的浮点/匿名union没有加入必修清单。
+
+`design-probes/returned-captured-handler.zil`故意尝试当前仅静态入口的闭包转换，
+应被现行规则拒绝；它只定位“返回后外部持有捕获环境”的需求缺口，
+不能通过放宽`c_callback`来晋升。未来须提供真实稳定存储与关闭协议。
+回调scope、返回静态guard、已有Store独占helper及普通局部Product对照
+分别保留，防止把已支持能力重新列为缺失。
