@@ -1,0 +1,319 @@
+{
+  "task": "331",
+  "reviewer": "/root/language_map",
+  "implementation_author": "/root/impl315",
+  "verdict": "PendingCandidate",
+  "implementation_commit": null,
+  "scope": "Independent source preflight only; no author candidate tested, no Pass, no claim that baseline rejections prove new symbolic checks.",
+  "baseline_source_commit": "40fbcca6ef506f3cb8e1d40a4f8995c788627da0",
+  "profile_revision": "e28e08d8825085e9a3c6bae57d2a85d3a2418481",
+  "profile_spec_hash": "0c389bb14213ab8e5fc6a24633bf366923a3d5ccf1a79abd816ac1c69b2a36f4",
+  "profile_normative_hash": "2c1e312fbfa4abd9d4e1fbe2b005d47f39708fe7e2cb71bb0d7c29580b1135f3",
+  "compiler": {
+    "path": "/workspace/.zil-env/target-mainline-release/release/zil",
+    "sha256": "89891e131177e2fdc8d5e9febb90fbb37521a9fc815869e76b56f74ae575df67",
+    "observed_source_commit": "f2122be4deb5d6b00abbc3847f8d144a919035fe",
+    "same_production_baseline_proof": "docs/validation/language-gaps-334.json"
+  },
+  "source_dependencies": {
+    "tests/language-readiness/review331/project/api.zil": "49e4936da7db102bdc09c2e380110b5127fbba038390eaca24bbecfb5f7e3b82"
+  },
+  "observations": [
+    {
+      "source": "tests/language-readiness/review331/callee-same-spelling-wrong-root.zil",
+      "sha256": "ba7c85656a8aa751976b850e0f7639fdec812450da55617689e55fa6f3269efd",
+      "intent_after_implementation": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/callee-same-spelling-wrong-root.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "48fcec3b37bbbda56d840bf9b82a9b0321cb4bbcbad7a5e4b881f728492d3c04",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/component-planned.zil",
+      "sha256": "822b49eaffd11ce6d201a9d8569c27ad01e5777c96715ea75dbf75ad6315af5f",
+      "intent_after_implementation": "PlannedCombinedPositive329330331332",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/component-planned.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 1,
+        "status": "SafeReject",
+        "phase": "parse",
+        "diagnostics": [
+          {
+            "phase": "parse",
+            "category": "SafeReject",
+            "code": "E-PARSE-PATTERN",
+            "message": "qualified patterns require a constructor argument list"
+          },
+          {
+            "phase": "parse",
+            "category": "SafeReject",
+            "code": "E-PARSE-TERMINATOR",
+            "message": "expected a semicolon, logical newline, or closing brace after the complete statement"
+          },
+          {
+            "phase": "parse",
+            "category": "SafeReject",
+            "code": "E-PARSE-MODULE-STATEMENT",
+            "message": "module scope requires a declaration; executable statements belong inside a function"
+          },
+          {
+            "phase": "parse",
+            "category": "SafeReject",
+            "code": "E-PARSE-MODULE-STATEMENT",
+            "message": "module scope requires a declaration; executable statements belong inside a function"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "355ef1b8248d5b25c8d9d7f78f50e5f67886ee72c5a4e271a1f22cd7e12a3018",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/life-does-not-shadow-alias.zil",
+      "sha256": "afb5f071123628f1cfba84e429e0e23a86efc9a68138c49a1ef2e08b3f97b82e",
+      "intent_after_implementation": "Positive331",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/life-does-not-shadow-alias.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "3678c45c95e4d753c4c1a27b0ea50907dcbede002a3ec89abcd5d205cd89cb1d",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/order-and-explicit-type.zil",
+      "sha256": "43340aa72fd14641b25078d2a71ca6af077fd5fa7c701734f674e75a0f0093fe",
+      "intent_after_implementation": "Positive331",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/order-and-explicit-type.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "9ca2b0557b0abd96fb289e3cc418d93bdac41c738954959ce62bf5f2cbf8f360",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/renamed-and-permuted-callee.zil",
+      "sha256": "ab0e2b8d6be48f2781274d763124c91c6aab126aea00d6fc78d87da1c597e33d",
+      "intent_after_implementation": "Positive331",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/renamed-and-permuted-callee.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "6d9798de8365463de531ca95eb476043a86720f761a52dd5d4d388c58b59bd6c",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/unused-copy-is-not-numeric.zil",
+      "sha256": "23f70b4b36382260b11e685fe161772028070a428a55765197e57d2ab1338927",
+      "intent_after_implementation": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/unused-copy-is-not-numeric.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "93d40daec8317921797c6546273eb348c0bd754f40a4e43f406225f7dc76f1fe",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/unused-wrong-return-root.zil",
+      "sha256": "f067e2b0fe2e5d6b9d181d138e9ff8896ce2a46a29c4b4c32d81e902ffc9bea4",
+      "intent_after_implementation": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/unused-wrong-return-root.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "a1a1448637afab9c9930996108b9aacc530640292ae57f75e6f64a1d53e30fb7",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/used-copy-is-not-numeric.zil",
+      "sha256": "d63ace8f4b245308519a1d7d7360bd4924ce98465f3fa0accb2bd1910210cd9f",
+      "intent_after_implementation": "DefinitionMustRejectBeforeConcreteInstantiation",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/used-copy-is-not-numeric.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "de48ff966629b8ef2ce432671c09afa881b2b3d18370c60f36a5b817ed467f7b",
+        "stderr": ""
+      }
+    },
+    {
+      "source": "tests/language-readiness/review331/project/main.zil",
+      "sha256": "fa847e70d41595cf62abd884a7f78ded953e7904ff22badcfcaa3dd830647078",
+      "intent_after_implementation": "Positive331",
+      "command": [
+        "/workspace/.zil-env/target-mainline-release/release/zil",
+        "check",
+        "tests/language-readiness/review331/project/main.zil",
+        "--json"
+      ],
+      "actual_baseline": {
+        "exit_code": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ],
+        "verification_runs": 0,
+        "stdout_sha256": "78d744b57a157568b88f8c54df7c30e433d9b7b4fa00e2688403b82b7de02ed5",
+        "stderr": ""
+      }
+    }
+  ],
+  "candidate_review_plan": [
+    "Ordinary type/life binder order and dense TypeArg count, inference and explicit T across i32/i64.",
+    "Life name does not hide an external type alias.",
+    "Unused wrong root and Copy-only numeric operations reject at definition time, also when a concrete i32 call would otherwise fit.",
+    "Cross-callee origin substitution follows actual input positions, not equal lifetime spelling; renamed/reordered caller keeps only the real source.",
+    "Cross-module CT type query rebuilding retains the declared bound, actual origins and interface identity.",
+    "Actual cold/warm/live/restored cache paths must retain current Verify and source-bound invalidation; no warm/cache claim from rejected baseline sources.",
+    "Once the exact candidate freezes, use existing cross_function_borrows target with independent target334/jobs1. No new Cargo target or full suite."
+  ],
+  "component_plan": {
+    "source": "tests/language-readiness/review331/component-planned.zil",
+    "status": "PlannedNotAccepted",
+    "dependencies": [
+      "329",
+      "330",
+      "331",
+      "332"
+    ],
+    "flow": "View<T> -> shared field borrow -> default Read.adjusted -> named Message.Value payload -> concrete parent closure -> thread_scope worker/body -> integer result",
+    "expected_native_after_all_dependencies": {
+      "entry": "main",
+      "stdout": "0\n",
+      "exit_code": 0
+    },
+    "constraint": "Self impl is concrete Meter, not a generic View<T> impl. Child payload is i32; the borrowed view stays in the parent body. No dyn, owning ABI, HRTB, async or Mutex is presumed."
+  },
+  "not_run": [
+    "Author WIP or final331 implementation",
+    "Native execution",
+    "Raw candidate/Wire attacks",
+    "Live/restored cache dynamics",
+    "Combined329-332 acceptance",
+    "Full suite",
+    "Push or main-tree edits"
+  ]
+}
