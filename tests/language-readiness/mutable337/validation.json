@@ -73,8 +73,8 @@
   ],
   "source_and_cache_controls": {
     "wrong_actual_return_root": "SafeReject Analyze E-LIFE-RETURN",
-    "mutable_local_escape": "SafeReject Analyze E-LIFE-RETURN or E-BORROW-ESCAPE",
-    "shared_to_mutable_source": "SafeReject Types",
+    "mutable_local_escape": "SafeReject Analyze E-LIFE-RETURN",
+    "shared_to_mutable_source": "SafeReject Types E-ADDRESS-PERMISSION",
     "live_alias_or_same_root_arguments": "SafeReject Verify E-BORROW-CONFLICT",
     "defer_capture_then_root_write": "SafeReject Analyze E-BORROW-CONFLICT",
     "mixed_CopyT_mutable_life_unused_and_called": "Unsupported Expand E-UNSUPPORTED",
@@ -88,7 +88,7 @@
     "A superseded in-flight build combined an old Analyze artifact with the new assertion while sources changed; clean exact51788 gates are the final evidence"
   ],
   "known_incomplete": [
-    "known-incomplete-unused-generic.zil is retained as a future definition-time generic exclusivity regression; baseline accepts unused body while the instantiated source rejects at Verify, not a runtime UB claim",
+    "known-incomplete-unused-generic.zil is retained as a future definition-time generic exclusivity regression; baseline and exact51788 CLI accept the unused body at Verify while the instantiated source rejects at Verify E-BORROW-CONFLICT, not a runtime UB claim",
     "CopyT with mutable life, generic methods, HRTB/borrowed function pointers, borrowing storage and general lending remain outside337",
     "No full cargo suite, reference configuration suite, merge, remote CI or product/Rust performance acceptance was run by this author"
   ]
