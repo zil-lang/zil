@@ -179,12 +179,8 @@ fn live_shared_borrows_prevent_consumption_replacement_and_mutation() {
 }
 
 #[test]
-fn sharing_does_not_add_mutable_owned_reads_retention_or_escape() {
+fn sharing_does_not_add_owned_reads_retention_or_escape() {
     for (label, body) in [
-        (
-            "mutable-product",
-            "fn bad(p:&mut Root){}fn main(){}".to_owned(),
-        ),
         (
             "borrow-return",
             "fn bad(p:&Root)->&Root{return p}fn main(){}".to_owned(),
@@ -203,6 +199,22 @@ fn sharing_does_not_add_mutable_owned_reads_retention_or_escape() {
         assert_ne!(report.status, ResultCategory::ResourceLimit, "{label}");
         assert!(!report.artifacts.contains_key("executable"));
     }
+}
+
+// Original 224 input retained; 315 now admits this synchronous signature.
+#[test]
+fn original_mutable_product_signature_promoted_by_315() {
+    let report = compile(
+        "mutable-product",
+        &source("fn bad(p:&mut Root){}fn main(){}"),
+        Limits::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
 }
 
 // Original 224 source bytes are retained. Stage 226 admits this local shared

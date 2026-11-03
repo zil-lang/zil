@@ -5,7 +5,7 @@ use std::{
     process::Command,
     sync::atomic::{AtomicUsize, Ordering},
 };
-use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
+use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 use zil_ir::{CandidatePlan, HoldRoot, InstructionKind as I, TypedModule};
 
@@ -48,6 +48,24 @@ fn product315(body: &str, helpers: &str) -> String {
 
 #[test]
 fn ordinary_local_product_mutable_helper_reborrows_and_cleanup() {
+    native(
+        "mutable-product-refill315",
+        &product315(
+            "let removed=give panel.mark;panel.mark=give removed;bump(&mut panel);return panel.count-1",
+            "",
+        ),
+        "",
+        0,
+    );
+    native(
+        "mutable-product-nested315",
+        &product315(
+            "var frame=Frame{child:panel,tag:0};bump_frame(&mut frame);return frame.tag-1",
+            "package Frame{child:Panel;tag:i32}fn bump_frame(frame:&mut Frame){frame.tag+=1}",
+        ),
+        "",
+        0,
+    );
     native(
         "mutable-product-reborrow315",
         &product315(
@@ -166,6 +184,19 @@ fn ordinary_local_product_mutable_helper_nearest_rejections() {
         "immutable315",
         &MUTABLE_PRODUCT_HELPER.replace("var panel=", "let panel="),
         ResultCategory::SafeReject,
+    );
+    reject(
+        "store-head315",
+        "package Panel{manages items:Store<i32>;count:i32}fn bump(panel:&mut Panel){panel.count+=1}fn main(){var panel=Panel{items:store_new(),count:0};bump(&mut panel)}",
+        ResultCategory::Unsupported,
+    );
+    reject(
+        "mutable-child-projection315",
+        &product315(
+            "var frame=Frame{child:panel,tag:0};deep(&mut frame);return 0",
+            "package Frame{child:Panel;tag:i32}fn deep(frame:&mut Frame){frame.child.count+=1}",
+        ),
+        ResultCategory::Unsupported,
     );
 }
 
@@ -328,6 +359,125 @@ fn ordinary_local_product_mutable_helper_independent_completeness_and_liveness()
             },
         );
     }
+}
+
+#[test]
+fn ordinary_local_product_mutable_helper_independent_live_windows() {
+    for attack in ["drop-live315", "take-live315", "second-loan315"] {
+        let body = match attack {
+            "take-live315" => {
+                "let first=&mut panel;bump(first);let removed=give panel.mark;return 0"
+            }
+            "second-loan315" => {
+                "let first=&mut panel;bump(first);let second=&mut panel;bump(second);return 0"
+            }
+            _ => "let first=&mut panel;bump(first);return 0",
+        };
+        let mut module = typed(&product315(body, ""));
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let f = module
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "main")
+            .unwrap();
+        let local = f.locals.iter().find(|l| l.name == "panel").unwrap().id;
+        let block = f
+            .blocks
+            .iter_mut()
+            .find(|b| {
+                b.instructions
+                    .iter()
+                    .any(|i| matches!(i.kind,I::BorrowLocalMut{local:l} if l==local))
+            })
+            .unwrap();
+        let moved = block
+            .instructions
+            .iter()
+            .rposition(|i| match attack {
+                "take-live315" => matches!(i.kind,I::TakePackageField{local:l,..} if l==local),
+                "second-loan315" => matches!(i.kind,I::BorrowLocalMut{local:l} if l==local),
+                _ => matches!(i.kind,I::DropPackage{local:l} if l==local),
+            })
+            .unwrap();
+        let instruction = block.instructions.remove(moved);
+        let before = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, I::Call { .. }))
+            .unwrap();
+        block.instructions.insert(before, instruction);
+        // Analyze may publish an untrusted candidate; ordinary strong-loan
+        // conflicts are decided by the independent Verify loan checker.
+        raw_reject315(attack, module, plan, "E-BORROW-CONFLICT");
+    }
+}
+
+#[test]
+fn ordinary_local_product_mutable_helper_exact_phase_budgets() {
+    fn boundary<T: std::fmt::Debug + PartialEq>(
+        phase: Phase,
+        run: impl Fn(usize) -> Result<T, Vec<zil_base::Diagnostic>>,
+    ) -> usize {
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        let expected = run(high).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    high = middle;
+                }
+                Err(errors) => {
+                    assert!(!errors.is_empty());
+                    assert!(
+                        errors.iter().all(
+                            |d| d.phase == phase && d.category == ResultCategory::ResourceLimit
+                        ),
+                        "{phase:?}: {errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        assert_eq!(run(high).unwrap(), expected);
+        let errors = run(high - 1).unwrap_err();
+        assert!(!errors.is_empty());
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit),
+            "{phase:?}: {errors:?}"
+        );
+        assert_eq!(run(high).unwrap(), expected);
+        high
+    }
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "budget315.zil",
+        MUTABLE_PRODUCT_HELPER,
+    );
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let limits = |n| Limits {
+        max_analysis_steps: n,
+        ..Limits::default()
+    };
+    let types = boundary(Phase::Types, |n| {
+        zil_types::check(&core, &TargetProfile::host_llvm(), &limits(n))
+    });
+    let module = typed(MUTABLE_PRODUCT_HELPER);
+    let analyze = boundary(Phase::Analyze, |n| {
+        zil_analyze::analyze(&module, &limits(n))
+    });
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let verify = boundary(Phase::Verify, |n| {
+        zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits(n))
+            .map(|v| v.fingerprint())
+    });
+    println!(
+        "315 phase budgets: types={types} analyze={analyze} verify={verify}; N/N-1/fresh verified"
+    );
 }
 fn native(label: &str, source: &str, stdout: &str, exit: i32) {
     for optimization in [Optimization::O0, Optimization::O2] {

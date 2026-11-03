@@ -36,3 +36,42 @@ schema/Wire、ABI、默认额度与产品门。若现有公共事实或机器路
 本片有限安全及普通库组合有实证；原地地址/内联机器路径未增加隐式分配。
 未作 Rust 配对运行/内存、维护工作量或编译成本比较，未建立产品级四目标或突破。
 Store/Closure 等新形状、可变 child 深投影、可变捕获、返回/长期/异步仍未完成。
+
+315 已由集成者在主树 `_zil_design.md` §8.1.2.1 登记有限合同。后续按授权保留
+`fn bad(p:&mut Root){}fn main(){}` 原字节，将它从共享切片旧非 Success 预期
+移为 `original_mutable_product_signature_promoted_by_315` 显式正控；另外三个
+借入返回/拥有 child 读取/拥有资源读取反例不改。共享分支原诊断文字继续保留。
+
+最终本分支限定结果（LLVM 23.1.4，`llvm-api`，同一 target315/jobs1）：
+
+```json
+{
+  "impl238_product_replacement": {"passed": 14, "failed": 0, "new315_tests": 7},
+  "impl224_shared_product": {"passed": 13, "failed": 0},
+  "verify_package_tests_shared_product": {"selected_passed": 5, "failed": 0},
+  "impl235_product_store": {"passed": 9, "failed": 0},
+  "new315_native_executions": 14,
+  "new315_source_rejections": 16,
+  "new315_raw_wire_rejections": 22,
+  "new315_phase_budgets": {"types": 364, "analyze": 5022, "verify": 10661},
+  "new315_each_budget": "N Success; N-1 ResourceLimit; fresh N Success",
+  "targeted_clippy_D_warnings": "Pass",
+  "diff_check": "Pass",
+  "formal_full_suite": "NotRun",
+  "native_windows": "NotRun",
+  "product_comparison": "NotRun"
+}
+```
+
+命令为前述两个 driver suite（合并为一次 `--test impl238_product_replacement
+--test impl224_shared_product`）、`cargo test -p zil-verify
+package_tests::shared_product -- --nocapture`（只计 5 个实际命中，其他 0 命中
+测试程序不计通过）、`cargo test -p zil-driver --features llvm-api --test
+impl235_product_store -- --nocapture`，及 `cargo clippy -p zil-driver --features
+llvm-api --test impl238_product_replacement --test impl224_shared_product -- -D warnings`。
+
+raw 窗口探针保留阶段事实：Analyze 可发布未核 CandidatePlan；普通 strong-loan
+冲突由 Verify 独立重建并拒绝。将 DropPackage、字段 take 或第二个独占窗口移至
+首次调用前，raw 与 Wire 均精确 `E-BORROW-CONFLICT`；未把候选产生计为安全通过。
+借入前缺 child、移空/清理/失效 shell 则由 Analyze 与 Verify 分别拒绝。最后一次
+测试修改未变生产代码，未增加额度、关闭门或改 lower/backend/schema。
