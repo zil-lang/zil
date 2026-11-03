@@ -317,10 +317,15 @@ scenario('handoff-015', '未列当前错误与在途hash不能被历史清单遮
 });
 
 scenario('handoff-016', '冻结路径字节对象与未提交清单篡改拒绝', t => {
-  for (const corruption of ['bytes', 'object', 'path', 'uncommitted']) {
+  for (const corruption of ['bytes', 'object', 'marker', 'invalid-marker', 'extra-field', 'state', 'evidence', 'path', 'uncommitted']) {
     const f = fixture(t), policy = migrate(f);
     if (corruption === 'bytes') policy.records[0].sha256 = '0'.repeat(64);
-    if (corruption === 'object') policy.records[0].object_references[0].availability = 'Missing';
+    if (corruption === 'object') policy.records[0].object_references[0].commit = 'a'.repeat(40);
+    if (corruption === 'marker') policy.records[0].object_references[0].availability = 'Available';
+    if (corruption === 'invalid-marker') policy.records[0].object_references[0].availability = 'Invalid';
+    if (corruption === 'extra-field') policy.records[0].object_references[0].revalidated = true;
+    if (corruption === 'state') policy.records[0].recorded_state = '已合入';
+    if (corruption === 'evidence') policy.records[0].evidence_references.push({field: 'evidence', path: 'invented.json', availability: 'MissingAtSnapshot', sha256: null});
     if (corruption === 'path') policy.records[0].path = '../outside.md';
     if (corruption === 'uncommitted') policy.claims_revalidated = true;
     put(f.root, migrationFile, policy);
@@ -450,9 +455,81 @@ scenario('handoff-025', '精简本地验收仍绑定实际交付和非零门', t
   }
 });
 
+function detachedCommit(root) {
+  const id = git(root, 'commit-tree', git(root, 'rev-parse', 'HEAD^{tree}'), '-m', 'unreferenced historical fixture');
+  return {id, bytes: capture('git', ['-C', root, 'cat-file', 'commit', id]).stdout};
+}
+function bundleClone(f) {
+  const bundle = path.join(f.area, 'all-refs.bundle'), restored = path.join(f.area, 'restored');
+  git(f.root, 'bundle', 'create', bundle, '--all');
+  git(f.root, 'clone', '--quiet', bundle, restored);
+  git(restored, 'config', 'user.name', 'Handoff fixture'); git(restored, 'config', 'user.email', 'fixture@example.invalid');
+  return restored;
+}
+
+scenario('handoff-026', '真实游离历史对象在refs bundle恢复后消失仅报告Unavailable', t => {
+  const f = fixture(t), detached = detachedCommit(f.root);
+  f.task.baseline = detached.id; f.save(); commit(f.root, 'record detached historical baseline');
+  const policy = migrate(f), frozen = fs.readFileSync(path.join(f.root, migrationFile));
+  check(policy.records[0].object_references[0].availability, 'Present');
+  check(inspectHandoff(f.root).slices[0].validation.availability, 'Unreviewed');
+  const restored = bundleClone(f);
+  check(capture('git', ['-C', restored, 'cat-file', '-e', `${detached.id}^{commit}`]).status !== 0);
+  const report = inspectHandoff(restored), historical = report.slices[0].validation;
+  check(report.current_gate, {status: 'CurrentPass', error_count: 0});
+  check(historical.availability, 'Unavailable'); check(historical.claims_revalidated, false);
+  check(historical.object_availability_changes, [{field: 'baseline', commit: detached.id, recorded: 'Present', observed: 'Missing'}]);
+  check(report.historical_status.object_availability_changes, 1);
+  check(fs.readFileSync(path.join(restored, migrationFile)), frozen);
+  const legacy = inspectHandoff(restored, undefined, {legacyAudit: true});
+  check(legacy.status, 'LegacyAuditFail'); check(legacy.current_gate.status, 'CurrentPass');
+  check(legacy.slices[0].validation.object_availability_changes, historical.object_availability_changes);
+});
+
+scenario('handoff-027', '真实历史对象新恢复仅Unreviewed且不追认历史Pass', t => {
+  const donor = fixture(t), detached = detachedCommit(donor.root), f = fixture(t);
+  f.task.baseline = detached.id; f.save(); commit(f.root, 'record unavailable historical baseline');
+  const policy = migrate(f); check(policy.records[0].object_references[0].availability, 'Missing');
+  check(inspectHandoff(f.root).slices[0].validation.availability, 'Unavailable');
+  const objectFile = path.join(f.area, 'recovered-commit'); fs.writeFileSync(objectFile, detached.bytes);
+  check(git(f.root, 'hash-object', '-w', '-t', 'commit', objectFile), detached.id);
+  const report = inspectHandoff(f.root), historical = report.slices[0].validation;
+  check(report.current_gate.status, 'CurrentPass'); check(historical.availability, 'Unreviewed');
+  check(historical.object_availability_changes, [{field: 'baseline', commit: detached.id, recorded: 'Missing', observed: 'Present'}]);
+  check(historical.claims_revalidated, false); check(report.historical_status.claims_revalidated, false);
+  check(JSON.parse(fs.readFileSync(path.join(f.root, migrationFile))).records[0].object_references[0].availability, 'Missing');
+});
+
+scenario('handoff-028', '历史与Current共用游离对象时恢复仍严格拒绝当前缺对象', t => {
+  const f = fixture(t), detached = detachedCommit(f.root);
+  f.task.baseline = detached.id; f.save();
+  const current = {...f.task, id: '004', authoritative_task: '.task/impl/004.md'};
+  put(f.root, '.task/impl/004.md', `施工\n\`\`\`json\n${JSON.stringify(current)}\n\`\`\`\n`);
+  commit(f.root, 'current and historical share detached baseline');
+  const policy = migrate(f, {names: ['.task/impl/003.md', '.task/impl/004.md']});
+  policy.records[1].classification = 'Current'; put(f.root, migrationFile, policy); commit(f.root, 'classify active record explicitly');
+  check(inspectHandoff(f.root).current_gate.status, 'CurrentPass');
+  const restored = bundleClone(f), report = inspectHandoff(restored);
+  check(report.current_gate.status, 'CurrentFail'); check(report.historical_status.archived, 1);
+  check(report.slices.find(row => row.id === '003').validation.object_availability_changes[0].observed, 'Missing');
+  check(report.errors.some(row => row.id === '004' && row.reason.includes('baseline must identify')));
+  check(report.errors.some(row => row.id === 'migration' && row.reason.includes('.task/impl/004.md')));
+  check(report.slices.find(row => row.id === '004').validation?.classification === 'HistoricalRecord', false);
+});
+
+scenario('handoff-029', '工作树新证据不能填补历史snapshot缺失或追认通过', t => {
+  const f = fixture(t), name = 'evidence/historical-missing.json';
+  f.task.evidence = [name]; f.save(); commit(f.root, 'retain historical missing evidence');
+  const policy = migrate(f); check(policy.records[0].evidence_references[0].availability, 'MissingAtSnapshot');
+  put(f.root, name, {status: 'Pass', executed: 1, assertions: 1}); commit(f.root, 'new evidence is not historical evidence');
+  const report = inspectHandoff(f.root);
+  check(report.current_gate.status, 'CurrentPass'); check(report.slices[0].validation.availability, 'Unavailable');
+  check(report.historical_status.claims_revalidated, false); check(report.slices[0].validation.claims_revalidated, false);
+});
+
 after(() => {
   const baseline = git(project, 'rev-parse', 'HEAD');
-  const expectedIds = Array.from({length: 25}, (_, n) => `handoff-${String(n + 1).padStart(3, '0')}`);
+  const expectedIds = Array.from({length: 29}, (_, n) => `handoff-${String(n + 1).padStart(3, '0')}`);
   const report = {schema_version: 1, scope: 'Real temporary Git repositories and handoff CLI; not ZIL language acceptance.', status: results.length === expectedIds.length && expectedIds.every(id => results.some(row => row.id === id)) && results.every(x => x.status === 'Pass') ? 'Pass' : 'Fail', executed: results.length, assertions, baseline_commit: baseline, source_hashes: Object.fromEntries(['tools/handoff.mjs', 'tests/handoff.test.mjs'].map(name => [name, sha(fs.readFileSync(path.join(project, name)))])), node: process.version, results};
   const output = writeReport('handoff-tests.json', report, {file: process.env.ZIL_HANDOFF_REPORT});
   console.log(JSON.stringify({handoff_report: output, status: report.status, executed: report.executed, assertions: report.assertions}));
