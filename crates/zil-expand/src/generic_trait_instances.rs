@@ -361,7 +361,10 @@ pub(crate) fn rewrite_calls(
     Prepay { calls, budget }
         .item(item, 0)
         .map_err(|mut e| e.remove(0))?;
-    let visitor = CallRewrite { calls };
+    let visitor = CallRewrite {
+        calls,
+        receiver: None,
+    };
     if let ItemKind::Function(f) = &mut item.kind {
         match &mut f.body {
             FunctionBody::Block(b) => visitor.block(b),
@@ -373,6 +376,48 @@ pub(crate) fn rewrite_calls(
 }
 struct CallRewrite<'a> {
     calls: &'a BTreeMap<Span, String>,
+    receiver: Option<&'a str>,
+}
+
+pub(crate) fn rename_default_receiver(item: &mut Item, budget: &mut Budget<'_>) -> R<()> {
+    use super::super::ct_selection::Visitor;
+    const NAME: &str = "$trait_default_self";
+    struct Prepay<'a, 'l>(&'a mut Budget<'l>);
+    impl Visitor for Prepay<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.0.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.0.text(text, span).map_err(|e| vec![e])
+        }
+        fn expression(&mut self, expression: &Expr, depth: usize) -> CompileResult<()> {
+            if matches!(&expression.kind, ExprKind::Name(name) if name == "self") {
+                self.text(NAME, expression.span)?;
+            }
+            super::super::ct_selection::walk_expression(self, expression, depth)
+        }
+    }
+    Prepay(budget).item(item, 0).map_err(|mut e| e.remove(0))?;
+    let empty = BTreeMap::new();
+    let visitor = CallRewrite {
+        calls: &empty,
+        receiver: Some(NAME),
+    };
+    if let ItemKind::Function(function) = &mut item.kind {
+        for parameter in &mut function.params {
+            budget.node(parameter.span, 0)?;
+            if parameter.name == "self" {
+                budget.text(NAME, parameter.span)?;
+                parameter.name = NAME.into();
+            }
+        }
+        match &mut function.body {
+            FunctionBody::Block(block) => visitor.block(block),
+            FunctionBody::Expression(expression) => visitor.expr(expression),
+            FunctionBody::Declaration => {}
+        }
+    }
+    Ok(())
 }
 impl CallRewrite<'_> {
     fn ty(&self, _: &mut TypeRef) {}
@@ -453,6 +498,9 @@ impl CallRewrite<'_> {
         }
 
         match &mut e.kind {
+            ExprKind::Name(name) if name == "self" && self.receiver.is_some() => {
+                *name = self.receiver.unwrap().to_owned();
+            }
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)

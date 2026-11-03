@@ -345,6 +345,9 @@ impl<'a> Engine<'a> {
             }
         }
         engine.validate_trait_defaults(module)?;
+        if engine.nominal_binder_collision {
+            return Ok(engine);
+        }
         // Validate the parametric subset even when a template is not instantiated.
         let mut helper_dependencies = helper_graph::Dependencies::default();
         for item in engine.templates.values() {

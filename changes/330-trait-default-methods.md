@@ -1,8 +1,9 @@
-# 330 有限trait默认方法（提案）
+# 330 有限trait默认方法
 
 基线`40fbcca6ef506f3cb8e1d40a4f8995c788627da0`。主树`_zil_design.md`
 §18.1及`.task/impl/330.md`为权威；本文先登记接受性与新增费用，待root冻结规范后
-修改生产。不新增公共Core/Typed/LIR、Wire、运行时字典或隐式分配。
+修改生产。root已于`e28e08d8825085e9a3c6bae57d2a85d3a2418481`冻结该profile，
+现进入实现。不新增公共Core/Typed/LIR、Wire、运行时字典或隐式分配。
 
 ## 实际拒绝点与最小合同
 
@@ -88,3 +89,25 @@ Expand收集的unsupported feature在Types发布，不能把实际阶段记成Ex
 探针误期待Expand，1项失败；修正阶段断言后1 passed/0 failed/24 filtered。两个输入
 fingerprint分别为`3ca5160507dc27302ae1a8f71f19ede492cfe974171eb4b204155e881275cb98`
 与`29c6d48a71a4a9ad40a142c70d84d5d698f713559e2bf1cc5fa433ae4dadeca2`。
+
+## 生产WIP与实测
+
+`ee370abfa`首阶段已接符号检查、缺省成员与复合目标；cargo check通过，首次2项
+源测试失败于生成自由函数使用保留参数名`self`（E-RECEIVER-RESERVED-NAME）。
+修复为仅生成body helper内卫生改名，wrapper仍保留真实receiver。body helper留在
+trait定义模块，wrapper留在impl模块；两者按完整trait实参/Self/key命名，每缺省方法
+最多生成两函数，既有有限函数上限与增长前预费同时生效。
+
+随后过滤`trait330_`有7 passed/0 failed/24 filtered，包含20次Clang/API各O0/O2
+原生执行：原待实现源、required委托/覆盖、同Self双default有序phantom实例、
+跨模块私有helper词法归属及真实host依赖、有限递归。未用字段/参数算术沿现有
+parametric checker分类为Expand/Unsupported；错误返回、缺额外trait方法、缺Copy
+及重复消费分别在Expand/SafeReject拒绝。首次把前两项误期待SafeReject的1Fail
+已保留实际类别并修正精确断言；没有按具体实例补证。
+
+自查另发现既有parametric checker不覆盖普通局部地址来源，未用default
+`let x=7;return &x`目前仍被接受；该路径不是交付Pass，正与root裁定有限正文边界。
+`self`重绑定现已在仅default的显式Bounds上下文拒绝，普通generic路径不改。
+新增trait参数/外部nominal同名时先走已有词法名义保护，再做default检查；不得将
+`fn concrete(x:R)`中的外部R误当trait binder R。预算ledger、完整限定回归及最终
+质量检查仍待完成。

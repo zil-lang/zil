@@ -14,10 +14,21 @@ pub(crate) fn present(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<boo
 
 impl Engine<'_> {
     pub(super) fn validate_trait_defaults(&mut self, module: &Module) -> R<()> {
+        if !self.traits.has_defaults {
+            return Ok(());
+        }
         for item in &module.items {
             let ItemKind::Trait(declaration) = &item.kind else {
                 continue;
             };
+            for parameter in &declaration.generics {
+                self.budget.node(parameter.span, 0)?;
+                self.budget.text(&parameter.name, parameter.span)?;
+                if self.nominals.contains_key(&parameter.name) {
+                    self.nominal_binder_collision = true;
+                    return Ok(());
+                }
+            }
             for member in &declaration.members {
                 self.budget.node(member.span, 0)?;
                 let ItemKind::Function(method) = &member.kind else {
@@ -128,6 +139,9 @@ impl Engine<'_> {
         implementation: &mut ImplBlock,
         span: Span,
     ) -> R<()> {
+        if !self.traits.has_defaults {
+            return Ok(());
+        }
         let Some(application) = &implementation.trait_type else {
             return Ok(());
         };
@@ -223,6 +237,7 @@ impl Engine<'_> {
                 },
                 span: member.span,
             });
+            trait_instances::rename_default_receiver(&mut body, &mut self.budget)?;
             body.public = trait_item.public;
             self.budget.text(&helper, member.span)?;
             let ItemKind::Function(body_function) = &mut body.kind else {
