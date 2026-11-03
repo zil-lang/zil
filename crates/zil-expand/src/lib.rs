@@ -154,7 +154,7 @@ pub struct ExpandedModule {
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<Span, String>,
+    trait_method_names: BTreeMap<(Span, Span), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -259,7 +259,7 @@ fn source_exports(
     module: &s::Module,
     core: &CoreModule,
     imported_public_traits: &BTreeSet<String>,
-    trait_method_names: &BTreeMap<Span, String>,
+    trait_method_names: &BTreeMap<(Span, Span), String>,
 ) -> Vec<NodeId> {
     let public_nominals: std::collections::BTreeSet<_> = module
         .items
@@ -293,8 +293,10 @@ fn source_exports(
         .map(|f| ((f.name.clone(), f.span), f.id))
         .collect();
     let mut result = Vec::new();
-    let mut add = |f: &s::Function, prefix: Option<&str>| {
-        let target = trait_method_names.get(&f.span).unwrap_or(&f.name);
+    let mut add = |f: &s::Function, prefix: Option<&str>, implementation: Option<Span>| {
+        let target = implementation
+            .and_then(|owner| trait_method_names.get(&(owner, f.span)))
+            .unwrap_or(&f.name);
         let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
         if let Some(id) = functions.get(&(name, f.span)) {
             result.push(*id);
@@ -302,13 +304,13 @@ fn source_exports(
     };
     for item in &module.items {
         match &item.kind {
-            s::ItemKind::Function(f) if item.public => add(f, None),
+            s::ItemKind::Function(f) if item.public => add(f, None, None),
             s::ItemKind::Aggregate(a) if public_nominals.contains(a.name.as_str()) => {
                 for member in &a.methods {
                     if member.public
                         && let s::ItemKind::Function(f) = &member.kind
                     {
-                        add(f, Some(&a.name));
+                        add(f, Some(&a.name), None);
                     }
                 }
             }
@@ -334,7 +336,7 @@ fn source_exports(
                         member.public
                     }) && let s::ItemKind::Function(f) = &member.kind
                     {
-                        add(f, Some(&owner));
+                        add(f, Some(&owner), Some(item.span));
                     }
                 }
             }
@@ -710,7 +712,7 @@ struct Expander<'a> {
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<Span, String>,
+    trait_method_names: BTreeMap<(Span, Span), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     static_traits: BTreeSet<String>,
@@ -822,18 +824,7 @@ impl Expander<'_> {
         self.unexecuted_attributes(&item.attributes, "declaration");
         match &item.kind {
             s::ItemKind::Function(f) => {
-                let first = self.functions.len();
                 self.function(f, prefix, host, default);
-                if let Some(target) = self.trait_method_names.get(&f.span) {
-                    for function in &mut self.functions[first..] {
-                        if function.span == f.span {
-                            function.name = prefix.map_or_else(
-                                || target.clone(),
-                                |owner| format!("{owner}.{target}"),
-                            );
-                        }
-                    }
-                }
             }
             s::ItemKind::Aggregate(a) => {
                 for field in &a.fields {
@@ -886,7 +877,17 @@ impl Expander<'_> {
                     } else {
                         i.receiver_default.clone()
                     };
-                    self.item(m, Some(&name), Some(&host), inherited.as_ref())
+                    let first = self.functions.len();
+                    self.item(m, Some(&name), Some(&host), inherited.as_ref());
+                    if let s::ItemKind::Function(f) = &m.kind
+                        && let Some(target) = self.trait_method_names.get(&(item.span, f.span))
+                    {
+                        for function in &mut self.functions[first..] {
+                            if function.span == f.span {
+                                function.name = format!("{name}.{target}");
+                            }
+                        }
+                    }
                 }
             }
             s::ItemKind::Import(import) if self.imports_resolved => {
