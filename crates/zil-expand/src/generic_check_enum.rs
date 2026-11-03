@@ -80,7 +80,7 @@ impl Check<'_, '_, '_> {
             unify(field, &actual, &vars, &mut found, arg.span, self.budget)?;
         }
         let actual = syntax_enum::application(decl, &found, e.span, self.budget)?;
-        if record_enums::profile(decl) {
+        if self.budget.has_enum_profiles() {
             self.traits.check_arguments(
                 &decl.generics,
                 &found,
@@ -134,11 +134,7 @@ impl Check<'_, '_, '_> {
             e.span,
             self.budget,
         )?;
-        let variables = declaration
-            .generics
-            .iter()
-            .map(|p| p.name.clone())
-            .collect::<BTreeSet<_>>();
+        let variables = record_enums::variables(declaration, self.budget)?;
         let mut found = BTreeMap::new();
         if let Some(explicit) = explicit {
             if explicit.len() != declaration.generics.len() {
@@ -155,14 +151,21 @@ impl Check<'_, '_, '_> {
         }
         syntax_enum::context(declaration, expected, &mut found, self.budget)?;
         for (supplied, index) in supplied.iter().zip(order) {
-            let value = supplied.value.as_ref().ok_or_else(|| {
-                unsupported(supplied.span, "record enum shorthand is not implemented")
-            })?;
+            let shorthand;
+            let value = if let Some(value) = &supplied.value {
+                value
+            } else {
+                self.budget.node(supplied.span, 0)?;
+                self.budget.text(&supplied.name, supplied.span)?;
+                shorthand = Expr {
+                    kind: ExprKind::Name(supplied.name.clone()),
+                    span: supplied.span,
+                };
+                &shorthand
+            };
             let field = &declared[index];
             let hint = syntax_enum::substituted(&field.ty, &found, self.budget)?;
-            let unresolved = variables
-                .iter()
-                .any(|v| !found.contains_key(v) && syntax_enum::contains(&hint, v));
+            let unresolved = record_enums::unresolved(&variables, &found, &hint, self.budget)?;
             let actual = self.expr(value, state, (!unresolved).then_some(&hint), false)?;
             unify(
                 &field.ty,
@@ -217,7 +220,7 @@ impl Check<'_, '_, '_> {
             self.budget.ty(t)?;
             found.insert(p.name.clone(), t.clone());
         }
-        if record_enums::profile(decl)
+        if self.budget.has_enum_profiles()
             && let VariantFields::Record(fields) =
                 &record_enums::variant(decl, variant, ty.span, self.budget)?.fields
         {
@@ -356,7 +359,7 @@ impl Check<'_, '_, '_> {
                 }
                 let variant = path.last().expect("variant");
                 if let Some(declaration) = self.enums.get(&base.join("."))
-                    && record_enums::profile(declaration)
+                    && self.budget.has_enum_profiles()
                     && matches!(
                         record_enums::variant(declaration, variant, p.span, self.budget)?.fields,
                         VariantFields::Record(_)
