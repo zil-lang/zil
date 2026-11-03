@@ -312,7 +312,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
       const relative = `${directory}/${filename}`, bytes = fs.readFileSync(path.join(root, relative));
       const archived = historicalRecords.get(relative);
       if (archived && !legacyAudit) {
-        output.push({id: filename.slice(0, -3), path: relative, status: archived.recorded_state, baseline: archived.object_references.find(ref => ['baseline', 'base_revision'].includes(ref.field))?.commit ?? null, record_sha256: digest(bytes), committed: true, validation: {classification: 'HistoricalRecord', availability: archived.availability, claims_revalidated: false}, parent_task: archived.parent_task});
+        output.push({id: filename.slice(0, -3), path: relative, status: archived.recorded_state, baseline: archived.object_references.find(ref => ['baseline', 'base_revision'].includes(ref.field))?.commit ?? null, record_sha256: digest(bytes), committed: true, validation: {classification: 'HistoricalRecord', availability: archived.availability, object_availability_changes: archived.object_availability_changes, claims_revalidated: false}, parent_task: archived.parent_task});
         continue;
       }
       const errorStart = errors.length;
