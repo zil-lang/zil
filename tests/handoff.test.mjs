@@ -425,6 +425,12 @@ scenario('handoff-024', '当前规范必需集合不能被较小注册表冒充'
   delete registry.files['spec/grammar.ebnf']; registry.normative_hash = sha(Object.entries(registry.files).sort(([a], [b]) => a.localeCompare(b)).map(([name, hash]) => `${name}\0${hash}\n`).join(''));
   put(f.root, 'data/normative-inputs.json', registry); commit(f.root, 'incomplete current registry');
   check(hasError(inspectHandoff(f.root), 'Current normative registry differs'));
+  const other = fixture(t);
+  put(other.root, 'spec/interfaces.json', {normative_inputs: ['_zil_design.md', 'spec/./grammar.ebnf', 'spec/interfaces.json']});
+  const files = Object.fromEntries(['_zil_design.md', 'spec/./grammar.ebnf', 'spec/interfaces.json'].map(name => [name, sha(fs.readFileSync(path.join(other.root, name)))]));
+  put(other.root, 'data/normative-inputs.json', {files, normative_hash: sha(Object.entries(files).sort(([a], [b]) => a.localeCompare(b)).map(([name, hash]) => `${name}\0${hash}\n`).join(''))});
+  commit(other.root, 'noncanonical current normative aliases');
+  check(hasError(inspectHandoff(other.root), 'Current normative registry differs'));
 });
 
 scenario('handoff-025', '精简本地验收仍绑定实际交付和非零门', t => {
