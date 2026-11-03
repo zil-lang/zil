@@ -878,30 +878,56 @@ fn large_copy_abi_copy_in_and_rhs_order() {
 
 #[test]
 fn large_copy_abi_special_closure_is_explicitly_unsupported() {
-    let text = large_copy_program("let f=(value:Big)->Big=>value;return 0;");
-    let verified = compile_source(&source(&text), &CompileOptions::default());
-    assert_eq!(
-        verified.status,
-        ResultCategory::Success,
-        "{}",
-        verified.to_json()
-    );
-    let report = compile_source(
-        &source(&text),
-        &CompileOptions {
-            stop_after: Stage::Build,
-            ..CompileOptions::default()
-        },
-    );
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
-    assert!(report.diagnostics.iter().any(|d| d.phase == Phase::Codegen));
-    assert!(!report.artifacts.contains_key("llvm"));
-    assert!(!report.artifacts.contains_key("executable"));
+    // Match the ordinary CLI's 8 MiB main-thread stack. The recursive closure
+    // metadata check exceeds Rust's smaller default test-worker stack.
+    std::thread::Builder::new()
+        .stack_size(
+            std::env::var("ZIL_333_CAPTURE_STACK_BYTES")
+                .ok()
+                .map(|n| n.parse().unwrap())
+                .unwrap_or(8 * 1024 * 1024),
+        )
+        .spawn(|| {
+            let first = "[0]".repeat(13);
+            for body in [
+                "let f=(value:Big)->Big=>value;return 0;".to_owned(),
+                format!("let f=move()=>i32(a12{first});return f();"),
+            ] {
+                let text = large_copy_program(&body);
+                eprintln!(
+                    "333 capture probe: Verify API begins; move_capture={}",
+                    body.contains("move")
+                );
+                let verified = compile_source(&source(&text), &CompileOptions::default());
+                assert_eq!(
+                    verified.status,
+                    ResultCategory::Success,
+                    "{}",
+                    verified.to_json()
+                );
+                eprintln!("333 capture probe: Verify API completed; Build API begins");
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        entry: Some("result".into()),
+                        stop_after: Stage::Build,
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Unsupported,
+                    "{}",
+                    report.to_json()
+                );
+                assert!(report.diagnostics.iter().any(|d| d.phase == Phase::Codegen));
+                assert!(!report.artifacts.contains_key("llvm"));
+                assert!(!report.artifacts.contains_key("executable"));
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
 }
 
 #[test]
@@ -940,6 +966,41 @@ fn large_copy_abi_codegen_budget_exact_and_fresh() {
     assert_eq!(errors[0].phase, Phase::Codegen);
     assert!(emit(low).unwrap().contains(".lc1"));
     assert!(emit(low).unwrap().contains(".lc1"));
+    if cfg!(feature = "llvm-api") {
+        let out = Temp::new();
+        let options = CompileOptions {
+            backend: zil_driver::NativeBackend::LlvmApi,
+            stop_after: Stage::Build,
+            object_cache: Some(out.0.join("objects")),
+            output: Some(out.0.join("program")),
+            ..CompileOptions::default()
+        };
+        let cold = compile_source(&src, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        assert!(cold.native_codegen.as_ref().unwrap().object_cache.misses > 0);
+        let failed = compile_source(
+            &src,
+            &CompileOptions {
+                limits: Limits {
+                    max_analysis_steps: low - 1,
+                    ..defaults.clone()
+                },
+                ..options.clone()
+            },
+        );
+        assert_eq!(
+            failed.status,
+            ResultCategory::ResourceLimit,
+            "{}",
+            failed.to_json()
+        );
+        assert_eq!(failed.phase, Phase::Codegen);
+        assert!(!failed.artifacts.contains_key("executable"));
+        let warm = compile_source(&src, &options);
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.native_codegen.as_ref().unwrap().object_cache.misses, 0);
+        assert!(warm.native_codegen.as_ref().unwrap().object_cache.hits > 0);
+    }
     eprintln!("333 a18 function-pointer Codegen exact work limit: {low}");
 }
 
@@ -1039,4 +1100,90 @@ fn large_copy_abi_cgu_cache_and_canonical_function_reference() {
             }
         }
     }
+}
+
+#[test]
+fn large_copy_abi_record_tuple_unit_padding_roundtrip_all_backends() {
+    use zil_driver::{NativeBackend, Optimization};
+    let first = "[0]".repeat(13);
+    let text = large_copy_program(&format!(
+        "let pair=(a12,());var record=Envelope{{unit:(),flag:true,body:a12,tail:9}};let pointer:fn((Big,()),Envelope)->(Envelope,Big)=relay;let kept=pointer(pair,record);record.body{first}=7u8;return i32(kept.0.body{first})*1000+i32(kept.1{first})*100+i32(record.body{first})*10+i32(kept.0.tail);"
+    ));
+    let text = format!(
+        "struct Envelope{{unit:();flag:bool;body:Big;tail:i64}}fn relay(pair:(Big,()),record:Envelope)->(Envelope,Big){{var changed=record;changed.body{first}=9u8;changed.tail=11;return (changed,pair.0)}}{text}"
+    );
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = Temp::new();
+            let report = compile_source(
+                &source(&text),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    entry: Some("result".into()),
+                    stop_after: Stage::Build,
+                    output: Some(out.0.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let observed = Command::new("timeout")
+                .args(["-s", "KILL", "5s"])
+                .arg(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(observed.status.success(), "{observed:?}");
+            assert_eq!(observed.stdout, b"9381\n");
+            let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+            assert!(llvm.contains(".lc1(ptr %lc1.result, ptr %arg.0, ptr %arg.1)"));
+        }
+    }
+}
+
+#[test]
+fn large_copy_abi_unit_erasure_small_signature_and_void_return() {
+    let first = "[0]".repeat(13);
+    let text = large_copy_program(
+        "var observed=0;consume((),a12,2,&mut observed);let scalar=small([4u8]);return observed+i32(scalar[0]);",
+    );
+    let text = format!(
+        "fn consume(unit:(),value:Big,marker:i32,output:&mut i32)->(){{*output=i32(value{first})+marker;return ()}}fn small(value:[u8;1])->[u8;1]{{return value}}{text}"
+    );
+    let llvm = native(&text, Some(9));
+    assert!(llvm.contains(".lc1(ptr %arg.1, i32 %arg.2, ptr %arg.3)"));
+    let small = llvm
+        .lines()
+        .find(|line| line.starts_with("define [1 x i8] @zil.fn."))
+        .unwrap();
+    assert!(!small.contains(".lc1"));
+}
+
+#[test]
+fn large_copy_abi_borrow_capture_keeps_pointer_environment() {
+    // The captured source variable is Big, but its mutable borrowed environment
+    // field is one pointer. LargeCopy guards must inspect the physical value.
+    std::thread::Builder::new().stack_size(8*1024*1024).spawn(|| {
+        use zil_driver::{NativeBackend,Optimization};
+        let first="[0]".repeat(13);
+        let text=large_copy_program(&format!("var original=a12;var f=()=>{{original{first}+=1u8;return i32(original{first})}};return f()*10+f();"));
+        for backend in [NativeBackend::Clang,NativeBackend::LlvmApi] {
+            if backend==NativeBackend::LlvmApi && !cfg!(feature="llvm-api") {continue;}
+            for optimization in [Optimization::O0,Optimization::O2] {
+                let out=Temp::new();
+                let report=compile_source(&source(&text),&CompileOptions {backend,optimization,entry:Some("result".into()),stop_after:Stage::Build,output:Some(out.0.join("program")),..CompileOptions::default()});
+                assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+                let actual=Command::new("timeout").args(["-s","KILL","5s"]).arg(&report.artifacts["executable"]).output().unwrap();
+                assert!(actual.status.success(),"{actual:?}");
+                assert_eq!(actual.stdout,b"45\n");
+            }
+        }
+    }).unwrap().join().unwrap();
 }

@@ -522,7 +522,7 @@ impl FunctionEmitter<'_> {
     // Ordinary memory instructions and LargeCopy ABI consumers are handled
     // explicitly. Any remaining snapshot consumer must stop before publishing
     // machine IR; never materialize a giant SSA bridge for an unsupported path.
-    fn copy_argument(&mut self, argument: &mut m::Arg) {
+    fn check_snapshot_argument(&mut self, argument: &m::Arg) {
         let m::Val::Local(name) = &argument.value else {
             return;
         };
@@ -533,32 +533,29 @@ impl FunctionEmitter<'_> {
         else {
             return;
         };
-        let Some(slot) = self
+        if self
             .copy_values
             .get(&id)
-            .filter(|slot| slot.ty == argument.ty)
-            .cloned()
-        else {
-            return;
-        };
-        let _ = slot;
-        self.unsupported_large_copy = true;
+            .is_some_and(|slot| slot.ty == argument.ty)
+        {
+            self.unsupported_large_copy = true;
+        }
     }
-    pub(super) fn copy_event(&mut self, mut event: m::Event) {
-        if let m::Event::Instruction(instruction) = &mut event {
-            match &mut instruction.op {
+    pub(super) fn copy_event(&mut self, event: m::Event) {
+        if let m::Event::Instruction(instruction) = &event {
+            match &instruction.op {
                 m::Op::Store { arg, .. }
                 | m::Op::Cast { arg, .. }
                 | m::Op::Extract { arg, .. }
                 | m::Op::Freeze(arg)
-                | m::Op::Return(Some(arg)) => self.copy_argument(arg),
+                | m::Op::Return(Some(arg)) => self.check_snapshot_argument(arg),
                 m::Op::Insert { arg, field, .. } => {
-                    self.copy_argument(arg);
-                    self.copy_argument(field);
+                    self.check_snapshot_argument(arg);
+                    self.check_snapshot_argument(field);
                 }
                 m::Op::Call { args, .. } => {
                     for argument in args {
-                        self.copy_argument(argument);
+                        self.check_snapshot_argument(argument);
                     }
                 }
                 // The source LIR has no aggregate phi; scalar_locals only adds
@@ -571,10 +568,7 @@ impl FunctionEmitter<'_> {
                 .and_then(|name| name.strip_prefix("v."))
                 .and_then(|id| id.parse::<u32>().ok())
                 .map(ValueId);
-            if let Some((id, slot)) =
-                output.and_then(|id| self.copy_values.get(&id).cloned().map(|slot| (id, slot)))
-            {
-                let _ = (id, slot);
+            if output.is_some_and(|id| self.copy_values.contains_key(&id)) {
                 self.unsupported_large_copy = true;
                 return;
             }

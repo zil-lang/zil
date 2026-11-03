@@ -65,3 +65,75 @@ retvoid；小值/foreign C符号与ABI保持。无旧大型SSA兼容wrapper。
 CGU按实际版本化符号分组、导入和声明；完整machine签名/名称继续进入原对象键。
 未贯通的closure entry/foreign/scoped-thread大签名提前Unsupported，未消费大snapshot
 不再临时Load回巨型SSA：发射记录Unsupported并在返回机器产物之前终止。
+
+## 有限验收的实际结果
+
+生产写集：共享`emit.rs`、`emit/copy_aggregates.rs`、新
+`emit/large_copy_abi.rs`、`machine_cgu.rs`；两个既有scoped模型构造仅补私有
+ABI计划字段。没有IR/Types/driver生产修改，也没有新公共machine attrs。
+计划在324的同一`work`剩余额度内支付参数位置映射、完整类型遍历/布局和保留；
+ABI planner没有新建默认预算或reset。每个callee参数入口仍有独立local，复制发生
+在跳入任何源block之前；返回写caller独立结果快照后retvoid。按逻辑源参数位置
+擦除Unit，不挪动实参求值时机，调用传准备好的SSA快照而不是源local地址。
+
+LLVM23.1.4，target333/jobs1，显式`--features llvm-api`：
+
+- 既有aggregates整target在新增borrow正控前31/0；最后ABI七测7/0，覆盖最终32个
+  target用例的并集。原a18参数、a18返回、a18函数指针三源码共12个native组合均过：
+  Clang/API各O0/O2，实际backend、请求opt/pipeline、fallback=null、native0均断言。
+  各原scale子进程CPU45s/VM2GiB/wall55s/core0，native5s；原参数源SHA仍为上表原值。
+- Copy-in/RHS次序、双大参数、record/tuple/Unit/padding、大tuple返回、Unit参数擦除/
+  void返回、小array旧签名均有实际原生消费者。新用例共36次native执行（含12个
+  CGU/cold-warm-body-change运行），不将对象构建次数算native次数。
+- 三模块canonical函数地址跨CGU声明/引用，两后端O0/O2实际units>=2、无fallback；
+  API冷miss、暖全hit、callee body改后miss并返回新值。Clang不请求其未支持的
+  object cache。既有layout action key和object key确实hash完整machine项，包括
+  `.lc1`名称/签名及copy helper attrs；不是仅source fingerprint。
+- a18函数指针Codegen精确N=356839，N−1为Codegen ResourceLimit，N两次fresh成功。
+  真实API对象缓存暖后同源N−1仍在Codegen拒绝且无executable artifact；恢复预算
+  再暖hit成功。324旧local-a18的精确N由323040增为323041：新增main header映射1，
+  没有隐瞒新费用或提高默认额度。
+- backend现有machine_cgu模型16/0、scoped模型5/0；backend两feature配置
+  all-targets Clippy `-D warnings`、API driver aggregates Clippy、fmt通过。
+  默认ELF实际`nm -g`显示`T zil.fn.0.lc1`，保留External；未internalize生成入口。
+
+重放主正控：
+
+```sh
+source /workspace/.zil-env/env.sh
+export CARGO_TARGET_DIR=/workspace/.zil-env/target333 CARGO_BUILD_JOBS=1
+ulimit -c 0
+cargo test -p zil-driver --test aggregates --features llvm-api --offline large_copy_a18_by_value_abi_native_all_backends -- --nocapture
+cargo test -p zil-driver --test aggregates --features llvm-api --offline large_copy_abi_ -- --nocapture
+```
+
+## 已知边界：大move capture与API线程栈
+
+`tests/language-readiness/codegen-pending/large-copy-a12-move-capture.zil`保留550字节
+最小实际CLI输入，a12=4096B；SHA256
+`6ba91840b41b64ca098d57ca29778bd862b8e5aada06a0ffd546c6368077b1b8`。
+普通CLI线程下同源`check`为Verify1 Success；`build --entry result`为Codegen
+E-UNSUPPORTED，无LLVM/executable。这是尚未贯通的大物理move环境，不能冒称已支持。
+近邻直接mutable借入同一Big源变量的closure实际环境字段为Address<Big>（一个ptr），
+两后端O0/O2原生输出45均成功，guard没有按原数组referent盲拒。
+
+独立的KnownIncomplete：Rust API在2MiB工作线程处理该move capture时，明确在
+Verify API调用开始与完成标记之间stack overflow/SIGABRT，尚未进入Codegen。
+Syntax/Expand/Types/Analyze/Verify/Lower源码相对40fb基线零差异；这是未修的API
+小栈可靠性问题，不计成Unsupported或ABI修复成功。未重建旧baseline binary来
+声称旧binary实跑过。默认8MiB测试线程只匹配本轮普通CLI测试前置，不改变compiler
+线程栈、预算或语义，也不把8MiB通过宣称2MiB问题已修。core0、无repo core。
+
+```sh
+# 正常CLI阶段；先按上述命令构建/使用当前target333 CLI
+ulimit -c 0; ulimit -t 15; ulimit -v 2097152
+timeout -s KILL 20s /workspace/.zil-env/target333/debug/zil check tests/language-readiness/codegen-pending/large-copy-a12-move-capture.zil --json
+timeout -s KILL 20s /workspace/.zil-env/target333/debug/zil build tests/language-readiness/codegen-pending/large-copy-a12-move-capture.zil --entry result --backend llvm-api --opt O0 --emit-dir /tmp/zil-333-capture -o /tmp/zil-333-capture/program --json
+# 故意重放未修的小栈API失败，非通过测试
+ZIL_333_CAPTURE_STACK_BYTES=2097152 cargo test -p zil-driver --test aggregates --features llvm-api --offline large_copy_abi_special_closure -- --nocapture
+```
+
+未贯通大型closure显式签名/环境、foreign或特殊helper产物前仍明确Unsupported；
+本片不声称全部大型Enum/ErrorUnion或所有callable/外部C ABI已支持。初期测试脚本
+曾误向Clang请求仅API支持的object cache、额外capture测试曾漏选result入口，均已
+修正测试请求；未将这些InfraError/SafeReject或2MiB栈崩溃计入正控。
