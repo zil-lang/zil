@@ -225,6 +225,86 @@ fn common320_record_enum_phantom_cannot_hide_a_missing_struct_copy_obligation() 
 }
 
 #[test]
+fn common320_primitive_type_binder_keeps_copy_obligations_and_concrete_neighbors() {
+    let declaration = "struct Cell<i32:Copy>{value:i32}";
+    for (text, category, code) in [
+        (
+            format!("{declaration}struct Outer<U>{{value:Cell<U>}}fn result()->i32{{return 0}}"),
+            ResultCategory::SafeReject,
+            "E-GENERIC-ARGUMENT",
+        ),
+        (
+            format!(
+                "{declaration}fn bad<i32:Copy>(value:Cell<i32>)->i32{{return value.value+1}}fn result()->i32{{return 0}}"
+            ),
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+        assert_eq!(report.status, category, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, code, "{}", report.to_json());
+    }
+    for alias in ["", "type Number=i32;"] {
+        let text = format!(
+            "{alias}{declaration}struct Allowed<U>{{value:Cell<i32>}}fn concrete()->i32{{return 7}}fn keep<T:Copy>(value:Cell<T>)->Cell<T>{{return value}}fn result()->i32{{let value=keep(Cell::<bool>{{value:true}});if !value.value{{return 99}}return concrete()}}"
+        );
+        native(&text, 7);
+    }
+    let text = format!(
+        "{declaration}fn keep<T:Copy>(value:Cell<T>)->Cell<T>{{return value}}fn result()->i32{{let value=keep(Cell::<bool>{{value:true}});if value.value{{return 7}}return 0}}"
+    );
+    let unit = source(&text);
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let run = |n| {
+        zil_expand::expand_with_map_limits(
+            &unit,
+            &ast,
+            &zil_base::Limits {
+                max_analysis_steps: n,
+                ..zil_base::Limits::default()
+            },
+        )
+        .map(|m| m.core)
+    };
+    let (mut low, mut high) = (0, zil_base::Limits::default().max_analysis_steps);
+    let expected = run(high).unwrap();
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        match run(middle) {
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                high = middle;
+            }
+            Err(errors) => {
+                assert!(!errors.is_empty());
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.phase == Phase::Expand
+                            && d.category == ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                low = middle;
+            }
+        }
+    }
+    assert_eq!(run(high).unwrap(), expected);
+    let errors = run(high - 1).unwrap_err();
+    assert!(!errors.is_empty());
+    assert!(
+        errors
+            .iter()
+            .all(|d| d.phase == Phase::Expand && d.category == ResultCategory::ResourceLimit),
+        "{errors:?}"
+    );
+    assert_eq!(run(high).unwrap(), expected);
+    eprintln!("common320 primitive binder Expand N={high}; N-1 ResourceLimit; fresh N identical");
+}
+
+#[test]
 fn copy_record_bound_original_ct_source_reaches_native() {
     use zil_driver::Optimization;
     for text in [
