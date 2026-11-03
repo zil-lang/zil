@@ -73,9 +73,11 @@ pub(super) fn specialize_products<'a>(
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
     let mut has_defaults = false;
+    let mut has_alias = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
+        has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
         if let ItemKind::Trait(declaration) = &item.kind {
             has_defaults |=
                 trait_defaults::present(declaration, &mut names_budget).map_err(|e| vec![e])?;
@@ -121,6 +123,33 @@ pub(super) fn specialize_products<'a>(
                 return Err(vec![super::primitive_name_error(&param.name, param.span)]);
             }
         }
+    }
+    if names_budget.has_primitive_binders() && !has_alias {
+        // The existing scoped normalizer also protects aliases. Without an
+        // alias, trigger it only for actual builtin/type-binder collisions.
+        // Complete preflight precedes its whole-AST clone, on this same ledger.
+        for item in &module.items {
+            names_budget.item(item).map_err(|e| vec![e])?;
+        }
+        let protected = super::modules::protect_alias_binders(module, &mut names_budget)
+            .map_err(|e| vec![e])?;
+        let protected = if has_where {
+            Cow::Owned(
+                where_copy::normalize(protected.as_ref(), &mut names_budget)
+                    .map_err(|e| vec![e])?,
+            )
+        } else {
+            protected
+        };
+        return specialize_with_budget(
+            protected.as_ref(),
+            limits,
+            &BTreeMap::new(),
+            names_budget,
+            products,
+        )
+        .map(Cow::Owned)
+        .map_err(|e| vec![e]);
     }
     if has_where {
         let normalized = where_copy::normalize(module, &mut names_budget).map_err(|e| vec![e])?;
@@ -527,6 +556,7 @@ impl<'a> Engine<'a> {
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
         self.products.trait_instances = self.traits.has_instances;
         self.products.record_variants = self.budget.has_enum_profiles();
+        self.products.protected_binders = self.budget.has_primitive_binders();
         self.collect_products(module)?;
         let mut result = Module {
             id: module.id,

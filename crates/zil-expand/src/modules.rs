@@ -344,7 +344,7 @@ fn normalize(
                 generics::trait_defaults::present(t, &mut budget)? || !t.generics.is_empty();
         }
     }
-    has_trait_instances |= budget.has_enum_profiles();
+    has_trait_instances |= budget.has_enum_profiles() || budget.has_primitive_binders();
     let instance_limits = if has_trait_instances {
         budget.remaining_limits()
     } else {
