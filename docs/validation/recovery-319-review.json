@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/language_map",
+  "review_kind": "independent limited source/CTIR/Wire/VM and request-budget review",
+  "implementation_commit": "d53b846af0e8075224697d4d600b8459362f0d6a",
+  "implementation_code_commit": "d7f57f38a",
+  "verdict": "PassLimited",
+  "scope": "314 finite ordinary Copy CT function and concrete pure Struct instances, symbolic definition checks, complete nominal/phantom identity and cumulative request ledger; 320 is a required separate producer dependency.",
+  "review_tree": "/workspace/zil-review319",
+  "target_dir": "/workspace/.zil-env/target319",
+  "tested_composition": "fe8220aa8652a5ac80c751fd657b46c1af018b9b",
+  "final_document_merge": "dfb16b2e0a38b3e40f8d6599bafa1ed021d2ed61",
+  "specification": "575b05b98f183f74ba36872d85869a16f160f17a",
+  "specification_sha256": {
+    "_zil_design.md": "47307962ce1c56ac73eae3eb3e587353001888d9e08afc319b10eec2a908fe00",
+    "spec/grammar.ebnf": "707451e45cd6d4ddc1d8e2c34829e0d98a0ed95aa5a29a59bf857c87187caf9c",
+    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+    "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
+    "spec/interfaces.json": "f4065229a2ee321278398ecd6f363635a64e69dad02b8d4990b752e7ac3e5eb0",
+    "spec/diagnostics.json": "76d7b0eda1addd47ad03d81fa083d2d016c2ec7eeb46297ee868ae3d59131cb8"
+  },
+  "identity_binding": {
+    "final_vs_tested_implementation": "7e99ec6f8 and final d53b846af differ only in changes/314-ct-generics.md; every CT production file matches the final implementation commit.",
+    "reviewer_test_commit": "f0851722484cfa84908ed248970836e815c1f40f",
+    "only_crates_difference_from_implementation": [
+      "crates/zil-driver/tests/impl260_compiler.rs"
+    ],
+    "measured_test_source_sha256": "5e0b026f88947589d8f61a4bd773d11a803181f32cc26d927ac6460b87a76e5d",
+    "delivered_test_source_sha256": "3c9802d0aa3dced18c3bd776c2f659d3e05980b115dc348b9ae0cd98fb40eea1",
+    "test_format_followup": "rustfmt only after the 37/0 execution; final formatted source also passed independent target-specific Clippy. No production change followed the execution.",
+    "production_sha256": {
+      "crates/zil-driver/src/ct_artifact/authority.rs": "474cab9c071662324a23065c654bd3de4353da5a486e8ce17224ede3a5253623",
+      "crates/zil-driver/src/ct_artifact/compiler.rs": "2f24cd344813d95254ad3bd450bea84fb3af54ee15952bf3bd072837c866a576",
+      "crates/zil-driver/src/ct_artifact/compiler_builtins.rs": "3235e067696e975600240335776f4f5230668bc72840959fe9af7a2ef4d14fa8",
+      "crates/zil-driver/src/ct_artifact/compiler_cfg.rs": "f93423e6377f146a87fb01e608805cf21075e11df6d0e5f4417b9341cb569aae",
+      "crates/zil-driver/src/ct_artifact/compiler_cfg_prune.rs": "049c5bcd65a245e74c2471cffe82c67bf3320981b1d702cbef97e0882c3ec382",
+      "crates/zil-driver/src/ct_artifact/compiler_domain.rs": "4a332def4e58f1e9fa30be9422cf2fcc97f15188fa10f48e13397564d6bac5bb",
+      "crates/zil-driver/src/ct_artifact/compiler_expr.rs": "b14b93f2e740923dc724e1dc01cac481608c9f5aee7382fc4c7ff09e6693dd76",
+      "crates/zil-driver/src/ct_artifact/compiler_generics.rs": "c92387ebee7e292f2af6c7205aca0df472adfce1b236fff79b47715641230add",
+      "crates/zil-driver/src/ct_artifact/compiler_quote.rs": "6de647b9d1698f8db722df2c000a52d795932324b6c0ecb2846938523d8d8999",
+      "crates/zil-driver/src/ct_artifact/compiler_selection.rs": "de00b06dcccbb7c820cbba27a81cb81e463a7dc180cbf24ea4ae3b9a9a7a9531",
+      "crates/zil-driver/src/ct_artifact/compiler_types.rs": "d49f5b315bb903d775d75bd358e018b493ab70d6e69ab7fbed0859715554018a",
+      "crates/zil-driver/src/ct_artifact/execute.rs": "3c12270a86a2612456db2946e561d464d1de2256bdf4f7f5c5caae2ce3c16e88",
+      "crates/zil-driver/src/ct_artifact/hygiene.rs": "08b693afe6916d65965f696de32cb0cfd7080d273c8f31e0b4de5009eeeb60c3",
+      "crates/zil-driver/src/ct_artifact/input.rs": "1936fe06b1d608a7d12628f5e8714e1f96220885ebb3d8e7105a6154c2891aef",
+      "crates/zil-driver/src/ct_artifact/lock.rs": "62250f50748e713c28f8561016da516700254e5d219a3188345f3420eba136ce",
+      "crates/zil-driver/src/ct_artifact/materialize.rs": "f3d56ed1e3a994eabd4112ef320ebaadc88a75a1301834d05e34dd0156e35239",
+      "crates/zil-driver/src/ct_artifact/mod.rs": "d7e15bd6150ad5119ab67a5d581ac6e6dcde8253394d01d7c257f9fa488df492",
+      "crates/zil-driver/src/ct_artifact/ordinary_type.rs": "65e84549a2edce36a718ac4fb4f6e2d0f78a04b1bf709e31ceff643cb7fb2d42",
+      "crates/zil-driver/src/ct_artifact/read_view.rs": "0ff9fc3fe7b6184df18ded5ceee71059ffe4f02b3fa6c319ff741e1523e87817",
+      "crates/zil-driver/src/ct_artifact/render.rs": "a56f385b6b5e185a6f22a9a28ecfc20b7dc25ed1a0833676c567754ca17c3a0e",
+      "crates/zil-driver/src/ct_artifact/snapshot.rs": "4a55419f2d4f428db33d066cca95a442389d3f822d49b75fd57d8d0990044bea",
+      "crates/zil-driver/src/ct_artifact/source_index.rs": "10d010908fa4df38f3e27ab2c9dda6f3ec4ac9bcb9fbf622bcaa032f84b7e70c",
+      "crates/zil-driver/src/ct_artifact/type_ref.rs": "7638b4fe7251ff9030df87efef49d0966828e8088b20be90cd3f76947029ca20"
+    },
+    "root_gate_commit": "6907974e9aa57c19dea5c10da0aba9405cc844f0",
+    "root_gate_production_and_test_source_match": true,
+    "root_gate_test_sha256": "3c9802d0aa3dced18c3bd776c2f659d3e05980b115dc348b9ae0cd98fb40eea1",
+    "reviewer_formatted_test_commit": "39582f21d93649671be076922e047e8c7066e8e3"
+  },
+  "source_review": {
+    "instances": "Function keys retain actual declaration plus complete ordered CtTy arguments. Record keys retain definition module, original AST declaration and all actual arguments, including phantom parameters. Schema IDs retain distinct instances through Wire; TypeApply reconstruction retains arguments in observable Type values.",
+    "lexical_authority": "CtFunction.definition remains the original lexical declaration for visibility and reflection. FrozenAuthority compares the complete artifact and actual functions against the frozen source compilation. Raw IDs and matching layouts grant no authority.",
+    "symbolic_definitions": "Distinct opaque binders check uncalled CT-only templates and pure-value generic helpers reached from CT before concrete specialization. Scratch checking swaps and returns the same remaining budget. Symbolic bodies/types are discarded and are not published, verified as concrete, or executed.",
+    "independent_boundary": "Source parametric validation belongs to the producer; independent CT Verify checks emitted concrete types, calls, CFG and source authentication. This review does not claim the erased symbolic template is independently proved by the concrete CT checker.",
+    "budgets": "Actual new scans, argument comparisons/copies, schema/instance keys and queue growth are prepaid. Internal discarded checking keeps work/node/instance consumption; temporary allocations are checked and released according to the live-byte ledger. Full requests use the existing shared environment budget.",
+    "execution": "Actual VM call frames select CtFunctionId, preserving distinct instances with the same lexical definition. Generic artifact encode/decode roundtrips were verified against the same source authority before VM evaluation; no new public execution-plan/schema form is asserted."
+  },
+  "independent_tests": {
+    "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target319 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --test impl260_compiler -- --nocapture",
+    "exit_code": 0,
+    "passed": 37,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "counts": "Author target contains 35 tests; reviewer added 2 test functions with six distinct full source-to-Verify consumers. Replays and the earlier candidates are not added to this count.",
+    "stdout_sha256": "66105bb6d2ed9faf8c32445a2b67e3edf44df8f5582d789fb7ab5d3e76a769da",
+    "budget_boundaries": {
+      "source_work": 994,
+      "generated_nodes": 267,
+      "temporary_bytes": 1753,
+      "instances": 4,
+      "depth": 6,
+      "two_query_full_request_work": 924,
+      "old_alias_work": [
+        40,
+        104
+      ],
+      "old_routing_work": 45
+    },
+    "budget_checks": "Each new scalar limit N succeeds, N-1 is ResourceLimit, fresh N is identical; the two-query full request reproduces cold/warm/fresh N success and N-1 ResourceLimit.",
+    "wire": "Real generic source -> raw artifact -> encode -> decode -> same-source authority -> independent Verify -> VM returns i32 7. Schema exchange and actual function-type substitution are rejected.",
+    "negative_definitions": "Unnamed contextual record construction, fields, arithmetic, comparison, conversion, cross-binder assignment, unsupported actuals, and unused bad definitions are checked. Generic pure-value helpers cannot gain arithmetic from an eventual i32 instance.",
+    "reviewer_sources": [
+      {
+        "name": "alias nominal Type result",
+        "source": "struct T{value:i32}type Alias=T;fn select<T:Copy>(value:T)->Type{return Alias}fn main()->i32{let value:#(select(7))=T{value:7};return value.value-7}",
+        "observed": "Success, Verify 1"
+      },
+      {
+        "name": "phantom arguments remain observable in Type equality",
+        "source": "struct Config<T:Copy,P:Copy>{value:T}fn actual<T:Copy>(value:T)->Type{return T}fn chosen()->Type{let left=actual(Config::<i32,bool>{value:7});let right=actual(Config::<i32,i32>{value:7});if left==right{return i64}return i32}fn needs_i32(value:i32)->i32{return value}fn main()->i32{let value:#(chosen())=7;return needs_i32(value)-7}",
+        "observed": "Success, Verify 1"
+      },
+      {
+        "name": "CT-spelled runtime binders",
+        "source_template": "fn identity<NAME:Copy>(value:NAME)->NAME{return value}fn main()->i32{return identity(7)-7}",
+        "names": [
+          "Type",
+          "Text",
+          "Ident",
+          "Syntax"
+        ],
+        "observed": "All four Success, Verify 1 each"
+      }
+    ]
+  },
+  "retained_failures": [
+    {
+      "candidate": "2190a9179ab81d58466c02d05d6f566ee8e1291f",
+      "composition": "af8291e2366d1f3ad0f26687473cbdc7626141af",
+      "command": "cargo test -p zil-driver --test impl260_compiler -- --nocapture",
+      "exit_code": 101,
+      "passed": 26,
+      "failed": 1,
+      "failure": "original_pending_ct_generics_reach_runtime_verify: record failed at Expand E-UNSUPPORTED generic bound, lifetime or const parameter requires its semantic solver",
+      "resolution": "320 ordinary Struct Copy producer dependency; original source retained and succeeds in the final composition."
+    },
+    {
+      "candidate": "52b5ad0c3",
+      "composition": "c399769155b9e20b936783dbc742c810dbf5219d",
+      "baseline_target_result": "33/0",
+      "reviewer_probe_result": "review319_ filter 1 passed/1 failed; subsequent single filtered replay also failed",
+      "source": "fn identity<Type:Copy>(value:Type)->Type{return value}fn main()->i32{return identity(7)-7}",
+      "observed": {
+        "status": "SafeReject",
+        "phase": "types",
+        "code": "E-UNKNOWN-NAME",
+        "message": "unknown function identity",
+        "verification_runs": 0
+      },
+      "resolution": "d7f57f38a classification now respects function and declaration lexical type binders; four independent spellings pass in the final target."
+    }
+  ],
+  "pre_review_static_findings": [
+    {
+      "risk": "Symbolic contextual record expected type could index the opaque u32::MAX placeholder as a real schema.",
+      "old_failure_executed_by_reviewer": false,
+      "resolution": "Explicit symbolic target guard; final unused-definition source checks reject without panic."
+    },
+    {
+      "risk": "Explicit array arguments in generic record constructors were rejected by a narrower source-copy visitor.",
+      "old_failure_executed_by_reviewer": false,
+      "resolution": "Bounded fixed-array source walk; concrete array record source and verified VM control pass."
+    },
+    {
+      "risk": "TypeAlias expression attribution could capture the caller generic binding.",
+      "old_failure_executed_by_reviewer": false,
+      "resolution": "Alias attribution isolates type bindings as well as value scopes; independent nominal-return consumer passes."
+    }
+  ],
+  "review_scope_corrections": [
+    "Exploratory struct T{value:Type} runtime source returned existing aggregate Unsupported; type T=Type returned existing alias-target rejection. These were not valid current-profile success controls and are not used to claim a new implementation defect or final success. Only the independent ordinary binder source identified the confirmed misclassification.",
+    "1cf24be45 only clarifies Analyze candidate status versus independent Verify loan adjudication for 315. It does not relax 314, Product shape, provenance, cleanup, ABI or budgets.",
+    "575b05b98 constrains each named Struct Copy binder independently; it does not imply the entire Struct is Copy. 320 remains separately reviewed."
+  ],
+  "clippy": {
+    "command": "source /workspace/.zil-env/env.sh && CARGO_TARGET_DIR=/workspace/.zil-env/target319 CARGO_BUILD_JOBS=1 cargo clippy -p zil-driver --test impl260_compiler -- -D warnings",
+    "exit_code": 0,
+    "stdout_sha256": "27a5886dfef11188b5fd2667f28d4f9f21e8597b26cd785925c96c409c557069"
+  },
+  "limits": [
+    "No native O0/O2 execution, allocator failure injection, full suite, Windows, async/concurrency or Rust/product comparison was run by 319.",
+    "General const/life/trait/callable generic CT profiles, generic aliases/enums, runtime resources/addresses, and full Type/Syntax completeness are not accepted by this verdict.",
+    "Final joint integration and 317 native consumers belong to the integrator; this limited Pass does not complete B0, full language or ZUI."
+  ]
+}
