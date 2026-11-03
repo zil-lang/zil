@@ -31,4 +31,17 @@ Expand精确 work N=740、旧无bound控制N=255，各N−1拒绝、N及fresh通
 首次测试为2/1：名义异型已在Expand正确拒绝，测试最初误期望Types诊断；
 修正为实际E-GENERIC-ARGUMENT，原源保留，未改生产规则。
 
-CT组合及既有完整generics target尚待后续限定执行；未跑正式全量或性能比较。
+随后按授权合入314未验收候选2190a9179做组合，
+`cargo test -p zil-driver --test generics --offline -- --nocapture` 为13/0。
+原CT record文件字节原样保留（SHA256
+`fb52945235cc9bbb7dbb4c469666d1d589fc0d05290d9613efec4c1e7e2c6b49`），
+与返回i64的另一CT分支各O0/O2原生退出0；运行时声明均保留。
+加上普通组合源，本片新增3源共6次原生执行。最后增加零长度地址数组和资源
+phantom反例后，限定 `copy_record_bound` 为5/0、8 filtered，拒绝总计17个。
+`cargo clippy -p zil-expand --lib --offline -- -D warnings` 和 `git diff --check` 通过。
+
+Rust四目标：本片有限结构Copy义务、未用定义与实际phantom反例有实证，完整安全
+未建立；沿旧内联记录表示且原生结果通过，未测Rust运行/RSS；原CT记录与普通
+泛型wrap自然组合，框架维护收益未测；共享预算有740/739/fresh与255/254/fresh，
+无编译提速结论。实质突破为原CT record不删运行时声明即可进入Verify及原生，
+不升级B0、完整语言/ZUI或产品门。未跑正式全量、Windows、参考后端或性能比较。
