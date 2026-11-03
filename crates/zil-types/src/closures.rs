@@ -3095,6 +3095,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         ));
                     };
                     self.visit(depth + 1, worker.span)?;
+                    self.thread_worker_lookup(worker)?;
                     if !self.direct(worker) {
                         return Err(error(
                             "E-THREAD-WORKER",
@@ -3859,6 +3860,70 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 .bind(&mut self.graph, expected, argument.span)?;
         }
         self.known(ty, span)
+    }
+    // Both direct() and callee() look through the source scope/outer tables.
+    // Reserve their bounded ordered-key paths before either lookup executes.
+    fn thread_worker_lookup(&mut self, expression: &CoreExpr) -> R<()> {
+        let (name, member) = match &expression.kind {
+            CoreExprKind::Name(name) => (name, None),
+            CoreExprKind::Member { object, member, .. } => {
+                let CoreExprKind::Name(name) = &object.kind else {
+                    return Ok(());
+                };
+                (name, Some(member))
+            }
+            _ => return Ok(()),
+        };
+        let span = expression.span;
+        *self.work_left = self
+            .work_left
+            .checked_sub(self.scopes.len())
+            .ok_or_else(|| limit("thread worker lookup budget exceeded", span))?;
+        let width = name.len().saturating_add(1);
+        let scopes = self.scopes.iter().fold(0usize, |sum, scope| {
+            sum.saturating_add(helpers::plan::tree_work(scope.len()))
+        });
+        let mut work = scopes
+            .saturating_add(helpers::plan::tree_work(self.outer.len()))
+            .saturating_mul(width)
+            .saturating_mul(2);
+        let signature_width = member.map_or(width, |member| {
+            width.saturating_add(member.len()).saturating_add(1)
+        });
+        work = work.saturating_add(
+            helpers::plan::tree_work(self.signatures.len()).saturating_mul(signature_width),
+        );
+        if let Some(member) = member {
+            // The qualified lookup constructs alias.member before consulting
+            // the local signature map, then can enter the imported module map.
+            work = work.saturating_add(signature_width);
+            if let Some(imports) = self.imports {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(imports.signatures.len())
+                    .ok_or_else(|| limit("thread module lookup inventory budget exceeded", span))?;
+                let largest = imports
+                    .signatures
+                    .values()
+                    .map(BTreeMap::len)
+                    .max()
+                    .unwrap_or(0);
+                work = work
+                    .saturating_add(
+                        helpers::plan::tree_work(imports.aliases.len()).saturating_mul(width),
+                    )
+                    .saturating_add(helpers::plan::tree_work(imports.signatures.len()))
+                    .saturating_add(
+                        helpers::plan::tree_work(largest)
+                            .saturating_mul(member.len().saturating_add(1)),
+                    );
+            }
+        }
+        *self.work_left = self
+            .work_left
+            .checked_sub(work)
+            .ok_or_else(|| limit("thread worker ordered-key lookup budget exceeded", span))?;
+        Ok(())
     }
     fn direct(&self, expression: &CoreExpr) -> bool {
         let name = match &expression.kind {
