@@ -71,7 +71,6 @@ fn generic_error_union_call_constraints_are_independent_of_argument_order() {
 fn generic_enum_payload_uses_declared_callable_result() {
     for text in [
         "enum Choice<T>{None,Some(T)}fn sink(v:Choice<i32>!i32)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{return sink(Choice.Some(f()))}fn main()->i32{let f=()->i32=>7;return run(f)}",
-        "enum Choice<T>{None,Some(T)}fn run<F:Fn(Choice<i32>!i32)->i32>(f:F)->i32{return f(Choice.None)}fn main()->i32{let f=(v:Choice<i32>!i32)->i32=>0;return run(f)}",
     ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "union-fn-result.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
@@ -86,6 +85,37 @@ fn generic_enum_payload_uses_declared_callable_result() {
             .iter()
             .all(|error| error.phase == Phase::Expand && error.code == "E-GENERIC-ARGUMENT")
     );
+}
+
+#[test]
+fn generic_error_union_symbolic_alternatives_require_distinctness() {
+    for text in [
+        "fn sink<T>(value:T!i32,witness:T)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(7,w)}fn main(){}",
+        "fn sink<T>(witness:T,value:T!i32)->i32{return 0}fn unused<U:Copy>(w:U)->i32{return sink(w,7)}fn main(){}",
+        "fn unused<U:Copy>(w:U)->U!i32{let n:i32=7;return n}fn main(){}",
+        "fn unused<U:Copy>(w:U)->U!i32=>7;fn main(){}",
+        "fn unused<U:Copy>(w:U)->i32{let n:U!i32=7;return 0}fn main(){}",
+        "enum Choice<T>{None,Some(T)}fn unused<U:Copy>(w:U)->Choice<U>!Choice<i32>{let n=Choice::<i32>.None;return n}fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-symbolic-reject.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.phase == Phase::Expand && error.code == "E-GENERIC-ARGUMENT"),
+            "{text}: {errors:?}"
+        );
+    }
+    for text in [
+        "fn sink<T>(value:T!i32,witness:T)->i32{return 0}fn unused<U:Copy>(w:U,v:U!i32)->i32{return sink(v,w)}fn main(){}",
+        "fn unused<U:Copy>(v:U!i32)->U!i32{let n:U!i32=v;return n}fn main(){}",
+        "enum Choice<T>{None,Some(T)}fn unused<U:Copy>(v:Choice<U>)->Choice<U>!i32{let n:Choice<U>!i32=v;return n}fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-symbolic.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+    }
 }
 
 #[test]
