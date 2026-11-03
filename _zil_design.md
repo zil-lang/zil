@@ -790,7 +790,7 @@ Types构造未核候选，Analyze与Verify分别重建实际worker调用图、�
 
 在11.1既有thread_scope入口中另允许真实静态`fn(&i32)->i32` worker及共享`&i32`载荷。载荷表达式和body仍按源序求值一次；指针指向实际父方稳定对象，从创建前至成功join保持共享窗口，父body可以同时共享读取，任何相交可变访问、移动、重建或清理必须被拒绝。body环境仅留父线程；不能把shared地址当Copy标量或凭父方保活授予写权限。payload及body捕获须作为同时活动输入由两核独立核验，最后使用位置也不能免除该窗口。
 
-worker可达直接调用图只增加真实共享i32地址参数、局部传递和读取；不得写入、存储/返回地址、捕获环境、FFI、间接调用或升级可变权限。每个callee实际签名/指令/来源都核验，不由函数名或表面签名推断安全；其余纯标量控制流沿11.1。现有WithScopedThread携完整argument类型与ValueId，无新证明位；Wire34解码后仍必须由当前独立核验器检查。实际pthread context保存共享指针，目标在join前稳定；create发布及join acquire建立happens-before，失败不执行worker/body且正确清理，join不证明静止仍abort。此片无非原子写共享，不宣称Mutex/Atomic或一般Transfer/Share、异步取消完成。机器ABI/CGU/缓存绑定实际payload类型，新增遍历和窗口操作在增长前累计计费，不提高默认限额。
+worker可达直接调用图只增加真实共享i32地址参数、局部传递和读取；不得写入被借入对象、逃逸或持久存储/返回地址、捕获环境、FFI、间接调用或升级可变权限；普通函数内指针局部槽和共享重借仍属于局部传递。每个callee实际签名/指令/来源都核验，不由函数名或表面签名推断安全；其余纯标量控制流沿11.1。现有WithScopedThread携完整argument类型与ValueId，无新证明位；Wire34解码后仍必须由当前独立核验器检查。实际pthread context保存共享指针，目标在join前稳定；create发布及join acquire建立happens-before，失败不执行worker/body且正确清理，join不证明静止仍abort。此片无非原子写共享，不宣称Mutex/Atomic或一般Transfer/Share、异步取消完成。机器ABI/CGU/缓存绑定实际payload类型，新增遍历和窗口操作在增长前累计计费，不提高默认限额。首片来源限实际普通i32局部、普通i32地址输入的合法共享重借，以及具体调用方闭包的真实固定捕获槽；dynamic Store/lending及拥有聚合投影等需要额外迁移/清理证明，当前明确Unsupported并保留后续实现义务。仅凭Address<i32>类型不能通过该来源边界。
 
 ## 12. 挂起、异常、取消与驱动的最终共同边界
 
