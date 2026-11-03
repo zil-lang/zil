@@ -359,7 +359,23 @@ fn recovery317_component_source_and_nearest_rejections() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
-    for entry in ["shared_window", "callback_alias", "nominal_config"] {
+    for entry in ["controls/shared_window_end", "controls/callback_alias_end"] {
+        let report =
+            zil_driver::compile_project(&recovery317_project(entry), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{entry}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    for entry in [
+        "shared_window",
+        "callback_alias",
+        "nominal_config",
+        "phantom_config",
+    ] {
         let report = zil_driver::compile_project(
             &recovery317_project(&format!("negative/{entry}")),
             &CompileOptions::default(),

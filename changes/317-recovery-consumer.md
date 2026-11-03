@@ -26,3 +26,12 @@ Type/Syntax 与纯 Copy 泛型、315 的普通局部完整 Product 可变 helper
 实际 0 passed / 1 failed / 14 filtered；消费者在 CT 阶段 `E-CT-SOURCE`：
 `CT function must be a concrete ordinary function instance`，尚未到 Verify/native。
 这保留 314 前置的实际缺口，不改成常量绕过。
+
+318 对检查点 `ab2c4c4d7` 的只读初审指出：原元组累计 `2+3` 对调不敏感，
+CT 只有 i32 一个具体实参，反例只断 SafeReject 可能被前置误拒遮蔽。修复保持
+原检查点，补独立 first=2 / second=3 断言；同一 value_type 的 i32/i64、同一
+Config 的两类实际参数和 phantom 参数身份；窗口结束后恢复的两个合法控制。
+具体反例阶段/诊断待固定依赖组合的真实观察后绑定，不预填接受性结论。
+
+同基线已有目标限定重放：`cargo test -p zil-driver --test generic_regressions -- --skip recovery317_`
+实际 13 passed / 0 failed / 2 filtered，未跑全仓。
