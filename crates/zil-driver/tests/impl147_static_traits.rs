@@ -153,9 +153,9 @@ fn unsupported_solver_features_are_not_invented_by_lowering_to_functions() {
 
 #[test]
 fn unused_ordinary_generic_trait_signature_is_checked() {
-    let r=compile("trait Read<T>{fn read(self:&Self)->T;}fn main(){}");
-    assert_eq!(r.status,ResultCategory::Success,"{}",r.to_json());
-    assert_eq!(r.verification_runs,1);
+    let r = compile("trait Read<T>{fn read(self:&Self)->T;}fn main(){}");
+    assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+    assert_eq!(r.verification_runs, 1);
 }
 #[test]
 fn ordinary_ownership_checks_still_reject_trait_method_escape() {

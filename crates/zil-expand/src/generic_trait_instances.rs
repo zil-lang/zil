@@ -21,138 +21,362 @@ pub(crate) enum Bound {
 }
 impl PartialEq<str> for Bound {
     fn eq(&self, other: &str) -> bool {
-        matches!((self,other),(Self::Copy,"Copy")|(Self::StoreElement,"StoreElement"))
+        matches!(
+            (self, other),
+            (Self::Copy, "Copy") | (Self::StoreElement, "StoreElement")
+        )
     }
 }
-impl PartialEq<&str> for Bound { fn eq(&self, other: &&str)->bool { self==*other } }
-pub(crate) type Calls = BTreeMap<String, BTreeMap<Span,String>>;
-pub(crate) fn remaining(budget:&Budget<'_>)->Limits {budget.remaining_limits()}
+impl PartialEq<&str> for Bound {
+    fn eq(&self, other: &&str) -> bool {
+        self == *other
+    }
+}
+pub(crate) type Calls = BTreeMap<String, BTreeMap<Span, String>>;
+pub(crate) fn remaining(budget: &Budget<'_>) -> Limits {
+    budget.remaining_limits()
+}
 
 pub(crate) struct ConcreteSignature {
-    pub key:Key,
-    pub host:String,
-    pub declaration:Span,
-    pub method:Function,
+    pub key: Key,
+    pub host: String,
+    pub declaration: Span,
+    pub method: Function,
 }
-pub(crate) type Signatures=BTreeMap<(Span,Span),ConcreteSignature>;
-pub(crate) fn copy_key(key:&Key,budget:&mut Budget<'_>,span:Span)->R<Key> {
-    budget.text(&key.name,span)?;
-    for arg in &key.arguments {budget.text(arg,span)?;budget.node(span,0)?;}
+pub(crate) type Signatures = BTreeMap<(Span, Span), ConcreteSignature>;
+pub(crate) fn copy_key(key: &Key, budget: &mut Budget<'_>, span: Span) -> R<Key> {
+    budget.text(&key.name, span)?;
+    for arg in &key.arguments {
+        budget.text(arg, span)?;
+        budget.node(span, 0)?;
+    }
     Ok(key.clone())
 }
-pub(crate) fn head(ty:&TypeRef)->Option<&str> {
-    match &grouped(ty).kind { TypeKind::Named{path,..} if path.len()==1=>Some(&path[0]), _=>None }
+pub(crate) fn head(ty: &TypeRef) -> Option<&str> {
+    match &grouped(ty).kind {
+        TypeKind::Named { path, .. } if path.len() == 1 => Some(&path[0]),
+        _ => None,
+    }
 }
-pub(crate) fn arguments(declaration_span:Span, declaration:&TraitDecl, application:&TypeRef, budget:&mut Budget<'_>)->R<Reference> {
+pub(crate) fn arguments(
+    declaration_span: Span,
+    declaration: &TraitDecl,
+    application: &TypeRef,
+    budget: &mut Budget<'_>,
+) -> R<Reference> {
     budget.ty(application)?;
-    let TypeKind::Named {args,..}=&grouped(application).kind else { return Err(unsupported(application.span,"trait application needs a nominal declaration")); };
-    if args.len()!=declaration.generics.len() { return Err(error(application.span,"trait type argument arity differs from its declaration")); }
-    let mut keys=Vec::new(); let mut arguments=Vec::new();
+    let TypeKind::Named { args, .. } = &grouped(application).kind else {
+        return Err(unsupported(
+            application.span,
+            "trait application needs a nominal declaration",
+        ));
+    };
+    if args.len() != declaration.generics.len() {
+        return Err(error(
+            application.span,
+            "trait type argument arity differs from its declaration",
+        ));
+    }
+    let mut keys = Vec::new();
+    let mut arguments = Vec::new();
     for arg in args {
-        let GenericArg::Type(actual)=arg else { return Err(unsupported(application.span,"trait const arguments require their solver")); };
-        budget.node(actual.span,0)?;
-        keys.push(type_key(actual,budget)?);
+        let GenericArg::Type(actual) = arg else {
+            return Err(unsupported(
+                application.span,
+                "trait const arguments require their solver",
+            ));
+        };
+        budget.node(actual.span, 0)?;
+        keys.push(type_key(actual, budget)?);
         budget.ty(actual)?;
         arguments.push(actual.clone());
     }
-    budget.text(&declaration.name,application.span)?;
-    Ok(Reference{key:Key{declaration:declaration_span,name:declaration.name.clone(),arguments:keys},arguments})
+    budget.text(&declaration.name, application.span)?;
+    Ok(Reference {
+        key: Key {
+            declaration: declaration_span,
+            name: declaration.name.clone(),
+            arguments: keys,
+        },
+        arguments,
+    })
 }
-pub(crate) fn method_name(reference:&Reference, method:&str, budget:&mut Budget<'_>, span:Span)->R<String> {
-    if reference.arguments.is_empty() { budget.text(method,span)?; return Ok(method.to_owned()); }
+pub(crate) fn method_name(
+    reference: &Reference,
+    method: &str,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<String> {
+    if reference.arguments.is_empty() {
+        budget.text(method, span)?;
+        return Ok(method.to_owned());
+    }
     use zil_base::FingerprintBuilder;
-    budget.text(&reference.key.name,span)?;
-    let mut hash=FingerprintBuilder::new();
+    budget.text(&reference.key.name, span)?;
+    let mut hash = FingerprintBuilder::new();
     hash.update(b"zil/trait-instance-method/v1\0");
     hash.update(reference.key.name.as_bytes());
     hash.update(&(reference.key.declaration.file.0).to_le_bytes());
     hash.update(&(reference.key.declaration.start as u64).to_le_bytes());
     hash.update(&(reference.key.declaration.end as u64).to_le_bytes());
-    for key in &reference.key.arguments { budget.text(key,span)?;hash.update(&(key.len() as u64).to_le_bytes());hash.update(key.as_bytes()); }
-    budget.text(method,span)?;
-    budget.node(span,0)?;
-    budget.text("$trait_0000000000000000000000000000000000000000000000000000000000000000_",span)?;
-    budget.text(method,span)?;
-    let result=format!("$trait_{}_{}",hash.digest(),method);
+    for key in &reference.key.arguments {
+        budget.text(key, span)?;
+        hash.update(&(key.len() as u64).to_le_bytes());
+        hash.update(key.as_bytes());
+    }
+    budget.text(method, span)?;
+    budget.node(span, 0)?;
+    budget.text(
+        "$trait_0000000000000000000000000000000000000000000000000000000000000000_",
+        span,
+    )?;
+    budget.text(method, span)?;
+    let result = format!("$trait_{}_{}", hash.digest(), method);
     Ok(result)
 }
-pub(crate) fn signature<'a>(declaration:&TraitDecl, member:&'a Item, reference:&Reference, budget:&mut Budget<'_>)->R<Cow<'a,Function>> {
-    let ItemKind::Function(method)=&member.kind else {return Err(error(member.span,"trait signature is not an ordinary function"));};
-    if declaration.generics.is_empty() { return Ok(Cow::Borrowed(method)); }
-    let mut substitutions=BTreeMap::new();
-    for (parameter,actual) in declaration.generics.iter().zip(&reference.arguments) {
-        budget.text(&parameter.name,actual.span)?;budget.ty(actual)?;budget.node(actual.span,0)?;
-        substitutions.insert(parameter.name.clone(),actual.clone());
+pub(crate) fn signature<'a>(
+    declaration: &TraitDecl,
+    member: &'a Item,
+    reference: &Reference,
+    budget: &mut Budget<'_>,
+) -> R<Cow<'a, Function>> {
+    let ItemKind::Function(method) = &member.kind else {
+        return Err(error(
+            member.span,
+            "trait signature is not an ordinary function",
+        ));
+    };
+    if declaration.generics.is_empty() {
+        return Ok(Cow::Borrowed(method));
     }
-    budget.substituted_item(member,&substitutions)?;
-    let mut result=method.clone();
-    let visitor=Substitution{substitutions:&substitutions};
-    for p in &mut result.params {visitor.ty(&mut p.ty);}
-    if let Some(t)=&mut result.return_type {visitor.ty(t);}
+    let mut substitutions = BTreeMap::new();
+    for (parameter, actual) in declaration.generics.iter().zip(&reference.arguments) {
+        budget.text(&parameter.name, actual.span)?;
+        budget.ty(actual)?;
+        budget.node(actual.span, 0)?;
+        substitutions.insert(parameter.name.clone(), actual.clone());
+    }
+    budget.substituted_item(member, &substitutions)?;
+    let mut result = method.clone();
+    let visitor = Substitution {
+        substitutions: &substitutions,
+    };
+    for p in &mut result.params {
+        visitor.ty(&mut p.ty);
+    }
+    if let Some(t) = &mut result.return_type {
+        visitor.ty(t);
+    }
     Ok(Cow::Owned(result))
 }
-pub(crate) fn validate_declaration(item:&Item, declaration:&TraitDecl, nominals:&BTreeMap<String,&Item>,budget:&mut Budget<'_>)->R<()> {
-    if super::super::static_traits::reserved_trait(&declaration.name) {return Err(error(item.span,"built-in capability traits cannot be redeclared"));}
-    if !declaration.bounds.is_empty() {return Err(unsupported(item.span,"supertraits require their solver"));}
-    let mut variables=BTreeSet::from(["Self".to_owned()]);
+pub(crate) fn validate_declaration(
+    item: &Item,
+    declaration: &TraitDecl,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    if super::super::static_traits::reserved_trait(&declaration.name) {
+        return Err(error(
+            item.span,
+            "built-in capability traits cannot be redeclared",
+        ));
+    }
+    if !declaration.bounds.is_empty() {
+        return Err(unsupported(item.span, "supertraits require their solver"));
+    }
+    let mut variables = BTreeSet::from(["Self".to_owned()]);
     for parameter in &declaration.generics {
-        budget.node(parameter.span,0)?;budget.text(&parameter.name,parameter.span)?;
-        if !variables.insert(parameter.name.clone()) {return Err(error(parameter.span,"duplicate trait type binder"));}
-        let GenericParamKind::Type(bounds)=&parameter.kind else {return Err(unsupported(parameter.span,"trait lifetime/const binders require their solver"));};
-        for bound in bounds {budget.ty(bound)?;if !copy::is_bound(bound) {return Err(unsupported(bound.span,"trait parameter premise currently requires direct Copy"));}}
+        budget.node(parameter.span, 0)?;
+        budget.text(&parameter.name, parameter.span)?;
+        if !variables.insert(parameter.name.clone()) {
+            return Err(error(parameter.span, "duplicate trait type binder"));
+        }
+        let GenericParamKind::Type(bounds) = &parameter.kind else {
+            return Err(unsupported(
+                parameter.span,
+                "trait lifetime/const binders require their solver",
+            ));
+        };
+        for bound in bounds {
+            budget.ty(bound)?;
+            if !copy::is_bound(bound) {
+                return Err(unsupported(
+                    bound.span,
+                    "trait parameter premise currently requires direct Copy",
+                ));
+            }
+        }
     }
     for member in &declaration.members {
-        budget.node(member.span,0)?;
-        let ItemKind::Function(method)=&member.kind else {return Err(unsupported(member.span,"associated trait items require their solver"));};
-        if !method.generics.is_empty() || !method.where_clause.is_empty() || !method.contract.is_empty() || !matches!(method.body,FunctionBody::Declaration) {return Err(unsupported(member.span,"default, generic or contract-bearing trait method"));}
-        for parameter in &method.params {known_type(&parameter.ty,&variables,nominals,budget,0)?;}
-        if let Some(result)=&method.return_type {known_type(result,&variables,nominals,budget,0)?;}
+        budget.node(member.span, 0)?;
+        let ItemKind::Function(method) = &member.kind else {
+            return Err(unsupported(
+                member.span,
+                "associated trait items require their solver",
+            ));
+        };
+        if !method.generics.is_empty()
+            || !method.where_clause.is_empty()
+            || !method.contract.is_empty()
+            || !matches!(method.body, FunctionBody::Declaration)
+        {
+            return Err(unsupported(
+                member.span,
+                "default, generic or contract-bearing trait method",
+            ));
+        }
+        for parameter in &method.params {
+            known_type(&parameter.ty, &variables, nominals, budget, 0)?;
+        }
+        if let Some(result) = &method.return_type {
+            known_type(result, &variables, nominals, budget, 0)?;
+        }
     }
     Ok(())
 }
-fn known_type(ty:&TypeRef, variables:&BTreeSet<String>,nominals:&BTreeMap<String,&Item>,budget:&mut Budget<'_>,depth:usize)->R<()> {
-    budget.node(ty.span,depth)?;
+fn known_type(
+    ty: &TypeRef,
+    variables: &BTreeSet<String>,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<()> {
+    budget.node(ty.span, depth)?;
     match &ty.kind {
-        TypeKind::Named{path,args} => {
+        TypeKind::Named { path, args } => {
             budget.ty(ty)?;
-            if path.len()!=1 {return Err(error(ty.span,"trait signature type is not a resolved nominal identity"));}
-            let name=&path[0];
-            let arity=if variables.contains(name)||matches!(name.as_str(),"void"|"bool"|"u8"|"u16"|"i32"|"i64"|"c_handle"|"c_wstr"|"ByteBuffer"|"ForeignHandle"|"CWideString") {0}
-                else if name=="Store" {1}
-                else {match nominals.get(name) {Some(Item{kind:ItemKind::Aggregate(a),..})=>a.generics.len(),Some(Item{kind:ItemKind::Enum(e),..})=>e.generics.len(),_=>return Err(error(ty.span,format!("unknown type {name} in trait signature"))),}};
-            if arity!=args.len() {return Err(error(ty.span,"trait signature type argument arity mismatch"));}
-            for arg in args {let GenericArg::Type(t)=arg else {return Err(unsupported(ty.span,"trait signature const argument"));};known_type(t,variables,nominals,budget,depth+1)?;}
+            if path.len() != 1 {
+                return Err(error(
+                    ty.span,
+                    "trait signature type is not a resolved nominal identity",
+                ));
+            }
+            let name = &path[0];
+            let arity = if variables.contains(name)
+                || matches!(
+                    name.as_str(),
+                    "void"
+                        | "bool"
+                        | "u8"
+                        | "u16"
+                        | "i32"
+                        | "i64"
+                        | "c_handle"
+                        | "c_wstr"
+                        | "ByteBuffer"
+                        | "ForeignHandle"
+                        | "CWideString"
+                ) {
+                0
+            } else if name == "Store" {
+                1
+            } else {
+                match nominals.get(name) {
+                    Some(Item {
+                        kind: ItemKind::Aggregate(a),
+                        ..
+                    }) => a.generics.len(),
+                    Some(Item {
+                        kind: ItemKind::Enum(e),
+                        ..
+                    }) => e.generics.len(),
+                    _ => {
+                        return Err(error(
+                            ty.span,
+                            format!("unknown type {name} in trait signature"),
+                        ));
+                    }
+                }
+            };
+            if arity != args.len() {
+                return Err(error(
+                    ty.span,
+                    "trait signature type argument arity mismatch",
+                ));
+            }
+            for arg in args {
+                let GenericArg::Type(t) = arg else {
+                    return Err(unsupported(ty.span, "trait signature const argument"));
+                };
+                known_type(t, variables, nominals, budget, depth + 1)?;
+            }
         }
-        TypeKind::Reference{inner,..}|TypeKind::Group(inner)|TypeKind::Optional(inner)=>known_type(inner,variables,nominals,budget,depth+1)?,
-        TypeKind::Tuple(fields)|TypeKind::Union(fields)=>for t in fields {known_type(t,variables,nominals,budget,depth+1)?;},
-        TypeKind::Array{element,..}=>known_type(element,variables,nominals,budget,depth+1)?,
-        TypeKind::Error{error,result}=>{known_type(error,variables,nominals,budget,depth+1)?;known_type(result,variables,nominals,budget,depth+1)?;},
-        TypeKind::Function{params,result}|TypeKind::ForeignFunction{params,result,..}=>{for t in params {known_type(t,variables,nominals,budget,depth+1)?;}known_type(result,variables,nominals,budget,depth+1)?;},
-        _=>return Err(unsupported(ty.span,"trait signature type requires additional resolution")),
+        TypeKind::Reference { inner, .. } | TypeKind::Group(inner) | TypeKind::Optional(inner) => {
+            known_type(inner, variables, nominals, budget, depth + 1)?
+        }
+        TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
+            for t in fields {
+                known_type(t, variables, nominals, budget, depth + 1)?;
+            }
+        }
+        TypeKind::Array { element, .. } => {
+            known_type(element, variables, nominals, budget, depth + 1)?
+        }
+        TypeKind::Error { error, result } => {
+            known_type(error, variables, nominals, budget, depth + 1)?;
+            known_type(result, variables, nominals, budget, depth + 1)?;
+        }
+        TypeKind::Function { params, result }
+        | TypeKind::ForeignFunction { params, result, .. } => {
+            for t in params {
+                known_type(t, variables, nominals, budget, depth + 1)?;
+            }
+            known_type(result, variables, nominals, budget, depth + 1)?;
+        }
+        _ => {
+            return Err(unsupported(
+                ty.span,
+                "trait signature type requires additional resolution",
+            ));
+        }
     }
     Ok(())
 }
 
-
-pub(crate) fn rewrite_calls(item:&mut Item,calls:&BTreeMap<Span,String>,budget:&mut Budget<'_>)->R<()> {
+pub(crate) fn rewrite_calls(
+    item: &mut Item,
+    calls: &BTreeMap<Span, String>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
     use super::super::ct_selection::Visitor;
-    struct Prepay<'a,'b,'l>{calls:&'a BTreeMap<Span,String>,budget:&'b mut Budget<'l>}
-    impl Visitor for Prepay<'_,'_,'_> {
-        fn node(&mut self,span:Span,depth:usize)->CompileResult<()> {self.budget.node(span,depth).map_err(|e|vec![e])}
-        fn text(&mut self,text:&str,span:Span)->CompileResult<()> {self.budget.text(text,span).map_err(|e|vec![e])}
-        fn expression(&mut self,e:&Expr,depth:usize)->CompileResult<()> {
-            if let ExprKind::Member{object,..}=&e.kind && let Some(target)=self.calls.get(&object.span) {self.text(target,e.span)?;}
-            super::super::ct_selection::walk_expression(self,e,depth)
+    struct Prepay<'a, 'b, 'l> {
+        calls: &'a BTreeMap<Span, String>,
+        budget: &'b mut Budget<'l>,
+    }
+    impl Visitor for Prepay<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
+            if let ExprKind::Member { object, .. } = &e.kind
+                && let Some(target) = self.calls.get(&object.span)
+            {
+                self.text(target, e.span)?;
+            }
+            super::super::ct_selection::walk_expression(self, e, depth)
         }
     }
-    Prepay{calls,budget}.item(item,0).map_err(|mut e|e.remove(0))?;
-    let visitor=CallRewrite{calls};
-    if let ItemKind::Function(f)=&mut item.kind {match &mut f.body {FunctionBody::Block(b)=>visitor.block(b),FunctionBody::Expression(e)=>visitor.expr(e),_=>{}}}
+    Prepay { calls, budget }
+        .item(item, 0)
+        .map_err(|mut e| e.remove(0))?;
+    let visitor = CallRewrite { calls };
+    if let ItemKind::Function(f) = &mut item.kind {
+        match &mut f.body {
+            FunctionBody::Block(b) => visitor.block(b),
+            FunctionBody::Expression(e) => visitor.expr(e),
+            _ => {}
+        }
+    }
     Ok(())
 }
-struct CallRewrite<'a>{calls:&'a BTreeMap<Span,String>}
+struct CallRewrite<'a> {
+    calls: &'a BTreeMap<Span, String>,
+}
 impl CallRewrite<'_> {
-    fn ty(&self,_:&mut TypeRef){}
+    fn ty(&self, _: &mut TypeRef) {}
     fn condition(&self, c: &mut Condition) {
         match c {
             Condition::Expression(e) | Condition::Let { value: e, .. } => self.expr(e),
@@ -220,8 +444,14 @@ impl CallRewrite<'_> {
         }
     }
     fn expr(&self, e: &mut Expr) {
-        if let ExprKind::Member {object,member:MemberName::Name(name)}=&mut e.kind
-            && let Some(target)=self.calls.get(&object.span) { name.clone_from(target); }
+        if let ExprKind::Member {
+            object,
+            member: MemberName::Name(name) | MemberName::Constrained { name, .. },
+        } = &mut e.kind
+            && let Some(target) = self.calls.get(&object.span)
+        {
+            name.clone_from(target);
+        }
 
         match &mut e.kind {
             ExprKind::Group(x)

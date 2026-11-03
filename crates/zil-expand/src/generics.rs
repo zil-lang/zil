@@ -135,7 +135,11 @@ pub(super) fn specialize_products<'a>(
             .items
             .iter()
             .all(|item| params(item).is_empty())
-            && !normalized.module.items.iter().any(|item|matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+            && !normalized
+                .module
+                .items
+                .iter()
+                .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -149,7 +153,12 @@ pub(super) fn specialize_products<'a>(
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
     }
-    if module.items.iter().all(|item| params(item).is_empty()) && !module.items.iter().any(|item|matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty())) {
+    if module.items.iter().all(|item| params(item).is_empty())
+        && !module
+            .items
+            .iter()
+            .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
+    {
         return Ok(Cow::Borrowed(module));
     }
     specialize_with_budget(module, limits, &BTreeMap::new(), names_budget, products)
@@ -601,6 +610,7 @@ impl<'a> Engine<'a> {
             .instances
             .len()
             .saturating_add(self.retained_stores.len())
+            .saturating_add(self.traits.instance_count())
             >= self.limits.max_functions.min(512)
         {
             return Err(Diagnostic::limit(
@@ -656,8 +666,10 @@ impl<'a> Engine<'a> {
         )?;
         self.budget.substituted_item(item, &substitution)?;
         let mut instance = item.clone();
-        if let ItemKind::Function(f)=&item.kind && let Some(calls)=self.trait_calls.get(&f.name) {
-            trait_instances::rewrite_calls(&mut instance,calls,&mut self.budget)?;
+        if let ItemKind::Function(f) = &item.kind
+            && let Some(calls) = self.trait_calls.get(&f.name)
+        {
+            trait_instances::rewrite_calls(&mut instance, calls, &mut self.budget)?;
         }
         substitute_item(&mut instance, &substitution)?;
         self.budget.item(&instance)?;
@@ -908,23 +920,64 @@ impl<'a> Engine<'a> {
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
                 self.ty(&mut i.target, 0)?;
-                if self.traits.has_instances && let Some(application)=&i.trait_type
-                    && trait_instances::head(application).is_some_and(|name| !super::static_traits::reserved_trait(name)) {
-                    let reference=self.traits.reference(application,&mut self.budget)?;
-                    let (_,declaration)=self.traits.declaration_item(&reference);
+                if self.traits.has_instances
+                    && let Some(application) = &i.trait_type
+                    && trait_instances::head(application)
+                        .is_some_and(|name| !super::static_traits::reserved_trait(name))
+                {
+                    let reference = self.traits.reference(application, &mut self.budget)?;
+                    let (_, declaration) = self.traits.declaration_item(&reference);
                     if !declaration.generics.is_empty() {
                         for member in &i.members {
-                            let ItemKind::Function(actual)=&member.kind else {continue;};
-                            if let Some(required)=declaration.members.iter().find(|m|matches!(&m.kind,ItemKind::Function(f) if f.name==actual.name)) {
-                                let mut signature=trait_instances::signature(declaration,required,&reference,&mut self.budget)?.into_owned();
-                                for p in &mut signature.params {self.ty(&mut p.ty,0)?;}
-                                if let Some(t)=&mut signature.return_type {self.ty(t,0)?;}
-                                let key=trait_instances::copy_key(&reference.key,&mut self.budget,member.span)?;
-                                let host=trait_bounds::plain(&i.target).ok_or_else(||unsupported(i.target.span,"trait impl requires a concrete non-generic Self"))?;
-                                self.budget.text(host,member.span)?;
-                                self.budget.node(member.span,0)?;
-                                let expected=trait_instances::ConcreteSignature{key,host:host.to_owned(),declaration:required.span,method:signature};
-                                if self.products.trait_signatures.insert((item.span,actual.span),expected).is_some() {return Err(error(member.span,"duplicate source trait method signature identity"));}
+                            let ItemKind::Function(actual) = &member.kind else {
+                                continue;
+                            };
+                            if let Some(required) = declaration.members.iter().find(
+                                |m| matches!(&m.kind,ItemKind::Function(f) if f.name==actual.name),
+                            ) {
+                                let mut signature = trait_instances::signature(
+                                    declaration,
+                                    required,
+                                    &reference,
+                                    &mut self.budget,
+                                )?
+                                .into_owned();
+                                for p in &mut signature.params {
+                                    self.ty(&mut p.ty, 0)?;
+                                }
+                                if let Some(t) = &mut signature.return_type {
+                                    self.ty(t, 0)?;
+                                }
+                                let key = trait_instances::copy_key(
+                                    &reference.key,
+                                    &mut self.budget,
+                                    member.span,
+                                )?;
+                                let host = trait_bounds::plain(&i.target).ok_or_else(|| {
+                                    unsupported(
+                                        i.target.span,
+                                        "trait impl requires a concrete non-generic Self",
+                                    )
+                                })?;
+                                self.budget.text(host, member.span)?;
+                                self.budget.node(member.span, 0)?;
+                                let expected = trait_instances::ConcreteSignature {
+                                    key,
+                                    host: host.to_owned(),
+                                    declaration: required.span,
+                                    method: signature,
+                                };
+                                if self
+                                    .products
+                                    .trait_signatures
+                                    .insert((item.span, actual.span), expected)
+                                    .is_some()
+                                {
+                                    return Err(error(
+                                        member.span,
+                                        "duplicate source trait method signature identity",
+                                    ));
+                                }
                             }
                         }
                     }
@@ -1459,20 +1512,37 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Call { callee, arguments } => {
-                let mut trait_signature=None;
-                let mut type_qualified=false;
+                let mut trait_signature = None;
+                let mut type_qualified = false;
                 if self.traits.has_instances
-                    && let ExprKind::Member {object,member:MemberName::Name(member)}=&mut callee.kind {
-                    let mut hint=self.value_hint(object,env,depth+1,false)?;
-                    if hint.is_none() && let ExprKind::Name(name)=&object.kind
-                        && !env.contains_key(name) && self.nominals.contains_key(name) {hint=Some(named(name,object.span));type_qualified=true;}
-                    if let Some(actual)=hint {
-                        let actual=self.original_type(&actual)?;
-                        if let Some(host)=trait_bounds::plain(projection_shape(&actual))
-                            && let Some((target,signature))=self.traits.concrete_method(host,member,&mut self.budget,callee.span)? {
-                            self.budget.text(&target,callee.span)?;
+                    && let ExprKind::Member {
+                        object,
+                        member:
+                            MemberName::Name(member) | MemberName::Constrained { name: member, .. },
+                    } = &mut callee.kind
+                {
+                    let mut hint = self.value_hint(object, env, depth + 1, false)?;
+                    if hint.is_none()
+                        && let ExprKind::Name(name) = &object.kind
+                        && !env.contains_key(name)
+                        && self.nominals.contains_key(name)
+                    {
+                        hint = Some(named(name, object.span));
+                        type_qualified = true;
+                    }
+                    if let Some(actual) = hint {
+                        let actual = self.original_type(&actual)?;
+                        if let Some(host) = trait_bounds::plain(projection_shape(&actual))
+                            && let Some((target, signature)) = self.traits.concrete_method(
+                                host,
+                                member,
+                                &mut self.budget,
+                                callee.span,
+                            )?
+                        {
+                            self.budget.text(&target, callee.span)?;
                             member.clone_from(&target);
-                            trait_signature=Some(signature);
+                            trait_signature = Some(signature);
                         }
                     }
                 }
@@ -1648,9 +1718,17 @@ impl<'a> Engine<'a> {
                             .transpose()?
                             .flatten();
                     }
-                    if hint.is_none() && let Some(signature)=&trait_signature {
-                        let skip=usize::from(!type_qualified && signature.params.first().is_some_and(|p|p.name=="self"));
-                        if let Some(parameter)=signature.params.get(index+skip) {self.budget.ty(&parameter.ty)?;hint=Some(parameter.ty.clone());}
+                    if hint.is_none()
+                        && let Some(signature) = &trait_signature
+                    {
+                        let skip = usize::from(
+                            !type_qualified
+                                && signature.params.first().is_some_and(|p| p.name == "self"),
+                        );
+                        if let Some(parameter) = signature.params.get(index + skip) {
+                            self.budget.ty(&parameter.ty)?;
+                            hint = Some(parameter.ty.clone());
+                        }
                     }
                     let arg = &mut arguments[index];
                     let ty = self.expr_expected(&mut arg.value, env, hint.as_ref(), depth + 1)?;
@@ -1896,10 +1974,14 @@ impl<'a> Engine<'a> {
                     }
                 } else {
                     self.expr(callee, env, depth + 1)?;
-                    if let Some(mut signature)=trait_signature {
-                        if let Some(result)=&mut signature.return_type {self.ty(result,depth+1)?;}
+                    if let Some(mut signature) = trait_signature {
+                        if let Some(result) = &mut signature.return_type {
+                            self.ty(result, depth + 1)?;
+                        }
                         signature.return_type
-                    } else {None}
+                    } else {
+                        None
+                    }
                 }
             }
             ExprKind::Tuple(values) => {

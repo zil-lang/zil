@@ -2,7 +2,7 @@
 //! signature, never conformance or permission to implement a foreign Self.
 use super::*;
 use ct_selection::Visitor;
-use generics::{Budget,trait_instances};
+use generics::{Budget, trait_instances};
 use zil_base::{FileId, ModuleId};
 
 fn plain(ty: &s::TypeRef) -> Option<&str> {
@@ -66,7 +66,10 @@ pub(super) fn method_owners(
             continue;
         };
         let (Some(trait_name), Some(host)) = (
-            implementation.trait_type.as_ref().and_then(trait_instances::head),
+            implementation
+                .trait_type
+                .as_ref()
+                .and_then(trait_instances::head),
             plain(&implementation.target),
         ) else {
             continue;
