@@ -27,6 +27,11 @@ let 写入及 ref；原 pending/runtime-tuple-binding.zil 字节原样通过实�
   包含 6 个新增测试；3 个新增真实源各执行默认/O2，原 pending 文件字节不改。
   13 个最近拒绝输入通过；新投影经 TypedIR/Wire 独立核验及伪造下标拒绝。
   Types 的 analysis 精确边界 N=51，通过 N、fresh，N−1=50 返回 ResourceLimit。
+- 随后补充 var 叶被 FnMut 捕获与 i64 完整类型上下文（3000000000），
+  `cargo test -p zil-driver --test aggregates tuple_binding --offline -- --nocapture`
+  为 6/0、10 filtered；新增真实源总计 5 个，各 O0/O2 共 10 次，拒绝总计 14 个。
+  首次补充探针把 FnMut 错写成 let，限定执行 0/1，实际正确拒绝
+  E-CLOSURE-MUTABILITY；该原样源保留为反例，正例改用 var，不改生产规则。
 - `git diff --check` 通过；未跑全量、参考后端、Windows 或同语义 Rust 性能配对。
 
 实际 Core 消费者扩写经 root 授权：zil-types 的 lib/tuple_bindings、inference、
