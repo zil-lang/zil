@@ -23,6 +23,7 @@ fn op(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32, result: Type, locals: &[Type], parameters: &[u32]) -> TypedFunction {
     TypedFunction {
+        reference_return_bound: None,
         id: FunctionId(id),
         name: format!("raw127_{id}"),
         foreign: None,

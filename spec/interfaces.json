@@ -192,6 +192,48 @@
       "trust": "independent VerifiedCTArtifactProgram; real project source/symbol/visibility and frozen query binding; all generated output undergoes ordinary semantic checks",
       "budget": "One remaining request ledger; max_steps/temporary_bytes/generated_nodes/depth/instances/analysis_work/live_cells derive from existing max_ct_steps/max_source_bytes/max_nodes/max_call_depth/max_functions/max_analysis_steps/max_values; prepay, warm charge, no default increase",
       "integration": "257 public schema, bounded wire and common integration; 258 syntax/parser; 259 CT verifier/VM; 260 source CT type attribution and CFG; 261 project registry/snapshots/hygienic materialization/CLI; 262 frozen consumer and independent oracle"
+    },
+    "explicit_life_322": {
+      "authority": "_zil_design.md §18.1 finite322",
+      "state": "ContractToImplement",
+      "schema_version": 33,
+      "wire_version": 33,
+      "CoreLifeContract": {
+        "binders": "Vec<String>, lexical to the function",
+        "parameter_lives": "Vec<Option<u32>>, dense real parameter order including receiver index0",
+        "result_life": "Option<u32>"
+      },
+      "CoreFunction.life": "Option<CoreLifeContract>; None preserves the previous body-derived path",
+      "TypedFunction.reference_return_bound": "Option<Vec<u32>>; strictly sorted unique real shared-address input positions, independently checked against actual return roots",
+      "ScalarFunction.reference_return_bound": "Same declaration upper bound in signature identity; verified actual result origins remain separate",
+      "transport": "Typed bound is the leading optional bool + bounded u32 vector in function wire/fingerprint33; old wire versions reject; CT retains Core fields and prepays bytes/indices before cloning",
+      "producer_consumers": "Expand/receiver/CT -> Types -> independently Analyze and Verify -> verified actual interface -> Lower/backend; fields grant no proof or permission"
+    },
+    "structured_thread_325_328": {
+      "authority": "_zil_design.md §11.1",
+      "state": "ContractToImplement",
+      "schema_version": 34,
+      "wire_version": 34,
+      "instruction": {
+        "opcode": 95,
+        "name": "WithScopedThread",
+        "worker": "FunctionId",
+        "argument": "ValueId",
+        "body": "ValueId",
+        "result": "Tuple[Bool,I32,I32], ordered created/worker/body"
+      },
+      "qualification": "Types candidate, separate Analyze and Verify full static worker graph scalar whitelist; no capability boolean",
+      "responsibility": "Parent consumes body once by call or failure cleanup; i32 alone crosses threads; worker actual dependency included in CGU/cache",
+      "target": "Linux x86_64 pthread create/join with -pthread, stable context and actual publication/join HB; creation failure no fallback; failed join aborts",
+      "transport": "Canonical fingerprint34 and bounded Wire34; no CT execution; older versions and unknown opcodes reject",
+      "consumers": "Expand/Types/Analyze/Verify/Lower/API+text LLVM/CGU/CT refusal; registration is not production completion"
+    },
+    "concrete_trait_instances_323": {
+      "authority": "_zil_design.md §18.1 profile323",
+      "state": "ContractToImplement",
+      "representation": "Complete trait declaration/module+ordered actual arguments+concrete Self; static method targets retain selected bound instance",
+      "responsibility": "All premises, unused definitions, coherence, alias binder scopes and substituted signatures checked; no structural capability from nominal impl",
+      "compatibility": "No runtime dictionary or new Typed node; preserves life metadata during normalization"
     }
   },
   "schemas": [

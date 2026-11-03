@@ -25,6 +25,7 @@ fn callback(count: usize) -> Type {
 }
 fn function() -> CoreFunction {
     CoreFunction {
+        life: None,
         callable_return: None,
         state_parameters: Vec::new(),
         type_parameters: Vec::new(),

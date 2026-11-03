@@ -44,6 +44,7 @@ fn fixture() -> (Module, LirModule) {
         target: TargetProfile::host_llvm(),
         functions: (0..3)
             .map(|id| TypedFunction {
+                reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
                 id: FunctionId(id),

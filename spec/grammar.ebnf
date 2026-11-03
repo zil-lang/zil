@@ -141,3 +141,6 @@ Token = NonDelimiterToken ;
 End = Terminator | BeforeClose ;
 Terminator = ";" | NEWLINE ;
 BeforeClose = (* zero-width boundary immediately before '}', after a complete statement *) ;
+
+(* Finite Direct execution root; semantically reserved, never ordinary shadowable call. *)
+ScopedThreadExpr = "thread_scope", "(", Qualified, ",", Expr, ",", Expr, ")" ;

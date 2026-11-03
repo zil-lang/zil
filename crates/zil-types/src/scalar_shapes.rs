@@ -267,6 +267,7 @@ mod tests {
                     enums: vec![],
                     unsupported: vec![],
                     functions: vec![CoreFunction {
+                        life: None,
                         id: NodeId(1),
                         name: "result".into(),
                         type_parameters: vec![],
