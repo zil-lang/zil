@@ -59,6 +59,59 @@ fn main()->i32{let p=Point{value:7};if narrow(&p)!=7{return 1}if wide(&p)!=29{re
 }
 
 #[test]
+fn trait330_same_self_two_default_instances_keep_ordered_phantom_identity() {
+    native_both(&[("main", r#"
+trait Tag<A:Copy,B:Copy>{
+ fn base(self:&Self)->i32;
+ fn delegated(self:&Self)->i32{return self.base()}
+}
+struct Point{}
+impl Tag<i32,bool> for Point{fn base()->i32{return 17}}
+impl Tag<bool,i32> for Point{fn base()->i32{return 29}}
+fn first<T:Tag<i32,bool>>(x:&T)->i32{return x.delegated()}
+fn second<T>(x:&T)->i32 where T:Tag<bool,i32>{return x.delegated()}
+fn main()->i32{let p=Point{};if first(&p)!=17{return 1}if second(&p)!=29{return 2}return 0}
+"#)]);
+}
+
+#[test]
+fn trait330_default_body_keeps_private_helper_module_and_actual_host_dependencies() {
+    native_both(&[
+        ("main", "import rules;import data;fn main()->i32{let p=data.Point{};return rules.apply(&p)-7}"),
+        ("rules", "fn helper()->i32{return 7}pub trait Read<R:Copy>{fn read(self:&Self)->i32{return helper()}}pub fn apply<T:Read<i32>>(x:&T)->i32{return x.read()}"),
+        ("data", "import rules;pub struct Point{}fn helper()->i32{return 99}impl rules.Read<i32> for Point{}"),
+    ]);
+}
+
+#[test]
+fn trait330_unused_and_overridden_defaults_check_symbolic_permissions() {
+    for text in [
+        "trait Read{fn read(self:&Self)->i32{return self.secret}}fn main(){}",
+        "trait Read<R:Copy>{fn read(self:&Self,x:R)->R{return x+1}}fn main(){}",
+        "trait Read{fn read(self:&Self)->i32{return true}}fn main(){}",
+        "trait Read{fn read(self:&Self)->i32{return self.other()}}struct P{}impl Read for P{fn read()->i32{return 7}}fn main(){}",
+        "trait Read<R>{fn read(self:&Self,x:R)->R{let y=x;return x}}fn main(){}",
+        "struct Box<T:Copy>{value:T}trait Read<R>{fn read(self:&Self,x:R)->Box<R>{return Box::<R>{value:x}}}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(report.status, ResultCategory::SafeReject, "{text}: {}", report.to_json());
+        assert_eq!(report.phase, Phase::Expand, "{text}: {}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+        assert!(!report.diagnostics.is_empty());
+        assert!(report.diagnostics.iter().all(|d| d.code == "E-GENERIC-ARGUMENT"), "{}", report.to_json());
+    }
+    for text in [
+        "trait Read<R>{fn read(self:&Self)->R;fn delegated(self:&Self)->R{return self.read()}}fn main(){}",
+        "trait Again{fn again(self:&Self)->i32{return self.again()}}fn main(){}",
+        "trait Read<R:Copy>{fn read(self:&Self,x:R)->R{let y=x;return x}}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
 fn review327_generic_trait_declaration_and_ordered_argument_identity() {
     native(&[
         (

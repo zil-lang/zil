@@ -223,6 +223,7 @@ impl Engine<'_> {
                 },
                 span: member.span,
             });
+            trait_instances::rename_default_receiver(&mut body, &mut self.budget)?;
             body.public = trait_item.public;
             self.budget.text(&helper, member.span)?;
             let ItemKind::Function(body_function) = &mut body.kind else {
