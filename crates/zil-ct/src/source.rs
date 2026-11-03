@@ -84,6 +84,12 @@ impl<'a> SourceProgramContext<'a> {
                 .ok_or_else(limit)?;
             for function in &module.core.functions {
                 let header_work = work;
+                let (life_nodes, life_work) = life_metadata_cost(function, limits)?;
+                nodes = nodes
+                    .checked_add(life_nodes)
+                    .filter(|n| *n <= limits.max_nodes)
+                    .ok_or_else(limit)?;
+                work = work.checked_sub(life_work).ok_or_else(limit)?;
                 work = work
                     .checked_sub(function.name.len())
                     .and_then(|n| n.checked_sub(function.parameters.len()))
@@ -219,6 +225,38 @@ impl<'a> SourceProgramContext<'a> {
         };
         table.get(&(module, name)).copied().flatten()
     }
+}
+
+// Bound every retained life byte/index before rebuilding Core or indexing headers.
+// This is a transport budget, not a proof of a source or runtime borrowing claim.
+fn life_metadata_cost(function: &CoreFunction, limits: &Limits) -> CompileResult<(usize, usize)> {
+    let Some(life) = &function.life else {
+        return Ok((0, 0));
+    };
+    let limit = || {
+        vec![Diagnostic::limit(
+            Phase::Ct,
+            "Core life metadata budget exceeded",
+            Some(function.span),
+        )]
+    };
+    if life.binders.len() > limits.max_locals || life.parameter_lives.len() > limits.max_locals {
+        return Err(limit());
+    }
+    let nodes = life
+        .binders
+        .len()
+        .checked_add(life.parameter_lives.len())
+        .and_then(|n| n.checked_add(2))
+        .ok_or_else(limit)?;
+    let work = life
+        .binders
+        .iter()
+        .try_fold(nodes, |n, name| n.checked_add(name.len()).ok_or_else(limit))?;
+    if nodes > limits.max_nodes || work > limits.max_analysis_steps {
+        return Err(limit());
+    }
+    Ok((nodes, work))
 }
 
 fn ordinary_template_shape(function: &CoreFunction) -> CompileResult<()> {
@@ -768,6 +806,7 @@ fn evaluate_with_context(
         }
         walker.scopes.push(scope);
         functions.push(CoreFunction {
+            life: f.life.clone(),
             callable_return: f.callable_return.clone(),
             state_parameters: f.state_parameters.clone(),
             type_parameters: f.type_parameters.clone(),
@@ -1020,6 +1059,25 @@ impl<'a> Walker<'a> {
         }
         for f in &core.functions {
             let header_work = self.work_left;
+            let (life_nodes, life_work) = life_metadata_cost(f, self.limits)?;
+            self.nodes = self
+                .nodes
+                .checked_add(life_nodes)
+                .filter(|n| *n <= self.limits.max_nodes)
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "Core life node budget exceeded",
+                        Some(f.span),
+                    )]
+                })?;
+            self.work_left = self.work_left.checked_sub(life_work).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Ct,
+                    "Core life work budget exceeded",
+                    Some(f.span),
+                )]
+            })?;
             self.charge(0, f.span)?;
             self.text(&f.name, Some(f.span))?;
             ordinary_template_shape(f)?;
@@ -2452,6 +2510,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),
                 type_parameters: Vec::new(),

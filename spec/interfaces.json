@@ -192,6 +192,22 @@
       "trust": "independent VerifiedCTArtifactProgram; real project source/symbol/visibility and frozen query binding; all generated output undergoes ordinary semantic checks",
       "budget": "One remaining request ledger; max_steps/temporary_bytes/generated_nodes/depth/instances/analysis_work/live_cells derive from existing max_ct_steps/max_source_bytes/max_nodes/max_call_depth/max_functions/max_analysis_steps/max_values; prepay, warm charge, no default increase",
       "integration": "257 public schema, bounded wire and common integration; 258 syntax/parser; 259 CT verifier/VM; 260 source CT type attribution and CFG; 261 project registry/snapshots/hygienic materialization/CLI; 262 frozen consumer and independent oracle"
+    },
+    "explicit_life_322": {
+      "authority": "_zil_design.md §18.1 finite322",
+      "state": "ContractToImplement",
+      "schema_version": 33,
+      "wire_version": 33,
+      "CoreLifeContract": {
+        "binders": "Vec<String>, lexical to the function",
+        "parameter_lives": "Vec<Option<u32>>, dense real parameter order including receiver index0",
+        "result_life": "Option<u32>"
+      },
+      "CoreFunction.life": "Option<CoreLifeContract>; None preserves the previous body-derived path",
+      "TypedFunction.reference_return_bound": "Option<Vec<u32>>; strictly sorted unique real shared-address input positions, independently checked against actual return roots",
+      "ScalarFunction.reference_return_bound": "Same declaration upper bound in signature identity; verified actual result origins remain separate",
+      "transport": "Typed bound is the leading optional bool + bounded u32 vector in function wire/fingerprint33; old wire versions reject; CT retains Core fields and prepays bytes/indices before cloning",
+      "producer_consumers": "Expand/receiver/CT -> Types -> independently Analyze and Verify -> verified actual interface -> Lower/backend; fields grant no proof or permission"
     }
   },
   "schemas": [

@@ -24,6 +24,7 @@ fn ins(result: Option<ValueId>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        reference_return_bound: None,
         id: FunctionId(id),
         name: format!("probe{id}"),
         foreign: None,

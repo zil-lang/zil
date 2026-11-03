@@ -16,6 +16,7 @@ fn op(result: Option<ValueId>, kind: InstructionKind) -> Instruction {
 }
 fn body(id: u32) -> TypedFunction {
     TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
         id: FunctionId(id),

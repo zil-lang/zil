@@ -36,6 +36,7 @@ fn local(id: u32, ty: Type) -> LocalDecl {
 }
 fn function() -> TypedFunction {
     TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
         id: FunctionId(0),
@@ -312,6 +313,7 @@ fn with_teardown() -> TypedModule {
     let mut m = module();
     m.resources[0].teardown = Some(FunctionId(1));
     m.functions.push(TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
         id: FunctionId(1),
@@ -420,6 +422,7 @@ fn process_abort_is_not_a_normal_cleanup_exit() {
 
 fn consume_function(id: u32) -> TypedFunction {
     TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
         id: FunctionId(id),

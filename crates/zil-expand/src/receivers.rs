@@ -188,6 +188,7 @@ impl Expander<'_> {
             }
         };
         self.functions.push(CoreFunction {
+            life: None,
             callable_return,
             type_parameters,
             state_parameters,

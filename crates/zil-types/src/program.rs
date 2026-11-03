@@ -350,6 +350,7 @@ pub(super) fn check_resolved_program_with_reuse(
                 typed.name = format!("@module{}:function{}", core.module_id.0, id.0);
             }
             let export = ScalarFunction {
+                reference_return_bound: None,
                 result_mode: f.result_mode,
                 name: f.name.clone(),
                 function: id,

@@ -748,6 +748,7 @@ mod tests {
         let mut source = lir();
         for id in 0..600 {
             source.functions.push(zil_ir::TypedFunction {
+                reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
                 id: zil_ir::FunctionId(id),
@@ -1386,6 +1387,7 @@ mod tests {
         module.functions = ids
             .iter()
             .map(|&id| zil_ir::TypedFunction {
+                reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
                 result_mode: zil_ir::PassingMode::Infer,

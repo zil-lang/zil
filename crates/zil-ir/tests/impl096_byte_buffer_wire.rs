@@ -18,6 +18,7 @@ fn candidate() -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            reference_return_bound: None,
             id: FunctionId(0),
             name: "raw".into(),
             foreign: None,
@@ -213,8 +214,8 @@ fn each_byte_storage_operand_mutability_and_definition_bind_identity() {
 #[test]
 fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     use zil_base::{Limits, ResultCategory};
-    assert_eq!(SCHEMA_VERSION, 32);
-    assert_eq!(wire::WIRE_VERSION, 32);
+    assert_eq!(SCHEMA_VERSION, 33);
+    assert_eq!(wire::WIRE_VERSION, 33);
     assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 1);
     let limits = Limits::default();
     let mut raw = candidate();
@@ -386,4 +387,41 @@ fn scoped_foreign_callback_wire32_fields_and_boundaries() {
             if decoding { "decode" } else { "encode" }
         );
     }
+}
+
+#[test]
+fn declared_reference_return_bound_is_distinct_bounded_wire33_data() {
+    let limits = Limits::default();
+    let original = candidate();
+    let mut identities = std::collections::BTreeSet::new();
+    for bound in [
+        None,
+        Some(vec![]),
+        Some(vec![0]),
+        Some(vec![1]),
+        Some(vec![0, 1]),
+    ] {
+        let mut raw = original.clone();
+        raw.functions[0].reference_return_bound = bound;
+        assert!(identities.insert(raw.fingerprint().to_hex()));
+        let bytes =
+            wire::encode_module_candidate(&raw, &CandidatePlan::empty_for(&raw), &limits).unwrap();
+        let decoded = wire::decode_module_candidate(&bytes, &limits).unwrap().0;
+        assert_eq!(decoded, raw);
+        let mut old = bytes.clone();
+        old[8..12].copy_from_slice(&32u32.to_le_bytes());
+        assert!(
+            wire::decode_module_candidate(&old, &limits)
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-WIRE-VERSION")
+        );
+    }
+    // These are raw declaration bytes, not verified provenance claims.
+    let mut oversized = original;
+    oversized.functions[0].reference_return_bound = Some(vec![0; limits.max_locals + 1]);
+    assert!(
+        wire::encode_module_candidate(&oversized, &CandidatePlan::empty_for(&oversized), &limits)
+            .is_err()
+    );
 }
