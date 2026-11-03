@@ -310,6 +310,232 @@ fn explicit_life_core_metadata_is_not_a_type_proof() {
 }
 
 #[test]
+fn reviewer322_scalar_reuse_must_recheck_current_raw_life_declarations() {
+    let unit = source(
+        "fn scalar<life a,life b>(p:i32)->i32{let n0=p+1;let n1=n0+1;let n2=n1+1;return n2}",
+    );
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let original = zil_ir::CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![zil_ir::ProgramModule {
+            core,
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let prepared = zil_types::infer_program_for_ct(&original, &limits)
+        .unwrap()
+        .into_prepared();
+    let mut seeded = zil_types::FunctionSession::default();
+    seeded
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert_eq!(seeded.last_stats().executed_functions, 1);
+    assert_eq!(seeded.last_stats().reused_functions, 0);
+    let encoded = seeded.encode_work_products(&target, &limits).unwrap();
+    let valid = seeded
+        .clone()
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert_eq!(
+        valid,
+        zil_types::check_program(&original, &target, &limits).unwrap()
+    );
+    let mut bypassed = Vec::new();
+    for attack in 0..6 {
+        let mut changed = original.clone();
+        let life = changed.modules[0].core.functions[0].life.as_mut().unwrap();
+        match attack {
+            0 => life.binders.clear(),
+            1 => life.binders[1] = life.binders[0].clone(),
+            2 => life.parameter_lives.clear(),
+            3 => life.parameter_lives[0] = Some(0),
+            4 => life.result_life = Some(0),
+            _ => life.result_life = Some(99),
+        }
+        let fresh = zil_types::check_program(&changed, &target, &limits).unwrap_err();
+        assert!(
+            fresh.iter().any(|d| d.code == "E-LIFE-CONTRACT"),
+            "{fresh:?}"
+        );
+        for restored in [false, true] {
+            let mut session = if restored {
+                let mut session = zil_types::FunctionSession::default();
+                assert!(session.restore_work_products(&encoded, &target, &limits));
+                session
+            } else {
+                seeded.clone()
+            };
+            let prepared = zil_types::infer_program_for_ct(&changed, &limits)
+                .unwrap()
+                .into_prepared();
+            match session.check_prepared_program(&prepared, &target, &limits) {
+                Ok(_) => bypassed.push((attack, restored, session.last_stats())),
+                Err(errors) => assert!(
+                    errors.iter().any(|d| d.code == "E-LIFE-CONTRACT"),
+                    "{errors:?}"
+                ),
+            }
+        }
+    }
+    assert!(
+        bypassed.is_empty(),
+        "current life metadata bypassed on scalar reuse: {bypassed:?}"
+    );
+}
+
+#[test]
+fn reviewer322_equal_length_source_life_error_still_precedes_reuse() {
+    let original =
+        "fn scalar<life a,life b>(p:i32)->i32{let n0=p+1;let n1=n0+1;let n2=n1+1;return n2}";
+    let changed = original.replace("life a,life b", "life a,life a");
+    assert_eq!(original.len(), changed.len());
+    let project = |text: &str| zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![source(text)],
+        paths: std::collections::BTreeMap::new(),
+    };
+    let options = CompileOptions::default();
+    let mut session = zil_driver::CompilationSession::default();
+    let seed = session.compile_project(&project(original), &options);
+    assert_eq!(seed.status, ResultCategory::Success, "{}", seed.to_json());
+    for report in [
+        session.compile_project(&project(&changed), &options),
+        zil_driver::compile_project(&project(&changed), &options),
+    ] {
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].code, "E-LIFE-DECLARATION");
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn explicit_life_scalar_reuse_keeps_valid_hits_ordered_keys_and_exact_budget() {
+    let unit = source(
+        "fn scalar<life a,life b>(p:i32)->i32{let n0=p+1;let n1=n0+1;let n2=n1+1;return n2}",
+    );
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let original = zil_ir::CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![zil_ir::ProgramModule {
+            core,
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let target = TargetProfile::default();
+    let run = |n, restored| -> Result<zil_ir::TypedProgram, Vec<zil_base::Diagnostic>> {
+        let limits = Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let prepared = zil_types::infer_program_for_ct(&original, &limits)?.into_prepared();
+        let expected = zil_types::check_prepared_program(&prepared, &target, &limits)?;
+        let mut seeded = zil_types::FunctionSession::default();
+        assert_eq!(
+            seeded.check_prepared_program(&prepared, &target, &limits)?,
+            expected
+        );
+        let mut warm = if restored {
+            let bytes = seeded.encode_work_products(&target, &limits).unwrap();
+            let mut warm = zil_types::FunctionSession::default();
+            assert!(warm.restore_work_products(&bytes, &target, &limits));
+            warm
+        } else {
+            seeded
+        };
+        let actual = warm.check_prepared_program(&prepared, &target, &limits)?;
+        assert_eq!(actual, expected);
+        assert_eq!(warm.last_stats().reused_functions, 1);
+        assert_eq!(warm.last_stats().executed_functions, 0);
+        Ok(actual)
+    };
+    for restored in [false, true] {
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        let expected = run(high, restored).unwrap();
+        while low + 1 < high {
+            let middle = low + (high - low) / 2;
+            match run(middle, restored) {
+                Ok(actual) => {
+                    assert_eq!(actual, expected);
+                    high = middle;
+                }
+                Err(errors) => {
+                    assert!(
+                        errors.iter().all(|d| d.phase == Phase::Types
+                            && d.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    low = middle;
+                }
+            }
+        }
+        assert_eq!(run(high, restored).unwrap(), expected);
+        let errors = run(high - 1, restored).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.phase == Phase::Types && d.category == ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+        assert_eq!(run(high, restored).unwrap(), expected);
+        println!(
+            "322 valid scalar life reuse restored={restored} N={high}; fresh/live/restored agree"
+        );
+    }
+    let limits = Limits::default();
+    let prepared = zil_types::infer_program_for_ct(&original, &limits)
+        .unwrap()
+        .into_prepared();
+    let mut seeded = zil_types::FunctionSession::default();
+    seeded
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    let encoded = seeded.encode_work_products(&target, &limits).unwrap();
+    for remove in [false, true] {
+        let mut changed = original.clone();
+        let function = &mut changed.modules[0].core.functions[0];
+        if remove {
+            function.life = None;
+        } else {
+            function.life.as_mut().unwrap().binders.swap(0, 1);
+        }
+        let expected = zil_types::check_program(&changed, &target, &limits).unwrap();
+        let prepared = zil_types::infer_program_for_ct(&changed, &limits)
+            .unwrap()
+            .into_prepared();
+        for restored in [false, true] {
+            let mut warm = if restored {
+                let mut warm = zil_types::FunctionSession::default();
+                assert!(warm.restore_work_products(&encoded, &target, &limits));
+                warm
+            } else {
+                seeded.clone()
+            };
+            assert_eq!(
+                warm.check_prepared_program(&prepared, &target, &limits)
+                    .unwrap(),
+                expected
+            );
+            assert_eq!(warm.last_stats().reused_functions, 0);
+            assert_eq!(warm.last_stats().executed_functions, 1);
+        }
+    }
+}
+
+#[test]
 fn explicit_life_upper_bound_and_actual_origins_have_distinct_interface_identity() {
     let run = |head: &str, body: &str| {
         let project = zil_driver::ProjectSources {
