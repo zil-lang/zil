@@ -1,5 +1,7 @@
-# 大数组后端待修复入口
+# 大数组后端来源与当前边界
 
-`large-array-a18.zil` 保留本轮实际复现的 262144 字节嵌套数组，预期程序退出 0。当前 LLVM/Clang 23.1.4 的两条 O0 路径仍崩溃；API O2 成功，Clang O2 在本轮 2 GiB 限制下 OOM。详见 [精简复现结果](../../../docs/validation/recovery-large-array.json)。
+`large-array-a18.zil` 原样保留262144字节嵌套数组，预期退出0。历史O0崩溃及O2结果仍保存在 [原始精简复现](../../../docs/validation/recovery-large-array.json)，不覆盖历史。
 
-这是待修复的合法源码，未加入默认 Cargo 测试目标，也不把崩溃登记为永久应拒。后续修复应保留原规模，先冻结大值的表示、求值和复制合同，再覆盖相同源码的 O0/O2 与两后端。运行时须沿用报告中的资源界限及禁用 core；不得用缩小输入或只跑 O2 代替修复。
+324候选 `5825cd582ac6b419d185b59486c7b7fc79f1bedb` 已通过恢复后的显式API feature复验：LLVM/Clang23.1.4，clang/API ×O0/O2四组均backend匹配、无fallback、原生退出0。普通大Copy值以独立栈快照及有界内存复制降低；不缩输入、不改请求优化等级。限定结果、此前默认feature跳过API的误报与更正见 [324变更记录](../../../changes/324-large-aggregate-lowering.md)。既有aggregates目标已覆盖，正式组合全量仍由集成方裁决。
+
+目录名保留为历史路径。`large-array-a18-by-value.zil` 是后续一般巨型按值调用/返回ABI探针，尚未执行，不能声称已复现或修复。当前修复不等同于完整大值ABI与所有特殊消费者支持。
