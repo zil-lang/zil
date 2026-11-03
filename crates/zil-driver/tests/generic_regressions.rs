@@ -1186,6 +1186,12 @@ fn thread_native_parent_observer(profile: &str) {
             let controls = if shared {
                 &[
                     "shared_child",
+                    "two_scopes",
+                    "nested_shared",
+                    "helper_disjoint",
+                    "copied_lender",
+                    "owned_lender_retained",
+                    "ancestor_shared",
                     "disjoint_write",
                     "nested_disjoint",
                     "parent_parameter",
@@ -1790,6 +1796,11 @@ fn thread339_shared_source_and_independent_windows() {
     let limits = Limits::default();
     for name in [
         "shared_child",
+        "two_scopes",
+        "nested_shared",
+        "helper_disjoint",
+        "copied_lender",
+        "owned_lender_retained",
         "ancestor_shared",
         "disjoint_write",
         "nested_disjoint",
@@ -1894,6 +1905,31 @@ fn thread339_shared_source_and_independent_windows() {
             "E-BORROW-CONFLICT",
         ),
         (
+            "ancestor_write",
+            ResultCategory::SafeReject,
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "helper_writer",
+            ResultCategory::SafeReject,
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "owned_lender_cleanup",
+            ResultCategory::SafeReject,
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "owner_cleanup",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
+            "lending_pending",
+            ResultCategory::Unsupported,
+            "E-UNSUPPORTED",
+        ),
+        (
             "nested_writer",
             ResultCategory::SafeReject,
             "E-BORROW-CONFLICT",
@@ -1994,6 +2030,8 @@ fn thread339_types_shared_budget_and_scalar_control() {
         "scalar_control",
         "disjoint_write",
         "parent_capture",
+        "two_scopes",
+        "nested_shared",
     ] {
         let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
             .unwrap();
@@ -2039,9 +2077,136 @@ fn thread339_types_shared_budget_and_scalar_control() {
         }
         eprintln!("thread339 {name} Types N={high}, N-1 ResourceLimit, fresh N identical");
         let plan = zil_analyze::analyze(&expected, &limits).unwrap();
-        if name == "shared_child" || name == "scalar_control" {
+        if [
+            "shared_child",
+            "scalar_control",
+            "two_scopes",
+            "nested_shared",
+        ]
+        .contains(&name)
+        {
             eprintln!("thread339 {name} kernel budgets follow");
             thread332_budget(&expected, &plan);
         }
     }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread339_helper_return_mutable_roots_are_joint_in_both_kernels() {
+    use zil_ir::InstructionKind;
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let text =
+        std::fs::read_to_string(thread325_root().join("shared339/helper_disjoint.zil")).unwrap();
+    let src = source(&text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut claim = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), claim.clone(), &target, &limits).unwrap();
+    let caller = typed
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. }))
+        })
+        .unwrap();
+    let poison = caller
+        .locals
+        .iter()
+        .find(|local| local.name == "poison")
+        .unwrap()
+        .id;
+    let actual = caller
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::Store { local, value } if local == poison => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    for instruction in caller.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::WithScopedThread { argument, .. } = &mut instruction.kind {
+            *argument = actual;
+        }
+    }
+    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{errors:?}"
+    );
+    claim.module_fingerprint = typed.fingerprint();
+    let errors = zil_verify::verify_module(typed, claim, &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{errors:?}"
+    );
+    let text =
+        std::fs::read_to_string(thread325_root().join("shared339/helper_writer.zil")).unwrap();
+    let src = source(&text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+#[cfg(all(target_os = "linux", feature = "llvm-api"))]
+fn thread339_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let dir = std::env::temp_dir().join(format!("thread339-cache-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    for (index, name) in ["scalar_control", "shared_child", "shared_child"]
+        .iter()
+        .enumerate()
+    {
+        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
+            .unwrap();
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                backend: NativeBackend::LlvmApi,
+                optimization: Optimization::O2,
+                stop_after: Stage::Build,
+                object_cache: Some(dir.join("objects")),
+                output: Some(dir.join(format!("program{index}"))),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let codegen = report.native_codegen.as_ref().unwrap();
+        assert_eq!(codegen.backend, NativeBackend::LlvmApi);
+        assert!(codegen.fallback.is_none());
+        let result = std::process::Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(0), "{result:?}");
+        assert!(result.stdout.is_empty() && result.stderr.is_empty());
+        if index == 2 {
+            assert!(
+                codegen
+                    .object_reports
+                    .iter()
+                    .any(|r| r.contains("\"input_kind\":\"object-cache\"")),
+                "{}",
+                report.to_json()
+            );
+        }
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }
