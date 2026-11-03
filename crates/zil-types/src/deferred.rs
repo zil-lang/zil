@@ -99,6 +99,9 @@ impl Builder<'_, '_> {
                         "loop control cannot cross a defer cleanup boundary",
                     ));
                 }
+                CoreStatementKind::TupleBinding { initializer, .. } => {
+                    self.validate_defer_expr(initializer, depth + 1, cleanup)?;
+                }
                 CoreStatementKind::Binding {
                     initializer: Some(value),
                     ..

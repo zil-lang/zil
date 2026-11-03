@@ -8,6 +8,8 @@ mod cfg;
 mod domain;
 #[path = "compiler_expr.rs"]
 mod expr;
+#[path = "compiler_generics.rs"]
+mod generics;
 #[path = "compiler_quote.rs"]
 mod quote;
 #[path = "compiler_selection.rs"]
@@ -171,6 +173,28 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    fn copy_ty(&mut self, ty: &CtTy, depth: usize, span: Span) -> R<()> {
+        self.depth(depth, span)?;
+        self.node(span)?;
+        Self::take(
+            &mut self.bytes,
+            std::mem::size_of::<CtTy>(),
+            span,
+            "CT source temporary type bytes exhausted",
+        )?;
+        match ty {
+            CtTy::Tuple(fields) => {
+                for field in fields {
+                    self.copy_ty(field, depth + 1, span)?;
+                }
+            }
+            CtTy::Array { element, .. } | CtTy::List(element) => {
+                self.copy_ty(element, depth + 1, span)?
+            }
+            _ => {}
+        }
+        Ok(())
+    }
     fn declared(&self) -> CtDeclaredBudget {
         CtDeclaredBudget {
             max_steps: self.limits.max_ct_steps,
@@ -193,12 +217,19 @@ struct Compiler<'a> {
     modules: &'a [SourceModule<'a>],
     declarations: Vec<Declaration<'a>>,
     selected: BTreeMap<usize, CtFunctionId>,
-    pending: VecDeque<usize>,
+    generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
+    pending: VecDeque<(usize, Vec<CtTy>, CtFunctionId)>,
+    bindings: Vec<(String, CtTy)>,
+    symbolic: Vec<CtTy>,
+    checking_generics: bool,
+    checked_generics: Vec<usize>,
+    classification_binders: Vec<String>,
     functions: Vec<Option<CtFunction>>,
     constants: Vec<CtConstant>,
     records: Vec<CtRecordSchema>,
     enums: Vec<CtEnumSchema>,
     record_sources: Vec<(usize, &'a s::Aggregate)>,
+    record_arguments: Vec<Vec<CtTy>>,
     enum_sources: Vec<(usize, &'a s::EnumDecl)>,
     templates: Vec<CtTemplate>,
     active_aliases: Vec<(usize, Span)>,
@@ -229,12 +260,19 @@ impl<'a> Compiler<'a> {
             modules,
             declarations: Vec::new(),
             selected: BTreeMap::new(),
+            generic_selected: Vec::new(),
             pending: VecDeque::new(),
+            bindings: Vec::new(),
+            symbolic: Vec::new(),
+            checking_generics: false,
+            checked_generics: Vec::new(),
+            classification_binders: Vec::new(),
             functions: Vec::new(),
             constants: Vec::new(),
             records: Vec::new(),
             enums: Vec::new(),
             record_sources: Vec::new(),
+            record_arguments: Vec::new(),
             enum_sources: Vec::new(),
             templates: Vec::new(),
             active_aliases: Vec::new(),
@@ -437,12 +475,12 @@ impl<'a> Compiler<'a> {
         )?;
         self.selected.insert(declaration, id);
         self.budget.node(span)?;
-        self.pending.push_back(declaration);
+        self.pending.push_back((declaration, Vec::new(), id));
         Ok(id)
     }
     fn header(&mut self, declaration: usize) -> R<(Vec<CtTy>, CtTy)> {
         let d = self.declarations[declaration];
-        if !d.function.generics.is_empty() || !d.function.where_clause.is_empty() {
+        if d.function.generics.is_empty() && !d.function.where_clause.is_empty() {
             return Err(error(
                 d.function.span,
                 "CT function must be a concrete ordinary function instance",
@@ -472,11 +510,12 @@ impl<'a> Compiler<'a> {
 
 pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
     let mut compiler = Compiler::indexed(request.modules, request.limits)?;
+    compiler.check_generic_definitions()?;
     // An uncalled CT-only definition is still checked; runtime-only functions
     // are compiled only when actually referenced by the pure CT call graph.
     for index in 0..compiler.declarations.len() {
         let d = compiler.declarations[index];
-        if compiler.ct_only_function(d.module, d.function)? {
+        if d.function.generics.is_empty() && compiler.ct_only_function(d.module, d.function)? {
             compiler.enqueue(index)?;
         }
     }
@@ -527,7 +566,7 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
             id
         }
     };
-    while let Some(declaration) = compiler.pending.pop_front() {
+    while let Some((declaration, arguments, id)) = compiler.pending.pop_front() {
         compiler.budget.work(
             compiler
                 .selected
@@ -536,8 +575,9 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
                 .map_or(1, |n| n as usize + 2),
             compiler.declarations[declaration].item.span,
         )?;
-        let id = compiler.selected[&declaration];
+        compiler.bindings = compiler.instance_bindings(declaration, &arguments)?;
         let body = cfg::function(&mut compiler, id, declaration)?;
+        compiler.bindings.clear();
         compiler.functions[id.0 as usize] = Some(body);
     }
     // Account for the actual bounded source-view copies before allocating them.
@@ -582,12 +622,31 @@ pub(crate) fn ct_only_definitions(program: &mut CtArtifactProgram) -> R<Vec<CtSy
 pub(crate) fn definitions_entry(
     modules: &[SourceModule<'_>],
     limits: &mut Limits,
-) -> R<Option<CtSymbolId>> {
+) -> R<(Option<CtSymbolId>, Vec<CtSymbolId>)> {
+    let initial_nodes = limits.max_nodes;
+    let initial_bytes = limits.max_source_bytes;
     let mut compiler = Compiler::indexed(modules, limits)?;
+    let indexed_nodes = compiler.budget.nodes;
+    let indexed_bytes = compiler.budget.bytes;
+    let definitions = compiler.check_generic_definitions();
+    // Return spent work even when symbolic definition checking fails.
+    if let Err(errors) = definitions {
+        let remaining = compiler.budget.declared();
+        drop(compiler);
+        limits.max_analysis_steps = remaining.max_analysis_work as usize;
+        limits.max_nodes = initial_nodes - (indexed_nodes - remaining.max_generated_nodes as usize);
+        limits.max_source_bytes =
+            initial_bytes - (indexed_bytes - remaining.max_temporary_bytes as usize);
+        limits.max_functions = remaining.max_instances as usize;
+        return Err(errors);
+    }
+    let definitions = definitions?;
     let mut entry = None;
     for index in 0..compiler.declarations.len() {
         let declaration = compiler.declarations[index];
-        if compiler.ct_only_function(declaration.module, declaration.function)? {
+        if declaration.function.generics.is_empty()
+            && compiler.ct_only_function(declaration.module, declaration.function)?
+        {
             entry = Some(compiler.symbol(declaration.module, declaration.item.span)?);
             break;
         }
@@ -595,9 +654,11 @@ pub(crate) fn definitions_entry(
     let remaining = compiler.budget.declared();
     drop(compiler);
     limits.max_analysis_steps = remaining.max_analysis_work as usize;
-    limits.max_nodes = remaining.max_generated_nodes as usize;
-    limits.max_source_bytes = remaining.max_temporary_bytes as usize;
-    Ok(entry)
+    limits.max_nodes = initial_nodes - (indexed_nodes - remaining.max_generated_nodes as usize);
+    limits.max_source_bytes =
+        initial_bytes - (indexed_bytes - remaining.max_temporary_bytes as usize);
+    limits.max_functions = remaining.max_instances as usize;
+    Ok((entry, definitions))
 }
 
 /// Select the CT value domain before either producer runs. No errors are used

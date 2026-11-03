@@ -486,6 +486,9 @@ impl BodyKey<'_> {
             self.visit(depth)?;
             self.span(s.span)?;
             match &s.kind {
+                // This cache only fingerprints scalar statements; preserve the
+                // ordinary checked path for aggregate pattern bindings.
+                CoreStatementKind::TupleBinding { .. } => return None,
                 CoreStatementKind::Binding {
                     name,
                     mutable,

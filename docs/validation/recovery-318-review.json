@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/recovery_audit",
+  "review_kind": "independent limited source, raw/Wire and native review",
+  "overall_status": "LimitedReviewComplete",
+  "review_tree": "/workspace/zil-review318",
+  "target_dir": "/workspace/.zil-env/target318",
+  "tested_composition": "4dc789ee10b9ece1f283f2cacbd27bbea7b655e8",
+  "specification": "b46c55edd9aff034d2754718f095591dd732756e",
+  "implementations": {
+    "313": {
+      "implementation_commit": "75d13f103c43382c540cb19959a80ba88427c2bf",
+      "delivery_commit": "2ef488be92647f4ec7c6f1a6195a6ba551f676b1",
+      "verdict": "PassLimited",
+      "scope": "Concrete finite Copy tuple ordinary bindings, exact nested arity, all-discard qualification, RHS before bindings, lexical scope, mutability, existing TypedIR/Wire and bounded traversal.",
+      "tests": "aggregates: 16 passed; independent RHS probe: native O0/O2 output 2125",
+      "budget": "Types analysis N=51, N-1=50 ResourceLimit, fresh N success",
+      "open_combination": "Original generic tuple gap closed by exact 321 commit 5d854592ebcd77b283fa43deb43fbe3cdd0bbd83 and independent original-fixture native probe.",
+      "walker_followup": {
+        "scope": "Read-only audit of all production CoreStatementKind consumers; no runtime implementation changed.",
+        "checked": [
+          "initializer and closure inference",
+          "managed-slot shadowing and initialization",
+          "resource and Package effects",
+          "retained and helper/state source scopes",
+          "defer validation",
+          "CT collector, normalizer, materializer and fast-path fallback"
+        ],
+        "fast_paths": "CT unchanged_shape rejects the new node and falls back to the complete walker; scalar incremental fingerprint similarly falls back. Dedicated selection/generation Return/Expression matches consume synthetic one-statement shapes, not arbitrary function bodies.",
+        "limited_probe": "review318_tuple_defer_capture_and_scoped_initialization: 1 passed; defer tuple mutable capture O0/O2=42, RHS-only outer capture mutation O0/O2=67, scope escape and hidden unknown RHS E-UNKNOWN-NAME, invalid defer return E-DEFER-CONTROL.",
+        "verdict": "No additional traversal defect found in the checked concrete profile; generic definition gap subsequently closed and independently exercised under 321."
+      }
+    },
+    "315": {
+      "implementation_commit": "c88cbe1f7b640caef158b7994ce5630957158ccf",
+      "delivery_commit": "f3ddea475ffc4782592ca58558db28643bb06237",
+      "verdict": "PassLimited",
+      "scope": "Complete ordinary local Product exclusive synchronous helper windows; actual storage mutability, complete recursive children, provenance, independent Verify loan conflicts, and existing cleanup.",
+      "tests": {
+        "impl238_product_replacement": "15 passed: author 14 plus independent raw probe 1",
+        "impl224_shared_product": "13 passed",
+        "native": "Original pending source, reborrows, distinct roots, recursive Product top-level Copy access, normal/error cleanup; LLVM API O0/O2"
+      },
+      "budget": {
+        "Types": 364,
+        "Analyze": 5022,
+        "Verify": 10661,
+        "checks": "N success, N-1 ResourceLimit, fresh N success for each phase"
+      },
+      "independent_attacks": [
+        "Move recursive Root.child before BorrowLocalMut: Analyze E-ANALYZE-IR complete-child rejection; Verify raw and Wire E-VERIFY-RESOURCE.",
+        "Rewrite two distinct same-type local borrows to one actual root, update fingerprint and forge all Hold rows consistently: Analyze produces a candidate; Verify raw and Wire independently reject E-BORROW-CONFLICT. No fingerprint or budget rejection."
+      ],
+      "candidate_boundary": "Analyze candidates are unverified. General strong-loan authority is reconstructed and adjudicated by independent Verify; no copied loan kernel was added to Analyze.",
+      "legacy_oracle": "Original fn bad(p:&mut Root){}fn main(){} bytes retained and promoted to Success under 315; the other three retention/escape/owned-read rejections remain.",
+      "excluded": "Store/Closure/Sum/owned-array/borrowed-field shape extensions, mutable child deep projection, mutable capture, borrowed return, long-lived registration and async."
+    },
+    "314": {
+      "verdict": "NotReviewedHere",
+      "independent_review": "319"
+    },
+    "317": {
+      "verdict": "PassLimited",
+      "runtime_status": "2/0 existing recovery317 tests with explicit --features llvm-api; 4 compiled configurations each executed for 3 inputs, 12 native observations.",
+      "initial_checkpoint_reviewed": "ab2c4c4d7a0f66773353aac9f6baa0300231399e",
+      "initial_findings": "Original tuple sum was insensitive to field swaps; original CT case used only one instance; negative checks accepted any SafeReject. Author acknowledged and prepared fixes. Exact stdout, exit status, P/B/H drop counts and close ordering are substantive cleanup oracles.",
+      "implementation_commit": "ef4505598795e2fe88cd031d10aa8a96c061a897",
+      "tested_composition": "b343644ab0767e41ec7e0b00da858129b1364783",
+      "source_controls": "Main source reaches Verify once; two single-conflict-removed controls also reach Verify. Four nearest negatives bind actual phase/code/source span: shared Product Verify E-BORROW-CONFLICT, callback alias Analyze E-BORROW-CONFLICT, different nominal/phantom CT E-CT-CATEGORY.",
+      "oracle_review": "C host only registers, invokes the compiled ZIL callback, checks the shutdown sentinel and observes resource teardown. It does not implement tuple construction/projection, generic CT computation or Product updates. Distinct first=2/second=3 checks detect swaps; E count observes single evaluation; panel.count=5 and pump input observe actual mutation; post-close handler call and exact P/B/H counts/order observe real ownership and cleanup. Initial coarse negative assertions were replaced with exact phase/code/span and positive controls.",
+      "independent_native_receipts": [
+        {
+          "path": "/tmp/recovery318-native-report/recovery317-58135-0",
+          "compile_sha256": "af25e4c6a03482b694f6a78acaf8a20c450bb68d1792a2e08b8ea859f0fb65fd",
+          "backend": "clang",
+          "optimization": "-O0",
+          "verification_runs": 1,
+          "fallback": null,
+          "observed": [
+            {
+              "stdin": "0",
+              "stdout": "REVSPBCAH",
+              "exit": "exit status: 0"
+            },
+            {
+              "stdin": "1",
+              "stdout": "REVFPBCAH",
+              "exit": "exit status: 1"
+            },
+            {
+              "stdin": "2",
+              "stdout": "RNBAH",
+              "exit": "exit status: 2"
+            }
+          ]
+        },
+        {
+          "path": "/tmp/recovery318-native-report/recovery317-58135-1",
+          "compile_sha256": "3e740b3cb38044e938b89d73ed08ad4424afbbac0fc836e8c0bc932bbc0df1dd",
+          "backend": "clang",
+          "optimization": "-O2",
+          "verification_runs": 1,
+          "fallback": null,
+          "observed": [
+            {
+              "stdin": "0",
+              "stdout": "REVSPBCAH",
+              "exit": "exit status: 0"
+            },
+            {
+              "stdin": "1",
+              "stdout": "REVFPBCAH",
+              "exit": "exit status: 1"
+            },
+            {
+              "stdin": "2",
+              "stdout": "RNBAH",
+              "exit": "exit status: 2"
+            }
+          ]
+        },
+        {
+          "path": "/tmp/recovery318-native-report/recovery317-58135-2",
+          "compile_sha256": "030e11ca05c27b697f143b424b69cb75bd8a0e689def7e0595b45e4dc395b020",
+          "backend": "llvm-api",
+          "optimization": "-O0",
+          "verification_runs": 1,
+          "fallback": null,
+          "observed": [
+            {
+              "stdin": "0",
+              "stdout": "REVSPBCAH",
+              "exit": "exit status: 0"
+            },
+            {
+              "stdin": "1",
+              "stdout": "REVFPBCAH",
+              "exit": "exit status: 1"
+            },
+            {
+              "stdin": "2",
+              "stdout": "RNBAH",
+              "exit": "exit status: 2"
+            }
+          ],
+          "object_validation": {
+            "input_kind": "builder",
+            "verify_before_after": true,
+            "parse_ns": 0
+          }
+        },
+        {
+          "path": "/tmp/recovery318-native-report/recovery317-58135-3",
+          "compile_sha256": "bd381420e1604cf344705c0db0705dbc8a0616e16193bfbda00eee8939b2bdf4",
+          "backend": "llvm-api",
+          "optimization": "-O2",
+          "verification_runs": 1,
+          "fallback": null,
+          "observed": [
+            {
+              "stdin": "0",
+              "stdout": "REVSPBCAH",
+              "exit": "exit status: 0"
+            },
+            {
+              "stdin": "1",
+              "stdout": "REVFPBCAH",
+              "exit": "exit status: 1"
+            },
+            {
+              "stdin": "2",
+              "stdout": "RNBAH",
+              "exit": "exit status: 2"
+            }
+          ],
+          "object_validation": {
+            "input_kind": "builder",
+            "verify_before_after": true,
+            "parse_ns": 0
+          }
+        }
+      ],
+      "limits": "Linux synchronous finite scope only; no native Windows, returning registration, async or framework/product conclusion."
+    },
+    "320": {
+      "implementation_commits": [
+        "188a3a603664f1b5db149d6dc846e02a22e5dbb6",
+        "94974949768a52c6be88b5452dad77346e8792fd"
+      ],
+      "specification": "575b05b98f183f74ba36872d85869a16f160f17a",
+      "tested_composition": "eb5a142b30414ef1b79ce302e6a0adf69ff3c248",
+      "verdict": "PassLimited",
+      "checks": "Author copy_record_bound 4/0; runtime native O0/O2=17; unused declarations, phantom identity and non-Copy rejection; Expand N=740 and old-unbound N=255, N-1/fresh retained.",
+      "independent_probe": "review318_copy_record_binders_and_nested_unused_obligations 1/0: same-spelled aggregate/function binders shadow nominal Box correctly; mixed unbound phantom U remains accepted; nested Tag<V> obligations fail at definition time even when outer application itself is unused.",
+      "excluded": "General trait/where constraints, Package/Resource bounds and whole-Struct Copy inference.",
+      "delivery_commit": "4b42752fee6a4b900f027781a8906bdfec078842",
+      "final_checks": "copy_record_bound 5/0 on final delivery with actual CT record original and alternate branch O0/O2; original N740 and old-unbound N255 retained."
+    },
+    "321": {
+      "implementation_commit": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
+      "tested_composition": "36592623537692e1962024842b35884bef1d45ab",
+      "verdict": "PassLimited",
+      "checks": "generic_tuple filter in review194_composition: 4/0; original gap Verify/native, 4 native source programs at O0/O2, 4 unused legal definitions, 18 unsupported/invalid neighbors, Expand exact N=357/N-1/fresh.",
+      "independent_probe": "review318_original_generic_gap_and_mixed_copy_record_obligations: 1/0. Original expected-success fixture directly built and run O0/O2=42. Unused Pair<T:Copy,U:Copy> tuple is valid; unbound U or generic T shadowing an external Copy record remains definition-time E-GENERIC-ARGUMENT.",
+      "scope": "Symbolic Copy qualification, exact tuple shape, binder identity and let/var capability; no numeric/field authority inferred from Copy."
+    }
+  },
+  "independent_probes": {
+    "raw_probe_commit": "aead57f7d86fd9ce69381bfcf23c99f1ed188853",
+    "tuple_rhs": "fn step(c:&mut i32)->i32{*c+=1;return *c}fn result()->i32{var count=0;let(a,(b,z))=(step(&mut count),(step(&mut count),#(2+3)));return count*1000+a*100+b*10+z}",
+    "generic_gap_fixture": "tests/language-readiness/recovery/review318-generic-tuple-gap.zil",
+    "generic_gap_observed": {
+      "status": "Unsupported",
+      "phase": "Expand",
+      "code": "E-UNSUPPORTED",
+      "message": "this parametric statement requires additional symbolic checking",
+      "span": {
+        "start": 32,
+        "end": 52
+      },
+      "input_fingerprint": "1844c002cf30509edf62589fd9e9ff489d29d2583f951c6ef70bc082e2e2755a",
+      "tracking": "321; retained as an expected-success source gap, not a permanent negative test.",
+      "resolution": {
+        "commit": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
+        "status": "Success",
+        "verification": "original source through Verify and native O0/O2=42; no replacement or permanent negative assertion"
+      }
+    }
+  },
+  "commands": [
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test aggregates --test impl238_product_replacement --test impl224_shared_product -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test aggregates review318_ -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test review194_composition generic_tuple -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test generics copy_record_bound -- --nocapture",
+    "source /workspace/.zil-env/env.sh; ZIL_TEST_REPORT_DIR=/tmp/recovery318-native-report CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test generic_regressions recovery317 -- --nocapture"
+  ],
+  "retained_failures": [
+    "315 initial c88cbe1f7: impl224 11/12; only the subsequently authorized mutable signature oracle failed.",
+    "Reviewer first expected Analyze to reject forged same-root loans; it produced an unverified candidate. Corrected review expectation after inspecting the established independent Verify loan architecture; Verify raw/Wire rejected the same attack.",
+    "Generic tuple expected-success native probe failed at Expand before code generation; original source and diagnostic retained for 321.",
+    "Reviewer first recovery317 retained-output run: source test passed; native test failed before compilation because the chosen /tmp report parent did not exist (fs::create_dir NotFound). Created the parent and reran unchanged source/tests: 2/0, with all 12 observations retained separately.",
+    "Targeted reviewer-test Clippy first rejected a collapsible_if in the existing independent same-root probe. Collapsed the equivalent condition without changing assertions; targeted -D warnings passed."
+  ],
+  "limits": "No full suite, final combined 313-321 acceptance, Windows, async or product/Rust comparison verdict. Limited passing results do not upgrade B0 or full language/ZUI.",
+  "test_only_followup": {
+    "commits": [
+      "1b2df2a547ba32f5fea7460bdf3a8ea6e8ee32fb",
+      "a5e2a9fac1713c4e8a45d706f2ee32949385da85"
+    ],
+    "verdict": "ReadOnlyReviewComplete",
+    "findings": "Only the exhaustive statement label and existing differential coverage matrix changed. Tuple initializer contains a call and a second origin, so traversal effects are exercised. Unique statement variants rise 16 to 17; total matrix uses 27 expression cases plus 17 statement cases = 44, equivalent to (26+18). No production behavior or oracle weakening.",
+    "execution": "Not rerun by reviewer; root reported the exact existing coverage test 1/0."
+  },
+  "final_tested_composition": "b343644ab0767e41ec7e0b00da858129b1364783",
+  "historical_223_oracle_adjudication": {
+    "reported_composition": "6907974e9aa57c19dea5c10da0aba9405cc844f0",
+    "reviewed_315_implementation": "c88cbe1f7b640caef158b7994ce5630957158ccf",
+    "reviewer_tested_base": "b7267f6bd9e9a330260e84792e9d1958939e7f89",
+    "classification": "Historical Unsupported boundary superseded by the explicit 315 finite synchronous Product mutable-helper profile; not an unsafe permission gain.",
+    "failed_tests": [
+      "impl223_product_store::store_qualification_cannot_open_an_incoming_mutable_product_address",
+      "review223_boundaries::unused_mutable_nested_product_parameter_cannot_gain_a_write_capability",
+      "review223_replay::frozen_mutable_product_raw_and_wire_must_be_rejected"
+    ],
+    "actual_type_and_operation": "Incoming &mut Root contains only recursive child Products with Managed finite-Copy user-resource heads and Copy i32 companions. The helper only projects top-level index 1 and writes i32(7). No Store, new capture, owned-field write, child deep write or escaping return. Immutable binding p does not remove the pointee authority of its &mut type.",
+    "contract_reason": "315 explicitly permits complete Product windows from mutable ordinary locals and synchronous helper parameter reborrows. Raw incoming &mut parameters carry that boundary precondition; no call in an unused function manufactures or consumes a window. Source callers must still establish completeness and exclusivity.",
+    "independent_probe": "review318_frozen223_product_parameter_has_real_exclusive_authority: 1/0; existing impl238 target only. Frozen schema32 raw/Wire accepted; source equivalent O0/O2 returns 0. Inconsistent shared downgrade rejected E-VERIFY-TYPE raw/Wire; coherent shared downgrade retaining WriteAddress rejected E-VERIFY-ADDRESS raw/Wire. Missing child call rejected Analyze E-ANALYZE-IR; live shared and exclusive parent conflicts rejected Verify E-BORROW-CONFLICT.",
+    "fixture_sha256": {
+      "mutable_control.zil": "b3f19abd09088e6686ebb12eb50a0058429ba38a8568274c789050160716f75a",
+      "mutable-product-original.wire": "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
+      "schema32-mutable-product.wire": "8cc0e4a565e57b71135b3c692079dcaa65dfa4ce6f49dbe36c253182df497862",
+      "ORACLE.json": "d4e9dcc8e54b2a3029e9d9820e0ccfe65885a7c19f22eef7193ff00a263ecb94"
+    },
+    "migration_recommendation": "Retain original source, all wire versions, hashes, frozen historical oracle and first full-suite failures. Add a current-contract acceptance ledger plus the nearest completeness/permission/loan conflicts. Old transport versions still reject. No production tightening or safety-oracle disabling is justified by these three cases.",
+    "mutation_scope": "No root source, original fixture or frozen oracle changed by reviewer; only an independent existing-target test and this additive review record.",
+    "targeted_clippy": "impl238_product_replacement --features llvm-api -D warnings: Pass; reviewer corrected its earlier collapsible_if test-only lint with the equivalent if-let-chain, matching root eb25bf61e.",
+    "migration_review": {
+      "commit": "c479b1d1ef0f03f0f6c8b96433d9c5f633a25d3b",
+      "tested_composition": "4d59c564f5a124be617a6258789e805fab85e9d9",
+      "verdict": "PassLimited",
+      "original_fixture_tree": "bcc405e24a104718ea36562d2b6ddfbd993c8ce5",
+      "fixture_identity": "Parent and candidate review223_fixtures Git trees exactly identical; source, frozen ORACLE and Wire27/29/30/32 bytes unchanged.",
+      "old_transport_oracle": "frozen_schema27_29_and30_wire_are_rejected_as_old_transports function byte-identical; original fixed hashes and both decode/Verify E-WIRE-VERSION assertions retained.",
+      "current_acceptance": "All three coherent current Product mutable helper inputs are verified through both raw and Wire paths; frozen replay additionally binds the verified fingerprint and exact schema32 SHA256. Original source generation and envelope allowed-range equality remain.",
+      "nearest_rejections": "Every migration entry checks shared addresses retaining WriteAddress => Verify/E-VERIFY-ADDRESS and actual owned-child address formation => Verify/E-UNSUPPORTED, on both raw and Wire: 12 exact semantic rejections. Each adds real missing-child source call => Analyze/SafeReject/E-ANALYZE-IR: 3 rejections. No fingerprint/resource-limit substitute or empty test selection.",
+      "results": {
+        "impl223_product_store": "13/0, no filter",
+        "review223_boundaries": "2/0, no filter",
+        "review223_replay": "2/0, no filter",
+        "targeted_clippy": "All three targets --features llvm-api -D warnings Pass"
+      },
+      "production_change": "None; candidate modifies three tests and the existing changes record only. Reviewer changed only this additive adjudication record after reproducing results."
+    }
+  }
+}

@@ -1052,14 +1052,8 @@ impl Resolver<'_> {
                     }
                     Type::Package { .. }
                         if packages::product::nested(&inner)
-                            || (!*mutable && packages::product::supported(&inner)) =>
+                            || packages::product::supported(&inner) =>
                     {
-                        if *mutable {
-                            return Err(unsupported(
-                                span,
-                                "ordinary Product addresses are shared synchronous inputs",
-                            ));
-                        }
                         packages::product::validate(
                             &inner,
                             &mut self.remaining,
@@ -1151,6 +1145,14 @@ impl Resolver<'_> {
         self.charge(depth, b.span)?;
         for s in &mut b.statements {
             match &mut s.kind {
+                CoreStatementKind::TupleBinding {
+                    ty, initializer, ..
+                } => {
+                    if let Some(t) = ty {
+                        *t = self.ty(t, depth + 1, s.span)?;
+                    }
+                    self.expr(initializer, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     ty, initializer, ..
                 } => {

@@ -140,6 +140,219 @@ fn generic_enum_error_injection_preserves_native_error_and_success_arms() {
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn review318_copy_record_binders_and_nested_unused_obligations() {
+    for text in [
+        "struct Box<T:Copy>{value:T} fn identity<Box>(value:Box)->Box{return value} fn result()->i32{return identity(17)}",
+        "struct Box<T:Copy>{value:T} struct Holder<Box>{value:Box} fn result()->i32{return 0}",
+        "struct Pair<T:Copy,U>{value:T} struct Holder<V>{inner:Pair<i32,V>} fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        eprintln!("review318 Copy-bound control: {}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "struct Tag<T:Copy>{n:i32} struct Outer<V>{value:Tag<(i32,Tag<V>)>} fn result()->i32{return 0}",
+        "struct Tag<T:Copy>{n:i32} struct Pair<T:Copy,U>{value:T} struct Outer<V>{value:Pair<Tag<V>,bool>} fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-GENERIC-ARGUMENT")
+        );
+    }
+}
+
+#[test]
+fn copy_record_bound_runtime_nested_and_phantom_arguments() {
+    native(
+        "struct Box<T:Copy>{value:T} struct Pair<T:Copy,U>{first:T;second:U} struct Tag<T:Copy>{n:i32} struct A{x:i32} struct B{x:i32} fn wrap<T:Copy>(value:T)->Box<T>{return Box::<T>{value}} fn result()->i32{let a=wrap(7);let b=Box::<Box<i32>>{value:a};let p=Pair::<i32,bool>{first:3,second:true};let left=Tag::<A>{n:2};let right=Tag::<B>{n:5};return b.value.value+p.first+left.n+right.n}",
+        17,
+    );
+    for text in [
+        "struct Box<T:Copy>{value:T} struct Outer<U:Copy>{inner:Box<U>} fn result()->i32{return 0}",
+        "struct Phantom<T:Copy>{n:i32} struct Pair<T:Copy,U>{first:T;second:U} fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn copy_record_bound_original_ct_source_reaches_native() {
+    use zil_driver::Optimization;
+    for text in [
+        include_str!("../../../tests/language-readiness/pending/ct-type-generic-record.zil"),
+        "struct Box<T:Copy>{value:T} fn select(x:Box<i32>)->Type{if x.value==7{return i32}return i64} fn main()->i32{let n:#(select(Box::<i32>{value:8}))=3000000000;return i32(n-3000000000)}",
+    ] {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = std::env::temp_dir().join(format!(
+                "zil-copy-record-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&out).unwrap();
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    optimization,
+                    output: Some(out.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let actual = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+            assert!(actual.stdout.is_empty(), "{actual:?}");
+            assert!(actual.stderr.is_empty(), "{actual:?}");
+            fs::remove_dir_all(out).unwrap();
+        }
+    }
+}
+
+#[test]
+fn copy_record_bound_unused_and_phantom_obligations_are_checked() {
+    for text in [
+        "struct Box<T:Copy>{value:T} struct Bad<U>{inner:Box<U>} fn result()->i32{return 0}",
+        "struct Phantom<T:Copy>{n:i32} struct Bad<U>{inner:Phantom<U>} fn result()->i32{return 0}",
+        "struct U{n:i32} struct Phantom<T:Copy>{n:i32} struct Bad<U>{inner:Phantom<U>} fn result()->i32{return 0}",
+        "struct Phantom<T:Copy>{n:i32} fn unused<U>(v:Phantom<U>)->i32{return 0} fn result()->i32{return 0}",
+        "struct Phantom<T:Copy>{n:i32} fn unused(v:Phantom<&i32>)->i32{return 0} fn result()->i32{return 0}",
+        "struct Phantom<T:Copy>{n:i32} fn result()->i32{let x=Phantom::<&i32>{n:1};return x.n}",
+        "struct Phantom<T:Copy>{n:i32} fn result()->i32{let x=Phantom::<[&i32;0]>{n:1};return x.n}",
+        "resource R{n:i32} struct Phantom<T:Copy>{n:i32} fn result()->i32{let x=Phantom::<R>{n:1};return x.n}",
+        "struct Box<T:Copy>{value:T} fn result()->i32{var n=1;let x=Box::<&mut i32>{value:&mut n};return n}",
+        "struct Box<T:Copy>{value:T} struct Bad<T:Copy>{inner:Box<T,i32>} fn result()->i32{return 0}",
+        "struct Box<T:Copy>{value:T} struct Bad<T:Copy>{inner:Box} fn result()->i32{return 0}",
+        "struct Bad<T:Copy+Copy>{value:T} fn result()->i32{return 0}",
+        "struct Bad<Copy,T:Copy>{n:i32} fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(
+            report.diagnostics[0].code,
+            "E-GENERIC-ARGUMENT",
+            "{}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+    for text in [
+        "package Box<T:Copy>{value:T} fn result()->i32{return 0}",
+        "resource Box<T:Copy>{value:T} fn result()->i32{return 0}",
+        "trait Mark{} struct Box<T:Mark>{value:T} fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    }
+}
+
+#[test]
+fn copy_record_bound_phantom_identity_is_nominal() {
+    let report = compile_source(
+        &source(
+            "struct Phantom<T:Copy>{n:i32} fn read(x:Phantom<i32>)->i32{return x.n} fn result()->i32{return read(Phantom::<bool>{n:7})}",
+        ),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert_eq!(
+        report.diagnostics[0].code,
+        "E-GENERIC-ARGUMENT",
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn copy_record_bound_expand_budget_is_exact_and_fresh() {
+    for (label, text) in [
+        (
+            "bound",
+            "struct Box<T:Copy>{value:T} struct Phantom<T:Copy>{n:i32} fn result()->i32{let x=Box::<Phantom<i32>>{value:Phantom::<i32>{n:7}};return x.value.n}",
+        ),
+        (
+            "old-unbound",
+            "struct Box<T>{value:T} fn result()->i32{let x=Box::<i32>{value:7};return x.value}",
+        ),
+    ] {
+        let src = source(text);
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let check = |steps| {
+            zil_expand::expand_with_map_limits(
+                &src,
+                &ast,
+                &zil_base::Limits {
+                    max_analysis_steps: steps,
+                    ..zil_base::Limits::default()
+                },
+            )
+        };
+        let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+        assert!(check(high).is_ok());
+        while low < high {
+            let middle = low + (high - low) / 2;
+            if check(middle).is_ok() {
+                high = middle
+            } else {
+                low = middle + 1
+            }
+        }
+        let failed = check(low - 1).unwrap_err();
+        assert_eq!(failed[0].phase, Phase::Expand);
+        assert_eq!(failed[0].category, ResultCategory::ResourceLimit);
+        assert!(check(low).is_ok());
+        assert!(check(low).is_ok());
+        eprintln!("320 {label} Expand exact work limit: {low}");
+    }
+}
+
+#[test]
 fn generic_error_union_templates_defer_potential_equality_to_actual_instances() {
     for (definition, call, phase, code) in [
         (

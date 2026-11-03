@@ -1,5 +1,13 @@
 # ZIL 施工总计划
 
+## 2026-11-03：恢复后有限语言组合本地验收
+
+可用基线为299后的`7f039d16`，指定301–312旧对象与未提交源码均未恢复；补充旧对话仅记载其未推送，不作为当前源码或规范。可用来源审计见docs/RECOVERY-20261103.md，除新附件/平台导出外不反复恢复同一批编号。
+
+313/321有限Copy tuple具体与泛型解构、314/320 Type/Syntax普通Copy泛型及Struct Copy约束消费者、315普通完整Product同步可变借入已经本地集成；316完成真实源能力盘点，317以四模块组件核验组合和清理。共同受测`a57a668b68044e37e870d058684f9364307e04b1`默认4055/0、reference3947/0、text64/0、migration9/0、fmt/Clippy通过；独审与原失败/修复见docs/LANGUAGE-RECOVERY-20261103.md。远端候选备份为`task/language-recovery-20261103`，任务/review源码及可校验bundle分阶段批量保存；远端main仍为恢复基线，本轮无远端CI完成结论。
+
+下一集中life/Self/FP与trait契约消费者、基础类型/模式、异步并发所缺公共合同和真实ZUI前置；已贯通四份历史pending源保留为正控，具体顺序见docs/LANGUAGE-NEXT-PRIORITIES.md。大数组原规模O0崩溃已在当前LLVM23.1.4复现，内存SSA生产修复待实现，不能把旧提案记为成果。完整语言/ZUI、B0及Rust四目标仍未完成。
+
 ## 2026-11-03：普通语言组合继续闭环
 
 277–283具体闭包组合、284–287共享Product参数捕获、292–293泛型直接enum错误返回已分别经PR24/25/26合入；294–299通过PR27补齐泛型与具体闭包的错误联合上下文、独立约束和实际回调载荷，语言集成main `8bbb38f2`。本地完整4005/0，两套最终CI各默认4005/参考3897/文本64通过；独立审核、首轮两项过严误拒及保持旧测试的回修见docs/LANGUAGE-GENERIC-INJECTION.md。最新完整缺口清单见docs/LANGUAGE-REMAINING.md，实际基线正控/待实现源保存在tests/language-readiness。下一按普通库需要并行推进普通Product局部可变借入helper与Type/Syntax泛型组合；现有scope可覆盖持续同步事件环，返回后保留捕获环境的外部登记、异步并发另按真实生命周期义务推进。完整语言/ZUI与B0仍未完成。

@@ -1270,6 +1270,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Package { .. }) =>
                 {
                     self.package_shell(state, *local, span, validate)?;
@@ -1283,7 +1284,11 @@ impl Transfer<'_> {
                     {
                         return Err(bad(
                             span,
-                            "shared Product borrow requires every owned child live on every path",
+                            if matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. }) {
+                                "Product borrow requires every owned child live on every path"
+                            } else {
+                                "shared Product borrow requires every owned child live on every path"
+                            },
                         ));
                     }
                 }

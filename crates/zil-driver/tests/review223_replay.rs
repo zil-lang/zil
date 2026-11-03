@@ -71,9 +71,13 @@ fn migrate_original_envelope(limits: &Limits) -> Vec<u8> {
 }
 
 #[test]
-fn frozen_mutable_product_raw_and_wire_must_be_rejected() {
+fn frozen_mutable_product_raw_and_wire_is_promoted_by_315() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
+    assert_eq!(
+        Fingerprint::of(SCHEMA32).to_hex(),
+        "8cc0e4a565e57b71135b3c692079dcaa65dfa4ce6f49dbe36c253182df497862"
+    );
     assert_eq!(
         Fingerprint::of(SCHEMA30).to_hex(),
         "783db64403cec14468080ce9708d4f25a4cbd315aaed36d2f994994f7f70e3c9"
@@ -94,7 +98,7 @@ fn frozen_mutable_product_raw_and_wire_must_be_rejected() {
     let results = [
         (
             "raw",
-            zil_verify::verify_module(module, plan, &target, &limits),
+            zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits),
         ),
         (
             "wire",
@@ -105,27 +109,109 @@ fn frozen_mutable_product_raw_and_wire_must_be_rejected() {
         fs::write(root.join(format!("{route}.txt")), format!("{result:#?}")).unwrap();
     }
     for (route, result) in results {
-        let errors = result.expect_err(route);
-        assert_eq!(errors.len(), 1, "{route}: {errors:#?}");
-        assert_eq!(errors[0].category, ResultCategory::Unsupported, "{route}");
-        assert_eq!(errors[0].code, "E-UNSUPPORTED", "{route}");
-        assert_eq!(
-            errors[0].message, "ordinary Product addresses are shared synchronous inputs",
-            "{route}"
-        );
-        assert!(
-            errors.iter().all(|d| d.phase == Phase::Verify
-                && matches!(
-                    d.category,
-                    ResultCategory::SafeReject | ResultCategory::Unsupported
-                )),
-            "{route}: {errors:#?}"
-        );
-        assert!(
-            errors
-                .iter()
-                .all(|d| !d.code.starts_with("E-WIRE-") && !d.message.contains("fingerprint")),
-            "{route}: {errors:#?}"
-        );
+        // The exact original223 current envelope now has an explicit315
+        // synchronous incoming &mut contract. It writes only the outer Copy
+        // tag; historical ORACLE.json and all frozen Wire bytes remain intact.
+        let verified = result.unwrap_or_else(|e| panic!("{route}: {e:?}"));
+        assert_eq!(verified.fingerprint(), module.fingerprint());
     }
+    fs::write(
+        root.join("current-result.json"),
+        "{\"raw\":\"Success\",\"wire\":\"Success\",\"rule\":\"8.1.2.1\"}\n",
+    )
+    .unwrap();
+
+    for owned in [false, true] {
+        let mut changed = module.clone();
+        let f = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "write")
+            .unwrap();
+        if owned {
+            let zil_ir::Type::Address { inner, .. } = &f.locals[f.parameters[0].0 as usize].ty
+            else {
+                unreachable!()
+            };
+            let zil_ir::Type::Package { fields, .. } = inner.as_ref() else {
+                unreachable!()
+            };
+            let child = fields[0].1.clone();
+            for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if let zil_ir::InstructionKind::AddressField { index, .. } = &mut i.kind {
+                    *index = 0;
+                    f.values[i.result.unwrap().0 as usize] = zil_ir::Type::Address {
+                        mutable: true,
+                        inner: Box::new(child.clone()),
+                    };
+                }
+            }
+        } else {
+            for ty in f
+                .locals
+                .iter_mut()
+                .map(|l| &mut l.ty)
+                .chain(f.values.iter_mut())
+            {
+                if let zil_ir::Type::Address { mutable, .. } = ty {
+                    *mutable = false;
+                }
+            }
+        }
+        let mut p = plan.clone();
+        p.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &p, &limits).unwrap();
+        let label = if owned { "owned-child" } else { "shared-write" };
+        fs::write(root.join(format!("{label}.wire")), &wire).unwrap();
+        for (route, result) in [
+            (
+                "raw",
+                zil_verify::verify_module(changed, p, &target, &limits),
+            ),
+            (
+                "wire",
+                zil_verify::verify_module_bytes(&wire, &target, &limits),
+            ),
+        ] {
+            let errors = result.expect_err(label);
+            assert_eq!(errors.len(), 1, "{label}/{route}: {errors:?}");
+            assert_eq!(errors[0].phase, Phase::Verify);
+            assert_eq!(
+                errors[0].code,
+                if owned {
+                    "E-UNSUPPORTED"
+                } else {
+                    "E-VERIFY-ADDRESS"
+                },
+                "{label}/{route}: {errors:?}"
+            );
+            fs::write(
+                root.join(format!("{label}-{route}.json")),
+                errors[0].to_json(),
+            )
+            .unwrap();
+        }
+    }
+    let text = include_str!("review223_fixtures/mutable_control.zil").replace("write(p:&mut Leaf)","write(p:&mut Root)").replace("fn main(){}","fn main(){var root=Root{child:Leaf{owner:R{n:1},tag:2},tag:3};let child=root.child;write(&mut root)}");
+    fs::write(root.join("incomplete-call.zil"), &text).unwrap();
+    let r = zil_driver::compile_source(
+        &zil_base::SourceUnit::new(
+            zil_base::FileId(0),
+            zil_base::ModuleId(0),
+            "incomplete223.zil",
+            text,
+        ),
+        &zil_driver::CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..Default::default()
+        },
+    );
+    fs::write(root.join("incomplete-call.json"), r.to_json()).unwrap();
+    assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
+    assert_eq!(r.phase, Phase::Analyze, "{}", r.to_json());
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == "E-ANALYZE-IR"),
+        "{}",
+        r.to_json()
+    );
 }

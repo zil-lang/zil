@@ -343,6 +343,18 @@ impl Walk<'_, '_> {
         for statement in &block.statements {
             self.node(depth + 1, statement.span)?;
             match &statement.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    ty,
+                    initializer,
+                    ..
+                } => {
+                    self.expr(initializer, depth + 1)?;
+                    if let Some(ty) = ty {
+                        self.shape(ty, self.bounds, self.bindings, statement.span, depth + 1)?;
+                    }
+                    self.pattern(pattern, &Shape::Unknown, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     name,
                     ty,
