@@ -17,6 +17,7 @@ pub(super) fn headers(module: &TypedModule, budget: &mut Budget) -> CompileResul
             bound.len().saturating_mul(2).saturating_add(1),
             "life return declaration",
         )?;
+        budget.type_work(&f.return_type, true, "life return shared qualification")?;
         if bound.is_empty()
             || bound.windows(2).any(|w| w[0] >= w[1])
             || f.environment.is_some()
@@ -34,6 +35,9 @@ pub(super) fn headers(module: &TypedModule, budget: &mut Budget) -> CompileResul
                 .parameters
                 .get(*index as usize)
                 .and_then(|local| f.locals.get(local.0 as usize));
+            if let Some(actual) = actual {
+                budget.type_work(&actual.ty, true, "life input shared qualification")?;
+            }
             if !actual.is_some_and(|l|matches!(&l.ty,Type::Address{mutable:false,inner} if inner.is_address_pointee())) {
                 return Err(error(f,"life return bound names a missing or non-shared parameter"));
             }

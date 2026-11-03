@@ -26,7 +26,11 @@ pub(super) fn preflight(f: &CoreFunction, remaining: &mut usize) -> R<()> {
     }
     Ok(())
 }
-pub(super) fn compile(f: &CoreFunction, closures: &mut closures::State) -> R<Option<Vec<u32>>> {
+pub(super) fn compile(
+    f: &CoreFunction,
+    closures: &mut closures::State,
+    limits: &Limits,
+) -> R<Option<Vec<u32>>> {
     let Some(life) = &f.life else { return Ok(None) };
     let work = life.binders.iter().fold(
         life.binders
@@ -57,6 +61,10 @@ pub(super) fn compile(f: &CoreFunction, closures: &mut closures::State) -> R<Opt
             if *tag as usize >= life.binders.len() {
                 return Err(invalid(f, "parameter life index is outside its binder"));
             }
+            closures.snapshot(
+                inference::type_snapshot_work(&parameter.ty, parameter.span, limits)?,
+                parameter.span,
+            )?;
             if !matches!(&parameter.ty,Type::Address{mutable:false,inner} if inner.is_address_pointee())
             {
                 return Err(invalid(
@@ -69,6 +77,10 @@ pub(super) fn compile(f: &CoreFunction, closures: &mut closures::State) -> R<Opt
     let Some(result) = life.result_life else {
         return Ok(None);
     };
+    closures.snapshot(
+        inference::type_snapshot_work(&f.return_type, f.span, limits)?,
+        f.span,
+    )?;
     if result as usize >= life.binders.len()
         || !matches!(&f.return_type,Type::Address{mutable:false,inner} if inner.is_address_pointee())
     {
