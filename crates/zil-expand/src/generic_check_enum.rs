@@ -76,7 +76,9 @@ impl Check<'_, '_, '_> {
             let actual = self.expr(&arg.value, state, (!unresolved).then_some(&hint), false)?;
             unify(field, &actual, &vars, &mut found, arg.span, self.budget)?;
         }
-        syntax_enum::application(decl, &found, e.span, self.budget).map(Some)
+        let actual = syntax_enum::application(decl, &found, e.span, self.budget)?;
+        syntax_enum::check_injection(&actual, expected, self.budget)?;
+        Ok(Some(actual))
     }
     fn enum_fields(
         &mut self,

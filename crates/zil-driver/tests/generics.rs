@@ -8,6 +8,135 @@ use std::{
 use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
+#[test]
+fn generic_enum_error_injection_preserves_native_error_and_success_arms() {
+    use zil_driver::{NativeBackend, Optimization};
+    for text in [
+        include_str!("../../../tests/generic-error-enum/direct.zil"),
+        include_str!("../../../tests/generic-error-enum/concrete.zil"),
+        include_str!("../../../tests/generic-error-enum/helper.zil"),
+        include_str!("../../../tests/generic-error-enum/annotated.zil"),
+        include_str!("../../../tests/generic-error-enum/unique-context.zil"),
+        include_str!("../../../tests/generic-error-enum/unique-context-if.zil"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for (call, declaration) in [
+        ("Fault.NoMemory", ""),
+        ("fail()", "fn fail()->Fault!i32{return Fault.NoMemory}"),
+        ("error", ""),
+    ] {
+        for (input, status, stdout) in [(0, 0, b"7".as_slice()), (1, 1, b"".as_slice())] {
+            let binding = if call == "error" {
+                "let error:Fault=Fault.NoMemory;"
+            } else {
+                ""
+            };
+            let text = format!(
+                "extern \"C\" fn putchar(code:i32)->i32;enum Fault{{NoMemory}}{declaration}fn run<F:Fn()->i32>(f:F)->Fault!i32{{if f()!=0{{{binding}return {call}}}return 7}}fn main()->Fault!i32{{let f=()->i32=>{input};let value=run(f)?;unsafe{{putchar(48+value)}}return value-7}}"
+            );
+            for backend in &backends {
+                for optimization in [Optimization::O0, Optimization::O2] {
+                    let out = std::env::temp_dir().join(format!(
+                        "zil-generic-enum-{}-{}",
+                        std::process::id(),
+                        NEXT.fetch_add(1, Ordering::Relaxed)
+                    ));
+                    fs::create_dir(&out).unwrap();
+                    let report = compile_source(
+                        &source(&text),
+                        &CompileOptions {
+                            backend: *backend,
+                            optimization,
+                            stop_after: Stage::Build,
+                            output: Some(out.join("program")),
+                            ..CompileOptions::default()
+                        },
+                    );
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert_eq!(report.verification_runs, 1);
+                    let codegen = report.native_codegen.as_ref().unwrap();
+                    assert_eq!(codegen.backend, *backend);
+                    assert!(codegen.fallback.is_none());
+                    let actual = Command::new(&report.artifacts["executable"])
+                        .output()
+                        .unwrap();
+                    assert_eq!(actual.status.code(), Some(status), "{text}: {actual:?}");
+                    assert_eq!(actual.stdout, stdout, "{text}");
+                    assert!(actual.stderr.is_empty(), "{actual:?}");
+                    fs::remove_dir_all(out).unwrap();
+                }
+            }
+        }
+    }
+    // Preserve the frozen inputs; expose their union return at the native
+    // entry so the observed error tag depends on the generic constructor.
+    for original in [
+        include_str!("../../../tests/generic-error-enum/unique-context.zil"),
+        include_str!("../../../tests/generic-error-enum/unique-context-if.zil"),
+    ] {
+        let main = "fn main()->i32{let f=()->i32=>1;run(f);return 0}";
+        assert_eq!(original.matches(main).count(), 1);
+        let text = original.replace(
+            main,
+            "fn main()->Choice<i32>!i32{let f=()->i32=>1;return run(f)}",
+        );
+        for backend in &backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let out = std::env::temp_dir().join(format!(
+                    "zil-generic-enum-unique-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                fs::create_dir(&out).unwrap();
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        backend: *backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(out.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, *backend);
+                assert!(codegen.fallback.is_none());
+                let actual = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(actual.status.code(), Some(1), "{text}: {actual:?}");
+                assert!(actual.stdout.is_empty(), "{actual:?}");
+                assert!(actual.stderr.is_empty(), "{actual:?}");
+                fs::remove_dir_all(out).unwrap();
+            }
+        }
+    }
+}
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "generic.zil", text)
