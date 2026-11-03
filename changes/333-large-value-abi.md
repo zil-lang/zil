@@ -137,3 +137,14 @@ ZIL_333_CAPTURE_STACK_BYTES=2097152 cargo test -p zil-driver --test aggregates -
 本片不声称全部大型Enum/ErrorUnion或所有callable/外部C ABI已支持。初期测试脚本
 曾误向Clang请求仅API支持的object cache、额外capture测试曾漏选result入口，均已
 修正测试请求；未将这些InfraError/SafeReject或2MiB栈崩溃计入正控。
+
+## 非作者阻断后的版本传播修补
+
+root/impl317在6b确认：factory返回受影响薄fnptr、apply接收fnptr、小record携带fnptr
+仍同名，旧机器消费者可误链接。原先仅物理Slot决定后缀不足，此前交付不得视作版本
+隔离验收。按root规范5eb792faf，分离`Signature.versioned`与物理`large()`：递归
+完整公开参数/结果中的language fnptr与载体依赖决定后缀，copy-in/out形状不扩大。
+普通Address<Big>只传数据、无受影响fnptr，保持旧名；foreign callback不混进ZIL
+函数指针约定。依赖walk与旧snapshot/ABI layout共同扣同一个remaining，逐节点预付，
+不reset。普通小物理direct call也必须使用实际abi_symbol。未贯通closure显式接口/
+隐式env、resource/teardown等helper若带该依赖，在产物前Unsupported。

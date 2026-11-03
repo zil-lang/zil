@@ -8,6 +8,7 @@ use zil_base::Limits;
 pub(super) struct Signature {
     pub(super) parameters: Vec<Option<Slot>>,
     pub(super) result: Option<Slot>,
+    pub(super) versioned: bool,
 }
 impl Signature {
     pub(super) fn large(&self) -> bool {
@@ -24,6 +25,86 @@ impl Plans {
     pub(super) fn needs_helpers(&self) -> bool {
         !self.values.is_empty() || self.functions.values().any(Signature::large)
     }
+}
+// A data pointer to Big keeps its old ABI. A pointer (or any carrier) to
+// language code whose invocation ABI changed must isolate old consumers.
+fn dependency(
+    ty: &Type,
+    remaining: &mut usize,
+    limits: &Limits,
+    depth: usize,
+) -> CompileResult<bool> {
+    *remaining = remaining.checked_sub(1).ok_or_else(|| {
+        vec![Diagnostic::limit(
+            Phase::Codegen,
+            "large Copy ABI dependency budget exceeded",
+            None,
+        )]
+    })?;
+    if depth > limits.max_call_depth {
+        return Err(vec![Diagnostic::limit(
+            Phase::Codegen,
+            "large Copy ABI dependency depth exceeded",
+            None,
+        )]);
+    }
+    let mut changed = false;
+    match ty {
+        Type::FunctionPointer { parameters, result } => {
+            for parameter in parameters {
+                changed |= classify(parameter, remaining, limits)?.is_some();
+                changed |= dependency(parameter, remaining, limits, depth + 1)?;
+            }
+            changed |= classify(result, remaining, limits)?.is_some();
+            changed |= dependency(result, remaining, limits, depth + 1)?;
+        }
+        Type::ForeignCallback { parameters, result } => {
+            for parameter in parameters {
+                changed |= classify(parameter, remaining, limits)?.is_some();
+                changed |= dependency(parameter, remaining, limits, depth + 1)?;
+            }
+            changed |= classify(result, remaining, limits)?.is_some();
+            changed |= dependency(result, remaining, limits, depth + 1)?;
+            if changed {
+                return unsupported(
+                    "foreign callback cannot carry the LargeCopy language ABI",
+                    None,
+                );
+            }
+        }
+        Type::Array { element, .. } | Type::Slice { element } | Type::OwnedStore { element } => {
+            changed |= dependency(element, remaining, limits, depth + 1)?
+        }
+        Type::Address { inner, .. }
+        | Type::Managed(inner)
+        | Type::Desc(inner)
+        | Type::Opaque { hidden: inner, .. } => {
+            changed |= dependency(inner, remaining, limits, depth + 1)?
+        }
+        Type::Tuple(fields) => {
+            for field in fields {
+                changed |= dependency(field, remaining, limits, depth + 1)?;
+            }
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            for (_, field) in fields {
+                changed |= dependency(field, remaining, limits, depth + 1)?;
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for field in fields {
+                    changed |= dependency(field, remaining, limits, depth + 1)?;
+                }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            changed |= dependency(error, remaining, limits, depth + 1)?;
+            changed |= dependency(result, remaining, limits, depth + 1)?;
+        }
+        _ => {}
+    }
+    Ok(changed)
 }
 fn signature<'a>(
     parameters: impl ExactSizeIterator<Item = &'a Type>,
@@ -42,11 +123,23 @@ fn signature<'a>(
                 None,
             )]
         })?;
+    let mut versioned = false;
     let parameters = parameters
-        .map(|ty| classify(ty, remaining, limits))
+        .map(|ty| {
+            let slot = classify(ty, remaining, limits)?;
+            versioned |= slot.is_some();
+            versioned |= dependency(ty, remaining, limits, 0)?;
+            Ok(slot)
+        })
         .collect::<CompileResult<Vec<_>>>()?;
-    let result = classify(result, remaining, limits)?;
-    Ok(Signature { parameters, result })
+    let result_slot = classify(result, remaining, limits)?;
+    versioned |= result_slot.is_some();
+    versioned |= dependency(result, remaining, limits, 0)?;
+    Ok(Signature {
+        parameters,
+        result: result_slot,
+        versioned,
+    })
 }
 pub(super) fn plan(
     lir: &LirView<'_>,
@@ -54,6 +147,24 @@ pub(super) fn plan(
     remaining: &mut usize,
 ) -> CompileResult<Plans> {
     let mut plans = Plans::default();
+    // Special generated consumers retain their previous complete convention.
+    // Reject affected hidden interfaces rather than emitting an old-name call
+    // to a new-name definition (or silently exposing a changed code pointer).
+    for closure in lir.closures {
+        for capture in &closure.captures {
+            if dependency(capture, remaining, limits, 0)? {
+                return unsupported("LargeCopy function pointer in closure environment", None);
+            }
+        }
+    }
+    for resource in lir.resources {
+        if dependency(&resource.payload, remaining, limits, 0)? {
+            return unsupported(
+                "LargeCopy function pointer in resource helper interface",
+                None,
+            );
+        }
+    }
     for function in lir.functions {
         let abi = signature(
             function
@@ -64,7 +175,7 @@ pub(super) fn plan(
             remaining,
             limits,
         )?;
-        if abi.large() && (function.foreign.is_some() || function.environment.is_some()) {
+        if abi.versioned && (function.foreign.is_some() || function.environment.is_some()) {
             return unsupported(
                 "large Copy foreign or closure entry ABI",
                 Some(function.span),
@@ -85,7 +196,10 @@ pub(super) fn plan(
     for function in lir.functions {
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
             if let InstructionKind::WithScopedThread { worker, .. } = instruction.kind
-                && plans.functions.get(&worker).is_some_and(Signature::large)
+                && plans
+                    .functions
+                    .get(&worker)
+                    .is_some_and(|abi| abi.versioned)
             {
                 return unsupported(
                     "large Copy scoped-thread helper ABI",
@@ -101,6 +215,7 @@ impl FunctionEmitter<'_> {
         static EMPTY: Signature = Signature {
             parameters: Vec::new(),
             result: None,
+            versioned: false,
         };
         self.abi_plans
             .functions
@@ -113,7 +228,7 @@ impl FunctionEmitter<'_> {
             .abi_plans
             .functions
             .get(&id)
-            .is_some_and(Signature::large)
+            .is_some_and(|abi| abi.versioned)
         {
             format!("{base}.lc1")
         } else {
