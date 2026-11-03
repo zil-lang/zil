@@ -1,0 +1,143 @@
+{
+  "status": "Accepted direct generic enum error return scope",
+  "source": "ad61e7693c26dc5583b66c6ae9eb011bd171bb08",
+  "pull_request": "https://github.com/zil-lang/zil/pull/26",
+  "production_author": "resume_consumer",
+  "production_commit": "369bd2221072c3a5ecfef42f1e0b5eeb13e12a13",
+  "test_only_commit": "9866b28b2e24866c4d3cf349d50f6f6682ef5782",
+  "independent_review": {
+    "reviewer": "resume_analyze",
+    "verdict": "Pass for direct return, transparent expressions and same-type conditional arms under the stated scope; two pre-existing other-context gaps remain open",
+    "expand_cases_passed": 31,
+    "alias_and_group_controls": 10,
+    "store_template_tests_passed": 17,
+    "new_budget": {
+      "steps": 624,
+      "nodes": 242,
+      "checks": "N/N-1 ResourceLimit/fresh equivalence"
+    },
+    "old_budget_controls": {
+      "scalar": [
+        288,
+        144
+      ],
+      "owned": [
+        554,
+        279
+      ],
+      "local": [
+        558,
+        281
+      ],
+      "enum": [
+        336,
+        126
+      ]
+    },
+    "scope": "Independent Expand source and budget checks; reviewer did not claim full workspace or native runs."
+  },
+  "local_combined_checks": {
+    "source": "ad61e7693c26dc5583b66c6ae9eb011bd171bb08",
+    "workspace": "/workspace/zil-293",
+    "target": "/workspace/.zil-env/target-293",
+    "cache": "New independent target directory; never transferred from a different worktree",
+    "scope": "Three complete affected driver targets, including shared-parameter composition",
+    "command": "cargo test --offline --locked -p zil-driver --features llvm-api --no-fail-fast --test generics --test generic_regressions --test impl226_shared_product_capture",
+    "totals": {
+      "passed": 33,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0
+    },
+    "status": "Pass",
+    "clippy": {
+      "command": "cargo clippy --offline --locked -p zil-expand -p zil-driver --features zil-driver/llvm-api --all-targets -- -D warnings",
+      "status": "Pass"
+    },
+    "fmt": "Pass",
+    "not_run": "No duplicate local complete workspace run; exact combined CI supplies formal full gates"
+  },
+  "native_controls": {
+    "distinct_cases": 32,
+    "direct_helper_annotated_error_success_cases": 24,
+    "unique_enum_and_same_type_if_error_entry_cases": 8,
+    "backends": [
+      "clang",
+      "LLVM API"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "backend_identity_and_no_fallback_asserted": true,
+    "expected_outcomes": "Direct/helper/typed-local success prints 7 and exits0; error exits1 with no output. Two unique enum entry variants exit1 with empty stdout/stderr.",
+    "replays_not_added": true
+  },
+  "cli_smoke": {
+    "successful_verify_cases": [
+      "direct enum error",
+      "unique generic enum context",
+      "same-type conditional",
+      "shared Store swap identity"
+    ],
+    "pending_legal_gaps_still_rejected": 2,
+    "record": "Source-bound local CLI built from the same combined candidate; no native claim for these smoke checks."
+  },
+  "remote_checks": [
+    {
+      "run": 41549140359,
+      "source": "ad61e7693c26dc5583b66c6ae9eb011bd171bb08",
+      "conclusion": "Success"
+    },
+    {
+      "run": 41549140406,
+      "source": "ad61e7693c26dc5583b66c6ae9eb011bd171bb08",
+      "conclusion": "Success"
+    }
+  ],
+  "prior_failure": {
+    "candidate": "2d461df6a2dcff1c3a47e731655368e5ce980be0",
+    "finding": "Legal Choice.None with unique Choice<i32>!i32 context was rejected after concrete instantiation erased the expected union.",
+    "resolution": "Original source retained as positive; preserve enum/transparent/same-type conditional context while ordinary generic-call inference still filters branch hints.",
+    "cancelled_runs": [
+      41547740810,
+      41547740858
+    ]
+  },
+  "remaining_legal_inputs": [
+    "tests/generic-error-enum/pending/unique-binding-value.zil",
+    "tests/generic-error-enum/pending/unique-call-argument.zil"
+  ],
+  "limits": [
+    "Return expressions, transparent groups/meta expressions and same-type conditional arms only; not all error-union expression contexts.",
+    "Explicit binding and concrete call-argument injection are existing legal gaps, not negative language tests.",
+    "No new public IR/schema, ABI, default budgets or implicit allocation. Full language/ZUI and asynchronous/cross-thread lifetime goals remain incomplete.",
+    "No comparative Rust runtime, memory or compilation-performance claim."
+  ],
+  "integration_commit": "c3a5d3f5371b525de4729d62a7211c446055b7d4",
+  "remote_main_totals": {
+    "Complete workspace tests": [
+      3993,
+      0,
+      0,
+      0,
+      0
+    ],
+    "Reference-only build and explicit unavailable control": [
+      3885,
+      0,
+      0,
+      0,
+      0
+    ],
+    "Explicit LLVM text-reference boundary": [
+      64,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "integration_tree_matches_candidate": true
+}
