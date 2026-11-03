@@ -85,12 +85,15 @@ impl Linkage {
 pub enum Attr {
     ZeroExt,
     NonLazyBind,
+    /// Function-level optimization boundary; never a language permission.
+    NoInline,
 }
 impl Attr {
     pub fn name(self) -> &'static str {
         match self {
             Self::ZeroExt => "zeroext",
             Self::NonLazyBind => "nonlazybind",
+            Self::NoInline => "noinline",
         }
     }
 }

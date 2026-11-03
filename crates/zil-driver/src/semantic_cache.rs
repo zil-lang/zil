@@ -295,6 +295,7 @@ impl<'a> Reader<'a> {
             0,
         )?;
         Some(ScalarFunction {
+            reference_return_bound: None,
             name,
             function,
             parameters,

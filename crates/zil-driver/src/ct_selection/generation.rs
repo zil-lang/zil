@@ -85,6 +85,7 @@ impl materialize::Materializer<'_, '_> {
             module_id: self.module,
             source_fingerprint: self.context.program.source_fingerprint,
             functions: vec![CoreFunction {
+                life: None,
                 id: next,
                 name: "$generation222".into(),
                 span,

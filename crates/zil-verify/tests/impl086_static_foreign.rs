@@ -983,6 +983,7 @@ impl Body {
     fn new(id: u32, name: &str, result: Type) -> Self {
         Self {
             function: TypedFunction {
+                reference_return_bound: None,
                 id: FunctionId(id),
                 name: name.into(),
                 environment: None,

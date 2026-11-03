@@ -47,6 +47,7 @@ fn exit() -> Vec<Instruction> {
 fn base(kind: CallableKind) -> TypedModule {
     let closure = Type::Closure(ClosureId(0));
     let callback = TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
         id: FunctionId(0),
@@ -78,6 +79,7 @@ fn base(kind: CallableKind) -> TypedModule {
     ];
     instructions.extend(exit());
     let keep = TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: Some(CallableReturnContract {
             source: CallableReturnSource::Parameter(1),
             closure: ClosureId(0),

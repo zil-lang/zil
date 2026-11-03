@@ -2552,6 +2552,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    reference_return_bound: None,
                     callable_return_contract: None,
                     callable_contract: None,
                     result_mode: zil_ir::PassingMode::Infer,
@@ -2807,6 +2808,7 @@ mod product_parameter_dependency_tests {
             span: Span::default(),
         };
         let function = |id, instructions| TypedFunction {
+            reference_return_bound: None,
             id: FunctionId(id),
             name: format!("f{id}"),
             foreign: None,

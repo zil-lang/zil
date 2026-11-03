@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 32;
+pub const WIRE_VERSION: u32 = 34;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -703,6 +703,13 @@ impl<'a> Writer<'a> {
         })
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
+        self.boolean(function.reference_return_bound.is_some())?;
+        if let Some(bound) = &function.reference_return_bound {
+            self.count(bound.len(), self.limits.max_locals)?;
+            for parameter in bound {
+                self.u32(*parameter)?;
+            }
+        }
         self.boolean(function.callable_return_contract.is_some())?;
         if let Some(c) = &function.callable_return_contract {
             match c.source {
@@ -1039,6 +1046,16 @@ impl<'a> Writer<'a> {
                 self.u32(callback.0)?;
                 self.u32(body.0)?;
                 self.u32(*region)?;
+            }
+            InstructionKind::WithScopedThread {
+                worker,
+                argument,
+                body,
+            } => {
+                self.u8(95)?;
+                self.u32(worker.0)?;
+                self.u32(argument.0)?;
+                self.u32(body.0)?;
             }
             InstructionKind::ForeignFunctionRef { function } => {
                 self.u8(60)?;
@@ -2131,6 +2148,11 @@ impl<'a> Reader<'a> {
     }
 
     fn function(&mut self) -> WireResult<TypedFunction> {
+        let reference_return_bound = if self.boolean()? {
+            Some(self.callable_indices()?)
+        } else {
+            None
+        };
         let callable_return_contract = if self.boolean()? {
             Some(CallableReturnContract {
                 source: match self.u8()? {
@@ -2238,6 +2260,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedFunction {
+            reference_return_bound,
             callable_return_contract,
             callable_contract,
             result_mode,
@@ -2705,6 +2728,11 @@ impl<'a> Reader<'a> {
                 callback: ValueId(self.u32()?),
                 body: ValueId(self.u32()?),
                 region: self.u32()?,
+            },
+            95 => InstructionKind::WithScopedThread {
+                worker: FunctionId(self.u32()?),
+                argument: ValueId(self.u32()?),
+                body: ValueId(self.u32()?),
             },
             255 => InstructionKind::Unsupported(self.text()?),
             _ => return Err(malformed("E-WIRE-OPCODE", "unknown CFG instruction opcode")),
