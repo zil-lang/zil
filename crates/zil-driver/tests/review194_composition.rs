@@ -127,6 +127,262 @@ const MODULES: &[(&str, &str)] = &[
     ),
 ];
 
+const TUPLE_IDENTITY321: &str = "fn identity<T:Copy>(value:T)->T{let(x,_)=(value,());return x}fn result()->i32{return identity(42)}";
+
+#[test]
+fn generic_tuple_binding_original_definition_reaches_verify_and_native() {
+    let case = Case::new("tuple-original321");
+    let report = compile(&case, &[("main", TUPLE_IDENTITY321)], None);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native(
+        "tuple-original321",
+        &[(
+            "main",
+            &format!("{TUPLE_IDENTITY321}fn main()->i32{{return result()-42}}"),
+        )],
+        "",
+    );
+    native(
+        "tuple-symbolic-shape321",
+        &[(
+            "main",
+            "fn keep<T:Copy>(value:T)->T{let(value,(other,_)):(T,(T,void))=(value,(value,()));var(rebound,)=(other,);rebound=value;let()=();return rebound}fn main()->i32{return keep(21)+keep(21)-42}",
+        )],
+        "",
+    );
+    native(
+        "tuple-evaluate-once321",
+        &[(
+            "main",
+            "fn tick(count:&mut i32){*count+=1}fn keep<T:Copy>(value:T,count:&mut i32)->T{let(x,_)=(value,tick(count));return x}fn main()->i32{var count=0;let value=keep(42,&mut count);return value+count-43}",
+        )],
+        "",
+    );
+    native(
+        "tuple-cross-module-callable321",
+        &[
+            (
+                "main",
+                "import api\nfn main()->i32{let f=()=>1;let data:[i64;2]=[21,21];let result=api.keep(&f,data);return i32(result[0]+result[1])-42}",
+            ),
+            (
+                "api",
+                "pub fn keep<T:Copy,F:Fn()->i32>(f:&F,value:T)->T{let(x,_)=(value,f());return x}",
+            ),
+        ],
+        "",
+    );
+}
+
+#[test]
+fn generic_tuple_binding_unused_definitions_keep_symbolic_capabilities() {
+    for text in [
+        "fn hidden<T:Copy>(value:T)->T{let(x,_)=(value,());return x}fn main(){}",
+        "fn hidden<T:Copy>(value:T)->T{let(_, (x,_))=(value,(value,()));return x}fn main(){}",
+        "fn hidden<T:Copy>(value:T)->T{var(x,_)=(value,());x=value;return x}fn main(){}",
+        "fn zero<T:Copy>(value:T)->void{}fn hidden<T:Copy>(value:T)->T{let()=zero(value);return value}fn main(){}",
+    ] {
+        let case = Case::new("tuple-unused321");
+        let report = compile(&case, &[("main", text)], None);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+    for (label, definition, message) in [
+        (
+            "short",
+            "fn hidden<T:Copy>(value:T){let(x,)=(value,());}",
+            "arity mismatch",
+        ),
+        (
+            "long",
+            "fn hidden<T:Copy>(value:T){let(x,y,z)=(value,());}",
+            "arity mismatch",
+        ),
+        (
+            "nested",
+            "fn hidden<T:Copy>(value:T){let(x,(y,))=(value,(value,()));}",
+            "arity mismatch",
+        ),
+        (
+            "unit",
+            "fn hidden<T:Copy>(value:T){let()=(value,());}",
+            "arity mismatch",
+        ),
+        (
+            "duplicate",
+            "fn hidden<T:Copy>(value:T){let(x,(x,_))=(value,(value,()));}",
+            "duplicate generic tuple binding",
+        ),
+        (
+            "shape",
+            "fn hidden<T:Copy>(value:T){let(x,y)=value;}",
+            "requires tuple type before instantiation",
+        ),
+        (
+            "noncopy-discard",
+            "fn hidden<T:StoreElement>(value:T){let(_,_)=(value,());}",
+            "Copy bound",
+        ),
+        (
+            "callable-discard",
+            "fn hidden<F:FnOnce()->i32>(f:F){let(_,_)=(f,());}",
+            "Copy bound",
+        ),
+        (
+            "address-discard",
+            "fn hidden<T:Copy>(value:T,p:&i32){let(_,_)=(value,p);}",
+            "cannot contain addresses",
+        ),
+        (
+            "wrong-type",
+            "fn hidden<T:Copy>(value:T){let(x,_):(T,bool)=(value,());}",
+            "types must agree",
+        ),
+        (
+            "let-write",
+            "fn hidden<T:Copy>(value:T){let(x,_)=(value,());x=value;}",
+            "writable place",
+        ),
+        (
+            "concrete-result",
+            "fn hidden<T:Copy>(value:T)->T{let(x,_)=(42,());return x}",
+            "types must agree",
+        ),
+        (
+            "numeric",
+            "fn hidden<T:Copy>(value:T)->T{let(x,_)=(value,());return x+x}",
+            "requires a declared bound",
+        ),
+        (
+            "receiver-name",
+            "fn hidden<T:Copy>(value:T){let(self,_)=(value,());}",
+            "reserved for receiver binding",
+        ),
+        (
+            "primitive-name",
+            "fn hidden<T:Copy>(value:T){let(i32,_)=(value,());}",
+            "reserved",
+        ),
+    ] {
+        let case = Case::new(label);
+        let report = compile(
+            &case,
+            &[("main", &format!("{definition}fn main(){{}}"))],
+            None,
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::ResourceLimit,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{label}: {}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(message)),
+            "{label}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
+fn generic_tuple_binding_refutable_and_reference_patterns_stay_closed() {
+    for pattern in ["(ref x,_)", "(ref mut x,_)", "(1,_)"] {
+        let source = format!("fn hidden<T:Copy>(value:T){{let{pattern}=(value,());}}fn main(){{}}");
+        let case = Case::new("tuple-pattern321");
+        let report = compile(&case, &[("main", &source)], None);
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("names, discards and tuple patterns")),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn generic_tuple_binding_symbolic_work_has_exact_fresh_budget() {
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "tuple-budget321.zil",
+        TUPLE_IDENTITY321,
+    );
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let run = |n| {
+        zil_expand::expand_with_map_limits(
+            &unit,
+            &syntax,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|expanded| expanded.core)
+    };
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    let expected = run(high).unwrap();
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        match run(middle) {
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                high = middle;
+            }
+            Err(errors) => {
+                assert!(!errors.is_empty());
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.phase == Phase::Expand
+                            && d.category == ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                low = middle;
+            }
+        }
+    }
+    assert_eq!(run(high).unwrap(), expected);
+    let errors = run(high - 1).unwrap_err();
+    assert!(!errors.is_empty());
+    assert!(
+        errors
+            .iter()
+            .all(|d| d.phase == Phase::Expand && d.category == ResultCategory::ResourceLimit),
+        "{errors:?}"
+    );
+    assert_eq!(run(high).unwrap(), expected);
+    println!("321 original Expand N={high}; N-1 ResourceLimit; fresh N Success");
+}
+
 fn modules_baseline() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let p = project(MODULES);
     let asts = p
