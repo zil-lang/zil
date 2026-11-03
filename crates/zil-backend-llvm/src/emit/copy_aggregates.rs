@@ -43,6 +43,13 @@ pub(super) fn plan(
             let machine = llvm_type(ty)?;
             let (bytes, align) = layout(&machine)?;
             if bytes >= MIN_BYTES {
+                if matches!(ty, Type::Enum { .. }) {
+                    // make_variant/read_variant clone the source enum as well
+                    // as its machine layout. Source names are absent from the
+                    // machine type; pay their bytes before retaining the slot,
+                    // then include this fee in repeated emission reservations.
+                    reserve_enum_metadata(ty, &mut work, 0, limits)?;
+                }
                 values.insert(
                     ValueId(index as u32),
                     Slot {
@@ -119,6 +126,82 @@ pub(super) fn plan(
         functions: abi.functions,
         indirect: abi.indirect,
     })
+}
+
+fn reserve_enum_metadata(
+    ty: &Type,
+    work: &mut usize,
+    depth: usize,
+    limits: &Limits,
+) -> CompileResult<()> {
+    let exhausted = || {
+        vec![Diagnostic::limit(
+            Phase::Codegen,
+            "Copy enum source metadata budget exceeded",
+            None,
+        )]
+    };
+    *work = work.checked_sub(16).ok_or_else(exhausted)?;
+    if depth > limits.max_call_depth {
+        return Err(exhausted());
+    }
+    let mut name = |name: &str| -> CompileResult<()> {
+        *work = work.checked_sub(name.len()).ok_or_else(exhausted)?;
+        Ok(())
+    };
+    match ty {
+        Type::Named(text) | Type::Unsupported(text) => name(text)?,
+        Type::Record { name: text, fields } | Type::Package { name: text, fields } => {
+            name(text)?;
+            for (text, _) in fields {
+                name(text)?;
+            }
+            for (_, field) in fields {
+                reserve_enum_metadata(field, work, depth + 1, limits)?;
+            }
+        }
+        Type::Enum {
+            name: text,
+            variants,
+        } => {
+            name(text)?;
+            for (text, _) in variants {
+                name(text)?;
+            }
+            for (_, fields) in variants {
+                for field in fields {
+                    reserve_enum_metadata(field, work, depth + 1, limits)?;
+                }
+            }
+        }
+        Type::Array { element, .. }
+        | Type::Slice { element }
+        | Type::OwnedStore { element }
+        | Type::Address { inner: element, .. }
+        | Type::Managed(element)
+        | Type::Desc(element)
+        | Type::Opaque {
+            hidden: element, ..
+        } => reserve_enum_metadata(element, work, depth + 1, limits)?,
+        Type::Tuple(fields) => {
+            for field in fields {
+                reserve_enum_metadata(field, work, depth + 1, limits)?;
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            reserve_enum_metadata(error, work, depth + 1, limits)?;
+            reserve_enum_metadata(result, work, depth + 1, limits)?;
+        }
+        Type::FunctionPointer { parameters, result }
+        | Type::ForeignCallback { parameters, result } => {
+            for parameter in parameters {
+                reserve_enum_metadata(parameter, work, depth + 1, limits)?;
+            }
+            reserve_enum_metadata(result, work, depth + 1, limits)?;
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 pub(super) fn reserve(

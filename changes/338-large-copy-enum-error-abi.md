@@ -48,3 +48,16 @@ root管理规范、主树工单和剩余语言文档。不改schema/Wire、Types
 
 另一新record-variant程序在Expand命中既有fnptr结果无法推断enum模式问题；使用
 明确`Message`类型注解后再核验，本单不改frontend或放宽未核来源。
+
+338新增借入大Enum的closure正源在普通2MiB Rust API test worker明确stack overflow/SIGABRT，
+未到Codegen；当前不改变测试/compiler栈。原实际输入固定为
+`large-copy-enum-error-borrow-capture.zil`，单列KnownIncomplete，以普通CLI另核阶段与机器结果；
+不把小栈失败计作Unsupported、正常机器结果或本单栈修复。默认target不保留会中止整进程的
+该API测试函数；固定源和原命令/实际失败仍保留。
+
+独立预审指出新Enum内存路径仍clone完整源码Enum，原16/node不足以覆盖长nominal/
+variant和嵌套record字段名。按真实新增工作给大型Enum snapshot单独增加借入递归
+metadata费用（节点与实际名字字节），折入Slot.work，使重复构造/投影在事件增长前
+同一余额中预付；普通旧Array/Tuple/Record的333费用不增加。ErrorUnion新内存操作
+借入类型，不无因扩大旧路径费用。补长名N/N−1/fresh近邻；此前450910只记修补前
+具名a18费用，最终N另实测，不提高默认额度。
