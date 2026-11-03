@@ -1789,6 +1789,7 @@ fn thread339_shared_source_and_independent_windows() {
     let limits = Limits::default();
     for name in [
         "shared_child",
+        "ancestor_shared",
         "disjoint_write",
         "nested_disjoint",
         "parent_parameter",
