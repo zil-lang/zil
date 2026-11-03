@@ -245,6 +245,17 @@ fn review329_ct_quote_keeps_labels_separate_from_hygienic_bindings() {
 }
 
 #[test]
+fn review329_shared_record_pun_capture_neighbor() {
+    review329_native(
+        &[(
+            "main",
+            "struct P{x:i32}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let p=P{x};return p.x}}fn result()->i32{let x=100;#emit generated()}",
+        )],
+        7,
+    );
+}
+
+#[test]
 fn record_enum329_named_source_order_and_exact_values() {
     native(
         r#"
