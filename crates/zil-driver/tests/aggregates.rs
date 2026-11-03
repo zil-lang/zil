@@ -9,6 +9,227 @@ use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Targ
 use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
+
+fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
+    zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: files
+            .iter()
+            .enumerate()
+            .map(|(index, (name, text))| {
+                SourceUnit::new(
+                    FileId(index as u32),
+                    ModuleId(index as u32),
+                    format!("{name}.zil"),
+                    *text,
+                )
+            })
+            .collect(),
+        paths: files
+            .iter()
+            .enumerate()
+            .skip(1)
+            .map(|(index, (name, _))| (vec![(*name).to_owned()], ModuleId(index as u32)))
+            .collect(),
+    }
+}
+
+fn review329_native(files: &[(&str, &str)], expected: i64) {
+    use zil_driver::{NativeBackend, Optimization};
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let directory = Temp::new();
+            let report = zil_driver::compile_project(
+                &review329_project(files),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("result".into()),
+                    output: Some(directory.0.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            if backend == NativeBackend::LlvmApi {
+                assert!(!codegen.object_reports.is_empty());
+                assert!(
+                    codegen
+                        .object_reports
+                        .iter()
+                        .all(|object| object.contains("\"input_kind\":\"builder\""))
+                );
+            }
+            let observed = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(
+                observed.status.success(),
+                "{backend:?}/{optimization:?}: {observed:?}"
+            );
+            assert_eq!(observed.stdout, format!("{expected}\n").as_bytes());
+            assert!(observed.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
+fn review329_field_evaluation_binding_labels_and_i64_context_are_native() {
+    for (text, expected) in [
+        (
+            "enum Pair{Item{a:i32,b:i32}}fn mark(trace:&mut i32,n:i32)->i32{*trace=*trace*10+n;return n}fn result()->i32{var trace=0;let p=Pair.Item{b:mark(&mut trace,2),a:mark(&mut trace,1)};match p{Pair.Item{b:right,a:left}=>{return trace*100+left*10+right}}}",
+            2112,
+        ),
+        (
+            "enum Event<T:Copy>{Data{code:T,tail:i32}}fn result()->i64{let e:Event<i64>=Event.Data{tail:2,code:1};match e{Event.Data{tail:y,code:x}=>{return x+i64(y)}}}",
+            3,
+        ),
+        (
+            "enum Color{N{value:i32}}enum Packet{P{left:Color,right:i32}}fn result()->i32{let value=100;let p=Packet.P{right:2,left:Color.N{value:7}};match p{Packet.P{right:left,left:Color.N{value:right}}=>{return right*10+left+value}}}",
+            172,
+        ),
+        (
+            "enum E{V{x:i32}}fn result()->i32{let x=7;let v=E.V{x};match v{E.V{x:n}=>{return n}}}",
+            7,
+        ),
+        (
+            "enum E{V{},U}fn result()->i32{let v=E.V{};match v{E.V{}=>{return 7},E.U()=>{return 0}}}",
+            7,
+        ),
+    ] {
+        review329_native(&[("main", text)], expected);
+    }
+}
+
+#[test]
+fn review329_field_sets_forms_and_uninstantiated_copy_aliases_reject() {
+    for text in [
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1};return 0}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,y:2,z:3};return 0}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,x:2};return 0}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V(1,2);return 0}",
+        "enum E{V(i32,i32)}fn result()->i32{let e=E.V{x:1,y:2};return 0}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,y:2};match e{E.V{x:n,y:n}=>{return n}}}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,y:2};match e{E.V{x:n}=>{return n}}}",
+        "enum E{V{x:i32,y:i32}}fn result()->i32{let e=E.V{x:1,y:2};match e{E.V(x,y)=>{return x+y}}}",
+        "enum E{V{},U}fn result()->i32{let e=E.V();return 0}",
+        "enum E{V{},U}fn result()->i32{let e=E.U{};return 0}",
+        "enum E{V{x:i32}}fn result()->i32{let e=E.V{x:1};match e{E.V{x}=>{return x}}}",
+        "type Bad=Token<&i32>;enum Token<T:Copy>{Data{n:i32}}fn result()->i32{return 0}",
+        "enum Token<T:Copy>{Data{n:i32}}type Bad=Token<&i32>;fn result()->i32{return 0}",
+        "type Borrow=&i32;type Bad=Token<Borrow>;enum Token<T:Copy>{Data{n:i32}}fn result()->i32{return 0}",
+        "enum E<T:Copy>{V{x:T}}fn bad<T:Copy>(x:T)->i64{let e:E<i64>=E.V{x:x};return 0}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert!(!report.diagnostics.is_empty());
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+    let bad = "enum E<T:Copy>{V{x:T}}fn bad<T:Copy>(x:T)->E<T>{return E.V{x:7}}fn result()->i32{return 0}";
+    let report = compile_source(&source(bad), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"));
+    let report = compile_source(
+        &source(
+            "enum E<T:Copy>{V{x:T}}fn good<T:Copy>(x:T)->E<T>{return E.V{x:x}}fn result()->i32{return 0}",
+        ),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn review329_module_nominals_and_visibility_remain_distinct() {
+    let files = [
+        (
+            "main",
+            "import left;import right;fn result()->i32{return left.read(left.make())+right.read(right.make())}",
+        ),
+        (
+            "left",
+            "pub enum E{V{x:i32}}pub fn make()->E{return E.V{x:7}}pub fn read(e:E)->i32{match e{E.V{x:n}=>{return n}}}",
+        ),
+        (
+            "right",
+            "pub enum E{V{x:i32}}pub fn make()->E{return E.V{x:9}}pub fn read(e:E)->i32{match e{E.V{x:n}=>{return n}}}",
+        ),
+    ];
+    review329_native(&files, 16);
+    let mut confused = files;
+    confused[0].1 = "import left;import right;fn result()->i32{return right.read(left.make())}";
+    let report =
+        zil_driver::compile_project(&review329_project(&confused), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let report = zil_driver::compile_project(
+        &review329_project(&[
+            (
+                "main",
+                "import data;fn result()->i32{let x=data.Hidden.V{x:1};return 0}",
+            ),
+            ("data", "enum Hidden{V{x:i32}}"),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-MODULE-PRIVATE")
+    );
+}
+
+#[test]
+fn review329_ct_quote_keeps_labels_separate_from_hygienic_bindings() {
+    review329_native(
+        &[(
+            "main",
+            "enum E{V{left:i32,right:i32}}fn generated()->Syntax<Stmt>{return quote<Stmt>{match (E.V{left:1,right:2}){E.V{right:left,left:right}=>{return right*10+left}}}}fn result()->i32{let left=100;#splice(generated())}",
+        )],
+        12,
+    );
+}
+
 struct Temp(PathBuf);
 impl Temp {
     fn new() -> Self {
