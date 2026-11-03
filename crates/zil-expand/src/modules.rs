@@ -339,7 +339,8 @@ fn normalize(
         .items
         .iter()
         .any(|item| matches!(&item.kind, ItemKind::Trait(t) if !t.generics.is_empty()));
-    let has_trait_instances = has_trait_instances || budget.has_enum_profiles();
+    let has_trait_instances =
+        has_trait_instances || budget.has_enum_profiles() || budget.has_primitive_binders();
     let instance_limits = if has_trait_instances {
         budget.remaining_limits()
     } else {

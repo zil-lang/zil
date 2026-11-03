@@ -8,6 +8,7 @@ pub(crate) struct Budget<'a> {
     work: usize,
     enum_profiles: BTreeSet<Span>,
     enum_header: Option<Span>,
+    primitive_binders: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -17,6 +18,7 @@ impl<'a> Budget<'a> {
             work: limits.max_analysis_steps,
             enum_profiles: BTreeSet::new(),
             enum_header: None,
+            primitive_binders: false,
         }
     }
     pub(crate) fn remaining_limits(&self) -> Limits {
@@ -37,6 +39,18 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn has_enum_profiles(&self) -> bool {
         !self.enum_profiles.is_empty()
+    }
+    pub(crate) fn note_type_binder(&mut self, name: &str, span: Span) -> R<()> {
+        if super::super::integer_name(name)
+            || matches!(name, "bool" | "void" | "c_handle" | "c_wstr")
+        {
+            self.node(span, 0)?;
+            self.primitive_binders = true;
+        }
+        Ok(())
+    }
+    pub(crate) fn has_primitive_binders(&self) -> bool {
+        self.primitive_binders
     }
     pub(super) fn enum_profile(&self, span: Span) -> bool {
         self.enum_profiles.contains(&span)
@@ -250,6 +264,7 @@ impl<'a> Budget<'a> {
             self.text(&p.name, p.span)?;
             match &p.kind {
                 GenericParamKind::Type(ts) => {
+                    self.note_type_binder(&p.name, p.span)?;
                     for t in ts {
                         self.ty_at(t, depth + 1, subs)?;
                         if let Some(owner) = self.enum_header

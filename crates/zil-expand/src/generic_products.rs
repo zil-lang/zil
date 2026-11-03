@@ -14,6 +14,7 @@ pub(crate) struct Products {
     pub(crate) trait_signatures: trait_instances::Signatures,
     pub(crate) trait_instances: bool,
     pub(crate) record_variants: bool,
+    pub(crate) protected_binders: bool,
 }
 #[derive(Clone)]
 pub(super) struct Scope {
@@ -194,7 +195,7 @@ impl Engine<'_> {
 }
 impl Products {
     pub(crate) fn metered(&self) -> bool {
-        self.trait_instances || self.record_variants
+        self.trait_instances || self.record_variants || self.protected_binders
     }
     pub(crate) fn trait_limits(&self, limits: &Limits) -> Limits {
         let mut selected = limits.clone();

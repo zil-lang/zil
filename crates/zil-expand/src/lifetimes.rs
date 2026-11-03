@@ -17,6 +17,11 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         }
     }
     impl ct_selection::Visitor for Walk<'_, '_> {
+        fn type_binder(&mut self, name: &str, span: Span) -> CompileResult<()> {
+            self.budget
+                .note_type_binder(name, span)
+                .map_err(|e| vec![e])
+        }
         fn enum_bound(&mut self, owner: Span, bound: &s::TypeRef, _: usize) -> CompileResult<()> {
             if generics::record_enums::is_copy_bound(bound) {
                 self.budget.note_enum_profile(owner).map_err(|e| vec![e])?;
