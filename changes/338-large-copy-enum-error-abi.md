@@ -48,3 +48,57 @@ root管理规范、主树工单和剩余语言文档。不改schema/Wire、Types
 
 另一新record-variant程序在Expand命中既有fnptr结果无法推断enum模式问题；使用
 明确`Message`类型注解后再核验，本单不改frontend或放宽未核来源。
+
+338新增借入大Enum的closure正源在普通2MiB Rust API test worker明确stack overflow/SIGABRT，
+未到Codegen；当前不改变测试/compiler栈。原实际输入固定为
+`large-copy-enum-error-borrow-capture.zil`，单列KnownIncomplete，以普通CLI另核阶段与机器结果；
+不把小栈失败计作Unsupported、正常机器结果或本单栈修复。默认target不保留会中止整进程的
+该API测试函数；固定源和原命令/实际失败仍保留。
+
+独立预审指出新Enum内存路径仍clone完整源码Enum，原16/node不足以覆盖长nominal/
+variant和嵌套record字段名。按真实新增工作给大型Enum snapshot单独增加借入递归
+metadata费用（节点与实际名字字节），折入Slot.work，使重复构造/投影在事件增长前
+同一余额中预付；普通旧Array/Tuple/Record的333费用不增加。ErrorUnion新内存操作
+借入类型，不无因扩大旧路径费用。补长名N/N−1/fresh近邻；此前450910只记修补前
+具名a18费用，最终N另实测，不提高默认额度。
+
+## 生产冻结前限定结果
+
+- API aggregates新增七测7/0：原a18 Enum/ErrorUnion/empty和两侧fnptr五份源，Clang/API
+  各O0/O2共20次native0；Copy/RHS顺序、替换、小payload的bool/Unit/i64自然对齐、
+  两侧错误传播与资源清理、薄fnptr载体和三模块CGU/cold/warm/body-change均成功。
+  新API各原生构建断言实际backend和fallback=null，不把构建次数当运行次数。
+- ABI模型3/0包含4096阈值、nested Enum/ErrorUnion fnptr载体、纯&Big旧约定和foreign
+  callback边界。同一剩余额度N/N−1/fresh有效。
+- 最终Enum原a18 Codegen N=945883，N−1明确Codegen ResourceLimit；N两次fresh及
+  API冷/暖对象控制成功。小/长nominal/variant/嵌套record字段名近邻精确N分别
+  694720/1778112，N−1/fresh通过。独审后增加每variant固定container费，空变体也
+  先付费；450910、904955是修补前历史费用，不冒称最终N。
+- 旧333受影响七控7/0；旧a18 fnptr精确N仍356960（metadata修后再次重放一致）。
+  没有用旧closure的8MiB测试结清保留的2MiB API问题；本轮不运行该已知栈替换测试。
+- 独立审者用旧接受C的现存API rlib/standalone harness对相同831cfff源也得到2MiB
+  Verify-only SIGABRT。精确旧rlib身份/来源由独审和root记录，不把名字猜成源提交。
+
+复放当前有限控制（target338、jobs1、debug0、incremental0；不全量）：
+
+```sh
+. /workspace/.zil-env/env.sh
+export CARGO_TARGET_DIR=/workspace/.zil-env/target338 CARGO_BUILD_JOBS=1
+export CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
+export TMPDIR=/workspace/.zil-env/tmp-batch336/338
+ulimit -c 0
+cargo test -p zil-driver --test aggregates --features llvm-api --offline large_copy_enum_error_ -- --nocapture --test-threads=1
+cargo test -p zil-backend-llvm --lib --features llvm-api --offline emit::large_copy_abi::tests -- --nocapture
+cargo test -p zil-driver --test aggregates --features llvm-api --offline large_copy_abi_ -- --skip large_copy_abi_special_closure_is_explicitly_unsupported --nocapture --test-threads=1
+# 故意复现KnownIncomplete，非通过测试：
+RUST_MIN_STACK=2097152 ZIL_338_SUM_CHILD=llvm-api-O0 ZIL_338_CASE=capture-check cargo test -p zil-driver --test aggregates --features llvm-api --offline large_copy_enum_error_original_scale_all_backends -- --exact --nocapture --test-threads=1
+```
+
+## Rust四目标与突破边界
+
+安全权限仍由既有独立核验建立，机器指针只定位私有Copy快照；没有新借用/拥有权限。
+运行表示不引入heap/Box/RC/锁，实际活动tag/payload与清理已到机器，但没有同语义Rust
+运行/RSS比较。普通大Sum helper/工厂/fnptr可组合，完整框架维护优势未测。新机器工作
+累计原余额且默认额度保持，没有Rust编译速度结论。实证增量为原a12 Unsupported和
+原规模有限失败边界得到普通源至机器路径；完整语言/B0/ZUI、四目标合取与产品净突破
+未建立，2MiB API可靠性继续KnownIncomplete。

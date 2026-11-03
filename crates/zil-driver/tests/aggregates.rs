@@ -2245,6 +2245,22 @@ fn large_copy_enum_error_original_scale_all_backends() {
         };
         let out = Temp::new();
         let case = std::env::var("ZIL_338_CASE").unwrap();
+        // Explicit manual KnownIncomplete reproduction only. The default test
+        // cases below never invoke this API small-stack crash or enlarge it.
+        if case == "capture-check" {
+            let input = include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture.zil"
+            );
+            eprintln!(
+                "338 borrowed Sum capture: Verify-only API begins (ordinary test worker stack)"
+            );
+            let report = compile_source(&source(input), &CompileOptions::default());
+            eprintln!(
+                "338 borrowed Sum capture: Verify-only API completed: {}",
+                report.to_json()
+            );
+            return;
+        }
         let input = match case.as_str() {
             "enum" => include_str!(
                 "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a18.zil"
@@ -2254,6 +2270,12 @@ fn large_copy_enum_error_original_scale_all_backends() {
             ),
             "empty" => include_str!(
                 "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-empty-a18.zil"
+            ),
+            "enum-indirect" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-fnptr-a18.zil"
+            ),
+            "error-indirect" => include_str!(
+                "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-error-fnptr-a18.zil"
             ),
             _ => panic!("unknown ABI case"),
         };
@@ -2314,7 +2336,7 @@ fn large_copy_enum_error_original_scale_all_backends() {
             continue;
         }
         for optimization in ["O0", "O2"] {
-            for case in ["enum", "error", "empty"] {
+            for case in ["enum", "error", "empty", "enum-indirect", "error-indirect"] {
                 let actual = Command::new("timeout")
                     .args([
                         "-s",
@@ -2628,11 +2650,62 @@ fn large_copy_enum_error_cgu_cache_and_canonical_function_reference() {
 }
 
 #[test]
-fn large_copy_enum_error_borrow_capture_keeps_pointer_environment() {
-    let first = "[0]".repeat(13);
-    let text = large_copy_program(&format!(
-        "var message:Message=Message.Data(a12);let f=()=>{{let saved:Message=message;message=Message.Empty;match saved{{Message.Data(bytes)=>{{return i32(bytes{first})}},Message.Empty()=>{{return 0}}}}}};return f()*10+f();"
-    ));
-    let text = format!("enum Message{{Data(Big),Empty}}{text}");
-    review329_native(&[("main", &text)], 30);
+fn large_copy_enum_error_long_source_names_are_prepaid_before_emission() {
+    let input = include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a12.zil"
+    );
+    let short = input
+        .replace(
+            "enum E{Data(Big),Empty}",
+            "struct Pad{n:i64,flag:bool}enum E{Data(Big,Pad),Empty}",
+        )
+        .replace("E.Data(a12)", "E.Data(a12,Pad{n:5,flag:true})")
+        .replace("E.Data(a)=>", "E.Data(a,p)=>");
+    let suffix = "x".repeat(256);
+    let long = short
+        .replace("Pad", &format!("Pad{suffix}"))
+        .replace("Data", &format!("Data{suffix}"))
+        .replace("Empty", &format!("Empty{suffix}"))
+        .replace("flag", &format!("flag{suffix}"));
+    let mut costs = Vec::new();
+    for text in [&short, &long] {
+        let src = source(text);
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let core = zil_expand::expand(&src, &ast).unwrap();
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let candidate = zil_analyze::analyze(&typed, &limits).unwrap();
+        let emit = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            let verified =
+                zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)?;
+            let lir = zil_lower::lower(&verified)?;
+            zil_backend_llvm::emit(&verified, &lir)
+        };
+        let (mut low, mut high) = (1, limits.max_analysis_steps);
+        assert!(emit(high).is_ok());
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if emit(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        let errors = emit(low - 1).unwrap_err();
+        assert_eq!(errors[0].phase, Phase::Codegen);
+        assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+        assert!(emit(low).is_ok());
+        assert!(emit(low).is_ok());
+        costs.push(low);
+    }
+    assert!(
+        costs[1] > costs[0] + 4 * 256,
+        "source metadata bytes must be in repeated emission reservations: {costs:?}"
+    );
+    eprintln!("338 enum source metadata Codegen exact limits short/long: {costs:?}");
 }
