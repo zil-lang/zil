@@ -131,6 +131,13 @@ fn tuple_binding_original_readiness_source() {
     );
 }
 #[test]
+fn review318_tuple_rhs_order_and_ct_traversal() {
+    native(
+        "fn step(c:&mut i32)->i32{*c+=1;return *c}fn result()->i32{var count=0;let(a,(b,z))=(step(&mut count),(step(&mut count),#(2+3)));return count*1000+a*100+b*10+z}",
+        Some(2125),
+    );
+}
+#[test]
 fn tuple_binding_nested_mutable_typed_discard_and_single_evaluation() {
     let llvm = native(
         "fn pair(count: &mut i32) -> (i32,(i32,i32)) { *count += 1; return (*count,(*count+1,*count+2)); } fn result()->i32 { var count=0; let (a,(b,_)):(i32,(i32,i32))=pair(&mut count); var (c,(d,e))=(a,(b,7)); c+=10; d+=20; e+=30; let ()=(); let (_,)= (9,); return count*1000+a*100+b*10+c+d+e; }",
