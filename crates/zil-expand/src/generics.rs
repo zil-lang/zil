@@ -1284,7 +1284,7 @@ impl<'a> Engine<'a> {
             expected.filter(|ty| matches!(grouped(ty).kind, TypeKind::Error { .. }));
         let store_success_context = expected.filter(|ty| stores::success(ty).is_some());
         let expected = expected.filter(|ty| !matches!(grouped(ty).kind, TypeKind::Error { .. }));
-        if let Some(ty) = self.enum_expression(e, env, expected, depth)? {
+        if let Some(ty) = self.enum_expression(e, env, expected.or(error_context), depth)? {
             return Ok(Some(ty));
         }
         let result = match &mut e.kind {
@@ -1317,7 +1317,7 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
-                self.expr_expected(inner, env, expected.or(store_success_context), depth + 1)?
+                self.expr_expected(inner, env, expected.or(error_context), depth + 1)?
             }
             ExprKind::Unary { op, operand } => {
                 let hint = if matches!(op, UnaryOp::Negate | UnaryOp::BitNot) {
@@ -1833,7 +1833,8 @@ impl<'a> Engine<'a> {
                 else_value,
             } => {
                 self.expr(condition, env, depth + 1)?;
-                let ty = self.expr_expected(then_value, env, expected, depth + 1)?;
+                let ty =
+                    self.expr_expected(then_value, env, expected.or(error_context), depth + 1)?;
                 // The erased E!R expectation does not make its first payload
                 // the expected nominal type of a distinct enum alternative.
                 // Preserve the old same-nominal/context-free path exactly.
@@ -1850,6 +1851,7 @@ impl<'a> Engine<'a> {
                 {
                     [error.as_ref(),result.as_ref()].into_iter().find(|payload|
                         matches!(&grouped(payload).kind,TypeKind::Named{path,..} if path.as_slice()==[name]))
+                        .or(error_context)
                 } else {
                     expected.or(ty.as_ref())
                 };

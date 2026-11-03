@@ -57,6 +57,29 @@ pub(super) fn context(
         return Ok(());
     };
     let expected = grouped(expected);
+    if let TypeKind::Error {
+        error: failure,
+        result,
+    } = &expected.kind
+    {
+        budget.ty(expected)?;
+        let nominal = |ty: &TypeRef| {
+            matches!(&grouped(ty).kind, TypeKind::Named { path, args }
+                if path.as_slice() == [decl.name.as_str()] && args.len() == decl.generics.len())
+        };
+        return match (nominal(failure), nominal(result)) {
+            (true, false) => context(decl, Some(failure), found, budget),
+            (false, true) => context(decl, Some(result), found, budget),
+            // Never compete between branch hints. Explicit arguments and
+            // actual payloads must first establish one complete enum type;
+            // check_injection below still validates the entire expected union.
+            (true, true) => Ok(()),
+            (false, false) => Err(error(
+                expected.span,
+                "enum constructor matches neither error-union alternative",
+            )),
+        };
+    }
     let TypeKind::Named { path, args } = &expected.kind else {
         return Err(error(
             expected.span,
@@ -84,6 +107,37 @@ pub(super) fn context(
         )?;
     }
     Ok(())
+}
+pub(super) fn check_injection(
+    actual: &TypeRef,
+    expected: Option<&TypeRef>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    let Some(expected) = expected else {
+        return Ok(());
+    };
+    let TypeKind::Error {
+        error: failure,
+        result,
+    } = &grouped(expected).kind
+    else {
+        return Ok(());
+    };
+    let actual = type_key(actual, budget)?;
+    match (
+        actual == type_key(failure, budget)?,
+        actual == type_key(result, budget)?,
+    ) {
+        (true, false) | (false, true) => Ok(()),
+        (true, true) => Err(error(
+            expected.span,
+            "enum constructor matches both error-union alternatives",
+        )),
+        (false, false) => Err(error(
+            expected.span,
+            "enum constructor matches neither error-union alternative",
+        )),
+    }
 }
 pub(super) fn application(
     decl: &EnumDecl,
@@ -398,6 +452,7 @@ impl Engine<'_> {
             }
         }
         let mut result = application(decl, &found, span, &mut self.budget)?;
+        check_injection(&result, expected.as_ref(), &mut self.budget)?;
         self.ty(&mut result, depth + 1)?;
         let TypeKind::Named { path, .. } = &result.kind else {
             unreachable!()

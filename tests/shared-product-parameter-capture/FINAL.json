@@ -1,0 +1,108 @@
+{
+  "status": "LimitedPass; formal integration gates are maintained separately by root",
+  "consumer_commit": "a16a61eeeb2648c97a949ebd43cd8c5ee5a279e4",
+  "tested_tree": "28ba9ad81022bde1d9655234109b8996d7623f87",
+  "production_source_commits": [
+    "12d0e25683f5ac9018ee735858446cc4dbb2ce82",
+    "842f24a93d3e1c06f002a74016a3408d89f7c7b1",
+    "811327dce196ae0ea1b75613e6b1f8bf4eb8f564",
+    "b6c64f11bb7c4f9034a5cef76c9a976857341d44",
+    "d07c975fa27a2fe8ca5f3fbaa2c95985bcffcbc1",
+    "8880d11551fde8a38ff502575862862f77161ed1",
+    "5c25f11f459f2aac13b9e399edf97f573aad3633",
+    "f33fbc328adf137177837dec2003fa3022fde8ca",
+    "b6e5bf267aa2f964ffed861edd795b69716a9978",
+    "f94892b469d7daac5f1cf8e3ef7e979a6238f41b",
+    "a0eded3216dc838a55ec4c1048c445c2e2f7fbe2",
+    "3ada05ed23a9254222ad43324f2fc94f20043788",
+    "209f310a3b11998164f7d7758d6cf3b09629ce37"
+  ],
+  "inputs": {
+    "manifest": "expectations.tsv",
+    "manifest_sha256": "c11bb39391cde0a621b75c14a2d287702af0fd0f64c1f8b867a2c7cc74068b3c",
+    "sources": 43,
+    "legal": 23,
+    "rejected": 20,
+    "original_29_source_bytes_preserved": true
+  },
+  "actual_source_boundaries": {
+    "legal_success_verify": 23,
+    "captured_conflict_analyze": 13,
+    "direct_conflict_verify": 7,
+    "required_conflict_code": "E-BORROW-CONFLICT",
+    "illegal_native_runs": 0
+  },
+  "independent_verify": {
+    "parameter_holds_preserved_sources": 17,
+    "captured_negative_cases_rechecked_raw_and_wire": 13,
+    "store_argument_mutations": 3,
+    "owner_field_inline_pairs": 4,
+    "assembly_swap_sources": 14,
+    "assembly_swap_raw_wire_routes": 28,
+    "assembly_swap_legal_sources": 7,
+    "assembly_swap_negative_sources": 7,
+    "negative_candidates_obtained_without_analyze": true
+  },
+  "backends": {
+    "clang": {
+      "target_tests": {
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "native": {
+        "O0": 23,
+        "O2": 23,
+        "unique_legal_sources": 23,
+        "all_exit": 0,
+        "all_stdout": "",
+        "all_stderr": ""
+      },
+      "fallback": null
+    },
+    "api": {
+      "target_tests": {
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "native": {
+        "O0": 23,
+        "O2": 23,
+        "unique_legal_sources": 23,
+        "all_exit": 0,
+        "all_stdout": "",
+        "all_stderr": ""
+      },
+      "fallback": null,
+      "object_input_kind": "builder"
+    }
+  },
+  "new_native_unique_runs": 92,
+  "counting": "23 legal sources × O0/O2 × two backends. Earlier 56/64 checkpoints, warm-ups and the existing Local controls are not added.",
+  "initial_failure": {
+    "production_base": "d3b7b29b58250c2dec55aec31afeb90b9751d250",
+    "legal_captures_blocked": 4,
+    "phase": "Analyze",
+    "category": "Unsupported",
+    "code": "E-UNSUPPORTED",
+    "message": "shared Product capture requires proven ordinary local Product origins",
+    "verification_runs": 0,
+    "direct_positive_controls_passed": 3,
+    "captured_negatives_also_stopped_at_the_wrong_old_gate": 3
+  },
+  "repairs": "Keep Parameter roots; map real caller Store/owner identities; protect windows through preparation, assembly, field extraction/refill and swaps. A later different-field give cannot legalize an earlier move of the borrowed Store. Swap identity controls retain original sources and add distinct 7/11 values.",
+  "checks": {
+    "target_clippy_warnings_denied": "Pass",
+    "workspace_fmt_check": "Pass",
+    "independent_consumer_review": "d4a9fecf; ScopedPass, no duplicate native run"
+  },
+  "commands": [
+    "source /workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR=/workspace/.zil-env/target-287 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/287-clang-final cargo test -p zil-driver --test impl226_shared_product_capture -- --test-threads=1",
+    "CARGO_TARGET_DIR=/workspace/.zil-env/target-287 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/287-api-final cargo test -p zil-driver --features llvm-api --test impl226_shared_product_capture -- --test-threads=1"
+  ],
+  "limits": "Synchronous nonescaping shared Product parameter captures only. No new IR/schema/runtime mechanism; no new allocation-failure matrix, full workspace gate or Rust performance comparison is claimed."
+}

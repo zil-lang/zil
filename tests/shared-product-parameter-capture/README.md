@@ -1,44 +1,49 @@
-# Shared Product parameter capture sources
+# Synchronous shared Product parameter captures
 
-These ordinary synchronous programs freeze the original missing source and the
-12 parameter/direct probes from the investigation. Two further frozen
-different-Store seeds cover pop and the whole-call ordering control. `expectations.tsv` is the
-independent oracle: arithmetic and actual Store identities determine the result;
-compiler reports do not generate the expected values. SHA-256 binds source bytes.
-Successful programs must exit 0 with empty stdout/stderr. Rejected programs never
-run natively. The oracle names each exact source phase: captured conflicts are
-rejected by Analyze, while their direct-reader controls reach Verify. Both require
-E-BORROW-CONFLICT; raw/Wire always test Verify independently. A Local-only Unsupported
-for a legal source is a missing capability, never a passing negative check.
+Ordinary `render(&Product)` can create and call a local synchronous closure while
+retaining the actual Parameter root and the caller's Local/Store dependencies.
+The frozen independent oracle covers 43 sources: 23 legal programs and 20
+conflicts. Both existing-target backend runs pass **17/0**, with zero ignored or
+filtered tests; **92 new native runs** cover all 23 legal sources at O0/O2 through
+clang and LLVM API. All exit 0 with empty stdout/stderr. LLVM API uses builder
+input without fallback. `FINAL.json` binds the exact tested code, producer commits,
+input manifest, commands and actual counts. Prior checkpoints are not added.
 
-`original-local` is the exact original kernel-gap source. `local-last-use` and
-`store-last-use` resume mutation only after render returns and the view has no
-future use. `different-store` operates on a different actual Store.
-`same-store-reserve` and `same-store-pop` conflict with the active borrowed element.
-`inside-call-last-use` retains the conservative whole-call may-effect boundary;
-this slice does not refine the callee operation order. Each `-direct` source
-removes the closure while keeping its matching operations and expected outcome.
+`expectations.tsv` records the independent arithmetic/actual-identity oracle,
+SHA-256 source binding and each exact source phase. Thirteen captured conflicts
+stop at Analyze; seven direct controls stop at Verify. Every conflict requires
+E-BORROW-CONFLICT, and illegal sources never run natively. Seventeen source-derived
+captures retain Parameter(0), rather than a relabeled Local, through raw/Wire.
+All thirteen captured negative cases also reach independent Verify raw/Wire;
+Analyze rejection does not substitute for that evidence. The bounded test claims
+in `raw_prefix.rs` are untrusted fixture data, never a reused safety solver.
 
-The consumer lives inside the existing `impl226_shared_product_capture` Cargo
-target under `parameter_capture`; it adds no Cargo target. Source verification,
-source-derived Parameter holds/raw/Wire, and native O0/O2 are separate tests.
-The native backend follows the existing feature switch: default clang, or
-`--features llvm-api` for the LLVM API. Temporary executable/object files are
-removed; only small result rows are retained under ZIL_TEST_REPORT_DIR when set.
+The initial baseline passed Types but blocked four legal capture sources at the
+Analyze Local-only gate with zero Verify runs. Three corresponding captured
+conflicts also stopped at that wrong early gate. Direct controls already exposed
+the proper success/conflict behavior. Later nearest cases exposed Store origins
+lost through temporary DB construction, extraction and replacement. These source
+bytes remain frozen, including the original kernel-gap input and earlier 29
+sources; no rejected legal input is counted as a passing negative.
 
-Before the core changes, run the legal-source Verify test to preserve its real
-failure. Do not weaken expected outcomes or mark it ignored to make this baseline
-pass. Analyze/Verify implementation slices are separate dependencies.
+Assembly-before-borrow with different fields is legal. Borrow-before-give remains
+invalid even if a later operation gives the other field. Swaps completed before
+the view may use opposite fields; same-field transfer and a swap across an active
+window reject. The original four swap probes remain unchanged. Two additional
+7/11 identity controls must read 11 from swapped left and 7 from swapped right;
+omitting the swap cannot satisfy their zero-exit oracle.
 
-The raw/Wire conflict test first verifies each actual different-Store source
-(and its candidate), then changes only the main Call's second actual argument
-to the Store descriptor already used by OwnedStoreBorrow. Types and candidate
-holds remain identical; only the actual Store identity changes. The mutated
-module goes directly to Verify raw and Wire, without calling Analyze, so an
-earlier source rejection never substitutes for the independent check.
+The consumer is nested in the existing `impl226_shared_product_capture` target;
+no task-specific Cargo target was added. Temporary executables, phase dumps and
+raw candidate files are removed; only useful sources, assertions and this single
+functional result remain. Current-call may effects stay conservative, including
+callee reads followed by same-Store invalidation. Direct dynamic Store capture,
+outer captures, escaping/long-lived callbacks and new borrowing modes are not
+opened by this profile.
 
-Additional frozen controls distinguish two Store fields inside one DB, give of
-the same or a different Store, and transfer of an entire owning DB. The lawful
-whole-owner neighbor borrows DB A and transfers independent DB B. Their expected
-values follow the stored count 7 and concrete owner identities, independently of
-the implementation probes. The original fifteen source files remain unchanged.
+Safety evidence is bounded to these actual roots, windows and independent kernel
+routes. The implementation keeps the existing borrowed-address representation;
+no implicit heap box/RC/lock was added. Ordinary API composition advances, while
+Rust runtime/RSS, maintenance cost and compile-speed comparisons remain unmeasured.
+The original Unsupported source reaching both native backends is a language
+increment, not completion of the product four-goal conjunction.
