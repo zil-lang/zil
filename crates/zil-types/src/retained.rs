@@ -254,6 +254,14 @@ impl Dependencies<'_, '_> {
         for statement in &block.statements {
             self.node(depth + 1, statement.span)?;
             match &statement.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    initializer,
+                    ..
+                } => {
+                    self.expr(initializer, depth + 1)?;
+                    self.pattern(pattern, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     name, initializer, ..
                 } => {
