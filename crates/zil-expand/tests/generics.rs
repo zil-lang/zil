@@ -2,6 +2,35 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::Type;
 
 #[test]
+fn generic_error_union_binding_and_call_contexts_accept_complete_types() {
+    for text in [
+        include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
+        include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
+        "enum Fault{Bad} fn sink(v:Fault!i32)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{let v:Fault!i32=7;return sink(v)+sink(f())} fn main(){}",
+        "enum Choice<T>{None,Some(T)} fn sink<T>(v:Choice<T>!i32)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{f();return sink::<i32>(Choice.None)} fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-context.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{text}: {errors:?}"));
+    }
+    for text in [
+        "enum Fault{Bad} enum Other{Bad} fn run<F:Fn()->i32>(f:F)->i32{let v:Fault!i32=Other.Bad;return f()} fn main(){}",
+        "enum Fault{Bad} fn run<F:Fn()->i32>(f:F)->i32{let v:Fault!Fault=Fault.Bad;return f()} fn main(){}",
+        "enum Fault{Bad} fn sink(v:Fault!i64)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{return sink(7)} fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "union-context-reject.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.phase == Phase::Expand && error.code == "E-GENERIC-ARGUMENT"),
+            "{text}: {errors:?}"
+        );
+    }
+}
+
+#[test]
 fn generic_enum_error_context_uses_one_complete_nominal_type() {
     for text in [
         include_str!("../../../tests/generic-error-enum/direct.zil"),
