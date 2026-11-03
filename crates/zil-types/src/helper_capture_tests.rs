@@ -74,6 +74,7 @@ fn fixture(
         })
         .collect();
     let function = TypedFunction {
+        reference_return_bound: None,
         id: FunctionId(0),
         name: "raw_capture_origins".into(),
         foreign: None,

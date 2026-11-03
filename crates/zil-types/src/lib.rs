@@ -508,6 +508,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let first_closure = closures.pending.len();
         let mut b = Self {
             function: TypedFunction {
+                reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
                 result_mode: f.result_mode,
@@ -2265,6 +2266,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             let (parameters, result) = pending.inference.resolve(false, span)?;
             let function_id = pending.function;
             let function = CoreFunction {
+                life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),
                 type_parameters: Vec::new(),
@@ -2459,6 +2461,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
+            life: None,
             callable_return: None,
             state_parameters: Vec::new(),
             type_parameters: Vec::new(),
@@ -2981,6 +2984,7 @@ mod tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
+                life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),
                 type_parameters: Vec::new(),

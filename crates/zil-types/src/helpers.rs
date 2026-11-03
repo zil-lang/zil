@@ -977,6 +977,7 @@ impl Builder<'_, '_> {
             module: template.context.module,
             public: template.public,
             signature: ScalarFunction {
+                reference_return_bound: None,
                 name: function.name,
                 function: id,
                 parameters: function

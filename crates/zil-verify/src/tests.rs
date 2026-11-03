@@ -16,6 +16,7 @@ fn inst(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 fn baseline() -> (TypedModule, CandidatePlan) {
     let function = TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
         result_mode: zil_ir::PassingMode::Infer,
@@ -470,6 +471,7 @@ fn accepts_loop_fixed_point_and_rejects_budget_exhaustion() {
 fn checks_direct_call_signature_and_parameter_initialization() {
     let (mut module, mut plan) = baseline();
     module.functions.push(TypedFunction {
+        reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
         result_mode: zil_ir::PassingMode::Infer,

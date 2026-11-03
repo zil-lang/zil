@@ -58,6 +58,7 @@ fn fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
             values.push(Type::I32);
         }
         functions.push(TypedFunction {
+            reference_return_bound: None,
             id: FunctionId(id as u32),
             name: format!("f{id}"),
             foreign: None,
