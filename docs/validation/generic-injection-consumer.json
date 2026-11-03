@@ -1,0 +1,19 @@
+{
+  "baseline": "4bea9c88142a22447a834f6c707ee9f8f3704b52",
+  "status": "Pending 294 production integration and native verification",
+  "baseline_original_sources": {
+    "binding": "Expand E-GENERIC-ARGUMENT: generic body types must agree before concrete instantiation",
+    "call_argument": "Expand E-GENERIC-ARGUMENT: generic parameter does not match argument type",
+    "source": "tests/generic-error-enum/pending/",
+    "original_source_bytes_preserved": true
+  },
+  "native_plan": {
+    "binding_error": "ABB, exit 1",
+    "binding_success": "ABBD7, exit 0",
+    "call_error": "ABC, exit 1",
+    "call_success": "ABCD7, exit 0",
+    "backends": ["clang", "LLVM API"],
+    "optimization": ["O0", "O2"],
+    "status": "not yet run against 294"
+  }
+}

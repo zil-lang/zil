@@ -126,3 +126,130 @@ fn unused_generic_control_flow_is_checked_before_template_removal() {
         assert_eq!(r.phase, zil_base::Phase::Expand, "{}", r.to_json());
     }
 }
+
+#[test]
+fn generic_injection_295_frozen_pending_sources_are_accepted() {
+    let mut failures = Vec::new();
+    for text in [
+        include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
+        include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        if report.status != ResultCategory::Success || report.verification_runs != 1 {
+            failures.push(report.to_json());
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn generic_injection_295_native_contexts_preserve_value_and_order() {
+    use std::{
+        fs,
+        process::Command,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for (name, text, status, output) in [
+        (
+            "binding-error",
+            include_str!("../../../tests/generic-error-enum/native-context/binding-error.zil"),
+            1,
+            "ABB",
+        ),
+        (
+            "binding-success",
+            include_str!("../../../tests/generic-error-enum/native-context/binding-success.zil"),
+            0,
+            "ABBD7",
+        ),
+        (
+            "call-error",
+            include_str!("../../../tests/generic-error-enum/native-context/call-error.zil"),
+            1,
+            "ABC",
+        ),
+        (
+            "call-success",
+            include_str!("../../../tests/generic-error-enum/native-context/call-success.zil"),
+            0,
+            "ABCD7",
+        ),
+    ] {
+        for backend in &backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil-295-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                fs::create_dir(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend: *backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{name}: {}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1, "{name}");
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, *backend);
+                assert!(codegen.fallback.is_none());
+                let actual = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(actual.status.code(), Some(status), "{name}: {actual:?}");
+                assert_eq!(actual.stdout, output.as_bytes(), "{name}: {actual:?}");
+                assert!(actual.stderr.is_empty(), "{name}: {actual:?}");
+                fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn generic_injection_295_context_identity_and_unused_controls() {
+    let positives = [
+        "enum Choice<T>{None,Some(T)} type Problem=Choice<i32>;fn run<F:Fn()->i32>(f:F)->Problem!i32{let v:Problem!i32=(((Choice.None)));return v}fn main(){let f=()->i32=>1;run(f)}",
+        "enum Choice<T>{None,Some(T)} fn keep(v:Choice<i32>!i32)->Choice<i32>!i32{return v}fn run<F:Fn()->i32>(f:F,v:Choice<i32>!i32)->Choice<i32>!i32{return keep(v)}fn main(){let f=()->i32=>1;run(f,7)}",
+        "enum Box<T>{None,Some(T)} fn sink(v:Box<i32>!Box<i64>)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{return sink(Box::<i64>.None)} fn main(){let f=()->i32=>0;run(f)}",
+    ];
+    for text in positives {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    let negatives = [
+        "enum Fault{Bad} fn run<F:Fn()->i32>(f:F)->i32{let x:Fault!Fault=Fault.Bad;return 0}fn main(){}",
+        "enum Fault{Bad} enum Other{Bad} fn run<F:Fn()->i32>(f:F)->i32{let x:Fault!i32=Other.Bad;return 0}fn main(){}",
+        "enum Box<T>{None,Some(T)} fn sink(v:Box<i32>!Box<i64>)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{return sink(Box.None)} fn main(){}",
+        "enum Box<T>{None,Some(T)} fn sink(v:Box<u8>!Box<i64>)->i32{return 0} fn run<F:Fn()->i32>(f:F)->i32{return sink(Box.Some(7))} fn main(){}",
+    ];
+    for text in negatives {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
