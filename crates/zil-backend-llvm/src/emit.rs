@@ -114,7 +114,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         .iter()
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
-    let wrapper = entry_wrapper(&functions, options.entry, lir.resources)?;
+    let wrapper = entry_wrapper(&functions, options.entry, lir.resources, &copy_plans)?;
     let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
     let collected = (closed_scalar_collection
         && options.entry == EntryPoint::Main
@@ -732,6 +732,7 @@ fn entry_wrapper(
     functions: &BTreeMap<FunctionId, &TypedFunction>,
     entry: EntryPoint,
     resources: &[ResourceDefinition],
+    copy_plans: &large_copy_abi::Plans,
 ) -> CompileResult<m::Code> {
     let function = match entry {
         EntryPoint::None => return Ok(m::Code::new()),
@@ -779,7 +780,12 @@ fn entry_wrapper(
             Some(function.span),
         );
     }
-    let symbol = symbol(function.id);
+    let abi = copy_plans.functions.get(&function.id);
+    let symbol = if abi.is_some_and(|abi| abi.versioned) {
+        format!("{}.lc1", symbol(function.id))
+    } else {
+        symbol(function.id)
+    };
     let mut text = m::Code::from(vec![
         m::Event::Begin(m::Function {
             name: "main".into(),
@@ -835,6 +841,11 @@ fn entry_wrapper(
             Type::ErrorUnion { result, .. }
                 if matches!(result.as_ref(), Type::I32 | Type::Unit) =>
             {
+                if let Some(slot) = abi.and_then(|abi| abi.result.as_ref()) {
+                    return Ok(large_copy_abi::entry_error_wrapper(
+                        text, &symbol, slot, result,
+                    ));
+                }
                 let llvm = llvm_type(&function.return_type)?;
                 text.append(m::Code::from(vec![
                     m::Event::Instruction(m::Inst::new(
