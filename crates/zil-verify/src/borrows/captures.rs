@@ -370,7 +370,8 @@ impl Context<'_> {
                         Some(&self.facts.values[callee.0 as usize]),
                     )
                 }
-                InstructionKind::WithForeignCallback { body, .. } => {
+                InstructionKind::WithForeignCallback { body, .. }
+                | InstructionKind::WithScopedThread { body, .. } => {
                     let (id, _) = helpers::parameter_type(&self.function.values[body.0 as usize])
                         .expect("independently checked scoped body type");
                     (

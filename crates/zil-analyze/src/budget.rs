@@ -33,6 +33,7 @@ pub(super) struct Budget {
     pub(super) forward_functions: Vec<bool>,
     pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
     pub(super) scoped_foreign: bool,
+    pub(super) scoped_threads: bool,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
     sum_roots: BTreeSet<usize>,
@@ -58,6 +59,7 @@ impl Budget {
             forward_functions: Vec::new(),
             forward_closures: BTreeSet::new(),
             scoped_foreign: false,
+            scoped_threads: false,
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
             sum_roots: BTreeSet::new(),
@@ -940,6 +942,14 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::WithScopedThread { worker, argument, body } => {
+                        budget.input(4, "scoped thread operands")?;
+                        if worker.0 as usize >= module.functions.len()
+                            || argument.0 as usize >= function.values.len()
+                            || body.0 as usize >= function.values.len()
+                        { return Err(bad("scoped thread operand outside actual tables")); }
+                        budget.scoped_threads = true;
+                    }
                     InstructionKind::WithForeignCallback {
                         register,
                         close,

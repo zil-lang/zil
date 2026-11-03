@@ -64,13 +64,16 @@ fn owned_store_name(name: &str) -> bool {
     )
 }
 fn primitive_name(name: &str) -> bool {
-    integer_name(name)
+    name == "thread_scope"
+        || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if name == "c_with_callback" {
+    if name == "thread_scope" {
+        Diagnostic::error(Phase::Expand, "E-THREAD-NAME", Some(span), "thread_scope is a reserved structured primitive and cannot be rebound")
+    } else if name == "c_with_callback" {
         Diagnostic::error(
             Phase::Expand,
             "E-FFI-SCOPED-NAME",
@@ -777,7 +780,7 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if name == "c_with_callback" {
+        if name == "c_with_callback" || name == "thread_scope" {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }

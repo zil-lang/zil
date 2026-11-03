@@ -75,6 +75,7 @@ mod retained;
 #[cfg(test)]
 mod retained_tests;
 mod scoped_callback;
+mod scoped_thread;
 mod slices;
 mod sums;
 pub use ct_artifact::{
@@ -1441,6 +1442,9 @@ fn check_instruction(
                 (**result).clone()
             })
         }
+        InstructionKind::WithScopedThread { .. } => {
+            scoped_thread::instruction(module, function, instruction, budget)?
+        }
         InstructionKind::WithForeignCallback { .. } => {
             scoped_callback::instruction(module, function, instruction, budget)?
         }
@@ -2531,6 +2535,9 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::ByteBufferNew
         | InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::Unsupported(_) => ([None, None], &[]),
+        InstructionKind::WithScopedThread { argument, body, .. } => {
+            ([Some(*argument), Some(*body)], &[])
+        }
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             ([Some(*callback), Some(*body)], &[])
         }

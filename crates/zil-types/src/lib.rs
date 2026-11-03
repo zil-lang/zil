@@ -43,6 +43,7 @@ mod resource_effects;
 mod resources;
 mod retained;
 mod scalar_shapes;
+mod scoped_thread;
 mod state_origins;
 mod store_templates;
 mod tuple_bindings;
@@ -721,6 +722,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         span: Span,
         start: bool,
     ) -> R<LocalId> {
+        if name == "thread_scope" {
+            return Err(error("E-THREAD-NAME", span, "thread_scope is a reserved structured primitive and cannot be rebound"));
+        }
         if name == "c_with_callback" {
             return Err(error(
                 "E-FFI-SCOPED-NAME",
@@ -1735,6 +1739,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                         self.same(&Type::I64, expected, e.span)?;
                     }
                     return Ok((value, Type::I64));
+                }
+                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
+                    return self.with_scoped_thread(arguments, expected, e.span);
                 }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
                     return self.with_foreign_callback(arguments, expected, e.span);

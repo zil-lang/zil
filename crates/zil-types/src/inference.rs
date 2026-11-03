@@ -3209,6 +3209,32 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         span,
                     );
                 }
+                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
+                    self.budget.node(depth + 1, callee.span)?;
+                    self.expression_index += 1;
+                    let [worker, argument, body] = arguments.as_slice() else {
+                        return Err(error("E-CALL-ARITY", span, "thread_scope requires three arguments"));
+                    };
+                    if !matches!(worker.kind, CoreExprKind::Name(_) | CoreExprKind::Member { .. }) {
+                        return Err(error("E-THREAD-WORKER", worker.span, "thread worker must be a static ordinary symbol"));
+                    }
+                    let Term::Function(signature) = self.expr(worker, depth + 1, false)? else {
+                        return Err(error("E-THREAD-WORKER", worker.span, "thread worker cannot be a stored callable"));
+                    };
+                    if !signature.scalar_thread_worker() {
+                        return Err(error("E-THREAD-WORKER", worker.span, "thread worker must be a concrete ordinary fn(i32)->i32"));
+                    }
+                    let argument_term = self.expr_expected(argument, Some(&Type::I32), depth + 1, false)?;
+                    self.bind_term(&argument_term, &Type::I32, argument.span)?;
+                    let Term::Closure(id) = self.expr(body, depth + 1, false)? else {
+                        return Err(error("E-THREAD-BODY", body.span, "thread body must be a concrete closure"));
+                    };
+                    if !self.closures[id].parameters.is_empty() {
+                        return Err(error("E-THREAD-BODY", body.span, "thread body signature is ()->i32"));
+                    }
+                    self.graph.bind(self.closures[id].result, &Type::I32, body.span)?;
+                    return self.known_term(&Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]), span);
+                }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
                     self.budget.node(depth + 1, callee.span)?;
                     self.expression_index += 1;

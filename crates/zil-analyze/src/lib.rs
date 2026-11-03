@@ -25,6 +25,7 @@ mod resource_tests;
 mod resources;
 mod retained;
 mod scopes;
+mod scoped_thread;
 #[cfg(test)]
 mod sum_tests;
 
@@ -95,6 +96,7 @@ fn analyze_budgeted(
         });
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
+    scoped_thread::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }
