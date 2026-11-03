@@ -26,6 +26,14 @@ fn contains_reference(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
             self.budget.text(text, span).map_err(|e| vec![e])
         }
         fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(
+                ty.kind,
+                TypeKind::Function { .. } | TypeKind::ForeignFunction { .. }
+            ) {
+                // A thin function pointer does not carry its signature's
+                // argument references as borrowed payload.
+                return self.node(ty.span, depth);
+            }
             self.found |= matches!(ty.kind, TypeKind::Reference { .. });
             super::super::ct_selection::walk_type(self, ty, depth)
         }

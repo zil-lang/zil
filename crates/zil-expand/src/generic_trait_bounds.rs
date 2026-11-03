@@ -419,9 +419,14 @@ impl<'a> Index<'a> {
             let (_, declaration) = self.declarations[reference.key.name.as_str()];
             for member in &declaration.members {
                 budget.node(member.span, 0)?;
-                if let ItemKind::Function(method) = &member.kind
-                    && method.name == name
-                {
+                if let ItemKind::Function(method) = &member.kind {
+                    if self.has_defaults {
+                        budget.text(&method.name, member.span)?;
+                        budget.text(name, span)?;
+                    }
+                    if method.name != name {
+                        continue;
+                    }
                     if selected.is_some() {
                         return Err(error(
                             span,
