@@ -2,7 +2,7 @@
 
 ## 2026-11-03：普通语言组合继续闭环
 
-277–283具体闭包组合、284–287共享Product参数捕获、292–293泛型直接enum错误返回已分别经PR24/25/26合入，最新受测main c3a5d3f5；最终两CI默认3993/参考3885/文本64全通过，见docs/LANGUAGE-GENERIC-ERROR-RETURN.md。工单与精简结果已归并；下一优先两个泛型初始化/实参注入合法缺口，再推进长期外部生命周期，原源在tests/generic-error-enum/pending。完整语言/ZUI与B0仍未完成。
+277–283具体闭包组合、284–287共享Product参数捕获、292–293泛型直接enum错误返回已分别经PR24/25/26合入，最新受测main c3a5d3f5；最终两CI默认3993/参考3885/文本64全通过，见docs/LANGUAGE-GENERIC-ERROR-RETURN.md。工单与精简结果已归并；294–297并行实现、消费者和独审泛型初始化/实参注入，包括独立约束与真实回调载荷。最新完整缺口清单见docs/LANGUAGE-REMAINING.md，实际基线正控/待实现源保存在tests/language-readiness。下一按普通库需要并行推进可变Product参数与Type/Syntax泛型组合；现有scope可覆盖持续同步事件环，返回后保留捕获环境的外部登记、异步并发另按真实生命周期义务推进。完整语言/ZUI与B0仍未完成。
 
 ## 2026-11-03：Type/Syntax已合入，结构化外部回调验收
 
