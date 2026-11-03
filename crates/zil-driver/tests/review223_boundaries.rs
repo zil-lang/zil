@@ -17,7 +17,13 @@ fn typed(source: &str) -> TypedModule {
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
-fn verify_expected(label: &str, module: TypedModule, mut plan: CandidatePlan, accept: bool) {
+fn verify_expected(
+    label: &str,
+    module: TypedModule,
+    mut plan: CandidatePlan,
+    accept: bool,
+    code: Option<&str>,
+) {
     plan.module_fingerprint = module.fingerprint();
     let out = directory(label);
     fs::write(out.join("module.txt"), format!("{module:#?}")).unwrap();
@@ -41,6 +47,10 @@ fn verify_expected(label: &str, module: TypedModule, mut plan: CandidatePlan, ac
             continue;
         }
         let errors = result.expect_err(label);
+        if let Some(code) = code {
+            assert_eq!(errors.len(), 1, "{label}: {errors:?}");
+            assert_eq!(errors[0].code, code, "{label}: {errors:?}");
+        }
         assert!(
             errors
                 .iter()
@@ -55,7 +65,7 @@ fn verify_expected(label: &str, module: TypedModule, mut plan: CandidatePlan, ac
 }
 
 #[test]
-fn unused_mutable_nested_product_parameter_cannot_gain_a_write_capability() {
+fn original_unused_mutable_product_copy_helper_is_promoted_by_315() {
     let source = include_str!("review223_fixtures/mutable_control.zil");
     let mut module = typed(source);
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
@@ -93,7 +103,83 @@ fn unused_mutable_nested_product_parameter_cannot_gain_a_write_capability() {
     for value in &mut f.values {
         replace(value, &product);
     }
-    verify_expected("mutable-product-parameter", module, plan, false);
+    // Original coherent223 input retained. Incoming &mut is actual authority;
+    // only the outer Copy tag is written, with Parameter(0) provenance intact.
+    verify_expected(
+        "mutable-product-parameter-promoted315",
+        module.clone(),
+        plan.clone(),
+        true,
+        None,
+    );
+    for owned in [false, true] {
+        let mut changed = module.clone();
+        let f = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "write")
+            .unwrap();
+        if owned {
+            let Type::Package { fields, .. } = &product else {
+                unreachable!()
+            };
+            for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if let zil_ir::InstructionKind::AddressField { index, .. } = &mut i.kind {
+                    *index = 0;
+                    f.values[i.result.unwrap().0 as usize] = Type::Address {
+                        mutable: true,
+                        inner: Box::new(fields[0].1.clone()),
+                    };
+                }
+            }
+        } else {
+            for ty in f
+                .locals
+                .iter_mut()
+                .map(|l| &mut l.ty)
+                .chain(f.values.iter_mut())
+            {
+                if let Type::Address { mutable, .. } = ty {
+                    *mutable = false;
+                }
+            }
+        }
+        verify_expected(
+            if owned {
+                "mutable-owned-child315"
+            } else {
+                "shared-copy-write315"
+            },
+            changed,
+            plan.clone(),
+            false,
+            Some(if owned {
+                "E-UNSUPPORTED"
+            } else {
+                "E-VERIFY-ADDRESS"
+            }),
+        );
+    }
+    let source = source.replace("write(p:&mut Leaf)","write(p:&mut Root)").replace("fn main(){}", "fn main(){var root=Root{child:Leaf{owner:R{n:1},tag:2},tag:3};let child=root.child;write(&mut root)}");
+    let r = zil_driver::compile_source(
+        &SourceUnit::new(FileId(0), ModuleId(0), "incomplete223.zil", source),
+        &zil_driver::CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..Default::default()
+        },
+    );
+    fs::write(
+        directory("incomplete-call315").join("result.json"),
+        r.to_json(),
+    )
+    .unwrap();
+    assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
+    assert_eq!(r.phase, Phase::Analyze, "{}", r.to_json());
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == "E-ANALYZE-IR"),
+        "{}",
+        r.to_json()
+    );
 }
 
 #[test]
@@ -148,6 +234,7 @@ fn ordinary_product_sums_are_admitted_but_direct_nested_union_stays_closed() {
             module,
             plan.clone(),
             variant != 2,
+            None,
         );
     }
 }

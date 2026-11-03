@@ -549,7 +549,7 @@ fn unused_user_resource_head_cannot_hide_the_new_product_store() {
 }
 
 #[test]
-fn store_qualification_cannot_open_an_incoming_mutable_product_address() {
+fn incoming_mutable_product_copy_helper_is_promoted_by_315() {
     // Regression for the non-author 223 review. Every type occurrence agrees;
     // field index/type, WriteAddress and the incoming Hold are still valid.
     let source = format!("{MODEL} fn write(p:&mut Leaf){{p.mark=7}}fn main(){{}}");
@@ -578,13 +578,93 @@ fn store_qualification_cannot_open_an_incoming_mutable_product_address() {
             **inner = product.clone();
         }
     }
-    reject_raw_messages(
-        "incoming-mut-product",
-        module,
-        plan,
-        &[
-            "ordinary Product addresses require independent shared qualification",
-            "ordinary Product addresses are shared synchronous inputs",
-        ],
+    // Original223 coherent input retained. §8.1.2.1 now explicitly permits
+    // this incoming exclusive helper to update Root's top-level Copy tail.
+    let mut plan = plan;
+    plan.module_fingerprint = module.fingerprint();
+    let limits = Limits::default();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let out = directory("incoming-mut-product-promoted315");
+    fs::write(out.join("source.zil"), &source).unwrap();
+    fs::write(out.join("candidate.wire"), &wire).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap();
+    fs::write(
+        out.join("result.json"),
+        "{\"raw\":\"Success\",\"wire\":\"Success\"}\n",
+    )
+    .unwrap();
+
+    for (label, owned, code) in [
+        ("incoming-shared-write315", false, "E-VERIFY-ADDRESS"),
+        ("incoming-owned-field315", true, "E-UNSUPPORTED"),
+    ] {
+        let mut changed = module.clone();
+        let f = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "write")
+            .unwrap();
+        if owned {
+            let Type::Address { inner, .. } = &f.locals[f.parameters[0].0 as usize].ty else {
+                unreachable!()
+            };
+            let Type::Package { fields, .. } = inner.as_ref() else {
+                unreachable!()
+            };
+            let child = fields[0].1.clone();
+            for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if let I::AddressField { index, .. } = &mut i.kind {
+                    *index = 0;
+                    f.values[i.result.unwrap().0 as usize] = Type::Address {
+                        mutable: true,
+                        inner: Box::new(child.clone()),
+                    };
+                }
+            }
+        } else {
+            for ty in f
+                .locals
+                .iter_mut()
+                .map(|l| &mut l.ty)
+                .chain(f.values.iter_mut())
+            {
+                if let Type::Address { mutable, .. } = ty {
+                    *mutable = false;
+                }
+            }
+        }
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits).unwrap();
+        let out = directory(label);
+        fs::write(out.join("candidate.wire"), &wire).unwrap();
+        for (route, result) in [
+            (
+                "raw",
+                zil_verify::verify_module(changed.clone(), candidate, &changed.target, &limits),
+            ),
+            (
+                "wire",
+                zil_verify::verify_module_bytes(&wire, &changed.target, &limits),
+            ),
+        ] {
+            let errors = result.expect_err(label);
+            assert_eq!(errors.len(), 1, "{label}/{route}: {errors:?}");
+            assert_eq!(errors[0].phase, Phase::Verify);
+            assert_eq!(errors[0].code, code, "{label}/{route}: {errors:?}");
+            fs::write(out.join(format!("{route}.json")), errors[0].to_json()).unwrap();
+        }
+    }
+    let partial = format!(
+        "{MODEL}fn write(p:&mut Root){{p.tail=7}}fn main(){{var root=make(65);let child=root.child;write(&mut root)}}"
+    );
+    let r = check("incoming-incomplete-call315", &partial, Stage::Verify);
+    assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
+    assert_eq!(r.phase, Phase::Analyze, "{}", r.to_json());
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == "E-ANALYZE-IR"),
+        "{}",
+        r.to_json()
     );
 }
