@@ -135,9 +135,9 @@ pub(super) fn instruction(
         ));
     }
     if caller.environment.is_some() || caller.callable_contract.is_some() {
-        return Err(invalid(
+        return Err(unsupported(
+            "thread_scope is implemented only in ordinary Direct functions; closure and callable helper entries are not implemented",
             span,
-            "nested and callable helper thread scopes are not implemented",
         ));
     }
     if value_type(caller, argument, span)? != &Type::I32 {

@@ -685,6 +685,27 @@ fn thread325_source_and_worker_boundaries() {
         );
         assert!(!report.artifacts.contains_key("executable"));
     }
+    for (name, phase) in [
+        ("parent_closure", zil_base::Phase::Types),
+        ("callable_wrapper", zil_base::Phase::Expand),
+    ] {
+        let path = thread325_root().join(format!("pending/{name}.zil"));
+        let text = std::fs::read_to_string(path).unwrap();
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"),
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
 }
 
 #[test]
@@ -772,6 +793,34 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
             "variant {variant}: {errors:?}"
         );
     }
+    // A well-formed concrete parent closure is a future legal placement, not
+    // a forged worker authority. Both raw kernels must report Unsupported.
+    let mut future = typed.clone();
+    let id = zil_ir::ClosureId(future.closures.len() as u32);
+    future.functions[caller].environment = Some(id);
+    future.closures.push(zil_ir::ClosureDefinition {
+        id,
+        function: future.functions[caller].id,
+        captures: vec![],
+        parameters: vec![],
+        result: zil_ir::Type::I32,
+        kind: zil_ir::CallableKind::Fn,
+        lending_captures: vec![],
+    });
+    let errors = zil_analyze::analyze(&future, &limits).unwrap_err();
+    assert_eq!(
+        errors[0].category,
+        ResultCategory::Unsupported,
+        "{errors:?}"
+    );
+    let mut claim = plan.clone();
+    claim.module_fingerprint = future.fingerprint();
+    let errors = zil_verify::verify_module(future, claim, &target, &limits).unwrap_err();
+    assert_eq!(
+        errors[0].category,
+        ResultCategory::Unsupported,
+        "{errors:?}"
+    );
     // Exact worker traversal work comes from the current request, not a fresh per-worker budget.
     for verify in [false, true] {
         let mut low = 0;

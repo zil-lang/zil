@@ -29,10 +29,10 @@ impl Builder<'_, '_> {
                 "thread_scope requires a static worker, i32 payload and body",
             ));
         };
-        if !self.helper_bounds.is_empty() {
+        if self.function.environment.is_some() || !self.helper_bounds.is_empty() {
             return Err(unsupported(
                 span,
-                "thread_scope callable wrappers are not implemented",
+                "thread_scope is implemented only in ordinary Direct functions; closure and callable helper entries are not implemented",
             ));
         }
         if !matches!(
