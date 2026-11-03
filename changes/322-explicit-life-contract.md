@@ -43,3 +43,12 @@ wrapper 已无调用，经 root 授权、323 确认无依赖后删除，保留�
 缓存格式/键/目录升级 v3，显式编码上界并与恢复 Typed 函数逐一核对；每次命中
 仍重新 Verify。root CT source clone/preflight 与本片 driver CT collector 分别保留
 Core life 元数据，不把缓存、哈希或 CT 重建当成已核权限。
+
+环境第二次断开前，借用目标已实际 18/18 通过，新增原源逐阶段 N 为
+Expand91/Types95/Analyze702/Verify985，各核 N−1 ResourceLimit 与 fresh N。
+该测试增量于环境恢复后先 checkpoint；它尚未最终验收。既有 semantic_cache
+目标当时 0/7（候选查找空/路径不存在），Clippy 因环境进程创建失败未启动。
+现已只读确认该目标两处硬编码 semantic-v2，而生产目录及格式已为 v3；按 root
+授权继续迁移测试定位并保留 hit/tamper/invalidation 与旧 v2 不复用控制。
+接口身份探针首轮把待比较函数写为 private，比较到了空 exports，出现 17/18；
+修正为 pub 后 18/18，不改变生产检查或上界。
