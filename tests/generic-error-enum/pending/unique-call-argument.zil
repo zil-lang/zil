@@ -1,0 +1,1 @@
+enum Choice<T>{None,Some(T)}fn sink(v:Choice<i32>!i32)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{f();return sink(Choice.None)}fn main()->i32{let f=()->i32=>1;return run(f)}

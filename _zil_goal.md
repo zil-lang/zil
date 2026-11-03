@@ -2,7 +2,7 @@
 
 ## 2026-11-02：外部回调已合入，普通组合并行推进
 
-277–283具体Event→Reply闭包、普通工厂组合及捕获窗口已通过PR24合入cd2e42f4；默认3974/0、参考3866/0及同源两CI通过，见docs/LANGUAGE-CALLABLE-COMPOSITION.md。273–275资源准备、Type/Syntax及结构化外部回调均已合入。284–287共享Product参数捕获已完成两核实现及独审，消费者与集成待验；具体派工只在主树.task/impl。
+277–283具体闭包组合经PR24合入cd2e42f4；284–287共享Product参数捕获经PR25合入16ff72cb，同源两CI默认3990/参考3882通过，见docs/LANGUAGE-SHARED-PARAMETER.md。292泛型直接enum错误返回及唯一类型上下文已实现/独审，293组合PR26正在最终验收。正式进度与派工只在主树.task/impl；完整语言/ZUI仍未完成。
 
 ## 2026-11-03：Type/Syntax已合入，结构化外部回调验收
 
