@@ -347,7 +347,7 @@ fn no_invocation_definition_entry_uses_real_source_identity_and_request_remainde
     let old = limits.max_analysis_steps;
     assert_eq!(
         definitions_entry(&modules, &mut limits).unwrap(),
-        Some(symbols[1].1.clone())
+        (Some(symbols[1].1.clone()), Vec::new())
     );
     assert!(limits.max_analysis_steps < old);
 }
