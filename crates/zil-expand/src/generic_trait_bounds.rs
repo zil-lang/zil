@@ -64,7 +64,17 @@ impl<'a> Index<'a> {
         let mut index=Self {declarations,implementations,nominals,has_instances,references:BTreeMap::new()};
         if has_instances {
             for (item,declaration) in index.declarations.values() {
-                if !declaration.generics.is_empty() { trait_instances::validate_declaration(item,declaration,&index.nominals,budget)?; }
+                if !declaration.generics.is_empty() {
+                    trait_instances::validate_declaration(item,declaration,&index.nominals,budget)?;
+                    let bounds=index.parameter_bounds(&declaration.generics,budget)?;
+                    let variables=declaration.generics.iter().map(|p|p.name.clone()).chain(std::iter::once("Self".to_owned())).collect();
+                    for member in &declaration.members {
+                        if let ItemKind::Function(method)=&member.kind {
+                            for parameter in &method.params {index.store_types(&parameter.ty,&bounds,&variables,budget,callable::StoreCallbacks::None)?;}
+                            if let Some(result)=&method.return_type {index.store_types(result,&bounds,&variables,budget,callable::StoreCallbacks::None)?;}
+                        }
+                    }
+                }
             }
         }
         for item in &module.items {

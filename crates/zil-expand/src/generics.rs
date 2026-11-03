@@ -1203,17 +1203,6 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Call { callee, arguments } => {
-                if self.traits.has_instances
-                    && let ExprKind::Member {object,member:MemberName::Name(member)}=&mut callee.kind
-                    && !member.starts_with("$trait_")
-                    && let Some(actual)=self.value_hint(object,env,depth+1,false)?
-                {
-                    let actual=self.original_type(&actual)?;
-                    if let Some(host)=trait_bounds::plain(projection_shape(&actual))
-                        && let Some((target,_))=self.traits.concrete_method(host,member,&mut self.budget,callee.span)? {
-                        member.clone_from(&target);
-                    }
-                }
                 if let Some(name) = super::integer_conversion_name(callee) {
                     return Ok(Some(named(name, e.span)));
                 }
@@ -1454,6 +1443,17 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Call { callee, arguments } => {
+                if self.traits.has_instances
+                    && let ExprKind::Member {object,member:MemberName::Name(member)}=&mut callee.kind
+                    && !member.starts_with("$trait_")
+                    && let Some(actual)=self.value_hint(object,env,depth+1,false)?
+                {
+                    let actual=self.original_type(&actual)?;
+                    if let Some(host)=trait_bounds::plain(projection_shape(&actual))
+                        && let Some((target,_))=self.traits.concrete_method(host,member,&mut self.budget,callee.span)? {
+                        member.clone_from(&target);
+                    }
+                }
                 if let Some(name) =
                     super::foreign::bare_name(callee).filter(|name| stores::primitive(name))
                 {
