@@ -278,7 +278,7 @@ impl<'a> Index<'a> {
             for bound in bounds {
                 if copy::is_bound(bound) {
                     budget.ty(bound)?;
-                    if parameters.iter().any(|p| p.name == copy::BOUND) {
+                    if parameters.iter().any(|p| matches!(p.kind, GenericParamKind::Type(_)) && p.name == copy::BOUND) {
                         return Err(error(
                             bound.span,
                             "Copy bound resolves to a shadowing type parameter",
