@@ -19,3 +19,5 @@ GitHub `task/language-mainline-20261103` 保存本轮集成源码；`task/322`�
 接续时实时核得远端main和旧进度枝均为`e5a4d51d844e29c4f4f5184eaff5704b1b27dd24`，37个已有worktree全干净。新施工集成备份枝为`task/language-mainline-20261104`，合同起点`c4da43441b03661e61d0087000a13dbbe7a2a75a`已实际推送并逐SHA核验；各片源保存在`task/336`至`task/339`，在途未提交源码另以`backup/wip-20261104-<号>`保存真实Git树并保留前一快照父链。
 
 阶段收据在`/workspace/backups/zil-batch336-20261104/<UTC批次>/receipt.json`。备份不改施工index或worktree，不运行reset/clean。当前合同/源码施工和最终接受分开；远端main只在独审及正式验证收口后更新。环境丢失时先从GitHub clone/fetch这些实际引用，读取源码与主树工单再执行检查。
+
+本批正式受测源码`874f071bb53e85727b5467a2769ada47b51edd98`及所有作者/独审源码已进入main历史，PR32合入后将再次核对main与最新进度枝。最终收据固定路径`/workspace/backups/zil-batch336-20261104/final/receipt.json`，包含实际GitHub恢复checkout、源码文件逐字节比较和live handoff结果。当前接受摘要指针更新到本批精确结果，历史inventory不改；备份成功不把未实现功能或历史材料追认为通过。
