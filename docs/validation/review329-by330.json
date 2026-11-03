@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/impl314",
+  "implementation_author": "/root/recovery_audit",
+  "implementation_commit": "803a126d94cb1a62835888676914d959e29c46b3",
+  "verdict": "Fail",
+  "scope": "329 named Copy enum constructors and explicit complete named match patterns, symbolic Copy premises, alias/module identity and CT/hygiene consumers; not a review of author-owned 330",
+  "blocking_findings": [
+    {
+      "id": "review329-quote-shorthand-capture",
+      "source": "enum E{V{x:i32}}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let e=E.V{x};match e{E.V{x:y}=>{return y}}}}fn result()->i32{let x=100;#emit generated()}",
+      "observed": "Real source compiles successfully, Verify1, Clang O0/no fallback; executable exits successfully and prints 100\\n instead of required 7\\n.",
+      "evidence": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ct_quote -- --nocapture; review checkout 6c6481d08 with compiler src byte-identical to implementation_commit; stdout bytes [49,48,48,10], expected [55,10]",
+      "cause": "ct_artifact/hygiene.rs visits only Some(field.value). A shorthand record field has no explicit value expression, so the generated local x is renamed while the implicit read remains caller x.",
+      "impact": "Incorrect lexical binding and program result; no memory unsafety demonstrated.",
+      "status": "Reported to implementation author and root; original corrected source and expected result retained."
+    }
+  ],
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ -- --nocapture",
+      "result": "3 passed, 1 failed, 30 filtered; failure at this run was invalid reviewer quote category, before hygiene. The other three independent groups passed with 24 native executions.",
+      "observed_controls": "Source evaluation order 2112; declaration-order payload and crossed/nested field labels; i64 context; ordinary shorthand and empty record/unit distinctions; complete field sets, tuple/record misuse, duplicate binders; unused phantom aliases before/after enum declaration and through another alias; T:Copy literal lacks numeric authority; same-spelled public enums remain nominally distinct and private enum access rejects."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates review329_ct_quote -- --nocapture",
+      "result": "After category and receiving-slot corrections: 0 passed, 1 failed, 33 filtered; actual machine result reproduces blocking finding. Remaining two quote controls have not executed because the first case fails."
+    }
+  ],
+  "review_fixture_history": [
+    {
+      "commit": "090b77c2a33b43e7d471c4fcde6be95b22bfcd75",
+      "observation": "Original reviewer used Syntax<Stmt>/quote<Stmt>; Parse/SafeReject/E-PARSE-QUOTE-CATEGORY. This invalid setup is not a 329 language failure."
+    },
+    {
+      "commit": "cd8ebc7b4",
+      "observation": "Changing only Stmt to existing StmtList reaches CT/SafeReject/E-CT-CATEGORY because #splice consumes expression/type Syntax. This second invalid setup is also not a language failure."
+    },
+    {
+      "commit": "6c6481d08",
+      "observation": "Changing only the receiving syntax to existing #emit preserves the generated body, field labels and expected 7, and reaches the actual erroneous native result."
+    }
+  ],
+  "source_review": [
+    "Named fields map against the actual declaration before positional Core lowering. Existing Sequence preserves source expression order before declaration-order Enum payload assembly.",
+    "Named labels and child binders are separate AST fields; inspected substitution, alias/module, CT selection, materialization and hygiene walkers retain labels and recurse through child patterns.",
+    "ct_artifact/compiler_cfg.rs does not interpret the new named pattern and has explicit error branches; this is not a successful consuming path and is not described as label erasure.",
+    "The existing Ascribed mechanism must carry actual field context without granting numeric authority to unknown T:Copy; the independent uncalled literal/forwarding controls passed.",
+    "No production file was edited by this reviewer. The test-file merge retained complete author and reviewer blocks; compiler src was checked byte-identical to 803a."
+  ],
+  "environment": {
+    "checkout": "/workspace/zil-review329",
+    "target_dir": "/workspace/.zil-env/target330",
+    "build_jobs": 1,
+    "features": "llvm-api explicitly enabled; native controls assert actual Clang/API backend, API builder input and no fallback"
+  },
+  "handoff_observation": {
+    "status": "CurrentFail at review startup",
+    "authority": "/workspace/zil",
+    "reason": "Historical task specification snapshots 313/314/315/316/317/320/321 stale; root acknowledged maintenance work. No main-tree task was edited by this reviewer."
+  },
+  "limitations": [
+    "Review remains failing until the original corrected quote-shorthand source is rerun on a fixed exact compiler candidate.",
+    "Full aggregate/CT regression targets, budget controls and Clippy have not yet been independently rerun on a final candidate.",
+    "No full workspace run, general enum/pattern/language completeness or Rust performance claim."
+  ]
+}
