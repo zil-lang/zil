@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/recovery_audit",
+  "review_kind": "independent limited source, raw/Wire and native review",
+  "overall_status": "Partial",
+  "review_tree": "/workspace/zil-review318",
+  "target_dir": "/workspace/.zil-env/target318",
+  "tested_composition": "4dc789ee10b9ece1f283f2cacbd27bbea7b655e8",
+  "specification": "b46c55edd9aff034d2754718f095591dd732756e",
+  "implementations": {
+    "313": {
+      "implementation_commit": "75d13f103c43382c540cb19959a80ba88427c2bf",
+      "delivery_commit": "2ef488be92647f4ec7c6f1a6195a6ba551f676b1",
+      "verdict": "PassLimited",
+      "scope": "Concrete finite Copy tuple ordinary bindings, exact nested arity, all-discard qualification, RHS before bindings, lexical scope, mutability, existing TypedIR/Wire and bounded traversal.",
+      "tests": "aggregates: 16 passed; independent RHS probe: native O0/O2 output 2125",
+      "budget": "Types analysis N=51, N-1=50 ResourceLimit, fresh N success",
+      "open_combination": "Ordinary generic Copy tuple binding remains Unsupported at the parametric AST definition checker; assigned to 321."
+    },
+    "315": {
+      "implementation_commit": "c88cbe1f7b640caef158b7994ce5630957158ccf",
+      "delivery_commit": "f3ddea475ffc4782592ca58558db28643bb06237",
+      "verdict": "PassLimited",
+      "scope": "Complete ordinary local Product exclusive synchronous helper windows; actual storage mutability, complete recursive children, provenance, independent Verify loan conflicts, and existing cleanup.",
+      "tests": {
+        "impl238_product_replacement": "15 passed: author 14 plus independent raw probe 1",
+        "impl224_shared_product": "13 passed",
+        "native": "Original pending source, reborrows, distinct roots, recursive Product top-level Copy access, normal/error cleanup; LLVM API O0/O2"
+      },
+      "budget": {
+        "Types": 364,
+        "Analyze": 5022,
+        "Verify": 10661,
+        "checks": "N success, N-1 ResourceLimit, fresh N success for each phase"
+      },
+      "independent_attacks": [
+        "Move recursive Root.child before BorrowLocalMut: Analyze E-ANALYZE-IR complete-child rejection; Verify raw and Wire E-VERIFY-RESOURCE.",
+        "Rewrite two distinct same-type local borrows to one actual root, update fingerprint and forge all Hold rows consistently: Analyze produces a candidate; Verify raw and Wire independently reject E-BORROW-CONFLICT. No fingerprint or budget rejection."
+      ],
+      "candidate_boundary": "Analyze candidates are unverified. General strong-loan authority is reconstructed and adjudicated by independent Verify; no copied loan kernel was added to Analyze.",
+      "legacy_oracle": "Original fn bad(p:&mut Root){}fn main(){} bytes retained and promoted to Success under 315; the other three retention/escape/owned-read rejections remain.",
+      "excluded": "Store/Closure/Sum/owned-array/borrowed-field shape extensions, mutable child deep projection, mutable capture, borrowed return, long-lived registration and async."
+    },
+    "314": {
+      "verdict": "NotReviewedHere",
+      "independent_review": "319"
+    },
+    "317": {
+      "checkpoint_reviewed": "ab2c4c4d7a0f66773353aac9f6baa0300231399e",
+      "verdict": "SourceReviewOnly",
+      "findings": "Original tuple sum was insensitive to field swaps; original CT case used only one instance; negative checks accepted any SafeReject. Author acknowledged and prepared fixes. Exact stdout, exit status, P/B/H drop counts and close ordering are substantive cleanup oracles.",
+      "runtime_status": "NotRun; dependencies and final consumer identity not yet frozen."
+    },
+    "320": {
+      "verdict": "Pending"
+    },
+    "321": {
+      "verdict": "Pending"
+    }
+  },
+  "independent_probes": {
+    "raw_probe_commit": "aead57f7d86fd9ce69381bfcf23c99f1ed188853",
+    "tuple_rhs": "fn step(c:&mut i32)->i32{*c+=1;return *c}fn result()->i32{var count=0;let(a,(b,z))=(step(&mut count),(step(&mut count),#(2+3)));return count*1000+a*100+b*10+z}",
+    "generic_gap_fixture": "tests/language-readiness/recovery/review318-generic-tuple-gap.zil",
+    "generic_gap_observed": {
+      "status": "Unsupported",
+      "phase": "Expand",
+      "code": "E-UNSUPPORTED",
+      "message": "this parametric statement requires additional symbolic checking",
+      "span": {
+        "start": 32,
+        "end": 52
+      },
+      "input_fingerprint": "1844c002cf30509edf62589fd9e9ff489d29d2583f951c6ef70bc082e2e2755a",
+      "tracking": "321; retained as an expected-success source gap, not a permanent negative test."
+    }
+  },
+  "commands": [
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test aggregates --test impl238_product_replacement --test impl224_shared_product -- --nocapture",
+    "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target318 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test aggregates review318_ -- --nocapture"
+  ],
+  "retained_failures": [
+    "315 initial c88cbe1f7: impl224 11/12; only the subsequently authorized mutable signature oracle failed.",
+    "Reviewer first expected Analyze to reject forged same-root loans; it produced an unverified candidate. Corrected review expectation after inspecting the established independent Verify loan architecture; Verify raw/Wire rejected the same attack.",
+    "Generic tuple expected-success native probe failed at Expand before code generation; original source and diagnostic retained for 321."
+  ],
+  "limits": "No full suite, final combined 313-321 acceptance, Windows, async or product/Rust comparison verdict. Limited passing results do not upgrade B0 or full language/ZUI."
+}
