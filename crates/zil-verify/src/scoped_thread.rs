@@ -134,11 +134,46 @@ pub(super) fn instruction(
             span,
         ));
     }
-    if caller.environment.is_some() || caller.callable_contract.is_some() {
+    if caller.callable_contract.is_some() {
         return Err(unsupported(
-            "thread_scope is implemented only in ordinary Direct functions; closure and callable helper entries are not implemented",
+            "thread_scope in callable parameter/helper entries is not implemented",
             span,
         ));
+    }
+    if let Some(id) = caller.environment {
+        budget.spend(2)?;
+        let definition = closures::definition(module, id, span)?;
+        budget.spend(definition.parameters.len().saturating_add(1))?;
+        resources::charge_payload(&definition.result, budget)?;
+        if definition.id != id
+            || definition.function != caller.id
+            || caller.foreign.is_some()
+            || caller.result_mode != PassingMode::Infer
+            || caller.parameters.len() != definition.parameters.len()
+            || caller.return_type != definition.result
+            || !matches!(
+                definition.kind,
+                CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+            )
+        {
+            return Err(invalid(
+                span,
+                "thread parent actual entry does not match its concrete closure definition",
+            ));
+        }
+        for (local, expected) in caller.parameters.iter().zip(&definition.parameters) {
+            resources::charge_payload(expected, budget)?;
+            let actual = caller
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| invalid(span, "thread parent parameter local is absent"))?;
+            if actual.id != *local || local_type(caller, *local, span)? != expected {
+                return Err(invalid(
+                    span,
+                    "thread parent actual parameter differs from its closure definition",
+                ));
+            }
+        }
     }
     if value_type(caller, argument, span)? != &Type::I32 {
         return Err(invalid(
