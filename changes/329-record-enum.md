@@ -1,6 +1,6 @@
-# 329：有限普通 Copy record 变体及具名模式（合同提案）
+# 329：有限普通 Copy record 变体及具名模式（已冻结有限合同及作者结果）
 
-基线 `40fbcca6ef506f3cb8e1d40a4f8995c788627da0`，依据主树工单329及 `_zil_design.md` §8.1.5、§16.6和既有语法附件。当前仅提案和基线探针；本文不表示已实现或通过。本片作者 `/root/recovery_audit` 不担任329独审。
+基线 `40fbcca6ef506f3cb8e1d40a4f8995c788627da0`，依据主树工单329及 `_zil_design.md` §8.1.5、§16.6和既有语法附件。规范按root提交 `e28e08d8825085e9a3c6bae57d2a85d3a2418481` §15.2冻结，constructor shorthand按root明确裁定沿既有record grammar。下面分别保留基线、实现范围、真实失败和作者限定结果；本片尚须非作者审核及共同集成。本片作者 `/root/recovery_audit` 不担任329独审。
 
 ## 实际基线
 
@@ -16,16 +16,16 @@
 
 另外，现有 `enum E<T:Copy>` 本身尚为 Unsupported（enum binder不接受bound）；不能将此失败误记为record变体失败。源码和报告临时路径 `/tmp/zil-329-probes`，准确输入已在上表保留。既有tuple模式不重做。
 
-## 请求冻结的有限合同
+## 冻结的有限合同
 
 1. 允许普通、有限、无by-value环的完整Copy enum含record变体。只要有record变体，本片要求整个enum的所有分支均符合既有普通Copy enum资格；不因此开放拥有record payload、Managed、Package、借入字段或拥有泛型enum。Unit/Tuple的旧独立profile保持。
-2. 声明 `enum E{V{left:i32,right:bool},U}`，构造 `E.V{right:true,left:7}`；字段名必须恰好覆盖该真实变体的全部声明字段，每名一次，允许书写顺序不同。首片使用完整显式字段表达式，不增加shorthand。不允许spread、默认值或省略字段。空record变体 `V{}`仍与Unit或Tuple构造语法区别检查。
-3. 字段标签属于真实enum声明及其变体，不能按同布局、同字段集合、别名末段或另一变体猜身份。字段的可见性跟随可访问的enum/variant载荷；提议首片不开放独立`pub`字段修饰，不忽略该标记。字段属性沿既有普通属性目标校验，不产生权限。
+2. 声明 `enum E{V{left:i32,right:bool},U}`，构造 `E.V{right:true,left:7}`；字段名必须恰好覆盖该真实变体的全部声明字段，每名一次，允许书写顺序不同。constructor沿既有record grammar允许`E.V{left,right}`，每个shorthand读取同名值；具名pattern仍必须显式`field:pattern`。不允许spread、默认值或省略字段。空record变体 `V{}`仍与Unit或Tuple构造语法区别检查。
+3. 字段标签属于真实enum声明及其变体，不能按同布局、同字段集合、别名末段或另一变体猜身份。字段的可见性跟随可访问的enum/variant载荷；首片不开放独立`pub`字段修饰，不忽略该标记。字段及变体未执行属性沿既有明确拒绝；未实例化的泛型变体也不能擦除其属性。
 4. 所有显式字段表达式严格按源码书写序各求值一次，之后按声明字段序装入既有Enum payload。不能把表达式直接排序到positional call。传播、trap和嵌套求值沿既有序列规则；本片没有新的拥有清理责任。
 5. 具名模式 `E.V{right:r,left:l}`，以及字段内现有Copy子模式和递归变体模式，仅在已有match上下文使用；字段必须显式写为`field:pattern`，不增加shorthand。标签完整覆盖，一名一次；绑定名按整个pattern仍不可重复。`_`作为字段子模式可丢弃Copy值。无rest、guard、引用payload、普通struct具名模式或新irrefutable variant binding规则。
 6. record变体只接受具名构造/模式；Tuple变体不接受record拼写。不能在丢掉字段名后令 `E.V(a,b)` 或 `E.V(a,b)` 模式误用record变体。穷尽性、scrutinee单次求值、binding作用域与类型资格继续由既有Types及独立Analyze/Verify处理。
 7. 复用既有有限Copy generic enum特化、上下文/显式实参、名义与phantom身份规则。未使用的enum声明、泛型函数和pattern都检查字段标签、类型及资格，不等特化或调用后补证。模板中直接类型变量不因此授予函数参数Copy能力；复制仍需已声明的Copy bound。
-8. 为表达嵌套普通Copy record的真实前提，建议同批允许enum类型参数的直接保留 `Copy` bound（`enum E<T:Copy>`），沿320逐参数核验：未用声明检查 `Box<T>` 的真实前提，实际及phantom实参也分别核Copy；其余trait/where/life/const enum binder仍Unsupported。这是需要root明确冻结的额外接受性增量，不先实现。无bound旧generic enumprofile保持其既有有限实例规则，不能借此给符号函数增加Copy权限。
+8. 为表达嵌套普通Copy record的真实前提，root同批冻结并已实现enum类型参数的直接保留 `Copy` bound（`enum E<T:Copy>`），沿320逐参数核验：未用声明检查 `Box<T>` 的真实前提，实际及phantom实参也分别核Copy；其余trait/where/life/const enum binder仍Unsupported。这是明确冻结的额外接受性增量。无bound旧generic enumprofile保持其既有有限实例规则，不能借此给符号函数增加Copy权限。
 9. `#for`声明生成record enum仍保持既有明确Unsupported；本片不自动扩充§16.6。普通已核Copy enum的CT使用复用已有Core/CTIR管线；新增AST模式的预扫描、绑定、卫生和物化必须完整遍历、计费，不能丢标签或漏子绑定。
 10. 全部新标签索引、比较、复制、排列、子模式访问、生成临时值及源映射在增长/访问前计费；当前请求names/alias/engine/module/lowering/publish使用实际剩余额度，不重置预算，默认额度不提高。无新record变体的既有路径不增加费用，除root另行具名冻结的必要实际工作外不迁移旧oracle。
 
@@ -50,3 +50,27 @@
 ## Rust四目标及本片限制
 
 本片拟补有限具名Sum表达和完整字段身份，不是完整模式或完整语言。安全只按独立核及真实近邻证据裁决；原生执行不证明Rust运行/RSS同级；字段可读性不等于框架维护成本优势；精确预算不等于编译提速。有限表达增量须实际贯通后记录，Rust四目标合取与产品级净突破仍未建立。
+
+
+## 实现及最后缺口修复
+
+生产检查点为`99f22e992`（初步名义字段/模式）、`803a126d9`（Ascribed、alias phantom、付费检测/累计额度）和`d308a74fefb4998ca9b7b9f4a4b3f75f93666871`（quoted pun和unused变体属性）。没有新Core/Typed/Wire形状、默认额度或Cargo目标。
+
+- 新形状检测挂在已经付费的Life/AST预检中记录声明Span索引，只有新形状增长再收费；没有为每次constructor或模块再免费扫描全树。新索引、标签比较、源码序临时值、类型上下文和源映射沿Products实际余额进入单源/项目lowering及publish。旧无record/enum-Copy-bound路径不借此重置额度。
+- 每个准备字段使用已有Ascribed保留声明的真实期望类型，防止Sequence临时值把合法`i64`裸整数字面量先默认成`i32`。未用`fn bad<T:Copy>()->E<T>{return E::<T>.R{r:7}}`仍真实Expand/Unsupported/E-UNSUPPORTED，传入`r:T`的最近正控成功；Ascribed没有把T升级为numeric。
+- 规范化alias目标在移除前检查完整实参，包括未出现在布局里的`ByteBuffer` phantom。alias本身仍是条件类型配方，局部条件假设不发布为函数Copy权限；无Copy的函数通过`type A<T>=E<T>`仍拒，补T:Copy才接受。
+- 新record字段可用已声明的具体record上下文，例如`E.Named{p:{n:7}}`；不按字段集合猜名义类型。附加探针`E.Old({n:9})`落在既有tuple constructor匿名record参数上下文缺口，仍Types/E-RECORD-TYPE，本片没有把该旧入口宣称完成；混合分支正控使用显式`E.Old(P{n:9})`，原失败输入在此保留。
+- reviewer原090b使用`Stmt`及`#splice`接收列表，分别在Parse/E-PARSE-QUOTE-CATEGORY和CT/E-CT-CATEGORY拒绝，未计为语言实现失败。改成既有合法`Syntax<StmtList>`/`quote<StmtList>`/`#emit`后，reviewer6c6481d08的源在803真实Success/Verify1却输出100而非7；ordinary struct同根源在review97502a600也真实输出100。d308同时修两者：保成员标签，独立物化value Name并按词法作用域alpha；同一Environment在名称复制之前预付token/origin/scope查找工作、一个生成AST节点及临时名称字节。
+- 原始quote缺口源（合法类别）：`enum E{V{x:i32}}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let e=E.V{x};match e{E.V{x:y}=>{return y}}}}fn result()->i32{let x=100;#emit generated()}`。shared ordinary record源：`struct P{x:i32}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let p=P{x};return p.x}}fn result()->i32{let x=100;#emit generated()}`。作者固定后各O0/O2实际输出7，原期待不改。
+- 静态属性疑点原`#[inline]`源实际在Parse/E-PARSE-ATTRIBUTE-TARGET先拒，不能作为越过新guard的证据。真正可达的`enum E<T>{#[cfg(false)] Row{value:T}}fn main(){}`在803实际Success/Verify1；d308补回旧generic enum等价的unexecuted variant.attributes守门，现Expand/Unsupported/E-UNSUPPORTED。
+
+## 作者限定验证（最终生产d308）
+
+最终命令均在`/workspace/zil-329`、`CARGO_TARGET_DIR=/workspace/target329`、jobs1运行；本片未跑正式全量、未push，未兼任独审。
+
+- `cargo test -p zil-driver --test aggregates --test impl105_ct_enum record_enum329 -- --nocapture`：最终结果见后续记录；其中新增近邻涵盖9个test（aggregates8、CT1），包含合法field label/body/opaque身份、全字段/source顺序、上下文、未用定义/Copy、两种quote pun、CT runtime-shadow拒绝和raw/Wire三个攻击各双入口。
+- 新增真实机器覆盖为11份程序、每份O0/O2共22次观察：单次求值/声明序、constructor pun和empty/Unit/Tuple共存、nested/ordinary record上下文、Copy/phantom generic、跨模块alias、CT值、生成函数及标签/值绑定分离，另enum/ordinary struct quote pun。重复回放不相加，不冒充LLVM API或Rust性能对照。
+- full-request阈值为work2397/nodes860/instances3，N成功、N−1 ResourceLimit、恢复N成功，冷/暖/fresh一致且active queries归零。别名/engine费用取真实相加；source specialization753/290、project normalization/specialization1013/295，两种精确耗尽额度只够前段，下游public Expand必须非空ResourceLimit。
+- 旧`impl240_generic_enum_budget`2/0，既有tuple_binding6/0，已有CT enum完整目标13/0（其中1为本片新增，重复不加覆盖）；定向Expand lib/tests及driver aggregates/impl105的Clippy -D warnings通过，改动Rust文件rustfmt和git diff --check通过。
+
+首轮新增source测试3/3失败真实暴露Sequence丢i64 hint与unused alias phantom误放，已修；随后CT测试中`#(n)`常量本身的旧不支持及numeric-T反例误写SafeReject期待先后修正为实际边界，均未晋升源码。重写后的pure `#(n())`标签/绑定最近控，runtime binder实际Ct/SafeReject/E-CT-RUNTIME，保留函数名只作为label则机器返回12。quoted pun和cfg缺口由独审实际发现，作者修复结果不代替其独立复验。

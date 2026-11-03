@@ -6,6 +6,9 @@ use super::*;
 pub trait Visitor {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()>;
     fn text(&mut self, value: &str, span: Span) -> CompileResult<()>;
+    fn type_binder(&mut self, _: &str, _: Span) -> CompileResult<()> {
+        Ok(())
+    }
     fn enum_bound(&mut self, _: Span, _: &s::TypeRef, _: usize) -> CompileResult<()> {
         Ok(())
     }
@@ -82,6 +85,7 @@ fn generics_for<V: Visitor + ?Sized>(
         v.text(&g.name, g.span)?;
         match &g.kind {
             s::GenericParamKind::Type(ts) => {
+                v.type_binder(&g.name, g.span)?;
                 for t in ts {
                     v.ty(t, depth + 1)?;
                     if let Some(owner) = owner {

@@ -264,10 +264,14 @@ impl Check<'_, '_, '_> {
                 Pat::Any
             }
             PatternKind::Wildcard => Pat::Any,
-            PatternKind::Literal(Literal::Bool(v)) if boolean(ty) => {
+            PatternKind::Literal(Literal::Bool(v))
+                if boolean(ty) && !dependent(ty, &self.variables) =>
+            {
                 Pat::Ctor(Ctor::Bool(*v), vec![])
             }
-            PatternKind::Literal(Literal::Integer(v)) if integer(ty) => {
+            PatternKind::Literal(Literal::Integer(v))
+                if integer(ty) && !dependent(ty, &self.variables) =>
+            {
                 Pat::Ctor(Ctor::Integer(integer_value(v, ty, p.span)?), vec![])
             }
             PatternKind::Tuple(ps) => {
