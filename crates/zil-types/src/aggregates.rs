@@ -1145,6 +1145,14 @@ impl Resolver<'_> {
         self.charge(depth, b.span)?;
         for s in &mut b.statements {
             match &mut s.kind {
+                CoreStatementKind::TupleBinding {
+                    ty, initializer, ..
+                } => {
+                    if let Some(t) = ty {
+                        *t = self.ty(t, depth + 1, s.span)?;
+                    }
+                    self.expr(initializer, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     ty, initializer, ..
                 } => {

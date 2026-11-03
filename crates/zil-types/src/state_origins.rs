@@ -858,6 +858,14 @@ impl MoveWalk<'_, '_> {
         for statement in &block.statements {
             self.node(depth + 1, statement.span)?;
             match &statement.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    initializer,
+                    ..
+                } => {
+                    self.expr(initializer, Access::Move, depth + 1)?;
+                    self.pattern(pattern, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     name,
                     initializer,
@@ -2265,6 +2273,19 @@ impl Walk<'_, '_> {
         }
         Ok(())
     }
+    fn tuple_pattern(&mut self, pattern: &CorePattern, depth: usize) -> R<()> {
+        self.node(depth, pattern.span)?;
+        match &pattern.kind {
+            CorePatternKind::Name(name) => self.bind(name, Shape::None, pattern.span)?,
+            CorePatternKind::Tuple(fields) => {
+                for field in fields {
+                    self.tuple_pattern(field, depth + 1)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
     fn pattern(&mut self, pattern: &CorePattern, shape: &Shape, depth: usize) -> R<()> {
         self.node(depth, pattern.span)?;
         if let CorePatternKind::Name(name) = &pattern.kind {
@@ -2285,6 +2306,24 @@ impl Walk<'_, '_> {
         for statement in &block.statements {
             self.node(depth + 1, statement.span)?;
             match &statement.kind {
+                CoreStatementKind::TupleBinding {
+                    pattern,
+                    ty,
+                    initializer,
+                    ..
+                } => {
+                    let inferred = self.expr(initializer, depth + 1)?;
+                    if let Some(ty) = ty {
+                        self.ty(ty, &[], true, depth + 1, statement.span)?;
+                    }
+                    if inferred.has_origin() {
+                        return Err(unsupported(
+                            statement.span,
+                            "tuple binding cannot carry a State declaration source",
+                        ));
+                    }
+                    self.tuple_pattern(pattern, depth + 1)?;
+                }
                 CoreStatementKind::Binding {
                     name,
                     ty,

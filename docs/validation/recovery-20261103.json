@@ -69,5 +69,27 @@
   ],
   "snapshot": "compile7 filesystem snapshot has no .git; last files October 31 and implementation tickets through224; not301–312",
   "language_completion_current_json": "not found",
-  "forbidden_operations_used": []
+  "forbidden_operations_used": [],
+  "fsck": {
+    "exit_code": 0,
+    "unreachable_objects": 8368,
+    "blobs": 4488,
+    "trees": 3096,
+    "commits": 784,
+    "newest_commit": "9aeffc113971002fe788dc679c157a332b7dfcef",
+    "newest_commit_time_utc": "2026-11-02T14:21:49Z",
+    "specified_old_objects_found": false
+  },
+  "initial_handoff": {
+    "status": "Fail",
+    "errors": 1966,
+    "scope": "historical integrity, not language correctness"
+  },
+  "stage0_backup": {
+    "remote_ref": "refs/heads/task/language-recovery-20261103",
+    "verified_sha": "f27a9330d8a639182f4ab0b91f860068bd0ae0b9",
+    "bundle": "/workspace/backups/zil-20261103/stage0.bundle",
+    "bundle_sha256": "deaf8a8f4e4a13c1935ca74256679f2adea795153e7a52d73ff507c8341c1e3d",
+    "bundle_verify": "Pass"
+  }
 }

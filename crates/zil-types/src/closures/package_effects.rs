@@ -679,6 +679,14 @@ impl Scan<'_> {
         self.visit(depth, statement.span)?;
         let span = statement.span;
         match &statement.kind {
+            CoreStatementKind::TupleBinding {
+                pattern,
+                initializer,
+                ..
+            } => {
+                self.expr(&mut state, initializer, depth + 1)?;
+                self.pattern(pattern, depth + 1)?;
+            }
             CoreStatementKind::Binding {
                 name, initializer, ..
             } => {

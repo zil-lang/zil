@@ -337,6 +337,14 @@ pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut T
     fn block(b: &mut CoreBlock, replace: &mut impl FnMut(&mut Type)) {
         for s in &mut b.statements {
             match &mut s.kind {
+                CoreStatementKind::TupleBinding {
+                    ty, initializer, ..
+                } => {
+                    if let Some(t) = ty {
+                        replace(t);
+                    }
+                    expr(initializer, replace);
+                }
                 CoreStatementKind::Binding {
                     ty: t, initializer, ..
                 } => {
