@@ -1,3 +1,11 @@
+# 2026-11-03 恢复后新施工313–317
+
+本轮入口为 `/workspace/zil`，现有基线 `7f039d16`。用户指定的301–312及集成9c3deb92对象/未提交修改均未恢复，详见[恢复边界](RECOVERY-20261103.md)。旧提交号不得算源码；现存299成果不重做。313–317是基于实际源码缺口的新施工，主树工单与下方历史已验收记录分别保留。
+
+313接有限Copy tuple普通绑定；314接Type/Syntax与普通Copy泛型；315接普通完整Product局部同步可变借入；316核实life/trait及异步并发缺失合同与原源；317进行四模块真实组件消费者。使用sol high/xhigh、独立树和target、已有测试目标；非作者318审查，root集中集成和全量。阶段源码备份到远端 `task/language-recovery-20261103` 与 `task/313`–`task/317`，完整bundle在 `/workspace/backups/zil-20261103/`；任务分支的检查点不表示验收通过。
+
+## 恢复时的已验收主线记录
+
 # 当前接续：普通可变借入与Type/Syntax泛型组合
 
 最新语言集成main `8bbb38f2d9e0c34a8bc28a44d12b309d6ff48392`，PR27受测候选`33542bff29621d271c3d82208ebb4770aeacf20e`：[错误联合上下文](LANGUAGE-GENERIC-INJECTION.md)已验收，前序拥有Event→dispatch→Reply、F转交、Type/Syntax、结构化外部回调和普通闭包/资源组合保持。schema/Wire32，Rust1.99.1、LLVM/Clang/LLD23.1.4。本地完整4005/0；两套最终CI均默认4005/参考3897/文本64、零失败/忽略/过滤。精确源、各次结果和原失败见[精简验收](validation/generic-injection.json)，不把重放相加。
