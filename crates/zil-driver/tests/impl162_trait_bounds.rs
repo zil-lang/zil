@@ -16,7 +16,9 @@ static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
 fn concrete_generic_trait_arguments_and_bounds_call_real_instances() {
-    native(&[("main",r#"
+    native(&[(
+        "main",
+        r#"
 trait Read<R>{fn read(self:&Self)->R;}
 struct Point{n:i32}
 impl Read<i32> for Point{fn read()->i32{return .n}}
@@ -24,26 +26,41 @@ impl Read<i64> for Point{fn read()->i64{return i64(.n)+1}}
 fn read32<T:Read<i32>>(x:&T)->i32{return x.read()}
 fn read64<T>(x:&T)->i64 where T:Read<i64>{return x.read()}
 fn main()->i32{let p=Point{n:7};if read32(&p)!=7{return 1}if read64(&p)!=8{return 2}return 0}
-"#)]);
+"#,
+    )]);
 }
 
 #[test]
 fn original_concrete_generic_trait_probe_calls_directly() {
-    native(&[("main",include_str!("../../../tests/language-readiness/recovery/pending/trait-type-argument.zil"))]);
+    native(&[(
+        "main",
+        include_str!("../../../tests/language-readiness/recovery/pending/trait-type-argument.zil"),
+    )]);
 }
 
 #[test]
 fn generic_trait_cross_module_bound_calls_keep_identity_and_exports() {
     native(&[
-        ("main","import api;import data;fn main()->i32{let p=data.Point{n:7};return api.get(&p)-7}"),
-        ("api","pub trait Read<R>{fn read(self:&Self)->R;}pub fn get<T:Read<i32>>(x:&T)->i32{return x.read()}"),
-        ("data","import api;pub struct Point{pub n:i32}impl api.Read<i32> for Point{fn read()->i32{return .n}}"),
+        (
+            "main",
+            "import api;import data;fn main()->i32{let p=data.Point{n:7};return api.get(&p)-7}",
+        ),
+        (
+            "api",
+            "pub trait Read<R>{fn read(self:&Self)->R;}pub fn get<T:Read<i32>>(x:&T)->i32{return x.read()}",
+        ),
+        (
+            "data",
+            "import api;pub struct Point{pub n:i32}impl api.Read<i32> for Point{fn read()->i32{return .n}}",
+        ),
     ]);
 }
 
 #[test]
 fn generic_trait_same_layout_nominals_and_phantom_arguments_stay_distinct() {
-    native(&[("main",r#"
+    native(&[(
+        "main",
+        r#"
 struct A{n:i32}struct B{n:i32}
 trait Build<R,P>{fn build(self:&Self)->R;}
 struct Point{n:i32}
@@ -54,12 +71,15 @@ fn a<T:Build<A,bool>>(x:&T)->A{return x.build()}
 fn b<T:Build<B,bool>>(x:&T)->B{return x.build()}
 fn c<T:Build<A,i32>>(x:&T)->A{return x.build()}
 fn main()->i32{let p=Point{n:7};if a(&p).n!=7{return 1}if b(&p).n!=8{return 2}return c(&p).n-9}
-"#)]);
+"#,
+    )]);
 }
 
 #[test]
 fn generic_trait_record_arguments_normalize_required_signatures_from_declaration() {
-    native(&[("main",r#"
+    native(&[(
+        "main",
+        r#"
 struct Box<T:Copy>{value:T}
 trait Read<R:Copy>{fn read(self:&Self)->R;}
 struct Point{n:i32}
@@ -67,59 +87,116 @@ impl Read<Box<i32>> for Point{fn read()->Box<i32>{return Box::<i32>{value:.n}}}
 fn get<T:Read<Box<i32>>>(x:&T)->Box<i32>{return x.read()}
 fn id<T:Copy>(value:T)->T{return value}
 fn main()->i32{let p=Point{n:7};let a=get(&p);let b=id(p.read());return a.value+b.value-14}
-"#)]);
-    for (actual,value) in [("B","B{n:1}"),("i64","1")] {
-        let text=format!("struct A{{n:i32}}struct B{{n:i32}}struct Box<T:Copy>{{value:T}}trait Read<R>{{fn read(self:&Self)->R;}}struct P{{}}impl Read<Box<A>> for P{{fn read()->Box<{actual}>{{return Box::<{actual}>{{value:{value}}}}}}}fn main(){{}}");
-        let report=check(&text);
-        assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
-        assert!(report.diagnostics.iter().any(|d|d.code=="E-TRAIT-SIGNATURE"),"{}",report.to_json());
+"#,
+    )]);
+    for (actual, value) in [("B", "B{n:1}"), ("i64", "1")] {
+        let text = format!(
+            "struct A{{n:i32}}struct B{{n:i32}}struct Box<T:Copy>{{value:T}}trait Read<R>{{fn read(self:&Self)->R;}}struct P{{}}impl Read<Box<A>> for P{{fn read()->Box<{actual}>{{return Box::<{actual}>{{value:{value}}}}}}}fn main(){{}}"
+        );
+        let report = check(&text);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-TRAIT-SIGNATURE"),
+            "{}",
+            report.to_json()
+        );
     }
 }
 
 #[test]
 fn generic_trait_direct_static_and_value_call_arguments_keep_context() {
-    native(&[("main",r#"
+    native(&[(
+        "main",
+        r#"
 trait Add<R>{fn add(self:&Self,value:R)->R;}
 struct Point{n:i64}
 impl Add<i64> for Point{fn add(value:i64)->i64{return .n+value}}
 fn id<T:Copy>(value:T)->T{return value}
 fn main()->i32{let p=Point{n:1};let a=p.add(id(6));let b=Point.add(&p,id(6));if a!=7{return 1}if b!=7{return 2}return 0}
-"#)]);
+"#,
+    )]);
 }
 
 #[test]
 fn generic_trait_direct_ambiguity_does_not_reject_distinct_impl_headers() {
-    let declarations="trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i64> for P{fn read()->i64{return i64(.n)}}";
-    let good=check(&format!("{declarations}fn main()->i32{{return 0}}"));
-    assert_eq!(good.status,ResultCategory::Success,"{}",good.to_json());
-    let bad=check(&format!("{declarations}fn main()->i32{{let p=P{{n:7}};return p.read()}}"));
-    assert_eq!(bad.status,ResultCategory::SafeReject,"{}",bad.to_json());
-    assert!(bad.diagnostics.iter().any(|d|d.message.contains("ambiguous")),"{}",bad.to_json());
-    let text="trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl P{fn read(self:&Self)->i32{return .n}}fn get<T:Read<i32>>(x:&T)->i32{return x.read()}fn main()->i32{let p=P{n:7};return get(&p)-7}";
-    assert_eq!(check(text).status,ResultCategory::Success);
-    let bad=check(&text.replace("get(&p)-7","p.read()-7"));
-    assert_eq!(bad.status,ResultCategory::SafeReject,"{}",bad.to_json());
-    assert!(bad.diagnostics.iter().any(|d|d.message.contains("ambiguous")));
+    let declarations = "trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i64> for P{fn read()->i64{return i64(.n)}}";
+    let good = check(&format!("{declarations}fn main()->i32{{return 0}}"));
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+    let bad = check(&format!(
+        "{declarations}fn main()->i32{{let p=P{{n:7}};return p.read()}}"
+    ));
+    assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());
+    assert!(
+        bad.diagnostics
+            .iter()
+            .any(|d| d.message.contains("ambiguous")),
+        "{}",
+        bad.to_json()
+    );
+    let text = "trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl P{fn read(self:&Self)->i32{return .n}}fn get<T:Read<i32>>(x:&T)->i32{return x.read()}fn main()->i32{let p=P{n:7};return get(&p)-7}";
+    assert_eq!(check(text).status, ResultCategory::Success);
+    let bad = check(&text.replace("get(&p)-7", "p.read()-7"));
+    assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());
+    assert!(
+        bad.diagnostics
+            .iter()
+            .any(|d| d.message.contains("ambiguous"))
+    );
 }
 
 #[test]
 fn generic_trait_request_budgets_are_exact_across_cache_replay() {
     use zil_driver::CompilationSession;
-    let unit=source("trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i64> for P{fn read()->i64{return i64(.n)}}fn a<T:Read<i32>>(x:&T)->i32{return x.read()}fn b<T:Read<i64>>(x:&T)->i64{return x.read()}fn main()->i32{let p=P{n:7};let x=a(&p);let y=b(&p);return x-7}");
-    for ledger in ["work","nodes","instances"] {
-        let mut low=1;
-        let mut high=match ledger {"work"=>Limits::default().max_analysis_steps,"nodes"=>Limits::default().max_nodes,_=>Limits::default().max_functions};
-        let options=|n|{let mut options=CompileOptions::default();match ledger {"work"=>options.limits.max_analysis_steps=n,"nodes"=>options.limits.max_nodes=n,_=>options.limits.max_functions=n};options};
-        while low<high {
-            let n=low+(high-low)/2;
-            let report=compile_source(&unit,&options(n));
-            match report.status {ResultCategory::Success=>high=n,ResultCategory::ResourceLimit=>low=n+1,_=>panic!("{}",report.to_json())}
+    let unit = source(
+        "trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i64> for P{fn read()->i64{return i64(.n)}}fn a<T:Read<i32>>(x:&T)->i32{return x.read()}fn b<T:Read<i64>>(x:&T)->i64{return x.read()}fn main()->i32{let p=P{n:7};let x=a(&p);let y=b(&p);return x-7}",
+    );
+    for ledger in ["work", "nodes", "instances"] {
+        let mut low = 1;
+        let mut high = match ledger {
+            "work" => Limits::default().max_analysis_steps,
+            "nodes" => Limits::default().max_nodes,
+            _ => Limits::default().max_functions,
+        };
+        let options = |n| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                _ => options.limits.max_functions = n,
+            };
+            options
+        };
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&unit, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{}", report.to_json()),
+            }
         }
-        let mut session=CompilationSession::default();
-        for (n,expected) in [(low,ResultCategory::Success),(low-1,ResultCategory::ResourceLimit),(low,ResultCategory::Success)] {
-            assert_eq!(session.compile_source(&unit,&options(n)).status,expected);
-            assert_eq!(CompilationSession::default().compile_source(&unit,&options(n)).status,expected);
-            assert_eq!(session.active_query_count(),0);
+        let mut session = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            assert_eq!(session.compile_source(&unit, &options(n)).status, expected);
+            assert_eq!(
+                CompilationSession::default()
+                    .compile_source(&unit, &options(n))
+                    .status,
+                expected
+            );
+            assert_eq!(session.active_query_count(), 0);
         }
         println!("323 trait request {ledger} N={low}; N-1 ResourceLimit, cold/warm/fresh agree");
     }
@@ -137,11 +214,18 @@ fn generic_trait_unused_signatures_and_instantiated_conformance_reject() {
         "trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}impl Read<i32> for P{fn read()->i32{return .n}}fn main(){}",
         "type Int=i32;trait Flag<R>{}struct P{}impl Flag<Int> for P{}impl Flag<i32> for P{}fn main(){}",
     ] {
-        let report=check(source);
-        assert_eq!(report.status,ResultCategory::SafeReject,"{source}: {}",report.to_json());
+        let report = check(source);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{source}: {}",
+            report.to_json()
+        );
     }
-    let good=check("struct Box<T:Copy>{value:T}trait Read<R:Copy>{fn read(self:&Self)->Box<R>;}fn main(){}");
-    assert_eq!(good.status,ResultCategory::Success,"{}",good.to_json());
+    let good = check(
+        "struct Box<T:Copy>{value:T}trait Read<R:Copy>{fn read(self:&Self)->Box<R>;}fn main(){}",
+    );
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
 }
 
 #[test]
@@ -154,10 +238,18 @@ fn trait_argument_lexical_binders_and_structural_capabilities_are_separate() {
         "trait Copy<R>{}struct P{}impl Copy<i32> for P{}fn main(){}",
         "trait Share<R>{}struct P{}impl Share<i32> for P{}fn main(){}",
     ] {
-        let report=check(source);
-        assert_ne!(report.status,ResultCategory::Success,"{source}: {}",report.to_json());
+        let report = check(source);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{source}: {}",
+            report.to_json()
+        );
     }
-    native(&[("main","type R=i64;trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}fn get<T:Read<i32>>(x:&T)->i32{return x.read()}fn main()->i32{let p=P{n:7};return get(&p)-7}")]);
+    native(&[(
+        "main",
+        "type R=i64;trait Read<R>{fn read(self:&Self)->R;}struct P{n:i32}impl Read<i32> for P{fn read()->i32{return .n}}fn get<T:Read<i32>>(x:&T)->i32{return x.read()}fn main()->i32{let p=P{n:7};return get(&p)-7}",
+    )]);
 }
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text)

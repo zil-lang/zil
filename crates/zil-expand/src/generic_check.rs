@@ -1785,11 +1785,14 @@ impl Check<'_, '_, '_> {
         let method = self
             .traits
             .method(&self.bounds, variable, name, self.budget, object.span)?;
-        if method.name!=name {
-            self.budget.text(self.definition,object.span)?;
-            self.budget.text(&method.name,object.span)?;
-            self.budget.node(object.span,0)?;
-            self.trait_calls.entry(self.definition.to_owned()).or_default().insert(object.span,method.name.clone());
+        if method.name != name {
+            self.budget.text(self.definition, object.span)?;
+            self.budget.text(&method.name, object.span)?;
+            self.budget.node(object.span, 0)?;
+            self.trait_calls
+                .entry(self.definition.to_owned())
+                .or_default()
+                .insert(object.span, method.name.clone());
         }
         let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
             return Err(error(

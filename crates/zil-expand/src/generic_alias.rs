@@ -537,7 +537,9 @@ impl Visitor<'_, '_, '_> {
             }
             ItemKind::Trait(t) => {
                 types.insert("Self".into());
-                for m in &mut t.members {self.item(m,&types,depth+1)?;}
+                for m in &mut t.members {
+                    self.item(m, &types, depth + 1)?;
+                }
             }
             ItemKind::Impl(i) => {
                 self.ty(&mut i.target, &types, depth + 1)?;
