@@ -166,6 +166,16 @@ impl<'a> Renamer<'a> {
                     self.pattern(pattern, rename, depth + 1)?;
                 }
             }
+            s::PatternKind::RecordConstructor { path, fields } => {
+                if path.len() == 2 {
+                    self.type_reference(&mut path[0], pattern.span)?;
+                }
+                for field in fields {
+                    self.budget.node(field.span, depth + 1)?;
+                    self.budget.text(&field.name, field.span)?;
+                    self.pattern(&mut field.pattern, rename, depth + 1)?;
+                }
+            }
             s::PatternKind::Wildcard | s::PatternKind::Literal(_) => {}
         }
         Ok(())

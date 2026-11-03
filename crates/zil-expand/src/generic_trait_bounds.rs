@@ -660,6 +660,56 @@ impl<'a> Index<'a> {
                             }
                         }
                     }
+                    if budget.has_enum_profiles() {
+                        for part in path {
+                            budget.text(part, ty.span)?;
+                        }
+                        if let Some(Item {
+                            kind: ItemKind::Enum(declaration),
+                            span: declaration_span,
+                            ..
+                        }) = self.nominals.get(&path.join("."))
+                            && budget.enum_profile(*declaration_span)
+                        {
+                            let mut constrained = Vec::new();
+                            for parameter in &declaration.generics {
+                                budget.node(parameter.span, 0)?;
+                                let mut has_copy = false;
+                                if let GenericParamKind::Type(bounds) = &parameter.kind {
+                                    for bound in bounds {
+                                        budget.ty(bound)?;
+                                        has_copy |= copy::is_bound(bound);
+                                    }
+                                }
+                                constrained.push(has_copy);
+                            }
+                            if constrained.iter().any(|bound| *bound)
+                                && declaration.generics.len() != args.len()
+                            {
+                                return Err(error(
+                                    ty.span,
+                                    "Copy enum type argument arity mismatch",
+                                ));
+                            }
+                            for (is_copy, argument) in constrained.into_iter().zip(args) {
+                                if is_copy {
+                                    let GenericArg::Type(actual) = argument else {
+                                        return Err(unsupported(
+                                            ty.span,
+                                            "Copy enum requires type arguments",
+                                        ));
+                                    };
+                                    copy::require(
+                                        actual,
+                                        &self.nominals,
+                                        available,
+                                        variables,
+                                        budget,
+                                    )?;
+                                }
+                            }
+                        }
+                    }
                     for argument in args {
                         if let GenericArg::Type(ty) = argument {
                             pending.push(ty);

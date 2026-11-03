@@ -18,6 +18,15 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         }
     }
     impl ct_selection::Visitor for Walk<'_, '_> {
+        fn enum_bound(&mut self, owner: Span, bound: &s::TypeRef, _: usize) -> CompileResult<()> {
+            if generics::record_enums::is_copy_bound(bound) {
+                self.budget.note_enum_profile(owner).map_err(|e| vec![e])?;
+            }
+            Ok(())
+        }
+        fn record_variant(&mut self, owner: Span, _: usize) -> CompileResult<()> {
+            self.budget.note_enum_profile(owner).map_err(|e| vec![e])
+        }
         fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
             self.budget.node(span, depth).map_err(|e| vec![e])
         }
