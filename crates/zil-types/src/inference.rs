@@ -3242,12 +3242,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         return Err(error(
                             "E-THREAD-WORKER",
                             worker.span,
-                            "thread worker must be a concrete ordinary fn(i32)->i32",
+                            "thread worker must be a concrete ordinary fn(i32)->i32 or fn(&i32)->i32",
                         ));
                     }
+                    let payload_type = &signature.parameters[0];
                     let argument_term =
-                        self.expr_expected(argument, Some(&Type::I32), depth + 1, false)?;
-                    self.bind_term(&argument_term, &Type::I32, argument.span)?;
+                        self.expr_expected(argument, Some(payload_type), depth + 1, false)?;
+                    self.bind_term(&argument_term, payload_type, argument.span)?;
                     let Term::Closure(id) = self.expr(body, depth + 1, false)? else {
                         return Err(error(
                             "E-THREAD-BODY",
