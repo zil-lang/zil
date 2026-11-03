@@ -7,8 +7,8 @@
   "scope": "336 frozen default-body ordinary static function values only; no whole-language, B0, ZUI, or product-gate acceptance.",
   "baseline": "e5a4d51d844e29c4f4f5184eaff5704b1b27dd24",
   "review_base": "dde8be30124f9fafa0d5cb7ed7c281c9fcecf798",
-  "spec_hash": "5be7670c1f8631ac37aac589cadf6060d0d9ddf65061c5f34359ffdfe17d9bd4",
-  "normative_hash": "6c6f05b298d6ec279b48be2bb4a2ac68ed1ca452688df79f6bd1ff822d6a3fb4",
+  "spec_hash": "4b7ffa384fbd14533b20574cc5d1cfaaaaca49963fe4198fb1341226c52eed5c",
+  "normative_hash": "4906f617ee223d458246d13a8223b044f62aaee5b87127762c6a44e1f7d203d3",
   "binding": {
     "compiled_production_and_tests": "6a0b10cfec5f88d4b4bfdefe42d8d24ce689760a",
     "final_difference": "changes/336-default-global-fnptr.md only; git diff --quiet for crates/tests/Cargo.toml/Cargo.lock exit0",
@@ -199,5 +199,11 @@
     "Qualified module function value Member forms retain the existing closed path; this slice admits normalized Name expressions.",
     "No general generic/borrowed/owning/foreign function value implementation or full safety proof claimed.",
     "Native behavior and budget controls provide no Rust runtime/RSS/compile-cost or product-breakthrough comparison."
-  ]
+  ],
+  "metadata_correction": {
+    "original_receipt_commit": "d703f97e3ef0633e66124a1051489f159421d934",
+    "original_spec_hash": "5be7670c1f8631ac37aac589cadf6060d0d9ddf65061c5f34359ffdfe17d9bd4",
+    "original_normative_hash": "6c6f05b298d6ec279b48be2bb4a2ac68ed1ca452688df79f6bd1ff822d6a3fb4",
+    "reason": "Initial receipt incorrectly used c4 dispatch contract hashes. Final 06ab inherits the dde8/D registry; 336 contract unchanged. Corrected against exact git-show final registry and actual design bytes; no code/test change or rerun claimed."
+  }
 }
