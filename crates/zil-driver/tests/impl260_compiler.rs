@@ -636,3 +636,115 @@ fn typed_range_and_reverse_literal_operands_keep_i64_context() {
     );
     assert_eq!(value, CtValue::Scalar(zil_ir::Constant::I64(46)));
 }
+
+#[test]
+fn copy_generic_type_function_infers_and_keeps_all_instances() {
+    let source = "fn select<T:Copy>(x:T)->Type{return T} fn entry()->Type{let a=select(7);let b=select::<i64>(7);let c=select(8);return b}";
+    assert_eq!(run(source,"entry",&[]), CtValue::Type(CtTypeRef {
+        nodes:vec![CtTypeNode::Primitive(CtScalarTy::I64)], root:CtTypeNodeId(0),
+    }));
+    let raw = build(source,"entry");
+    assert_eq!(raw.functions.len(),3,"one wrapper and two actual select instances");
+    assert_eq!(raw.functions.iter().filter(|f| f.parameter_types==vec![CtTy::Scalar(CtScalarTy::I32)]).count(),1);
+    assert_eq!(raw.functions.iter().filter(|f| f.parameter_types==vec![CtTy::Scalar(CtScalarTy::I64)]).count(),1);
+}
+
+#[test]
+fn copy_generic_record_and_nested_calls_execute_in_verified_vm() {
+    let source = "struct Box<T:Copy>{value:T} fn id<T>(x:T)->T where T:Copy,T:Copy{return x} fn select(x:Box<i32>)->Type{if id(x.value)==7{return i32}return i64} fn entry()->Type{return select(Box::<i32>{value:7})}";
+    assert_eq!(run(source,"entry",&[]),CtValue::Type(CtTypeRef {
+        nodes:vec![CtTypeNode::Primitive(CtScalarTy::I32)], root:CtTypeNodeId(0),
+    }));
+}
+
+#[test]
+fn ct_generic_nominal_and_phantom_arguments_do_not_merge() {
+    let raw = build("struct A{x:i32}struct B{x:i32}type Alias=A;struct Config<T:Copy,P:Copy>{value:T} fn take<T:Copy,P:Copy>(x:Config<T,P>)->Type{return T} fn entry()->Type{let a=take(Config::<A,bool>{value:A{x:1}});let b=take(Config::<B,bool>{value:B{x:1}});let c=take(Config::<Alias,bool>{value:A{x:1}});let d=take(Config::<A,i32>{value:A{x:1}});return d}","entry");
+    assert_eq!(raw.functions.len(),4,"A,bool and Alias,bool normalize; B,bool and A,i32 remain separate");
+    assert_eq!(raw.record_schemas.len(),5,"A/B plus three complete Config identities");
+    let authority = Authority {raw:&raw};
+    zil_verify::verify_ct_artifact(raw.clone(),&Limits::default(),&authority).unwrap();
+    let mut tampered=raw.clone();
+    let last=tampered.functions.len()-1;
+    tampered.functions[last].parameter_types=tampered.functions[1].parameter_types.clone();
+    assert!(zil_verify::verify_ct_artifact(tampered,&Limits::default(),&authority).is_err());
+}
+
+#[test]
+fn unused_ct_generic_definitions_check_only_declared_copy_capabilities() {
+    for bad in [
+        "fn bad<T:Copy>(x:T)->Type{let y=x+1;return T}",
+        "fn bad<T:Copy>(x:T)->Type{let y=x==x;return T}",
+        "fn bad<T:Copy>(x:T)->Type{let y=-x;return T}",
+        "fn bad<T:Copy>(x:T)->Type{let y=i32(x);return T}",
+        "struct T{field:i32}fn bad<T:Copy>(x:T)->Type{let y=x.field;return T}",
+        "struct T{}fn bad<T:Copy>(x:T)->Type{let y=T{};return T}",
+        "fn bad<T:Copy,U:Copy>(x:T)->Type{let y:U=x;return T}",
+        "fn bad<T>(x:T)->Type{return T}",
+        "trait Copy{}fn bad<T:Copy>(x:T)->Type{let y=x+1;return T}",
+        "fn bad<T:Copy>(x:T)->Type where Missing:Copy{return T}",
+        "fn bad<T:Copy>(x:T)->Type where T:Unknown{return T}",
+        "fn bad<T:Copy>(x:T)->Type where T:i32{return T}",
+        "fn bad<T:Copy>(x:T)->Type{if false{let y=x.field}return T}",
+    ] {
+        let source=format!("{bad} fn entry()->Type{{return i32}}");
+        assert!(try_build(&source,"entry").is_err(),"{source}");
+    }
+    build("fn okay<T:Copy,U:Copy>(x:T,y:U)->Type{let z=x;var a=x;a=z;return T}fn entry()->Type{return i32}","entry");
+}
+
+#[test]
+fn ordinary_copy_ct_actuals_reject_resource_address_and_ct_data() {
+    for bad in [
+        "select::<Type>(i32)",
+        "select::<&i32>(7)",
+        "select::<ByteBuffer>(7)",
+        "select::<Syntax<Expr>>(quote<Expr>{1})",
+        "select(Holder{value:i32})",
+        "select::<i32,bool>(7)",
+    ] {
+        let source=format!("struct Holder{{value:Type}}fn select<T:Copy>(x:T)->Type{{return T}}fn entry()->Type{{return {bad}}}");
+        assert!(try_build(&source,"entry").is_err(),"{source}");
+    }
+}
+
+#[test]
+fn original_pending_ct_generics_reach_runtime_verify() {
+    use zil_driver::{CompileOptions,Stage,compile_source};
+    for (name,text) in [
+        ("function",include_str!("../../../tests/language-readiness/pending/ct-type-generic-function.zil")),
+        ("record",include_str!("../../../tests/language-readiness/pending/ct-type-generic-record.zil")),
+        ("syntax","import std.syntax as syntax;struct Config<T:Copy,P:Copy>{value:T}fn value_type<T:Copy>(x:T)->Type{return T}fn expression(x:Config<i32,bool>)->Syntax<Expr>{return quote<Expr>{$(syntax.literal(x.value))}}fn main()->i32{let n:#(value_type(7))=#splice(expression(Config::<i32,bool>{value:7}));return n-7}"),
+    ] {
+        let source=SourceUnit::new(FileId(0),ModuleId(0),format!("314-{name}.zil"),text);
+        let report=compile_source(&source,&CompileOptions {stop_after:Stage::Verify,..CompileOptions::default()});
+        assert!(report.diagnostics.is_empty(),"{name}: {:?}",report.diagnostics);
+        assert_eq!(report.status,zil_base::ResultCategory::Success);
+        assert_eq!(report.verification_runs,1);
+    }
+}
+
+#[test]
+fn ct_generic_analysis_budget_has_exact_fresh_boundary() {
+    let source="struct Box<T:Copy,P:Copy>{value:T}fn select<T:Copy,P:Copy>(x:Box<T,P>)->Type{return T}fn entry()->Type{let a=select(Box::<i32,bool>{value:7});let b=select(Box::<i64,bool>{value:7});return a}";
+    let mut low=0;
+    let mut high=Limits::default().max_analysis_steps;
+    while low<high {
+        let mid=low+(high-low)/2;
+        let limits=Limits {max_analysis_steps:mid,..Limits::default()};
+        match try_build_with_limits(source,"entry",&limits) {
+            Ok(_)=>high=mid,
+            Err(errors)=>{
+                assert!(errors.iter().all(|d|d.category==zil_base::ResultCategory::ResourceLimit),"{errors:?}");
+                low=mid+1;
+            }
+        }
+    }
+    let limits=Limits {max_analysis_steps:low,..Limits::default()};
+    let a=try_build_with_limits(source,"entry",&limits).unwrap();
+    let b=try_build_with_limits(source,"entry",&limits).unwrap();
+    assert_eq!(a,b);
+    let errors=try_build_with_limits(source,"entry",&Limits{max_analysis_steps:low-1,..Limits::default()}).unwrap_err();
+    assert!(errors.iter().all(|d|d.category==zil_base::ResultCategory::ResourceLimit));
+    println!("314 generic source attribution N={low}, N-1 ResourceLimit, fresh exact identity");
+}

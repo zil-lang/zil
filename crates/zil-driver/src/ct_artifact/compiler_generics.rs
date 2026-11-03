@@ -138,10 +138,6 @@ impl<'a> Compiler<'a> {
         }
         Ok(bindings)
     }
-    pub(super) fn same_arguments(&mut self, left: &[CtTy], right: &[CtTy], span: Span) -> R<bool> {
-        for ty in left.iter().chain(right) { self.budget.ty(ty, 0, span)?; }
-        Ok(left == right)
-    }
     pub(super) fn enqueue_instance(&mut self, declaration: usize, arguments: &[CtTy]) -> R<CtFunctionId> {
         if self.declarations[declaration].function.generics.is_empty() {
             if !arguments.is_empty() { return Err(error(self.declarations[declaration].item.span, "nongeneric CT function takes no type arguments")); }
