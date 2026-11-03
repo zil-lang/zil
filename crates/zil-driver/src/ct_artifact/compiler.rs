@@ -173,6 +173,17 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    fn copy_ty(&mut self, ty: &CtTy, depth: usize, span: Span) -> R<()> {
+        self.depth(depth, span)?;
+        self.node(span)?;
+        Self::take(&mut self.bytes, std::mem::size_of::<CtTy>(), span, "CT source temporary type bytes exhausted")?;
+        match ty {
+            CtTy::Tuple(fields) => for field in fields { self.copy_ty(field,depth+1,span)?; },
+            CtTy::Array {element,..} | CtTy::List(element) => self.copy_ty(element,depth+1,span)?,
+            _ => {}
+        }
+        Ok(())
+    }
     fn declared(&self) -> CtDeclaredBudget {
         CtDeclaredBudget {
             max_steps: self.limits.max_ct_steps,
@@ -595,15 +606,19 @@ pub(crate) fn definitions_entry(
     modules: &[SourceModule<'_>],
     limits: &mut Limits,
 ) -> R<(Option<CtSymbolId>, Vec<CtSymbolId>)> {
+    let initial_nodes = limits.max_nodes;
+    let initial_bytes = limits.max_source_bytes;
     let mut compiler = Compiler::indexed(modules, limits)?;
+    let indexed_nodes = compiler.budget.nodes;
+    let indexed_bytes = compiler.budget.bytes;
     let definitions = compiler.check_generic_definitions();
     // Return spent work even when symbolic definition checking fails.
     if let Err(errors) = definitions {
         let remaining = compiler.budget.declared();
         drop(compiler);
         limits.max_analysis_steps = remaining.max_analysis_work as usize;
-        limits.max_nodes = remaining.max_generated_nodes as usize;
-        limits.max_source_bytes = remaining.max_temporary_bytes as usize;
+        limits.max_nodes = initial_nodes - (indexed_nodes - remaining.max_generated_nodes as usize);
+        limits.max_source_bytes = initial_bytes - (indexed_bytes - remaining.max_temporary_bytes as usize);
         limits.max_functions = remaining.max_instances as usize;
         return Err(errors);
     }
@@ -620,8 +635,8 @@ pub(crate) fn definitions_entry(
     let remaining = compiler.budget.declared();
     drop(compiler);
     limits.max_analysis_steps = remaining.max_analysis_work as usize;
-    limits.max_nodes = remaining.max_generated_nodes as usize;
-    limits.max_source_bytes = remaining.max_temporary_bytes as usize;
+    limits.max_nodes = initial_nodes - (indexed_nodes - remaining.max_generated_nodes as usize);
+    limits.max_source_bytes = initial_bytes - (indexed_bytes - remaining.max_temporary_bytes as usize);
     limits.max_functions = remaining.max_instances as usize;
     Ok((entry, definitions))
 }

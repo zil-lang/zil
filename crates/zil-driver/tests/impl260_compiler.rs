@@ -134,7 +134,7 @@ impl zil_verify::CtArtifactAuthority for Authority<'_> {
         symbol: &CtSymbolId,
         usage: zil_verify::CtSymbolUsage,
     ) -> bool {
-        if usage == zil_verify::CtSymbolUsage::Schema {
+        if matches!(usage,zil_verify::CtSymbolUsage::Schema | zil_verify::CtSymbolUsage::TypeName | zil_verify::CtSymbolUsage::TypeApply) {
             return self.raw.record_schemas.iter().any(|s| &s.name == symbol)
                 || self.raw.enum_schemas.iter().any(|s| &s.name == symbol);
         }
@@ -679,6 +679,8 @@ fn unused_ct_generic_definitions_check_only_declared_copy_capabilities() {
         "fn bad<T:Copy>(x:T)->Type{let y=i32(x);return T}",
         "struct T{field:i32}fn bad<T:Copy>(x:T)->Type{let y=x.field;return T}",
         "struct T{}fn bad<T:Copy>(x:T)->Type{let y=T{};return T}",
+        "fn bad<T:Copy>(x:T)->Type{let y:T={};return T}",
+        "struct T<U>{value:U}fn bad<T:Copy>(x:T)->Type{return T::<i32>}",
         "fn bad<T:Copy,U:Copy>(x:T)->Type{let y:U=x;return T}",
         "fn bad<T>(x:T)->Type{return T}",
         "trait Copy{}fn bad<T:Copy>(x:T)->Type{let y=x+1;return T}",
@@ -691,6 +693,22 @@ fn unused_ct_generic_definitions_check_only_declared_copy_capabilities() {
         assert!(try_build(&source,"entry").is_err(),"{source}");
     }
     build("fn okay<T:Copy,U:Copy>(x:T,y:U)->Type{let z=x;var a=x;a=z;return T}fn entry()->Type{return i32}","entry");
+}
+
+#[test]
+fn generic_record_array_argument_keeps_ordinary_copy_shape() {
+    let source="struct Box<T:Copy>{value:T}fn inspect(x:Box<[i32;2]>)->Type{if x.value[1]==2{return i32}return i64}fn entry()->Type{return inspect(Box::<[i32;2]>{value:[1,2]})}";
+    assert_eq!(run(source,"entry",&[]),CtValue::Type(CtTypeRef {nodes:vec![CtTypeNode::Primitive(CtScalarTy::I32)],root:CtTypeNodeId(0)}));
+}
+
+#[test]
+fn generic_type_binder_cannot_capture_alias_definition_scope() {
+    let raw=build("struct T{x:i32}type Alias=T;fn select<T:Copy>(x:T)->Type{return Alias}fn entry()->Type{return select(7)}","entry");
+    let entry=&raw.functions[raw.entry.0 as usize];
+    let _=entry;
+    // Source declaration 0 is the outer nominal T, not select's scalar binder.
+    assert!(raw.functions.iter().flat_map(|f|&f.blocks).flat_map(|b|&b.instructions).any(|i|matches!(&i.kind,CtInstructionKind::TypeName(s) if s.declaration==NodeId(0))));
+    assert!(!raw.functions.iter().flat_map(|f|&f.blocks).flat_map(|b|&b.instructions).any(|i|matches!(i.kind,CtInstructionKind::TypePrimitive(CtScalarTy::I32))));
 }
 
 #[test]

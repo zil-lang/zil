@@ -406,6 +406,9 @@ impl Builder<'_, '_> {
                         error(span, "CT record needs its actual expected nominal type")
                     })?
                 };
+                if self.compiler.is_symbolic(&target) {
+                    return Err(error(span, "Copy bound does not grant a contextual record constructor"));
+                }
                 let CtTy::Record(id) = target else {
                     return Err(error(span, "CT record constructor requires a pure struct"));
                 };
@@ -466,6 +469,9 @@ impl Builder<'_, '_> {
                         span,
                         "value binding shadows a nominal Type application",
                     ));
+                }
+                if names.len() == 1 && self.compiler.binding(&names[0], span)?.is_some() {
+                    return Err(error(span,"Copy type binder is not a generic nominal constructor"));
                 }
                 let (owner, item) = self.compiler.named_item(self.module, &names, span)?;
                 let nominal = self.compiler.symbol(owner, item.span)?;
@@ -853,6 +859,7 @@ impl Builder<'_, '_> {
                         != ImportTarget::Module(self.compiler.modules[self.module].syntax.id)
                     && matches!(import.target, ImportTarget::Meta | ImportTarget::Syntax)
                 {
+                    if explicit.is_some() { return Err(error(span,"CT standard operation takes no explicit type arguments")); }
                     return self.builtin(import.target, &path[1], arguments, depth, span);
                 }
             }
@@ -861,6 +868,7 @@ impl Builder<'_, '_> {
             && let Some(target) = types::scalar(&path[0])
             && !matches!(target, CtScalarTy::Unit | CtScalarTy::Bool)
         {
+            if explicit.is_some() { return Err(error(span,"CT scalar conversion takes no type arguments")); }
             if arguments.len() != 1 {
                 return Err(error(span, "integer conversion takes exactly one argument"));
             }
@@ -951,7 +959,7 @@ impl Builder<'_, '_> {
         let mut actual = Vec::new();
         let mut actual_types = Vec::new();
         let concrete = if known {
-            for ty in slots.iter().flatten() { self.compiler.budget.ty(ty, 0, span)?; }
+            for ty in slots.iter().flatten() { self.compiler.budget.copy_ty(ty, 0, span)?; }
             slots.iter().flatten().cloned().collect::<Vec<_>>()
         } else { Vec::new() };
         let hints = if known { Some(self.compiler.instance_header(declaration, &concrete)?.0) } else { None };
@@ -988,12 +996,12 @@ impl Builder<'_, '_> {
             CtTy::Scalar(ty) => self.emit(CtInstructionKind::TypePrimitive(*ty), CtTy::Type, span),
             CtTy::Record(id) => {
                 let (owner, declaration) = self.compiler.record_sources[id.0 as usize];
+                self.compiler.budget.work(self.compiler.modules[owner].syntax.items.len(), span)?;
                 let item = self.compiler.modules[owner].syntax.items.iter().find(|item| matches!(&item.kind,s::ItemKind::Aggregate(a) if std::ptr::eq(a,declaration)))
                     .ok_or_else(|| error(span,"CT generic record declaration is absent"))?;
-                self.compiler.budget.work(self.compiler.modules[owner].syntax.items.len(), span)?;
                 let symbol = self.compiler.symbol(owner, item.span)?;
                 let args = &self.compiler.record_arguments[id.0 as usize];
-                for ty in args { self.compiler.budget.ty(ty, 0, span)?; }
+                for ty in args { self.compiler.budget.copy_ty(ty, 0, span)?; }
                 let args = args.clone();
                 if args.is_empty() {
                     self.emit(CtInstructionKind::TypeName(symbol), CtTy::Type, span)

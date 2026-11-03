@@ -22,6 +22,16 @@ impl<'a> Compiler<'a> {
             }
             s::TypeKind::Group(inner) => self.source_type_cost(inner,depth+1)?,
             s::TypeKind::Tuple(fields) => for field in fields { self.source_type_cost(field,depth+1)?; },
+            s::TypeKind::Array {element,length} => {
+                self.source_type_cost(element,depth+1)?;
+                if let Some(length)=length {
+                    self.budget.node(length.span)?;
+                    match &length.kind {
+                        s::ExprKind::Literal(s::Literal::Integer(text)) => self.budget.text(text,length.span)?,
+                        _ => return Err(error(length.span,"CT array constructor argument requires a fixed integer length")),
+                    }
+                }
+            }
             // This helper only copies explicit constructor type arguments.
             // Other ordinary shapes are accepted by ty() without AST copying.
             _ => return Err(error(ty.span,"CT constructor type argument needs a named or tuple type")),
@@ -34,12 +44,14 @@ impl<'a> Compiler<'a> {
         clauses: &[s::BoundClause],
         span: Span,
     ) -> R<Vec<String>> {
-        let mut names = Vec::new();
+        let mut names: Vec<String> = Vec::new();
         let mut copy = Vec::new();
         for parameter in parameters {
             self.budget.node(parameter.span)?;
             self.budget.text(&parameter.name, parameter.span)?;
-            self.budget.work(names.len(), parameter.span)?;
+            for name in &names {
+                self.budget.work(parameter.name.len().min(name.len())+1, parameter.span)?;
+            }
             if names.contains(&parameter.name) {
                 return Err(error(parameter.span, "duplicate CT generic type binder"));
             }
@@ -62,6 +74,7 @@ impl<'a> Compiler<'a> {
             let s::BoundSubject::Type(subject) = &clause.subject else {
                 return Err(error(clause.span, "CT where requires a direct type binder"));
             };
+            if let Some(name)=direct_name(subject) { self.budget.text(name,subject.span)?; }
             let index = direct_name(subject)
                 .and_then(|name| names.iter().position(|n| n == name))
                 .ok_or_else(|| error(clause.span, "CT where subject is not this function's type binder"))?;
@@ -85,7 +98,7 @@ impl<'a> Compiler<'a> {
         for (actual, ty) in &self.bindings {
             self.budget.work(1, span)?;
             if actual == name {
-                self.budget.ty(ty, 0, span)?;
+                self.budget.copy_ty(ty, 0, span)?;
                 return Ok(Some(ty.clone()));
             }
         }
@@ -106,14 +119,14 @@ impl<'a> Compiler<'a> {
             CtTy::Array { element, .. } => self.ordinary_copy(element, depth + 1, span),
             CtTy::Record(id) => {
                 let fields = &self.records[id.0 as usize].fields;
-                for field in fields { self.budget.ty(field, 0, span)?; }
+                for field in fields { self.budget.copy_ty(field, 0, span)?; }
                 let fields = fields.clone();
                 for field in &fields { self.ordinary_copy(field, depth + 1, span)?; }
                 Ok(())
             }
             CtTy::Enum(id) => {
                 let variants = &self.enums[id.0 as usize].variants;
-                for fields in variants { for field in fields { self.budget.ty(field, 0, span)?; } }
+                for fields in variants { for field in fields { self.budget.copy_ty(field, 0, span)?; } }
                 let variants = variants.clone();
                 for fields in &variants { for field in fields { self.ordinary_copy(field, depth + 1, span)?; } }
                 Ok(())
@@ -133,7 +146,7 @@ impl<'a> Compiler<'a> {
         for (name, ty) in names.into_iter().zip(arguments) {
             self.ordinary_copy(ty, 0, span)?;
             self.budget.node(span)?;
-            self.budget.ty(ty, 0, span)?;
+            self.budget.copy_ty(ty, 0, span)?;
             bindings.push((name, ty.clone()));
         }
         Ok(bindings)
@@ -154,7 +167,7 @@ impl<'a> Compiler<'a> {
         }
         self.budget.node(span)?;
         Budget::take(&mut self.budget.functions, 1, span, "CT source function-instance budget exhausted")?;
-        for ty in arguments { self.budget.ty(ty, 0, span)?; self.budget.ty(ty, 0, span)?; }
+        for ty in arguments { self.budget.copy_ty(ty, 0, span)?; self.budget.copy_ty(ty, 0, span)?; }
         self.budget.node(span)?;
         let id = CtFunctionId(self.functions.len() as u32);
         self.functions.push(None);
@@ -181,7 +194,7 @@ impl<'a> Compiler<'a> {
                 if let Some(old) = &slots[index] {
                     self.budget.ty(old, 0, pattern.span)?;
                     if old != actual { return Err(error(pattern.span, "inconsistent CT generic type inference")); }
-                } else { slots[index] = Some(actual.clone()); }
+                } else { self.budget.copy_ty(actual, 0, pattern.span)?; slots[index] = Some(actual.clone()); }
                 return Ok(());
             }
         }
@@ -198,7 +211,7 @@ impl<'a> Compiler<'a> {
                     return Err(error(pattern.span, "CT generic nominal type differs"));
                 }
                 let types = &self.record_arguments[id.0 as usize];
-                for ty in types { self.budget.ty(ty, 0, pattern.span)?; }
+                for ty in types { self.budget.copy_ty(ty, 0, pattern.span)?; }
                 let types = types.clone();
                 if args.len() != types.len() { return Err(error(pattern.span, "CT generic nominal arity differs")); }
                 for (arg, ty) in args.iter().zip(&types) {
