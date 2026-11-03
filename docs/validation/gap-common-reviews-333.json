@@ -731,15 +731,73 @@
                 "fallback": null
               }
             ]
+          },
+          {
+            "name": "small-global-function-value-known-gap",
+            "source": "fn worker(value:i32)->i32{return value}trait Factory{fn pointer(self:&Self)->fn(i32)->i32{return worker}}struct P{}impl Factory for P{}fn main()->i32{let p=P{};let f=p.pointer();return f(7)-7}",
+            "source_sha256": "e472cf98878debc418732e42e1c3b86090460f0f063a22f1a8b4a182cdcf60ea",
+            "native": false,
+            "classification": "ExistingUnimplementedExpression",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "check",
+                  "/tmp/zil-review330-common-8941/small-global-function-value-known-gap.zil",
+                  "--json"
+                ],
+                "compiler_exit": 1,
+                "status": "SafeReject",
+                "phase": "expand",
+                "verification_runs": 0,
+                "diagnostics": [
+                  {
+                    "phase": "expand",
+                    "category": "SafeReject",
+                    "code": "E-GENERIC-ARGUMENT",
+                    "message": "unknown value $module0_worker in generic body",
+                    "span": {
+                      "file": 0,
+                      "start": 97,
+                      "end": 103
+                    },
+                    "notes": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "ordinary-global-function-value-positive",
+            "source": "fn worker(value:i32)->i32{return value}fn factory()->fn(i32)->i32{return worker}fn main()->i32{let f=factory();return f(7)-7}",
+            "source_sha256": "dfecbd151a0694cf1370afbb07b6bb10c1d2bf89bf60c9430111b7ea7b0f16ea",
+            "native": false,
+            "classification": "VerifyPositiveControl",
+            "runs": [
+              {
+                "command": [
+                  "/workspace/.zil-env/target333/debug/zil",
+                  "check",
+                  "/tmp/zil-review330-common-8941/ordinary-global-function-value-positive.zil",
+                  "--json"
+                ],
+                "compiler_exit": 0,
+                "status": "Success",
+                "phase": "verify",
+                "verification_runs": 1,
+                "diagnostics": []
+              }
+            ]
           }
         ],
         "probe_summary": {
           "new_native_sources": 2,
           "new_native_executions": 8,
           "required_negative_sources": 7,
-          "known_incomplete_legal_sources": 1,
-          "known_incomplete_compiler_requests": 4,
-          "known_incomplete_native_executions": 0
+          "known_incomplete_legal_sources": 2,
+          "known_incomplete_compiler_requests": 5,
+          "known_incomplete_native_executions": 0,
+          "verify_positive_sources": 1
         },
         "commands": [
           "source /workspace/.zil-env/env.sh; export CARGO_TARGET_DIR=/workspace/.zil-env/target333 CARGO_BUILD_JOBS=1",
