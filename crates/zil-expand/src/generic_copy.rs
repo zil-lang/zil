@@ -115,6 +115,15 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 return Err(unsupported(ty.span, "StoreElement constant type argument"));
             };
             self.budget.ty(ty)?;
+            if let GenericParamKind::Type(bounds) = &parameter.kind {
+                for bound in bounds {
+                    if is_bound(bound) {
+                        // Bounds constrain actual arguments even when a parameter
+                        // is phantom and contributes no field to this layout.
+                        self.copy(ty)?;
+                    }
+                }
+            }
             substitutions.insert(parameter.name.clone(), ty.clone());
         }
         Ok((aggregate, substitutions))
