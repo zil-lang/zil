@@ -94,9 +94,11 @@ impl<'c, 'a> Builder<'c, 'a> {
         let loops = std::mem::take(&mut self.loops);
         let yields = std::mem::take(&mut self.yields);
         let previous_module = self.module;
+        let bindings = std::mem::take(&mut self.compiler.bindings);
         self.module = module;
         let result = self.type_ref(module, actual, depth);
         self.module = previous_module;
+        self.compiler.bindings = bindings;
         self.scopes = scopes;
         self.loops = loops;
         self.yields = yields;
