@@ -32,6 +32,8 @@ pub(super) mod store_templates;
 mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
+#[path = "generic_trait_defaults.rs"]
+pub(super) mod trait_defaults;
 #[path = "generic_trait_instances.rs"]
 pub(super) mod trait_instances;
 #[path = "generic_where.rs"]
@@ -68,9 +70,14 @@ pub(super) fn specialize_products<'a>(
     let mut names_budget = Budget::new(limits);
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
+    let mut has_defaults = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
+        if let ItemKind::Trait(declaration) = &item.kind {
+            has_defaults |=
+                trait_defaults::present(declaration, &mut names_budget).map_err(|e| vec![e])?;
+        }
         if let ItemKind::Impl(implementation) = &item.kind
             && implementation
                 .trait_type
@@ -135,6 +142,7 @@ pub(super) fn specialize_products<'a>(
             .items
             .iter()
             .all(|item| params(item).is_empty())
+            && !has_defaults
             && !normalized
                 .module
                 .items
@@ -154,6 +162,7 @@ pub(super) fn specialize_products<'a>(
         .map_err(|error| vec![error]);
     }
     if module.items.iter().all(|item| params(item).is_empty())
+        && !has_defaults
         && !module
             .items
             .iter()
@@ -209,6 +218,7 @@ struct Engine<'a> {
     inferred_state_values: BTreeSet<String>,
     has_store_templates: bool,
     has_single_state_values: bool,
+    default_functions: usize,
     nominal_binder_collision: bool,
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
@@ -278,6 +288,7 @@ impl<'a> Engine<'a> {
             inferred_state_values: BTreeSet::new(),
             has_store_templates: false,
             has_single_state_values: false,
+            default_functions: 0,
             nominal_binder_collision: false,
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
@@ -333,6 +344,7 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        engine.validate_trait_defaults(module)?;
         // Validate the parametric subset even when a template is not instantiated.
         let mut helper_dependencies = helper_graph::Dependencies::default();
         for item in engine.templates.values() {
@@ -612,6 +624,7 @@ impl<'a> Engine<'a> {
             .len()
             .saturating_add(self.retained_stores.len())
             .saturating_add(self.traits.instance_count())
+            .saturating_add(self.default_functions)
             >= self.limits.max_functions.min(512)
         {
             return Err(Diagnostic::limit(
@@ -920,6 +933,7 @@ impl<'a> Engine<'a> {
                 }
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
+                self.complete_trait_defaults(i, item.span)?;
                 self.ty(&mut i.target, 0)?;
                 if self.traits.has_instances
                     && let Some(application) = &i.trait_type

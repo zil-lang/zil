@@ -218,11 +218,10 @@ pub(crate) fn validate_declaration(
         if !method.generics.is_empty()
             || !method.where_clause.is_empty()
             || !method.contract.is_empty()
-            || !matches!(method.body, FunctionBody::Declaration)
         {
             return Err(unsupported(
                 member.span,
-                "default, generic or contract-bearing trait method",
+                "generic or contract-bearing trait method",
             ));
         }
         for parameter in &method.params {

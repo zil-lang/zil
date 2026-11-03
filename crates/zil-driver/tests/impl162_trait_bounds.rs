@@ -16,8 +16,7 @@ static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
 fn trait330_original_pending_sources() {
-    // Keep the original source bytes and baseline rejection in Git history;
-    // the implementation will promote these exact inputs after the profile freezes.
+    // Original Unsupported/Types baseline remains in commit 43bcafbd0; preserve source bytes.
     for text in [
         include_str!("../../../tests/language-readiness/pending/default-trait-method.zil"),
         include_str!("../../../tests/language-readiness/recovery/pending/trait-default-method.zil"),
@@ -25,14 +24,38 @@ fn trait330_original_pending_sources() {
         let report = check(text);
         assert_eq!(
             report.status,
-            ResultCategory::Unsupported,
+            ResultCategory::Success,
             "{}",
             report.to_json()
         );
-        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
-        assert_eq!(report.verification_runs, 0);
-        eprintln!("330 baseline: {}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
     }
+}
+
+#[test]
+fn trait330_default_delegation_and_instance_override_are_native() {
+    native_both(&[(
+        "main",
+        include_str!("../../../tests/language-readiness/recovery/pending/trait-default-method.zil"),
+    )]);
+    native_both(&[(
+        "main",
+        r#"
+trait Read<R:Copy>{
+ fn read(self:&Self)->R;
+ fn delegated(self:&Self)->R{return self.read()}
+}
+struct Point{value:i32}
+impl Read<i32> for Point{fn read()->i32{return .value}}
+impl Read<i64> for Point{
+ fn read()->i64{return i64(.value)+2}
+ fn delegated()->i64{return 29}
+}
+fn narrow<T:Read<i32>>(x:&T)->i32{return x.delegated()}
+fn wide<T:Read<i64>>(x:&T)->i64{return x.delegated()}
+fn main()->i32{let p=Point{value:7};if narrow(&p)!=7{return 1}if wide(&p)!=29{return 2}return 0}
+"#,
+    )]);
 }
 
 #[test]
@@ -387,6 +410,15 @@ fn project(files: &[(&str, &str)]) -> ProjectSources {
     }
 }
 fn native(files: &[(&str, &str)]) {
+    native_backend(files, zil_driver::NativeBackend::default());
+}
+fn native_both(files: &[(&str, &str)]) {
+    native_backend(files, zil_driver::NativeBackend::Clang);
+    if cfg!(feature = "llvm-api") {
+        native_backend(files, zil_driver::NativeBackend::LlvmApi);
+    }
+}
+fn native_backend(files: &[(&str, &str)], backend: zil_driver::NativeBackend) {
     for optimization in [Optimization::O0, Optimization::O2] {
         let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
             .map(PathBuf::from)
@@ -402,6 +434,7 @@ fn native(files: &[(&str, &str)]) {
         }
         let executable = dir.join("program");
         let options = CompileOptions {
+            backend,
             stop_after: Stage::Build,
             optimization,
             output: Some(executable.clone()),

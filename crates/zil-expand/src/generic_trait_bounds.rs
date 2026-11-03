@@ -34,6 +34,7 @@ impl<'a> Index<'a> {
         let mut declarations = BTreeMap::new();
         let implementations = BTreeSet::new();
         let mut has_instances = false;
+        let mut has_defaults = false;
         let mut nominals = BTreeMap::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
@@ -53,7 +54,9 @@ impl<'a> Index<'a> {
                     ));
                 }
                 ItemKind::Trait(declaration) => {
-                    has_instances |= !declaration.generics.is_empty();
+                    let defaults = trait_defaults::present(declaration, budget)?;
+                    has_defaults |= defaults;
+                    has_instances |= !declaration.generics.is_empty() || defaults;
                     if declarations
                         .insert(declaration.name.as_str(), (item, declaration))
                         .is_some()
@@ -80,7 +83,7 @@ impl<'a> Index<'a> {
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
-                if !declaration.generics.is_empty() {
+                if !declaration.generics.is_empty() || has_defaults {
                     trait_instances::validate_declaration(
                         item,
                         declaration,
@@ -215,11 +218,10 @@ impl<'a> Index<'a> {
             if !method.generics.is_empty()
                 || !method.where_clause.is_empty()
                 || !method.contract.is_empty()
-                || !matches!(method.body, FunctionBody::Declaration)
             {
                 return Err(unsupported(
                     method.span,
-                    "generic, default or contract-bearing trait method",
+                    "generic or contract-bearing trait method",
                 ));
             }
         }

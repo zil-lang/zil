@@ -25,6 +25,17 @@ pub(super) fn validate_parametric<'l>(
     budget: &mut Budget<'l>,
     trait_calls: &mut trait_instances::Calls,
 ) -> R<()> {
+    validate_parametric_with_bounds(function, tables, dependencies, budget, trait_calls, None)
+}
+
+pub(super) fn validate_parametric_with_bounds<'l>(
+    function: &Function,
+    tables: ParametricTables<'_, 'l>,
+    dependencies: &mut helper_graph::Dependencies,
+    budget: &mut Budget<'l>,
+    trait_calls: &mut trait_instances::Calls,
+    supplied_bounds: Option<trait_bounds::Bounds>,
+) -> R<()> {
     let ParametricTables {
         nominals,
         enums,
@@ -72,7 +83,10 @@ pub(super) fn validate_parametric<'l>(
         owned_dispatch,
         definition: &function.name,
         dependencies,
-        bounds: traits.bounds(function, budget)?,
+        bounds: match supplied_bounds {
+            Some(bounds) => bounds,
+            None => traits.bounds(function, budget)?,
+        },
         trait_calls,
         traits,
         next_local: function.params.len(),

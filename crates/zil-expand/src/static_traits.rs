@@ -105,8 +105,11 @@ impl<'a> Expander<'a> {
                 self.trait_error("E-TRAIT-METHOD-SET", member.span, "duplicate trait method");
                 valid = false;
             }
-            if !finite_method(f) || !matches!(f.body, s::FunctionBody::Declaration) {
-                self.unsupported("default, generic or contract-bearing trait methods require additional trait evidence", member.span);
+            if !finite_method(f) {
+                self.unsupported(
+                    "generic or contract-bearing trait methods require additional trait evidence",
+                    member.span,
+                );
                 valid = false;
             }
             if f.params
@@ -621,7 +624,8 @@ impl<'a> Expander<'a> {
                             project_nodes = left.max_nodes;
                             match result {
                                 Ok(target) => {
-                                    self.trait_method_names.insert(method.span, target);
+                                    self.trait_method_names
+                                        .insert((item.span, method.span), target);
                                 }
                                 Err(error) => {
                                     self.diagnostics.push(error);
