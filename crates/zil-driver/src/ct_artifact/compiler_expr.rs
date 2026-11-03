@@ -376,22 +376,28 @@ impl Builder<'_, '_> {
                 }
                 let target = if let Some(t) = ty {
                     let (nominal, arguments) = match &t.kind {
-                        s::ExprKind::TypeApply {callee,arguments} => {
+                        s::ExprKind::TypeApply { callee, arguments } => {
                             for arg in arguments {
                                 let s::GenericArg::Type(actual) = arg else {
-                                    return Err(error(t.span, "CT record value parameters are unsupported"));
+                                    return Err(error(
+                                        t.span,
+                                        "CT record value parameters are unsupported",
+                                    ));
                                 };
                                 self.compiler.source_type_cost(actual, depth + 1)?;
                             }
                             (callee.as_ref(), arguments.clone())
-                        },
+                        }
                         _ => (t.as_ref(), Vec::new()),
                     };
                     let path = self.source_path(nominal, depth + 1)?.ok_or_else(|| {
                         error(t.span, "CT record constructor needs a nominal declaration")
                     })?;
                     if path.len() == 1 && self.compiler.binding(&path[0], t.span)?.is_some() {
-                        return Err(error(t.span, "Copy bound does not grant a record constructor"));
+                        return Err(error(
+                            t.span,
+                            "Copy bound does not grant a record constructor",
+                        ));
                     }
                     let t = s::TypeRef {
                         kind: s::TypeKind::Named {
@@ -407,7 +413,10 @@ impl Builder<'_, '_> {
                     })?
                 };
                 if self.compiler.is_symbolic(&target) {
-                    return Err(error(span, "Copy bound does not grant a contextual record constructor"));
+                    return Err(error(
+                        span,
+                        "Copy bound does not grant a contextual record constructor",
+                    ));
                 }
                 let CtTy::Record(id) = target else {
                     return Err(error(span, "CT record constructor requires a pure struct"));
@@ -471,7 +480,10 @@ impl Builder<'_, '_> {
                     ));
                 }
                 if names.len() == 1 && self.compiler.binding(&names[0], span)?.is_some() {
-                    return Err(error(span,"Copy type binder is not a generic nominal constructor"));
+                    return Err(error(
+                        span,
+                        "Copy type binder is not a generic nominal constructor",
+                    ));
                 }
                 let (owner, item) = self.compiler.named_item(self.module, &names, span)?;
                 let nominal = self.compiler.symbol(owner, item.span)?;
@@ -589,7 +601,9 @@ impl Builder<'_, '_> {
         .map(Some)
     }
     fn type_name(&mut self, path: &[String], span: Span, depth: usize) -> R<Value> {
-        if path.len() == 1 && let Some(ty) = self.compiler.binding(&path[0], span)? {
+        if path.len() == 1
+            && let Some(ty) = self.compiler.binding(&path[0], span)?
+        {
             return self.bound_type_value(&ty, span, depth + 1);
         }
         let (owner, item) = self.compiler.named_item(self.module, path, span)?;
@@ -634,7 +648,7 @@ impl Builder<'_, '_> {
             }
             s::TypeKind::Named { path, args } => {
                 if path.len() == 1 && self.compiler.binding(&path[0], ty.span)?.is_some() {
-                    return Err(error(ty.span,"CT type binder takes no type arguments"));
+                    return Err(error(ty.span, "CT type binder takes no type arguments"));
                 }
                 let (owner, item) = self.compiler.named_item(module, path, ty.span)?;
                 let nominal = self.compiler.symbol(owner, item.span)?;
@@ -783,7 +797,9 @@ impl Builder<'_, '_> {
                     .cloned()
                     .ok_or_else(|| error(span, "CT tuple field is absent"))?,
             ),
-            (CtTy::Record(id), s::MemberName::Name(name)) if !self.compiler.is_symbolic(&value.ty) => {
+            (CtTy::Record(id), s::MemberName::Name(name))
+                if !self.compiler.is_symbolic(&value.ty) =>
+            {
                 let (owner, decl) = self.compiler.record_sources[id.0 as usize];
                 let mut found = None;
                 for (index, field) in decl.fields.iter().enumerate() {
@@ -862,7 +878,12 @@ impl Builder<'_, '_> {
                         != ImportTarget::Module(self.compiler.modules[self.module].syntax.id)
                     && matches!(import.target, ImportTarget::Meta | ImportTarget::Syntax)
                 {
-                    if explicit.is_some() { return Err(error(span,"CT standard operation takes no explicit type arguments")); }
+                    if explicit.is_some() {
+                        return Err(error(
+                            span,
+                            "CT standard operation takes no explicit type arguments",
+                        ));
+                    }
                     return self.builtin(import.target, &path[1], arguments, depth, span);
                 }
             }
@@ -871,13 +892,21 @@ impl Builder<'_, '_> {
             && let Some(target) = types::scalar(&path[0])
             && !matches!(target, CtScalarTy::Unit | CtScalarTy::Bool)
         {
-            if explicit.is_some() { return Err(error(span,"CT scalar conversion takes no type arguments")); }
+            if explicit.is_some() {
+                return Err(error(span, "CT scalar conversion takes no type arguments"));
+            }
             if arguments.len() != 1 {
                 return Err(error(span, "integer conversion takes exactly one argument"));
             }
             let value = self.expr(&arguments[0].value, None, depth)?;
-            if !matches!(value.ty, CtTy::Scalar(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64)) {
-                return Err(error(span, "integer conversion requires a concrete integer value"));
+            if !matches!(
+                value.ty,
+                CtTy::Scalar(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64)
+            ) {
+                return Err(error(
+                    span,
+                    "integer conversion requires a concrete integer value",
+                ));
             }
             return self.emit(
                 CtInstructionKind::ConvertInteger {
@@ -892,8 +921,20 @@ impl Builder<'_, '_> {
             return Ok(value);
         }
         let declaration = self.compiler.function(self.module, &path, span)?;
-        if !self.compiler.declarations[declaration].function.generics.is_empty() || explicit.is_some() {
-            return self.generic_call(declaration, explicit.map(Vec::as_slice), arguments, expected, depth + 1, span);
+        if !self.compiler.declarations[declaration]
+            .function
+            .generics
+            .is_empty()
+            || explicit.is_some()
+        {
+            return self.generic_call(
+                declaration,
+                explicit.map(Vec::as_slice),
+                arguments,
+                expected,
+                depth + 1,
+                span,
+            );
         }
         let (types, result) = self.compiler.header(declaration)?;
         if types.len() != arguments.len() {
@@ -936,9 +977,14 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<Value> {
         let d = self.compiler.declarations[declaration];
-        let names = self.compiler.generic_names(&d.function.generics, &d.function.where_clause, span)?;
+        let names =
+            self.compiler
+                .generic_names(&d.function.generics, &d.function.where_clause, span)?;
         if names.is_empty() {
-            return Err(error(span, "nongeneric CT function takes no type arguments"));
+            return Err(error(
+                span,
+                "nongeneric CT function takes no type arguments",
+            ));
         }
         if arguments.len() != d.function.params.len() {
             return Err(error(span, "CT function actual argument count differs"));
@@ -947,40 +993,74 @@ impl Builder<'_, '_> {
         self.compiler.budget.node(span)?;
         let mut slots = vec![None; names.len()];
         if let Some(explicit) = explicit {
-            if explicit.len() != names.len() { return Err(error(span,"CT generic type argument count differs")); }
+            if explicit.len() != names.len() {
+                return Err(error(span, "CT generic type argument count differs"));
+            }
             for (slot, argument) in slots.iter_mut().zip(explicit) {
                 let s::GenericArg::Type(ty) = argument else {
-                    return Err(error(span,"CT generic value arguments are unsupported"));
+                    return Err(error(span, "CT generic value arguments are unsupported"));
                 };
                 *slot = Some(self.compiler.ty(self.module, ty, depth + 1)?);
             }
         }
         if let (Some(pattern), Some(actual)) = (&d.function.return_type, expected) {
-            self.compiler.infer(d.module, pattern, actual, &names, &mut slots, depth + 1)?;
+            self.compiler
+                .infer(d.module, pattern, actual, &names, &mut slots, depth + 1)?;
         }
         let mut actual = Vec::new();
         let mut actual_types = Vec::new();
         for (i, argument) in arguments.iter().enumerate() {
             self.compiler.budget.node(argument.span)?;
-            let hint=self.compiler.partial_type(d.module,&d.function.params[i].ty,&names,&slots,depth+1)?;
+            let hint = self.compiler.partial_type(
+                d.module,
+                &d.function.params[i].ty,
+                &names,
+                &slots,
+                depth + 1,
+            )?;
             let value = self.expr(&argument.value, hint.as_ref(), depth + 1)?;
-            self.compiler.infer(d.module, &d.function.params[i].ty, &value.ty, &names, &mut slots, depth + 1)?;
+            self.compiler.infer(
+                d.module,
+                &d.function.params[i].ty,
+                &value.ty,
+                &names,
+                &mut slots,
+                depth + 1,
+            )?;
             actual.push(value.id);
             actual_types.push(value.ty);
         }
-        let concrete = slots.into_iter().map(|ty| ty.ok_or_else(|| error(span,"CT generic type argument cannot be inferred"))).collect::<R<Vec<_>>>()?;
+        let concrete = slots
+            .into_iter()
+            .map(|ty| ty.ok_or_else(|| error(span, "CT generic type argument cannot be inferred")))
+            .collect::<R<Vec<_>>>()?;
         let (parameters, result) = self.compiler.instance_header(declaration, &concrete)?;
         for (actual, parameter) in actual_types.iter().zip(&parameters) {
             self.compiler.budget.ty(actual, 0, span)?;
             self.compiler.budget.ty(parameter, 0, span)?;
-            if actual != parameter { return Err(error(span,"CT generic actual argument type differs")); }
+            if actual != parameter {
+                return Err(error(span, "CT generic actual argument type differs"));
+            }
         }
         let function = self.compiler.enqueue_instance(declaration, &concrete)?;
         if result == CtTy::Scalar(CtScalarTy::Unit) {
-            self.op(CtInstructionKind::Call {function,arguments:actual}, span)?;
+            self.op(
+                CtInstructionKind::Call {
+                    function,
+                    arguments: actual,
+                },
+                span,
+            )?;
             self.constant(CtConstant::Scalar(Constant::Unit), result, span)
         } else {
-            self.emit(CtInstructionKind::Call {function,arguments:actual}, result, span)
+            self.emit(
+                CtInstructionKind::Call {
+                    function,
+                    arguments: actual,
+                },
+                result,
+                span,
+            )
         }
     }
 
@@ -988,18 +1068,26 @@ impl Builder<'_, '_> {
         self.compiler.budget.depth(depth, span)?;
         // Symbolic bodies are checked but never verified, published or run.
         if self.compiler.is_symbolic(ty) {
-            return self.emit(CtInstructionKind::TypePrimitive(CtScalarTy::Unit), CtTy::Type, span);
+            return self.emit(
+                CtInstructionKind::TypePrimitive(CtScalarTy::Unit),
+                CtTy::Type,
+                span,
+            );
         }
         match ty {
             CtTy::Scalar(ty) => self.emit(CtInstructionKind::TypePrimitive(*ty), CtTy::Type, span),
             CtTy::Record(id) => {
                 let (owner, declaration) = self.compiler.record_sources[id.0 as usize];
-                self.compiler.budget.work(self.compiler.modules[owner].syntax.items.len(), span)?;
+                self.compiler
+                    .budget
+                    .work(self.compiler.modules[owner].syntax.items.len(), span)?;
                 let item = self.compiler.modules[owner].syntax.items.iter().find(|item| matches!(&item.kind,s::ItemKind::Aggregate(a) if std::ptr::eq(a,declaration)))
                     .ok_or_else(|| error(span,"CT generic record declaration is absent"))?;
                 let symbol = self.compiler.symbol(owner, item.span)?;
                 let args = &self.compiler.record_arguments[id.0 as usize];
-                for ty in args { self.compiler.budget.copy_ty(ty, 0, span)?; }
+                for ty in args {
+                    self.compiler.budget.copy_ty(ty, 0, span)?;
+                }
                 let args = args.clone();
                 if args.is_empty() {
                     self.emit(CtInstructionKind::TypeName(symbol), CtTy::Type, span)
@@ -1009,7 +1097,14 @@ impl Builder<'_, '_> {
                         self.compiler.budget.node(span)?;
                         arguments.push(self.bound_type_value(arg, span, depth + 1)?.id);
                     }
-                    self.emit(CtInstructionKind::TypeApply {nominal:symbol,arguments}, CtTy::Type, span)
+                    self.emit(
+                        CtInstructionKind::TypeApply {
+                            nominal: symbol,
+                            arguments,
+                        },
+                        CtTy::Type,
+                        span,
+                    )
                 }
             }
             CtTy::Enum(id) => {
@@ -1022,15 +1117,37 @@ impl Builder<'_, '_> {
                     self.compiler.budget.node(span)?;
                     arguments.push(self.bound_type_value(field, span, depth + 1)?.id);
                 }
-                self.emit(CtInstructionKind::TypeConstruct {constructor:CtTypeConstructor::Tuple,arguments}, CtTy::Type, span)
+                self.emit(
+                    CtInstructionKind::TypeConstruct {
+                        constructor: CtTypeConstructor::Tuple,
+                        arguments,
+                    },
+                    CtTy::Type,
+                    span,
+                )
             }
-            CtTy::Array {element,length} => {
+            CtTy::Array { element, length } => {
                 let element = self.bound_type_value(element, span, depth + 1)?;
-                let length = i32::try_from(*length).map_err(|_| error(span,"CT generic array length exceeds target i32"))?;
-                let length = self.constant(CtConstant::Scalar(Constant::I32(length)),CtTy::Scalar(CtScalarTy::I32),span)?;
-                self.emit(CtInstructionKind::TypeConstruct {constructor:CtTypeConstructor::Array,arguments:vec![element.id,length.id]}, CtTy::Type, span)
+                let length = i32::try_from(*length)
+                    .map_err(|_| error(span, "CT generic array length exceeds target i32"))?;
+                let length = self.constant(
+                    CtConstant::Scalar(Constant::I32(length)),
+                    CtTy::Scalar(CtScalarTy::I32),
+                    span,
+                )?;
+                self.emit(
+                    CtInstructionKind::TypeConstruct {
+                        constructor: CtTypeConstructor::Array,
+                        arguments: vec![element.id, length.id],
+                    },
+                    CtTy::Type,
+                    span,
+                )
             }
-            _ => Err(error(span,"CT generic bound does not describe an ordinary type")),
+            _ => Err(error(
+                span,
+                "CT generic bound does not describe an ordinary type",
+            )),
         }
     }
 }

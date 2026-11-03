@@ -22,16 +22,31 @@ pub(super) fn category(name: &str) -> Option<CtSyntaxCategory> {
 }
 impl<'a> Compiler<'a> {
     pub(super) fn ct_only_function(&mut self, module: usize, function: &s::Function) -> R<bool> {
-        let mut seen = Vec::new();
-        for parameter in &function.params {
-            if self.ct_only_type(module, &parameter.ty, 0, &mut seen)? {
-                return Ok(true);
+        let names = self.classification_names(&function.generics)?;
+        let old = std::mem::replace(&mut self.classification_binders, names);
+        let result = (|| {
+            let mut seen = Vec::new();
+            for parameter in &function.params {
+                if self.ct_only_type(module, &parameter.ty, 0, &mut seen)? {
+                    return Ok(true);
+                }
             }
+            match &function.return_type {
+                Some(ty) => self.ct_only_type(module, ty, 0, &mut seen),
+                None => Ok(false),
+            }
+        })();
+        self.classification_binders = old;
+        result
+    }
+    fn classification_names(&mut self, parameters: &[s::GenericParam]) -> R<Vec<String>> {
+        let mut names = Vec::new();
+        for parameter in parameters {
+            self.budget.text(&parameter.name, parameter.span)?;
+            self.budget.node(parameter.span)?;
+            names.push(parameter.name.clone());
         }
-        match &function.return_type {
-            Some(ty) => self.ct_only_type(module, ty, 0, &mut seen),
-            None => Ok(false),
-        }
+        Ok(names)
     }
     pub(super) fn ct_only_type(
         &mut self,
@@ -43,6 +58,13 @@ impl<'a> Compiler<'a> {
         self.budget.depth(depth, ty.span)?;
         match &ty.kind {
             s::TypeKind::Named { path, args } => {
+                for name in &self.classification_binders {
+                    self.budget
+                        .work(name.len().min(path[0].len()) + 1, ty.span)?;
+                    if name == &path[0] {
+                        return Ok(false);
+                    }
+                }
                 if path.len() == 1
                     && matches!(
                         path[0].as_str(),
@@ -93,6 +115,14 @@ impl<'a> Compiler<'a> {
                 }
                 self.budget.node(ty.span)?;
                 seen.push((owner, item.span));
+                let parameters = match &item.kind {
+                    s::ItemKind::Aggregate(a) => a.generics.as_slice(),
+                    s::ItemKind::Enum(e) => e.generics.as_slice(),
+                    s::ItemKind::TypeAlias(a) => a.generics.as_slice(),
+                    _ => &[],
+                };
+                let names = self.classification_names(parameters)?;
+                let old = std::mem::replace(&mut self.classification_binders, names);
                 let result = match &item.kind {
                     s::ItemKind::TypeAlias(alias) => match &alias.value {
                         Some(ty) => self.ct_only_type(owner, ty, depth + 1, seen)?,
@@ -138,6 +168,7 @@ impl<'a> Compiler<'a> {
                     }
                     _ => false,
                 };
+                self.classification_binders = old;
                 seen.pop();
                 Ok(result)
             }
@@ -287,7 +318,10 @@ impl<'a> Compiler<'a> {
                 match &item.kind {
                     s::ItemKind::TypeAlias(alias) => {
                         if !args.is_empty() || !alias.generics.is_empty() {
-                            return Err(error(ty.span, "CT data alias requires a concrete nongeneric definition"));
+                            return Err(error(
+                                ty.span,
+                                "CT data alias requires a concrete nongeneric definition",
+                            ));
                         }
                         let actual = alias.value.as_ref().ok_or_else(|| {
                             error(ty.span, "CT alias has no actual type definition")
@@ -312,14 +346,20 @@ impl<'a> Compiler<'a> {
                             let names = self.generic_names(&a.generics, &[], ty.span)?;
                             for arg in args {
                                 let s::GenericArg::Type(actual) = arg else {
-                                    return Err(error(ty.span, "CT records require ordinary Copy type arguments"));
+                                    return Err(error(
+                                        ty.span,
+                                        "CT records require ordinary Copy type arguments",
+                                    ));
                                 };
                                 self.budget.node(actual.span)?;
                                 arguments.push(self.ty(module, actual, depth + 1)?);
                             }
                             bindings = self.bind_arguments(names, &arguments, ty.span)?;
                         } else if !args.is_empty() {
-                            return Err(error(ty.span, "nongeneric CT record takes no type arguments"));
+                            return Err(error(
+                                ty.span,
+                                "nongeneric CT record takes no type arguments",
+                            ));
                         }
                         for (id, (m, actual)) in self.record_sources.iter().enumerate() {
                             self.budget.work(1, ty.span)?;
