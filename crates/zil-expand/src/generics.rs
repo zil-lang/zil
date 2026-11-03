@@ -193,6 +193,7 @@ struct Engine<'a> {
     return_type: Option<TypeRef>,
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
+    active_callables: Option<callable::CallableTemplates>,
     store_parameter: Option<String>,
     product_owner: Option<products::Scope>,
     products: products::Products,
@@ -260,6 +261,7 @@ impl<'a> Engine<'a> {
             return_type: None,
             callable_name: None,
             callable_pair: None,
+            active_callables: None,
             store_parameter: None,
             product_owner: None,
             products: products::Products::default(),
@@ -826,6 +828,7 @@ impl<'a> Engine<'a> {
                 let saved_result = self
                     .return_type
                     .replace(f.return_type.clone().unwrap_or_else(|| check::unit(f.span)));
+                let saved_callables = std::mem::replace(&mut self.active_callables, callable);
                 match &mut f.body {
                     FunctionBody::Block(body) => self.block(body, &mut env, 0)?,
                     FunctionBody::Expression(value) => {
@@ -835,6 +838,7 @@ impl<'a> Engine<'a> {
                     FunctionBody::Declaration => {}
                 }
                 self.return_type = saved_result;
+                self.active_callables = saved_callables;
                 self.callable_name = saved_callable;
                 self.callable_pair = saved_pair;
                 self.store_parameter = saved_store;
@@ -1037,6 +1041,15 @@ impl<'a> Engine<'a> {
     /// Read-only type hints for a range. This does not instantiate a function,
     /// consume an argument, update the AST or confer any typing authority.
     fn range_hint(&mut self, e: &Expr, env: &Env, depth: usize) -> R<Option<TypeRef>> {
+        self.value_hint(e, env, depth, false)
+    }
+    fn value_hint(
+        &mut self,
+        e: &Expr,
+        env: &Env,
+        depth: usize,
+        default_integer: bool,
+    ) -> R<Option<TypeRef>> {
         self.tick(e.span, depth)?;
         match &e.kind {
             ExprKind::Name(name) => {
@@ -1052,11 +1065,12 @@ impl<'a> Engine<'a> {
                 Ok(["u8", "u16", "i32", "i64"]
                     .into_iter()
                     .find(|suffix| text.ends_with(suffix))
+                    .or(default_integer.then_some("i32"))
                     .map(|suffix| named(suffix, e.span)))
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", e.span))),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
-                self.range_hint(inner, env, depth + 1)
+                self.value_hint(inner, env, depth + 1, default_integer)
             }
             ExprKind::Unary {
                 op: UnaryOp::Not, ..
@@ -1065,7 +1079,7 @@ impl<'a> Engine<'a> {
                 op: UnaryOp::Dereference,
                 operand,
             } => {
-                let Some(ty) = self.range_hint(operand, env, depth + 1)? else {
+                let Some(ty) = self.value_hint(operand, env, depth + 1, default_integer)? else {
                     return Ok(None);
                 };
                 let TypeKind::Reference { inner, .. } = &grouped(&ty).kind else {
@@ -1074,7 +1088,9 @@ impl<'a> Engine<'a> {
                 self.budget.ty(inner)?;
                 Ok(Some(*inner.clone()))
             }
-            ExprKind::Unary { operand, .. } => self.range_hint(operand, env, depth + 1),
+            ExprKind::Unary { operand, .. } => {
+                self.value_hint(operand, env, depth + 1, default_integer)
+            }
             ExprKind::Binary {
                 op:
                     BinaryOp::Equal
@@ -1087,20 +1103,22 @@ impl<'a> Engine<'a> {
                     | BinaryOp::Or,
                 ..
             } => Ok(Some(named("bool", e.span))),
-            ExprKind::Binary { left, right, .. } => match self.range_hint(left, env, depth + 1)? {
-                Some(ty) => Ok(Some(ty)),
-                None => self.range_hint(right, env, depth + 1),
-            },
+            ExprKind::Binary { left, right, .. } => {
+                match self.value_hint(left, env, depth + 1, default_integer)? {
+                    Some(ty) => Ok(Some(ty)),
+                    None => self.value_hint(right, env, depth + 1, default_integer),
+                }
+            }
             ExprKind::If {
                 then_value,
                 else_value,
                 ..
-            } => match self.range_hint(then_value, env, depth + 1)? {
+            } => match self.value_hint(then_value, env, depth + 1, default_integer)? {
                 Some(ty) => Ok(Some(ty)),
-                None => self.range_hint(else_value, env, depth + 1),
+                None => self.value_hint(else_value, env, depth + 1, default_integer),
             },
             ExprKind::Try(operand) => {
-                let Some(ty) = self.range_hint(operand, env, depth + 1)? else {
+                let Some(ty) = self.value_hint(operand, env, depth + 1, default_integer)? else {
                     return Ok(None);
                 };
                 let TypeKind::Error { result, .. } = &grouped(&ty).kind else {
@@ -1110,7 +1128,7 @@ impl<'a> Engine<'a> {
                 Ok(Some(*result.clone()))
             }
             ExprKind::Index { object, .. } | ExprKind::Member { object, .. } => {
-                let Some(ty) = self.range_hint(object, env, depth + 1)? else {
+                let Some(ty) = self.value_hint(object, env, depth + 1, default_integer)? else {
                     return Ok(None);
                 };
                 let original = self.original_type(projection_shape(&ty))?;
@@ -1183,10 +1201,12 @@ impl<'a> Engine<'a> {
                 } = &callee.kind
                 {
                     if name == "len"
-                        && self.range_hint(object, env, depth + 1)?.is_some_and(|ty| {
-                            matches!(&grouped(&ty).kind, TypeKind::Reference { inner, .. }
+                        && self
+                            .value_hint(object, env, depth + 1, default_integer)?
+                            .is_some_and(|ty| {
+                                matches!(&grouped(&ty).kind, TypeKind::Reference { inner, .. }
                             if matches!(grouped(inner).kind, TypeKind::Array { length: None, .. }))
-                        })
+                            })
                     {
                         return Ok(Some(named("i64", e.span)));
                     }
@@ -1208,10 +1228,25 @@ impl<'a> Engine<'a> {
                     return Ok(Some(named("i64", e.span)));
                 }
                 if let Some(local) = env.get(target) {
-                    let result = local.as_ref().and_then(|ty| match &grouped(ty).kind {
+                    let mut result = local.as_ref().and_then(|ty| match &grouped(ty).kind {
                         TypeKind::Function { result, .. } => Some(result.as_ref()),
                         _ => callable::opaque_signature(ty).map(|(_, _, result)| result),
                     });
+                    if default_integer && result.is_none() {
+                        if let Some(ty) = local {
+                            self.budget.ty(ty)?;
+                            if let Some(bounds) = &self.active_callables {
+                                for bound in bounds.bindings() {
+                                    self.budget.ty(&bound.result)?;
+                                    self.budget.text(&bound.generic_name, e.span)?;
+                                    if callable::parameter_mode(ty, &bound.generic_name).is_some() {
+                                        result = Some(&bound.result);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if let Some(result) = result {
                         self.budget.ty(result)?;
                     }
@@ -1219,7 +1254,7 @@ impl<'a> Engine<'a> {
                 }
                 let mut actuals = Vec::new();
                 for arg in arguments {
-                    actuals.push(self.range_hint(&arg.value, env, depth + 1)?);
+                    actuals.push(self.value_hint(&arg.value, env, depth + 1, default_integer)?);
                 }
                 let Some(function) = self.signatures.get(target) else {
                     return Ok(None);
@@ -1501,12 +1536,43 @@ impl<'a> Engine<'a> {
                 let mut value_inferred = false;
                 let mut hints = self.call_hints(callee, env, expected)?;
                 let mut actual = Vec::new();
-                for (index, arg) in arguments.iter_mut().enumerate() {
+                let mut contextual_constraints = false;
+                for index in 0..arguments.len() {
+                    if hints
+                        .as_ref()
+                        .map(|h| h.unresolved_context(index, &mut self.budget))
+                        .transpose()?
+                        .unwrap_or(false)
+                    {
+                        contextual_constraints = true;
+                        for (other_index, argument) in arguments.iter().enumerate() {
+                            self.budget.node(argument.span, depth + 1)?;
+                            if let Some(ty) =
+                                self.value_hint(&argument.value, env, depth + 1, true)?
+                            {
+                                let ty = self.original_type(&ty)?;
+                                hints
+                                    .as_mut()
+                                    .expect("contextual call hints")
+                                    .independent_constraint(
+                                        other_index,
+                                        &ty,
+                                        argument.span,
+                                        &mut self.budget,
+                                    )?;
+                            }
+                        }
+                    }
+                    let arg = &mut arguments[index];
                     let hint = hints
                         .as_ref()
                         .map(|h| h.hint(index, &mut self.budget))
                         .transpose()?
                         .flatten();
+                    let hint = match hint {
+                        Some(hint) => Some(hint),
+                        None => self.local_union_argument_context(callee, index, env)?,
+                    };
                     let ty = self.expr_expected(&mut arg.value, env, hint.as_ref(), depth + 1)?;
                     if value_inference_allowed
                         && let Some(ty) = &ty
@@ -1569,7 +1635,14 @@ impl<'a> Engine<'a> {
                             {
                                 let variables: BTreeSet<_> =
                                     function.generics.iter().map(|p| p.name.clone()).collect();
-                                let mut found = BTreeMap::new();
+                                let mut found = if contextual_constraints {
+                                    hints
+                                        .as_ref()
+                                        .expect("contextual call hints")
+                                        .context_constraints(&mut self.budget, e.span)?
+                                } else {
+                                    BTreeMap::new()
+                                };
                                 if let (Some(result), Some(expected)) =
                                     (&function.return_type, expected)
                                 {
@@ -1660,7 +1733,14 @@ impl<'a> Engine<'a> {
                             }
                             let variables =
                                 function.generics.iter().map(|p| p.name.clone()).collect();
-                            let mut found = BTreeMap::new();
+                            let mut found = if contextual_constraints {
+                                hints
+                                    .as_ref()
+                                    .expect("contextual call hints")
+                                    .context_constraints(&mut self.budget, e.span)?
+                            } else {
+                                BTreeMap::new()
+                            };
                             if let (Some(result), Some(expected)) =
                                 (&function.return_type, expected)
                             {
@@ -2375,16 +2455,32 @@ fn context_argument(
     span: Span,
     budget: &mut Budget<'_>,
 ) -> R<bool> {
-    if !matches!(grouped(pattern).kind, TypeKind::Error { .. })
-        || variables
-            .iter()
-            .any(|name| !found.contains_key(name) && enums::contains(pattern, name))
-    {
+    if !matches!(grouped(pattern).kind, TypeKind::Error { .. }) {
+        return Ok(false);
+    }
+    if context_unresolved(pattern, variables, found, budget)? {
         return Ok(false);
     }
     let expected = enums::substituted(pattern, found, budget)?;
     check::same_return(actual, &expected, span, budget)?;
     Ok(true)
+}
+fn context_unresolved(
+    pattern: &TypeRef,
+    variables: &BTreeSet<String>,
+    found: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    for name in variables {
+        budget.text(name, pattern.span)?;
+        if !found.contains_key(name) {
+            budget.ty(pattern)?;
+            if enums::contains(pattern, name) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 fn unify_bounded(
     pattern: &TypeRef,
