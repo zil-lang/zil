@@ -133,7 +133,7 @@
   ],
   "limits": [
     "Do not interpret deleting a declared bound to None as an intrinsically malformed raw Typed program: it denotes the separate body-inferred lane. Source/cache identity must bind the intended source program.",
-    "No production edits by reviewer, no full suites, no schema34 combination, no Windows or Rust product comparison, no remote push, and no acceptance of full B0/ZUI/trait/lifetime obligations."
+    "Initial branch review covered schema33; common_candidate_review separately records the later finite schema34 integrated check. No full suites, Windows, Rust product comparison, remote push, or full B0/ZUI/trait/lifetime acceptance by this reviewer."
   ],
   "historical_reviews": [
     {
@@ -183,5 +183,82 @@
     }
   ],
   "open_blocking_findings": 0,
-  "counting": "Final distinct selected tests: 22 borrow + 8 cache = 30, including three independent reviewer tests. Earlier 26/29 replays and the original 1Pass/1Fail are retained separately and are not added to 30."
+  "counting": "Final distinct selected tests: 22 borrow + 8 cache = 30, including three independent reviewer tests. Earlier 26/29 replays and the original 1Pass/1Fail are retained separately and are not added to 30.",
+  "common_candidate_review": {
+    "reviewer": "/root/language_map",
+    "verdict": "PassLimited",
+    "implementation_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+    "prior_implementation_commit": "4b846df8f653117ddb03db40e19ea963d16285ee",
+    "review_control_commit": "62aaedea97cd389172f0fe2d2d21344d4ad82160",
+    "scope": "322 finite explicit shared life declaration/return-origin bounds and R1 scalar reuse integrity, with their actual schema/Wire34 integrated Expand/Types/Analyze/Verify/CT/interface/cache dependencies. This does not accept general life/trait/thread composition, all of schema34, or the whole language.",
+    "method": [
+      "Read exact Git diffs from the reviewed production fix and independent controls to the frozen common candidate; compare critical blobs and test blobs.",
+      "Inspect the changed shared lowering, type/inference, analysis, verification, CT and schema/identity hooks rather than infer compatibility from unchanged life files alone.",
+      "Build and execute only the existing cross_function_borrows and semantic_cache targets directly from the frozen common candidate, with independent target326, jobs1, --locked and --offline."
+    ],
+    "identical_life_core_blobs_from_prior_implementation": {
+      "crates/zil-expand/src/lifetimes.rs": "b15fcceac1470cc94683cf306918b36de5b51e95",
+      "crates/zil-expand/src/receivers.rs": "b30a04e631c01be016f5abb527334554d960b918",
+      "crates/zil-expand/src/ct_selection.rs": "cb4bda845ef73c59fd2f528cc39a6f0f8feb549e",
+      "crates/zil-types/src/lifetimes.rs": "12e025e91e1a3745fc08827b4b510dc1b1d4e604",
+      "crates/zil-types/src/incremental.rs": "6530f0cd63005c4208be95678c7607e9823a3bb9",
+      "crates/zil-types/src/program.rs": "e59b05ff678f4e763979a529da623d89f87247ec",
+      "crates/zil-analyze/src/lifetimes.rs": "6687f5b9bac3c76d9b8f10be2f93208736e654f0",
+      "crates/zil-verify/src/borrows.rs": "aa222fa702cb4d10bcec4919757deafa986fa252",
+      "crates/zil-driver/src/contracts.rs": "d86671028554d5d495ee293e6a9a009219d1909b",
+      "crates/zil-driver/src/semantic_cache.rs": "b85ffe9f876a8b330a46478c3dd2195200f37227"
+    },
+    "identical_test_blobs_from_review_control": {
+      "crates/zil-driver/tests/cross_function_borrows.rs": "f947c4e9fbbb10dd716719f64695b9e312dc66b6",
+      "crates/zil-driver/tests/semantic_cache.rs": "cce5e84003d41b8b32ee5b34e60a9542bc5d1df3"
+    },
+    "integrated_contacts": {
+      "public_representation": "SCHEMA_VERSION=34, WIRE_VERSION=34 and ZIL-TYPED-MODULE-V34; CoreLifeContract, Typed reference_return_bound, its fingerprint bytes and its function Wire encoding/decoding remain present. The public delta adds scoped-thread opcode95, not an alternative life proof.",
+      "expand": "The bounded life Visitor still runs before generic removal. Concrete inherent receiver normalization, life-only function retention and Core header mapping are unchanged. Shared generic/trait request budgets and renamed trait methods were inspected; the direct life/Self source and exact Expand boundary execute on common code.",
+      "types": "Builder still compiles Core life into the untrusted return bound and publishes it in ScalarFunction identity. New thread inference/lowering hooks leave this path intact. R1 ordered-life key domain2, current header validation before hit, cost subtraction and scalar Typed None eligibility are identical.",
+      "analyze": "life headers are checked after raw preflight and actual returns after the completed private origin fixed point. Added scoped-thread checks and closure-use bookkeeping were inspected; they do not replace or bypass these calls.",
+      "verify": "The shared function shape pass still validates bound shape; private borrows reconstruction still checks actual returned roots. New opcode95 dispatch/operands do not replace the independent life checks. Raw and byte/Wire life attacks execute through the common schema34 kernel.",
+      "ct": "Source rebuilding and query collection still prepay and preserve Core life. New thread_scope CT guards only reject runtime-only thread queries; the life-bearing cross-module CT rebuild source runs successfully on this candidate.",
+      "interfaces_and_cache": "Declared upper bounds remain separate from verified actual result_origins. semantic-v3 still explicitly encodes and compares exported bounds with Typed. Driver query rules include SCHEMA_VERSION=34, Wire reader requires34, and Verify requires current module/plan schemas. The common cold/warm tests actually exercise Wire34 payloads, current source/target identity and re-verification; old branch cache receipts are not reused as common execution evidence."
+    },
+    "execution": {
+      "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target326 CARGO_BUILD_JOBS=1 cargo test -p zil-driver --features llvm-api --test cross_function_borrows --test semantic_cache --locked --offline -- --nocapture",
+      "source_head_before": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+      "source_head_after": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+      "source_worktree_clean_before_and_after": true,
+      "schema_version": 34,
+      "wire_version": 34,
+      "exit_code": 0,
+      "cross_function_borrows": {
+        "passed": 22,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "semantic_cache": {
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "phase_N": {
+        "expand": 99,
+        "types": 95,
+        "analyze": 714,
+        "verify": 993
+      },
+      "phase_N_minus_one": "ResourceLimit in each phase",
+      "phase_fresh_N": "Success in each phase",
+      "legal_live_and_restored_scalar_life_N": 79,
+      "legal_scalar_life_reuse": "Real hits with reused_functions=1 and executed_functions=0; N-1 ResourceLimit and fresh N equality retained.",
+      "R1_recheck": "All twelve previously accepted invalid raw Core declarations are rejected; equal-length source error control and three Typed-bound restore mutations retain their independent results.",
+      "log_sha256": "6cf7f1a9ce79e9c06125e322f9fb432195eac58ef718588570bb9a12c8a1f4b6"
+    },
+    "open_blocking_findings": 0,
+    "counting": "Thirty distinct selected tests on this common candidate. Do not add prior branch passes or reviewer replays to this count.",
+    "limits": [
+      "No reviewer full suite or new common-candidate Clippy execution; root owns formal gates.",
+      "The original e86 Fail and schema33 branch runs above remain historical facts. No production, task card or main-tree modification by this review."
+    ]
+  }
 }
