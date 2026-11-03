@@ -1235,17 +1235,17 @@ impl<'a> Engine<'a> {
                         TypeKind::Function { result, .. } => Some(result.as_ref()),
                         _ => callable::opaque_signature(ty).map(|(_, _, result)| result),
                     });
-                    if default_integer && result.is_none() {
-                        if let Some(ty) = local {
-                            if let Some(bounds) = &self.active_callables {
-                                for bound in bounds.bindings() {
-                                    self.budget.ty(&bound.result)?;
-                                    self.budget.text(&bound.generic_name, e.span)?;
-                                    if callable::parameter_mode(ty, &bound.generic_name).is_some() {
-                                        result = Some(&bound.result);
-                                        break;
-                                    }
-                                }
+                    if default_integer
+                        && result.is_none()
+                        && let Some(ty) = local
+                        && let Some(bounds) = &self.active_callables
+                    {
+                        for bound in bounds.bindings() {
+                            self.budget.ty(&bound.result)?;
+                            self.budget.text(&bound.generic_name, e.span)?;
+                            if callable::parameter_mode(ty, &bound.generic_name).is_some() {
+                                result = Some(&bound.result);
+                                break;
                             }
                         }
                     }
@@ -2331,13 +2331,12 @@ fn type_key_bounded_observed(
 ) -> R<String> {
     // Observe names during the already prepaid canonical-key traversal. There
     // is no second dependency scan or changed concrete-path accounting.
-    if let TypeKind::Named { path, args } = &ty.kind {
-        if path.len() == 1
-            && args.is_empty()
-            && variables.is_some_and(|vars| vars.contains(&path[0]))
-        {
-            *dependent = true;
-        }
+    if let TypeKind::Named { path, args } = &ty.kind
+        && path.len() == 1
+        && args.is_empty()
+        && variables.is_some_and(|vars| vars.contains(&path[0]))
+    {
+        *dependent = true;
     }
     Ok(match &ty.kind {
         TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => {

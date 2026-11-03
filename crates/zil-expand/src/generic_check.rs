@@ -2740,19 +2740,18 @@ impl Check<'_, '_, '_> {
                         // actual argument checks below retain source order.
                         for (other, value) in function.params.iter().zip(arguments) {
                             self.budget.node(value.span, 0)?;
-                            if let Some(actual) = self.value_hint(&value.value, state, 0, true)? {
-                                if !matches!(group(&other.ty).kind, TypeKind::Error { .. })
-                                    || matches!(group(&actual).kind, TypeKind::Error { .. })
-                                {
-                                    unify(
-                                        &other.ty,
-                                        &actual,
-                                        &variables,
-                                        &mut found,
-                                        value.span,
-                                        self.budget,
-                                    )?;
-                                }
+                            if let Some(actual) = self.value_hint(&value.value, state, 0, true)?
+                                && (!matches!(group(&other.ty).kind, TypeKind::Error { .. })
+                                    || matches!(group(&actual).kind, TypeKind::Error { .. }))
+                            {
+                                unify(
+                                    &other.ty,
+                                    &actual,
+                                    &variables,
+                                    &mut found,
+                                    value.span,
+                                    self.budget,
+                                )?;
                             }
                         }
                     }
