@@ -66,7 +66,8 @@ Verify与机器生成。显式覆盖也仍按真实trait声明签名检查。默
 ## 费用及验证
 
 新default路径沿当前请求remaining串接模块解析、alias、Engine、静态collector及
-发布，不重新取默认预算。无default旧路径不添加新遍历。每次源扫描、成员/索引
+发布，不重新取默认预算。无default旧路径不执行默认体处理；发现扫描费用见下。
+每次源扫描、成员/索引
 访问、完整key比较、替换和正文复制均增长前预费，生成方法受现有函数上限约束。
 新增default路径须启用现有Products累计trait费用链；不能因无trait类型参数而落回
 旧单模块collector默认额度。`modules.rs`现有三个has_trait_instances预算链接点也需
@@ -110,13 +111,13 @@ parametric checker分类为Expand/Unsupported；错误返回、缺额外trait方
 有限正文边界，`self`重绑定也在仅default的显式Bounds上下文拒绝，普通generic路径不改。
 新增trait参数/外部nominal同名时先走已有词法名义保护，再做default检查；不得将
 `fn concrete(x:R)`中的外部R误当trait binder R。预算ledger、完整限定回归及最终
-质量检查仍待完成。
+质量检查结果见下节，不以前述历史WIP计为最终通过。
 
 ## root裁决后的有限借用正文
 
 330首片的default正文不创建显式借用（包括合法但尚未符号核实的reborrow），遇到
 Borrow/BorrowMut在未用定义期即`Expand/Unsupported`。未知借用来源同样不接受。
-含Reference的结果目前只接受一层地址，且正文是单条直接return或表达式体：
+含Reference载荷的结果目前只接受外层Reference，且正文是单条直接return或表达式体：
 直接返回原Ref参数，或通过真实Ref Self参数委托当前trait中receiver也是Ref的方法。
 委托若另有含Reference的输入，实际值也须为原Ref参数。参数/局部不按同拼写混同：
 有局部binding、assignment、分支等的借用返回先报Unsupported，不把shadow后的
@@ -125,3 +126,48 @@ Borrow/BorrowMut在未用定义期即`Expand/Unsupported`。未知借用来源�
 正控。实际实例仍完整进入普通Types/Analyze/独立Verify；这里不把前端许可当两核证明。
 
 该裁决保留完整默认方法/符号借用终态义务；不能宣称已支持任意普通default正文。
+
+## 最终限定交付
+
+生产冻结`d8d4a74303df459110e4e2d1bc9192b532abadac`，包含规范
+`2aa95d63dd1441c120238ec6cfa3769813aefec2`。新增Body/Wrapper仍是普通函数，
+没有公共IR/Wire/根配置变化。薄函数指针的签名含Reference并不使指针值携带借用
+载荷；其它既有FP限制不由此开放。新default路径的每次方法名比较逐字符串预付，
+包括方法查找重复扫描；无default路径不增加这项新字符串费用。
+
+实际环境加载`/workspace/.zil-env/env.sh`，`CARGO_TARGET_DIR=/workspace/.zil-env/target330`，
+`CARGO_BUILD_JOBS=1`。在上述精确生产提交运行：
+
+```sh
+cargo test -p zil-driver --features llvm-api --test impl147_static_traits --test impl162_trait_bounds --test impl233_modules -- --nocapture
+cargo test -p zil-expand --lib trait330_ -- --nocapture
+cargo clippy -p zil-expand --lib -- -D warnings
+cargo clippy -p zil-driver --features llvm-api --test impl147_static_traits --test impl162_trait_bounds --test impl233_modules -- -D warnings
+```
+
+结果分别为三目标`12/0 + 34/0 + 9/0`，全部零忽略/过滤；ledger `2/0`、5项其它
+library测试过滤；两项限定Clippy、修改文件rustfmt及git diff --check通过。330新增
+机器消费者共28次（7个源场景，各Clang/API的O0/O2）；实际backend、API builder
+对象与无fallback均断言，重放次数不累计为覆盖。两份原pending源及147原合法误拒
+源按原字节保留晋升；更宽方法泛型仍Unsupported。
+
+新默认实例请求精确`work=10383 / nodes=1766 / functions=9`，每项N成功、N−1
+ResourceLimit、cold/warm/fresh一致且每次清空active queries。无参default单源
+specialization消耗`work=1531 / nodes=461`，跨模块消耗`3158 / 588`；这两个余额
+恰好耗尽时specialization本身成功、下游collector/publication真实ResourceLimit，
+并按source-derived alias费用加engine费用求和，关闭取子阶段最大值/重置额度的漏洞。
+旧323控制`3797 / 851 / 5`保留历史，当前为`3797 / 853 / 5`：新增两个真实trait
+member发现访问增加2 nodes，默认额度不升；233旧无trait/Drop精确控制仍通过。
+
+非作者`/root/impl315`在独立树以原fixture未改复核，报告提交
+`76064979bf97fd78566420acf766349b7caa55aa`绑定相同生产SHA和规范2aa95d；
+其额外4项独立控制及raw/Wire真实局部逃逸两核拒绝不与作者计数相加。集成方共享
+generic/life入口合流后的差异及正式全量由root负责，本片未跑正式全量或push。
+
+| Rust目标 | 本片实证及限制 |
+| --- | --- |
+| 同类安全 | 定义期符号Self/前提及实例身份，具体普通两核检查；完整符号借用/trait/life尚未完成。 |
+| 运行/内存 | 28次真实双后端执行，无新字典/隐式堆分配；未测同语义Rust运行或RSS。 |
+| 表达/维护 | 默认委托、覆盖、跨模块私有helper及完整实例组合贯通；框架维护收益未测。 |
+| 编译成本 | 新请求累计费用有N/N−1/fresh和下游耗尽控制；未证明Rust编译性能优势。 |
+| 至少一项突破 | 原合法default源到机器执行；产品四目标合取与相对Rust净突破未建立。 |
