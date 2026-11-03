@@ -757,48 +757,29 @@ fn thread325_source_and_worker_boundaries() {
         );
         assert!(!report.artifacts.contains_key("executable"));
     }
-    for (name, phase) in [
-        ("parent_closure", zil_base::Phase::Types),
-        ("callable_wrapper", zil_base::Phase::Expand),
-    ] {
-        let path = thread325_root().join(format!("pending/{name}.zil"));
-        let text = std::fs::read_to_string(path).unwrap();
-        let report = compile_source(&source(&text), &CompileOptions::default());
-        assert_eq!(
-            report.status,
-            ResultCategory::Unsupported,
-            "{name}: {}",
-            report.to_json()
-        );
-        assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
-        assert!(
-            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"),
-            "{name}: {}",
-            report.to_json()
-        );
-        assert!(!report.artifacts.contains_key("executable"));
-    }
-    for (name, phase) in [
-        ("parent_closure", zil_base::Phase::Types),
-        ("callable_wrapper", zil_base::Phase::Expand),
-    ] {
-        let path = thread325_root().join(format!("pending/{name}.zil"));
-        let text = std::fs::read_to_string(path).unwrap();
-        let report = compile_source(&source(&text), &CompileOptions::default());
-        assert_eq!(
-            report.status,
-            ResultCategory::Unsupported,
-            "{name}: {}",
-            report.to_json()
-        );
-        assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
-        assert!(
-            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"),
-            "{name}: {}",
-            report.to_json()
-        );
-        assert!(!report.artifacts.contains_key("executable"));
-    }
+    // 332 promotes this exact historical source; the path and bytes stay fixed.
+    let text =
+        std::fs::read_to_string(thread325_root().join("pending/parent_closure.zil")).unwrap();
+    let report = compile_source(&source(&text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let text =
+        std::fs::read_to_string(thread325_root().join("pending/callable_wrapper.zil")).unwrap();
+    let report = compile_source(&source(&text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Expand);
+    assert!(report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"));
+    assert!(!report.artifacts.contains_key("executable"));
 }
 
 #[test]
@@ -1138,5 +1119,46 @@ fn thread325_native_os_join_parent_cleanup_and_failure() {
                 fs::remove_dir_all(directory).unwrap();
             }
         }
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn thread332_concrete_parent_kinds_and_nested_source() {
+    use zil_ir::{CallableKind, InstructionKind};
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for name in ["kinds", "nested", "borrow"] {
+        let text = std::fs::read_to_string(thread325_root().join(format!("parent332/{name}.zil")))
+            .unwrap();
+        let src = source(&text);
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let core = zil_expand::expand(&src, &ast).unwrap();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let kinds = typed
+            .functions
+            .iter()
+            .filter(|f| {
+                f.blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(|i| matches!(i.kind, InstructionKind::WithScopedThread { .. }))
+            })
+            .map(|f| typed.closures[f.environment.unwrap().0 as usize].kind)
+            .collect::<Vec<_>>();
+        if name == "kinds" {
+            assert!(kinds.contains(&CallableKind::Fn), "{kinds:?}");
+            assert!(kinds.contains(&CallableKind::FnMut), "{kinds:?}");
+            assert!(kinds.contains(&CallableKind::FnOnce), "{kinds:?}");
+        } else if name == "nested" {
+            assert_eq!(kinds.len(), 2);
+        } else {
+            assert_eq!(kinds.len(), 1);
+        }
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        let (decoded, plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        let verified = zil_verify::verify_module(decoded, plan, &target, &limits).unwrap();
+        zil_lower::lower(&verified).unwrap();
     }
 }
