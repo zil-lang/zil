@@ -778,6 +778,27 @@ fn thread325_source_and_worker_boundaries() {
         );
         assert!(!report.artifacts.contains_key("executable"));
     }
+    for (name, phase) in [
+        ("parent_closure", zil_base::Phase::Types),
+        ("callable_wrapper", zil_base::Phase::Expand),
+    ] {
+        let path = thread325_root().join(format!("pending/{name}.zil"));
+        let text = std::fs::read_to_string(path).unwrap();
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase, "{name}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"),
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
 }
 
 #[test]
