@@ -145,10 +145,11 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     continue;
                 };
                 if caller.environment.is_some() || caller.callable_contract.is_some() {
-                    return Err(reject(
-                        instruction.span,
-                        "thread_scope in nested or callable helper entries is not implemented",
-                    ));
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "thread_scope is implemented only in ordinary Direct functions; closure and callable helper entries are not implemented",
+                        Some(instruction.span),
+                    )]);
                 }
                 if caller.values.get(argument.0 as usize) != Some(&Type::I32)
                     || instruction
