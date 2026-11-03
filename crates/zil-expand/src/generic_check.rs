@@ -305,7 +305,12 @@ fn same(actual: &TypeRef, expected: &TypeRef, span: Span, budget: &mut Budget<'_
         ))
     }
 }
-fn same_return(actual: &TypeRef, expected: &TypeRef, span: Span, budget: &mut Budget<'_>) -> R<()> {
+pub(super) fn same_return(
+    actual: &TypeRef,
+    expected: &TypeRef,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<()> {
     let actual_key = type_key(actual, budget)?;
     if actual_key == type_key(expected, budget)? {
         return Ok(());
@@ -2673,14 +2678,23 @@ impl Check<'_, '_, '_> {
                         &hint,
                         (!dependent(&hint, &variables)).then_some(&hint),
                     )?;
-                    unify(
+                    if !context_argument(
                         &parameter.ty,
                         &actual,
                         &variables,
-                        &mut found,
+                        &found,
                         e.span,
                         self.budget,
-                    )?;
+                    )? {
+                        unify(
+                            &parameter.ty,
+                            &actual,
+                            &variables,
+                            &mut found,
+                            e.span,
+                            self.budget,
+                        )?;
+                    }
                 }
                 if variables.iter().any(|name| !found.contains_key(name)) {
                     return Err(error(e.span, "unconstrained nested generic argument"));
@@ -3194,7 +3208,11 @@ impl Check<'_, '_, '_> {
                         ),
                     )?;
                     if let Some(ty) = ty {
-                        same(&actual, ty, statement.span, self.budget)?;
+                        if matches!(group(ty).kind, TypeKind::Error { .. }) {
+                            same_return(&actual, ty, statement.span, self.budget)?;
+                        } else {
+                            same(&actual, ty, statement.span, self.budget)?;
+                        }
                     }
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
                     self.factory_bind_value(state.locals[n].id, value, state)?;
