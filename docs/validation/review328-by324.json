@@ -89,5 +89,39 @@
     "No full workspace run or Windows support claim.",
     "Tests are bounded executions, not a proof of every scheduler interleaving or general Transfer/Share/async safety.",
     "Root combination c1a61ccb3 adds the 324 copy_values fixture adapter; this review binds original 328 backend bytes, not an independent review of author-owned 324 changes."
-  ]
+  ],
+  "common_candidate_review": {
+    "candidate_commit": "022303df8c24de8a609a8b0c9ae33213a576a0c0",
+    "reviewer": "/root/impl313",
+    "verdict": "Pass",
+    "scope": "328 backend compatibility only, not an independent review of 324",
+    "comparison_to_implementation_commit": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
+    "byte_comparisons": [
+      {
+        "path": "crates/zil-backend-llvm/src/emit/scoped_thread.rs",
+        "identical": true,
+        "sha256": "93573bdd85d57894f8c3ba73adc23debb23b687abc4da6c4c74003f0ec993291"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/build.rs",
+        "identical": true,
+        "sha256": "b502ce522c03a42b125529bd0d56eadd61d839f409730fa07c7d4067ad787827"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu.rs",
+        "identical": true,
+        "sha256": "6cb8d87ecf745ec76bd3e50aa32c7dc18f5ad748d2cbf6085649d82d6526318a"
+      },
+      {
+        "path": "crates/zil-backend-llvm/src/machine_cgu/layout.rs",
+        "identical": true,
+        "sha256": "7ed85b7b1d49839da8df725210497352de45be26e69bf973f1bfcdb60bc252df"
+      }
+    ],
+    "integration_adapter": "scoped_thread_tests.rs adds exactly copy_values: &BTreeMap::new() to its existing FunctionEmitter fixture; no thread model or ABI change",
+    "shared_emitter_delta": "Only 324 Copy snapshot plan/dispatch/event hooks, helper module and its existing cache-key controls differ. Current thread i32 payload/result, small (bool,i32,i32) tuple and Closure environment do not enter the >=4096B ordinary Copy snapshot representation. This is compatibility inspection, not certification of 324 semantics.",
+    "source_evidence_reuse": "Exact-0c real-source and native evidence above remains the basis for unchanged pthread adapter, CGU/layout and link implementation. No repeated workspace-wide run was performed.",
+    "placement_migration": "Current main section11.1 limits closure/callable-helper placements. e622 supplemental source/raw Unsupported tests were independently run as recorded above; nested parent thread_scope is not claimed supported.",
+    "blocking_findings": []
+  }
 }
