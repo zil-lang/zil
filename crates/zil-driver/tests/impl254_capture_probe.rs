@@ -9,11 +9,12 @@ fn returned_parent_capture_old_position_window_is_checked_with_or_without_a_cons
     for (name, frozen) in [
         (
             "no_call_edge",
-            include_bytes!("../../../tests/impl254/parent_valid_no_call_edge.wire").as_slice(),
+            include_bytes!("../../../tests/impl254/v34/parent_valid_no_call_edge.wire").as_slice(),
         ),
         (
             "with_call_edge",
-            include_bytes!("../../../tests/impl254/parent_valid_with_call_edge.wire").as_slice(),
+            include_bytes!("../../../tests/impl254/v34/parent_valid_with_call_edge.wire")
+                .as_slice(),
         ),
     ] {
         let (valid, plan) = zil_ir::wire::decode_module_candidate(frozen, &limits).unwrap();
