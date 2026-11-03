@@ -246,6 +246,8 @@ fn model() -> (m::Module, LirModule) {
                 partial_packages: BTreeSet::new(),
                 safe_divisors: None,
                 copy_values: &BTreeMap::new(),
+                abi_plans: &large_copy_abi::Plans::default(),
+                unsupported_large_copy: false,
             }
             .emit()
             .unwrap(),

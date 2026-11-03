@@ -22,6 +22,17 @@ struct Definition {
     calls: BTreeSet<String>,
 }
 
+// Resolve the actual current generated ABI, including its explicit version.
+fn source_name(names: &BTreeMap<&str, usize>, id: zil_ir::FunctionId) -> String {
+    let original = format!("zil.fn.{}", id.0);
+    let large = format!("{original}.lc1");
+    if names.contains_key(large.as_str()) {
+        large
+    } else {
+        original
+    }
+}
+
 // Source callers can change when a callee's result propagates even after their
 // machine calls disappear. Isolate only a small, closed set of current linkage
 // components; ordinary dynamic call graphs retain the existing partition.
@@ -55,7 +66,7 @@ fn small_caller_components(
             }
         }
         if calls_source {
-            let name = format!("zil.fn.{}", function.id.0);
+            let name = source_name(names, function.id);
             selected.insert(roots[*names.get(name.as_str())?]);
             if selected.len() > 256 {
                 return None;
@@ -259,7 +270,7 @@ fn partition_view_recorded(
         if function.foreign.is_some() {
             continue;
         }
-        let name = format!("zil.fn.{}", function.id.0);
+        let name = source_name(&names, function.id);
         let Some(&id) = names.get(name.as_str()) else {
             return fallback(module, "source grouping missing machine definition");
         };
@@ -372,7 +383,7 @@ fn partition_view_recorded(
             .functions
             .iter()
             .filter(|f| f.foreign.is_none())
-            .map(|f| format!("zil.fn.{}", f.id.0))
+            .map(|f| source_name(&names, f.id))
             .collect::<BTreeSet<_>>();
         let original_cost = source_functions
             .iter()
@@ -580,7 +591,12 @@ pub(crate) fn internalize_closed_executable(units: &mut [Module], lir: &LirView<
         .functions
         .iter()
         .filter(|function| function.foreign.is_none())
-        .map(|function| format!("zil.fn.{}", function.id.0))
+        .flat_map(|function| {
+            [
+                format!("zil.fn.{}", function.id.0),
+                format!("zil.fn.{}.lc1", function.id.0),
+            ]
+        })
         .collect::<BTreeSet<_>>();
     internalize_closed_executable_names(units, &candidates)
 }
