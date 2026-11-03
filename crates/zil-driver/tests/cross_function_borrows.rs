@@ -109,6 +109,174 @@ fn typed(text: &str) -> TypedModule {
     zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap()
 }
 
+const LIFE_IDENTITY322: &str =
+    include_str!("../../../tests/language-readiness/recovery/pending/life-parameter-return.zil");
+
+#[test]
+fn explicit_life_identity_keeps_core_ct_and_actual_native_origins() {
+    let r = compile_source(&source(LIFE_IDENTITY322), &CompileOptions::default());
+    assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+    let module = typed(LIFE_IDENTITY322);
+    assert_eq!(
+        module
+            .functions
+            .iter()
+            .find(|f| f.name == "identity")
+            .unwrap()
+            .reference_return_bound,
+        Some(vec![0])
+    );
+    native(&LIFE_IDENTITY322.replace("fn main()", "fn result()"), 0);
+    native(
+        "fn select<life a,life b>(left:&'a i64,right:&'b i64)->&'a i64{return left}fn result()->i64{var left:i64=40;var right:i64=2;let p=select(&left,&right);right=99;return *p+right}",
+        139,
+    );
+    native(
+        "fn select<life a>(left:&'a i64,right:&'a i64,first:bool)->&'a i64{if first{return left}return right}fn result()->i64{var left:i64=40;var right:i64=2;let p=select(&left,&right,false);let n=*p;left=100;right=200;return n+left+right}",
+        302,
+    );
+    native(
+        "struct Point{value:i64}impl Point{fn read<life a>(self:&'a Self)->&'a i64{return &self.value}}fn result()->i64{let p=Point{value:42};return *p.read()}",
+        42,
+    );
+}
+
+#[test]
+fn explicit_life_definitions_reject_wrong_binders_and_unsupported_positions() {
+    for text in [
+        include_str!("../../../tests/language-readiness/recovery/probes/undeclared-life.zil"),
+        include_str!(
+            "../../../tests/language-readiness/recovery/probes/mismatched-undeclared-life.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/recovery/probes/receiver-undeclared-life.zil"
+        ),
+        "fn f<life a,life a>(p:&'a i32)->&'a i32{return p}fn main(){}",
+        "fn f<life a>()->&'a i32{let x=1;return &x}fn main(){}",
+    ] {
+        reject(
+            text,
+            ResultCategory::SafeReject,
+            Phase::Expand,
+            "E-LIFE-DECLARATION",
+        );
+    }
+    for text in [
+        "fn f<life a,life b>(p:&'a i32,q:&'b i32)->&'a i32{return q}fn main(){}",
+        "fn f<life a>(p:&'a i32)->&'a i32{let x=1;return &x}fn main(){}",
+        "fn inner(p:&i32,q:&i32)->&i32{return q}fn outer<life a,life b>(p:&'a i32,q:&'b i32)->&'a i32{return inner(p,q)}fn main(){}",
+        "fn f<life a>(p:&i32,q:&'a i32)->&'a i32{return p}fn main(){}",
+    ] {
+        reject(
+            text,
+            ResultCategory::SafeReject,
+            Phase::Analyze,
+            "E-LIFE-RETURN",
+        );
+    }
+    for text in [
+        "fn f<life a>(p:&'a mut i32)->&'a i32{return p}fn main(){}",
+        "fn f<life a>(p:&'a i32)->&'a i32{let local:&'a i32=p;return local}fn main(){}",
+        "fn f<life a>(p:fn(&'a i32)->i32){}fn main(){}",
+        include_str!("../../../tests/language-readiness/recovery/pending/life-higher-rank.zil"),
+    ] {
+        reject(
+            text,
+            ResultCategory::Unsupported,
+            Phase::Expand,
+            "E-UNSUPPORTED",
+        );
+    }
+    native(
+        "fn f<life a>(p:&'a i64,q:&i64)->&i64{return q}fn result()->i64{let p:i64=1;let q:i64=42;return *f(&p,&q)}",
+        42,
+    );
+}
+
+#[test]
+fn explicit_life_raw_bounds_are_checked_independently_after_the_fixed_point() {
+    let module = typed(
+        "fn first<life a,life b>(p:&'a i32,q:&'b i32,flag:bool)->&'a i32{return p}fn result()->i32{let x=1;let y=2;return *first(&x,&y,false)}",
+    );
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    for bound in [vec![], vec![1], vec![0, 0], vec![1, 0], vec![2], vec![99]] {
+        let mut changed = module.clone();
+        changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "first")
+            .unwrap()
+            .reference_return_bound = Some(bound);
+        let errors = zil_analyze::analyze(&changed, &Limits::default()).unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.code == "E-LIFE-RETURN"),
+            "{errors:?}"
+        );
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &candidate, &Limits::default())
+            .unwrap();
+        for result in [
+            zil_verify::verify_module(
+                changed.clone(),
+                candidate,
+                &changed.target,
+                &Limits::default(),
+            ),
+            zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default()),
+        ] {
+            let errors = result.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.phase == Phase::Verify && d.code == "E-VERIFY-LIFE"),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn explicit_life_project_ct_and_warm_interface_keep_the_declared_upper_bound() {
+    let temp = Temp::new();
+    let main = "import api\nfn constant()->i32{return 0}fn result()->i32{let x=42;let ignored=#(constant());return *api.identity(&x)+ignored-42}";
+    let api = "pub fn identity<life a>(p:&'a i32)->&'a i32{return p}";
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(FileId(0), ModuleId(0), "main.zil", main),
+            SourceUnit::new(FileId(1), ModuleId(1), "api.zil", api),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["api".into()], ModuleId(1))]),
+    };
+    let options = CompileOptions {
+        semantic_cache: Some(temp.0.join("cache")),
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let cold = zil_driver::compile_project(&project, &options);
+    assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+    let warm = zil_driver::compile_project(&project, &options);
+    assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+    assert_eq!(
+        warm.disk_cache,
+        zil_driver::DiskCacheStatus::Hit,
+        "{}",
+        warm.to_json()
+    );
+    assert_eq!(warm.verification_runs, 1);
+    assert_eq!(cold.scalar_interfaces, warm.scalar_interfaces);
+    assert_eq!(
+        warm.scalar_interfaces
+            .iter()
+            .flat_map(|i| &i.exports)
+            .find(|f| f.name == "identity")
+            .unwrap()
+            .reference_return_bound,
+        Some(vec![0])
+    );
+}
+
 #[test]
 fn incoming_pointer_and_exact_return_origin_use_native_abi() {
     let llvm = native(

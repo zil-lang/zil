@@ -15,10 +15,6 @@ pub(super) fn reserved_declaration_name(name: &str) -> bool {
     )
 }
 
-pub(super) fn normalize(module: &Module, limits: &Limits) -> R<Option<Normalized>> {
-    normalize_with_budget(module, Budget::new(limits)).map(|(normalized, _)| normalized)
-}
-
 pub(super) fn normalize_with_budget<'a>(
     module: &Module,
     mut budget: Budget<'a>,

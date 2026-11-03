@@ -8,7 +8,7 @@ use zil_ir::{
     TypedProgram,
 };
 
-const MAGIC: &[u8; 8] = b"ZILSEM02";
+const MAGIC: &[u8; 8] = b"ZILSEM03";
 static COMPILER: OnceLock<Option<Fingerprint>> = OnceLock::new();
 
 pub(super) struct Store {
@@ -31,11 +31,11 @@ impl Store {
         {
             return None;
         }
-        let root = options.semantic_cache.as_ref()?.join("semantic-v2");
+        let root = options.semantic_cache.as_ref()?.join("semantic-v3");
         let compiler = COMPILER
             .get_or_init(|| zil_backend_llvm::installed_compiler_identity().ok())
             .as_ref()?;
-        let mut bytes = b"ZIL-TRUSTED-SEMANTIC-v2\0".to_vec();
+        let mut bytes = b"ZIL-TRUSTED-SEMANTIC-v3\0".to_vec();
         bytes.extend_from_slice(&identity.fingerprint().0);
         bytes.extend_from_slice(&compiler.0);
         Some(Self {
@@ -155,6 +155,7 @@ impl Writer {
                 .len()
                 != f.parameters.len()
             || f.return_type != s.result
+            || f.reference_return_bound != s.reference_return_bound
             || f.parameters.len() != s.parameters.len()
             || f.result_mode != s.result_mode
             || f.parameters
@@ -171,6 +172,13 @@ impl Writer {
         self.number(s.function.0 as usize)?;
         self.text(&s.name)?;
         self.put(&[mode(s.result_mode)])?;
+        self.put(&[u8::from(s.reference_return_bound.is_some())])?;
+        if let Some(bound) = &s.reference_return_bound {
+            self.number(bound.len())?;
+            for index in bound {
+                self.number(*index as usize)?;
+            }
+        }
         self.number(s.parameters.len())?;
         for (passing, _) in &s.parameters {
             self.put(&[mode(*passing)])?;
@@ -271,6 +279,23 @@ impl<'a> Reader<'a> {
         if result_mode != f.result_mode {
             return None;
         }
+        let reference_return_bound = match self.take(1)?[0] {
+            0 => None,
+            1 => {
+                let n = self.count(limits.max_locals, 4)?;
+                self.nodes = self.nodes.checked_sub(n)?;
+                self.type_bytes = self.type_bytes.checked_sub(n.checked_mul(4)?)?;
+                let mut bound = Vec::with_capacity(n);
+                for _ in 0..n {
+                    bound.push(u32::try_from(self.number()?).ok()?);
+                }
+                Some(bound)
+            }
+            _ => return None,
+        };
+        if reference_return_bound != f.reference_return_bound {
+            return None;
+        }
         let n = self.count(limits.max_locals, 1)?;
         if n != f.parameters.len() {
             return None;
@@ -295,7 +320,7 @@ impl<'a> Reader<'a> {
             0,
         )?;
         Some(ScalarFunction {
-            reference_return_bound: None,
+            reference_return_bound,
             name,
             function,
             parameters,
@@ -476,6 +501,10 @@ fn metadata_budget(program: &TypedProgram, limits: &Limits) -> Option<()> {
         .chain(&program.root_functions)
     {
         nodes = nodes.checked_sub(1 + signature.parameters.len())?;
+        if let Some(bound) = &signature.reference_return_bound {
+            nodes = nodes.checked_sub(bound.len())?;
+            bytes = bytes.checked_sub(bound.len().checked_mul(4)?)?;
+        }
         let count = uses.entry(signature.function).or_default();
         *count = count.checked_add(1)?;
         if *count > 2 {

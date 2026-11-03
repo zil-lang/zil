@@ -7,6 +7,7 @@ mod enums;
 mod foreign;
 mod generated_spans;
 mod generics;
+mod lifetimes;
 pub use generated_spans::remap_generated_spans;
 mod mapping;
 mod modules;
@@ -1362,7 +1363,16 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             element: Box::new(type_ref(element)),
         },
         s::TypeKind::Group(t) => type_ref(t),
-        s::TypeKind::Reference { mutable, inner, .. } => Type::Address {
+        s::TypeKind::Reference {
+            lifetime: Some(_), ..
+        } => {
+            Type::Unsupported("explicit life requires a checked function signature contract".into())
+        }
+        s::TypeKind::Reference {
+            mutable,
+            inner,
+            lifetime: None,
+        } => Type::Address {
             mutable: *mutable,
             inner: Box::new(type_ref(inner)),
         },

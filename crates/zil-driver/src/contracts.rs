@@ -32,6 +32,7 @@ pub(super) fn publish(
                 .ok_or_else(fail)?;
             if function.environment.is_some()
                 || function.return_type != export.result
+                || function.reference_return_bound != export.reference_return_bound
                 || function.result_mode != export.result_mode
                 || function.parameters.len() != export.parameters.len()
                 || function

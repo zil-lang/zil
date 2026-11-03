@@ -27,3 +27,19 @@ life、Product/资源头借入返回、外部 ABI 或异步。Self 正规化保�
 schema/Wire33 与公共 None 构造迁移由 root 管理，无新运行时布局、分配或权限位。
 只做已有 cross_function_borrows 目标内源/raw/Wire、跨模块、CT、O0/O2 与
 N/N−1/fresh 限测；正式全量、Windows、Rust 产品比较未运行不得记为完成。
+
+首个生产消费者 checkpoint 已完成：合并 root life33 公共提交 8e46a4615 后，
+原 pending life-parameter-return 原源 Verify/native、同 binder union、双 binder
+精确来源、Self receiver0、未调用错误定义、最终固定点后的 raw/Wire 上界反例、
+CT 重建及 semantic-v3 warm interface 共 4 个新增限定测试均通过。命令为
+`source /workspace/.zil-env/env.sh` 后设 target322/jobs1，运行
+`cargo test -p zil-driver --features llvm-api --test cross_function_borrows explicit_life --offline -- --nocapture`。
+尚未以这一次限定结果宣称整单完成；预算、旧借用回归与独审继续进行。
+
+所有 AST 类型位置借用现有有界 Visitor 在模板移除前扫描；显式头信息才可经过
+signature_type 降到地址布局，其它 type_ref 遇 life 保留 Unsupported 而非静默
+擦除。新扫描进入同一泛型剩余预算，不提高默认限额；原 private fresh-budget
+wrapper 已无调用，经 root 授权、323 确认无依赖后删除，保留累计预算正规化核。
+缓存格式/键/目录升级 v3，显式编码上界并与恢复 Typed 函数逐一核对；每次命中
+仍重新 Verify。root CT source clone/preflight 与本片 driver CT collector 分别保留
+Core life 元数据，不把缓存、哈希或 CT 重建当成已核权限。
