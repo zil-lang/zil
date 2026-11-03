@@ -11,6 +11,20 @@ use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn record_enum329_quote_shorthand_preserves_value_hygiene() {
+    // Reviewer 6c6481d08's legal-category source; author regression, not review.
+    native("enum E{V{x:i32}}fn generated()->Syntax<StmtList>{return quote<StmtList>{let x=7;let e=E.V{x};match e{E.V{x:y}=>{return y}}}}fn result()->i32{let x=100;#emit generated()}",Some(7));
+}
+
+#[test]
+fn record_enum329_unused_variant_attributes_remain_explicit() {
+    let report=compile_source(&source("enum E<T>{#[inline] Row{value:T}}fn main(){}"),&CompileOptions::default());
+    assert_eq!(report.status,ResultCategory::Unsupported,"{}",report.to_json());
+    assert_eq!(report.phase,Phase::Expand,"{}",report.to_json());
+    assert_eq!(report.diagnostics[0].code,"E-UNSUPPORTED");
+}
+
+#[test]
 fn record_enum329_named_source_order_and_exact_values() {
     native(
         r#"
