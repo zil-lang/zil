@@ -145,6 +145,14 @@ fn tuple_binding_shadow_closure_and_copy_fields() {
         "struct P { x:i32; } fn result()->i32 { let x=5; if true { let (x,y)=(x+1,2); let f=()=>{ let (a,b)=(x,y); return a+b; }; var (p,a,flag,u)=(P{x:f()},[3,4],true,()); p.x+=1; a[1]=7; if flag { return p.x*100+a[0]*10+a[1]; } }; return 0; }",
         Some(937),
     );
+    native(
+        "fn result()->i32 { var (a,b)=(1,2); var f=()=>{ a+=b; return a; }; let first=f(); return first*10+f(); }",
+        Some(35),
+    );
+    native(
+        "fn result()->i64 { let (a,b):(i64,i64)=(3000000000,2); return a+b; }",
+        Some(3000000002),
+    );
 }
 #[test]
 fn tuple_binding_shape_and_permission_neighbors() {
@@ -184,6 +192,10 @@ fn tuple_binding_shape_and_permission_neighbors() {
         (
             "fn result()->i32 { let (self,b)=(1,2); return b; }",
             "E-RECEIVER-RESERVED-NAME",
+        ),
+        (
+            "fn result()->i32 { var (a,b)=(1,2); let f=()=>{a+=b;return a;}; return f(); }",
+            "E-CLOSURE-MUTABILITY",
         ),
     ] {
         reject(text, code);
