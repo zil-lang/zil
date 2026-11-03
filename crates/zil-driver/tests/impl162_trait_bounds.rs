@@ -383,16 +383,20 @@ fn trait336_unused_and_overridden_function_values_keep_complete_symbolic_identit
             assert_eq!(report.verification_runs, 0);
         }
     }
-    let symbolic = "fn identity(value:i32)->i32{return value}trait Factory<R:Copy>{fn handler(self:&Self)->fn(R)->R{return identity}}";
-    for suffix in [
-        "fn main(){}",
-        "struct P{}impl Factory<i32> for P{}fn main(){}",
-        "struct P{}impl Factory<i32> for P{fn handler()->fn(i32)->i32{return identity}}fn main(){}",
+    for symbolic in [
+        "fn identity(value:i32)->i32{return value}trait Factory<R:Copy>{fn handler(self:&Self)->fn(R)->R{return identity}}",
+        "struct R{n:i32}fn identity(value:R)->R{return value}trait Factory<R:Copy>{fn handler(self:&Self)->fn(R)->R{return identity}}",
     ] {
-        reject(
-            &format!("{symbolic}{suffix}"),
-            "before concrete instantiation",
-        );
+        for suffix in [
+            "fn main(){}",
+            "struct P{}impl Factory<i32> for P{}fn main(){}",
+            "struct P{}impl Factory<i32> for P{fn handler()->fn(i32)->i32{return identity}}fn main(){}",
+        ] {
+            reject(
+                &format!("{symbolic}{suffix}"),
+                "before concrete instantiation",
+            );
+        }
     }
 }
 
@@ -403,7 +407,8 @@ fn trait336_foreign_generic_inferred_and_noncopy_function_values_stay_explicitly
         "fn identity(value:i32){return value}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
         "fn identity(value:&i32)->i32{return *value}trait Factory{fn handler(self:&Self)->fn(&i32)->i32{return identity}}fn main(){}",
         "resource R{}fn identity(value:R)->R{return value}trait Factory{fn handler(self:&Self)->fn(R)->R{return identity}}fn main(){}",
-        "extern \"C\"{fn identity(value:i32)->i32;}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
+        "resource R{}fn identity(value:R)->R{return value}trait Factory<R:Copy>{fn handler(self:&Self)->fn(R)->R{return identity}}fn main(){}",
+        "extern \"C\" fn identity(value:i32)->i32;trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
     ] {
         let report = check(text);
         assert_eq!(
@@ -442,17 +447,86 @@ fn trait336_function_value_lookup_keeps_private_names_and_unknown_names_closed()
         report.to_json()
     );
     assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    // Qualified module values in default bodies still stop at the existing
+    // symbolic Member boundary. This slice only admits resolved Name values.
     assert_eq!(
         report.diagnostics[0].code,
-        "E-MODULE-PRIVATE",
+        "E-GENERIC-ARGUMENT",
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics[0]
+            .message
+            .contains("unknown value hidden"),
         "{}",
         report.to_json()
     );
     assert_eq!(report.verification_runs, 0);
+    let ordinary = compile_project(
+        &project(&[
+            (
+                "main",
+                "import hidden;fn main()->i32{let handler=hidden.identity;return handler(0)}",
+            ),
+            ("hidden", "fn identity(value:i32)->i32{return value}"),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        ordinary.status,
+        ResultCategory::SafeReject,
+        "{}",
+        ordinary.to_json()
+    );
+    assert_eq!(
+        ordinary.diagnostics[0].code,
+        "E-MODULE-PRIVATE",
+        "{}",
+        ordinary.to_json()
+    );
     reject(
         "trait Factory{fn handler(self:&Self)->fn(i32)->i32{return missing}}fn main(){}",
         "unknown value",
     );
+    reject(
+        "fn identity(value:i32)->i32{return value}fn ordinary<T:Copy>(value:T)->fn(i32)->i32{return identity}fn main(){}",
+        "unknown value",
+    );
+}
+
+#[test]
+fn trait336_cached_default_values_recheck_the_actual_global_signature() {
+    use zil_driver::CompilationSession;
+    let valid = "fn identity(value:i32)->i32{return 7}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}struct P{}impl Factory for P{}fn main(){}";
+    let invalid = valid.replace("value:i32", "value:i64");
+    let mut session = CompilationSession::default();
+    for (text, expected) in [
+        (valid, ResultCategory::Success),
+        (invalid.as_str(), ResultCategory::SafeReject),
+        (valid, ResultCategory::Success),
+    ] {
+        let unit = source(text);
+        for report in [
+            session.compile_source(&unit, &CompileOptions::default()),
+            CompilationSession::default().compile_source(&unit, &CompileOptions::default()),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+            if expected == ResultCategory::Success {
+                assert_eq!(report.verification_runs, 1);
+            } else {
+                assert_eq!(report.phase, Phase::Expand);
+                assert_eq!(report.diagnostics[0].code, "E-GENERIC-ARGUMENT");
+                assert!(
+                    report.diagnostics[0]
+                        .message
+                        .contains("before concrete instantiation")
+                );
+                assert_eq!(report.verification_runs, 0);
+            }
+        }
+        assert_eq!(session.active_query_count(), 0);
+    }
 }
 
 #[test]
