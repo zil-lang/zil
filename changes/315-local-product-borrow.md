@@ -75,3 +75,35 @@ raw 窗口探针保留阶段事实：Analyze 可发布未核 CandidatePlan；普
 首次调用前，raw 与 Wire 均精确 `E-BORROW-CONFLICT`；未把候选产生计为安全通过。
 借入前缺 child、移空/清理/失效 shell 则由 Analyze 与 Verify 分别拒绝。最后一次
 测试修改未变生产代码，未增加额度、关闭门或改 lower/backend/schema。
+
+## 223 历史 oracle 的 315 有限迁移提案
+
+root 6907974 的正式默认/参考首轮暴露三项旧期待：impl223 的 coherent Root 地址
+改写、review223 的同输入及冻结 schema32 replay。它们均保留实际 incoming
+`&mut Root`、Parameter(0) Hold，只写外层 index1 的 i32 Copy 字段；Root 为
+递归 Managed<R Copy 头> child 加 Copy 字段，无 Store/Closure/拥有 Sum/数组。
+这属于新增 §8.1.2.1 同步 helper 合同，并非 deep child 写入或从只读来源制造权限。
+参数 local 的 immutable 仅限制 pointer 绑定重赋值，不撤回实际 incoming &mut。
+
+经 root 授权，仅迁移三个测试当前合法 source/raw/Wire 为显式 315 正控；保留全部
+原源码、ORACLE.json、schema29/30 JSON、Wire27/29/30/32 fixture 原字节与旧传输
+版本拒绝。不改生产。每个迁移入口补 shared 地址仍写、owned child 目标和调用时
+缺 child 的最近反例，固定真实 phase/code，不能以空选择、fingerprint 或资源耗尽
+代替语义拒绝。历史旧 Unsupported/UnexpectedAccept 记录不重标为当时通过。
+
+迁移限定命令沿用 target315/jobs1：`cargo test -p zil-driver --features llvm-api
+--test impl223_product_store --test review223_boundaries --test review223_replay
+-- --nocapture`，分别 13/13、2/2、2/2，无过滤。三个迁移入口各自保留 coherent
+raw/Wire 正控，再各核 shared-write 的 Verify/`E-VERIFY-ADDRESS`、owned-child
+目标的 Verify/`E-UNSUPPORTED`（不准形成 owning child 可变地址）、以及真实调用
+缺 child 的 Analyze/SafeReject/`E-ANALYZE-IR`；共 12 个 raw/Wire 近邻拒绝及
+3 个真实源拒绝，均绑定精确 phase/code。所有 fresh fingerprint 重绑定保留。
+
+全部原 fixture 的 diff 为空。原 `mutable_control.zil` SHA256 为
+`b3f19abd09088e6686ebb12eb50a0058429ba38a8568274c789050160716f75a`；
+原 ORACLE.json 为 `d4e9dcc8e54b2a3029e9d9820e0ccfe65885a7c19f22eef7193ff00a263ecb94`。
+现 schema32 的 1744 字节 SHA256 新增显式断言为
+`8cc0e4a565e57b71135b3c692079dcaa65dfa4ce6f49dbe36c253182df497862`；
+依旧逐字核对仅版本 envelope/fingerprint 相对原 schema27 的允许范围。
+Wire27/29/30 的既有固定 SHA、decode/Verify `E-WIRE-VERSION` 拒绝均不改。
+三个测试保留实际 source/raw/Wire/JSON 输出；迁移只改测试与本记录，无生产变更。
