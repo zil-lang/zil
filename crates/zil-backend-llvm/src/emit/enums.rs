@@ -354,6 +354,15 @@ pub(super) fn llvm_enum_type(ty: &Type) -> CompileResult<m::Ty> {
 
 impl FunctionEmitter<'_> {
     pub(super) fn enum_slot(&mut self, instruction: &Instruction) -> CompileResult<()> {
+        if match &instruction.kind {
+            InstructionKind::MakeVariant { .. } => instruction
+                .result
+                .is_some_and(|id| self.copy_values.contains_key(&id)),
+            InstructionKind::ReadVariant { value, .. } => self.copy_values.contains_key(value),
+            _ => false,
+        } {
+            return Ok(());
+        }
         let (ty, result) = match &instruction.kind {
             InstructionKind::MakeVariant { .. } => {
                 let result = result(instruction)?;
@@ -388,15 +397,22 @@ impl FunctionEmitter<'_> {
         let payload = Type::Tuple(variants[variant as usize].1.clone());
         let llvm = llvm_type(&ty)?;
         let layout = union_layout(&ty)?;
-        let slot = format!("%enum.slot.{}", result.0);
-        self.event(m::Event::Instruction(m::Inst::new(
-            None,
-            m::Op::Store {
-                arg: m::Arg::new((llvm).clone(), m::Val::Zero),
-                ptr: m::val((slot).clone()),
-                align: (layout.align) as u32,
-            },
-        )));
+        let memory = self.copy_values.contains_key(&result);
+        let slot = if memory {
+            self.copy_zero(result);
+            format!("%copy.value.{}", result.0)
+        } else {
+            let slot = format!("%enum.slot.{}", result.0);
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new((llvm).clone(), m::Val::Zero),
+                    ptr: m::val((slot).clone()),
+                    align: (layout.align) as u32,
+                },
+            )));
+            slot
+        };
         let tag = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((tag).clone())),
@@ -446,7 +462,14 @@ impl FunctionEmitter<'_> {
                     ],
                 },
             )));
-            self.store_payload(field_ty, &value(*field), &address)?;
+            if memory && self.copy_values.contains_key(field) {
+                self.copy_write(m::val(address), *field)?;
+            } else {
+                self.store_payload(field_ty, &value(*field), &address)?;
+            }
+        }
+        if memory {
+            return Ok(());
         }
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((value(result)).clone())),
@@ -463,6 +486,18 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         source: ValueId,
     ) -> CompileResult<()> {
+        if self.copy_values.contains_key(&source) {
+            let address = self.copy_field(source, m::Arg::new(m::Ty::Int(32), 0));
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(format!("v.{}", result(instruction)?.0)),
+                m::Op::Load {
+                    ty: m::Ty::Int(32),
+                    ptr: address,
+                    align: 4,
+                },
+            )));
+            return Ok(());
+        }
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((value(result(instruction)?)).clone())),
             m::Op::Extract {
@@ -490,12 +525,23 @@ impl FunctionEmitter<'_> {
         let fields = &variants[variant as usize].1;
         let llvm = llvm_type(&ty)?;
         let tag = self.temp();
-        self.event(m::Event::Instruction(m::Inst::new(
-            Some(m::name((tag).clone())),
+        let memory = self.copy_values.contains_key(&source);
+        let tag_read = if memory {
+            let address = self.copy_field(source, m::Arg::new(m::Ty::Int(32), 0));
+            m::Op::Load {
+                ty: m::Ty::Int(32),
+                ptr: address,
+                align: 4,
+            }
+        } else {
             m::Op::Extract {
                 arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
                 index: 0,
-            },
+            }
+        };
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name((tag).clone())),
+            tag_read,
         )));
         let mismatch = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
@@ -511,15 +557,20 @@ impl FunctionEmitter<'_> {
         if fields[index as usize] == Type::Unit {
             return Ok(());
         }
-        let slot = format!("%enum.slot.{}", result.0);
-        self.event(m::Event::Instruction(m::Inst::new(
-            None,
-            m::Op::Store {
-                arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
-                ptr: m::val((slot).clone()),
-                align: (union_layout(&ty)?.align) as u32,
-            },
-        )));
+        let slot = if memory {
+            format!("%copy.value.{}", source.0)
+        } else {
+            let slot = format!("%enum.slot.{}", result.0);
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new((llvm).clone(), m::val((value(source)).clone())),
+                    ptr: m::val((slot).clone()),
+                    align: (union_layout(&ty)?.align) as u32,
+                },
+            )));
+            slot
+        };
         let base = self.temp();
         self.event(m::Event::Instruction(m::Inst::new(
             Some(m::name((base).clone())),
@@ -544,14 +595,7 @@ impl FunctionEmitter<'_> {
                 ],
             },
         )));
-        self.event(m::Event::Instruction(m::Inst::new(
-            Some(m::name((value(result)).clone())),
-            m::Op::Load {
-                ty: (llvm_type(&fields[index as usize])?).clone(),
-                ptr: m::val((address).clone()),
-                align: (physical_layout(&fields[index as usize])?.align) as u32,
-            },
-        )));
+        self.copy_read(result, m::val(address))?;
         Ok(())
     }
     fn store_payload(&mut self, ty: &Type, source: &str, address: &str) -> CompileResult<()> {

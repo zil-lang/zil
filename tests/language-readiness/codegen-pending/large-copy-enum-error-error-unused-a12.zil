@@ -1,0 +1,1 @@
+type Big=[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];fn keep(e:bool!Big)->bool!Big{return e}fn main()->i32{let answer=keep(true);return 0}
