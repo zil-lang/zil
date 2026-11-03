@@ -1,0 +1,106 @@
+{
+  "review": "327",
+  "reviewer": "/root/recovery_audit",
+  "scope": "323 finite concrete generic trait instances only; non-author review",
+  "implementation_sha": "d626c5ad40b388afa77550514f8c242b178c29c8",
+  "independent_tests_sha": "ac4ad8f0e",
+  "status": "SemanticBoundedChecksPass_BudgetAccountingPending",
+  "independent_execution": [
+    {
+      "command": "cargo test -p zil-driver --test impl162_trait_bounds --test impl147_static_traits --test impl233_modules --test impl231_where_traits --test review231_independent -- --nocapture",
+      "result": {
+        "passed": 65,
+        "failed": 0,
+        "target_counts": [
+          22,
+          12,
+          9,
+          14,
+          8
+        ]
+      },
+      "log_sha256": "d882b49dfd08d7f8466165ea053121390a1066e71f60cb0dad8d0bd5014d0be8"
+    },
+    {
+      "command": "cargo test -p zil-driver --test impl162_trait_bounds review327 -- --nocapture",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "filtered": 22
+      },
+      "log_sha256": "d2ba524ab9c0ad759626c7f281726798b4eaad052d1aae7af1f77c9d7dd495f2"
+    },
+    {
+      "command": "cargo clippy -p zil-driver --test impl162_trait_bounds -- -D warnings",
+      "result": "Pass",
+      "log_sha256": "ad54e4facb07a5248b5764c5c19fdd55fc29bd3bf2830f0b24512fd86db1dcd8"
+    }
+  ],
+  "environment": {
+    "tree": "/workspace/zil-327",
+    "target": "/workspace/target327",
+    "jobs": 1,
+    "features": "default; no llvm-api feature"
+  },
+  "new_native": {
+    "executions": 4,
+    "sources": 2,
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "actual_backend": "clang",
+    "fallback": null,
+    "verification_runs_per_build": 1,
+    "checks": [
+      "same Self, same-spelled traits declared in distinct modules return 7 and 9 through their own bounds",
+      "ordered trait arguments Tag<i32,bool> and Tag<bool,i32> return 17 and 29 independently"
+    ]
+  },
+  "source_near_neighbors": [
+    "unused Wrap<Box<R>> signature rejects missing Copy at Expand; adding R:Copy succeeds",
+    "transparent-alias duplicate full instance rejects Expand/E-TRAIT-DUPLICATE",
+    "swapped trait arguments cannot satisfy an absent implementation; Expand/SafeReject with missing nominal bound"
+  ],
+  "read_only_code_review": [
+    "Key includes true trait declaration Span and ordered full normalized argument keys; impl index pairs Key with nominal Self",
+    "required concrete signature originates from trait declaration and checks full key, host, impl-method and trait-method spans",
+    "distinct same-Self instances generate separate static method targets; direct unresolved ambiguity rejects at the call",
+    "no new runtime trait dictionary or public trait-instance IR shape; raw/Wire trait-instance probes are therefore not claimed"
+  ],
+  "observed_budget_replay": {
+    "work": 3797,
+    "nodes": 656,
+    "instances": 5,
+    "N": "Success",
+    "N_minus_1": "ResourceLimit",
+    "cold_warm_fresh": "agree",
+    "limitation": "These request thresholds do not establish cumulative accounting across newly added preprocessing and collector work."
+  },
+  "open_findings": [
+    {
+      "id": "323-budget-cumulative",
+      "status": "SentToAuthorAndIntegrator",
+      "evidence": [
+        "expand_inner passes Limits::default() to expand_inner_project; collect_static_traits thus receives the default allowance for new generic-instance arguments/signature/method-name work",
+        "single-module callers discard products.allowance before the static collector",
+        "no-where alias normalization starts specialize_engine with a fresh Budget::new(limits)"
+      ],
+      "required_resolution": "Keep old no-new-trait allowance behavior, but charge new generic-trait work against the actual shared remaining allowance; independently replay fixed code before closing."
+    }
+  ],
+  "excluded": [
+    "328 backend is authored by this reviewer and is explicitly not independently reviewed here",
+    "full workspace tests",
+    "remote CI",
+    "complete generic trait solver, generic/conditional impl, associated/default methods, async, SABI",
+    "Rust performance or product-gate completion"
+  ],
+  "rust_goal_boundaries": {
+    "safety": "Finite identity/conformance checks covered; not a full-language safety claim.",
+    "runtime_memory": "Four real native executions; no paired Rust runtime/RSS comparison.",
+    "expression_maintenance": "Concrete trait bounds now select distinct static implementations; framework maintenance benefit unmeasured.",
+    "compilation_cost": "Cumulative new-work accounting remains pending.",
+    "breakthrough": "Finite expressiveness increment observed; product-level net advantage not established."
+  }
+}

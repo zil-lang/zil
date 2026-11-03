@@ -15,6 +15,91 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn review327_generic_trait_declaration_and_ordered_argument_identity() {
+    native(&[
+        (
+            "main",
+            "import left;import right;import data;fn main()->i32{let p=data.P{n:7};if left.apply(&p)!=7{return 1}if right.apply(&p)!=9{return 2}return 0}",
+        ),
+        (
+            "left",
+            "pub trait Read<R>{fn read(self:&Self)->R;}pub fn apply<T:Read<i32>>(x:&T)->i32{return x.read()}",
+        ),
+        (
+            "right",
+            "pub trait Read<R>{fn read(self:&Self)->R;}pub fn apply<T:Read<i32>>(x:&T)->i32{return x.read()}",
+        ),
+        (
+            "data",
+            "import left;import right;pub struct P{pub n:i32}impl left.Read<i32> for P{fn read()->i32{return .n}}impl right.Read<i32> for P{fn read()->i32{return .n+2}}",
+        ),
+    ]);
+    native(&[(
+        "main",
+        r#"
+trait Tag<A,B>{fn value(self:&Self)->i32;}
+struct P{}
+impl Tag<i32,bool> for P{fn value()->i32{return 17}}
+impl Tag<bool,i32> for P{fn value()->i32{return 29}}
+fn first<T:Tag<i32,bool>>(x:&T)->i32{return x.value()}
+fn second<T>(x:&T)->i32 where T:Tag<bool,i32>{return x.value()}
+fn main()->i32{let p=P{};if first(&p)!=17{return 1}if second(&p)!=29{return 2}return 0}
+"#,
+    )]);
+}
+
+#[test]
+fn review327_unused_trait_obligations_and_alias_coherence() {
+    let declaration = "struct Box<T:Copy>{value:T}struct Wrap<T:Copy>{value:T}trait Read<R>{fn read(self:&Self)->Wrap<Box<R>>;}fn main(){}";
+    let bad = check(declaration);
+    assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());
+    assert_eq!(bad.phase, Phase::Expand, "{}", bad.to_json());
+    assert!(
+        bad.diagnostics.iter().any(|d| d.message.contains("Copy")),
+        "{}",
+        bad.to_json()
+    );
+    let good = check(&declaration.replace("trait Read<R>", "trait Read<R:Copy>"));
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+    let duplicate = check(
+        "type Int=i32;trait Flag<A,B>{}struct P{}impl Flag<Int,bool> for P{}impl Flag<i32,bool> for P{}fn main(){}",
+    );
+    assert_eq!(
+        duplicate.status,
+        ResultCategory::SafeReject,
+        "{}",
+        duplicate.to_json()
+    );
+    assert_eq!(duplicate.phase, Phase::Expand, "{}", duplicate.to_json());
+    assert!(
+        duplicate
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-TRAIT-DUPLICATE"),
+        "{}",
+        duplicate.to_json()
+    );
+    let missing = check(
+        "trait Flag<A,B>{}struct P{}impl Flag<i32,bool> for P{}fn needed<T:Flag<bool,i32>>(x:&T){}fn main(){let p=P{};needed(&p)}",
+    );
+    assert_eq!(
+        missing.status,
+        ResultCategory::SafeReject,
+        "{}",
+        missing.to_json()
+    );
+    assert_eq!(missing.phase, Phase::Expand, "{}", missing.to_json());
+    assert!(
+        missing
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("does not satisfy nominal trait bound")),
+        "{}",
+        missing.to_json()
+    );
+}
+
+#[test]
 fn concrete_generic_trait_arguments_and_bounds_call_real_instances() {
     native(&[(
         "main",
