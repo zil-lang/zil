@@ -369,7 +369,34 @@ impl<'a> Index<'a> {
                         ..
                     }) = self.nominals.get(&path.join("."))
                     {
+                        if declaration.generics.len() != args.len()
+                            && declaration.kind == AggregateKind::Struct
+                            && declaration.generics.iter().any(|parameter| {
+                                matches!(&parameter.kind, GenericParamKind::Type(bounds)
+                                    if bounds.iter().any(copy::is_bound))
+                            })
+                        {
+                            return Err(error(ty.span, "Copy record type argument arity mismatch"));
+                        }
                         for (parameter, argument) in declaration.generics.iter().zip(args) {
+                            if declaration.kind == AggregateKind::Struct
+                                && let GenericParamKind::Type(bounds) = &parameter.kind
+                                && bounds.iter().any(copy::is_bound)
+                            {
+                                let GenericArg::Type(actual) = argument else {
+                                    return Err(unsupported(
+                                        ty.span,
+                                        "Copy record requires type arguments",
+                                    ));
+                                };
+                                copy::require(
+                                    actual,
+                                    &self.nominals,
+                                    available,
+                                    variables,
+                                    budget,
+                                )?;
+                            }
                             if let GenericParamKind::Type(bounds) = &parameter.kind
                                 && bounds.iter().any(stores::is_bound)
                                 && let GenericArg::Type(actual) = argument
