@@ -13,6 +13,24 @@ use zil_driver::{
 };
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
+
+#[test]
+fn concrete_generic_trait_arguments_and_bounds_call_real_instances() {
+    native(&[("main",r#"
+trait Read<R>{fn read(self:&Self)->R;}
+struct Point{n:i32}
+impl Read<i32> for Point{fn read()->i32{return .n}}
+impl Read<i64> for Point{fn read()->i64{return i64(.n)+1}}
+fn read32<T:Read<i32>>(x:&T)->i32{return x.read()}
+fn read64<T>(x:&T)->i64 where T:Read<i64>{return x.read()}
+fn main()->i32{let p=Point{n:7};if read32(&p)!=7{return 1}if read64(&p)!=8{return 2}return 0}
+"#)]);
+}
+
+#[test]
+fn original_concrete_generic_trait_probe_calls_directly() {
+    native(&[("main",include_str!("../../../tests/language-readiness/recovery/pending/trait-type-argument.zil"))]);
+}
 fn source(text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text)
 }

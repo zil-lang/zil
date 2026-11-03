@@ -32,6 +32,8 @@ pub(super) mod store_templates;
 mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
+#[path = "generic_trait_instances.rs"]
+pub(super) mod trait_instances;
 #[path = "generic_where.rs"]
 mod where_copy;
 
@@ -130,6 +132,7 @@ pub(super) fn specialize_products<'a>(
             .items
             .iter()
             .all(|item| params(item).is_empty())
+            && !normalized.module.items.iter().any(|item|matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -142,7 +145,7 @@ pub(super) fn specialize_products<'a>(
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
     }
-    if module.items.iter().all(|item| params(item).is_empty()) {
+    if module.items.iter().all(|item| params(item).is_empty()) && !module.items.iter().any(|item|matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty())) {
         return Ok(Cow::Borrowed(module));
     }
     specialize_engine(module, limits, &BTreeMap::new(), products)
@@ -190,6 +193,7 @@ struct Engine<'a> {
     enums: BTreeMap<String, &'a EnumDecl>,
     nominals: BTreeMap<String, &'a Item>,
     traits: trait_bounds::Index<'a>,
+    trait_calls: trait_instances::Calls,
     return_type: Option<TypeRef>,
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
@@ -255,6 +259,7 @@ impl<'a> Engine<'a> {
         let mut engine = Self {
             pattern_types,
             traits,
+            trait_calls: trait_instances::Calls::new(),
             templates: BTreeMap::new(),
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
@@ -401,6 +406,7 @@ impl<'a> Engine<'a> {
                     },
                     &mut helper_dependencies,
                     &mut engine.budget,
+                    &mut engine.trait_calls,
                 )?;
             }
             if let ItemKind::Enum(e) = &item.kind {
@@ -635,7 +641,7 @@ impl<'a> Engine<'a> {
         if product && let Some(name) = &self.store_parameter {
             self.budget.node(span, 0)?;
             self.budget.text(name, span)?;
-            product_bounds.insert(name.clone(), vec![stores::BOUND.to_owned()]);
+            product_bounds.insert(name.clone(), vec![trait_bounds::Bound::StoreElement]);
             product_variables.insert(name.clone());
         }
         self.traits.check_arguments(
@@ -655,6 +661,9 @@ impl<'a> Engine<'a> {
         )?;
         self.budget.substituted_item(item, &substitution)?;
         let mut instance = item.clone();
+        if let ItemKind::Function(f)=&item.kind && let Some(calls)=self.trait_calls.get(&f.name) {
+            trait_instances::rewrite_calls(&mut instance,calls,&mut self.budget)?;
+        }
         substitute_item(&mut instance, &substitution)?;
         self.budget.item(&instance)?;
         // Original generic enums retain their existing Copy payload profile,
@@ -1194,6 +1203,17 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Call { callee, arguments } => {
+                if self.traits.has_instances
+                    && let ExprKind::Member {object,member:MemberName::Name(member)}=&mut callee.kind
+                    && !member.starts_with("$trait_")
+                    && let Some(actual)=self.value_hint(object,env,depth+1,false)?
+                {
+                    let actual=self.original_type(&actual)?;
+                    if let Some(host)=trait_bounds::plain(projection_shape(&actual))
+                        && let Some((target,_))=self.traits.concrete_method(host,member,&mut self.budget,callee.span)? {
+                        member.clone_from(&target);
+                    }
+                }
                 if let Some(name) = super::integer_conversion_name(callee) {
                     return Ok(Some(named(name, e.span)));
                 }

@@ -145,6 +145,7 @@ pub struct ExpandedModule {
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
+    trait_method_names: BTreeMap<Span,String>,
     project_trait_work: usize,
     member_owner_work: usize,
     member_owner_nodes: usize,
@@ -199,7 +200,7 @@ pub fn expand_program_module_with_limits(
         std::slice::from_ref(source),
         limits,
     )?;
-    let exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
+    let exports = source_exports(module, &expanded.core, &expanded.imported_public_traits,&expanded.trait_method_names);
     Ok((
         ProgramModule {
             core: expanded.core,
@@ -219,6 +220,7 @@ fn source_exports(
     module: &s::Module,
     core: &CoreModule,
     imported_public_traits: &BTreeSet<String>,
+    trait_method_names:&BTreeMap<Span,String>,
 ) -> Vec<NodeId> {
     let public_nominals: std::collections::BTreeSet<_> = module
         .items
@@ -253,7 +255,8 @@ fn source_exports(
         .collect();
     let mut result = Vec::new();
     let mut add = |f: &s::Function, prefix: Option<&str>| {
-        let name = prefix.map_or_else(|| f.name.clone(), |owner| format!("{owner}.{}", f.name));
+        let target=trait_method_names.get(&f.span).unwrap_or(&f.name);
+        let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
         if let Some(id) = functions.get(&(name, f.span)) {
             result.push(*id);
         }
@@ -425,7 +428,7 @@ pub fn expand_program_with_limits(
                     Some(module.span),
                 )]
             })?;
-        let mut exports = source_exports(module, &expanded.core, &expanded.imported_public_traits);
+        let mut exports = source_exports(module, &expanded.core, &expanded.imported_public_traits,&expanded.trait_method_names);
         exports.extend(expanded.generated_exports);
         let mut resolved_imports = module_imports.clone();
         resolved_imports.extend(expanded.generated_imports);
@@ -546,6 +549,7 @@ fn expand_inner_project(
         generated_imports: e.generated_imports.into_values().collect(),
         generated_exports: e.generated_exports,
         imported_public_traits: e.imported_public_traits,
+        trait_method_names:e.trait_method_names,
         project_trait_work: e.project_trait_work,
         member_owner_work: e.member_owner_work,
         member_owner_nodes: owner_limits.max_nodes - e.member_owner_nodes,
@@ -575,6 +579,7 @@ struct Expander<'a> {
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
     imported_public_traits: BTreeSet<String>,
+    trait_method_names: BTreeMap<Span,String>,
     project_trait_work: usize,
     static_traits: BTreeSet<String>,
     static_trait_impls: BTreeSet<Span>,
@@ -619,6 +624,7 @@ impl<'a> Expander<'a> {
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),
             imported_public_traits: BTreeSet::new(),
+            trait_method_names: BTreeMap::new(),
             project_trait_work: 0,
             static_traits: BTreeSet::new(),
             static_trait_impls: BTreeSet::new(),
@@ -682,7 +688,17 @@ impl Expander<'_> {
     ) {
         self.unexecuted_attributes(&item.attributes, "declaration");
         match &item.kind {
-            s::ItemKind::Function(f) => self.function(f, prefix, host, default),
+            s::ItemKind::Function(f) => {
+                let first=self.functions.len();
+                self.function(f,prefix,host,default);
+                if let Some(target)=self.trait_method_names.get(&f.span) {
+                    for function in &mut self.functions[first..] {
+                        if function.span==f.span {
+                            function.name=prefix.map_or_else(||target.clone(),|owner|format!("{owner}.{target}"));
+                        }
+                    }
+                }
+            },
             s::ItemKind::Aggregate(a) => {
                 for field in &a.fields {
                     self.unexecuted_attributes(&field.attributes, "field");

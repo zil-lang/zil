@@ -3,6 +3,7 @@
 //! ordinary type/analyze/independent-Verify pipeline. No trait grants capability.
 use super::*;
 use crate::receivers::substitute_self;
+use crate::generics::{trait_instances,Budget as TraitBudget};
 
 fn plain_name(ty: &s::TypeRef) -> Option<&str> {
     match &ty.kind {
@@ -68,7 +69,7 @@ impl<'a> Expander<'a> {
             );
             return;
         }
-        if !t.generics.is_empty() || !t.bounds.is_empty() {
+        if !t.bounds.is_empty() {
             self.unsupported(
                 "generic or supertrait declarations require the full trait solver",
                 item.span,
@@ -136,7 +137,7 @@ impl<'a> Expander<'a> {
             s::ItemKind::Impl(implementation) => implementation
                 .trait_type
                 .as_ref()
-                .and_then(plain_name)
+                .and_then(trait_instances::head)
                 .is_some_and(|name| name.starts_with("$module") && !self.traits.contains_key(name)),
             _ => false,
         }) {
@@ -231,7 +232,7 @@ impl<'a> Expander<'a> {
             if plain_name(trait_ty) == Some("Drop") {
                 continue;
             }
-            let (Some(trait_name), Some(host_name)) = (plain_name(trait_ty), plain_name(&i.target))
+            let (Some(trait_name), Some(host_name)) = (trait_instances::head(trait_ty), plain_name(&i.target))
             else {
                 self.unsupported(
                     "trait impl requires concrete local nominal names",
@@ -299,7 +300,25 @@ impl<'a> Expander<'a> {
                 );
                 continue;
             }
-            if !impls.insert((trait_name.to_owned(), host_name.to_owned())) {
+            let declaration = *self.traits.get(trait_name).expect("collected local declaration");
+            let mut instance_reference=None;
+            if !declaration.generics.is_empty() {
+                let mut found=None;
+                for source in declarations.iter().copied().chain(std::iter::once(module)) {
+                    for item in &source.items {
+                        let Some(left)=work.checked_sub(1) else {self.diagnostics.push(Diagnostic::limit(Phase::Expand,"trait instance identity work exhausted",Some(item.span)));return;};work=left;
+                        if matches!(&item.kind,s::ItemKind::Trait(t) if t.name==trait_name) {found=Some(item.span);}
+                    }
+                }
+                let Some(declaration_span)=found else {self.unsupported("trait instance declaration identity is absent",item.span);continue;};
+                let selected=Limits{max_analysis_steps:work,max_nodes:project_nodes,..limits.clone()};
+                let mut meter=TraitBudget::new(&selected);
+                let result=trait_instances::arguments(declaration_span,declaration,trait_ty,&mut meter);
+                let left=trait_instances::remaining(&meter);work=left.max_analysis_steps;project_nodes=left.max_nodes;
+                match result {Ok(reference)=>instance_reference=Some(reference),Err(error)=>{self.diagnostics.push(error);continue;}}
+            }
+            let keys=instance_reference.as_ref().map_or_else(Vec::new,|reference|reference.key.arguments.clone());
+            if !impls.insert((trait_name.to_owned(), keys, host_name.to_owned())) {
                 self.trait_error(
                     "E-TRAIT-DUPLICATE",
                     item.span,
@@ -337,17 +356,19 @@ impl<'a> Expander<'a> {
                 return;
             };
             work = left;
-            let required: BTreeMap<_, _> = declaration
-                .members
-                .iter()
-                .filter_map(|m| {
-                    if let s::ItemKind::Function(f) = &m.kind {
-                        Some((f.name.as_str(), f))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+            let mut required=BTreeMap::new();
+            for member in &declaration.members {
+                if let s::ItemKind::Function(method)=&member.kind {
+                    let signature=if let Some(reference)=&instance_reference {
+                        let selected=Limits{max_analysis_steps:work,max_nodes:project_nodes,..limits.clone()};
+                        let mut meter=TraitBudget::new(&selected);
+                        let result=trait_instances::signature(declaration,method,reference,&mut meter);
+                        let left=trait_instances::remaining(&meter);work=left.max_analysis_steps;project_nodes=left.max_nodes;
+                        match result {Ok(signature)=>signature,Err(error)=>{self.diagnostics.push(error);return;}}
+                    } else {std::borrow::Cow::Borrowed(method)};
+                    required.insert(method.name.as_str(),signature);
+                }
+            }
             let mut implemented = BTreeSet::new();
             let mut valid = true;
             for member in &i.members {
@@ -416,12 +437,12 @@ impl<'a> Expander<'a> {
                     self.trait_error("E-TRAIT-SIGNATURE", member.span, "implementation receiver, parameters, passing modes and return type must match the declared signature");
                     valid = false;
                 }
-                if methods
+                if instance_reference.is_none() && (methods
                     .get(&(host_name.into(), f.name.clone()))
                     .copied()
                     .unwrap_or(0)
                     != 1
-                    || fields[host_name].contains(f.name.as_str())
+                    || fields[host_name].contains(f.name.as_str()))
                 {
                     self.unsupported("colliding trait, inherent or field name requires explicit trait-qualified resolution", member.span);
                     valid = false;
@@ -438,8 +459,19 @@ impl<'a> Expander<'a> {
                 valid = false;
             }
             if valid {
+                if let Some(reference)=&instance_reference {
+                    for member in &i.members {
+                        if let s::ItemKind::Function(method)=&member.kind {
+                            let selected=Limits{max_analysis_steps:work,max_nodes:project_nodes,..limits.clone()};
+                            let mut meter=TraitBudget::new(&selected);
+                            let result=trait_instances::method_name(reference,&method.name,&mut meter,member.span);
+                            let left=trait_instances::remaining(&meter);work=left.max_analysis_steps;project_nodes=left.max_nodes;
+                            match result {Ok(target)=>{self.trait_method_names.insert(method.span,target);},Err(error)=>{self.diagnostics.push(error);return;}}
+                        }
+                    }
+                }
                 self.static_trait_impls.insert(item.span);
-                if project_impl {
+                if project_impl || instance_reference.is_some() {
                     self.project_trait_work = self
                         .project_trait_work
                         .saturating_add(before_project_work - work);

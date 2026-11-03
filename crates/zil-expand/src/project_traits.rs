@@ -2,7 +2,7 @@
 //! signature, never conformance or permission to implement a foreign Self.
 use super::*;
 use ct_selection::Visitor;
-use generics::Budget;
+use generics::{Budget,trait_instances};
 use zil_base::{FileId, ModuleId};
 
 fn plain(ty: &s::TypeRef) -> Option<&str> {
@@ -21,7 +21,7 @@ pub(super) fn is_external_impl(item: &s::Item, current: ModuleId) -> bool {
     implementation
         .trait_type
         .as_ref()
-        .and_then(plain)
+        .and_then(trait_instances::head)
         .and_then(|name| name.strip_prefix("$module"))
         .and_then(|name| name.split_once('_'))
         .and_then(|(owner, _)| owner.parse::<u32>().ok())
@@ -42,7 +42,7 @@ pub(super) fn method_owners(
             continue;
         }
         match &item.kind {
-            s::ItemKind::Trait(t) if t.generics.is_empty() && t.bounds.is_empty() => {
+            s::ItemKind::Trait(t) if t.bounds.is_empty() => {
                 budget.text(&t.name, item.span)?;
                 traits.insert(t.name.as_str(), item.span.file);
             }
@@ -66,7 +66,7 @@ pub(super) fn method_owners(
             continue;
         };
         let (Some(trait_name), Some(host)) = (
-            implementation.trait_type.as_ref().and_then(plain),
+            implementation.trait_type.as_ref().and_then(trait_instances::head),
             plain(&implementation.target),
         ) else {
             continue;
