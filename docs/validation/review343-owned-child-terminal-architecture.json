@@ -1,0 +1,96 @@
+{
+  "status": "PassLimitedClosedOwningStaticChildFrames",
+  "source": "25f78b1aa7859ea842bb5afb155cfcd0484ce1da",
+  "author_receipt": "e3975f1f2:docs/validation/terminal-343-task39-owned-child.json",
+  "method": "Read-only actual source/ownership/continuation audit, independent exact Git manifest verification and replay of copied SHA-bound author-built executables. No independent rebuild. All four runtime-read C inputs match exact candidate Git bytes.",
+  "source_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ownedchild343-source-binding.json",
+    "sha256": "54c5a2190c7e261110478dbd5d1e2ac34572bb1b6a05212969655768a89fe925"
+  },
+  "production_files": 422,
+  "production_digest": "c289d02ad99ee5fe5ffbf1e74ab9596bc7921e0f3970c3c839d42a75bc623b21",
+  "author_files_matched": 20,
+  "replays": [
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ownedchild343-generic",
+        "sha256": "dcfd8af3f78ec51c5c9e9e5754990c776334e9dfea5ca9bb6dc78182a353922b"
+      },
+      "selector": "task343",
+      "result": "28 passed,0 failed,53 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ownedchild343-task.log",
+        "sha256": "9cf42a0ccd5ef95179d068ff589dafc060701401ef6150784a18904007d5617a"
+      }
+    },
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ownedchild343-generic",
+        "sha256": "dcfd8af3f78ec51c5c9e9e5754990c776334e9dfea5ca9bb6dc78182a353922b"
+      },
+      "selector": "child343",
+      "result": "10 passed,0 failed,71 filtered;4 overlap with task343",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ownedchild343-child.log",
+        "sha256": "08e5f451316bfa281bc52b31d9d8ec08d2919ddca1711d7603de39abcebfbcc1"
+      }
+    },
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ownedchild343-backend",
+        "sha256": "30a68a549c226636b777849690a08d8f9b1d87ab9f975ebbd63d1950cccdeff3"
+      },
+      "selector": "child343_actual",
+      "result": "1 passed,0 failed,146 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ownedchild343-backend.log",
+        "sha256": "750090705d78b8cd4a92c74055e4aaa87d2ed2820875219a262aafae275cd4f8"
+      }
+    }
+  ],
+  "counts": "39 successful test executions,35 distinct tests after subtracting the4 repeated owning-child tests.",
+  "review": [
+    "Both kernels check actual complete ordered argument/result types and ordinary ownership consumption. Forged result Create is rejected by ordinary freshness checking; a declared result mode is not sufficient proof.",
+    "The actual pre-Await owner actions unlink the staged parent inputs, then nonallocating synchronous init_into commits the child PC0 slots and owner records before the child is polled or an Await resume PC is saved.",
+    "Only the child poll PC is resumed after Pending. Preparation and init are not rerun; completing a loop site clears active state and a later activation initializes its new actual instance.",
+    "On Ready, the result is extracted/spilled into its canonical persistent parent SSA slot and its exact Verify-derived Link marker executes before child poll_close/finish_into. No unrecorded parent result interval is retained across teardown.",
+    "Cancellation drains the current actual child before the parent dynamic owner list, which includes earlier child results. Children remain closed and synchronously closable; scalar and public compatibility controls remain separate.",
+    "Physical child result clone/aggregate planning is charged by actual machine type width; current wide8/16 source controls exercise independent kernel and actual Codegen thresholds."
+  ],
+  "new_native_controls": {
+    "scope": "Four new tests, also repeated by the overlapping selector",
+    "successes_per_unique_replay": 112,
+    "actual_allocation_faults_per_unique_replay": 4,
+    "profiles": "Clang and LLVM API, O0/O2, backend/fallback asserted",
+    "observations": [
+      "PC0/child-Pending/parent-Pending/after-Ready once-drop phases",
+      "earlier result/current child cleanup order BA,AB,AB,BA,BA,BA",
+      "input/body once IJBA and physical-site loop reuse",
+      "created result PPPRA and later Complete carries no owner",
+      "ordinary TaskCreate later-argument failure AB, separately named",
+      "single parent allocation; no child allocation"
+    ]
+  },
+  "budgets": {
+    "actual_widths": [
+      8,
+      16
+    ],
+    "Analyze": [
+      25805,
+      38542
+    ],
+    "Verify": [
+      60762,
+      103457
+    ],
+    "Codegen": [
+      289202,
+      345526
+    ],
+    "actual_frame_unit": 7298,
+    "checks": "N success, N-1 ResourceLimit and fresh N; Codegen failures explicitly identify the Codegen phase."
+  },
+  "raw_controls": "Six actual source-derived mutations reject independently in Analyze and in raw/decoded-Wire Verify with rebound original-plan identity and exact non-identity diagnostics.",
+  "limits": "At most one active direct child. No concurrent sibling handles/creation-order drain claim, borrowed Task/frame ports, worker ErrorUnion/general owned Sum/Unit results, later-child-argument recoverable ? path, external wakers, Pending close/PendingExit, defers, general partial products/tickets, owning public SABI, general Mutex or terminal language completion."
+}
