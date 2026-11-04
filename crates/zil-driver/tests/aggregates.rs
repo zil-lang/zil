@@ -7664,6 +7664,82 @@ fn ct5_member_own_life_context_reaches_native() {
 }
 
 #[test]
+fn g442_mixed_ct_scalar_call_actuals() {
+    let text = r#"
+struct Phantom<life a,T:Copy,#N:i32>{n:i32}
+fn choose<T:Copy,#N:i32,life a>(marker:Type)->i32{return N}
+fn score(a:i32,b:i32)->i32{if a!=7{return 1}if b!=35{return 2}return 42}
+fn result<life s,life t>(p:&'s i32,q:&'t i32)->i32{
+    let value:Phantom<'s,i32,7>=#(Phantom::<'s,i32,7>{
+        n:score(choose::<i32,7,'s>(i32),choose::<bool,35,'t>(bool))
+    });
+    return value.n
+}
+fn main()->i32{let n=0;let m=0;return result(&n,&m)}
+"#;
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    for (bad, expected) in [
+        (
+            text.replace("return N}", "return N+false}"),
+            "actual expected type",
+        ),
+        (
+            text.replace("choose::<i32,7,'s>", "choose::<i32,7,'other>"),
+            "authentic caller",
+        ),
+        (
+            text.replace("choose::<i32,7,'s>", "choose::<i32,7>"),
+            "arity differs",
+        ),
+        (
+            text.replace("choose::<i32,7,'s>", "choose::<i32,true,'s>"),
+            "scalar actual",
+        ),
+    ] {
+        let report = compile_source(&source(&bad), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(expected)),
+            "{}",
+            report.to_json()
+        );
+    }
+    let unused = text.replace("return N}", "return N+false}").replace(
+        "n:score(choose::<i32,7,'s>(i32),choose::<bool,35,'t>(bool))",
+        "n:42",
+    );
+    let report = compile_source(&source(&unused), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("actual expected type"))
+    );
+}
+
+#[test]
 fn ct5_joint_subvalues_preserve_their_own_schema_contexts() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-joint-subvalues.zil"

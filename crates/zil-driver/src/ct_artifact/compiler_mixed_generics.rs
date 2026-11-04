@@ -1,0 +1,294 @@
+//! Complete explicit actuals for an original free CT factory. The declaration
+//! check remains a separate, discarded symbolic CFG; actuals never prove it.
+use super::*;
+use cfg::{Builder, Value};
+
+impl Compiler<'_> {
+    pub(super) fn mixed_parameters(parameters: &[s::GenericParam]) -> bool {
+        parameters
+            .iter()
+            .any(|p| matches!(p.kind, s::GenericParamKind::Type(_)))
+            && parameters
+                .iter()
+                .any(|p| matches!(p.kind, s::GenericParamKind::Const(_)))
+            && parameters
+                .iter()
+                .any(|p| matches!(p.kind, s::GenericParamKind::Lifetime))
+    }
+
+    fn mixed_actual_cost(&mut self, actuals: &[CtScopeActual], span: Span) -> R<()> {
+        Self::actual_cost(&mut self.budget, actuals, span)
+    }
+
+    pub(super) fn actual_cost(
+        budget: &mut Budget<'_>,
+        actuals: &[CtScopeActual],
+        span: Span,
+    ) -> R<()> {
+        budget.work(actuals.len(), span)?;
+        Budget::take(
+            &mut budget.bytes,
+            actuals
+                .len()
+                .saturating_mul(std::mem::size_of::<CtScopeActual>()),
+            span,
+            "CT full actual vector bytes exhausted",
+        )?;
+        for actual in actuals {
+            if let CtScopeActual::Type(graph) = actual {
+                budget.metadata(graph, span)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn ambient_actual(&mut self, name: &str, span: Span) -> R<CtAmbientLifeReference> {
+        let scope = self.source_life_scope.as_ref().ok_or_else(|| {
+            error(
+                span,
+                "CT life actual requires an authentic caller life scope",
+            )
+        })?;
+        let mut parameter = None;
+        for (bound, ordinal) in &scope.binders {
+            self.budget.work(bound.len().min(name.len()) + 1, span)?;
+            if bound == name {
+                parameter = Some(*ordinal);
+            }
+        }
+        let parameter = parameter.ok_or_else(|| {
+            error(
+                span,
+                "CT life actual is not declared by the authentic caller",
+            )
+        })?;
+        let definition = scope.definition.clone();
+        // Pay nested metadata before copying the actual source scope.
+        match &scope.instance {
+            CtScopeInstance::Definition => self.budget.work(32, span)?,
+            CtScopeInstance::Instantiated(actuals) => {
+                Self::actual_cost(&mut self.budget, actuals, span)?;
+            }
+        }
+        let instance = self.source_life_scope.as_ref().unwrap().instance.clone();
+        let raw = CtAmbientLifeScope {
+            declaration: definition,
+            binder_site: Vec::new(),
+            instance,
+        };
+        self.budget
+            .work(self.ambient_life_scopes.len().saturating_mul(32), span)?;
+        let scope = if let Some(id) = self.ambient_life_scopes.iter().position(|s| s == &raw) {
+            id
+        } else {
+            self.budget.node(span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                std::mem::size_of::<CtAmbientLifeScope>(),
+                span,
+                "CT caller scope table bytes exhausted",
+            )?;
+            self.ambient_life_scopes.push(raw);
+            self.ambient_life_scopes.len() - 1
+        };
+        Ok(CtAmbientLifeReference {
+            scope: CtAmbientScopeId(
+                u32::try_from(scope).map_err(|_| error(span, "CT caller scope ID overflow"))?,
+            ),
+            parameter,
+        })
+    }
+
+    pub(super) fn bind_mixed_instance(
+        &mut self,
+        declaration: usize,
+        actuals: &[CtScopeActual],
+    ) -> R<()> {
+        let d = self.declarations[declaration];
+        if d.function.generics.len() != actuals.len() {
+            return Err(error(d.item.span, "CT full actual vector arity differs"));
+        }
+        self.bindings.clear();
+        self.metadata_bindings.clear();
+        self.scalar_bindings.clear();
+        for (parameter, actual) in d.function.generics.iter().zip(actuals) {
+            self.budget.text(&parameter.name, parameter.span)?;
+            match (&parameter.kind, actual) {
+                (s::GenericParamKind::Type(_), CtScopeActual::Type(graph)) => {
+                    self.generic_names(std::slice::from_ref(parameter), &[], parameter.span)?;
+                    self.metadata_copy(graph, 0, parameter.span)?;
+                    self.budget.metadata(graph, parameter.span)?;
+                    self.metadata_bindings
+                        .push((parameter.name.clone(), graph.clone()));
+                }
+                (s::GenericParamKind::Const(ty), CtScopeActual::Scalar(value)) => {
+                    let domain = self.scalar_argument_type(ty, parameter.span)?;
+                    if expr::scalar_constant(value) != CtTy::Scalar(domain) {
+                        return Err(error(
+                            parameter.span,
+                            "CT full scalar actual domain differs",
+                        ));
+                    }
+                    self.budget.work(32, parameter.span)?;
+                    self.scalar_bindings
+                        .push((parameter.name.clone(), value.clone()));
+                }
+                (s::GenericParamKind::Lifetime, CtScopeActual::Lifetime(reference)) => {
+                    let caller = self
+                        .ambient_life_scopes
+                        .get(reference.scope.0 as usize)
+                        .ok_or_else(|| {
+                            error(parameter.span, "CT full life actual has no caller scope")
+                        })?;
+                    if caller.declaration.generation_path.is_some() {
+                        return Err(error(
+                            parameter.span,
+                            "CT full life actual has generated caller",
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(error(
+                        parameter.span,
+                        "CT full actual kind differs from original binder",
+                    ));
+                }
+            }
+        }
+        let definition = self.item_symbol(d.module, d.item)?;
+        self.source_life_scope = self.source_life_scope(d.module, &definition, d.function.span)?;
+        self.mixed_actual_cost(actuals, d.item.span)?;
+        self.source_life_scope
+            .as_mut()
+            .ok_or_else(|| error(d.item.span, "CT factory has no original life binder"))?
+            .instance = CtScopeInstance::Instantiated(actuals.to_vec());
+        Ok(())
+    }
+
+    fn mixed_header(
+        &mut self,
+        declaration: usize,
+        actuals: &[CtScopeActual],
+    ) -> R<(Vec<CtTy>, CtTy)> {
+        let data = std::mem::take(&mut self.bindings);
+        let meta = std::mem::take(&mut self.metadata_bindings);
+        let scalar = std::mem::take(&mut self.scalar_bindings);
+        let scope = self.source_life_scope.take();
+        let result = self
+            .bind_mixed_instance(declaration, actuals)
+            .and_then(|()| self.header(declaration));
+        self.bindings = data;
+        self.metadata_bindings = meta;
+        self.scalar_bindings = scalar;
+        self.source_life_scope = scope;
+        result
+    }
+
+    fn enqueue_mixed_instance(
+        &mut self,
+        declaration: usize,
+        actuals: &[CtScopeActual],
+    ) -> R<CtFunctionId> {
+        let span = self.declarations[declaration].item.span;
+        self.ensure_generic_definition(declaration)?;
+        for i in 0..self.mixed_selected.len() {
+            self.budget.work(32, span)?;
+            self.mixed_actual_cost(actuals, span)?;
+            Self::actual_cost(&mut self.budget, &self.mixed_selected[i].1, span)?;
+            let (old, arguments, function) = &self.mixed_selected[i];
+            if *old == declaration && arguments == actuals {
+                return Ok(*function);
+            }
+        }
+        self.budget.node(span)?;
+        Budget::take(
+            &mut self.budget.functions,
+            1,
+            span,
+            "CT full instance budget exhausted",
+        )?;
+        self.mixed_actual_cost(actuals, span)?;
+        self.mixed_actual_cost(actuals, span)?;
+        let id = CtFunctionId(self.functions.len() as u32);
+        self.functions.push(None);
+        self.mixed_selected
+            .push((declaration, actuals.to_vec(), id));
+        self.pending
+            .push_back((declaration, PendingTypes::Mixed(actuals.to_vec()), id));
+        Ok(id)
+    }
+}
+
+impl Builder<'_, '_> {
+    pub(super) fn mixed_generic_call(
+        &mut self,
+        declaration: usize,
+        explicit: Option<&[s::GenericArg]>,
+        arguments: &[s::Argument],
+        depth: usize,
+        span: Span,
+    ) -> R<Value> {
+        let d = self.compiler.declarations[declaration];
+        let explicit = explicit
+            .ok_or_else(|| error(span, "CT full instance requires all explicit actuals"))?;
+        if explicit.len() != d.function.generics.len() || arguments.len() != d.function.params.len()
+        {
+            return Err(error(span, "CT full instance actual arity differs"));
+        }
+        // item_symbol uses actual immutable AST placement, never Span/name.
+        self.compiler.item_symbol(d.module, d.item)?;
+        self.compiler.ensure_generic_definition(declaration)?;
+        let mut actuals = Vec::new();
+        for (parameter, actual) in d.function.generics.iter().zip(explicit) {
+            self.compiler.budget.node(span)?;
+            actuals.push(match (&parameter.kind, actual) {
+                (s::GenericParamKind::Type(_), s::GenericArg::Type(ty)) => {
+                    let graph = self.compiler.metadata_type(self.module, ty, depth + 1)?;
+                    self.compiler.metadata_copy(&graph, depth + 1, span)?;
+                    CtScopeActual::Type(graph)
+                }
+                (s::GenericParamKind::Const(_), actual) => CtScopeActual::Scalar(
+                    self.compiler
+                        .source_scalar_argument(parameter, actual, span)?,
+                ),
+                (s::GenericParamKind::Lifetime, s::GenericArg::Lifetime(name)) => {
+                    CtScopeActual::Lifetime(self.compiler.ambient_actual(name, span)?)
+                }
+                _ => {
+                    return Err(error(
+                        span,
+                        "CT explicit actual kind differs from full binder ordinal",
+                    ));
+                }
+            });
+        }
+        let (types, result) = self.compiler.mixed_header(declaration, &actuals)?;
+        let mut values = Vec::new();
+        for (argument, ty) in arguments.iter().zip(types) {
+            self.compiler.budget.node(argument.span)?;
+            values.push(self.expr(&argument.value, Some(&ty), depth + 1)?.id);
+        }
+        let function = self
+            .compiler
+            .enqueue_mixed_instance(declaration, &actuals)?;
+        if result == CtTy::Scalar(CtScalarTy::Unit) {
+            self.op(
+                CtInstructionKind::Call {
+                    function,
+                    arguments: values,
+                },
+                span,
+            )?;
+            self.constant(CtConstant::Scalar(Constant::Unit), result, span)
+        } else {
+            self.emit(
+                CtInstructionKind::Call {
+                    function,
+                    arguments: values,
+                },
+                result,
+                span,
+            )
+        }
+    }
+}

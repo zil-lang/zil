@@ -737,6 +737,19 @@ pub(super) fn function(
     let (parameters, result) = c.header(declaration)?;
     let definition = c.item_symbol(d.module, d.item)?;
     let mut b = Builder::new(c, id, d.module, definition, result, d.function.span)?;
+    if b.compiler.checking_generics && Compiler::mixed_parameters(&d.function.generics) {
+        // Symbolic scalar parameters are ordinary typed locals in the discarded
+        // declaration-check CFG. No numeric stand-in is executed or published.
+        for parameter in &d.function.generics {
+            if let s::GenericParamKind::Const(ty) = &parameter.kind {
+                let scalar = b.compiler.scalar_argument_type(ty, parameter.span)?;
+                let ty = CtTy::Scalar(scalar);
+                let local = b.bind(&parameter.name, ty.clone(), false, parameter.span)?;
+                b.parameters.push(local);
+                b.parameter_types.push(ty);
+            }
+        }
+    }
     for (parameter, ty) in d.function.params.iter().zip(parameters) {
         let local = b.bind(&parameter.name, ty.clone(), false, parameter.span)?;
         b.parameters.push(local);

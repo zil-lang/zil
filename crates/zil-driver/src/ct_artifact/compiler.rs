@@ -10,6 +10,8 @@ mod domain;
 mod expr;
 #[path = "compiler_generics.rs"]
 mod generics;
+#[path = "compiler_mixed_generics.rs"]
+mod mixed_generics;
 #[path = "compiler_quote.rs"]
 mod quote;
 #[path = "compiler_selection.rs"]
@@ -268,6 +270,7 @@ struct Declaration<'a> {
 enum PendingTypes {
     Data(Vec<CtTy>),
     Metadata(Vec<CtTypeRef>),
+    Mixed(Vec<CtScopeActual>),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SourceLifeBinding {
@@ -281,6 +284,7 @@ struct SourceLifeScope {
     definition: CtSymbolId,
     span: Span,
     binders: Vec<(String, u32)>,
+    instance: CtScopeInstance,
 }
 struct Compiler<'a> {
     modules: &'a [SourceModule<'a>],
@@ -288,6 +292,7 @@ struct Compiler<'a> {
     selected: BTreeMap<usize, CtFunctionId>,
     generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
     generic_metadata_selected: Vec<(usize, Vec<CtTypeRef>, CtFunctionId)>,
+    mixed_selected: Vec<(usize, Vec<CtScopeActual>, CtFunctionId)>,
     pending: VecDeque<(usize, PendingTypes, CtFunctionId)>,
     bindings: Vec<(String, CtTy)>,
     metadata_bindings: Vec<(String, CtTypeRef)>,
@@ -338,6 +343,7 @@ impl<'a> Compiler<'a> {
             selected: BTreeMap::new(),
             generic_selected: Vec::new(),
             generic_metadata_selected: Vec::new(),
+            mixed_selected: Vec::new(),
             pending: VecDeque::new(),
             bindings: Vec::new(),
             metadata_bindings: Vec::new(),
@@ -693,6 +699,9 @@ pub(crate) fn compile_scoped(
             PendingTypes::Metadata(arguments) => {
                 compiler.metadata_bindings =
                     compiler.metadata_instance_bindings(declaration, &arguments)?
+            }
+            PendingTypes::Mixed(arguments) => {
+                compiler.bind_mixed_instance(declaration, &arguments)?;
             }
         }
         let body = cfg::function(&mut compiler, id, declaration)?;
