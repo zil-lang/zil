@@ -1,0 +1,87 @@
+{
+  "status": "ChangesRequested",
+  "reviewer": "/root/terminal_architecture",
+  "source_commit": "f01e61bcc242f39418758be0e836fff748c42f0c",
+  "implementation_commit": "befe93e8137432f321de036f3a43e0e12bb7f5a1",
+  "scope": "Source canonical tagged structural sums, complete member type patterns and Copy generic substitutions, Type-valued CT graph canonicalization, ordinary typed-CFG CT Copy sum value reification, independent Analyze/Verify canonical checks, and existing native Enum machine representation. Structural sum values in the Type/Syntax artifact VM are a subsequent public-schema stage, not claimed here.",
+  "identity": {
+    "production_rust_count": 307,
+    "production_rust_sha256": "581155e9acb8fa3fae010ce98751f17f4f23ba38d2375b259c2bc4e22fa1a541",
+    "algorithm": "Exact Git crates/**/src/**/*.rs sorted by Python Path component order; UTF-8 relative path+NUL+bytes+NUL. Independently recomputed and matched; all five input and three test-source hashes also matched exact Git.",
+    "inputs": {
+      "tests/language-readiness/terminal/344/anonymous/aliases.zil": "c168a00d5bace9d9a33a5a2ed874cb261eb0ca7b108cec74ffdc5dfab99ead9e",
+      "tests/language-readiness/terminal/344/anonymous/basic.zil": "01fb4b568282c73c422d0a793ab2cdfcf2ad0241d12ad0baec3b43e23d9916b0",
+      "tests/language-readiness/terminal/344/anonymous/ct-types.zil": "c4782062af8579d6a3f09a3aecb679228652f0f037be189a9a79317b05dd5703",
+      "tests/language-readiness/terminal/344/anonymous/float-enum.zil": "3b91a1a9f0142739c1109192e60d99e54ba690ff35c6b9b217ce37919d2877ad",
+      "tests/language-readiness/terminal/344/anonymous/phantom.zil": "2d0db2340184c0e227fb64cd59146d5b89c43e9744dea4db97f39768e0a5b419"
+    },
+    "harness_sources": {
+      "crates/zil-driver/tests/aggregates.rs": "37976c3aa3b6f6ccd1f8acd3d49d18170d3f635047191384a49c241e4bc2a77f",
+      "crates/zil-ct/src/anonymous_type.rs": "0060c25e4d21bb6c6a4fbceac9765a89874f25d0bce122ef44ff607eab798f9f",
+      "crates/zil-ct/src/ct_artifact.rs": "acb9afd29d4470723c3bd70c4b34ee42a12750928e33da4e26979209b5279b1f"
+    }
+  },
+  "retained_harnesses": {
+    "/tmp/zil-terminal-review/aggregates-anonymous344": "314572988bb656a34fa316a0c9b9b4ce71ed32c9f1aa1ed1a8dd081ec24a398b",
+    "/tmp/zil-terminal-review/ct-anonymous344": "1cd212de8d7bd4928af7a5b45cd0a039b6cd4a2ab295aded003626e45f1ea9af",
+    "/tmp/zil-terminal-review/ir-anonymous344": "f212f7856d91e451523477d29f89103568ab6fb30ec27ad433c5780d8f64f1e3"
+  },
+  "binding": "Copied before author target reuse and independently SHA-verified against the exact source-committed receipt. Source fixtures are embedded include_str or literal test inputs.",
+  "independent_execution": [
+    {
+      "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/aggregates-anonymous344 anonymous_sum_ --test-threads=1 --nocapture",
+      "passed": 10,
+      "failed": 0,
+      "filtered": 74,
+      "seconds": 1.5
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/ct-anonymous344 anonymous_ --test-threads=1 --nocapture",
+      "passed": 4,
+      "failed": 0,
+      "filtered": 38,
+      "seconds": 0.0
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/ir-anonymous344 ct_wire::tests --test-threads=1 --nocapture",
+      "passed": 19,
+      "failed": 0,
+      "filtered": 41,
+      "seconds": 0.01
+    }
+  ],
+  "source_review": [
+    "Runtime identity is full structural Type::Enum with the exact reserved marker and ordinal MemberN labels, not marker-only or shortened-hash identity. Analyze and Verify independently enforce family, arity, labels, flattening, resolved ordinary member identity and strict full-Type ordering.",
+    "CT canonicalization builds explicit complete constructor keys containing nominal symbol, generation identity, generic arguments and scalar bits. It normalizes DAG numbering/sharing and member order; checked node, temporary byte, generated node, comparison and depth bounds precede copied constructor expansion.",
+    "The CT-to-runtime bridge resolves and sorts complete runtime members again. It does not copy CT member indexes into runtime tags. Phantom nominal generic arguments, reordered declarations, imported aliases, generic T member patterns and nested unsigned/float Enum layouts are exercised.",
+    "Generic member pattern substitutions are retained in private declaration-generated maps and full types. Raw canonical attacks independently fail Analyze, Verify and decoded-Wire Verify; source duplicate, inexact injection, nonexhaustive/repeated patterns and duplicate concrete generic members reject."
+  ],
+  "native_controls": "Eight actual source variants execute through both Clang and LLVM API at O0/O2:32 executions with expected42, Verify1 and no fallback. CT handcrafted constructor tests use test authority and are separate from authenticated source/native evidence.",
+  "budget_observation": {
+    "anonymous_source_N": 8558,
+    "N_minus_1": "ResourceLimit",
+    "warm_fresh": "agree",
+    "qualification": "These measured boundary controls pass but do not prove that every added generic-key sort is charged; the source-inspection finding below remains blocking."
+  },
+  "findings": [
+    {
+      "status": "Open_AuthorConfirmed",
+      "file": "crates/zil-expand/src/generics.rs",
+      "functions": [
+        "type_key",
+        "type_key_bounded",
+        "unify_bounded callers"
+      ],
+      "finding": "type_key prepays only the ordinary linear budget.ty walk. The new Union branch in type_key_bounded flattens, builds and sorts full member keys without a passed ledger. Alias Resolver target prepayment covers its own operation, not later generic-instance/coverage key construction or nested Union sorts. Long common-prefix keys cause additional repeated comparison work not debited at the general key boundary.",
+      "required_correction": "Thread or prepay the same request ledger at every new Union key construction, including nested and unification paths; preserve legacy no-Union fees and add multi-member common-prefix plus nested generic-key exact N/N-1/fresh controls.",
+      "evidence": "Direct exact-source inspection; implementation author independently confirmed the seam. No semantic/native failure is claimed."
+    }
+  ],
+  "limitations": [
+    "Artifact VM structural Sum values require the subsequent CtTy/CtValue schema and consumers; this checkpoint covers Type values and ordinary typed-CFG Copy value reification only.",
+    "Owning Sum cleanup, borrowing and partial moves remain outside this accepted test scope.",
+    "Current combined main has BorrowedFunctionPointer and other new Type/CtTypeNode shapes absent from this source base; integration must extend full-identity/remap/accounting consumers, without treating a wildcard as a complete key walk.",
+    "Inherited float/UInt controls and author Clippy were not independently repeated in this review.",
+    "No full-workspace, native-Windows, same-semantics Rust comparison or terminal-language acceptance."
+  ]
+}
