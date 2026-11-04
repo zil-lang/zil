@@ -590,6 +590,10 @@ pub(super) fn functions(
             for instruction in &block.instructions {
                 budget.pay(0, 1)?;
                 match &instruction.kind {
+                    InstructionKind::BorrowFieldLocal{local,path,..}=>{let ty=&f.locals[local.0 as usize].ty;for _ in 0..=path.len(){budget.tree(ty,0)?;}budget.pay(path.len(),path.len().saturating_mul(32))?;}
+                    InstructionKind::VariantTagAddress { address,path } | InstructionKind::BorrowVariantAddress { address,path,.. } => {
+                        let ty=&f.values[address.0 as usize];for _ in 0..=path.len(){budget.tree(ty,0)?;}budget.pay(path.len(),path.len().saturating_mul(64))?;
+                    }
                     InstructionKind::VariantTagLocal { local, path }
                     | InstructionKind::ReadVariantLocal { local, path }
                     | InstructionKind::BorrowVariantLocal { local, path, .. } => {

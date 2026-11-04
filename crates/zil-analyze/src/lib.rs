@@ -9,6 +9,7 @@
 //! materialized are charged before the corresponding work or allocation. These
 //! are deterministic logical units, not elapsed time or an allocator byte count.
 mod budget;
+mod address_sums;
 mod callable_fields;
 #[cfg(test)]
 mod defer_tests;
@@ -90,6 +91,7 @@ fn analyze_budgeted(
         // Share the established CFG walk with returned-environment checks;
         // modules with no callable factory need no extra whole-module pass.
         retained::check_function(module, f, &reachable, budget)?;
+        address_sums::check(module,f,&reachable,limits,budget)?;
         hold_graphs.push((predecessors, reachable));
         plan.functions.push(FunctionPlan {
             function: f.id,

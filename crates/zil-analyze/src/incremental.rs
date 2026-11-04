@@ -180,6 +180,7 @@ impl Operation {
             InstructionKind::VariantTagLocal { local, .. }
             | InstructionKind::ReadVariantLocal { local, .. }
             | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. }
             | InstructionKind::Load(local)
             | InstructionKind::RegisterDefer { local, .. }
             | InstructionKind::BorrowLocal { local }

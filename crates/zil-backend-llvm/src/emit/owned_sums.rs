@@ -120,6 +120,27 @@ impl FunctionEmitter<'_> {
         }
         Ok((ty, pointer))
     }
+    pub(super) fn borrow_inline_field(&mut self,instruction:&Instruction,local:LocalId,path:&[u32])->CompileResult<()>{
+        let mut ty=self.local_type(local)?.clone();let mut pointer=format!("%local.{}",local.0);
+        for field in path{let next=match &ty{Type::Tuple(fs)=>fs.get(*field as usize),Type::Record{fields,..}=>fields.get(*field as usize).map(|(_,t)|t),_=>None}.ok_or_else(||vec![Diagnostic::error(Phase::Codegen,"E-CODEGEN-CFG",Some(instruction.span),"invalid inline field path")])?.clone();
+            let output=self.temp();self.event(m::Event::Instruction(m::Inst::new(Some(m::name(output.clone())),m::Op::Gep{ty:llvm_type(&ty)?,ptr:m::val(pointer),indices:vec![m::Arg::new(m::Ty::Int(32),0),m::Arg::new(m::Ty::Int(32),*field)]})));pointer=output;ty=next;
+        }
+        self.event(m::Event::Instruction(m::Inst::new(Some(m::name(value(result(instruction)?))),m::Op::Gep{ty:m::Ty::Int(8),ptr:m::val(pointer),indices:vec![m::Arg::new(m::Ty::Int(32),0)]})));Ok(())
+    }
+    fn variant_address_pointer(&mut self,address:ValueId,path:&[VariantProjection])->CompileResult<(Type,String)>{
+        let Type::Address{inner,..}=self.value_type(address)? else{return invalid("E-CODEGEN-CFG","Sum address base must be a pointer",None)};
+        let mut ty=*inner.clone();let mut pointer=value(address);
+        for step in path{self.guard_enum_variant(&ty,&pointer,step.variant)?;(ty,pointer)=self.variant_field_pointer(&ty,&pointer,step.variant,step.index)?;}
+        Ok((ty,pointer))
+    }
+    pub(super) fn variant_tag_address(&mut self,instruction:&Instruction,address:ValueId,path:&[VariantProjection])->CompileResult<()>{
+        let(ty,pointer)=self.variant_address_pointer(address,path)?;self.enum_tag_at(&ty,&pointer,value(result(instruction)?))
+    }
+    pub(super) fn borrow_variant_address(&mut self,instruction:&Instruction,address:ValueId,path:&[VariantProjection])->CompileResult<()>{
+        let(_,pointer)=self.variant_address_pointer(address,path)?;
+        self.event(m::Event::Instruction(m::Inst::new(Some(m::name(value(result(instruction)?))),m::Op::Gep{ty:m::Ty::Int(8),ptr:m::val(pointer),indices:vec![m::Arg::new(m::Ty::Int(32),0)]})));
+        Ok(())
+    }
     pub(super) fn variant_tag_local(
         &mut self,
         instruction: &Instruction,

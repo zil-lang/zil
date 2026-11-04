@@ -26,6 +26,7 @@ pub(super) struct Budget {
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
     pub(super) sum_functions: Vec<bool>,
+    pub(super) addressed_sums: bool,
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     pub(super) owned_callback_window_functions: Vec<bool>,
@@ -53,6 +54,7 @@ impl Budget {
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
+            addressed_sums: false,
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
             owned_callback_window_functions: Vec::new(),
@@ -310,6 +312,9 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::Address{inner,..}=ty && matches!(inner.as_ref(),Type::Enum{..}){
+        return super::resources::sums::admit(module,inner,budget).map(|_|false)
+    }
     if budget.sum_type(ty)? {
         return super::resources::sums::admit(module, ty, budget);
     }
@@ -417,6 +422,7 @@ pub(super) fn preflight(
         let root = ty as *const Type as usize;
         // The old Store protocol already admitted Unit!ordinary Product with
         // no Store/Sum child; retain that exact profile and fee path.
+        let sum_address_root=matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Enum{..})) && store_element.is_none() && capture_owner.is_none() && !resource_head;
         let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
             if **error == Type::Unit || **result == Type::Unit);
         let mut new_sum = false;
@@ -482,6 +488,7 @@ pub(super) fn preflight(
                         ..SumContext::default()
                     };
                 }
+                Type::Address { .. } if depth==0 && sum_address_root=>{child=SumContext::default();}
                 Type::Array { .. }
                 | Type::OwnedStore { .. }
                 | Type::Address { .. }
@@ -983,6 +990,19 @@ pub(super) fn preflight(
                         )?;
                         budget.scoped_functions.insert(function.id);
                         budget.scoped_foreign = true;
+                    }
+                    InstructionKind::BorrowFieldLocal{local,path,..}=>{
+                        budget.addressed_sums=true;
+                        if local.0 as usize>=function.locals.len(){return Err(bad("field place local outside table"))}
+                        count(0,path.len(),limits.max_call_depth,"field place path")?;budget.input(path.len().saturating_add(1),"field place preflight")?;
+                    }
+                    InstructionKind::VariantTagAddress { address, path }
+                    | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                        sum_function=true;
+                        budget.addressed_sums=true;
+                        if address.0 as usize>=function.values.len(){return Err(bad("address Sum base outside value table"))}
+                        count(0,path.len(),limits.max_call_depth,"address Sum path")?;
+                        budget.input(path.len().saturating_mul(2).saturating_add(1),"address Sum path preflight")?;
                     }
                     InstructionKind::VariantTagLocal { local, path }
                     | InstructionKind::ReadVariantLocal { local, path }

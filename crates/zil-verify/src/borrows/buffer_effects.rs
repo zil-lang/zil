@@ -22,6 +22,7 @@ fn external(module: &TypedModule, function: &TypedFunction, root: Root) -> bool 
                 borrowed(&module.closures[id.0 as usize].captures[capture as usize])
             })
         }
+        Root::Window(origin,..)=>external(module,function,match origin{HoldRoot::Local(l)=>Root::Local(l),HoldRoot::Parameter(p)=>Root::Parameter(p),HoldRoot::Capture(c)=>Root::Capture(c)}),
         Root::Local(_) | Root::Field(..) | Root::Projection(..) => false,
     }
 }
