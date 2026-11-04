@@ -4515,7 +4515,7 @@ mod general_task343;
 mod cas343;
 
 #[test]
-fn public42_unused_pollable_candidates_reject_in_both_kernels_raw_and_wire() {
+fn public42_unused_roles_and_unauthorized_pollable_candidates_raw_and_wire() {
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
     use zil_ir::{InstructionKind as I, ScopedCallbackRole as R, Type};
     let text = r#"
@@ -4712,7 +4712,7 @@ fn main()->i32{unsafe{let callback=(value:i32)->i32=>value+1;return callback(1);
                         initialized_out: vec![],
                     });
                     // The extra block itself and its truthful plan must pass
-                    // before adding the unimplemented opcode into that block.
+                    // before adding the unauthorized async opcode into that block.
                     claim.module_fingerprint = raw.fingerprint();
                     zil_analyze::analyze(&raw, &limits).unwrap();
                     zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits)
@@ -4731,6 +4731,13 @@ fn main()->i32{unsafe{let callback=(value:i32)->i32=>value+1;return callback(1);
         let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
         let (decoded, wire_claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
         for (wire, input, candidate) in [(false, raw, claim), (true, decoded, wire_claim)] {
+            if case <= 2 {
+                // Role declarations carry unsafe promises; unused valid roles
+                // are admitted independently of constructor/owner authority.
+                zil_analyze::analyze(&input, &limits).unwrap();
+                zil_verify::verify_module(input, candidate, &target, &limits).unwrap();
+                continue;
+            }
             for (kernel, errors) in [
                 (
                     "Analyze",
@@ -4742,11 +4749,10 @@ fn main()->i32{unsafe{let callback=(value:i32)->i32=>value+1;return callback(1);
                 ),
             ] {
                 assert!(
-                    errors
-                        .iter()
-                        .all(|d| d.category == ResultCategory::Unsupported
-                            && d.message.contains("pollable registration")
-                            && d.message.contains("consumer is not implemented")),
+                    errors.iter().all(|d| matches!(
+                        d.category,
+                        ResultCategory::SafeReject | ResultCategory::Unsupported
+                    )),
                     "case={case} wire={wire} kernel={kernel}: {errors:?}"
                 );
                 eprintln!(
@@ -4772,4 +4778,267 @@ fn async_registration_g8412_explicit_source_smoke() {
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     let (raw, claim) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
     zil_verify::verify_module(raw, claim, &target, &limits).unwrap();
+}
+
+#[test]
+fn async_registration_g8412_source_neighbors_and_unused_definitions() {
+    let original =
+        include_str!("../../../tests/language-readiness/async-registration/explicit.zil");
+    let cases=[
+        original.replace("c_register_async(async_register,async_request,async_drain,callback)","c_register_async(async_register,async_drain,async_request,callback)"),
+        original.replace("let callback=move", "let callback="),
+        original.replace("var count=37;", "unsafe {async_drain(c_null());} var count=37;"),
+        original.replace("unsafe {", "{"),
+        original.replace("async_registration_finish_destroy(give owner);", ""),
+        original.replace("async_registration_finish_destroy(give owner);", "registration_close(give owner);"),
+        original.replace("async_registration_finish_destroy(give owner);", "async_registration_finish_destroy(owner);"),
+        original.replace("async_registration_finish_destroy(give owner);", "async_registration_finish_destroy(give owner);async_registration_finish_destroy(give owner);"),
+        original.replace("async_registration_request_close(&mut owner)","async_registration_request_close(owner)"),
+        original.replace("var owner=", "let owner="),
+        original.replace("var count=37;", "let c_register_async=1;var count=37;"),
+        format!("{}fn main(){{}}",original.split("fn main").next().unwrap().replace("async_drain(token:c_handle)->i32","async_drain(token:c_handle)->bool")),
+        format!("{}fn main(){{}}",original.split("fn main").next().unwrap().replace("static_callbacks(),async_callback_poll_drain()","async_callback_poll_drain()")),
+    ];
+    for (index, text) in cases.iter().enumerate() {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "neighbor {index}: {}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "neighbor {index}: {}",
+            report.to_json()
+        );
+        eprintln!(
+            "async_registration_g8412 neighbor {index}: {:?}",
+            report.status
+        );
+    }
+    let declarations = original.split("fn main").next().unwrap();
+    let generic = format!(
+        "{declarations}fn install<F:FnMut(i32)->i32 + ClosedEnvironment>(f:F)->AsyncRegistration<F> contract{{result(create);}} {{unsafe{{return c_register_async(async_register,async_request,async_drain,f)}}}}\nfn main()->i32 {{var count=37;let callback=move(value:i32)->i32=>{{count+=1;return value+count}};var owner=install(callback);async_registration_request_close(&mut owner);async_registration_poll_close(&mut owner);async_registration_finish_destroy(give owner);return 0}}"
+    );
+    let early = original
+        .replace("async_registration_request_close(&mut owner);", "")
+        .replace("async_registration_poll_close(&mut owner);", "");
+    assert_eq!(
+        compile_source(&source(&early), &CompileOptions::default()).status,
+        ResultCategory::Success,
+        "explicit early finish is guarded by runtime CLOSED, not an invented static Poll refinement"
+    );
+    let report = compile_source(&source(&generic), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let unused = generic.split("fn main").next().unwrap().to_owned() + "fn main(){}";
+    assert_eq!(
+        compile_source(&source(&unused), &CompileOptions::default()).status,
+        ResultCategory::Success
+    );
+    for text in [
+        unused.replace(" + ClosedEnvironment", ""),
+        unused.replace("FnMut(i32)", "FnOnce(i32)"),
+        unused.replace(
+            "async_register,async_request,async_drain,f",
+            "async_register,async_drain,async_request,f",
+        ),
+        unused.replace(" + ClosedEnvironment", " + ClosedEnvironment + Transfer"),
+        unused.replace(" + ClosedEnvironment", " + ClosedEnvironment + Share"),
+    ] {
+        assert_ne!(
+            compile_source(&source(&text), &CompileOptions::default()).status,
+            ResultCategory::Success
+        );
+    }
+}
+
+#[test]
+fn async_registration_g8412_raw_wire_and_exact_budgets() {
+    use zil_ir::{InstructionKind as I, Type};
+    let src = source(include_str!(
+        "../../../tests/language-readiness/async-registration/explicit.zil"
+    ));
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let main = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    for variant in 0..10 {
+        let mut raw = typed.clone();
+        match variant {
+            0 => {
+                let i = raw.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::AsyncRegistrationStart { .. }))
+                    .unwrap();
+                if let I::AsyncRegistrationStart {
+                    request_close,
+                    poll_drain,
+                    ..
+                } = &mut i.kind
+                {
+                    std::mem::swap(request_close, poll_drain);
+                }
+            }
+            1 => {
+                let drain = raw
+                    .functions
+                    .iter_mut()
+                    .find(|f| f.name == "async_drain")
+                    .unwrap();
+                drain.return_type = Type::Unit;
+            }
+            2 => {
+                let resource = raw
+                    .resources
+                    .iter_mut()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap();
+                resource.name = "@builtin:Registration:0".into();
+            }
+            3 => {
+                let f = &mut raw.functions[main];
+                let i = f
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, I::AsyncRegistrationPollClose { .. }))
+                    .unwrap();
+                let v = i.result.unwrap();
+                let Type::Enum { name, .. } = &mut f.values[v.0 as usize] else {
+                    panic!()
+                };
+                *name = "@user:Poll".into();
+            }
+            4 => {
+                raw.closures[0].kind = zil_ir::CallableKind::FnOnce;
+            }
+            5 => {
+                let capture = &mut raw.closures[0].captures[0];
+                *capture = Type::Address {
+                    mutable: false,
+                    inner: Box::new(capture.clone()),
+                };
+            }
+            6 => {
+                let owner = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                raw.functions[main].values.push(Type::Package {
+                    name: "@user:pollable-package".into(),
+                    fields: vec![("owner".into(), Type::Managed(Box::new(owner)))],
+                });
+            }
+            7 => {
+                let owner = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                raw.functions[main].values.push(Type::OwnedStore {
+                    element: Box::new(Type::Managed(Box::new(owner))),
+                });
+            }
+            8 => {
+                let f = &mut raw.functions[main];
+                let i = f
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::AsyncRegistrationStart { .. }))
+                    .unwrap();
+                if let I::AsyncRegistrationStart { region, .. } = &mut i.kind {
+                    *region += 1;
+                }
+            }
+            9 => {
+                let f = &mut raw.functions[main];
+                let i = f
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::AsyncRegistrationStart { .. }))
+                    .unwrap();
+                i.result = None;
+            }
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            if (6..=7).contains(&variant) {
+                ResultCategory::Unsupported
+            } else {
+                ResultCategory::SafeReject
+            },
+            "Analyze raw {variant}: {errors:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        for decoded in [false, true] {
+            let (input, claim) = if decoded {
+                zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+            } else {
+                (raw.clone(), claim.clone())
+            };
+            let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify raw {variant} wire={decoded}: {errors:?}"
+            );
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let selected = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected)
+                    .map(|_| ())
+            } else {
+                zil_analyze::analyze(&typed, &selected).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            if accepts(middle).is_ok() {
+                high = middle
+            } else {
+                low = middle + 1
+            }
+        }
+        accepts(low).unwrap();
+        assert_eq!(
+            accepts(low - 1).unwrap_err()[0].category,
+            ResultCategory::ResourceLimit
+        );
+        accepts(low).unwrap();
+        eprintln!("async_registration_g8412 exact kernel verify={verify} N={low}");
+    }
 }

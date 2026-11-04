@@ -1792,6 +1792,19 @@ impl Transfer<'_> {
                     if validate
                         && f.call_kind == CallKind::Direct
                         && state.debt[index] & LIVE != 0
+                        && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
+                    {
+                        tasks::require_synchronous_drop(
+                            self.module,
+                            f,
+                            *local,
+                            budget,
+                            Some(span),
+                        )?;
+                    }
+                    if validate
+                        && f.call_kind == CallKind::Direct
+                        && state.debt[index] & LIVE != 0
                         && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
                     {
                         return Err(bad(

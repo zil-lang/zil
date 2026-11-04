@@ -611,6 +611,7 @@ fn check_module(
     }) {
         check_type_shape(ty, &module.target, limits, &mut budget)?;
     }
+    registration::storage(module, &mut budget)?;
     closures::check_definitions(module, limits, &mut budget)?;
     foreign::check_declarations(module, &mut budget)?;
     let mut names = BTreeSet::new();
