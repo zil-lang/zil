@@ -487,6 +487,7 @@ mod tests {
     }
     fn function(id: u32, body: CoreBlock) -> CoreFunction {
         CoreFunction {
+            storage_life: None,
             call_kind: None,
             life: None,
             callable_return: None,
@@ -524,6 +525,11 @@ mod tests {
             span: span(id),
         };
         CoreModule {
+            life_declarations: vec![],
+            life_instances: vec![],
+            dyn_declarations: vec![],
+            dyn_interfaces: vec![],
+            dyn_vtables: vec![],
             aggregate_templates: Vec::new(),
             aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,

@@ -124,6 +124,11 @@ mod tests {
     use zil_base::{Fingerprint, ModuleId, NodeId, SCHEMA_VERSION, TargetProfile};
     fn core() -> CoreModule {
         CoreModule {
+            life_declarations: vec![],
+            life_instances: vec![],
+            dyn_declarations: vec![],
+            dyn_interfaces: vec![],
+            dyn_vtables: vec![],
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(7),
             source_fingerprint: Fingerprint::ZERO,
