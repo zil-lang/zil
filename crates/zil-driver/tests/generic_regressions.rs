@@ -5534,21 +5534,72 @@ fn async_registration841_legacy_task_start_cannot_hide_pollable_worker_raw_or_wi
 
 #[test]
 fn async_registration841_actual_task_carrier_cleanup_requires_synchronous_origin() {
-    let queued=include_str!("../../../tests/language-readiness/async-registration/queued-cancel.zil");
-    let prefix=queued.split("fn drive(").next().unwrap();
+    let queued =
+        include_str!("../../../tests/language-readiness/async-registration/queued-cancel.zil");
+    let prefix = queued.split("fn drive(").next().unwrap();
     for (case, tail) in [
         ("direct", "return 0"),
         ("tuple", "let pair=(give task,0);return 0"),
-        ("closure", "let callback=move ()=>task_valid(task);return 0"),
-        ("once", "let callback=move ()=>task_valid(task);invoke(callback);return 0"),
-        ("package", "let pair=Pair{task:give task,mark:Mark{code:1}};return 0"),
+        ("closure", "let callback=move ()=>{task_finish_destroy(give task);return true};return 0"),
+        (
+            "once",
+            "let callback=move ()=>{task_finish_destroy(give task);return true};invoke(callback);return 0",
+        ),
+        (
+            "package",
+            "let pair=Pair{task:give task,mark:Mark{code:1}};return 0",
+        ),
     ] {
-        let text=format!("{prefix}package Pair{{manages task:Task<i32>;manages mark:Mark}}fn invoke<F:FnOnce()->bool>(f:F)->bool{{return f()}}fn main()->std.task.TaskCreateError!i32{{var task=task_create(worker,37)?;task_poll(&mut task);{tail}}}");
-        let report=compile_source(&source(&text),&CompileOptions::default());
+        let package=if case=="package" {"package Pair{task:Task<i32>;manages mark:Mark}"}else{""};
+        let text = format!(
+            "{prefix}{package}fn invoke<F:FnOnce()->bool>(f:F)->bool{{return f()}}fn main()->std.task.TaskCreateError!i32{{var task=task_create(worker,37)?;task_poll(&mut task);{tail}}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        if ["package", "closure", "once"].contains(&case) {
+            assert_eq!(report.status,ResultCategory::Unsupported,"{case}: {}",report.to_json());
+            let expected=if case=="package" {"aggregate field requires"}else{"closure value requires a finite Copy type"};
+            assert!(report.diagnostics.iter().any(|d|d.message.contains(expected)),"{}",report.to_json());
+            continue;
+        }
         assert_eq!(report.status,ResultCategory::SafeReject,"{case}: {}",report.to_json());
-        assert!(report.diagnostics.iter().any(|d|d.message.contains("Task automatic Drop")),"{case}: {}",report.to_json());
-        let sync=text.replace("task_create(worker,37)","task_create(sync,37)")+"fn sync(seed:i32)->i32{task_yield();return seed}";
-        let report=compile_source(&source(&sync),&CompileOptions::default());
-        assert_eq!(report.status,ResultCategory::Success,"sync {case}: {}",report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("Task automatic Drop")),
+            "{case}: {}",
+            report.to_json()
+        );
+        let sync = text.replace("task_create(worker,37)", "task_create(sync,37)")
+            + "fn sync(seed:i32)->i32{task_yield();return seed}";
+        let report = compile_source(&source(&sync), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "sync {case}: {}",
+            report.to_json()
+        );
+        let limits=Limits::default();
+        let target=zil_base::TargetProfile::default();
+        let input=source(&sync);
+        let ast=zil_syntax::parse(&input).into_result().unwrap();
+        let core=zil_expand::expand(&input,&ast).unwrap();
+        let mut raw=zil_types::check(&core,&target,&limits).unwrap();
+        let mut plan=zil_analyze::analyze(&raw,&limits).unwrap();
+        zil_verify::verify_module(raw.clone(),plan.clone(),&target,&limits).unwrap();
+        let pollable=raw.functions.iter().find(|f|f.name=="worker").unwrap().id;
+        let main=raw.functions.iter_mut().find(|f|f.name=="main").unwrap();
+        for instruction in main.blocks.iter_mut().flat_map(|b|&mut b.instructions) {
+            if let zil_ir::InstructionKind::TaskCreate {worker,..}=&mut instruction.kind {*worker=pollable;}
+        }
+        plan.module_fingerprint=raw.fingerprint();
+        let wire=zil_ir::wire::encode_module_candidate(&raw,&plan,&limits).unwrap();
+        for decoded in [false,true] {
+            let (raw,plan)=if decoded {zil_ir::wire::decode_module_candidate(&wire,&limits).unwrap()}else{(raw.clone(),plan.clone())};
+            for (kernel,errors) in [("Analyze",zil_analyze::analyze(&raw,&limits).unwrap_err()),("Verify",zil_verify::verify_module(raw,plan,&target,&limits).unwrap_err())] {
+                assert_eq!(errors[0].category,ResultCategory::SafeReject,"{case} {kernel} wire={decoded}: {errors:?}");
+                assert!(errors[0].message.contains("pollable Task automatic Drop"),"{case} {kernel} wire={decoded}: {errors:?}");
+            }
+        }
     }
 }
