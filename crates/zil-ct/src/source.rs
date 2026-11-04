@@ -3219,6 +3219,7 @@ mod tests {
                 },
                 binder: StorageBinder::Fixed(0),
             }],
+            classes: Vec::new(),
         });
         let (result, usage) =
             evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();

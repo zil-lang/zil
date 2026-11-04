@@ -450,3 +450,25 @@ construction occurred during development and is not an exact frozen acceptance
 receipt. Rich callable, specialization/member/generated-scope admission,
 contextual key normalization, repeated/shared-span adversarial controls and
 actual VM frame/vector/deep-descriptor byte accounting remain under construction.
+
+### CT5 VM backing-byte correction WIP
+
+Reserve actual Option<CtValue>/u64 frame arrays, argument/operand/value vectors
+and call-stack capacity before allocation. Inline cells are charged once by their
+backing vector; owned dynamic buffers are counted recursively, including all
+three reflected-field owner/type graphs, names, rich relation paths, ambient
+maps, Syntax/token children and anonymous payload/type storage. Replacement
+clones prepay the new payload while the old clone is still live. Metadata
+projection and Type construction use the same complete dynamic sizes. Returned
+query receipts have their own reservation/release; request query backing remains
+live independently of frame values. Error paths release invocation-owned scratch.
+
+The historical scalar64-byte fixture is retained as an insufficient physical
+budget rather than presented as the new bound. Its existing N/N-1/fresh test now
+measures the actual frame peak. The raw fixture's private test allowance is16384;
+production defaults are unchanged. A new complete FieldInfo input has exact
+byte boundary57680, N-1 ResourceLimit and fresh N, with no residual frame or
+descriptor bytes after success/failure. A step-failure control also frees the
+actual frame arrays. The CT library passes56/0 and the three unchanged phantom
+sources again run12 native profiles. Full contextual keys, authenticated rich/
+specialization scopes and exact final source bindings remain subsequent work.

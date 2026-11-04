@@ -186,18 +186,6 @@ impl Work<'_> {
     }
 }
 
-fn shape_bytes(shape: &StorageLifeShape) -> u64 {
-    let slots = shape.slots.iter().fold(0u64, |n, row| {
-        n.saturating_add(32 + row.path.len() as u64 * 16)
-    });
-    let retained = shape.retained.iter().fold(0u64, |n, row| {
-        n.saturating_add(32 + row.path.len() as u64 * 16)
-    });
-    let nominal = shape.nominal_arguments.iter().fold(0u64, |n, row| {
-        n.saturating_add(48 + row.path.len() as u64 * 16)
-    });
-    slots.saturating_add(retained).saturating_add(nominal)
-}
 fn physical_remap(node: &mut CtTypeNode, offset: u32) -> CompileResult<()> {
     let map = |id: &mut CtTypeNodeId| -> CompileResult<()> {
         id.0 = id.0.checked_add(offset).ok_or_else(bound)?;
@@ -599,29 +587,7 @@ fn edge_width(node: &CtTypeNode) -> usize {
     }
 }
 pub(super) fn retained_bytes(ty: &CtTypeRef) -> u64 {
-    ty.nodes.iter().fold(
-        (std::mem::size_of::<CtTypeRef>() as u64)
-            .saturating_add(ty.nodes.len() as u64 * std::mem::size_of::<CtTypeNode>() as u64)
-            .saturating_add(
-                ty.ambient_classes.len() as u64
-                    * std::mem::size_of::<CtAmbientClassBinding>() as u64,
-            ),
-        |n, node| {
-            n.saturating_add(match node {
-                CtTypeNode::BorrowedStorage { life, .. } => shape_bytes(life),
-                CtTypeNode::BorrowedFunctionPointer {
-                    parameters, life, ..
-                } => parameters.len() as u64 * 4 + life_bytes(life),
-                CtTypeNode::FunctionPointer { parameters, .. }
-                | CtTypeNode::ForeignCallback { parameters, .. } => parameters.len() as u64 * 4,
-                CtTypeNode::Nominal { arguments, .. } => {
-                    arguments.len() as u64 * std::mem::size_of::<CtTypeArgument>() as u64
-                }
-                CtTypeNode::Tuple(v) | CtTypeNode::AnonymousSum(v) => v.len() as u64 * 4,
-                _ => 0,
-            })
-        },
-    )
+    super::retained_bytes(ty)
 }
 
 #[cfg(test)]
@@ -660,17 +626,19 @@ mod tests {
             nodes.push(CtTypeNode::BorrowedFunctionPointer {
                 parameters: vec![CtTypeNodeId(base + 1)],
                 result: CtTypeNodeId(base + 1),
-                life: zil_ir::FunctionLifeContract {
+                life: zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
                     binder_count: 1,
                     parameter_lives: vec![Some(0)],
                     result_life: Some(0),
-                },
+                })
+                .unwrap(),
             });
         }
         nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
         CtTypeRef {
             root: CtTypeNodeId(6),
             nodes,
+            ambient_classes: Vec::new(),
         }
     }
     #[test]

@@ -401,6 +401,7 @@ impl<'a> Environment<'a> {
                     errors
                 },
             )?;
+        self.budget.release_usage_receipt(&_usage);
         self.budget.release_temporary_bytes(copied_bytes);
         let result_ty =
             &verified.program().functions[verified.program().entry.0 as usize].result_type;

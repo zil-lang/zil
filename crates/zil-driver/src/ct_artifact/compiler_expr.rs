@@ -866,8 +866,7 @@ impl Builder<'_, '_> {
                     CtTypeConstructor::FunctionPointer
                 } else {
                     CtTypeConstructor::BorrowedFunctionPointer {
-                        life: zil_ir::StorageLifeContract::from_flat(life)
-                            .expect("bounded source signature"),
+                        life: self.compiler.budget.rich_relation(life, ty.span)?,
                     }
                 };
                 self.emit(

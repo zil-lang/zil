@@ -1490,8 +1490,7 @@ impl FrozenReadView<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life: zil_ir::StorageLifeContract::from_flat(life)
-                            .expect("bounded source signature"),
+                        life: super::scope_metadata::embed_signature(life, budget)?,
                     }
                 }
             }
@@ -1535,8 +1534,7 @@ impl FrozenReadView<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life: zil_ir::StorageLifeContract::from_flat(life)
-                            .expect("bounded source signature"),
+                        life: super::scope_metadata::embed_signature(life, budget)?,
                     }
                 } else {
                     CtTypeNode::FunctionPointer { parameters, result }

@@ -81,6 +81,24 @@ impl Budget<'_> {
         }
         Ok(())
     }
+    pub(super) fn rich_relation(
+        &mut self,
+        life: zil_ir::FunctionLifeContract,
+        span: Span,
+    ) -> R<zil_ir::StorageLifeContract> {
+        self.work(life.parameter_lives.len().saturating_add(1), span)?;
+        Self::take(
+            &mut self.bytes,
+            life.parameter_lives
+                .len()
+                .saturating_add(1)
+                .saturating_mul(std::mem::size_of::<zil_ir::StorageLifeBinding>()),
+            span,
+            "CT relation embedding bytes exhausted",
+        )?;
+        zil_ir::StorageLifeContract::from_flat(life)
+            .ok_or_else(|| error(span, "CT relation parameter identity overflow"))
+    }
     pub(super) fn signature_metadata(
         &mut self,
         life: &zil_ir::StorageLifeContract,
@@ -513,8 +531,7 @@ impl Compiler<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life: zil_ir::StorageLifeContract::from_flat(life)
-                            .expect("bounded source signature"),
+                        life: self.budget.rich_relation(life, span)?,
                     }
                 }
             }
