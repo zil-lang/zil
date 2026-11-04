@@ -1143,6 +1143,20 @@ impl<'a> Writer<'a> {
                     self.u32(step.index)?;
                 }
             }
+            InstructionKind::BorrowVariantLocal {
+                local,
+                path,
+                mutable,
+            } => {
+                self.u8(106)?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    self.u32(step.variant)?;
+                    self.u32(step.index)?;
+                }
+                self.boolean(*mutable)?;
+            }
             InstructionKind::UnpackVariant {
                 local,
                 variant,
@@ -2393,6 +2407,22 @@ impl<'a> Reader<'a> {
                     arguments.push(ValueId(self.u32()?));
                 }
                 InstructionKind::CallClosureMut { callee, arguments }
+            }
+            106 => {
+                let local = LocalId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 8)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(VariantProjection {
+                        variant: self.u32()?,
+                        index: self.u32()?,
+                    });
+                }
+                InstructionKind::BorrowVariantLocal {
+                    local,
+                    path,
+                    mutable: self.boolean()?,
+                }
             }
             9 => InstructionKind::BorrowLocal {
                 local: LocalId(self.u32()?),
