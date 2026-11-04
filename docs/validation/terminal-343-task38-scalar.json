@@ -1,0 +1,95 @@
+{
+  "task": 343,
+  "scope": "Task38 ordinary standard enum bindings and fallible Task<i32> native consumers; owned Task<T> implementation continues",
+  "source_commit": "bcfc0b1839de6be2e39e53aba973c11aaaf6372b",
+  "spec_authority_tree": "/workspace/zil",
+  "spec_authority_commit": "4bc1d77b5ec3bccb5b789fd813e85386f03ae13f",
+  "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+  "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
+  "author_tree_normative_bytes": "Historical base only; never current authority.",
+  "tests": [
+    {
+      "command": "CARGO_BUILD_JOBS=1 cargo test -p zil-driver --test generic_regressions --features llvm-api 343 -- --nocapture",
+      "result": "31 passed; 0 failed",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task38-343-regressions.log"
+    },
+    {
+      "command": "CARGO_BUILD_JOBS=1 cargo test -p zil-driver --test generics --features llvm-api",
+      "result": "23 passed; 0 failed",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task38-generics-regressions.log"
+    },
+    {
+      "command": "CARGO_BUILD_JOBS=1 cargo clippy -p zil-driver --test generic_regressions --features llvm-api -- -D warnings",
+      "result": "passed",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task38-general-clippy.log"
+    }
+  ],
+  "new_group": {
+    "filter": "general_task343",
+    "tests": 6,
+    "native_success_executions": 20,
+    "native_failure_executions": 8,
+    "primary_native_configs": 12,
+    "fault_native_configs": 8,
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "observations": {
+      "yield": "PRC",
+      "effect_free_worker_with_ordinary_call": "RC",
+      "user_Poll_and_std_task_Poll_together": "PRC",
+      "explicit_and_default_cleanup_success": "APRCF",
+      "calloc_failure": "A; process exit 1; no success owner created"
+    },
+    "raw_mutations": 6,
+    "raw_paths": [
+      "Analyze",
+      "Verify actual raw",
+      "Verify independently decoded Wire38"
+    ],
+    "kernel_boundaries": {
+      "Analyze": 12349,
+      "Verify": 35119
+    },
+    "boundary_controls": [
+      "N",
+      "N-1 ResourceLimit",
+      "fresh N"
+    ]
+  },
+  "retained_harness": {
+    "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/generic_regressions-6ecdb24ac684ead8",
+    "sha256": "b37cdb4b7fafd1a7e7f651844e9ce7ceccb97da16c491f5757279c1c27874992"
+  },
+  "fixtures_sha256": {
+    "changes/343-owned-task-consumers.md": "e8bb9111ce2b888c1eaa443e26f08cdcdbf0581f716bdc3a5b7248b152b0726c",
+    "tests/language-readiness/terminal/343/task-general-i32.zil": "63ee5c472390a6d64d7efe2a6bf7eaad15eed1ad1c05fd0c6bc457bca9e5082f",
+    "tests/language-readiness/terminal/343/task-general-direct.zil": "b86a56694ac224600f37466d64392e6e0eca77428bb3f474fb1e8be7cce74c5e",
+    "tests/language-readiness/terminal/343/task-general-user-poll.zil": "27b93c4de5d15a4bd3770e6955cb18847e77f974f54c5dc62cc4e6a987416bcf",
+    "tests/language-readiness/terminal/343/task-general-borrowed-pc0.zil": "393cbaecc0ad317b2e29fb4536b7bcd92c77236ab542e3075803ea7b3ea71a28",
+    "tests/language-readiness/terminal/343/task-general-observer.c": "d8739edf7efb8a4aef82f6f7ae6364921cd0fbf0f98bd311ef1a638e5783aaac",
+    "tests/language-readiness/terminal/343/task_general.rs": "4da24a86037c293307da28c4995eb0a61b42228932eee8d0c384a010379b64bd"
+  },
+  "runtime_read_external_input": [
+    "tests/language-readiness/terminal/343/task-general-observer.c"
+  ],
+  "limits": [
+    "Current general Task carrier/native worker admission is still the independently checked closed i32 worker graph; non-i32 carriers are explicitly Unsupported until owning result/frame cleanup is implemented.",
+    "Existing TaskI32 compatibility, five-entry scalar SABI, finite static child frames and strong-close Registration remain their previously bounded lanes; public38 transport alone is not their generalization.",
+    "Owned task inputs/results, canonical owning SSA spills, dynamic responsibility order, PendingExit, wakers and real asynchronous drain remain open and are the next implementation work.",
+    "Task.result does not qualify hidden frame dependencies. Original non-yielding borrowed-PC0 escape is rejected by actual Analyze task admission. No borrowed Task return/storage/Transfer capability is claimed.",
+    "No general owned-result external SABI version2 is emitted."
+  ],
+  "rust_goals": {
+    "safety": "Independent actual worker/type/debt gates and raw/Wire controls in this bounded lane; no general async safety claim.",
+    "runtime_memory": "Real fallible native task frame allocation, ordinary active enum payloads, exact once Ready and actual default/explicit cleanup observations; Rust runtime/RSS comparison unmeasured.",
+    "expression_maintenance": "Ordinary error unions, standard enum family bindings with user-name shadowing, and Direct worker composition reach both native backends; full framework maintenance benefit unmeasured.",
+    "compile_cost": "Shared metered work, exact two-kernel boundaries, no default limit increase; no Rust compilation performance comparison.",
+    "breakthrough": "Concrete ordinary-library expression gain from Task38 through native execution; product conjunction/net Rust superiority unestablished."
+  }
+}
