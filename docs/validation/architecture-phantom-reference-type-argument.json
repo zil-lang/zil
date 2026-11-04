@@ -1,0 +1,28 @@
+{
+  "status": "ArchitectureClarificationRequiredBeforeSemanticAdmission",
+  "question": "Phantom<&b T> has no physical field and Address has no direct lifetime payload; can the common model preserve its joint relation?",
+  "answer": "Existing fields can represent the qualified semantic Type argument and its enclosing class mapping. Current aggregate-only runtime qualification does not admit the metadata Address wrapper; context-aware semantic consumers and explicit normative clarification are required. No new public field is proposed.",
+  "proposed_normative_text": "完整名义 Type 实参中的借用关系必须保存，即使该参数无物理字段。例如 `Phantom<&'b T>`可在真实 Type-实参元数据位置使用 `BorrowedStorage{storage:Address<T>,life:...}`表示该语义类型；这不是新增运行时holder。只有独立核从实际声明完整参数表证明当前路径是一个Type实参后，才进入此元数据类型上下文。实际局部、值、参数、捕获或物理字段不得因出现相同wrapper而取得此上下文；直接Address/Desc运行时wrapper与直接双wrapper继续拒绝。元数据形状的根借用叶、模式、完整嵌套类与scope映射仍须精确核验，不能从phantom创建目标根、loan或可返回地址。若该Type实参经真实字段/签名recipe成为物理位置，消费者必须把关系同时代换到包围它的实际存储/签名合同并重新核验实际叶；不得复制元数据专用wrapper成为物理holder，也不得擦除其关系。在上述完整消费者落地前，该形式显式Unsupported。",
+  "details": {
+    "path": "/workspace/.zil-env/terminal-20261104/task39-public/phantom-type-argument-clarification.md",
+    "sha256": "0b9c77a4b467afb12bdd53ae1e5e3b15da1b768b15234d84044b82f0839bf103"
+  },
+  "data_witness": {
+    "source": "/workspace/.zil-env/terminal-20261104/task39-public/phantom_probe.rs",
+    "source_sha256": "27f1dc749615b2818c60186fe62b54fc5ee810564b7bc4368d07f62a01518788",
+    "executable": "/workspace/.zil-env/terminal-20261104/task39-public/out/phantom_probe",
+    "executable_sha256": "9620e08a5b9bcdd0ceb0a9510bb065d98aff6ce4f6dfd53ba28054b82c98d51e",
+    "log": "/workspace/.zil-env/terminal-20261104/task39-public/phantom-probe.log",
+    "log_sha256": "959eb842ef209ff48dfd7559a1ab58c474426228a4d9dbeef293bb62f4d29ae8",
+    "actual_result": "Compiled against the fresh common39+Dyn39+Task39 IR. Zero-field Phantom with complete qualified Address Type actual; enclosing joint same-a versus a/b maps have distinct raw identity and both Wire roundtrip.",
+    "scope": "Representation/transport only; no actual Types/Analyze/Verify semantic acceptance."
+  },
+  "required_separation": [
+    "Runtime context remains aggregate-only; bare Address/Desc holder and double wrapper reject.",
+    "Only actual full declaration/instance Type-argument traversal derives metadata context; no public flag or producer proof switches context.",
+    "Metadata root-reference class does not create actual target/owner/loan/permission.",
+    "Physical recipe realization must substitute into actual enclosing aggregate/signature relation and independently recheck real leaves.",
+    "Fixed scope classes and joint equality remain mapped, never independently alpha-freshened."
+  ],
+  "current_consumer_outcome": "Unsupported until actual context-aware type/scope validation and relation-preserving instantiation are implemented. Root may publish the unchanged common39 fields now."
+}
