@@ -668,6 +668,7 @@ fn check_type_shape(
 ) -> Check<()> {
     let mut first = Some((ty, 0usize, 0u8));
     let mut pending = Vec::new();
+    let mut options = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
         // Detect the new ordinary profile during the already paid raw-tree
@@ -731,6 +732,7 @@ fn check_type_shape(
             }
             Type::Enum { name, variants } => {
                 budget.spend(name.len().saturating_add(variants.len()))?;
+                if name.starts_with("@builtin:Option") { options.push((name, variants)); }
                 for (name, fields) in variants {
                     budget.spend(name.len().saturating_add(fields.len()))?;
                     for ty in fields {
@@ -770,6 +772,15 @@ fn check_type_shape(
             }
             _ => {}
         }
+    }
+    // Fingerprint only after the complete raw type tree has been bounded.
+    // This independently checks the sealed family key and payload shape.
+    for (name, variants) in options {
+        let [(none, empty), (some, payload)] = variants.as_slice() else { return Err(reject("E-VERIFY-OPTION", None, "Option must have exactly None and Some variants")); };
+        let [payload] = payload.as_slice() else { return Err(reject("E-VERIFY-OPTION", None, "Some requires exactly one payload")); };
+        if none != "None" || !empty.is_empty() || some != "Some" { return Err(reject("E-VERIFY-OPTION", None, "invalid Option variant shape")); }
+        resources::charge_payload(payload, budget)?;
+        if *name != format!("@builtin:Option:{}", payload.fingerprint()) { return Err(reject("E-VERIFY-OPTION", None, "Option identity does not match its complete payload type")); }
     }
     Ok(())
 }

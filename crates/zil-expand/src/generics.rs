@@ -40,9 +40,11 @@ pub(super) mod trait_defaults;
 pub(super) mod trait_instances;
 #[path = "generic_where.rs"]
 mod where_copy;
+#[path = "generic_options.rs"]
+mod options;
 
 fn check_nominal_name(name: &str, span: Span) -> R<()> {
-    if super::byte_buffer_name(name) || super::owned_store_name(name) {
+    if name == "Option" || super::byte_buffer_name(name) || super::owned_store_name(name) {
         return Err(super::primitive_name_error(name, span));
     }
     if copy::reserved_name(name) {
@@ -65,6 +67,19 @@ pub(super) fn check_generated_type_name(name: &str, span: Span) -> R<()> {
 }
 
 pub(super) fn specialize_products<'a>(
+    module: &'a Module,
+    limits: &Limits,
+    products: &mut products::Products,
+) -> CompileResult<Cow<'a, Module>> {
+    let (prepared, remaining) = options::prepare(module, limits)?;
+    match prepared {
+        Some(prepared) => specialize_products_prepared(&prepared, &remaining, products)
+            .map(|module| Cow::Owned(module.into_owned())),
+        None => specialize_products_prepared(module, &remaining, products),
+    }
+}
+
+fn specialize_products_prepared<'a>(
     module: &'a Module,
     limits: &Limits,
     products: &mut products::Products,
@@ -119,7 +134,7 @@ pub(super) fn specialize_products<'a>(
                 continue;
             }
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
-            if super::byte_buffer_name(&param.name) || super::owned_store_name(&param.name) {
+            if param.name == "Option" || super::byte_buffer_name(&param.name) || super::owned_store_name(&param.name) {
                 return Err(vec![super::primitive_name_error(&param.name, param.span)]);
             }
         }
@@ -494,6 +509,7 @@ impl<'a> Engine<'a> {
             }
             if let ItemKind::Enum(e) = &item.kind
                 && !engine.budget.enum_profile(item.span)
+                && e.name != options::TEMPLATE
             {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
@@ -762,7 +778,7 @@ impl<'a> Engine<'a> {
         // Original generic enums retain their existing Copy payload profile,
         // even though ordinary monomorphic enums now admit owners. Inspect the
         // actual substituted fields while the real template identity exists.
-        if let ItemKind::Enum(e) = &instance.kind {
+        if let ItemKind::Enum(e) = &instance.kind && template != options::TEMPLATE {
             for variant in &e.variants {
                 if let VariantFields::Tuple(fields) = &variant.fields {
                     for field in fields {

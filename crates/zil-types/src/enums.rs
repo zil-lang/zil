@@ -2,6 +2,17 @@
 use super::*;
 use std::collections::BTreeSet;
 
+pub(super) fn nominal_name(owner: u32, name: &str, variants: &[(String, Vec<Type>)]) -> String {
+    if name.starts_with("$generic_$builtinOption340_")
+        && let [(none, empty), (some, payload)] = variants
+        && none == "None" && empty.is_empty() && some == "Some"
+        && let [payload] = payload.as_slice()
+    {
+        return format!("@builtin:Option:{}", payload.fingerprint());
+    }
+    format!("@module{owner}:{name}")
+}
+
 /// Reified Core may name the exact existing nominal identity. The spelling is
 /// unavailable to source identifiers; it still resolves through this ordinary
 /// declaration map and must match the complete owner/name pair.
@@ -35,7 +46,7 @@ pub(super) fn definitions(core: &CoreModule) -> BTreeMap<String, Type> {
             (
                 e.name.clone(),
                 Type::Enum {
-                    name: format!("@module{}:{}", core.module_id.0, e.name),
+                    name: nominal_name(core.module_id.0, &e.name, &e.variants),
                     variants: e.variants.clone(),
                 },
             )
@@ -115,7 +126,7 @@ pub(super) fn project_definitions(
                 .insert(
                     e.name.clone(),
                     Type::Enum {
-                        name: format!("@module{}:{}", module.core.module_id.0, e.name),
+                        name: nominal_name(module.core.module_id.0, &e.name, &e.variants),
                         variants: e.variants.clone(),
                     },
                 )

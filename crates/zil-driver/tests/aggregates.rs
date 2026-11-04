@@ -128,6 +128,16 @@ fn terminal340_unsigned_budget_boundaries() {
     println!("340 unsigned full-request analysis N={low}, N-1 rejects, fresh/warm agree");
 }
 
+#[test]
+fn terminal340_option_copy_and_owned_native() {
+    for text in [
+        "fn result()->i32{let value:i32?=Option.Some(42);match value{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+        "fn make()->Option<i32>{return Option.Some(42)}fn result()->i32{let value=make();match value{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+        "fn result()->i32{let value:i32?=Option.None;match value{Option.Some(_)=>{return 0},Option.None()=>{return 42}}}",
+        "package P{manages data:ByteBuffer;n:i32}fn result()->i32{let value:P?=Option.Some(P{data:bytes_new(),n:42});match value{Option.Some(p)=>{return p.n},Option.None()=>{return 0}}}",
+    ] { review329_native(&[("main", text)], 42); }
+}
+
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
     zil_driver::ProjectSources {
         root: ModuleId(0),

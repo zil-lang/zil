@@ -868,8 +868,14 @@ impl Resolver<'_> {
                         }
                         variants.push((variant.clone(), fields));
                     }
+                    if name.starts_with("$generic_$builtinOption340_") {
+                        for (_, fields) in &variants { for field in fields {
+                            let work = inference::type_snapshot_work(field, span, &self.generic_limits)?;
+                            self.remaining = self.remaining.checked_sub(work.saturating_mul(4)).ok_or_else(|| Diagnostic::limit(Phase::Types, "Option identity work budget exceeded", Some(span)))?;
+                        }}
+                    }
                     let ty = Type::Enum {
-                        name: format!("@module{}:{}", self.owners[name], name),
+                        name: enums::nominal_name(self.owners[name], name, &variants),
                         variants,
                     };
                     if owns {

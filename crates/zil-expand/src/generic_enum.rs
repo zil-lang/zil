@@ -522,6 +522,7 @@ impl Engine<'_> {
                     }
                     path[0] = decl.name.clone();
                 }
+                if path.len() == 2 && path[0] == "Option" && decl.name == options::TEMPLATE { path[0] = options::TEMPLATE.into(); }
                 if path.len() != 2 || path[0] != decl.name {
                     return Err(error(
                         pattern.span,

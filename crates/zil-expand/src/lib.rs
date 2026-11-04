@@ -66,14 +66,17 @@ fn owned_store_name(name: &str) -> bool {
     )
 }
 fn primitive_name(name: &str) -> bool {
-    name == "thread_scope"
+    name == "Option"
+        || name == "thread_scope"
         || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if name == "thread_scope" {
+    if name == "Option" {
+        Diagnostic::error(Phase::Expand, "E-OPTION-NAME", Some(span), "Option is a reserved built-in type and constructor namespace")
+    } else if name == "thread_scope" {
         Diagnostic::error(
             Phase::Expand,
             "E-THREAD-NAME",
