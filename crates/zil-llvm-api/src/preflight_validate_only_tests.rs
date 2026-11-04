@@ -730,3 +730,91 @@ fn noinline_is_a_function_boundary_not_a_result_or_parameter_attribute() {
     assert!(validate_impl::<true>(&source).is_err());
     assert!(validate_impl::<false>(&source).is_err());
 }
+
+#[test]
+fn ieee_float_bits_and_operations_have_distinct_machine_types() {
+    let make = |ty: Ty, left: Val, right: Val| {
+        module(vec![function_item(
+            "float_probe",
+            vec![block(
+                "entry",
+                vec![
+                    inst(
+                        Some("sum"),
+                        Op::Binary {
+                            opcode: "fadd".into(),
+                            ty: ty.clone(),
+                            left,
+                            right,
+                        },
+                    ),
+                    inst(
+                        Some("comparison"),
+                        Op::Compare {
+                            predicate: "oeq".into(),
+                            ty,
+                            left: Val::Local("sum".into()),
+                            right: Val::F32(3.0f32.to_bits()),
+                        },
+                    ),
+                    inst(
+                        Some("result"),
+                        Op::Cast {
+                            opcode: "zext".into(),
+                            arg: Arg::new(Ty::Int(1), Val::Local("comparison".into())),
+                            to: Ty::Int(32),
+                        },
+                    ),
+                    ret(Val::Local("result".into())),
+                ],
+            )],
+        )])
+    };
+    let valid = make(
+        Ty::F32,
+        Val::F32(1.0f32.to_bits()),
+        Val::F32(2.0f32.to_bits()),
+    );
+    accepted(&valid);
+    let rendered = valid.to_text();
+    assert!(rendered.contains("fadd float bitcast (i32 1065353216 to float)"));
+    assert!(rendered.contains("fcmp oeq float"));
+    for changed in 0..6 {
+        let mut damaged = valid.clone();
+        let instructions = &mut body_mut(&mut damaged)[0].instructions;
+        match changed {
+            0 => {
+                if let Op::Binary { opcode, .. } = &mut instructions[0].op {
+                    *opcode = "add".into();
+                }
+            }
+            1 => {
+                if let Op::Binary { left, .. } = &mut instructions[0].op {
+                    *left = Val::F64(1.0f64.to_bits());
+                }
+            }
+            2 => {
+                if let Op::Binary { right, .. } = &mut instructions[0].op {
+                    *right = Val::Int(2);
+                }
+            }
+            3 => {
+                if let Op::Compare { predicate, .. } = &mut instructions[1].op {
+                    *predicate = "eq".into();
+                }
+            }
+            4 => {
+                if let Op::Binary { opcode, .. } = &mut instructions[0].op {
+                    *opcode = "fadd fast".into();
+                }
+            }
+            _ => {
+                if let Op::Compare { predicate, .. } = &mut instructions[1].op {
+                    *predicate = "oeq fast".into();
+                }
+            }
+        }
+        assert!(validate_impl::<true>(&damaged).is_err());
+        assert!(validate_impl::<false>(&damaged).is_err());
+    }
+}

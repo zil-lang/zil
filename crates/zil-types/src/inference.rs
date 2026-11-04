@@ -1,7 +1,8 @@
 //! A bounded source constraint pass, before CT evaluates any integer. Its output
 //! is still raw Core: neither capture legality nor executable safety is granted.
 use super::closures::{
-    BOOL, Graph, I32, I64, INTEGER, Projection, SCALAR, U8, U16, UNIT, VALUE, Variable,
+    BOOL, F32, F64, Graph, I32, I64, INTEGER, NUMBER, Projection, SCALAR, U8, U16, UNIT, VALUE,
+    Variable,
 };
 use super::*;
 use std::borrow::Cow;
@@ -1961,7 +1962,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         self.applied_value_term(&signature.result, name, &actual, span)
     }
 
-    fn fresh(&mut self, domain: u8, literal: bool, span: Span) -> R<Variable> {
+    fn fresh(&mut self, domain: u16, literal: bool, span: Span) -> R<Variable> {
         self.budget.work(1, span)?;
         if self.graph.len() >= self.budget.limits.max_nodes {
             return Err(Diagnostic::limit(
@@ -2814,6 +2815,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 foreign::check_literal(value, span)?;
                 self.known_term(&value.ty(), span)
             }
+            CoreExprKind::Float(text) => {
+                self.budget
+                    .work(zil_base::numeric::decimal_work(text.len()), span)?;
+                self.known_term(&floats::literal(text, expected, span)?.ty(), span)
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                if !target.is_numeric() {
+                    return Err(error(
+                        "E-NUMERIC-CONVERSION",
+                        span,
+                        "numeric target required",
+                    ));
+                }
+                let operand = self.expr(value, depth + 1, false)?;
+                let variable = self.scalar(&operand, value.span)?;
+                self.graph.constrain(variable, NUMBER, span)?;
+                self.known_term(target, span)
+            }
             CoreExprKind::IntegerConvert { .. } => self.expr_integer_convert(expression, depth),
             CoreExprKind::Ascribed { .. } => self.expr_ascribed(expression, depth),
             CoreExprKind::Try(..) => self.expr_try(expression, depth),
@@ -3099,7 +3118,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let variable = self.scalar(&value, span)?;
         let domain = match op {
             UnaryOp::Not => BOOL,
-            UnaryOp::Negate | UnaryOp::BitNot => INTEGER,
+            UnaryOp::Negate => NUMBER,
+            UnaryOp::BitNot => INTEGER,
             _ => {
                 return Err(unsupported(
                     span,
@@ -3130,7 +3150,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             // the ordinary checker after CT has been verified/run.
             SCALAR
         } else {
-            INTEGER
+            NUMBER
         };
         self.budget.work(1, span)?;
         self.graph.constrain(variable, domain, span)?;
