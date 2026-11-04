@@ -128,7 +128,7 @@
       "any/find short circuit; position and Option Some/None",
       "empty slice vacuity and zero callbacks",
       "u64-containing record returned in actual Option payload across native layout/store",
-      "parent capture mutation and callback/input alias rejection by Analyze and independent Verify"
+      "parent capture mutation and callback/input alias are source-pipeline SafeReject in Analyze or Verify; this test does not separately replay both kernels"
     ],
     "source_sha256": {
       "Cargo.lock": "c71fcdaef3e431740ee2d8f61502ef2363a4b7b5a87049d3060b1b4f5f0c26d4",
