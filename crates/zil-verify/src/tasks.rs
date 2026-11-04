@@ -1,6 +1,8 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
+mod drop_sync;
 mod owned;
+pub(super) use drop_sync::require as require_synchronous_drop;
 
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
