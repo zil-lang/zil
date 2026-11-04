@@ -975,6 +975,9 @@ fn returned_snapshot(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
 }
 
 fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span) -> R<Signature> {
+    if let Some(life) = &signature.storage_life {
+        borrowed_fp::charge_contract(life, |work| budget.work(work, span), 1)?;
+    }
     // Repeated uses must reserve the complete shape before cloning a signature.
     // Reuse the existing finite ordinary ABI shapes, including owned error
     // alternatives. This does not grant a closure capture or callable ABI.
@@ -2008,6 +2011,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             Ok(Term::Resource(variable, matches!(ty, Type::Managed(_))))
         } else if let Type::Address { mutable, inner } = ty {
             if !inner.is_address_pointee()
+                && !stored::shared_address(ty)
                 && !ty.is_shared_sync_cell_address()
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_exclusive_task_head_address()
@@ -2476,20 +2480,32 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         match term {
             Term::Scalar(variable) => Ok(*variable),
             Term::Function(signature) => {
-                for ty in signature
-                    .parameters
-                    .iter()
-                    .chain(std::iter::once(&signature.result))
-                {
-                    if signature.storage_life.is_some() {
+                if signature.storage_life.is_some() {
+                    for ty in &signature.parameters {
                         charge_type_snapshot(
                             ty,
                             span,
                             self.budget.limits,
                             &mut self.budget.work,
-                            3,
+                            4,
                         )?;
-                    } else {
+                    }
+                    charge_type_snapshot(
+                        &signature.result,
+                        span,
+                        self.budget.limits,
+                        &mut self.budget.work,
+                        5,
+                    )?;
+                    borrowed_fp::static_pointer_slots(signature, |work| {
+                        self.budget.work(work, span)
+                    })?;
+                } else {
+                    for ty in signature
+                        .parameters
+                        .iter()
+                        .chain(std::iter::once(&signature.result))
+                    {
                         validate_type(ty, 0, span, self.budget)?;
                     }
                 }
@@ -2600,6 +2616,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     mutable: wanted,
                     inner,
                 } if (inner.is_address_pointee()
+                    || stored::shared_address(ty)
                     || ty.is_shared_sync_cell_address()
                     || ty.is_shared_resource_head_address()
                     || ty.is_exclusive_task_head_address()
@@ -4990,6 +5007,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         else {
             unreachable!("expression dispatcher variant");
         };
+        for parameter in parameters {
+            if let Some(ty) = &parameter.ty {
+                self.graph.annotation_context(ty, 0, parameter.span)?;
+            }
+        }
+        if let Some(ty) = return_type {
+            self.graph.annotation_context(ty, 0, span)?;
+        }
         if return_type.as_ref().is_some_and(|t| {
             !(t.is_copy_value()
                 || lending::supported_result(t)

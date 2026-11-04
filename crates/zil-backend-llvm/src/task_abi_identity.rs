@@ -118,6 +118,20 @@ fn op(o: &m::Op, left: &mut usize) -> CompileResult<()> {
             arg(a, left, 0)?;
             value(ptr, left, 0)
         }
+        m::Op::AtomicCompareExchange {
+            result,
+            expected,
+            desired,
+            ptr,
+            align: _,
+            success: _,
+            failure: _,
+        } => {
+            ty(result, left, 0)?;
+            arg(expected, left, 0)?;
+            value(desired, left, 0)?;
+            value(ptr, left, 0)
+        }
         m::Op::Binary {
             opcode: s,
             ty: t,
@@ -342,6 +356,115 @@ mod tests {
     use super::*;
     use std::hash::Hash;
     use zil_base::{FingerprintBuilder, ResultCategory};
+    #[test]
+    fn cas343_actual_machine_fields_have_paid_exact_identity() {
+        let observed = m::Ty::Struct(vec![m::Ty::Int(32), m::Ty::Int(1)]);
+        let make = |name: String| m::Module {
+            triple: "x86_64-unknown-linux-gnu".into(),
+            fingerprint: "cas".into(),
+            items: vec![m::Item::Function(m::Function {
+                name: "cas_identity".into(),
+                linkage: m::Linkage::External,
+                signature: m::Signature::new(
+                    m::Ty::Int(32),
+                    vec![
+                        m::Param::new(m::Ty::Ptr, "cell"),
+                        m::Param::new(m::Ty::Ptr, "next"),
+                        m::Param::new(m::Ty::Int(32), name.clone()),
+                    ],
+                ),
+                attrs: vec![],
+                blocks: Some(vec![m::Block {
+                    name: "entry".into(),
+                    instructions: vec![
+                        m::Inst::new(
+                            Some("answer".into()),
+                            m::Op::AtomicCompareExchange {
+                                result: observed.clone(),
+                                expected: m::Arg::new(m::Ty::Int(32), m::Val::Local(name)),
+                                desired: m::Val::Int(9),
+                                ptr: m::Val::Local("cell".into()),
+                                align: 4,
+                                success: m::AtomicOrdering::SeqCst,
+                                failure: m::AtomicOrdering::SeqCst,
+                            },
+                        ),
+                        m::Inst::new(
+                            Some("old".into()),
+                            m::Op::Extract {
+                                arg: m::Arg::new(observed.clone(), m::Val::Local("answer".into())),
+                                index: 0,
+                            },
+                        ),
+                        m::Inst::new(
+                            None,
+                            m::Op::Return(Some(m::Arg::new(
+                                m::Ty::Int(32),
+                                m::Val::Local("old".into()),
+                            ))),
+                        ),
+                    ],
+                }]),
+            })],
+        };
+        let paid = |module: &m::Module, n| {
+            let mut left = n;
+            prepay(module, &mut left)?;
+            let mut hash = FingerprintBuilder::new();
+            module.hash(&mut hash);
+            Ok::<_, Vec<zil_base::Diagnostic>>((hash.digest(), left))
+        };
+        let mut growth = vec![];
+        for size in [8, 4096] {
+            let source = make("e".repeat(size));
+            zil_llvm_api::validate_module(&source).unwrap();
+            let mut left = usize::MAX;
+            prepay(&source, &mut left).unwrap();
+            let n = usize::MAX - left;
+            let (identity, rest) = paid(&source, n).unwrap();
+            assert_eq!(rest, 0);
+            assert_eq!(paid(&source, n).unwrap().0, identity);
+            assert_eq!(
+                paid(&source, n - 1).unwrap_err()[0].category,
+                ResultCategory::ResourceLimit
+            );
+            for field in 0..4 {
+                let mut changed = source.clone();
+                let m::Item::Function(f) = &mut changed.items[0] else {
+                    unreachable!()
+                };
+                let m::Op::AtomicCompareExchange {
+                    expected,
+                    desired,
+                    ptr,
+                    success,
+                    failure,
+                    ..
+                } = &mut f.blocks.as_mut().unwrap()[0].instructions[0].op
+                else {
+                    unreachable!()
+                };
+                match field {
+                    0 => *failure = m::AtomicOrdering::Acquire,
+                    1 => {
+                        *success = m::AtomicOrdering::AcqRel;
+                        *failure = m::AtomicOrdering::Acquire;
+                    }
+                    2 => *desired = m::Val::Int(10),
+                    3 => {
+                        *ptr = m::Val::Local("next".into());
+                        expected.value = m::Val::Int(0);
+                    }
+                    _ => unreachable!(),
+                }
+                zil_llvm_api::validate_module(&changed).unwrap();
+                assert_ne!(paid(&changed, n).unwrap().0, identity);
+            }
+            growth.push(n);
+            eprintln!("cas343 machine identity operand_bytes={size} Codegen N={n}");
+        }
+        assert!(growth[1] > growth[0] + 4096);
+    }
     fn unit(bytes: usize, nested: usize, symbols: usize) -> m::Module {
         let mut t = m::Ty::Int(8);
         for _ in 0..nested {

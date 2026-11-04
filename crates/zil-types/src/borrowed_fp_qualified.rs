@@ -259,6 +259,10 @@ mod tests {
         let mut definition = contract(false);
         definition.fixed_binder_count = 1;
         definition.classes[0].binder = StorageBinder::Fixed(0);
+        assert!(
+            borrowed_fp::relation(&parameters, &Type::I32, &definition, Span::default()).is_err(),
+            "a code value cannot invent the definition's enclosing Fixed context"
+        );
         let original = definition.clone();
         let code = borrowed_fp::static_pointer_life(&parameters, &Type::I32, &definition).unwrap();
         assert_eq!(definition, original);

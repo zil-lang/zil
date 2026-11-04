@@ -32,6 +32,8 @@ pub(super) mod origins;
 pub(super) mod products;
 #[path = "generic_record_enum.rs"]
 pub(super) mod record_enums;
+#[path = "generic_rich_pointer.rs"]
+pub(super) mod rich_pointer;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
@@ -251,15 +253,18 @@ fn specialize_products_prepared<'a>(
             aliases::normalize_with_origins(&normalized, names_budget, products.origins.as_mut())
                 .map_err(|e| vec![e])?;
         return match aliased {
-            Some(aliased) => specialize_with_budget(
-                &aliased.module,
-                limits,
-                &aliased.pattern_types,
-                budget,
-                products,
-                has_associated,
-                has_generic_methods,
-            ),
+            Some(mut aliased) => {
+                products.rich_aliases.append(&mut aliased.rich_aliases);
+                specialize_with_budget(
+                    &aliased.module,
+                    limits,
+                    &aliased.pattern_types,
+                    budget,
+                    products,
+                    has_associated,
+                    has_generic_methods,
+                )
+            }
             None => specialize_with_budget(
                 &normalized,
                 limits,
@@ -276,7 +281,8 @@ fn specialize_products_prepared<'a>(
     let (normalized, names_budget) =
         aliases::normalize_with_origins(module, names_budget, products.origins.as_mut())
             .map_err(|e| vec![e])?;
-    if let Some(normalized) = normalized {
+    if let Some(mut normalized) = normalized {
+        products.rich_aliases.append(&mut normalized.rich_aliases);
         if normalized.pattern_types.is_empty()
             && normalized
                 .module
@@ -772,7 +778,14 @@ impl<'a> Engine<'a> {
         self.products.record_variants = self.budget.has_enum_profiles();
         self.products.protected_binders = self.budget.has_primitive_binders();
         self.products.borrowed_signatures = self.budget.has_borrowed_keys();
+        self.products.storage.borrowed_signatures = self.products.borrowed_signatures;
         self.collect_products(module)?;
+        // Aliases are checked even when they have no runtime use. These are
+        // complete paid originals retained by alias normalization, not bodies
+        // recovered from a convenient concrete instantiation.
+        for ty in std::mem::take(&mut products.rich_aliases) {
+            self.prepare_rich_pointer(&ty, 0)?;
+        }
         let mut result = Module {
             id: module.id,
             span: module.span,
@@ -1128,6 +1141,11 @@ impl<'a> Engine<'a> {
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;
+        if matches!(ty.kind, TypeKind::ForLifetime { .. })
+            && self.prepare_rich_pointer(ty, depth + 1)?
+        {
+            return Ok(());
+        }
         if self.traits.has_associated && trait_bounds::associated::parts(ty).is_some() {
             *ty = self.traits.normalize_associated(
                 ty,
@@ -2462,6 +2480,9 @@ fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     type_key_bounded(ty, budget)
 }
 fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
+    if let Some(key) = rich_pointer::key(ty, budget)? {
+        return Ok(key);
+    }
     // The profile is recorded during the existing bounded AST walk. Requests
     // without anonymous sums retain their original key fees and traversal.
     if budget.has_anonymous_sums()

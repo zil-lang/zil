@@ -561,6 +561,12 @@ fn lower_function_batch(
         if verified.uses_retained_registration() {
             registration::reserve_function(function, closures, functions, task_meter)?;
         }
+        if verified.uses_scalar_tasks() {
+            task_meter.spend(verified.task_worker_ids().len().saturating_add(1))?;
+            if verified.task_worker_ids().contains(&function.id) {
+                tasks::reserve_copy_frame(function, task_meter, verified.limits())?;
+            }
+        }
         tasks::reserve_owner_actions(function, verified.task_ownership(function.id), task_meter)?;
         let emitted = FunctionEmitter {
             task_ownership: verified.task_ownership(function.id),

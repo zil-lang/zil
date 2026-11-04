@@ -144,7 +144,11 @@ pub(super) fn instruction(
                 return Err(bad());
             }
             for (v, p) in arguments.iter().zip(&target.parameters) {
-                if value_type(f, *v, span)? != local_type(target, *p, span)? {
+                let actual = value_type(f, *v, span)?;
+                let wanted = local_type(target, *p, span)?;
+                resources::charge_payload(actual, budget)?;
+                resources::charge_payload(wanted, budget)?;
+                if actual != wanted {
                     return Err(bad());
                 }
             }
@@ -279,6 +283,28 @@ fn profile_one(
     )?;
     if f.locals.iter().any(|l| matches!(l.ty, Type::Managed(_)))
         || f.values.iter().any(|t| matches!(t, Type::Managed(_)))
+        || f.return_type != Type::I32
+        || f.parameters.len() != 1
+        || f.parameters
+            .first()
+            .and_then(|p| f.locals.get(p.0 as usize))
+            .is_none_or(|l| l.ty != Type::I32)
+        || f.locals.iter().any(|l| {
+            matches!(
+                l.ty,
+                Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
+            )
+        })
+        || f.values.iter().any(|t| {
+            matches!(
+                t,
+                Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
+            )
+        })
+        || f.blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::SuspendCall { .. }))
     {
         return owned::profile(module, f, budget, span);
     }

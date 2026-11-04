@@ -70,3 +70,65 @@ The initial native run reached the actual paid-binding consumer fence;343's
 7cf8ed22f adds the FunctionRef/CallIndirect occurrence reservation and the four
 native runs then pass. The earlier failed log remains retained. No new public
 schema, implicit environment allocation or borrowed-result root is introduced.
+
+### Static code formation and free Fixed correction
+
+The successor to034fbc80d reserves both eligibility walks, the returned type
+snapshot, the extra result Copy qualification and the qualified-slot planner
+plus its two consumers before formation. Closure inference leases its current
+remaining work once and debits every planned use, including failed planning.
+Context signature snapshots also pay the complete storage relation before
+cloning; state-origin lookup uses the same live request ledger.
+
+Actual source controls returning nested wide Copy records have whole Types
+boundaries1535/5459 for widths4/32, N−1 ResourceLimit and fresh exact-N behavior.
+The original static qualified source retains N12633 and four native executions;
+Types43/0, source2/0 and strict Types library/test Clippy pass. These thresholds
+measure complete requests, not marginal formation fees.
+
+A code value or role carrying Fixed rows without a retained enclosing context
+now rejects before entering the qualified relation adapter. The original static
+definition is checked separately before conversion to Invocation-only code.
+The independent kernel counterpart9e6698 rejects the raw phantom counterexample;
+its prior acceptance and correction are recorded separately by the reviewer.
+No captured/enclosing Fixed code context is claimed by this construction slice.
+
+The source consumer also checks an explicit alias
+`type Code=for<life a>for<life b>fn(&'a Tag<'b>)->i32` and `let f:Code=read`.
+After341's actual scoped nominal producer38ca6124a, both inferred and explicit
+variants pass Source through independent kernels and Clang/API O0/O2: eight
+native executions in total, each stdout42 with no fallback. Each source retains
+the whole-request boundary12633 with N−1/warm/fresh controls. Two initial root
+test inputs used a comma-separated `for` binder spelling rejected by the parser;
+the preserved logs are test-input failures, not kernel or native observations.
+
+### Qualified closure inference preserves context boundaries
+
+A subsequent inspection found that the private inference Graph omitted the
+BorrowedStorage storage and metadata traversal. Its snapshots now pay the actual
+storage tree, slot/retained/nominal rows and selector paths, including nested
+depth checks. A pending-signature snapshot control exercises wide real shared
+field shapes with exact remaining work, N−1 and fresh retries. The earlier f6
+formation-use correction remains a narrower historical result.
+
+The private Graph now retains already-qualified shared value/address types;
+this introduces no public Copy predicate or raw permission. Explicit closure
+parameter/result annotations containing outer stored classes reject until the
+actual enclosing definition context exists. A nested Invocation-only Code
+annotation retains its own binder scope and passes Source→Types. Its current
+closure kernel fence is a separate consumer obligation, not a Types rejection.
+
+Ordinary callable helper instantiation preserves its complete own storage_life
+relation, including the actual &F outer row, in its exported signature after
+paying for that copy. The per-role relation is never copied into the closure
+definition. The mixed life+F Source producer and unused-definition proof remain
+under construction in341, independently of this Types preparation.
+
+At this correction, Types44/0, the complete existing generics32/0 and
+composed generic_regressions83/0 pass; strict Types library/test Clippy passes.
+The rich helper Source probe is preserved separately while its Expand producer
+is implemented. The first annotation-control probes met earlier inference
+fences, then exposed an invalid `>=>` test spelling; those logs remain retained.
+The final explicit parameter/result negatives reach the intended context guard.
+The original inferred/explicit static-code sources retain their eight native
+runs and whole-request N12633 controls.

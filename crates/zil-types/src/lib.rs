@@ -134,13 +134,12 @@ fn signatures(
         if f.storage_life.is_some()
             && (f.foreign.is_some()
                 || !f.type_parameters.is_empty()
-                || !f.callable_parameters.is_empty()
                 || !f.state_parameters.is_empty()
                 || f.callable_return.is_some())
         {
             return Err(vec![unsupported(
                 f.span,
-                "stored-borrow generic, foreign or callable signature requires its definition consumer",
+                "stored-borrow generic, foreign or returned callable signature requires its definition consumer",
             )]);
         }
         if let Some(life) = &f.storage_life {
