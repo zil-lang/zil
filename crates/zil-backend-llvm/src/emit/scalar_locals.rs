@@ -401,6 +401,16 @@ fn replace_operands(op: &mut m::Op, aliases: &[Option<Operand>]) {
             replace(&mut arg.value, aliases);
             replace(ptr, aliases);
         }
+        m::Op::AtomicCompareExchange {
+            expected,
+            desired,
+            ptr,
+            ..
+        } => {
+            replace(&mut expected.value, aliases);
+            replace(desired, aliases);
+            replace(ptr, aliases);
+        }
         m::Op::Binary { left, right, .. } | m::Op::Compare { left, right, .. } => {
             replace(left, aliases);
             replace(right, aliases);
