@@ -1788,7 +1788,10 @@ impl Builder<'_, '_> {
                     || dynamic_store::borrow_expression(object)
                     || self.indirect_place(e)
                 {
-                    let (address, ty) = self.borrow_place(e)?;
+                    let (address, ty) = self.address_place(e, false)?;
+                    if resources::head_address(&ty) {
+                        return self.resource_descriptor(address, ty, e.span);
+                    }
                     let Type::Address { inner, .. } = ty else {
                         unreachable!()
                     };

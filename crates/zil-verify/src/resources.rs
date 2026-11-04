@@ -4,6 +4,9 @@
 //! loan. Every resource operation is reconstructed from the checked CFG; the
 //! candidate's responsibility fields are not trusted or consulted.
 use super::*;
+pub(super) fn head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+}
 use std::collections::VecDeque;
 pub(crate) mod arrays;
 mod product;
@@ -338,6 +341,7 @@ impl Slots {
         let mut debt_count = 0usize;
         let mut desc_count = 0usize;
         let sum_extension = budget.sums;
+        let head_descriptions = budget.head_descriptions;
         let mut slot = |ty: &Type, managed: bool| {
             let count = if managed {
                 &mut debt_count
@@ -355,6 +359,7 @@ impl Slots {
                 || matches!(ty, Type::Closure(id) if if managed {
                     owned_closures[id.0 as usize]
                 } else { borrowed_closures[id.0 as usize] })
+                || (!managed && head_descriptions && (head_address(ty) || ty.is_package_address()))
                 || (!managed
                     && matches!(ty,
                     Type::Address { inner, .. }
@@ -1303,6 +1308,44 @@ impl Transfer<'_> {
                         return Err(bad(span, "head address requires a live managed position"));
                     }
                 }
+                InstructionKind::DescribeAddress { address } => {
+                    let dst = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .expect("head descriptor slot");
+                    let src = slots.desc_value[address.0 as usize].expect("head address slot");
+                    budget.spend(state.desc[src].len())?;
+                    state.desc[dst] = state.desc[src].clone();
+                }
+                InstructionKind::AddressField { address, index }
+                    if instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .is_some() =>
+                {
+                    let dst = slots.desc_value
+                        [instruction.result.expect("head projection").0 as usize]
+                        .expect("head field slot");
+                    let src = slots.desc_value[address.0 as usize].expect("head parent slot");
+                    budget.spend(state.desc[src].len())?;
+                    state.desc[dst] = state.desc[src]
+                        .iter()
+                        .map(|root| match root {
+                            Root::Local(local)
+                                if matches!(
+                                    f.locals[local.0 as usize].ty,
+                                    Type::Package { .. }
+                                ) =>
+                            {
+                                Root::PackageField {
+                                    local: *local,
+                                    index: *index,
+                                }
+                            }
+                            other => *other,
+                        })
+                        .collect();
+                }
                 InstructionKind::DescribeLocal { local } => {
                     let index =
                         slots.managed_local[local.0 as usize].expect("typed managed description");
@@ -1849,6 +1892,19 @@ impl Transfer<'_> {
                     }
                 }
                 _ => {}
+            }
+            if budget.head_descriptions
+                && let InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local } = instruction.kind
+                && matches!(
+                    f.locals[local.0 as usize].ty,
+                    Type::Package { .. } | Type::Managed(_)
+                )
+                && let Some(row) = instruction
+                    .result
+                    .and_then(|v| slots.desc_value[v.0 as usize])
+            {
+                state.desc[row] = BTreeSet::from([Root::Local(local)]);
             }
             if let Some(index) = result {
                 let fresh = fresh_result.ok_or_else(|| {

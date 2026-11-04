@@ -31,6 +31,7 @@ struct Flow {
     parents: Vec<Loans>,
     mutable: Vec<bool>,
     environment: Vec<bool>,
+    heads: Vec<bool>,
     roots: Vec<Roots>,
 }
 
@@ -108,10 +109,19 @@ fn reconstruct(
         parents: vec![Loans::new(); count],
         mutable: vec![false; count],
         environment: vec![false; count],
+        heads: if budget.head_descriptions {
+            budget.spend(count)?;
+            vec![false; count]
+        } else {
+            vec![]
+        },
         roots: vec![vec![]; count],
     };
     for (i, ty) in f.values.iter().enumerate() {
         flow.mutable[i] = matches!(ty, Type::Address { mutable: true, .. });
+        if !flow.heads.is_empty() {
+            flow.heads[i] = resources::head_address(ty) || ty.is_package_address();
+        }
         flow.environment[i] =
             matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)));
         budget.spend(facts.values[i].len())?;
@@ -120,6 +130,9 @@ fn reconstruct(
     for (i, local) in f.parameters.iter().enumerate() {
         let ty = &f.locals[local.0 as usize].ty;
         flow.mutable[v + i] = matches!(ty, Type::Address { mutable: true, .. });
+        if !flow.heads.is_empty() {
+            flow.heads[v + i] = resources::head_address(ty) || ty.is_package_address();
+        }
         flow.environment[v + i] =
             matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)));
         flow.roots[v + i] = vec![Root::Parameter(i as u32)];
@@ -180,6 +193,14 @@ fn reconstruct(
                                 }
                             }
                         }
+                        InstructionKind::ByteBufferBorrow { buffer, .. }
+                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
+                            if budget.head_descriptions =>
+                        {
+                            row.insert(id);
+                            join(&mut parents, &flow.values[buffer.0 as usize], budget)?;
+                        }
                         InstructionKind::ByteBufferBorrow { .. }
                         | InstructionKind::OwnedStoreBorrow { .. }
                         | InstructionKind::OwnedStoreBorrowMut { .. }
@@ -231,7 +252,8 @@ fn reconstruct(
                             row.insert(id);
                             join(&mut parents, &flow.values[address.0 as usize], budget)?;
                         }
-                        InstructionKind::AddressField { address, .. }
+                        InstructionKind::DescribeAddress { address }
+                        | InstructionKind::AddressField { address, .. }
                         | InstructionKind::AddressSlice { address, .. }
                         | InstructionKind::AddressIndex { address, .. } => {
                             join(&mut row, &flow.values[address.0 as usize], budget)?;
@@ -385,6 +407,7 @@ impl Access<'_> {
         &self,
         _function: &TypedFunction,
         held: &Loans,
+        delegated: &Loans,
         roots: &[Root],
         write: bool,
         budget: &mut Budget,
@@ -395,7 +418,8 @@ impl Access<'_> {
         budget.spend(self.active.len())?;
         let mut active = self.active.clone();
         join(&mut active, held, budget)?;
-        let own = environment_loans(self.flow, held, budget)?;
+        let mut own = environment_loans(self.flow, held, budget)?;
+        join(&mut own, delegated, budget)?;
         Access {
             module: self.module,
             function: self.function,
@@ -931,7 +955,29 @@ pub(super) fn check(
             if let Some((buffer, write)) =
                 buffer_effects::access(&instruction.kind, descriptor_origins)
             {
-                access.check(&empty, &facts.values[buffer.0 as usize], write, budget)?;
+                let own = if budget.head_descriptions {
+                    &flow.values[buffer.0 as usize]
+                } else {
+                    &empty
+                };
+                access.check(own, &facts.values[buffer.0 as usize], write, budget)?;
+            }
+            let mut delegated = Loans::new();
+            if budget.head_descriptions {
+                for loan in held {
+                    budget.spend(1)?;
+                    if flow.heads[*loan] {
+                        delegated.insert(*loan);
+                    }
+                }
+                for id in arguments {
+                    for loan in &flow.values[id.0 as usize] {
+                        budget.spend(1)?;
+                        if flow.heads[*loan] {
+                            delegated.insert(*loan);
+                        }
+                    }
+                }
             }
             if let Some(capture) = capture {
                 if let Some(groups) = capture.call_role_accesses(instruction, budget)? {
@@ -941,6 +987,7 @@ pub(super) fn check(
                             access.check_descriptor_callback(
                                 f,
                                 held,
+                                &delegated,
                                 &[source.position()],
                                 write,
                                 budget,
@@ -952,6 +999,7 @@ pub(super) fn check(
                         access.check_descriptor_callback(
                             f,
                             held,
+                            &delegated,
                             &[source.position()],
                             write,
                             budget,

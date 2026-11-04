@@ -426,6 +426,10 @@ struct FunctionBatch {
     intrinsics: BTreeSet<(&'static str, u32)>,
 }
 
+fn resource_head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn lower_function_batch(
     batch: &[TypedFunction],
@@ -711,7 +715,7 @@ fn bind_lir(
             if !ty.is_copy_value()
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-                && !ty.is_shared_resource_head_address()
+                && !resource_head_address(ty)
                 && !ty.is_package_address()
                 && !resources::supported_type(ty, lir.resources)
                 && !packages::supported_value_type(ty, lir.resources)
@@ -1365,6 +1369,16 @@ impl FunctionEmitter<'_> {
                 index,
                 value,
             } => self.store_package_field(instruction, *local, *index, *value)?,
+            InstructionKind::DescribeAddress { address } => {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result(instruction)?.0)),
+                    m::Op::Gep {
+                        ty: m::Ty::Int(8),
+                        ptr: m::local(format!("v.{}", address.0)),
+                        indices: vec![m::Arg::new(m::Ty::Int(64), m::Val::Int(0))],
+                    },
+                )));
+            }
             InstructionKind::DescribeLocal { local } => {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("v.{}", result(instruction)?.0)),
@@ -2912,7 +2926,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Address { inner, .. }
             if inner.is_copy_value()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || ty.is_shared_resource_head_address()
+                || resource_head_address(ty)
                 || ty.is_package_address() =>
         {
             Ok("ptr".into())
@@ -2971,7 +2985,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Address { inner, .. }
             if inner.is_address_pointee()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || ty.is_shared_resource_head_address()
+                || resource_head_address(ty)
                 || ty.is_package_address() =>
         {
             Ok(8)

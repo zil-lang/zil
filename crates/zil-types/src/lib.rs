@@ -719,7 +719,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 .iter()
                 .map(|local| &local.ty)
                 .chain(&self.function.values)
-                .any(Type::is_package_address)
+                .any(|ty| matches!(ty,Type::Address{inner,..} if ty.is_package_address() && packages::has_store_fields(inner)))
             {
                 return Err(unsupported(
                     body.span,

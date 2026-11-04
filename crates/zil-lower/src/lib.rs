@@ -182,7 +182,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             if !ty.is_copy_value()
                 && !concrete_closure
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-                && !ty.is_shared_resource_head_address()
+                && !resource_head_address(ty)
                 && !ty.is_package_address()
                 && !resource_type(ty, &module.resources)
                 && !package_value_type(ty, &module.resources)
@@ -212,6 +212,10 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         closures: &module.closures,
         layouts: std::borrow::Cow::Owned(scalar_layouts()),
     })
+}
+
+fn resource_head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
 
 fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
