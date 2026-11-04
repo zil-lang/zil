@@ -292,6 +292,8 @@ fn constant_type(value: &Constant) -> Option<CtScalarTy> {
         Constant::U16(_) => Some(CtScalarTy::U16),
         Constant::I32(_) => Some(CtScalarTy::I32),
         Constant::I64(_) => Some(CtScalarTy::I64),
+        Constant::F32(_) => Some(CtScalarTy::F32),
+        Constant::F64(_) => Some(CtScalarTy::F64),
         _ => None,
     }
 }
@@ -300,6 +302,12 @@ fn integer(ty: &CtTy) -> bool {
         scalar(ty),
         Some(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64)
     )
+}
+fn floating(ty: &CtTy) -> bool {
+    matches!(scalar(ty), Some(CtScalarTy::F32 | CtScalarTy::F64))
+}
+fn numeric(ty: &CtTy) -> bool {
+    integer(ty) || floating(ty)
 }
 fn index_type(ty: &CtTy) -> bool {
     integer(ty)
@@ -835,6 +843,7 @@ fn operands(kind: &CtInstructionKind) -> Vec<CtValueId> {
     match kind {
         CtInstructionKind::Store { value, .. }
         | CtInstructionKind::ConvertInteger { value, .. }
+        | CtInstructionKind::ConvertNumber { value, .. }
         | CtInstructionKind::Length(value)
         | CtInstructionKind::VariantTag(value)
         | CtInstructionKind::MetaProject { value, .. } => vec![*value],
@@ -943,12 +952,24 @@ fn check_instruction(
             )?;
             return Ok(None);
         }
+        K::ConvertNumber {
+            value: input,
+            target,
+        } => {
+            let source = value(*input)?;
+            let target = CtTy::Scalar(*target);
+            expect(
+                numeric(source) && numeric(&target) && (floating(source) || floating(&target)),
+                "CT numeric conversion needs numeric types and floating endpoint",
+            )?;
+            target
+        }
         K::ConvertInteger {
             value: input,
             target,
         } => {
             expect(
-                integer(value(*input)?) && !matches!(target, CtScalarTy::Unit | CtScalarTy::Bool),
+                integer(value(*input)?) && integer(&CtTy::Scalar(*target)),
                 "CT integer conversion has non-integer type",
             )?;
             CtTy::Scalar(*target)
@@ -957,6 +978,7 @@ fn check_instruction(
             let ty = value(*operand)?;
             match op {
                 UnaryOp::Not => expect(*ty == CtTy::Scalar(CtScalarTy::Bool), "CT not needs bool")?,
+                UnaryOp::Negate if floating(ty) => {}
                 UnaryOp::Negate | UnaryOp::BitNot => {
                     expect(integer(ty), "CT integer unary needs integer")?
                 }
@@ -970,6 +992,7 @@ fn check_instruction(
             expect(a == b, "CT binary operands have different types")?;
             use BinaryOp as B;
             match op {
+                B::Add | B::Subtract | B::Multiply | B::Divide if floating(a) => a.clone(),
                 B::And | B::Or => {
                     expect(
                         *a == CtTy::Scalar(CtScalarTy::Bool),
@@ -985,7 +1008,7 @@ fn check_instruction(
                     CtTy::Scalar(CtScalarTy::Bool)
                 }
                 B::Less | B::LessEqual | B::Greater | B::GreaterEqual => {
-                    expect(integer(a), "CT ordering needs integers")?;
+                    expect(numeric(a), "CT ordering needs matching numbers")?;
                     CtTy::Scalar(CtScalarTy::Bool)
                 }
                 _ => {

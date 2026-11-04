@@ -91,6 +91,7 @@ impl Builder<'_, '_> {
                 match &mut instruction.kind {
                     CtInstructionKind::Store { value, .. }
                     | CtInstructionKind::ConvertInteger { value, .. }
+                    | CtInstructionKind::ConvertNumber { value, .. }
                     | CtInstructionKind::Length(value)
                     | CtInstructionKind::VariantTag(value)
                     | CtInstructionKind::VariantField { value, .. }

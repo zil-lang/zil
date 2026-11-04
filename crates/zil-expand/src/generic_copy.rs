@@ -195,7 +195,8 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                     }
                     match path[0].as_str() {
                         "void" => return Ok(false),
-                        "bool" | "i32" | "i64" | "u8" | "u16" | "c_handle" | "c_wstr" => {
+                        "bool" | "i32" | "i64" | "f32" | "f64" | "u8" | "u16" | "c_handle"
+                        | "c_wstr" => {
                             return Ok(true);
                         }
                         _ => {}

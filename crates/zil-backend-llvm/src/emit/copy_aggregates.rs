@@ -317,6 +317,8 @@ fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
             let bytes = u64::from(*bits).div_ceil(8);
             (bytes, bytes.next_power_of_two().min(8) as u32)
         }
+        m::Ty::F32 => (4, 4),
+        m::Ty::F64 => (8, 8),
         m::Ty::Ptr => (8, 8),
         m::Ty::Array(length, element) => {
             let (bytes, align) = layout(element)?;

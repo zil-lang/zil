@@ -273,6 +273,11 @@ impl Compiler<'_> {
         }
         shape.charge(depth)?;
         Ok(match &e.kind {
+            CoreExprKind::NumericConvert { target, .. } if target.is_numeric() => {
+                copied(Some(target), shape)?
+            }
+            CoreExprKind::Float(n) if n.ends_with("f32") => Some(Type::F32),
+            CoreExprKind::Float(n) if n.ends_with("f64") => Some(Type::F64),
             CoreExprKind::IntegerConvert { target, .. } if target.is_integer() => {
                 copied(Some(target), shape)?
             }
@@ -989,6 +994,7 @@ impl Collector<'_> {
                 })?;
             }
             CoreExprKind::IntegerConvert { target: ty, value }
+            | CoreExprKind::NumericConvert { target: ty, value }
             | CoreExprKind::Ascribed { ty, value } => {
                 self.ty(ty, depth + 1)?;
                 self.expression(module, value, depth + 1)?;
@@ -1107,6 +1113,7 @@ impl Collector<'_> {
                 self.block(module, body, depth + 1)?;
             }
             CoreExprKind::Integer(text)
+            | CoreExprKind::Float(text)
             | CoreExprKind::Name(text)
             | CoreExprKind::ReceiverMember(text)
             | CoreExprKind::String(text)
@@ -1238,9 +1245,9 @@ fn strip_expr(e: &mut CoreExpr) {
     }
     match &mut e.kind {
         CoreExprKind::TypeApply { callee, .. } => strip_expr(callee),
-        CoreExprKind::Ascribed { value, .. } | CoreExprKind::IntegerConvert { value, .. } => {
-            strip_expr(value)
-        }
+        CoreExprKind::Ascribed { value, .. }
+        | CoreExprKind::IntegerConvert { value, .. }
+        | CoreExprKind::NumericConvert { value, .. } => strip_expr(value),
         CoreExprKind::Unary { operand, .. } => strip_expr(operand),
         CoreExprKind::Binary { left, right, .. } => {
             strip_expr(left);

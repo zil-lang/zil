@@ -115,6 +115,8 @@ fn simple_value(value: &Val, work: &mut Work<'_>) -> Option<()> {
         | Val::Array(_)
         | Val::Bytes(_)
         | Val::Gep { .. }
+        | Val::F32(_)
+        | Val::F64(_)
         | Val::Invalid(_) => None,
     }
 }
@@ -486,6 +488,8 @@ fn rename_value(value: &mut Val, names: &BTreeMap<String, String>) {
         | Val::Undef
         | Val::Poison
         | Val::Bytes(_)
+        | Val::F32(_)
+        | Val::F64(_)
         | Val::Invalid(_) => return,
     }
     let mut pending = vec![value];
@@ -511,6 +515,8 @@ fn rename_value(value: &mut Val, names: &BTreeMap<String, String>) {
             | Val::Undef
             | Val::Poison
             | Val::Bytes(_)
+            | Val::F32(_)
+            | Val::F64(_)
             | Val::Invalid(_) => {}
         }
     }

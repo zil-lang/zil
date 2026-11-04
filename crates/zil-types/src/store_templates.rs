@@ -690,7 +690,8 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
         self.node(depth)?;
         match &mut expression.kind {
             CoreExprKind::Ascribed { ty, value }
-            | CoreExprKind::IntegerConvert { target: ty, value } => {
+            | CoreExprKind::IntegerConvert { target: ty, value }
+            | CoreExprKind::NumericConvert { target: ty, value } => {
                 self.ty(ty, depth + 1)?;
                 self.expr(value, depth + 1)?;
             }

@@ -180,6 +180,8 @@ impl Budget {
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
             | Type::ForeignHandle
             | Type::CWideString
             | Type::Closure(_) => {}
@@ -376,7 +378,8 @@ pub(super) fn preflight(
                         .iter()
                         .flat_map(|b| b.instructions.iter())
                         .filter_map(|i| match &i.kind {
-                            InstructionKind::ConvertInteger { target, .. } => {
+                            InstructionKind::ConvertInteger { target, .. }
+                            | InstructionKind::ConvertNumber { target, .. } => {
                                 Some((target, None, None, false))
                             }
                             InstructionKind::OwnedStoreNew { element } => {
@@ -1015,6 +1018,20 @@ pub(super) fn preflight(
                     }
                     InstructionKind::Constant(Constant::WideString(units)) => {
                         budget.input(units.len(), "static UTF-16 units")?;
+                    }
+                    InstructionKind::ConvertNumber { value, target } => {
+                        let source = function
+                            .values
+                            .get(value.0 as usize)
+                            .ok_or_else(|| bad("numeric conversion value outside table"))?;
+                        if !source.is_numeric()
+                            || !target.is_numeric()
+                            || !(source.is_float() || target.is_float())
+                        {
+                            return Err(bad(
+                                "numeric conversion requires numeric endpoints and at least one float",
+                            ));
+                        }
                     }
                     InstructionKind::ConvertInteger { target, .. } if !target.is_integer() => {
                         return Err(bad("integer conversion target is not a supported integer"));

@@ -1251,6 +1251,14 @@ impl<'a> Engine<'a> {
                     .or(default_integer.then_some("i32"))
                     .map(|suffix| named(suffix, e.span)))
             }
+            ExprKind::Literal(Literal::Float(text)) => {
+                self.budget.text(text, e.span)?;
+                Ok(["f32", "f64"]
+                    .into_iter()
+                    .find(|suffix| text.ends_with(suffix))
+                    .or(default_integer.then_some("f64"))
+                    .map(|suffix| named(suffix, e.span)))
+            }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", e.span))),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.value_hint(inner, env, depth + 1, default_integer)
@@ -1544,6 +1552,17 @@ impl<'a> Engine<'a> {
                         },
                         e.span,
                     ))
+                }
+            }
+            ExprKind::Literal(Literal::Float(text)) => {
+                let suffix = ["f32", "f64"]
+                    .into_iter()
+                    .find(|suffix| text.ends_with(suffix));
+                if suffix.is_none() && expected.is_some_and(check::floating) {
+                    self.budget.ty(expected.unwrap())?;
+                    expected.cloned()
+                } else {
+                    Some(named(suffix.unwrap_or("f64"), e.span))
                 }
             }
             ExprKind::Literal(Literal::Bool(_)) => Some(named("bool", e.span)),
