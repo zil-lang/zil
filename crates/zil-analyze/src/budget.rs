@@ -38,6 +38,7 @@ pub(super) struct Budget {
     pub(super) borrowed_function_pointers: bool,
     pub(super) tasks: bool,
     pub(super) head_descriptions: bool,
+    pub(super) registrations: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -69,6 +70,7 @@ impl Budget {
             borrowed_function_pointers: false,
             tasks: false,
             head_descriptions: false,
+            registrations: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -191,6 +193,10 @@ impl Budget {
             }
             Type::Named(name) | Type::Unsupported(name) => {
                 self.spend(name.len(), context)?;
+            }
+            Type::Registration { environment } => {
+                self.registrations = true;
+                self.type_work(environment, copy_check, context)?;
             }
             Type::TaskI32 => {
                 self.tasks = true;
@@ -322,7 +328,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer || **inner == Type::TaskI32
+            if **inner == Type::ByteBuffer || **inner == Type::TaskI32 || matches!(inner.as_ref(), Type::Registration { .. })
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
     {
         Ok(())
@@ -735,6 +741,10 @@ pub(super) fn preflight(
                         }
                     }
                 }
+                Type::Registration { environment: inner } => {
+                    budget.registrations = true;
+                    pending.push((inner, depth + 1, store_element, None, resource_head, child));
+                }
                 Type::Managed(inner) => pending.push((
                     inner,
                     depth + 1,
@@ -1107,6 +1117,35 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::RegistrationStart {
+                        register,
+                        close,
+                        callback,
+                        ..
+                    } => {
+                        budget.registrations = true;
+                        budget.scoped_foreign = true;
+                        budget.input(4, "registration actual operands")?;
+                        if register.0 as usize >= module.functions.len()
+                            || close.0 as usize >= module.functions.len()
+                            || callback.0 as usize >= function.values.len()
+                        {
+                            return Err(bad("registration operand outside actual tables"));
+                        }
+                        budget.lookup(
+                            budget.scoped_functions.len(),
+                            "registration unsafe function inventory",
+                        )?;
+                        budget.scoped_functions.insert(function.id);
+                    }
+                    InstructionKind::RegistrationValid { registration }
+                    | InstructionKind::RegistrationClose { registration } => {
+                        budget.registrations = true;
+                        budget.input(1, "registration actual operand")?;
+                        if registration.0 as usize >= function.values.len() {
+                            return Err(bad("registration operand outside actual values"));
+                        }
+                    }
                     InstructionKind::TaskStart { .. }
                     | InstructionKind::TaskYield
                     | InstructionKind::TaskValid { .. }

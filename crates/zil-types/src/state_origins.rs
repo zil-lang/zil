@@ -1092,6 +1092,7 @@ pub(super) fn bounds(function: &CoreFunction) -> Cow<'_, [CoreCallableParameter]
             index: state.index,
             generic_index: binding.generic_index,
             generic_name: binding.generic_name.clone(),
+            closed_environment: false,
             kind: binding.kind,
             parameters: binding.parameters.clone(),
             result: binding.result.clone(),

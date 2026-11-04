@@ -121,7 +121,9 @@ pub(super) fn teardown_paths(
                             "owned field lacks its resource definition",
                         )]
                     })?;
-                let teardown = if definition.payload == Type::TaskI32 {
+                let teardown = if matches!(definition.payload, Type::Registration { .. }) {
+                    Some("zil.registration.drop".into())
+                } else if definition.payload == Type::TaskI32 {
                     Some("zil.task.drop".into())
                 } else if definition.payload == Type::ByteBuffer {
                     Some("zil.bytes.drop".into())

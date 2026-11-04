@@ -771,6 +771,7 @@ pub(crate) fn member_owner_type_cost(
             | Type::Desc(inner)
             | Type::Address { inner, .. }
             | Type::Opaque { hidden: inner, .. }
+            | Type::Registration { environment: inner }
             | Type::OwnedStore { element: inner }
             | Type::Array { element: inner, .. }
             | Type::Slice { element: inner } => core_shape(v, inner, span, depth + 1)?,

@@ -8,6 +8,7 @@ pub(super) fn supported(ty: &Type) -> bool {
     dynamic_store::is_carrier(ty)
         || byte_buffer::resource(ty)
         || tasks::resource(ty)
+        || registration::resource(ty)
         || matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value())
 }
 pub(super) fn definitions(

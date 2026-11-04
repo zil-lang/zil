@@ -490,6 +490,9 @@ fn charge_type(
         }
         Type::Array { element, .. }
         | Type::Slice { element }
+        | Type::Registration {
+            environment: element,
+        }
         | Type::OwnedStore { element }
         | Type::Managed(element)
         | Type::Desc(element)

@@ -127,10 +127,9 @@ impl<'a> Index<'a> {
             }
             match &item.kind {
                 ItemKind::Impl(implementation)
-                    if implementation
-                        .trait_type
-                        .as_ref()
-                        .is_some_and(stores::is_bound) =>
+                    if implementation.trait_type.as_ref().is_some_and(|bound| {
+                        stores::is_bound(bound) || callable::closed_bound(bound)
+                    }) =>
                 {
                     return Err(error(
                         item.span,

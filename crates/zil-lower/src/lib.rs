@@ -222,6 +222,10 @@ fn resource_head_address(ty: &Type) -> bool {
 }
 
 fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    if matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}) && resources.iter().any(|r|r.payload==**p && r.teardown.is_none()))
+    {
+        return true;
+    }
     if matches!(ty, Type::Managed(p) | Type::Desc(p) if **p == Type::TaskI32)
         && resources.iter().any(|r| {
             r.name == zil_ir::TASK_I32_RESOURCE_NAME

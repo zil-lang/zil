@@ -265,7 +265,9 @@ fn link(
                 None,
             );
         };
-        return Ok(if r.payload == Type::TaskI32 {
+        return Ok(if matches!(r.payload, Type::Registration { .. }) {
+            DropPlan::Leaf("zil.registration.drop".into())
+        } else if r.payload == Type::TaskI32 {
             DropPlan::Leaf("zil.task.drop".into())
         } else if r.payload == Type::ByteBuffer {
             DropPlan::Leaf("zil.bytes.drop".into())

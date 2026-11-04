@@ -69,6 +69,7 @@ mod owned_callbacks;
 #[cfg(test)]
 mod package_tests;
 mod packages;
+mod registration;
 #[cfg(test)]
 mod resource_closure_tests;
 #[cfg(test)]
@@ -99,6 +100,7 @@ pub struct VerifiedModule {
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     uses_scalar_tasks: bool,
+    uses_retained_registration: bool,
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
 }
@@ -186,6 +188,9 @@ impl VerifiedModule {
     }
     /// These semantic exports were independently bound to this exact immutable
     /// program and its actual closed Suspend workers on the current request.
+    pub fn uses_retained_registration(&self) -> bool {
+        self.uses_retained_registration
+    }
     pub fn task_interfaces(&self) -> &[TaskInterface] {
         self.inputs
             .program()
@@ -271,6 +276,7 @@ struct Budget {
     remaining: usize,
     sums: bool,
     tasks: bool,
+    registrations: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
@@ -290,6 +296,7 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             sums: false,
             tasks: false,
+            registrations: false,
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
             task_exports: BTreeSet::new(),
@@ -402,6 +409,7 @@ fn verify_inputs(
             limits: limits.clone(),
             uses_owned_sum_extension: checked.uses_owned_sum_extension,
             uses_scalar_tasks: checked.uses_scalar_tasks,
+            uses_retained_registration: checked.uses_retained_registration,
             task_workers: checked.task_workers,
             suspend_functions: checked.suspend_functions,
             task_exports: checked.task_exports,
@@ -457,6 +465,7 @@ struct CheckedModule {
     fingerprint: Fingerprint,
     uses_owned_sum_extension: bool,
     uses_scalar_tasks: bool,
+    uses_retained_registration: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
@@ -733,6 +742,7 @@ fn check_module(
         fingerprint,
         uses_owned_sum_extension: budget.sums,
         uses_scalar_tasks: budget.tasks,
+        uses_retained_registration: budget.registrations,
         task_workers: budget.task_workers,
         suspend_functions: budget.suspend_functions,
         task_exports: budget.task_exports,
@@ -890,7 +900,10 @@ fn check_type_shape(
             native_values::target(target, None)?;
         }
         match ty {
-            Type::OwnedStore { element } => {
+            Type::Registration {
+                environment: element,
+            }
+            | Type::OwnedStore { element } => {
                 pending.push((element, depth + 1, context));
             }
             Type::Slice { element } => {
@@ -1654,6 +1667,11 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::RegistrationStart { .. }
+        | InstructionKind::RegistrationValid { .. }
+        | InstructionKind::RegistrationClose { .. } => {
+            registration::instruction(module, function, instruction, budget)?
+        }
         InstructionKind::TaskStart { .. }
         | InstructionKind::TaskYield
         | InstructionKind::TaskValid { .. }
@@ -2963,6 +2981,9 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::RegistrationStart { callback, .. } => ([Some(*callback), None], &[]),
+        InstructionKind::RegistrationValid { registration }
+        | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),
         InstructionKind::TaskStart { argument, .. } => ([Some(*argument), None], &[]),
         InstructionKind::TaskValid { task }
         | InstructionKind::TaskPoll { task }

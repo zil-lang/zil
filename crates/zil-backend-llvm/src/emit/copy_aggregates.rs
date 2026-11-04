@@ -129,7 +129,7 @@ pub(super) fn plan(
     })
 }
 
-fn reserve_enum_metadata(
+pub(super) fn reserve_enum_metadata(
     ty: &Type,
     work: &mut usize,
     depth: usize,
@@ -185,6 +185,9 @@ fn reserve_enum_metadata(
         }
         Type::Array { element, .. }
         | Type::Slice { element }
+        | Type::Registration {
+            environment: element,
+        }
         | Type::OwnedStore { element }
         | Type::Address { inner: element, .. }
         | Type::Managed(element)

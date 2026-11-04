@@ -43,6 +43,7 @@ pub use preparation::{
     infer_shared_program_for_ct,
 };
 mod reference_patterns;
+mod registration;
 mod resource_effects;
 mod resources;
 mod retained;
@@ -452,6 +453,8 @@ pub fn check(
     functions.sort_by_key(|f| f.id);
     tasks::add_definition(&functions, &mut resource_definitions, &mut task_work)
         .map_err(|e| vec![e])?;
+    registration::add_definitions(&functions, &mut resource_definitions, &mut task_work)
+        .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
     dynamic_store::add_definitions(
@@ -767,6 +770,20 @@ impl<'a, 'c> Builder<'a, 'c> {
                 "E-THREAD-NAME",
                 span,
                 "thread_scope is a reserved structured primitive and cannot be rebound",
+            ));
+        }
+        if matches!(
+            name,
+            "Registration"
+                | "ClosedEnvironment"
+                | "c_register"
+                | "registration_valid"
+                | "registration_close"
+        ) {
+            return Err(error(
+                "E-REGISTRATION-NAME",
+                span,
+                "sealed registration names cannot be rebound",
             ));
         }
         if name == "c_with_callback" {
@@ -1703,6 +1720,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
                 return self.with_scoped_thread(arguments, expected, e.span);
+            }
+            if let Some(name) = registration::primitive(callee) {
+                return self.registration_call(name, arguments, expected, e.span);
             }
             if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
                 return self.with_foreign_callback(arguments, expected, e.span);

@@ -940,6 +940,9 @@ impl Graph {
             }
             Type::Array { element, .. }
             | Type::Slice { element }
+            | Type::Registration {
+                environment: element,
+            }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
@@ -1057,7 +1060,7 @@ impl Graph {
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
             ty if *ty == Type::TaskI32 || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
-                || matches!(ty, Type::OwnedStore { .. })
+                || matches!(ty, Type::OwnedStore { .. } | Type::Registration { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
                 || owned_shapes::enumeration(ty)

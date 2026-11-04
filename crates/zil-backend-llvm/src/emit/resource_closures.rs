@@ -123,7 +123,9 @@ pub(super) fn drop_functions(
                             .iter()
                             .find(|resource| &resource.payload == payload.as_ref())
                             .expect("verified captured resource definition");
-                        if resource.payload == Type::TaskI32 {
+                        if matches!(resource.payload, Type::Registration { .. }) {
+                            Some("zil.registration.drop".into())
+                        } else if resource.payload == Type::TaskI32 {
                             Some("zil.task.drop".into())
                         } else if resource.payload == Type::ByteBuffer {
                             Some("zil.bytes.drop".into())

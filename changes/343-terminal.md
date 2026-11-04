@@ -219,3 +219,76 @@ evidence, separate from the source-to-native SABI tests.
 ## 集成 Float×Task 的固定原子身份计费
 
 Task machine identity walker 在与 Float 实现合并时显式处理 F32/F64 类型及原始位常量；这些固定大小原子仍由每节点16费用覆盖，不增加默认额度，不跳过Hash前预付。原字节/类型/长名累积反例及N−1门保持。
+## Returned same-thread Registration construction
+
+The first retained route uses the existing explicit unsafe Register/Close roles:
+register-null means every raw entry/access has ended and none can begin; strong
+Close returns only after the same condition. A site-specific stable allocation
+stores the actual concrete F, backend handle, close-code pointer and one atomic
+Busy/Closing word. FnMut admission owns Busy only on old=0; rejected old=2 owns
+and clears only the Busy it just set, while old=1/3 never clears another entry.
+Closing is monotone. The word checks F exclusion and reentry; it never proves
+that pre-atomic/rejected raw entries have ended. Only the actual strong backend
+return permits environment destruction and free. This route is same-thread and
+non-Transfer; asynchronous/no-future-only backends cannot reuse the shortcut.
+
+`Registration<F>` retains the actual F type under the ordinary Managed/Desc
+ownership category. `c_register` consumes F using ordinary callable rules;
+allocation and null-install failures each destroy that actual environment once
+and return a defined null owner. `registration_valid` reads the nullable head
+through its actual descriptor, and explicit/default close use the same consuming
+strong-close path. The returned helper source must survive stack clobbering and
+then accept callbacks. Raw descriptors do not expose frame bytes.
+
+Unused generic installation definitions explicitly require
+`F: FnMut(i32)->i32 + ClosedEnvironment`. The bound is a raw compiler-sealed
+requirement; Types and both kernels separately walk actual capture/ownership
+graphs. Captured loan/data addresses or descriptors reject, including inside
+owned containers; code pointer signature addresses are not stored capture data.
+The owning registration factory is derived from actual Managed Registration
+return, matching concrete F input and create/give responsibility. It does not
+reuse a synchronous finite callback trace for callbacks occurring after return.
+All new inventories and frame/helper construction debit the existing remaining
+request budget; fixed helper reservations include actual nested capture work.
+
+The retained source candidate now returns the actual owning carrier through a
+parameterized helper and an imported public source-library helper. Native tests
+on both backends at O0/O2 observe an owning Mark environment and a mutable
+counter across installation, helper return, stack clobber and later callbacks.
+A second source keeps two distinct mutable environments live at the same time.
+Explicit and default close each destroy the actual environment once. Allocation
+failure and null installation after synchronous callbacks are executed with the
+same source; no failure path treats a non-null invalid owner as a result.
+
+The native source configurations contain 16 success and 16 injected failure
+executions. Fourteen raw mutations reject independently in Analyze and Verify,
+and the same raw modules reject after Wire decoding. Controls include real
+borrowed-factory laundering and reusing an already consumed owning F while
+closing the first registration to avoid an unrelated leaked-head failure. The
+exact source kernel boundaries are 15202/26326. The backend planning fixture has
+N=158890, with separate long-symbol, repeated-child-DAG and dynamic-heap-head
+neighbors. Inline layout has an active-path guard and a native depth bound of
+128; dynamic owning heads are leaves for physical alignment, while environment
+qualification separately follows their stored actual types.
+
+| Rust four goals | Returned registration evidence and limits |
+| --- | --- |
+| Comparable safety | Actual F/owner moves, recursive closed captures and unsafe roles are rebuilt independently. Strong raw-entry quiescence is an explicit external backend contract; no general asynchronous close claim follows. |
+| Runtime and memory | One explicit fallible stable allocation retains actual F without RC or implicit global locks. Two native backends exercise once-only cleanup and mutable persistence; matched Rust runtime/RSS cost remains unmeasured. |
+| Expression and maintenance | Ordinary F-bound helpers return Registration<F>, source-library calls preserve the environment, and default cleanup composes with ordinary owners. General cross-thread registration/wakers and general owned Suspend frames remain under construction. |
+| Compile cost | New traversals, actual symbol bytes and expanded physical layout occurrences use the current cumulative balance. No default limits increase; matched Rust compile-cost comparison remains unmeasured. |
+| At least one advance | Actual source can retain its concrete closure after an installing helper returns; a product-level net advance and the four-goal conjunction have not been established. |
+
+This is a bounded same-thread StrongClose milestone, not task343 completion.
+Owned Suspend child frames, PendingExit responsibility, stable waker roots,
+asynchronous no-future/drain, general Mutex<T>/Guard/Transfer/Share and native
+Windows remain continuation work under the parent task.
+
+Integration with the current integer/float and borrowed-code-pointer types keeps
+ClosedEnvironment structural: stored u64/usize/f32/f64 and static borrowed
+function pointers contain no external data loan. A pointer's invocation signature
+is still validated by the ordinary signature/lifetime walkers; captured actual
+Address/Desc/Slice positions still reject. The split recursive Types dispatch is
+preserved. The combined generic_regressions target passes all 52 tests, including
+registration native success/failure/close paths and existing Task/synchronization.
+This is limited integration validation, not terminal or full-workspace acceptance.
