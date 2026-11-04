@@ -1,5 +1,15 @@
 # ZIL 施工总计划
 
+## 2026-11-04：共同39消费者与40/CT5迁移持续施工
+
+共同39已接真实共享View的Source/两核/Lower及Clang/API O0/O2，以及拥有Task输入、保存SSA、Ready结果和取消清理。独立审核发现并修正旧Package闭包上下文误拒及Task宽marker向量预费；精确共同05824fed6限定cross_function_borrows82、generic_regressions78、generics28全部通过。该三目标不是整仓或终态验收；native View的全块/LIR计费及phantom零物理槽修正仍在342接续，旧失败保留。Dyn2de1c6e4b只接真实Source→Core声明与实际impl函数身份，动态指令、核及原生消费者继续实施。
+
+完整嵌套callable关系及CT实际ambient源binder需共同40/CT5。公共7ffbfc856独立树IR63/0与Astra重放通过，Types853适配39/0；两者均不是完整语言准入。Expand、Types、独立两核、CT冻结源上下文及Lower/LLVM按changes/181-common40-callable-context.md并行迁移；新表示在消费者接通前不合入可运行39主树。Types导出闭包实际布局遍历/预算与完整关系身份的审核返修继续。
+
+GitHub曾以commit_refs_rules内部错误拒绝原子与单分支推送，随后恢复；已核回16引用/5WIP以及后续15引用/4WIP的真实源码备份。失败不能视作成功，本地checkpoint脚本现先记录捕获清单并在远端失败时生成可验证源码bundle。最新完整SHA以/workspace/backups/zil-terminal-20261104各批receipt.json为准。远端main保持接受4bc1d77b5，进度保存在task/language-terminal-20261104及施工/备份分支，公共迁移为task/terminal-public40；PR34草稿。
+
+十方面剩余能力仍须逐个实际贯通；状态协议/完整lending、dyn存储、拥有子Task/异步排空/waker/一般同步线程、完整库及平台ZUI/原生Windows/Rust同语义成本尚未终验。用户授权持续至完整终态，阶段施工与备份不结束主任务，也不升级B0/产品门。
+
 ## 2026-11-04：终态施工与源码持续备份
 
 主集成当前生产候选以df5797966及terminal-root37-corrections.json所绑定修正为准，已合流HRTB每次调用关系、泛型接收者方法、混合Tuple/Enum部分移动、Copy错误联合标签失效修正、返回式Registration、静态Suspend子任务、普通String/Store/UI基础库及默认栈修复。公共schema/Wire37、CT artifact2；后续Task38/存储借用/dyn/CT3合同和作者施工不算当前消费者完成。远端接受main现为PR33的4bc1d77b5，进度分支按阶段保存真实源码。

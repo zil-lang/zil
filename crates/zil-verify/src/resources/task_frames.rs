@@ -103,6 +103,9 @@ impl TaskOwnership {
     pub fn action_count(&self) -> usize {
         self.actions.len()
     }
+    pub fn actions(&self) -> impl Iterator<Item = &TaskOwnerActions> {
+        self.actions.values()
+    }
 }
 
 pub(super) fn start(

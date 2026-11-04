@@ -252,3 +252,34 @@ unchanged ordinary generic Type-return/record-reflection/Syntax source control
 passes, as do the retained-row and prior context controls. Corrected capture
 limits are work700/nodes35, including N-1 rejection; the earlier698/33 receipt
 remains historical. Generated/member lineage and executable Dyn stay open.
+
+The schema39 source-provider checkpoint emits actual Dyn declaration, interface
+and vtable rows in Core. Explicit Dyn syntax resolves its module-normalized
+registered trait and ordered type actuals; final declaration IDs and identities
+come from the actual Origins inventory. Impl-member lowering records the actual
+emitted ordinary function ID. Binding uses the selected impl origin, concrete
+Self and declared member against committed catalog slots; inherited slots retain
+their separately committed impl, and defaults target the emitted ordinary
+wrapper. No generated target-name parsing or Span join selects a provider.
+
+This is a narrow borrowed receiver/scalar profile. Trait actuals, nonreceiver
+parameters and results are scalar; unresolved associated bindings, richer
+retained/phantom arguments, lending/port relations and explicit generic slots
+remain Unsupported. Unknown contract components remain None, including effects,
+Hold and cleanup claims. The actual Types/kernel boundary remains closed before
+Build publishes an executable; metadata publication is not dyn acceptance.
+
+Actual Core source controls cover Read<i32>/Read<bool> on the same Self, an
+inherited default with repeated declaration spans, and same-named a.Read/b.Read
+project declarations. A mixed (Self,&dyn Read<i32>) ordinary inherent header
+also checks contextual Self lowering. The final Self traversal and every actual
+host copy are prepaid on the same ledger before substitution; this closes the
+independent early accounting finding. The simple complete Core request has
+work3475/nodes739, with N-1 ResourceLimit. Source context absence and a richer
+nominal type actual fail explicitly. Existing Expand library tests pass35/0;
+the focused Driver project control passes1/0. Clippy passes with the existing
+WIP dead-code warnings explicitly allowed; no strict warnings-free crate claim
+or runtime/performance comparison follows. Full contextual type keys, concrete
+coercions,131/132 source operations, both safety kernels and both native backends
+remain unfinished. The next common40 migration preserves this checkpoint as
+schema39 evidence and removes the independent flat slot life field.
