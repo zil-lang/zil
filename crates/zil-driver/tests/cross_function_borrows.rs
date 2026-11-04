@@ -16,6 +16,9 @@ mod independent331_cache;
 #[path = "../../../tests/language-readiness/mutable337/regressions.rs"]
 mod mutable337;
 
+#[path = "../../../tests/language-readiness/terminal/342/mutable_life.rs"]
+mod terminal342_mutable;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {

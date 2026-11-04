@@ -40,6 +40,7 @@ struct Use {
 struct Held {
     loan: usize,
     mutable: bool,
+    argument: Option<usize>,
 }
 
 #[derive(Default)]
@@ -614,6 +615,7 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         mutable: bool,
         span: Span,
+        argument: Option<usize>,
     ) -> R<()> {
         if self.aliases.result.is_empty() {
             return Ok(());
@@ -667,7 +669,7 @@ impl Check<'_, '_, '_> {
         self.aliases.active.reserve(ids.len());
         self.aliases
             .active
-            .extend(ids.into_iter().map(|loan| Held { loan, mutable }));
+            .extend(ids.into_iter().map(|loan| Held { loan, mutable, argument }));
         Ok(())
     }
 
@@ -680,13 +682,35 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         base: usize,
         result: &TypeRef,
-        span: Span,
+        expression: &Expr,
     ) -> R<()> {
+        let span = expression.span;
         self.aliases.result.clear();
         if base == self.aliases.active.len() {
             return Ok(());
         }
         if let TypeKind::Reference { mutable, .. } = &group(result).kind {
+            // Life indices belong to this callee's binder. Only arguments in
+            // its declared result input set can supply the returned window;
+            // parameter spelling at the caller supplies no relationship.
+            let mut sources = None;
+            if let ExprKind::Call { callee, arguments } = &expression.kind
+                && let Some(name) = stores::call_name(callee)
+                && let Some(function) = self.signatures.get(name)
+                && let Some(TypeRef { kind: TypeKind::Reference { lifetime: Some(life), .. }, .. }) = function.return_type.as_ref().map(group)
+            {
+                let mut allowed = BTreeSet::new();
+                for (index, (parameter, argument)) in function.params.iter().zip(arguments).enumerate() {
+                    self.budget.text(life, argument.span)?;
+                    if matches!(&group(&parameter.ty).kind, TypeKind::Reference { lifetime: Some(tag), mutable: input_mutable, .. }
+                        if tag == life && (!mutable || *input_mutable))
+                    {
+                        self.budget.node(argument.span, 0)?;
+                        allowed.insert(index);
+                    }
+                }
+                sources = Some(allowed);
+            }
             self.alias_fee(
                 self.aliases
                     .active
@@ -699,6 +723,9 @@ impl Check<'_, '_, '_> {
             self.aliases.active.truncate(base);
             self.aliases.result.reserve(parents.len());
             for parent in parents {
+                if sources.as_ref().is_some_and(|allowed| parent.argument.is_some_and(|index| !allowed.contains(&index))) {
+                    continue;
+                }
                 let aliases = state.aliases.as_ref().expect("active alias has records");
                 self.alias_fee(tree_work(aliases.loans.len()), span)?;
                 let loan = &aliases.loans[&parent.loan];
