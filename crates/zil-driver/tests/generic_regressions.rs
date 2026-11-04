@@ -1,5 +1,7 @@
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, compile_source};
+#[path = "../../../tests/language-readiness/terminal/342/loans.rs"]
+mod terminal342_loans;
 fn source(s: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "review.zil", s)
 }
@@ -2209,4 +2211,2185 @@ fn thread339_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
         }
     }
     std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn terminal343_sealed_sync_scope_source_reaches_independent_kernel() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/343/atomic-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/mutex-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/atomic-contention.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/mutex-contention.zil"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn terminal343_sealed_sync_native_contention() {
+    use std::{
+        fs,
+        process::Command,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/343/atomic-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/mutex-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/atomic-contention.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/mutex-contention.zil"),
+    ] {
+        for backend in &backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-source-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend: *backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, *backend);
+                assert!(codegen.fallback.is_none());
+                let actual = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(0),
+                    "{backend:?} {optimization:?}: {actual:?}"
+                );
+                fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn terminal343_sealed_sync_source_and_raw_boundaries() {
+    use zil_ir::{
+        AtomicOrdering as O, InstructionKind as I, SyncCellKind as K, SyncI32Op as P, Type,
+    };
+    for text in [
+        "fn main()->i32 {let value=7;return atomic_load(&value)}",
+        "fn unused(cell:&AtomicI32)->i32 {return mutex_load(cell)} fn main()->i32=>0",
+        "fn main()->i32 {let atomic_load=7;return atomic_load}",
+        "fn worker(cell:&MutexI32)->i32=>mutex_load(cell) fn main()->i32 {let r=atomic_scope(0,(cell:&AtomicI32)->i32=>{let t=thread_scope(worker,cell,()->i32=>0);return t.1});return r.1}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+    let src = source(include_str!(
+        "../../../tests/language-readiness/terminal/343/atomic-contention.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (decoded, claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    assert_eq!(decoded, typed);
+    let verified = zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+    zil_lower::lower(&verified).unwrap();
+    let worker = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "worker")
+        .unwrap();
+    for variant in 0..6 {
+        let mut forged = typed.clone();
+        match variant {
+            0 | 1 | 2 | 4 => {
+                let function = &mut forged.functions[worker];
+                let integer = zil_ir::ValueId(
+                    function
+                        .values
+                        .iter()
+                        .position(|ty| *ty == Type::I32)
+                        .unwrap() as u32,
+                );
+                let instruction = function
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::SyncI32 { .. }))
+                    .unwrap();
+                if let I::SyncI32 {
+                    op,
+                    address,
+                    value,
+                    ordering,
+                } = &mut instruction.kind
+                {
+                    match variant {
+                        0 => *address = integer,
+                        1 => {
+                            *op = P::Load;
+                            *ordering = O::Release;
+                            *value = None
+                        }
+                        2 => {
+                            *op = P::Load;
+                            *value = Some(integer)
+                        }
+                        4 => {
+                            let address = *address;
+                            instruction.kind = I::ReadAddress { address }
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            3 => {
+                let instruction = forged
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::WithSyncCell { .. }))
+                    .unwrap();
+                if let I::WithSyncCell { kind, .. } = &mut instruction.kind {
+                    *kind = K::MutexI32
+                }
+            }
+            5 => {
+                let instruction = forged.functions[worker]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::SyncI32 { .. }))
+                    .unwrap();
+                let I::SyncI32 { address, .. } = instruction.kind else {
+                    unreachable!()
+                };
+                let result = instruction.result.unwrap();
+                instruction.kind = I::ReborrowAddress {
+                    address,
+                    mutable: false,
+                };
+                forged.functions[worker].values[result.0 as usize] = Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::SyncCell(K::MutexI32)),
+                };
+            }
+            _ => unreachable!(),
+        }
+        let analyzed = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert_eq!(
+            analyzed[0].category,
+            ResultCategory::SafeReject,
+            "raw Analyze {variant}: {analyzed:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let encoded = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        for wire in [false, true] {
+            let (input, claim) = if wire {
+                zil_ir::wire::decode_module_candidate(&encoded, &limits).unwrap()
+            } else {
+                (forged.clone(), claim.clone())
+            };
+            let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify {variant} wire={wire}: {errors:?}"
+            );
+        }
+    }
+    thread332_budget(&typed, &plan);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn terminal343_mutex_native_failures_and_owned_body_cleanup() {
+    use std::{
+        fs,
+        os::unix::{fs::PermissionsExt, process::ExitStatusExt},
+        path::{Path, PathBuf},
+        process::Command,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    fn quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi)
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil343-failure-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let observer = dir.join("observer.o");
+            let compiled = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
+                .arg(
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../tests/language-readiness/terminal/343/sync-observer.c"),
+                )
+                .arg("-o")
+                .arg(&observer)
+                .output()
+                .unwrap();
+            assert!(compiled.status.success(), "{compiled:?}");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -pthread -Wl,--wrap=pthread_mutex_init -Wl,--wrap=pthread_mutex_lock -Wl,--wrap=pthread_mutex_unlock -Wl,--wrap=pthread_mutex_destroy\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let report = compile_source(
+                &source(include_str!(
+                    "../../../tests/language-readiness/terminal/343/mutex-failure.zil"
+                )),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    clang: Some(wrapper),
+                    stop_after: Stage::Build,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            for (mode, code, signal, stdout) in [
+                (0, Some(0), None, "IBLUDX"),
+                (1, Some(2), None, "ID"),
+                (2, None, Some(6), "IBL"),
+                (3, None, Some(6), "IBLU"),
+                (4, None, Some(6), "IBLUDX"),
+            ] {
+                let result = Command::new(&report.artifacts["executable"])
+                    .env("ZIL343_SYNC_FAILURE", mode.to_string())
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    result.status.code(),
+                    code,
+                    "{backend:?}/{optimization:?}/mode{mode}: {result:?}"
+                );
+                assert_eq!(
+                    result.status.signal(),
+                    signal,
+                    "{backend:?}/{optimization:?}/mode{mode}: {result:?}"
+                );
+                assert_eq!(
+                    result.stdout,
+                    stdout.as_bytes(),
+                    "{backend:?}/{optimization:?}/mode{mode}: {result:?}"
+                );
+            }
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}
+
+#[test]
+fn task343_source_to_persistent_native_frame() {
+    let text = include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn task343_native_yields_resume_once() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-control.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-cancel.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-unused.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-move.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-static-callback.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-nonyield.zil"),
+    ] {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-task-{}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let actual = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(0),
+                    "{backend:?} {optimization:?}: {actual:?}"
+                );
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn task343_source_rejects_direct_paths_and_overlapping_heads() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/343/task-reject-foreign-ref.zil"),
+        "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32=>worker(7)",
+        "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let f:fn(i32)->i32=worker;return f(7)}",
+        "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let r=thread_scope(worker,7,()->i32=>0);return r.1}",
+        "fn worker(x:i32)->i32 {task_yield();return x} fn main()->i32 {var task=task_start(worker,7); let a=&mut task; let b=&mut task; task_poll(a); task_poll(b); return 0}",
+        "fn worker(x:i32)->i32 {task_yield();return x} fn main()->i32 {var task=task_start(worker,7); let a=&mut task; task_finish_destroy(give task); task_poll(a); return 0}",
+        "fn worker(x:i32)->i32 {task_yield();return x} fn main()->i32 {var task=task_start(worker,7); task_poll_close(&mut task);task_finish_destroy(give task); task_finish_destroy(give task); return 0}",
+        "fn worker(x:i32)->i32 {task_yield();return x} fn main()->i32 {let task=task_start(worker,7); task_poll(&mut task);return 0}",
+        "fn main()->i32 {let task_start=7;return task_start}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}\n{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn task343_raw_wire_and_exact_kernel_budgets() {
+    use zil_ir::{InstructionKind as I, Type};
+    let text = include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil");
+    let src = source(text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (decoded, claim) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    assert_eq!(decoded, typed);
+    let verified = zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+    assert_eq!(verified.task_worker_ids().len(), 1);
+    zil_lower::lower(&verified).unwrap();
+    let worker = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "worker")
+        .unwrap();
+    let main = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    for variant in 0..10 {
+        let mut forged = typed.clone();
+        match variant {
+            0 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskStart { .. }))
+                    .unwrap();
+                if let I::TaskStart { worker, .. } = &mut op.kind {
+                    *worker = zil_ir::FunctionId(main as u32);
+                }
+            }
+            1 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskPoll { .. }))
+                    .unwrap();
+                let I::TaskPoll { task } = op.kind else {
+                    unreachable!()
+                };
+                forged.functions[main].values[task.0 as usize] =
+                    Type::Desc(Box::new(Type::TaskI32));
+            }
+            2 => {
+                let op = forged.functions[worker]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskYield))
+                    .unwrap();
+                let value = op.result.unwrap();
+                forged.functions[worker].values[value.0 as usize] = Type::Bool;
+            }
+            3 => forged.resources[0].teardown = Some(zil_ir::FunctionId(worker as u32)),
+            4 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskValid { .. }))
+                    .unwrap();
+                op.kind = I::FunctionRef {
+                    function: zil_ir::FunctionId(worker as u32),
+                };
+                let result = op.result.unwrap();
+                forged.functions[main].values[result.0 as usize] = Type::FunctionPointer {
+                    parameters: vec![Type::I32],
+                    result: Box::new(Type::I32),
+                };
+            }
+            5 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskPoll { .. }))
+                    .unwrap();
+                let I::TaskPoll { task: address } = op.kind else {
+                    unreachable!()
+                };
+                op.kind = I::ReadAddress { address };
+                let result = op.result.unwrap();
+                forged.functions[main].values[result.0 as usize] =
+                    Type::Managed(Box::new(Type::TaskI32));
+            }
+            6 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskStart { .. }))
+                    .unwrap();
+                op.kind = I::MakeManaged { fields: vec![] };
+            }
+            7 => {
+                forged.resources.clear();
+            }
+            8 => {
+                let duplicate = forged.resources[0].clone();
+                forged.resources.push(duplicate);
+            }
+            9 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskValid { .. }))
+                    .unwrap();
+                op.kind = I::ForeignFunctionRef {
+                    function: zil_ir::FunctionId(worker as u32),
+                };
+                let result = op.result.unwrap();
+                forged.functions[main].values[result.0 as usize] = Type::ForeignCallback {
+                    parameters: vec![Type::I32],
+                    result: Box::new(Type::I32),
+                };
+            }
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "Analyze raw {variant}: {errors:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let encoded = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        for wire in [false, true] {
+            let (input, claim) = if wire {
+                zil_ir::wire::decode_module_candidate(&encoded, &limits).unwrap()
+            } else {
+                (forged.clone(), claim.clone())
+            };
+            let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify raw {variant} wire={wire}: {errors:?}"
+            );
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let budget = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &budget).map(|_| ())
+            } else {
+                zil_analyze::analyze(&typed, &budget).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if accepts(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        accepts(low).unwrap();
+        let errors = accepts(low - 1).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::ResourceLimit,
+            "verify={verify}, N={low}: {errors:?}"
+        );
+        accepts(low).unwrap();
+        eprintln!("task343 exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn task343_native_allocation_failure_drop_and_closed_destroy() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    fn quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (index, text, failure, code, stdout) in [
+                (
+                    0,
+                    include_str!("../../../tests/language-readiness/terminal/343/task-null.zil"),
+                    true,
+                    Some(0),
+                    "AA",
+                ),
+                (
+                    1,
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/343/task-default-drop.zil"
+                    ),
+                    false,
+                    Some(0),
+                    "AVF",
+                ),
+                (
+                    2,
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/343/task-early-destroy.zil"
+                    ),
+                    false,
+                    None,
+                    "A",
+                ),
+                (
+                    3,
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/343/task-default-drop.zil"
+                    ),
+                    true,
+                    Some(10),
+                    "AN",
+                ),
+            ] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-task-failure-{}-{backend:?}-{optimization:?}-{index}",
+                    std::process::id()
+                ));
+                fs::create_dir_all(&dir).unwrap();
+                let observer = dir.join("observer.o");
+                let compiled = Command::new(&clang)
+                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(
+                        Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("../../tests/language-readiness/terminal/343/task-observer.c"),
+                    )
+                    .arg("-o")
+                    .arg(&observer)
+                    .output()
+                    .unwrap();
+                assert!(compiled.status.success(), "{compiled:?}");
+                let wrapper = dir.join("link.sh");
+                fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+                fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let mut command = Command::new(&report.artifacts["executable"]);
+                if failure {
+                    command.env("ZIL343_TASK_ALLOC_FAIL", "1");
+                }
+                let actual = command.output().unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    code,
+                    "{backend:?} {optimization:?} {index}: {actual:?}"
+                );
+                assert_eq!(
+                    actual.stdout,
+                    stdout.as_bytes(),
+                    "{backend:?} {optimization:?} {index}: {actual:?}"
+                );
+                fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+fn task343_export_program() -> zil_ir::TypedProgram {
+    let src = source(include_str!(
+        "../../../tests/language-readiness/terminal/343/task-export.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let worker = core
+        .functions
+        .iter()
+        .find(|f| f.name == "worker")
+        .unwrap()
+        .id;
+    zil_types::check_program(
+        &zil_ir::CoreProgram {
+            root: src.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![zil_ir::ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![worker],
+            }],
+        },
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn task343_public_semantics_are_independently_bound() {
+    use std::sync::Arc;
+    use zil_ir::{PassingMode, ScalarFunction, Type};
+    let typed = task343_export_program();
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    assert_eq!(typed.task_interfaces.len(), 1);
+    assert_eq!(
+        typed.task_interfaces[0].exports[0].worker,
+        zil_ir::FunctionId(0)
+    );
+    assert!(typed.interfaces.iter().all(|i| i.exports.is_empty()));
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![source(include_str!(
+            "../../../tests/language-readiness/terminal/343/task-export.zil"
+        ))],
+        paths: Default::default(),
+    };
+    let output = std::env::temp_dir().join(format!(
+        "zil343-reject-suspend-entry-{}",
+        std::process::id()
+    ));
+    let direct = zil_driver::compile_project(
+        &project,
+        &CompileOptions {
+            entry: Some("worker".into()),
+            stop_after: zil_driver::Stage::Build,
+            output: Some(output.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        direct.status,
+        ResultCategory::SafeReject,
+        "{}",
+        direct.to_json()
+    );
+    assert!(
+        direct
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-TASK-DIRECT-EXPORT"),
+        "{}",
+        direct.to_json()
+    );
+    assert!(!output.exists());
+    let plan = zil_analyze::analyze_program(&typed, &limits).unwrap();
+    let checked = zil_verify::verify_shared_program_module(
+        Arc::new(typed.clone()),
+        Arc::new(plan.clone()),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    assert!(checked.is_task_export(zil_ir::FunctionId(0)));
+    assert_eq!(checked.task_interfaces(), typed.task_interfaces);
+    let mut renamed = typed.clone();
+    renamed.task_interfaces[0].exports[0].name = "alias".into();
+    let alias = zil_verify::verify_shared_program_module(
+        Arc::new(renamed),
+        Arc::new(plan.clone()),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    assert_ne!(
+        checked.task_abi_input_fingerprint(),
+        alias.task_abi_input_fingerprint()
+    );
+    for variant in 0..7 {
+        let mut forged = typed.clone();
+        match variant {
+            0 => forged.task_interfaces[0].exports[0].abi_version = 0,
+            1 => forged.task_interfaces[0].exports[0].worker = zil_ir::FunctionId(2),
+            2 => forged.task_interfaces[0].exports[0].parameter.1 = Type::Bool,
+            3 => forged.task_interfaces[0].exports[0].result.0 = PassingMode::Copy,
+            4 => {
+                let mut e = forged.task_interfaces[0].exports[0].clone();
+                e.name = "again".into();
+                forged.task_interfaces[0].exports.push(e);
+            }
+            5 => {
+                let duplicate = forged.task_interfaces[0].clone();
+                forged.task_interfaces.push(duplicate);
+            }
+            6 => forged.interfaces[0].exports.push(ScalarFunction {
+                name: "worker".into(),
+                function: zil_ir::FunctionId(0),
+                parameters: vec![(PassingMode::Infer, Type::I32)],
+                result: Type::I32,
+                result_mode: PassingMode::Infer,
+                reference_return_bound: None,
+            }),
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze_program(&forged, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "Analyze {variant}: {errors:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&forged.module, &plan, &limits).unwrap();
+        for decode in [false, true] {
+            let mut input = forged.clone();
+            let mut claim = plan.clone();
+            if decode {
+                (input.module, claim) =
+                    zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+            }
+            let errors = zil_verify::verify_shared_program_module(
+                Arc::new(input),
+                Arc::new(claim),
+                &target,
+                &limits,
+            )
+            .unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify {variant} wire={decode}: {errors:?}"
+            );
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let budget = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_shared_program_module(
+                    Arc::new(typed.clone()),
+                    Arc::new(plan.clone()),
+                    &target,
+                    &budget,
+                )
+                .map(|_| ())
+            } else {
+                zil_analyze::analyze_program(&typed, &budget).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if accepts(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        accepts(low).unwrap();
+        let errors = accepts(low - 1).unwrap_err();
+        assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+        accepts(low).unwrap();
+        eprintln!("task343 public exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn task343_external_five_entry_sabi_and_physical_layout() {
+    task343_run_external_sabi(false);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn child343_external_child_sabi_and_physical_layout() {
+    task343_run_external_sabi(true);
+}
+
+#[cfg(target_os = "linux")]
+fn task343_run_external_sabi(child: bool) {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    fn quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+    }
+    fn c_type(ty: &str) -> String {
+        match ty {
+            "ptr" => "void *".into(),
+            "i1" => "_Bool".into(),
+            "i8" => "uint8_t".into(),
+            "i16" => "uint16_t".into(),
+            "i32" => "int32_t".into(),
+            "i64" => "int64_t".into(),
+            _ => {
+                let body = ty
+                    .strip_prefix("{ ")
+                    .and_then(|s| s.strip_suffix(" }"))
+                    .expect("closed literal frame type");
+                let (mut depth, mut start, mut fields) = (0, 0, vec![]);
+                for (offset, ch) in body.char_indices() {
+                    match ch {
+                        '{' => depth += 1,
+                        '}' => depth -= 1,
+                        ',' if depth == 0 => {
+                            fields.push(body[start..offset].trim());
+                            start = offset + 1;
+                        }
+                        _ => {}
+                    }
+                }
+                if !body.is_empty() {
+                    fields.push(body[start..].trim());
+                }
+                format!(
+                    "struct {{{}}}",
+                    fields
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, t)| format!("{} f{i};", c_type(t)))
+                        .collect::<String>()
+                )
+            }
+        }
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join(if child {
+        "../../tests/language-readiness/terminal/343/task-child-export-caller.c"
+    } else {
+        "../../tests/language-readiness/terminal/343/task-export-caller.c"
+    });
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil343-task-export-{}-{child}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let observer = dir.join("caller.o");
+            let built = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(&fixture)
+                .arg("-o")
+                .arg(&observer)
+                .output()
+                .unwrap();
+            assert!(built.status.success(), "{built:?}");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let project = zil_driver::ProjectSources {
+                root: ModuleId(0),
+                modules: vec![source(if child {
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/343/task-child-export.zil"
+                    )
+                } else {
+                    include_str!("../../../tests/language-readiness/terminal/343/task-export.zil")
+                })],
+                paths: Default::default(),
+            };
+            let options = CompileOptions {
+                backend,
+                optimization,
+                clang: Some(wrapper),
+                stop_after: Stage::Build,
+                output: Some(dir.join("program")),
+                emit_dir: Some(dir.join("artifacts")),
+                object_cache: (backend == NativeBackend::LlvmApi).then(|| dir.join("objects")),
+                ..CompileOptions::default()
+            };
+            let report = zil_driver::compile_project(&project, &options);
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let cg = report.native_codegen.as_ref().unwrap();
+            assert_eq!(cg.backend, backend);
+            assert!(cg.fallback.is_none());
+            assert_eq!(cg.task_abis.len(), 1);
+            let abi = &cg.task_abis[0];
+            assert!(
+                fs::read_to_string(&report.artifacts["task-abi"])
+                    .unwrap()
+                    .contains(&abi.codegen_key.to_hex())
+            );
+            assert_eq!(abi.worker, zil_ir::FunctionId(if child { 2 } else { 0 }));
+            assert_eq!(abi.entrypoints.len(), 5);
+            assert_eq!(abi.name, "worker");
+            assert_eq!(abi.data_layout, zil_backend_llvm::TASK_DATA_LAYOUT);
+            if !child
+                && backend == NativeBackend::LlvmApi
+                && optimization == Optimization::O2
+                && let Some(path) = std::env::var_os("ZIL343_TASK_ABI_RECEIPT")
+            {
+                fs::write(path, format!("{}\n", abi.to_json())).unwrap();
+            }
+            assert_ne!(abi.codegen_key, zil_base::Fingerprint::ZERO);
+            assert_ne!(abi.frame_layout_fingerprint, zil_base::Fingerprint::ZERO);
+            let run = Command::new(&report.artifacts["executable"])
+                .env("ZIL343_EXPECT_FRAME_SIZE", abi.frame_size.to_string())
+                .output()
+                .unwrap();
+            assert_eq!(
+                run.status.code(),
+                Some(0),
+                "{backend:?} {optimization:?}: {run:?}"
+            );
+            assert_eq!(
+                Command::new(&report.artifacts["executable"])
+                    .env("ZIL343_TASK_EXPORT_ALLOC_FAIL", "1")
+                    .status()
+                    .unwrap()
+                    .code(),
+                Some(3)
+            );
+            if backend == NativeBackend::LlvmApi {
+                assert!(cg.object_cache.enabled);
+                let warm = zil_driver::compile_project(&project, &options);
+                assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+                let hit = warm.native_codegen.as_ref().unwrap();
+                assert!(hit.object_cache.hits > 0, "{}", warm.to_json());
+                assert_eq!(hit.task_abis[0], *abi);
+                assert_eq!(
+                    Command::new(&warm.artifacts["executable"])
+                        .status()
+                        .unwrap()
+                        .code(),
+                    Some(0)
+                );
+                let mut changed = project.clone();
+                changed.modules[0] = source(&changed.modules[0].text.replace(
+                    if child {
+                        "seed+1"
+                    } else {
+                        "i32(wide)+i32(small)"
+                    },
+                    if child {
+                        "seed+%1"
+                    } else {
+                        "i32(wide)+%i32(small)"
+                    },
+                ));
+                let updated = zil_driver::compile_project(&changed, &options);
+                assert_eq!(
+                    updated.status,
+                    ResultCategory::Success,
+                    "{}",
+                    updated.to_json()
+                );
+                let actual = updated.native_codegen.as_ref().unwrap();
+                assert!(actual.object_cache.misses > 0);
+                assert_ne!(
+                    actual.task_abis[0].frame_layout_fingerprint,
+                    abi.frame_layout_fingerprint
+                );
+                assert_ne!(actual.task_abis[0].codegen_key, abi.codegen_key);
+                assert_eq!(
+                    Command::new(&updated.artifacts["executable"])
+                        .status()
+                        .unwrap()
+                        .code(),
+                    Some(0)
+                );
+            }
+            let ir = fs::read_to_string(&report.artifacts["llvm"])
+                .unwrap_or_else(|_| fs::read_to_string(dir.join("program.ll")).unwrap());
+            assert!(!ir.contains(&format!("define i32 @zil.fn.{}(", abi.worker.0)));
+            if backend == NativeBackend::LlvmApi {
+                assert!(
+                    cg.object_reports
+                        .iter()
+                        .all(|r| r.contains(zil_backend_llvm::TASK_DATA_LAYOUT))
+                );
+            }
+            let actual_layout = Command::new(&clang)
+                .args([
+                    "--target=x86_64-unknown-linux-gnu",
+                    "-x",
+                    "c",
+                    "-S",
+                    "-emit-llvm",
+                    "/dev/null",
+                    "-o",
+                    "-",
+                ])
+                .output()
+                .unwrap();
+            assert!(actual_layout.status.success());
+            assert!(
+                String::from_utf8(actual_layout.stdout)
+                    .unwrap()
+                    .contains(&format!("target datalayout = \"{}\"", abi.data_layout))
+            );
+            let mut c="#include <stddef.h>\n#include <stdint.h>\n#include <stdbool.h>\ntypedef struct {\n".to_owned();
+            for field in &abi.frame_fields {
+                c.push_str(&format!(
+                    "{} f{};\n",
+                    c_type(&field.machine_type),
+                    field.index
+                ));
+            }
+            c.push_str("} Frame;\nint main(void){\n");
+            c.push_str(&format!(
+                "if(sizeof(Frame)!={} || _Alignof(Frame)!={}) return 1;\n",
+                abi.frame_size, abi.frame_alignment
+            ));
+            for field in &abi.frame_fields {
+                c.push_str(&format!(
+                    "if(offsetof(Frame,f{})!={} || sizeof(((Frame*)0)->f{})!={}) return 2;\n",
+                    field.index, field.offset, field.index, field.size
+                ));
+            }
+            c.push_str("return 0;}\n");
+            let probe = dir.join("layout.c");
+            fs::write(&probe, c).unwrap();
+            let compiled = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror"])
+                .arg(&probe)
+                .arg("-o")
+                .arg(dir.join("layout"))
+                .output()
+                .unwrap();
+            assert!(compiled.status.success(), "{compiled:?}");
+            assert!(Command::new(dir.join("layout")).status().unwrap().success());
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}
+
+#[test]
+fn registration343_returned_generic_owner_reaches_both_kernels() {
+    let text =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn registration343_returned_stable_owner_native_and_failures() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/terminal/343/registration-observer.c");
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (two, composed) in [(false, false), (true, false), (false, true)] {
+                let fixture = if two {
+                    fixture.with_file_name("registration-two-observer.c")
+                } else {
+                    fixture.clone()
+                };
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-registration-{}-{backend:?}-{optimization:?}-{two}-{composed}",
+                    std::process::id()
+                ));
+                fs::create_dir_all(&dir).unwrap();
+                let observer = dir.join("observer.o");
+                let c = Command::new(&clang)
+                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(&fixture)
+                    .arg("-o")
+                    .arg(&observer)
+                    .output()
+                    .unwrap();
+                assert!(c.status.success(), "{c:?}");
+                let wrapper = dir.join("link.sh");
+                fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+                fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                for default_drop in [false, true] {
+                    let text = if composed {
+                        include_str!(
+                            "../../../tests/language-readiness/terminal/343/registration-composed.zil"
+                        )
+                    } else if two {
+                        include_str!(
+                            "../../../tests/language-readiness/terminal/343/registration-two.zil"
+                        )
+                    } else {
+                        include_str!(
+                            "../../../tests/language-readiness/terminal/343/registration-return.zil"
+                        )
+                    };
+                    let text = if default_drop {
+                        text.replace("registration_close(give owner);", "")
+                            .replace("registration_close(give first);", "")
+                            .replace("registration_close(give second);", "")
+                    } else {
+                        text.to_owned()
+                    };
+                    let project = zil_driver::ProjectSources {
+                        root: ModuleId(0),
+                        modules: vec![source(&text)],
+                        paths: Default::default(),
+                    };
+                    let report = zil_driver::compile_project(
+                        &project,
+                        &CompileOptions {
+                            backend,
+                            optimization,
+                            clang: Some(wrapper.clone()),
+                            stop_after: Stage::Build,
+                            output: Some(dir.join("program")),
+                            emit_dir: Some(dir.join("artifacts")),
+                            ..CompileOptions::default()
+                        },
+                    );
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                    assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                    for failure in [
+                        None,
+                        Some("ZIL343_REG_ALLOC_FAIL"),
+                        Some("ZIL343_REG_INSTALL_FAIL"),
+                    ] {
+                        if two && failure.is_some() {
+                            continue;
+                        }
+                        let mut command = Command::new(&report.artifacts["executable"]);
+                        if let Some(failure) = failure {
+                            command.env(failure, "1");
+                        }
+                        let result = command.output().unwrap();
+                        assert_eq!(
+                            result.status.code(),
+                            Some(if failure.is_some() { 3 } else { 0 }),
+                            "{backend:?} {optimization:?} default_drop={default_drop} failure={failure:?}: {result:?}"
+                        );
+                    }
+                }
+                fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn registration343_source_definition_moves_and_closed_environment_rejects() {
+    let original =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+    let unused = original.split("fn main").next().unwrap().to_owned() + "fn main() {}";
+    let neighbors=[
+        unused.replace(" + ClosedEnvironment",""),
+        original.replace("let owner=install(f)","let owner=#(c_register(registration_register,registration_close_backend,f))"),
+        format!("trait ClosedEnvironment {{}}\n{unused}"),
+        format!("struct Fake{{value:i32}} impl ClosedEnvironment for Fake {{}}\n{unused}"),
+        unused.replace("FnMut(i32)->i32 + ClosedEnvironment","FnOnce(i32)->i32 + ClosedEnvironment"),
+        original.replace("let f=move(value:i32)","let f=(value:i32)"),
+        original.replace("if !registration_valid(owner)","let duplicate=owner; registration_close(give duplicate); if !registration_valid(owner)"),
+        original.replace("registration_close(give owner);","registration_close(give owner); registration_close(give owner);"),
+        original.replace("registration_close(give owner);","let view=owner; registration_close(give owner); registration_valid(view);"),
+        original.replace("registration_close(give owner);","registration_close(owner);"),
+        original.replace("return c_register(registration_register,registration_close_backend,f)","return c_register(registration_close_backend,registration_register,f)"),
+        original.replace("unsafe { return c_register","{ return c_register"),
+        original.replace("fn main()->i32 {","fn main()->i32 { let c_register=1;"),
+        original.replace("c_register(registration_register,registration_close_backend,f)","c_register(registration_register,registration_close_backend,f); return c_register(registration_register,registration_close_backend,f)"),
+    ];
+    for (index, text) in neighbors.into_iter().enumerate() {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "neighbor{index}: {}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "neighbor{index}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn registration343_raw_wire_and_exact_kernel_budgets() {
+    use zil_ir::{InstructionKind as I, Type};
+    let src = source(include_str!(
+        "../../../tests/language-readiness/terminal/343/registration-return.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut missing_bound = core.clone();
+    missing_bound
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "install")
+        .unwrap()
+        .callable_parameters[0]
+        .closed_environment = false;
+    assert!(zil_types::check(&missing_bound, &target, &limits).is_err());
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (decoded, claim) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    assert_eq!(decoded, typed);
+    let checked = zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+    assert!(checked.uses_retained_registration());
+    zil_lower::lower(&checked).unwrap();
+    let start = typed
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, I::RegistrationStart { .. }))
+        })
+        .unwrap();
+    let main = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    let resource = typed
+        .resources
+        .iter()
+        .position(|r| matches!(r.payload, Type::Registration { .. }))
+        .unwrap();
+    for variant in 0..14 {
+        let mut forged = typed.clone();
+        match variant {
+            0 => {
+                let i = forged.functions[start]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap();
+                if let I::RegistrationStart {
+                    register, close, ..
+                } = &mut i.kind
+                {
+                    *register = *close;
+                }
+            }
+            1 => {
+                let i = forged.functions[start]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap();
+                if let I::RegistrationStart { region, .. } = &mut i.kind {
+                    *region = u32::MAX;
+                }
+            }
+            2 => {
+                let i = forged.functions[start]
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap();
+                let I::RegistrationStart { callback, .. } = i.kind else {
+                    unreachable!()
+                };
+                forged.functions[start].values[callback.0 as usize] = Type::I32;
+            }
+            3 => forged.resources[resource].name = "@builtin:Registration:forged".into(),
+            4 => {
+                let mut duplicate = forged.resources[resource].clone();
+                duplicate.name.push_str(":shadow");
+                forged.resources.push(duplicate);
+            }
+            5 => {
+                let i = forged.functions[start]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap();
+                i.kind = I::MakeManaged { fields: vec![] };
+            }
+            6 => {
+                let i = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationValid { .. }))
+                    .unwrap();
+                let I::RegistrationValid { registration } = i.kind else {
+                    unreachable!()
+                };
+                i.kind = I::ReadDesc {
+                    desc: registration,
+                    index: 0,
+                };
+                let v = i.result.unwrap();
+                forged.functions[main].values[v.0 as usize] = Type::I32;
+            }
+            7 => {
+                let desc = forged.functions[main]
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find_map(|i| {
+                        if let I::RegistrationValid { registration } = i.kind {
+                            Some(registration)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                let i = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationClose { .. }))
+                    .unwrap();
+                i.kind = I::RegistrationClose { registration: desc };
+            }
+            8 => forged.resources[resource].teardown = Some(zil_ir::FunctionId(main as u32)),
+            9 => {
+                let Type::Registration { environment } = &forged.resources[resource].payload else {
+                    unreachable!()
+                };
+                let Type::Closure(id) = environment.as_ref() else {
+                    unreachable!()
+                };
+                forged.closures[id.0 as usize].captures[0] = Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                };
+            }
+            10 => {
+                let f = &mut forged.functions[main];
+                let b = f
+                    .blocks
+                    .iter_mut()
+                    .find(|b| {
+                        b.instructions
+                            .iter()
+                            .any(|i| matches!(i.kind, I::RegistrationClose { .. }))
+                    })
+                    .unwrap();
+                let n = b
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind, I::RegistrationClose { .. }))
+                    .unwrap();
+                let extra = b.instructions[n].clone();
+                b.instructions.insert(n, extra);
+            }
+            11 => {
+                let Type::Registration { environment } = &mut forged.resources[resource].payload
+                else {
+                    unreachable!()
+                };
+                **environment = Type::ForeignHandle;
+            }
+            12 => {
+                let parameter = forged.functions[start].parameters[0];
+                let inner = forged.functions[start].locals[parameter.0 as usize]
+                    .ty
+                    .clone();
+                forged.functions[start].locals[parameter.0 as usize].ty = Type::Address {
+                    mutable: true,
+                    inner: Box::new(inner),
+                };
+            }
+            13 => {
+                let f = &mut forged.functions[start];
+                let original = f
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap()
+                    .clone();
+                let old = original.result.unwrap();
+                let second = zil_ir::ValueId(f.values.len() as u32);
+                f.values.push(f.values[old.0 as usize].clone());
+                let unit = zil_ir::ValueId(f.values.len() as u32);
+                f.values.push(Type::Unit);
+                for b in &mut f.blocks {
+                    if let Some(at) = b
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    {
+                        let mut duplicate = original.clone();
+                        duplicate.result = Some(second);
+                        b.instructions.insert(at + 1, duplicate);
+                        b.instructions.insert(
+                            at + 2,
+                            zil_ir::Instruction {
+                                result: Some(unit),
+                                kind: I::RegistrationClose { registration: old },
+                                span: original.span,
+                            },
+                        );
+                    }
+                    if b.terminator == zil_ir::Terminator::Return(Some(old)) {
+                        b.terminator = zil_ir::Terminator::Return(Some(second));
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "Analyze raw{variant}: {errors:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        for decoded in [false, true] {
+            let (input, claim) = if decoded {
+                zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+            } else {
+                (forged.clone(), claim.clone())
+            };
+            let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify raw{variant} decoded={decoded}: {errors:?}"
+            );
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let budget = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &budget).map(|_| ())
+            } else {
+                zil_analyze::analyze(&typed, &budget).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if accepts(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        accepts(low).unwrap();
+        assert_eq!(
+            accepts(low - 1).unwrap_err()[0].category,
+            ResultCategory::ResourceLimit
+        );
+        accepts(low).unwrap();
+        eprintln!("registration343 exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+fn registration343_copy_instances_and_return_branch_neighbors() {
+    let original =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+    let declarations = original.split("fn install").next().unwrap();
+    let copy = format!(
+        "{declarations}\nfn main()->i32 {{let base=37;let f=move(x:i32)->i32=>x+base;unsafe{{let first=c_register(registration_register,registration_close_backend,f);let second=c_register(registration_register,registration_close_backend,f);registration_close(give first);registration_close(give second);}}return 0}}"
+    );
+    let branch=original.replace("(f:F)->Registration<F>","(f:F,choice:bool)->Registration<F>").replace("unsafe { return c_register(registration_register,registration_close_backend,f) }","unsafe { if choice { return c_register(registration_register,registration_close_backend,f) } return c_register(registration_register,registration_close_backend,f) }").replace("install(f)","install(f,true)");
+    for text in [copy, branch] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn registration343_source_library_preserves_actual_returned_environment() {
+    let original =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+    let helper = original
+        .split("fn install")
+        .nth(1)
+        .unwrap()
+        .split("fn main")
+        .next()
+        .unwrap();
+    let roles = original.lines().take(2).collect::<Vec<_>>().join("\n");
+    let library = format!("{roles}\npub fn install{helper}");
+    let prefix = original
+        .split("fn install")
+        .next()
+        .unwrap()
+        .lines()
+        .skip(2)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let main = original.split("fn main").nth(1).unwrap();
+    let caller = format!("import registrar\n{prefix}\nfn main{main}")
+        .replace("install(f)", "registrar.install(f)");
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            source(&caller),
+            SourceUnit::new(FileId(1), ModuleId(1), "registrar.zil", &library),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["registrar".into()], ModuleId(1))]),
+    };
+    let report = zil_driver::compile_project(&project, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn registration343_composed_code_capture_keeps_actual_data_and_life_boundaries() {
+    let positive =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-composed.zil");
+    let report = compile_source(&source(positive), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    for (name, text) in [
+        (
+            "address",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-address-capture.zil"
+            ),
+        ),
+        (
+            "desc",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-desc-capture.zil"
+            ),
+        ),
+        (
+            "slice",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-slice-capture.zil"
+            ),
+        ),
+        (
+            "wrong-root",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-bfp-wrong-result-root.zil"
+            ),
+        ),
+        (
+            "suspend",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-transitive-suspend.zil"
+            ),
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        eprintln!(
+            "registration composition negative {name}: {}",
+            report.to_json()
+        );
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn child343_native_static_frames_resume_and_cancel() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let original = include_str!("../../../tests/language-readiness/terminal/343/task-child.zil");
+    let prefix = original.split("fn main").next().unwrap();
+    let mut sources = vec![original.to_owned()];
+    for after in 0..=8 {
+        sources.push(format!(
+            "{prefix}
+fn main()->i32 {{
+    var task=task_start(worker,7)
+    if !task_valid(task) {{return 10}}
+    var count=0
+    while count<{after} {{
+        let (status,value)=task_poll(&mut task)
+        if status!=0 || value!=0 {{return 11}}
+        count=count+1
+    }}
+    task_request_cancel(&mut task)
+    task_request_cancel(&mut task)
+    let (status,value)=task_poll(&mut task)
+    if status!=3 || value!=0 {{return 12}}
+    if !task_poll_close(&mut task) {{return 13}}
+    task_finish_destroy(give task)
+    return 0
+}}"
+        ));
+    }
+    sources.push("fn plain(x:i32)->i32=>x+1
+fn empty(x:i32)->i32 contract {effects(suspend);resume(local)} {return x+2}
+fn worker(x:i32)->i32 {let a=task_await(plain,x);return task_await(empty,a)}
+fn main()->i32 {var t=task_start(worker,7);let direct=plain(7);let (s,v)=task_poll(&mut t);if s!=1 || v!=10 || direct!=8{return 1} if !task_poll_close(&mut t){return 2} task_finish_destroy(give t);return 0}".to_owned());
+    for (case, text) in sources.iter().enumerate() {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-child-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "case {case}: {}",
+                    report.to_json()
+                );
+                let native = report.native_codegen.as_ref().unwrap();
+                assert_eq!(native.backend, backend);
+                assert!(native.fallback.is_none());
+                let actual = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(0),
+                    "case {case} {backend:?} {optimization:?}: {actual:?}"
+                );
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn child343_source_and_raw_effect_boundaries() {
+    use zil_ir::{CallKind, InstructionKind as I, Type};
+    for text in [
+        "fn worker(x:i32)->i32 contract{effects()} {task_yield();return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{effects(alloc)} {task_yield();return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{effects(direct)} {return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{effects(alloc);resume(local)} {return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{effects(suspend);effects(suspend)} {return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{resume(transfer)} {return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{resume(local)} {return x} fn main()->i32=>worker(7)",
+        "fn worker(x:i32)->i32 contract{effects(suspend)} {return x} fn main()->i32{let f:fn(i32)->i32=worker;return f(7)}",
+        "fn worker(x:i32)->i32 contract{effects(suspend)} {return x} fn main(){let f=c_callback(worker)}",
+        "fn worker(x:i32)->i32 contract{effects(suspend)} {return x} fn main()->i32{let r=thread_scope(worker,7,()->i32=>0);return r.1}",
+        "fn worker(x:i32)->i32 {return task_await(worker,x)} fn main(){}",
+        "fn unused<F:Fn(i32)->i32>(f:F,x:i32)->i32 contract{effects()} {task_yield();return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{effects(suspend)} {return x} fn unused<F:Fn(i32)->i32>(f:F,x:i32)->i32 contract{effects()} {return worker(x)} fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{}",
+            report.to_json()
+        );
+    }
+    let src = source(include_str!(
+        "../../../tests/language-readiness/terminal/343/task-child.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let encoded = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (decoded, claim) = zil_ir::wire::decode_module_candidate(&encoded, &limits).unwrap();
+    assert_eq!(decoded, typed);
+    let verified = zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+    assert!(verified.is_suspend(zil_ir::FunctionId(2)));
+    assert_eq!(verified.task_worker_ids().len(), 3);
+    zil_lower::lower(&verified).unwrap();
+    for case in 0..9 {
+        let mut raw = typed.clone();
+        if case == 0 {
+            raw.functions[2].call_kind = CallKind::Direct;
+        } else if case == 1 {
+            raw.functions[0].call_kind = CallKind::Direct;
+        } else {
+            let current = &mut raw.functions[2];
+            let op = current
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, I::SuspendCall { .. }))
+                .unwrap();
+            let I::SuspendCall {
+                function,
+                arguments,
+            } = &mut op.kind
+            else {
+                unreachable!()
+            };
+            match case {
+                2 => {
+                    op.kind = I::Call {
+                        function: *function,
+                        arguments: arguments.clone(),
+                    }
+                }
+                3 => *function = zil_ir::FunctionId(2),
+                4 => arguments.clear(),
+                5 => arguments.push(arguments[0]),
+                6 => current.values[op.result.unwrap().0 as usize] = Type::Bool,
+                7 => *function = zil_ir::FunctionId(u32::MAX),
+                8 => *function = zil_ir::FunctionId(3),
+                _ => unreachable!(),
+            }
+        }
+        let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "Analyze raw {case}: {errors:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        for wire in [false, true] {
+            let (input, claim) = if wire {
+                zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+            } else {
+                (raw.clone(), claim.clone())
+            };
+            let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify raw {case} Wire={wire}: {errors:?}"
+            );
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let bounds = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &bounds).map(|_| ())
+            } else {
+                zil_analyze::analyze(&typed, &bounds).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (1, limits.max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if accepts(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        accepts(low).unwrap();
+        assert_eq!(
+            accepts(low - 1).unwrap_err()[0].category,
+            ResultCategory::ResourceLimit
+        );
+        accepts(low).unwrap();
+        eprintln!("child343 exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+fn child343_life_transport_is_not_silently_admitted() {
+    use zil_ir::FunctionLifeContract;
+    let src = source(
+        "fn apply<F:Fn(i32)->i32>(f:F,x:i32)->i32 {return f(x)} fn main()->i32 {let f=(x:i32)->i32=>x+1;return apply(f,7)}",
+    );
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let relation = FunctionLifeContract {
+        binder_count: 0,
+        parameter_lives: vec![None],
+        result_life: None,
+    };
+    let mut header = core.clone();
+    header
+        .functions
+        .iter_mut()
+        .find(|f| !f.callable_parameters.is_empty())
+        .unwrap()
+        .callable_parameters[0]
+        .life = Some(relation.clone());
+    assert!(zil_types::check(&header, &target, &limits).is_err());
+    let mut raw = typed;
+    raw.functions
+        .iter_mut()
+        .find_map(|f| f.callable_contract.as_mut())
+        .unwrap()
+        .roles[0]
+        .life = Some(relation);
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    let mut claim = plan;
+    claim.module_fingerprint = raw.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    let (input, claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    assert!(zil_verify::verify_module(input, claim, &target, &limits).is_err());
+}
+
+#[test]
+fn child343_effect_free_suspend_interface_and_incremental_identity() {
+    use zil_ir::{CallKind, CoreProgram, ProgramModule};
+    let src =
+        source("pub fn worker(x:i32)->i32 {let a=x+1;let b=a+2;let c=b+3;return c} fn main(){}");
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let worker = core.functions[0].id;
+    let original = CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![ProgramModule {
+            core,
+            imports: vec![],
+            exports: vec![worker],
+        }],
+    };
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let mut session = zil_types::FunctionSession::default();
+    let prepared = zil_types::infer_program_for_ct(&original, &limits)
+        .unwrap()
+        .into_prepared();
+    let direct = session
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert!(direct.task_interfaces.is_empty());
+    session
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert!(session.last_stats().reused_functions > 0);
+    // Raw header mutation deliberately preserves source fingerprint/body/spans:
+    // the declaration field itself must invalidate the Types work product.
+    let mut changed = original;
+    changed.modules[0].core.functions[0].call_kind = Some(CallKind::Suspend);
+    let prepared = zil_types::infer_program_for_ct(&changed, &limits)
+        .unwrap()
+        .into_prepared();
+    let suspended = session
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert_eq!(session.last_stats().reused_functions, 0);
+    assert_eq!(
+        suspended.task_interfaces[0].exports[0].worker,
+        zil_ir::FunctionId(0)
+    );
+    assert!(suspended.interfaces[0].exports.is_empty());
+    let plan = zil_analyze::analyze_program(&suspended, &limits).unwrap();
+    let verified = zil_verify::verify_shared_program_module(
+        std::sync::Arc::new(suspended.clone()),
+        std::sync::Arc::new(plan.clone()),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    assert!(verified.is_suspend(zil_ir::FunctionId(0)));
+    let mut forged = suspended;
+    forged.task_interfaces.clear();
+    forged.interfaces[0].exports = direct.interfaces[0].exports.clone();
+    assert!(zil_analyze::analyze_program(&forged, &limits).is_err());
+    assert!(
+        zil_verify::verify_shared_program_module(
+            std::sync::Arc::new(forged),
+            std::sync::Arc::new(plan),
+            &target,
+            &limits
+        )
+        .is_err()
+    );
+    let report = compile_source(
+        &source("fn worker(x:i32)->i32 contract{resume(local)} {return x+1} fn main(){}"),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn child343_native_allocation_failure_and_embedded_cleanup() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let original = include_str!("../../../tests/language-readiness/terminal/343/task-child.zil");
+    let prefix = original.split("fn main").next().unwrap();
+    let mut cases = vec![original.to_owned()];
+    for explicit in [false, true] {
+        cases.push(format!("{prefix}
+fn main()->i32 {{var t=task_start(worker,7);if !task_valid(t){{return 10}}
+let (status,value)=task_poll(&mut t);if status!=0 || value!=0{{return 11}}
+{} return 0}}",if explicit{"task_request_cancel(&mut t);if !task_poll_close(&mut t){return 12} task_finish_destroy(give t);"}else{""}));
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil343-child-fault-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let object = dir.join("observer.o");
+            let compiled = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../tests/language-readiness/terminal/343/task-observer.c"),
+                )
+                .arg("-o")
+                .arg(&object)
+                .output()
+                .unwrap();
+            assert!(compiled.status.success(), "{compiled:?}");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&object),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            for (case, text) in cases.iter().enumerate() {
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper.clone()),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "case {case}: {}",
+                    report.to_json()
+                );
+                let cg = report.native_codegen.as_ref().unwrap();
+                assert_eq!(cg.backend, backend);
+                assert!(cg.fallback.is_none());
+                for failure in [false, true] {
+                    let mut command = Command::new(&report.artifacts["executable"]);
+                    if failure {
+                        command.env("ZIL343_TASK_ALLOC_FAIL", "1");
+                    }
+                    let actual = command.output().unwrap();
+                    assert_eq!(
+                        actual.status.code(),
+                        Some(if failure { 10 } else { 0 }),
+                        "case {case} {backend:?} {optimization:?} failure={failure}: {actual:?}"
+                    );
+                    assert_eq!(
+                        actual.stdout,
+                        if failure {
+                            b"A".as_slice()
+                        } else {
+                            b"AF".as_slice()
+                        },
+                        "only the parent owns an allocation"
+                    );
+                }
+            }
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
 }

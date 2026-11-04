@@ -18,41 +18,120 @@ fn mul(a: usize, b: usize, span: Span) -> R<usize> {
 fn digits(n: usize) -> usize {
     if n == 0 { 1 } else { n.ilog10() as usize + 1 }
 }
-// Match array_length's underscore removal/decimal parser without allocating
-// its temporary String during this layout pass. The real render is prepaid.
-fn array_value(length: &Expr) -> R<u32> {
-    let ExprKind::Literal(Literal::Integer(text)) = &length.kind else {
-        return Err(unsupported(
-            length.span,
-            "nonliteral array length needs CT type evaluation",
-        ));
-    };
-    let bad = || {
-        unsupported(
-            length.span,
-            "array length must be a bounded integer constant",
-        )
-    };
-    let mut bytes = text.bytes().filter(|byte| *byte != b'_').peekable();
-    if bytes.peek() == Some(&b'+') {
+// Parse the scalar spelling without allocating the renderer's underscore
+// removal buffer. This pass only measures identity; const validation remains
+// with generic_const and the verified CT path.
+fn integer_value(text: &str, span: Span) -> R<(u128, Option<&str>)> {
+    let (body, suffix) = ["u16", "u8", "i32", "i64", "u64", "usize"]
+        .into_iter()
+        .find_map(|suffix| text.strip_suffix(suffix).map(|body| (body, Some(suffix))))
+        .unwrap_or((text, None));
+    let mut bytes = body.bytes().filter(|b| *b != b'_').peekable();
+    let mut radix = 10u128;
+    let mut count = 0usize;
+    if bytes.peek() == Some(&b'0') {
+        bytes.next();
+        count = 1;
+        if let Some(prefix @ (b'x' | b'b' | b'o')) = bytes.peek().copied() {
+            bytes.next();
+            radix = match prefix {
+                b'x' => 16,
+                b'b' => 2,
+                _ => 8,
+            };
+            count = 0;
+        }
+    }
+    // from_str_radix accepts a leading plus in the remaining digit sequence.
+    if count == 0 && bytes.peek() == Some(&b'+') {
         bytes.next();
     }
-    let mut count = 0usize;
-    let mut value = 0u32;
+    let mut value = 0u128;
     for byte in bytes {
-        if !byte.is_ascii_digit() {
-            return Err(bad());
+        let digit = match byte {
+            b'0'..=b'9' => u128::from(byte - b'0'),
+            b'a'..=b'f' => u128::from(byte - b'a' + 10),
+            b'A'..=b'F' => u128::from(byte - b'A' + 10),
+            _ => {
+                return Err(Diagnostic::error(
+                    Phase::Expand,
+                    "E-GENERIC-ARGUMENT",
+                    Some(span),
+                    "invalid const integer",
+                ));
+            }
+        };
+        if digit >= radix {
+            return Err(Diagnostic::error(
+                Phase::Expand,
+                "E-GENERIC-ARGUMENT",
+                Some(span),
+                "invalid const integer",
+            ));
         }
         value = value
-            .checked_mul(10)
-            .and_then(|n| n.checked_add(u32::from(byte - b'0')))
-            .ok_or_else(bad)?;
+            .checked_mul(radix)
+            .and_then(|n| n.checked_add(digit))
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    Phase::Expand,
+                    "E-GENERIC-ARGUMENT",
+                    Some(span),
+                    "invalid const integer",
+                )
+            })?;
         count += 1;
     }
     if count == 0 {
-        return Err(bad());
+        return Err(Diagnostic::error(
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+            Some(span),
+            "invalid const integer",
+        ));
     }
-    Ok(value)
+    Ok((value, suffix))
+}
+fn scalar_shape(expression: &Expr, typed: bool, budget: &mut Budget<'_>, depth: usize) -> R<Shape> {
+    let span = expression.span;
+    match &expression.kind {
+        ExprKind::Literal(Literal::Integer(text)) => {
+            let work = mul(text.len(), 4, span)?;
+            budget.identity_work(work, span)?;
+            let (value, domain) = integer_value(text, span)?;
+            let decimal = if value == 0 {
+                1
+            } else {
+                value.ilog10() as usize + 1
+            };
+            let bytes = if typed {
+                add(
+                    decimal,
+                    add(domain.unwrap_or("integer").len(), 1, span)?,
+                    span,
+                )?
+            } else {
+                decimal
+            };
+            Ok(Shape { bytes, work })
+        }
+        ExprKind::Literal(Literal::Bool(value)) if typed => Ok(Shape {
+            bytes: if *value { 9 } else { 10 },
+            work: 0,
+        }),
+        ExprKind::Name(name) => Ok(Shape {
+            bytes: add(name.len(), add(digits(name.len()), 8, span)?, span)?,
+            work: 0,
+        }),
+        ExprKind::Group(inner) => {
+            budget.identity_node(depth, span)?;
+            scalar_shape(inner, typed, budget, depth + 1)
+        }
+        _ => Err(unsupported(
+            span,
+            "const expression requires verified CT evaluation",
+        )),
+    }
 }
 #[derive(Default)]
 struct Shape {
@@ -123,10 +202,13 @@ fn shape(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<Shape> {
                 name = add(name, part.len(), ty.span)?;
             }
             for arg in args {
-                let GenericArg::Type(child) = arg else {
-                    return Err(unsupported(ty.span, "const generic argument"));
+                let child = match arg {
+                    GenericArg::Type(child) => shape(child, budget, depth + 1)?,
+                    GenericArg::Const(expression) => {
+                        scalar_shape(expression, true, budget, depth + 1)?.finish(1, 0, ty.span)?
+                    }
                 };
-                result.child(shape(child, budget, depth + 1)?, ty.span)?;
+                result.child(child, ty.span)?;
             }
             (
                 add(
@@ -171,14 +253,15 @@ fn shape(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<Shape> {
         TypeKind::Array { element, length } => {
             result.child(shape(element, budget, depth + 1)?, ty.span)?;
             if let Some(length) = length {
-                if let ExprKind::Literal(Literal::Integer(text)) = &length.kind {
-                    budget.identity_work(mul(text.len(), 4, ty.span)?, ty.span)?;
-                    result.work = add(result.work, mul(text.len(), 4, ty.span)?, ty.span)?;
-                }
-                (add(3, digits(array_value(length)? as usize), ty.span)?, 1)
+                let scalar = scalar_shape(length, false, budget, depth + 1)?;
+                result.work = add(result.work, scalar.work, ty.span)?;
+                (add(3, scalar.bytes, ty.span)?, 1)
             } else {
                 (3, 1)
             }
+        }
+        TypeKind::MetaEval(expression) => {
+            return scalar_shape(expression, true, budget, depth + 1)?.finish(1, 0, ty.span);
         }
         TypeKind::Optional(inner) => {
             result.child(shape(inner, budget, depth + 1)?, ty.span)?;
@@ -233,6 +316,58 @@ pub(super) fn prepay(ty: &TypeRef, budget: &mut Budget<'_>) -> R<()> {
 mod tests {
     use super::*;
     use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
+    #[test]
+    fn scalar_keys_composed_with_anonymous_members_are_prepaid() {
+        for source in [
+            "type Key=Phantom<18446744073709551615u64, true, bool|i32>|[i32;0x10];",
+            "type Key=Phantom<0b1_0u16, false>|[bool|i32;N];",
+        ] {
+            let input = SourceUnit::new(FileId(0), ModuleId(0), "keys.zil", source);
+            let syntax = zil_syntax::parse(&input).into_result().unwrap();
+            let ItemKind::TypeAlias(alias) = &syntax.items[0].kind else {
+                unreachable!()
+            };
+            let ty = alias.value.as_ref().unwrap();
+            let limits = Limits::default();
+            let mut sizing = Budget::new(&limits);
+            sizing.ty(ty).unwrap();
+            let layout = shape(ty, &mut sizing, 0).unwrap();
+            let rendered = render_type_key(ty).unwrap();
+            assert_eq!(layout.bytes, rendered.len(), "{source}");
+            let mut first = Budget::new(&limits);
+            first.ty(ty).unwrap();
+            assert_eq!(type_key_bounded(ty, &mut first).unwrap(), rendered);
+            let exact = limits.max_analysis_steps - first.remaining_limits().max_analysis_steps;
+            for (amount, good) in [(exact, true), (exact - 1, false), (exact, true)] {
+                let limits = Limits {
+                    max_analysis_steps: amount,
+                    ..limits.clone()
+                };
+                let mut budget = Budget::new(&limits);
+                budget.ty(ty).unwrap();
+                let result = type_key_bounded(ty, &mut budget);
+                assert_eq!(result.is_ok(), good, "{source}");
+                if let Err(error) = result {
+                    assert_eq!(error.category, ResultCategory::ResourceLimit);
+                }
+            }
+        }
+        // Internal normalized const carriers use the same full typed key.
+        let span = Span::new(FileId(0), 0, 1);
+        let expression = Expr {
+            span,
+            kind: ExprKind::Literal(Literal::Integer("0xffu64".into())),
+        };
+        let ty = TypeRef {
+            span,
+            kind: TypeKind::MetaEval(Box::new(expression)),
+        };
+        let limits = Limits::default();
+        assert_eq!(
+            shape(&ty, &mut Budget::new(&limits), 0).unwrap().bytes,
+            render_type_key(&ty).unwrap().len()
+        );
+    }
     #[test]
     fn nested_complete_key_layout_and_exact_work_boundary() {
         let input = SourceUnit::new(

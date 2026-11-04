@@ -130,10 +130,6 @@ fn private_identity_scope_and_ordinary_capability_rejections_survive() {
             "#for(n in [1]){struct i32{x:bool}}fn main()->i32=>0",
         ),
         (
-            "const-generic-remains-closed",
-            "#for(n in [1]){type T=i32;fn value<T,#N:i32>(x:T)->T=>x}fn main()->i32=>0",
-        ),
-        (
             "generated-layout-not-configready",
             "fn tag()->i32{let p=Model{x:0};return p.x}#for(n in [1]){pub struct Model{x:i32}}#if(tag()==0){fn yes()->i32=>0}fn main()->i32=>0",
         ),
@@ -175,6 +171,17 @@ fn private_identity_scope_and_ordinary_capability_rejections_survive() {
         assert!(!report.artifacts.contains_key("executable"));
     }
     assert!(accepted.is_empty(), "unexpectedly accepted {accepted:?}");
+    let report = check(
+        "const-generic-definition",
+        "#for(n in [1]){type T=i32;fn value<T,#N:i32>(x:T)->T=>x}fn main()->i32=>0",
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[test]

@@ -348,3 +348,52 @@ pub fn instructions(flag: bool) -> Vec<InstructionKind> {
         InstructionKind::Unsupported("unsupported-值".into()),
     ]
 }
+
+// Current additions are separate so frozen V31 anchor inputs remain unchanged.
+pub fn terminal_instructions(flag: bool) -> Vec<InstructionKind> {
+    vec![
+        InstructionKind::MakeOwnedTuple {
+            fields: if flag {
+                vec![ValueId(5801), ValueId(5802)]
+            } else {
+                vec![]
+            },
+        },
+        InstructionKind::UnpackTuple {
+            local: LocalId(5803),
+            fields: vec![LocalId(5804), LocalId(5805)],
+        },
+        InstructionKind::DropTuple {
+            local: LocalId(5806),
+        },
+        InstructionKind::BorrowPlaceLocal {
+            local: LocalId(5809),
+            path: vec![PlaceProjection::Field(19), PlaceProjection::ErrorArm(flag)],
+            mutable: flag,
+        },
+        InstructionKind::PlaceTagLocal {
+            local: LocalId(5810),
+            path: vec![PlaceProjection::ErrorArm(!flag), PlaceProjection::Field(23)],
+        },
+        InstructionKind::TakeTupleField {
+            local: LocalId(5807),
+            path: vec![
+                PlaceProjection::Field(2),
+                PlaceProjection::Variant(VariantProjection {
+                    variant: 3,
+                    index: 7,
+                }),
+            ],
+        },
+        InstructionKind::TakeVariantField {
+            local: LocalId(5808),
+            path: vec![
+                PlaceProjection::Variant(VariantProjection {
+                    variant: 11,
+                    index: 13,
+                }),
+                PlaceProjection::Field(17),
+            ],
+        },
+    ]
+}

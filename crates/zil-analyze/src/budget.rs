@@ -16,6 +16,7 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
 
 pub(super) struct Budget {
     remaining: usize,
+    pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
     pub(super) helper_edges: usize,
@@ -26,6 +27,7 @@ pub(super) struct Budget {
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
     pub(super) sum_functions: Vec<bool>,
+    pub(super) addressed_sums: bool,
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     pub(super) owned_callback_window_functions: Vec<bool>,
@@ -34,6 +36,11 @@ pub(super) struct Budget {
     pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
+    pub(super) borrowed_function_pointers: bool,
+    pub(super) tasks: bool,
+    pub(super) invocation_callbacks: bool,
+    pub(super) head_descriptions: bool,
+    pub(super) registrations: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -44,6 +51,7 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
             helper_edges: limits.max_analysis_steps,
@@ -53,6 +61,7 @@ impl Budget {
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
+            addressed_sums: false,
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
             owned_callback_window_functions: Vec::new(),
@@ -61,6 +70,11 @@ impl Budget {
             forward_closures: BTreeSet::new(),
             scoped_foreign: false,
             scoped_threads: false,
+            borrowed_function_pointers: false,
+            tasks: false,
+            invocation_callbacks: false,
+            head_descriptions: false,
+            registrations: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -163,6 +177,17 @@ impl Budget {
                 self.type_work(error, copy_check, context)?;
                 self.type_work(result, copy_check, context)?;
             }
+            Type::BorrowedFunctionPointer {
+                life,
+                parameters,
+                result,
+            } => {
+                self.spend(super::borrowed_fp::work(life), context)?;
+                for parameter in parameters {
+                    self.type_work(parameter, copy_check, context)?;
+                }
+                self.type_work(result, copy_check, context)?;
+            }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {
@@ -173,7 +198,15 @@ impl Budget {
             Type::Named(name) | Type::Unsupported(name) => {
                 self.spend(name.len(), context)?;
             }
+            Type::Registration { environment } => {
+                self.registrations = true;
+                self.type_work(environment, copy_check, context)?;
+            }
+            Type::TaskI32 => {
+                self.tasks = true;
+            }
             Type::ByteBuffer
+            | Type::SyncCell(_)
             | Type::Unit
             | Type::Bool
             | Type::U8
@@ -221,6 +254,7 @@ fn scalar(ty: &Type, span: Span) -> CompileResult<()> {
 struct SumContext {
     blocked: bool,
     in_enum: bool,
+    in_tuple: bool,
     in_product: bool,
     in_error: bool,
     error_products: u8,
@@ -292,11 +326,13 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
             )])
         }
     } else if crate::dynamic_store::is_carrier(ty)
+        || ty.is_shared_sync_cell_address()
+        || ty.is_exclusive_task_head_address()
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-        || ty.is_shared_resource_head_address()
+        || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer
+            if **inner == Type::ByteBuffer || **inner == Type::TaskI32 || matches!(inner.as_ref(), Type::Registration { .. })
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
     {
         Ok(())
@@ -312,6 +348,14 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::Address { inner, .. } = ty
+        && matches!(
+            inner.as_ref(),
+            Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
+        return super::resources::sums::admit(module, inner, budget).map(|_| false);
+    }
     if budget.sum_type(ty)? {
         return super::resources::sums::admit(module, ty, budget);
     }
@@ -510,6 +554,10 @@ pub(super) fn preflight(
         let root = ty as *const Type as usize;
         // The old Store protocol already admitted Unit!ordinary Product with
         // no Store/Sum child; retain that exact profile and fee path.
+        let sum_address_root = matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}))
+            && store_element.is_none()
+            && capture_owner.is_none()
+            && !resource_head;
         let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
             if **error == Type::Unit || **result == Type::Unit);
         let mut anonymous = Vec::new();
@@ -542,6 +590,7 @@ pub(super) fn preflight(
             let mut child = context;
             match ty {
                 Type::Enum { .. } => child.in_enum = true,
+                Type::Tuple(_) => child.in_tuple = true,
                 Type::Package { .. } => {
                     child.in_product = true;
                     if context.in_error {
@@ -554,6 +603,7 @@ pub(super) fn preflight(
                 }
                 Type::Managed(_) => {
                     let extension = context.in_enum
+                        || context.in_tuple
                         || context.product_sum
                         || (context.error_products >= 2
                             && (!legacy_product_union
@@ -576,12 +626,16 @@ pub(super) fn preflight(
                         ..SumContext::default()
                     };
                 }
+                Type::Address { .. } if depth == 0 && sum_address_root => {
+                    child = SumContext::default();
+                }
                 Type::Array { .. }
                 | Type::OwnedStore { .. }
                 | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Opaque { .. }
                 | Type::FunctionPointer { .. }
+                | Type::BorrowedFunctionPointer { .. }
                 | Type::ForeignCallback { .. } => {
                     child = SumContext {
                         blocked: true,
@@ -694,6 +748,10 @@ pub(super) fn preflight(
                         }
                     }
                 }
+                Type::Registration { environment: inner } => {
+                    budget.registrations = true;
+                    pending.push((inner, depth + 1, store_element, None, resource_head, child));
+                }
                 Type::Managed(inner) => pending.push((
                     inner,
                     depth + 1,
@@ -706,6 +764,22 @@ pub(super) fn preflight(
                 | Type::Desc(inner)
                 | Type::Opaque { hidden: inner, .. } => {
                     pending.push((inner, depth + 1, store_element, None, resource_head, child))
+                }
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    budget.borrowed_function_pointers = true;
+                    budget.input(
+                        super::borrowed_fp::work(life),
+                        "borrowed function pointer relation",
+                    )?;
+                    super::borrowed_fp::relation(parameters, result, life)?;
+                    pending.push((result, depth + 1, store_element, None, false, child));
+                    for parameter in parameters {
+                        pending.push((parameter, depth + 1, store_element, None, false, child));
+                    }
                 }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {
@@ -776,6 +850,24 @@ pub(super) fn preflight(
             closure.parameters.len().saturating_add(1),
             "closure signature preflight",
         )?;
+        let invocation = closure.lending_captures.is_empty()
+            && crate::borrowed_fp::invocation(&closure.parameters, &closure.result);
+        if invocation {
+            budget.type_work(
+                &closure.result,
+                true,
+                "finite invocation result eligibility",
+            )?;
+            if !matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
+            {
+                return Err(bad(
+                    "invocation callback result requires a finite Copy or slice pointee",
+                ));
+            }
+            budget.borrowed_function_pointers = true;
+            budget.invocation_callbacks = true;
+        }
+
         for ty in &closure.captures {
             budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
@@ -838,12 +930,15 @@ pub(super) fn preflight(
             budget.owned_callbacks.insert(closure.id);
         }
         for ty in &closure.parameters {
+            if ty.is_shared_sync_cell_address() {
+                continue;
+            }
             if owned_signature {
                 super::owned_callbacks::data(module, ty, budget)?;
                 continue;
             }
             if let Type::Address { inner, .. } = ty
-                && closure.result.is_copy_value()
+                && (closure.result.is_copy_value() || invocation)
             {
                 // A slice is unsized only at this pointee position; its
                 // elements remain independently restricted to finite Copy.
@@ -858,13 +953,14 @@ pub(super) fn preflight(
         }
         if owned_signature {
             super::owned_callbacks::data(module, &closure.result, budget)?;
-        } else if matches!(&closure.result, Type::Address { inner, mutable: false }
+        } else if invocation
+            || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
-            && matches!(
-                closure.kind,
-                zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
-            )
-            && !closure.lending_captures.is_empty()
+                && matches!(
+                    closure.kind,
+                    zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+                )
+                && !closure.lending_captures.is_empty())
         {
             legacy_value(&closure.result, Span::default(), module)?;
         } else {
@@ -911,6 +1007,9 @@ pub(super) fn preflight(
                 "callable return contract metadata",
             )?;
         }
+        if function.call_kind == zil_ir::CallKind::Suspend {
+            budget.tasks = true;
+        }
         if let Some(contract) = &function.callable_contract {
             count(0, contract.roles.len(), limits.max_locals, "callable role")?;
             budget.input(
@@ -918,6 +1017,14 @@ pub(super) fn preflight(
                 "callable role table",
             )?;
             for role in &contract.roles {
+                if let Some(life) = &role.life {
+                    budget.input(
+                        crate::borrowed_fp::work(life),
+                        "higher-rank callable metadata",
+                    )?;
+                    budget.borrowed_function_pointers = true;
+                    budget.invocation_callbacks = true;
+                }
                 budget.input(
                     role.hold
                         .len()
@@ -1047,6 +1154,94 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::RegistrationStart {
+                        register,
+                        close,
+                        callback,
+                        ..
+                    } => {
+                        budget.registrations = true;
+                        budget.scoped_foreign = true;
+                        budget.input(4, "registration actual operands")?;
+                        if register.0 as usize >= module.functions.len()
+                            || close.0 as usize >= module.functions.len()
+                            || callback.0 as usize >= function.values.len()
+                        {
+                            return Err(bad("registration operand outside actual tables"));
+                        }
+                        budget.lookup(
+                            budget.scoped_functions.len(),
+                            "registration unsafe function inventory",
+                        )?;
+                        budget.scoped_functions.insert(function.id);
+                    }
+                    InstructionKind::RegistrationValid { registration }
+                    | InstructionKind::RegistrationClose { registration } => {
+                        budget.registrations = true;
+                        budget.input(1, "registration actual operand")?;
+                        if registration.0 as usize >= function.values.len() {
+                            return Err(bad("registration operand outside actual values"));
+                        }
+                    }
+                    InstructionKind::SuspendCall {
+                        function: child,
+                        arguments,
+                    } => {
+                        count(
+                            0,
+                            arguments.len(),
+                            limits.max_values,
+                            "Suspend child arguments",
+                        )?;
+                        budget.tasks = true;
+                        budget.input(
+                            arguments.len().saturating_add(2),
+                            "Suspend child actual operands",
+                        )?;
+                        if child.0 as usize >= module.functions.len()
+                            || arguments
+                                .iter()
+                                .any(|v| v.0 as usize >= function.values.len())
+                        {
+                            return Err(bad("Suspend child operand outside actual tables"));
+                        }
+                    }
+                    InstructionKind::TaskStart { .. }
+                    | InstructionKind::TaskYield
+                    | InstructionKind::TaskValid { .. }
+                    | InstructionKind::TaskPoll { .. }
+                    | InstructionKind::TaskRequestCancel { .. }
+                    | InstructionKind::TaskPollClose { .. }
+                    | InstructionKind::TaskFinishDestroy { .. } => {
+                        budget.tasks = true;
+                        budget.input(3, "task ABI operands")?;
+                        for v in crate::resources::uses(&instruction.kind) {
+                            if v.0 as usize >= function.values.len() {
+                                return Err(bad("task operand is outside actual table"));
+                            }
+                        }
+                    }
+                    InstructionKind::WithSyncCell { initial, body, .. } => {
+                        budget.input(3, "sealed cell scope operands")?;
+                        if initial.0 as usize >= function.values.len()
+                            || body.0 as usize >= function.values.len()
+                        {
+                            return Err(bad("sealed cell scope operand outside actual tables"));
+                        }
+                        budget.scoped_threads = true;
+                    }
+                    InstructionKind::SyncI32 { address, value, .. } => {
+                        budget.input(3, "sealed cell operation operands")?;
+                        if address.0 as usize >= function.values.len()
+                            || value.is_some_and(|value| value.0 as usize >= function.values.len())
+                        {
+                            return Err(bad("sealed cell operation operand outside actual tables"));
+                        }
+                        budget.scoped_threads = true;
+                    }
+                    InstructionKind::DescribeAddress { .. } => {
+                        budget.head_descriptions = true;
+                    }
                     InstructionKind::WithScopedThread {
                         worker,
                         argument,
@@ -1085,8 +1280,53 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                         budget.scoped_foreign = true;
                     }
+                    InstructionKind::TakeTupleField { local, path }
+                    | InstructionKind::TakeVariantField { local, path }
+                    | InstructionKind::BorrowPlaceLocal { local, path, .. }
+                    | InstructionKind::PlaceTagLocal { local, path } => {
+                        sum_function = true;
+                        budget.addressed_sums = true;
+                        if local.0 as usize >= function.locals.len() {
+                            return Err(bad("mixed local place outside table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "mixed local path")?;
+                        budget.input(
+                            path.len().saturating_mul(3).saturating_add(1),
+                            "mixed local path preflight",
+                        )?;
+                        if path.is_empty()
+                            && !matches!(instruction.kind, InstructionKind::PlaceTagLocal { .. })
+                        {
+                            return Err(bad("mixed local path must be nonempty"));
+                        }
+                    }
+                    InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                        budget.addressed_sums = true;
+                        if local.0 as usize >= function.locals.len() {
+                            return Err(bad("field place local outside table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "field place path")?;
+                        budget.input(path.len().saturating_add(1), "field place preflight")?;
+                    }
+                    InstructionKind::VariantTagAddress { address, path }
+                    | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                        sum_function = true;
+                        budget.addressed_sums = true;
+                        if address.0 as usize >= function.values.len() {
+                            return Err(bad("address Sum base outside value table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "address Sum path")?;
+                        budget.input(
+                            path.len().saturating_mul(2).saturating_add(1),
+                            "address Sum path preflight",
+                        )?;
+                    }
                     InstructionKind::VariantTagLocal { local, path }
-                    | InstructionKind::ReadVariantLocal { local, path } => {
+                    | InstructionKind::ReadVariantLocal { local, path }
+                    | InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                        budget.addressed_sums |=
+                            matches!(instruction.kind, InstructionKind::BorrowVariantLocal { .. });
+
                         sum_function = true;
                         if local.0 as usize >= function.locals.len() {
                             return Err(bad("Sum local outside table"));
@@ -1097,7 +1337,8 @@ pub(super) fn preflight(
                             "Sum path preflight",
                         )?;
                     }
-                    InstructionKind::UnpackVariant { local, fields, .. } => {
+                    InstructionKind::UnpackVariant { local, fields, .. }
+                    | InstructionKind::UnpackTuple { local, fields } => {
                         sum_function = true;
                         count(0, fields.len(), limits.max_locals, "Unpack fields")?;
                         budget.input(fields.len().saturating_add(1), "Unpack target preflight")?;
@@ -1110,7 +1351,7 @@ pub(super) fn preflight(
                             return Err(bad("Unpack local outside table"));
                         }
                     }
-                    InstructionKind::DropEnum { local } => {
+                    InstructionKind::DropEnum { local } | InstructionKind::DropTuple { local } => {
                         sum_function = true;
                         if local.0 as usize >= function.locals.len() {
                             return Err(bad("DropEnum local outside table"));
@@ -1188,7 +1429,8 @@ pub(super) fn preflight(
                     | InstructionKind::MakeManaged { fields }
                     | InstructionKind::MakePackage { fields }
                     | InstructionKind::MakeOwnedArray { elements: fields }
-                    | InstructionKind::MakeVariant { fields, .. } => {
+                    | InstructionKind::MakeVariant { fields, .. }
+                    | InstructionKind::MakeOwnedTuple { fields } => {
                         budget.input(fields.len(), "aggregate operands")?;
                     }
                     InstructionKind::MakeClosure { captures, .. } => {

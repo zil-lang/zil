@@ -32,6 +32,9 @@ pub(crate) fn children(node: &CtTypeNode) -> Vec<CtTypeNodeId> {
             .collect(),
         CtTypeNode::Tuple(v) | CtTypeNode::AnonymousSum(v) => v.clone(),
         CtTypeNode::FunctionPointer { parameters, result }
+        | CtTypeNode::BorrowedFunctionPointer {
+            parameters, result, ..
+        }
         | CtTypeNode::ForeignCallback { parameters, result } => {
             parameters.iter().copied().chain([*result]).collect()
         }
@@ -81,6 +84,19 @@ pub(crate) fn remap(
         CtTypeNode::Array { element, length } => CtTypeNode::Array {
             element: map(*element)?,
             length: *length,
+        },
+        CtTypeNode::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => CtTypeNode::BorrowedFunctionPointer {
+            parameters: parameters
+                .iter()
+                .copied()
+                .map(&mut map)
+                .collect::<CompileResult<_>>()?,
+            result: map(*result)?,
+            life: life.clone(),
         },
         CtTypeNode::FunctionPointer { parameters, result } => CtTypeNode::FunctionPointer {
             parameters: parameters
@@ -141,6 +157,21 @@ impl Key<'_> {
         }
         Ok(())
     }
+    fn life(&mut self, life: &zil_ir::FunctionLifeContract) -> CompileResult<()> {
+        self.number(u64::from(life.binder_count))?;
+        self.number(life.parameter_lives.len() as u64)?;
+        for label in &life.parameter_lives {
+            self.bytes(&[u8::from(label.is_some())])?;
+            if let Some(label) = label {
+                self.number(u64::from(*label))?;
+            }
+        }
+        self.bytes(&[u8::from(life.result_life.is_some())])?;
+        if let Some(label) = life.result_life {
+            self.number(u64::from(label))?;
+        }
+        Ok(())
+    }
     fn scalar(&mut self, c: &Constant) -> CompileResult<()> {
         let (tag, bits) = match c {
             Constant::Unit => (0, 0),
@@ -198,6 +229,7 @@ fn canonical_type_key_mode(
                 CtTypeNode::Nominal { arguments, .. } => arguments.len(),
                 CtTypeNode::Tuple(v) | CtTypeNode::AnonymousSum(v) => v.len(),
                 CtTypeNode::FunctionPointer { parameters, .. }
+                | CtTypeNode::BorrowedFunctionPointer { parameters, .. }
                 | CtTypeNode::ForeignCallback { parameters, .. } => {
                     parameters.len().saturating_add(1)
                 }
@@ -218,7 +250,14 @@ fn canonical_type_key_mode(
             {
                 return Err(bad("CT type argument is not a pure scalar"));
             }
-            let edge_bytes = mul(edge_count, 64)?;
+            let life_bytes = if let CtTypeNode::BorrowedFunctionPointer { life, .. } = node {
+                let slots = life.parameter_lives.len() as u64;
+                budget.reserve_analysis_work(add(slots, 3)?)?;
+                add(mul(slots, std::mem::size_of::<Option<u32>>() as u64)?, 32)?
+            } else {
+                0
+            };
+            let edge_bytes = add(mul(edge_count, 64)?, life_bytes)?;
             budget.reserve_temporary_bytes(edge_bytes)?;
             charged = add(charged, edge_bytes)?;
             let mut ids = children(node);
@@ -319,6 +358,7 @@ fn canonical_type_key_mode(
                 CtTypeNode::ForeignCallback { .. } => 11,
                 CtTypeNode::Opaque { .. } => 12,
                 CtTypeNode::ErrorUnion { .. } => 13,
+                CtTypeNode::BorrowedFunctionPointer { .. } => 14,
                 CtTypeNode::AnonymousSum(_) => 15,
             };
             key.bytes(&[tag])?;
@@ -345,6 +385,7 @@ fn canonical_type_key_mode(
                         }
                     }
                 }
+                CtTypeNode::BorrowedFunctionPointer { life, .. } => key.life(life)?,
                 CtTypeNode::Opaque { identity } => key.symbol(identity)?,
                 CtTypeNode::Array { length, .. } => key.number(u64::from(*length))?,
                 CtTypeNode::Address { mutable, .. } => key.bytes(&[u8::from(*mutable)])?,
@@ -488,5 +529,81 @@ mod tests {
                 good
             );
         }
+    }
+    #[test]
+    fn anonymous_type_borrowed_code_keeps_complete_life_and_signature_identity() {
+        use zil_ir::FunctionLifeContract;
+        let one = FunctionLifeContract {
+            binder_count: 1,
+            parameter_lives: vec![Some(0), Some(0)],
+            result_life: Some(0),
+        };
+        let two = FunctionLifeContract {
+            binder_count: 2,
+            parameter_lives: vec![Some(0), Some(1)],
+            result_life: Some(0),
+        };
+        let input = graph(vec![
+            CtTypeNode::Primitive(CtScalarTy::I32),
+            CtTypeNode::Address {
+                mutable: true,
+                inner: CtTypeNodeId(0),
+            },
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters: vec![CtTypeNodeId(1), CtTypeNodeId(1)],
+                result: CtTypeNodeId(1),
+                life: one.clone(),
+            },
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters: vec![CtTypeNodeId(1), CtTypeNodeId(1)],
+                result: CtTypeNodeId(1),
+                life: two.clone(),
+            },
+            CtTypeNode::AnonymousSum(vec![CtTypeNodeId(3), CtTypeNodeId(2)]),
+        ]);
+        let mut initial = budget();
+        let canonical = canonicalize_anonymous_type(&input, &mut initial).unwrap();
+        let exact = initial.usage().analysis_work;
+        for (work, good) in [(exact, true), (exact - 1, false), (exact, true)] {
+            let mut declared = budget().remaining();
+            declared.max_analysis_work = work;
+            let mut meter = CtExecutionBudget::new(declared);
+            assert_eq!(
+                canonicalize_anonymous_type(&input, &mut meter).is_ok(),
+                good
+            );
+        }
+        let CtTypeNode::AnonymousSum(members) = &canonical.nodes[canonical.root.0 as usize] else {
+            unreachable!()
+        };
+        assert_eq!(members.len(), 2);
+        for member in members {
+            let CtTypeNode::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } = &canonical.nodes[member.0 as usize]
+            else {
+                panic!("borrowed code degraded")
+            };
+            assert!(life == &one || life == &two);
+            assert_eq!(parameters.len(), 2);
+            for id in parameters.iter().chain([result]) {
+                let CtTypeNode::Address { mutable, inner } = &canonical.nodes[id.0 as usize] else {
+                    panic!("signature child lost")
+                };
+                assert!(*mutable);
+                assert_eq!(
+                    canonical.nodes[inner.0 as usize],
+                    CtTypeNode::Primitive(CtScalarTy::I32)
+                );
+            }
+        }
+        let mut equal = input.clone();
+        let CtTypeNode::BorrowedFunctionPointer { life, .. } = &mut equal.nodes[3] else {
+            unreachable!()
+        };
+        *life = one;
+        assert!(canonicalize_anonymous_type(&equal, &mut budget()).is_err());
     }
 }

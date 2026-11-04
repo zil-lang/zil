@@ -29,6 +29,8 @@ pub(super) fn checked_type(
         max_depth: usize,
         budget: &mut zil_ct::CtExecutionBudget,
     ) -> CompileResult<Type> {
+        budget.reserve_analysis_work(1)?;
+        budget.reserve_temporary_bytes(64)?;
         if depth > max_depth {
             return Err(error("CT type layout dependency is too deep"));
         }
@@ -192,6 +194,34 @@ pub(super) fn checked_type(
                     budget,
                 )?),
             },
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                budget.reserve_analysis_work(
+                    (life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64),
+                )?;
+                budget.reserve_temporary_bytes(
+                    (life.parameter_lives.len() as u64).saturating_mul(8),
+                )?;
+                Type::BorrowedFunctionPointer {
+                    parameters: parameters
+                        .iter()
+                        .map(|id| node(ty, *id, snapshot, index, depth + 1, max_depth, budget))
+                        .collect::<CompileResult<Vec<_>>>()?,
+                    result: Box::new(node(
+                        ty,
+                        *result,
+                        snapshot,
+                        index,
+                        depth + 1,
+                        max_depth,
+                        budget,
+                    )?),
+                    life: life.clone(),
+                }
+            }
             CtTypeNode::FunctionPointer { parameters, result } => Type::FunctionPointer {
                 parameters: parameters
                     .iter()
@@ -250,6 +280,7 @@ pub(super) fn anonymous_sum(
     let mut work = 1u64;
     for member in &members {
         let mut pending = vec![(member, 0usize)];
+        let mut borrowed_code_scratch = 0u64;
         while let Some((ty, depth)) = pending.pop() {
             if depth > max_depth {
                 return Err(error("anonymous member identity exceeds depth"));
@@ -278,6 +309,22 @@ pub(super) fn anonymous_sum(
                 | Type::Address { inner: element, .. }
                 | Type::Managed(element)
                 | Type::Desc(element) => pending.push((element, depth + 1)),
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    let lives = (life.parameter_lives.len() as u64).saturating_add(3);
+                    budget.reserve_analysis_work(lives.saturating_add(parameters.len() as u64))?;
+                    work = work.saturating_add(lives);
+                    let scratch = (parameters.len() as u64)
+                        .saturating_add(1)
+                        .saturating_mul(16);
+                    budget.reserve_temporary_bytes(scratch)?;
+                    borrowed_code_scratch = borrowed_code_scratch.saturating_add(scratch);
+                    pending.extend(parameters.iter().map(|t| (t, depth + 1)));
+                    pending.push((result, depth + 1));
+                }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {
                     pending.extend(parameters.iter().map(|t| (t, depth + 1)));
@@ -293,6 +340,7 @@ pub(super) fn anonymous_sum(
                 _ => {}
             }
         }
+        budget.release_temporary_bytes(borrowed_code_scratch);
     }
     budget.reserve_analysis_work(work.saturating_mul(members.len().saturating_add(2) as u64))?;
     if members.len() < 2 {

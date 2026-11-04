@@ -22,6 +22,32 @@ struct Symbol {
 struct Index {
     symbols: BTreeMap<ModuleId, BTreeMap<String, Symbol>>,
     imports: BTreeMap<ModuleId, BTreeMap<String, ModuleId>>,
+    const_parameters: BTreeMap<String, Vec<bool>>,
+}
+
+fn const_slots(item: &Item, budget: &mut Budget<'_>) -> R<Vec<bool>> {
+    let parameters = match &item.kind {
+        ItemKind::Function(f) | ItemKind::Extern { function: f, .. } => f.generics.as_slice(),
+        ItemKind::Aggregate(a) => a.generics.as_slice(),
+        ItemKind::Enum(e) => e.generics.as_slice(),
+        ItemKind::Trait(t) => t.generics.as_slice(),
+        ItemKind::TypeAlias(a) => a.generics.as_slice(),
+        _ => &[],
+    };
+    if !parameters
+        .iter()
+        .any(|p| matches!(p.kind, GenericParamKind::Const(_)))
+    {
+        return Ok(vec![]);
+    }
+    let mut slots = Vec::new();
+    for parameter in parameters {
+        budget.node(parameter.span, 0)?;
+        if !matches!(parameter.kind, GenericParamKind::Lifetime) {
+            slots.push(matches!(parameter.kind, GenericParamKind::Const(_)));
+        }
+    }
+    Ok(slots)
 }
 
 /// A direct single-module API does not run project normalization. Protect any
@@ -57,7 +83,10 @@ pub(super) fn protect_alias_nominals<'a>(
         for parameter in parameters {
             budget.node(parameter.span, depth + 1)?;
             budget.text(&parameter.name, parameter.span)?;
-            if matches!(parameter.kind, GenericParamKind::Type(_)) {
+            if matches!(
+                parameter.kind,
+                GenericParamKind::Type(_) | GenericParamKind::Const(_)
+            ) {
                 names.insert(&parameter.name);
             }
         }
@@ -75,6 +104,7 @@ pub(super) fn protect_alias_nominals<'a>(
         }
     }
     let mut symbols = BTreeMap::new();
+    let mut const_parameters = BTreeMap::new();
     for item in &module.items {
         let (name, generic) = match &item.kind {
             ItemKind::Aggregate(a) => (&a.name, !a.generics.is_empty()),
@@ -100,6 +130,11 @@ pub(super) fn protect_alias_nominals<'a>(
                 )
             })?;
         };
+        let slots = const_slots(item, budget)?;
+        if !slots.is_empty() {
+            budget.text(&canonical, item.span)?;
+            const_parameters.insert(canonical.clone(), slots);
+        }
         budget.text(name, item.span)?;
         symbols.insert(
             name.clone(),
@@ -117,12 +152,14 @@ pub(super) fn protect_alias_nominals<'a>(
     let index = Index {
         symbols: BTreeMap::from([(module.id, symbols)]),
         imports: BTreeMap::from([(module.id, BTreeMap::new())]),
+        const_parameters,
     };
     // The borrowed preflight above precedes this full syntax clone. The same
     // lexical visitor as project normalization preserves local shadowing.
     let mut output = module.clone();
     let mut visitor = Visitor {
         default_nominal: None,
+        const_scope: Names::new(),
         mode: Mode::Normalize(&index),
         module: module.id,
         budget,
@@ -183,6 +220,7 @@ pub(super) fn protect_alias_binders<'a>(
     let mut output = module.clone();
     let mut visitor = Visitor {
         default_nominal: None,
+        const_scope: Names::new(),
         mode: Mode::Binders {
             bindings: BTreeMap::new(),
             occupied,
@@ -254,9 +292,13 @@ fn normalize(
             budget.text(&edge.alias, edge.span)?;
         }
     }
+    let mut origins = budget
+        .has_generic_methods()
+        .then(generics::origins::Origins::default);
     let mut index = Index {
         symbols: BTreeMap::new(),
         imports: BTreeMap::new(),
+        const_parameters: BTreeMap::new(),
     };
     let mut files = BTreeMap::<FileId, usize>::new();
     let mut functions = Functions::new();
@@ -287,6 +329,11 @@ fn normalize(
                 }
                 let canonical = format!("$module{}_{}", module.id.0, name);
                 budget.text(&canonical, item.span)?;
+                let slots = const_slots(item, &mut budget)?;
+                if !slots.is_empty() {
+                    budget.text(&canonical, item.span)?;
+                    index.const_parameters.insert(canonical.clone(), slots);
+                }
                 if function {
                     functions.insert(canonical.clone(), (module.id, name.to_owned(), true));
                 }
@@ -303,7 +350,8 @@ fn normalize(
         }
         let mut aliases = BTreeMap::new();
         for edge in edges {
-            if symbols.contains_key(&edge.alias)
+            if edge.alias == "Option"
+                || symbols.contains_key(&edge.alias)
                 || aliases.insert(edge.alias.clone(), edge.module).is_some()
             {
                 return Err(error(
@@ -324,25 +372,37 @@ fn normalize(
     for module in modules {
         let mut visitor = Visitor {
             default_nominal: None,
+            const_scope: Names::new(),
             mode: Mode::Normalize(&index),
             module: module.id,
             budget: &mut budget,
         };
-        for source_item in &module.items {
+        for (ordinal, source_item) in module.items.iter().enumerate() {
             if matches!(source_item.kind, ItemKind::Import(_)) {
                 continue;
             }
             let mut item = source_item.clone();
             visitor.item(&mut item, &Names::new(), true, 0)?;
+            if let Some(origins) = &mut origins {
+                visitor.budget.node(item.span, 0)?;
+                origins.entries.push(generics::origins::Origin::source(
+                    module.id, ordinal, item.span,
+                )?);
+            }
             combined.items.push(item);
         }
     }
     let mut has_trait_instances = false;
     for item in &combined.items {
         if let ItemKind::Trait(t) = &item.kind {
+            let (defaults, associated, methods) =
+                generics::trait_defaults::features_with_methods(t, &mut budget)?;
             has_trait_instances |=
-                generics::trait_defaults::present(t, &mut budget)? || !t.generics.is_empty();
+                defaults || associated || methods || !t.generics.is_empty() || !t.bounds.is_empty();
         }
+        has_trait_instances |= matches!(&item.kind, ItemKind::Impl(i)
+            if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty()
+                || !matches!(&i.target.kind, TypeKind::Named { path, args } if path.len()==1 && args.is_empty())));
     }
     has_trait_instances |= budget.has_enum_profiles() || budget.has_primitive_binders();
     let instance_limits = if has_trait_instances {
@@ -350,6 +410,7 @@ fn normalize(
     } else {
         limits.clone()
     };
+    products.origins = origins;
     let specialized = match generics::specialize_products(&combined, &instance_limits, products)
         .map_err(|mut e| e.remove(0))?
     {
@@ -376,15 +437,40 @@ fn normalize(
         })
         .collect::<Vec<_>>();
     let mut has_project_trait_impl = false;
-    for item in &specialized.items {
+    let mut positions = Vec::new();
+    for (ordinal, item) in specialized.items.iter().enumerate() {
         budget.item(item)?;
-        let position = *files.get(&item.span.file).ok_or_else(|| {
-            error(
-                "E-MODULE-ID",
-                item.span,
-                "instantiated declaration lost its definition source",
-            )
-        })?;
+        let position = if let Some(origins) = &products.origins {
+            budget.node(item.span, 0)?;
+            let owner = origins.get(ordinal, item.span)?.declaration.module;
+            let mut position = None;
+            for (index, module) in modules.iter().enumerate() {
+                budget.node(item.span, 0)?;
+                if module.id == owner {
+                    position = Some(index);
+                    break;
+                }
+            }
+            position.ok_or_else(|| {
+                error(
+                    "E-MODULE-ID",
+                    item.span,
+                    "explicit declaration owner absent",
+                )
+            })?
+        } else {
+            *files.get(&item.span.file).ok_or_else(|| {
+                error(
+                    "E-MODULE-ID",
+                    item.span,
+                    "instantiated declaration lost its definition source",
+                )
+            })?
+        };
+        if products.origins.is_some() {
+            budget.node(item.span, 0)?;
+            positions.push(position);
+        }
         has_project_trait_impl |= project_traits::is_external_impl(item, modules[position].id);
         if let ItemKind::Function(f) = &item.kind {
             // An instance stays in its template's defining module. Publicness
@@ -404,8 +490,12 @@ fn normalize(
     // All source identities, budget visits and project-method checks above
     // retain their original order. No fallible check depends on the copies;
     // transfer each declaration only after those checks have succeeded.
-    for item in specialized.items {
-        let position = files[&item.span.file];
+    for (ordinal, item) in specialized.items.into_iter().enumerate() {
+        let position = if products.origins.is_some() {
+            positions[ordinal]
+        } else {
+            files[&item.span.file]
+        };
         output[position].0.items.push(item);
     }
     for (module, edges) in &mut output {
@@ -432,6 +522,7 @@ fn normalize(
         }
         let mut visitor = Visitor {
             default_nominal: None,
+            const_scope: Names::new(),
             mode: Mode::Restore {
                 functions: &functions,
                 edges,
@@ -464,6 +555,7 @@ enum Mode<'a> {
 }
 struct Visitor<'a, 'b, 'l> {
     default_nominal: Option<String>,
+    const_scope: Names,
     mode: Mode<'a>,
     module: ModuleId,
     budget: &'b mut Budget<'l>,
@@ -485,7 +577,9 @@ impl Visitor<'_, '_, '_> {
         type_position: bool,
     ) -> R<Option<String>> {
         if let Mode::Binders { bindings, .. } = &self.mode {
-            let [name] = path else { return Ok(None) };
+            let Some(name) = path.first() else {
+                return Ok(None);
+            };
             let name = name.as_ref();
             if type_position
                 && types.contains(name)
@@ -502,7 +596,9 @@ impl Visitor<'_, '_, '_> {
         let Some(first) = path.first().map(AsRef::as_ref) else {
             return Ok(None);
         };
-        if types.contains(first) || (!type_position && values.contains(first)) {
+        if types.contains(first)
+            || (!type_position && (values.contains(first) || self.const_scope.contains(first)))
+        {
             return Ok(None);
         }
         let (owner, name, external) = match path {
@@ -596,10 +692,21 @@ impl Visitor<'_, '_, '_> {
         match &mut ty.kind {
             TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
                 if let Some(name) = self.symbol(path, types, &Names::new(), ty.span, true)? {
-                    *path = vec![name];
+                    if matches!(self.mode, Mode::Binders { .. }) {
+                        path[0] = name;
+                    } else {
+                        *path = vec![name];
+                    }
                 }
-                for arg in args {
-                    self.arg(arg, types, &Names::new(), depth + 1)?;
+                for (position, arg) in args.iter_mut().enumerate() {
+                    self.const_arg(
+                        arg,
+                        path.first().map(String::as_str),
+                        position,
+                        types,
+                        &Names::new(),
+                        depth + 1,
+                    )?;
                 }
             }
             TypeKind::Reference { inner, .. }
@@ -641,6 +748,50 @@ impl Visitor<'_, '_, '_> {
             GenericArg::Const(e) => self.expr(e, types, values, depth),
         }
     }
+    fn const_arg(
+        &mut self,
+        argument: &mut GenericArg,
+        target: Option<&str>,
+        position: usize,
+        types: &Names,
+        values: &Names,
+        depth: usize,
+    ) -> R<()> {
+        let is_const = if let (Mode::Normalize(index), Some(target)) = (&self.mode, target) {
+            if index.const_parameters.is_empty() {
+                false
+            } else {
+                let span = match argument {
+                    GenericArg::Type(t) => t.span,
+                    GenericArg::Const(e) => e.span,
+                };
+                self.budget.node(span, depth)?;
+                self.budget.text(target, span)?;
+                index
+                    .const_parameters
+                    .get(target)
+                    .and_then(|slots| slots.get(position))
+                    .copied()
+                    .unwrap_or(false)
+            }
+        } else {
+            false
+        };
+        if is_const
+            && let GenericArg::Type(ty) = argument
+            && let TypeKind::Named { path, args } = &ty.kind
+            && let [name] = path.as_slice()
+            && args.is_empty()
+        {
+            self.budget.node(ty.span, depth)?;
+            self.budget.text(name, ty.span)?;
+            *argument = GenericArg::Const(Expr {
+                kind: ExprKind::Name(name.clone()),
+                span: ty.span,
+            });
+        }
+        self.arg(argument, types, values, depth)
+    }
     fn item(&mut self, item: &mut Item, outer: &Names, top: bool, depth: usize) -> R<()> {
         self.budget.node(item.span, depth)?;
         let mut types = self.names(outer, item.span)?;
@@ -653,11 +804,21 @@ impl Visitor<'_, '_, '_> {
             ItemKind::Trait(t) => t.generics.as_slice(),
             _ => &[],
         };
+        for name in &self.const_scope {
+            self.budget.node(item.span, depth)?;
+            self.budget.text(name, item.span)?;
+        }
+        let mut const_scope = self.const_scope.clone();
         for p in params {
             if matches!(p.kind, GenericParamKind::Type(_)) {
                 types.insert(p.name.clone());
+            } else if matches!(p.kind, GenericParamKind::Const(_)) {
+                self.budget.node(p.span, depth)?;
+                self.budget.text(&p.name, p.span)?;
+                const_scope.insert(p.name.clone());
             }
         }
+        let previous_consts = std::mem::replace(&mut self.const_scope, const_scope);
         let previous = if let Mode::Binders {
             bindings,
             occupied,
@@ -702,10 +863,17 @@ impl Visitor<'_, '_, '_> {
                 self.declaration_name(&mut f.name, top, item.span)?;
                 let mut values = Names::new();
                 for parameter in &mut f.generics {
-                    if let GenericParamKind::Type(bounds) = &mut parameter.kind {
-                        for bound in bounds {
-                            self.ty(bound, &types, depth + 1)?;
+                    match &mut parameter.kind {
+                        GenericParamKind::Type(bounds) => {
+                            for bound in bounds {
+                                self.ty(bound, &types, depth + 1)?;
+                            }
                         }
+                        GenericParamKind::Const(ty) => {
+                            self.ty(ty, &types, depth + 1)?;
+                            values.insert(parameter.name.clone());
+                        }
+                        GenericParamKind::Lifetime => {}
                     }
                 }
                 // A where bound has the same lexical/module identity as an
@@ -812,6 +980,7 @@ impl Visitor<'_, '_, '_> {
                 ItemKind::Trait(t) => &mut t.generics,
                 _ => {
                     *bindings = previous;
+                    self.const_scope = previous_consts;
                     return Ok(());
                 }
             };
@@ -824,6 +993,7 @@ impl Visitor<'_, '_, '_> {
             }
             *bindings = previous;
         }
+        self.const_scope = previous_consts;
         Ok(())
     }
     fn pattern(
@@ -1088,8 +1258,13 @@ impl Visitor<'_, '_, '_> {
             }
             ExprKind::TypeApply { callee, arguments } => {
                 self.expr(callee, types, values, depth + 1)?;
-                for arg in arguments {
-                    self.arg(arg, types, values, depth + 1)?;
+                for (position, arg) in arguments.iter_mut().enumerate() {
+                    let target = if let ExprKind::Name(name) = &callee.kind {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    };
+                    self.const_arg(arg, target, position, types, values, depth + 1)?;
                 }
             }
             ExprKind::Call { callee, arguments } => {

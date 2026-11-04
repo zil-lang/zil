@@ -4,6 +4,16 @@ use super::*;
 use crate::{model as m, preflight::Schedule};
 use std::collections::BTreeMap;
 
+fn atomic_ordering(ordering: m::AtomicOrdering) -> c_int {
+    match ordering {
+        m::AtomicOrdering::Relaxed => 2,
+        m::AtomicOrdering::Acquire => 4,
+        m::AtomicOrdering::Release => 5,
+        m::AtomicOrdering::AcqRel => 6,
+        m::AtomicOrdering::SeqCst => 7,
+    }
+}
+
 unsafe extern "C" {
     fn LLVMModuleCreateWithNameInContext(name: *const c_char, context: Handle) -> Handle;
     fn LLVMSetTarget(module: Handle, triple: *const c_char);
@@ -60,6 +70,16 @@ unsafe extern "C" {
     fn LLVMBuildAlloca(builder: Handle, ty: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildLoad2(builder: Handle, ty: Handle, pointer: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildStore(builder: Handle, value: Handle, pointer: Handle) -> Handle;
+    fn LLVMSetOrdering(instruction: Handle, ordering: c_int);
+    fn LLVMBuildAtomicRMW(
+        builder: Handle,
+        operation: c_int,
+        pointer: Handle,
+        value: Handle,
+        ordering: c_int,
+        single_thread: c_int,
+    ) -> Handle;
+
     fn LLVMBuildFAdd(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildFSub(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildFMul(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
@@ -351,6 +371,56 @@ impl<'a> Construction<'a> {
                     if *align != 0 {
                         LLVMSetAlignment(inst, *align);
                     }
+                    inst
+                }
+                m::Op::AtomicLoad {
+                    ty,
+                    ptr,
+                    align,
+                    ordering,
+                } => {
+                    let t = self.ty(ty)?;
+                    let p = self.value(ptr, &m::Ty::Ptr)?;
+                    let inst = LLVMBuildLoad2(b, t, p, n);
+                    LLVMSetAlignment(inst, *align);
+                    LLVMSetOrdering(inst, atomic_ordering(*ordering));
+                    inst
+                }
+                m::Op::AtomicStore {
+                    arg,
+                    ptr,
+                    align,
+                    ordering,
+                } => {
+                    let v = self.value(&arg.value, &arg.ty)?;
+                    let p = self.value(ptr, &m::Ty::Ptr)?;
+                    let inst = LLVMBuildStore(b, v, p);
+                    LLVMSetAlignment(inst, *align);
+                    LLVMSetOrdering(inst, atomic_ordering(*ordering));
+                    inst
+                }
+                m::Op::AtomicRmw {
+                    operation,
+                    arg,
+                    ptr,
+                    align,
+                    ordering,
+                } => {
+                    let v = self.value(&arg.value, &arg.ty)?;
+                    let p = self.value(ptr, &m::Ty::Ptr)?;
+                    let operation = match operation {
+                        m::AtomicRmwOp::Exchange => 0,
+                        m::AtomicRmwOp::Add => 1,
+                        m::AtomicRmwOp::Subtract => 2,
+                        m::AtomicRmwOp::And => 3,
+                        m::AtomicRmwOp::Or => 5,
+                        m::AtomicRmwOp::Xor => 6,
+                    };
+                    // LLVM's process-wide scope, never singlethread: these
+                    // instructions synchronize actual worker threads.
+                    let inst =
+                        LLVMBuildAtomicRMW(b, operation, p, v, atomic_ordering(*ordering), 0);
+                    LLVMSetAlignment(inst, *align);
                     inst
                 }
                 m::Op::Binary {

@@ -396,7 +396,6 @@ fn address_parameter_results_and_unsupported_shapes_remain_closed() {
         "resource R{n:i32}fn main(){let f=(p:&R)=>p.n;}",
         "resource R{n:i32}package P{manages r:R;n:i32}fn main(){let f=(p:&P)=>p.n;}",
         "fn main(){let f=(p:&(&i32))=>**p;}",
-        "fn main(){let f:fn(&i32)->i32=(p:&i32)=>*p;}",
     ] {
         let report = check(source);
         assert_ne!(
@@ -407,6 +406,22 @@ fn address_parameter_results_and_unsupported_shapes_remain_closed() {
         );
         assert_eq!(report.phase, Phase::Types, "{source}: {}", report.to_json());
     }
+    let report = check("fn main(){let f:fn(&i32)->i32=(p:&i32)=>*p;}");
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    native(
+        &[(
+            "main",
+            "fn main()->i32{let f:fn(&i32)->i32=(p:&i32)=>*p;let n=42;return f(&n)-42}",
+        )],
+        b"",
+        0,
+    );
     // Existing184 environment lending remains a separate, fully executable lane.
     native(
         &[(

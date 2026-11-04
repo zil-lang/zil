@@ -382,16 +382,31 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
     // Pre322 Expand489/665 now608/836: the unchanged sources pay complete
     // lifetime/type-position validation. Types420/610 stay exact.
     // See changes/322-budget-migration-by324.md; N-1/fresh checks remain.
-    for (source, expand_n, types_n) in [
+    let minimum = |succeeds: &dyn Fn(usize) -> bool| {
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        assert!(succeeds(high));
+        while high - low > 1 {
+            let mid = low + (high - low) / 2;
+            if succeeds(mid) {
+                high = mid;
+            } else {
+                low = mid;
+            }
+        }
+        high
+    };
+    let mut observed = Vec::new();
+    let mut recorded = Vec::new();
+    for (source, recorded_expand, recorded_types) in [
         (
             "fn apply<T:Copy,F:Fn(i32)->i32>(f:&F,value:T)->T{f(1);return value}fn main()->i32{let f=(n:i32)=>n+1;return apply(&f,2)-2}",
-            608,
-            420,
+            811,
+            447,
         ),
         (
             include_str!("impl246_fixtures/copy_enum_helper.zil"),
-            836,
-            610,
+            1090,
+            646,
         ),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget246.zil", source);
@@ -419,6 +434,10 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
                 },
             )
         };
+        let expand_n = minimum(&|n| expand(n).is_ok());
+        let types_n = minimum(&|n| types(n).is_ok());
+        observed.push((expand_n, types_n));
+        recorded.push((recorded_expand, recorded_types));
         assert!(
             expand(expand_n - 1)
                 .unwrap_err()
@@ -437,6 +456,7 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
         assert_eq!(types(types_n).unwrap(), expected);
         println!("registered Copy helper Expand {expand_n}/Types {types_n}; N-1 and fresh N");
     }
+    assert_eq!(observed, recorded, "current paid helper metadata/type work");
     // The legacy flat control is also asserted at Types418 by impl240_front
     // and at Types418/Analyze8673 by impl206_budget in the final affected set.
 }

@@ -17,6 +17,7 @@ mod receivers;
 mod records;
 mod resources;
 mod static_traits;
+mod tasks;
 
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{
@@ -68,15 +69,79 @@ fn owned_store_name(name: &str) -> bool {
             | "store_at_mut"
     )
 }
+fn sync_name(name: &str) -> bool {
+    matches!(
+        name,
+        "MutexI32"
+            | "AtomicI32"
+            | "mutex_scope"
+            | "atomic_scope"
+            | "mutex_load"
+            | "mutex_store"
+            | "mutex_fetch_add"
+            | "atomic_load"
+            | "atomic_store"
+            | "atomic_fetch_add"
+    )
+}
+fn task_name(name: &str) -> bool {
+    matches!(
+        name,
+        "TaskI32"
+            | "task_start"
+            | "task_yield"
+            | "task_await"
+            | "task_valid"
+            | "task_poll"
+            | "task_request_cancel"
+            | "task_poll_close"
+            | "task_finish_destroy"
+    )
+}
+fn registration_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Registration"
+            | "ClosedEnvironment"
+            | "c_register"
+            | "registration_valid"
+            | "registration_close"
+    )
+}
 fn primitive_name(name: &str) -> bool {
-    name == "thread_scope"
+    registration_name(name)
+        || task_name(name)
+        || sync_name(name)
+        || name == "Option"
+        || name == "thread_scope"
         || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if name == "thread_scope" {
+    if task_name(name) {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-TASK-NAME",
+            Some(span),
+            "sealed task names cannot be rebound",
+        )
+    } else if sync_name(name) {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-SYNC-NAME",
+            Some(span),
+            "sealed synchronization names cannot be rebound",
+        )
+    } else if name == "Option" {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-OPTION-NAME",
+            Some(span),
+            "Option is a reserved built-in type and constructor namespace",
+        )
+    } else if name == "thread_scope" {
         Diagnostic::error(
             Phase::Expand,
             "E-THREAD-NAME",
@@ -158,7 +223,7 @@ pub struct ExpandedModule {
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<(Span, Span), String>,
+    trait_method_names: BTreeMap<(usize, usize), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -180,7 +245,17 @@ pub fn expand_with_map_limits(
     module: &s::Module,
     limits: &Limits,
 ) -> CompileResult<ExpandedModule> {
+    expand_with_map_limits_target(source, module, limits, &zil_base::TargetProfile::default())
+}
+
+pub fn expand_with_map_limits_target(
+    source: &SourceUnit,
+    module: &s::Module,
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+) -> CompileResult<ExpandedModule> {
     let mut products = generics::products::Products::default();
+    products.target_pointer_width = Some(target.pointer_width);
     let specialized = generics::specialize_products(module, limits, &mut products)?;
     let mut lower_limits = products.trait_limits(limits);
     let mut expanded = expand_inner(
@@ -218,7 +293,24 @@ pub fn expand_program_module_with_limits(
     imports: Vec<CoreImport>,
     limits: &Limits,
 ) -> CompileResult<(ProgramModule, SourceMap)> {
+    expand_program_module_with_limits_target(
+        source,
+        module,
+        imports,
+        limits,
+        &zil_base::TargetProfile::default(),
+    )
+}
+
+pub fn expand_program_module_with_limits_target(
+    source: &SourceUnit,
+    module: &s::Module,
+    imports: Vec<CoreImport>,
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+) -> CompileResult<(ProgramModule, SourceMap)> {
     let mut products = generics::products::Products::default();
+    products.target_pointer_width = Some(target.pointer_width);
     let specialized = generics::specialize_products(module, limits, &mut products)?;
     let module = &specialized;
     let mut lower_limits = products.trait_limits(limits);
@@ -265,7 +357,7 @@ fn source_exports(
     module: &s::Module,
     core: &CoreModule,
     imported_public_traits: &BTreeSet<String>,
-    trait_method_names: &BTreeMap<(Span, Span), String>,
+    trait_method_names: &BTreeMap<(usize, usize), String>,
 ) -> Vec<NodeId> {
     let public_nominals: std::collections::BTreeSet<_> = module
         .items
@@ -296,19 +388,20 @@ fn source_exports(
     let functions: std::collections::BTreeMap<_, _> = core
         .functions
         .iter()
-        .map(|f| ((f.name.clone(), f.span), f.id))
+        .map(|f| (f.name.clone(), f.id))
         .collect();
     let mut result = Vec::new();
-    let mut add = |f: &s::Function, prefix: Option<&str>, implementation: Option<Span>| {
-        let target = implementation
-            .and_then(|owner| trait_method_names.get(&(owner, f.span)))
-            .unwrap_or(&f.name);
-        let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
-        if let Some(id) = functions.get(&(name, f.span)) {
-            result.push(*id);
-        }
-    };
-    for item in &module.items {
+    let mut add =
+        |f: &s::Function, prefix: Option<&str>, implementation: Option<(usize, usize)>| {
+            let target = implementation
+                .and_then(|identity| trait_method_names.get(&identity))
+                .unwrap_or(&f.name);
+            let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
+            if let Some(id) = functions.get(&name) {
+                result.push(*id);
+            }
+        };
+    for (item_ordinal, item) in module.items.iter().enumerate() {
         match &item.kind {
             s::ItemKind::Function(f) if item.public => add(f, None, None),
             s::ItemKind::Aggregate(a) if public_nominals.contains(a.name.as_str()) => {
@@ -335,14 +428,14 @@ fn source_exports(
                         public_traits.contains(name.as_str())
                             || imported_public_traits.contains(&name)
                     });
-                for member in &i.members {
+                for (member_ordinal, member) in i.members.iter().enumerate() {
                     if (if i.trait_type.is_some() {
                         public_trait
                     } else {
                         member.public
                     }) && let s::ItemKind::Function(f) = &member.kind
                     {
-                        add(f, Some(&owner), Some(item.span));
+                        add(f, Some(&owner), Some((item_ordinal, member_ordinal)));
                     }
                 }
             }
@@ -361,7 +454,24 @@ pub fn expand_program_with_limits(
     imports: &[Vec<CoreImport>],
     limits: &Limits,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    expand_program_with_limits_target(
+        sources,
+        syntax,
+        imports,
+        limits,
+        &zil_base::TargetProfile::default(),
+    )
+}
+
+pub fn expand_program_with_limits_target(
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let mut products = generics::products::Products::default();
+    products.target_pointer_width = Some(target.pointer_width);
     let specialized = modules::specialize(sources, syntax, imports, limits, &mut products)?;
     let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
     let declarations = declaration_index(project_modules.iter().copied());
@@ -677,7 +787,8 @@ fn expand_inner_project(
             }
         }
     }
-    for item in &module.items {
+    for (ordinal, item) in module.items.iter().enumerate() {
+        e.source_item_ordinal = ordinal;
         e.item(item, None, None, None);
     }
     if !e.diagnostics.is_empty() {
@@ -735,11 +846,12 @@ struct Expander<'a> {
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<(Span, Span), String>,
+    trait_method_names: BTreeMap<(usize, usize), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     static_traits: BTreeSet<String>,
-    static_trait_impls: BTreeSet<Span>,
+    static_trait_impls: BTreeSet<usize>,
+    source_item_ordinal: usize,
     source_map: SourceMap,
     node_maps: BTreeMap<NodeId, SourceMapId>,
     markers: BTreeMap<Span, SourceMapId>,
@@ -789,6 +901,7 @@ impl<'a> Expander<'a> {
             project_trait_nodes: 0,
             static_traits: BTreeSet::new(),
             static_trait_impls: BTreeSet::new(),
+            source_item_ordinal: 0,
             source_map: SourceMap::new(module_id),
             node_maps: BTreeMap::new(),
             markers: BTreeMap::new(),
@@ -892,12 +1005,14 @@ impl Expander<'_> {
                 if self.resource_drop(i) {
                     return;
                 }
-                if i.trait_type.is_some() && !self.static_trait_impls.contains(&item.span) {
+                if i.trait_type.is_some()
+                    && !self.static_trait_impls.contains(&self.source_item_ordinal)
+                {
                     self.unsupported("trait implementation resolution", item.span)
                 }
                 let name = type_path(&i.target).unwrap_or_else(|| "$unsupported".into());
                 let host = type_ref(&i.target);
-                for m in &i.members {
+                for (member_ordinal, m) in i.members.iter().enumerate() {
                     let inherited = if let Some(trait_type) = &i.trait_type {
                         self.trait_receiver(trait_type, m)
                     } else {
@@ -905,13 +1020,17 @@ impl Expander<'_> {
                     };
                     let first = self.functions.len();
                     self.item(m, Some(&name), Some(&host), inherited.as_ref());
-                    if let s::ItemKind::Function(f) = &m.kind
-                        && let Some(target) = self.trait_method_names.get(&(item.span, f.span))
+                    if matches!(m.kind, s::ItemKind::Function(_))
+                        && let Some(target) = self
+                            .trait_method_names
+                            .get(&(self.source_item_ordinal, member_ordinal))
                     {
-                        for function in &mut self.functions[first..] {
-                            if function.span == f.span {
-                                function.name = format!("{name}.{target}");
-                            }
+                        // function() appends its own function after any
+                        // helpers emitted while lowering the body. The result
+                        // of this invocation is independent of source spans.
+                        if self.functions.len() > first {
+                            self.functions.last_mut().expect("emitted method").name =
+                                format!("{name}.{target}");
                         }
                     }
                 }
@@ -956,7 +1075,13 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if name == "c_with_callback" || name == "thread_scope" {
+        if registration_name(name)
+            || task_name(name)
+            || sync_name(name)
+            || name == "Option"
+            || name == "c_with_callback"
+            || name == "thread_scope"
+        {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }
@@ -1070,6 +1195,7 @@ impl Expander<'_> {
         match &pattern.kind {
             s::PatternKind::Name(_) | s::PatternKind::Wildcard => true,
             s::PatternKind::Tuple(fields) => fields.iter().all(Self::tuple_binding_pattern),
+            s::PatternKind::Reference { pattern, .. } => Self::tuple_binding_pattern(pattern),
             _ => false,
         }
     }
@@ -1081,7 +1207,10 @@ impl Expander<'_> {
                 ty,
                 value,
             } => {
-                if matches!(pattern.kind, s::PatternKind::Tuple(_)) {
+                if matches!(
+                    pattern.kind,
+                    s::PatternKind::Tuple(_) | s::PatternKind::Reference { .. }
+                ) {
                     if !Self::tuple_binding_pattern(pattern) {
                         return self.statement(
                             CoreStatementKind::Unsupported(
@@ -1517,6 +1646,15 @@ impl Expander<'_> {
 }
 pub fn type_ref(t: &s::TypeRef) -> Type {
     match &t.kind {
+        s::TypeKind::Named { path, args } if path.as_slice() == ["Registration"] => {
+            if let [s::GenericArg::Type(environment)] = args.as_slice() {
+                Type::Desc(Box::new(Type::Registration {
+                    environment: Box::new(type_ref(environment)),
+                }))
+            } else {
+                Type::Unsupported("Registration requires one concrete environment type".into())
+            }
+        }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Store"] => {
             if let [s::GenericArg::Type(element)] = args.as_slice() {
                 Type::Desc(Box::new(Type::OwnedStore {
@@ -1536,6 +1674,8 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "u8" => Type::U8,
             "u16" => Type::U16,
             "c_handle" => Type::ForeignHandle,
+            "MutexI32" => Type::SyncCell(zil_ir::SyncCellKind::MutexI32),
+            "AtomicI32" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI32),
             "c_wstr" => Type::CWideString,
             "i32" => Type::I32,
             "i64" => Type::I64,
@@ -1606,10 +1746,30 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             parameters: params.iter().map(type_ref).collect(),
             result: Box::new(type_ref(result)),
         },
-        s::TypeKind::Function { params, result } => Type::FunctionPointer {
-            parameters: params.iter().map(type_ref).collect(),
-            result: Box::new(type_ref(result)),
-        },
+        s::TypeKind::Function { params, result } => {
+            let parameters: Vec<_> = params.iter().map(type_ref).collect();
+            let result = Box::new(type_ref(result));
+            if parameters.iter().any(|p| matches!(p, Type::Address { .. }))
+                || matches!(result.as_ref(), Type::Address { .. })
+            {
+                let life = zil_ir::FunctionLifeContract {
+                    binder_count: 1,
+                    parameter_lives: parameters
+                        .iter()
+                        .map(|p| matches!(p, Type::Address { .. }).then_some(0))
+                        .collect(),
+                    result_life: matches!(result.as_ref(), Type::Address { .. }).then_some(0),
+                };
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                }
+            } else {
+                Type::FunctionPointer { parameters, result }
+            }
+        }
+        s::TypeKind::ForLifetime { .. } => lifetimes::pointer_type(t),
         _ => Type::Unsupported("type form is not yet lowered".into()),
     }
 }

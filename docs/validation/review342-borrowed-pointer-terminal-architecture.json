@@ -1,0 +1,50 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "implementation_commit": "8e58b48bc6cc410c96dbfc5903a86777496c75cc",
+  "scope": "Canonical invocation-local thin borrowed function pointers and bounded CT Type/Syntax preservation. Prior ordinary generic-loan and mutable-life review remains tied to 50ec87cb2 in review342-terminal-architecture.json.",
+  "identity": {
+    "retained_harness": "/tmp/zil-terminal-review/cross-function-bfp-342",
+    "author_harness": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-492a6902b3023121",
+    "harness_sha256": "e1db6a8c1c3f65e0cdeb4fe56978e7f10854bd306c78b50976e98a77ebb71caf",
+    "binding": "Harness hash matches the committed author receipt and was copied before target reuse. Source consumers use compile-time fixture inclusion; native executions use newly emitted binaries.",
+    "production_rust_sha256": "9786d11b6edd0feccc6e7e743e78b92a1883255f99f82cb4aa6f67129d5a0622",
+    "production_rust_count": 306,
+    "production_digest_algorithm": "Exact implementation Git blobs for crates/**/src/**/*.rs, sorted by pathlib.PurePosixPath component order, each repository-relative UTF-8 path + NUL + bytes + NUL.",
+    "source_sha256": {
+      "crates/zil-driver/tests/cross_function_borrows.rs": "4eb4247f720ae33f4f5bf594299e49dbee98f90d59103a65ac9fc9fbd65db728",
+      "tests/language-readiness/terminal/342/borrowed_fp.rs": "c21a93dd76262b901a2e5fb80bd10c03e975acd424c5dac66c9485de24fe7f15",
+      "tests/language-readiness/terminal/342/higher_rank.zil": "ac1ceec41e267a9aaaf79d619a2490cdfe4ab0c66d4b9a9576aece01dc01f1ef"
+    }
+  },
+  "independent_execution": {
+    "command": "source /workspace/.zil-env/env.sh && TMPDIR=/tmp/zil-terminal-review /tmp/zil-terminal-review/cross-function-bfp-342 terminal342_borrowed_pointer --nocapture --test-threads=1",
+    "passed": 7,
+    "failed": 0,
+    "filtered": 42,
+    "seconds": 1.75,
+    "native": "Nine source consumers times Clang/LlvmApi times O0/O2: 36 actual builds and executions, each producing 42 with zero exit; emitted IR retains an actual indirect pointer call.",
+    "phase_boundaries": {"Expand": 162, "Types": 133, "Analyze": 1487, "Verify": 5938},
+    "boundary_controls": "N succeeds, N-1 is phase-specific ResourceLimit and fresh N produces the identical result.",
+    "other_controls": [
+      "Canonical first-parameter-occurrence binder normalization, alpha/reordered declarations, unused binder elimination and vacuous forall normalization.",
+      "Raw and decoded-Wire malformed binder gaps/tails and actual target return-root mismatch reject; forged simultaneous indirect argument aliases reject independently in Verify. The test does not claim Analyze rejects that alias mutation.",
+      "Wrong mutable signature, environment capture, same-root simultaneous arguments and repeated-call live-result conflicts reject at source.",
+      "Bounded CT DAG/Wire roundtrip preserves the relation; oversized binder metadata rejects with WireError::Limit. Native Type and Syntax consumers preserve mutable pointer relations.",
+      "Live and restored module caches rerun Verify; alpha-renaming preserves signatures/contracts, while changed target body, caller conflict or declared return relation rejects."
+    ]
+  },
+  "source_review": [
+    "Types, Analyze and Verify independently admit dense first-use label relations; no lexical name or source coordinate supplies borrow authority.",
+    "Static FunctionRef checks actual complete parameter/result shapes, environment/foreign/teardown exclusions and independently reconstructed target return roots against the declared input upper bound.",
+    "Each CallIndirect substitutes current argument roots, conservatively retains every declared eligible root and enters the existing simultaneous-window and reborrow-parent checks.",
+    "Source signature canonicalization, CT reconstruction and relation copies prepay metadata work; numeric relations are retained in Type/Wire/fingerprint and module interface identities."
+  ],
+  "integration_required": [
+    "This exact branch predates TaskYield consumers. After merging343, exercise both ordinary and borrowed FunctionRef paths against independently derived Suspend targets, including decoded-Wire negatives and Direct positive neighbors. Source review of343 WIP showed the common FunctionRef exclusion, but no merged execution is claimed here."
+  ],
+  "limitations": [
+    "Generic higher-rank Fn obligations, borrowed storage/general lending, explicit dyn and general state protocols remain incomplete.",
+    "No full workspace, native Windows or Rust product-cost gate was run by this reviewer; no terminal-language completion claim."
+  ]
+}

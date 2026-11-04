@@ -207,10 +207,16 @@ impl Capture {
         }
     }
     pub fn mutable_call(&self) -> bool {
-        if matches!(self.stored_type(), Type::Desc(_)) {
+        // The stored type's outer mode is determined by these flags; querying
+        // it does not need to clone the captured payload tree.
+        if matches!(self.ty, Type::Desc(_)) || (!self.moved && matches!(self.ty, Type::Managed(_)))
+        {
             return false;
         }
-        self.written || matches!(self.stored_type(), Type::Address { mutable: true, .. })
+        self.written
+            || (self.moved
+                && !self.borrowed
+                && matches!(self.ty, Type::Address { mutable: true, .. }))
     }
 }
 
@@ -240,10 +246,11 @@ impl Pending {
     }
     pub fn owns_resources(&self) -> bool {
         self.captures.iter().any(|capture| {
-            matches!(
-                capture.stored_type(),
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            )
+            if matches!(capture.ty, Type::Managed(_)) {
+                capture.moved
+            } else {
+                !capture.borrowed && matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
+            }
         })
     }
 }
@@ -643,11 +650,30 @@ impl State {
         Ok((slot, pending))
     }
 
-    pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>)> {
+    pub(super) fn remaining_work(&self) -> usize {
+        self.work_left
+    }
+
+    pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>, usize)> {
+        let mut remaining = self.work_left;
         let mut definitions = Vec::new();
         let mut functions = Vec::new();
         for mut pending in self.pending {
-            let (parameters, result) = pending.inference.resolve(true, pending.span)?;
+            let (parameters, result) =
+                pending
+                    .inference
+                    .resolve_shared(true, pending.span, &mut remaining)?;
+            remaining = remaining
+                .checked_sub(pending.captures.len().saturating_add(1))
+                .ok_or_else(|| limit("completed closure metadata budget exceeded", pending.span))?;
+            for capture in &pending.captures {
+                pending
+                    .inference
+                    .graph
+                    .thread_query(&mut remaining, |graph| {
+                        graph.reserve_type(&capture.ty, 0, capture.span)
+                    })?;
+            }
             let kind = pending.callable_kind();
             let typed = pending.typed.ok_or_else(|| {
                 error(
@@ -678,7 +704,7 @@ impl State {
         }
         functions.extend(self.helper_functions);
         functions.sort_by_key(|function| function.id);
-        Ok((definitions, functions))
+        Ok((definitions, functions, remaining))
     }
 }
 
@@ -696,12 +722,16 @@ fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
 
 pub(super) type Variable = usize;
 pub(super) fn signature_parameter(ty: &Type) -> bool {
-    ty.is_copy_value() || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+    ty.is_copy_value()
+        || ty.is_shared_sync_cell_address()
+        || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
 }
 
 pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
     parameters.iter().all(signature_parameter)
         && (result.is_copy_value()
+            || (borrowed_fp::invocation(parameters, result)
+                && matches!(result,Type::Address{inner,..} if inner.is_address_pointee()))
             || (parameters.iter().all(Type::is_copy_value) && lending::supported_result(result)))
 }
 /// Ordinary owned data signatures are deliberately separate from the retained
@@ -934,6 +964,9 @@ impl Graph {
             }
             Type::Array { element, .. }
             | Type::Slice { element }
+            | Type::Registration {
+                environment: element,
+            }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
@@ -951,6 +984,18 @@ impl Graph {
                     self.reserve_type(parameter, depth + 1, span)?;
                 }
                 self.reserve_type(result, depth + 1, span)?;
+            }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                self.spend_count(borrowed_fp::metadata_work(life), span)?;
+                for parameter in parameters {
+                    self.reserve_type(parameter, depth + 1, span)?;
+                }
+                self.reserve_type(result, depth + 1, span)?;
+                borrowed_fp::relation(parameters, result, life, span)?;
             }
             Type::Named(name) | Type::Unsupported(name) => self.spend_count(name.len(), span)?,
             _ => {}
@@ -1038,8 +1083,8 @@ impl Graph {
             Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
-            ty if *ty == Type::ByteBuffer
-                || matches!(ty, Type::OwnedStore { .. })
+            ty if *ty == Type::TaskI32 || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
+                || matches!(ty, Type::OwnedStore { .. } | Type::Registration { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
                 || owned_shapes::enumeration(ty)
@@ -1130,6 +1175,11 @@ impl Graph {
                     Type::FunctionPointer {
                         parameters: types,
                         result: result_type,
+                    }
+                    | Type::BorrowedFunctionPointer {
+                        parameters: types,
+                        result: result_type,
+                        ..
                     },
                 ) if parameters.len() == types.len() => {
                     for (parameter, ty) in parameters.into_iter().zip(types) {
@@ -1654,7 +1704,35 @@ impl Inference {
         }
         Ok(true)
     }
+    fn resolve_shared(
+        &mut self,
+        defaults: bool,
+        span: Span,
+        remaining: &mut usize,
+    ) -> R<(Vec<Type>, Type)> {
+        let original = self.graph.work_left.get();
+        let allowance = original.min(*remaining);
+        self.graph.work_left.set(allowance);
+        let result = self.resolve(defaults, span);
+        self.graph
+            .thread_finish(original, allowance, remaining, result)
+    }
     pub fn resolve(&mut self, defaults: bool, span: Span) -> R<(Vec<Type>, Type)> {
+        self.resolve_inner(defaults, None, span)
+    }
+    pub fn resolve_borrowed(
+        &mut self,
+        life: &FunctionLifeContract,
+        span: Span,
+    ) -> R<(Vec<Type>, Type)> {
+        self.resolve_inner(false, Some(life), span)
+    }
+    fn resolve_inner(
+        &mut self,
+        defaults: bool,
+        life: Option<&FunctionLifeContract>,
+        span: Span,
+    ) -> R<(Vec<Type>, Type)> {
         self.graph.solve()?;
         if defaults {
             self.graph.default_literals();
@@ -1672,6 +1750,15 @@ impl Inference {
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
         let old = supported_signature(&signature.0, &signature.1);
+        if let Some(life) = life {
+            self.graph
+                .spend_count(borrowed_fp::metadata_work(life), span)?;
+            for ty in signature.0.iter().chain(std::iter::once(&signature.1)) {
+                self.graph.reserve_type(ty, 0, span)?;
+            }
+            borrowed_fp::relation(&signature.0, &signature.1, life, span)?;
+            return Ok(signature);
+        }
         if !old {
             // The owned shape and hidden-callable checks are new traversals.
             // Pay them only after the old profile failed, before classification.
@@ -1740,7 +1827,9 @@ impl LocalType {
                     inner,
                 },
             ) if (inner.is_address_pointee()
+                || ty.is_shared_sync_cell_address()
                 || ty.is_shared_resource_head_address()
+                || ty.is_exclusive_task_head_address()
                 || ty.is_package_address())
                 && (mutable || !wanted) =>
             {
@@ -2098,7 +2187,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             Type::Managed(payload) | Type::Desc(payload) if resources::supported(ty) => {
                 (payload.as_ref(), None)
             }
-            Type::Address { mutable, inner } if inner.is_copy_value() => {
+            Type::Address { mutable, inner }
+                if inner.is_copy_value() || ty.is_shared_sync_cell_address() =>
+            {
                 (inner.as_ref(), Some(*mutable))
             }
             Type::Address {
@@ -2235,6 +2326,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                             LocalType::Address(inner, false) => {
                                 self.graph
                                     .shared_address(self.result, inner, expression.span)?;
+                            }
+                            LocalType::Address(inner, true) => {
+                                self.graph.address(
+                                    self.result,
+                                    inner,
+                                    Some(true),
+                                    expression.span,
+                                )?;
                             }
                             _ => self.graph.unify(
                                 self.result,
@@ -3041,6 +3140,28 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 return Ok(LocalType::Nested(index, Some(*op == UnaryOp::BorrowMut)));
             }
+            if *op == UnaryOp::BorrowMut
+                && let LocalType::Resource(variable, _) = value
+            {
+                let payload = self
+                    .graph
+                    .ty(variable)?
+                    .ok_or_else(|| unsupported(span, "task head payload is unresolved"))?;
+                if payload != Type::TaskI32 {
+                    return Err(unsupported(
+                        span,
+                        "exclusive resource head requires TaskI32",
+                    ));
+                }
+                self.mark_address_write(operand, depth + 1)?;
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(1)
+                    .ok_or_else(|| limit("task head graph allocation budget exceeded", span))?;
+                let head = self.graph.fresh(VALUE, false);
+                self.graph.bind(head, &tasks::owner(), span)?;
+                return Ok(LocalType::Address(head, true));
+            }
             if matches!(value, LocalType::Address(..)) {
                 return Err(unsupported(
                     span,
@@ -3185,6 +3306,47 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             return self.known(&dynamic_store::result_type(name, &element), span);
         }
+        if let Some(name) = tasks::primitive(callee) {
+            self.visit(depth + 1, callee.span)?;
+            *self.work_left = self
+                .work_left
+                .checked_sub(12)
+                .ok_or_else(|| limit("task signature construction budget exceeded", span))?;
+            let offset = usize::from(matches!(name, "task_start" | "task_await"));
+            let parameters = tasks::parameters(name);
+            if arguments.len() != parameters.len() + offset {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "task primitive argument count mismatch",
+                ));
+            }
+            if offset != 0 {
+                self.visit(depth + 1, arguments[0].span)?;
+                if !self.direct(&arguments[0]) {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker must be a static function",
+                    ));
+                }
+                let signature = self.callee(&arguments[0])?;
+                if !signature.scalar_thread_worker()
+                    || signature.parameters.as_slice() != [Type::I32]
+                {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker requires fn(i32)->i32",
+                    ));
+                }
+            }
+            for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
+                let term = self.expr_expected(argument, Some(ty), depth + 1)?;
+                term.bind(&mut self.graph, ty, argument.span)?;
+            }
+            return self.known(&tasks::result(name), span);
+        }
         if let Some(name) = byte_buffer::primitive(callee) {
             self.visit(depth + 1, callee.span)?;
             let parameters = byte_buffer::parameters(name);
@@ -3211,6 +3373,112 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 &byte_buffer::result_type(name).expect("byte primitive"),
                 span,
             );
+        }
+        if let CoreExprKind::Name(name) = &callee.kind
+            && let Some((kind, op)) = scoped_thread::sync_primitive(name)
+        {
+            self.visit(depth + 1, callee.span)?;
+            *self.work_left = self
+                .work_left
+                .checked_sub(8)
+                .ok_or_else(|| limit("cell operation type construction budget exceeded", span))?;
+            let address_ty = scoped_thread::sync_address(kind);
+            if let Some(op) = op {
+                let arity = if op == SyncI32Op::Load { 1 } else { 2 };
+                if arguments.len() != arity {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "incorrect synchronization operation arity",
+                    ));
+                }
+                for (index, argument) in arguments.iter().enumerate() {
+                    let ty = if index == 0 { &address_ty } else { &Type::I32 };
+                    let term = self.expr_expected(argument, Some(ty), depth + 1)?;
+                    self.graph
+                        .thread_work(self.work_left, |graph| term.bind(graph, ty, argument.span))?;
+                }
+                return self.known(
+                    &if op == SyncI32Op::Store {
+                        Type::Unit
+                    } else {
+                        Type::I32
+                    },
+                    span,
+                );
+            }
+            let [initial, body] = arguments.as_slice() else {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "cell scope requires initial i32 and body",
+                ));
+            };
+            let term = self.expr_expected(initial, Some(&Type::I32), depth + 1)?;
+            self.graph.thread_work(self.work_left, |graph| {
+                term.bind(graph, &Type::I32, initial.span)
+            })?;
+            let term = self.expr(body, depth + 1)?;
+            let signature = match term {
+                LocalType::Nested(index, None) => self.nested_signature(index, span)?,
+                LocalType::Scalar(variable) => self
+                    .graph
+                    .thread_query(self.work_left, |graph| graph.ty(variable))?
+                    .ok_or_else(|| {
+                        error(
+                            "E-SYNC-BODY",
+                            body.span,
+                            "cell body signature is unresolved",
+                        )
+                    })?,
+                LocalType::Closure(id, None, _) => {
+                    let pending = &self.closures[id.0 as usize];
+                    if pending.inference.arity() != 1 {
+                        return Err(error(
+                            "E-SYNC-BODY",
+                            body.span,
+                            "cell body takes one sealed address",
+                        ));
+                    }
+                    pending
+                        .inference
+                        .graph
+                        .thread_query(self.work_left, |graph| {
+                            let parameter =
+                                graph.ty(pending.inference.parameters[0])?.ok_or_else(|| {
+                                    error(
+                                        "E-SYNC-BODY",
+                                        body.span,
+                                        "cell body parameter is unresolved",
+                                    )
+                                })?;
+                            let result = graph.ty(pending.inference.result)?.ok_or_else(|| {
+                                error("E-SYNC-BODY", body.span, "cell body result is unresolved")
+                            })?;
+                            Ok(Type::FunctionPointer {
+                                parameters: vec![parameter],
+                                result: Box::new(result),
+                            })
+                        })?
+                }
+                _ => {
+                    return Err(error(
+                        "E-SYNC-BODY",
+                        body.span,
+                        "cell scope requires a concrete closure",
+                    ));
+                }
+            };
+            if !matches!(&signature, Type::FunctionPointer { parameters, result } if parameters.as_slice() == [address_ty] && result.as_ref() == &Type::I32)
+            {
+                return Err(error(
+                    "E-SYNC-BODY",
+                    body.span,
+                    "cell body has wrong sealed cell signature",
+                ));
+            }
+            self.transferred_closure(body, term);
+            return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
         }
         if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
             self.visit(depth + 1, callee.span)?;
@@ -3243,6 +3511,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 ));
             }
             let shared_payload = matches!(&worker_signature.parameters[0], Type::Address { .. });
+            let cell_kind = match &worker_signature.parameters[0] {
+                Type::Address { inner, .. } => match inner.as_ref() {
+                    Type::SyncCell(kind) => Some(*kind),
+                    _ => None,
+                },
+                _ => None,
+            };
             if shared_payload {
                 *self.work_left = self.work_left.checked_sub(2).ok_or_else(|| {
                     limit("thread shared payload construction budget exceeded", span)
@@ -3251,7 +3526,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             let payload_type = if shared_payload {
                 Type::Address {
                     mutable: false,
-                    inner: Box::new(Type::I32),
+                    inner: Box::new(cell_kind.map_or(Type::I32, Type::SyncCell)),
                 }
             } else {
                 Type::I32
@@ -3669,6 +3944,26 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 return self.known(&result, span);
             }
             let callee_type = callee_type.scalar(callee.span)?;
+            if let Some(Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }) = self.graph.ty(callee_type)?
+            {
+                if parameters.len() != arguments.len() {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "indirect callback arity differs from its signature",
+                    ));
+                }
+                for (argument, parameter) in arguments.iter().zip(&parameters) {
+                    self.expr_expected(argument, Some(parameter), depth + 1)?
+                        .bind(&mut self.graph, parameter, argument.span)?;
+                    if matches!(parameter, Type::Address { mutable: true, .. }) {
+                        self.mark_address_write(argument, depth + 1)?;
+                    }
+                }
+                return self.known(&result, span);
+            }
             let mut parameters = Vec::new();
             for argument in arguments {
                 parameters.push(self.expr(argument, depth + 1)?.scalar(argument.span)?);
@@ -4144,6 +4439,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.lookup(name).is_none() && !self.outer.contains_key(name)
     }
     fn reserve_signature(&self, signature: &Signature, span: Span) -> R<()> {
+        if let Some(life) = &signature.life {
+            self.graph
+                .spend_count(life.parameter_lives.len().saturating_add(1), span)?;
+        }
         for ty in signature
             .parameters
             .iter()

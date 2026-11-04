@@ -1,0 +1,303 @@
+{
+  "module": 0,
+  "name": "worker",
+  "worker": 0,
+  "abi_version": 1,
+  "verified_input_fingerprint": "3250b13e837668674e075ea00695b03499e8fb23defc14d8801fb0d5aee439e1",
+  "target_fingerprint": "cd310bd33d9ea0ce00b19b7c8e247fff95798379a5c4743dce82beea28051c0f",
+  "codegen_key": "6ec2fafec191a1803c1f2389fb05ca73c78ac36d74cf4b6c6d24bf8f48dab971",
+  "target": "x86_64-unknown-linux-gnu",
+  "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+  "frame_size": 160,
+  "frame_alignment": 8,
+  "frame_layout_fingerprint": "a484dcddd4509a2a03b349b705e37d69a6d6327ec764ad26892244b332f555ff",
+  "frame_fields": [
+    {
+      "index": 0,
+      "offset": 0,
+      "size": 8,
+      "alignment": 8,
+      "machine_type": "ptr"
+    },
+    {
+      "index": 1,
+      "offset": 8,
+      "size": 8,
+      "alignment": 8,
+      "machine_type": "ptr"
+    },
+    {
+      "index": 2,
+      "offset": 16,
+      "size": 8,
+      "alignment": 8,
+      "machine_type": "ptr"
+    },
+    {
+      "index": 3,
+      "offset": 24,
+      "size": 8,
+      "alignment": 8,
+      "machine_type": "ptr"
+    },
+    {
+      "index": 4,
+      "offset": 32,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 5,
+      "offset": 36,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 6,
+      "offset": 40,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i1"
+    },
+    {
+      "index": 7,
+      "offset": 44,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 8,
+      "offset": 48,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 9,
+      "offset": 52,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 10,
+      "offset": 56,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i8"
+    },
+    {
+      "index": 11,
+      "offset": 58,
+      "size": 2,
+      "alignment": 2,
+      "machine_type": "i16"
+    },
+    {
+      "index": 12,
+      "offset": 64,
+      "size": 8,
+      "alignment": 8,
+      "machine_type": "i64"
+    },
+    {
+      "index": 13,
+      "offset": 72,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i1"
+    },
+    {
+      "index": 14,
+      "offset": 73,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i8"
+    },
+    {
+      "index": 15,
+      "offset": 74,
+      "size": 2,
+      "alignment": 2,
+      "machine_type": "i16"
+    },
+    {
+      "index": 16,
+      "offset": 76,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 17,
+      "offset": 80,
+      "size": 8,
+      "alignment": 8,
+      "machine_type": "i64"
+    },
+    {
+      "index": 18,
+      "offset": 88,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i1"
+    },
+    {
+      "index": 19,
+      "offset": 89,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i1"
+    },
+    {
+      "index": 20,
+      "offset": 96,
+      "size": 8,
+      "alignment": 8,
+      "machine_type": "i64"
+    },
+    {
+      "index": 21,
+      "offset": 104,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i1"
+    },
+    {
+      "index": 22,
+      "offset": 105,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i1"
+    },
+    {
+      "index": 23,
+      "offset": 106,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i1"
+    },
+    {
+      "index": 24,
+      "offset": 108,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 25,
+      "offset": 112,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i8"
+    },
+    {
+      "index": 26,
+      "offset": 116,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 27,
+      "offset": 120,
+      "size": 8,
+      "alignment": 4,
+      "machine_type": "{ i32, i1 }"
+    },
+    {
+      "index": 28,
+      "offset": 128,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 29,
+      "offset": 132,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i1"
+    },
+    {
+      "index": 30,
+      "offset": 134,
+      "size": 2,
+      "alignment": 2,
+      "machine_type": "i16"
+    },
+    {
+      "index": 31,
+      "offset": 136,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 32,
+      "offset": 140,
+      "size": 8,
+      "alignment": 4,
+      "machine_type": "{ i32, i1 }"
+    },
+    {
+      "index": 33,
+      "offset": 148,
+      "size": 4,
+      "alignment": 4,
+      "machine_type": "i32"
+    },
+    {
+      "index": 34,
+      "offset": 152,
+      "size": 1,
+      "alignment": 1,
+      "machine_type": "i1"
+    }
+  ],
+  "entrypoints": [
+    {
+      "operation": "init",
+      "symbol": "zil.sabi.task.init.0",
+      "result": "ptr",
+      "parameters": [
+        "i32"
+      ]
+    },
+    {
+      "operation": "poll",
+      "symbol": "zil.sabi.task.poll.0",
+      "result": "i64",
+      "parameters": [
+        "ptr"
+      ]
+    },
+    {
+      "operation": "request_cancel",
+      "symbol": "zil.sabi.task.request_cancel.0",
+      "result": "void",
+      "parameters": [
+        "ptr"
+      ]
+    },
+    {
+      "operation": "poll_close",
+      "symbol": "zil.sabi.task.poll_close.0",
+      "result": "i1",
+      "parameters": [
+        "ptr"
+      ]
+    },
+    {
+      "operation": "finish_destroy",
+      "symbol": "zil.sabi.task.finish_destroy.0",
+      "result": "void",
+      "parameters": [
+        "ptr"
+      ]
+    }
+  ]
+}

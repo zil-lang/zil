@@ -78,6 +78,7 @@ fn fixture() -> TypedModule {
         ),
     ]);
     let function = TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -417,6 +418,7 @@ fn each_sealed_request_keeps_its_limits_through_shared_wire_clone_and_emission()
     let shared_module = Arc::new(module.clone());
     let shared_plan = Arc::new(plan.clone());
     let program = Arc::new(TypedProgram {
+        task_interfaces: Vec::new(),
         module: module.clone(),
         interfaces: vec![],
         root_functions: vec![],

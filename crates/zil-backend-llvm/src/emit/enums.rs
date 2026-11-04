@@ -70,6 +70,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         | Type::Usize
         | Type::F64
         | Type::FunctionPointer { .. }
+        | Type::BorrowedFunctionPointer { .. }
         | Type::ForeignHandle
         | Type::CWideString
         | Type::ForeignCallback { .. } => Layout { size: 8, align: 8 },
@@ -79,7 +80,8 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::Address { inner, .. }
             if inner.is_copy_value()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || ty.is_shared_resource_head_address()
+                || resource_head_address(ty)
+                || ty.is_exclusive_task_head_address()
                 || ty.is_package_address() =>
         {
             Layout { size: 8, align: 8 }
@@ -87,6 +89,8 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Layout { size: 8, align: 8 }
@@ -96,6 +100,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
             fields_layout(fields.iter().map(|(_, ty)| ty))?
         }
         Type::Managed(payload) => physical_layout(payload)?,
+        Type::Registration { .. } | Type::TaskI32 => Layout { size: 8, align: 8 },
         Type::ByteBuffer | Type::OwnedStore { .. } => Layout { size: 24, align: 8 },
         Type::ErrorUnion { error, result } => {
             fields_layout([&Type::Bool, error.as_ref(), result.as_ref()])?
@@ -243,7 +248,7 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
                     None,
                 )]);
             }
-            Type::Closure(_) | Type::Opaque { .. } => {
+            Type::Registration { .. } | Type::Closure(_) | Type::Opaque { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Ct,
                     "CT layout needs a resolved shape and closure environment",
@@ -310,6 +315,9 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
                 self.ty(result, depth + 1, false)?;
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {
                     self.ty(parameter, depth + 1, false)?;
@@ -325,6 +333,8 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
             | Type::U8
             | Type::U16
             | Type::ByteBuffer
+            | Type::TaskI32
+            | Type::SyncCell(_)
             | Type::ForeignHandle
             | Type::CWideString
             | Type::U64
@@ -627,7 +637,9 @@ impl FunctionEmitter<'_> {
                     },
                 )));
             }
-            Type::U8
+            Type::Registration { .. }
+            | Type::TaskI32
+            | Type::U8
             | Type::U16
             | Type::I32
             | Type::I64
@@ -636,6 +648,7 @@ impl FunctionEmitter<'_> {
             | Type::U64
             | Type::Usize
             | Type::FunctionPointer { .. }
+            | Type::BorrowedFunctionPointer { .. }
             | Type::ForeignHandle
             | Type::CWideString
             | Type::ForeignCallback { .. } => self.event(m::Event::Instruction(m::Inst::new(

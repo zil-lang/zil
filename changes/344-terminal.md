@@ -216,3 +216,65 @@ source matcher must resolve the complete owner instance before selecting a tag;
 nearest Left.V and mismatched Right.V sources stay separate. This checkpoint
 contains raw VM/metadata consumers; the source Sum/value/reification bridge and
 phantom callable source positives are still unfinished.
+## Integrated scalar, associated and borrowed-code identity
+
+The combined341/342/344 tree prepays complete anonymous-member keys for typed
+scalar const arguments, internal MetaEval carriers and symbolic/radix array
+lengths without allocating during layout. Associated equation lookup passes the
+same Budget; its later substitution renderer is separately prepaid. Requests
+without an anonymous sum retain their existing key charges. The CT canonical
+borrowed-code key preserves the full parameter/result graph and joint lifetime
+contract, including its remap and temporary accounting. Combined actual source
+controls cover const specialization, associated projections and a borrowed code
+member round-tripped through a computed Type, with native O0/O2 on both backends.
+
+## Combined deep-expression host-frame repair
+
+After the associated-constant composition bfe682bfb, the original default2MiB
+worker and a large value-order source crashed again. A separate alternate signal
+stack for diagnostics (no change to the ordinary worker stack) localized Expand
+expr_expected at88,296 bytes, with Budget::ty_context12,872 bytes. Splitting
+expression variants and associated lookup temporaries reduced the dispatcher
+frame; the next trace exposed Types::expr_raw26,792-byte frames during nested
+owned-array construction. Its remaining scalar/name variants are now private
+helpers with the original final-check and early-return ordering intact.
+The original106 aggregate tests pass including the exact2MiB source and four
+native backend/optimization runs; original budget checks remain unchanged.
+A wider ordinary/generic nested-call probe still finds an additional32-call
+stack failure in the call-planning helper. It is preserved and under repair;
+this checkpoint does not claim all bounded source shapes are stack-safe.
+
+Integrated recursive-call follow-up: preserve evaluation/constraint/charging
+order while moving pre/post-call work out of the recursive argument frame, and
+split Budget expression variant handling. The original aggregate target passes
+106/0 on the default test-thread stack, and composed Registration passes7/0.
+The author Expand-only probes accept bounded nested ordinary/generic/conversion
+calls through124, with parser ResourceLimit at126/128; the full-driver replay is
+still required and is not inferred from those Expand-only probes.
+
+Full-driver nested-call probe after5632 exposed later Types and CT walker host
+frames; Expand-only success did not prove the complete pipeline. The new
+mechanical extraction is being validated on the original default-stack probes.
+
+The independent Vec identity reference now includes Registration32/opcodes111–113.
+Its five new Tuple/Place instruction probes are kept separate from the original
+95-operation V31 anchor input; the historical pinned anchors remain unchanged.
+The first reference replay failed because those additions had changed that input;
+after restoring the original case set and testing additions separately,12/0 pass.
+All-target llvm-api Clippy passed before this reference-fixture-only adjustment;
+Expand lint-equivalent extraction replay passes the complete package.
+
+Final integrated stack repair: unchanged original aggregates106/0; the retained
+nested-call test additionally runs five source families at32/64/96/112/124 on a
+default Rust worker stack and gets Parse ResourceLimit at126. The plain96 source
+also checks exact max_nodes2348/2347 and max_call_depth197/196 on fresh and warm
+sessions. No stack override, source truncation or default quota increase is used.
+All-target llvm-api Clippy passes, with the final added test separately linted.
+The author independently relinked30 child probes and replayed the copied original
+2MiB/raw/Wire/N2520/native4 control; compact source-bound receipt is retained.
+These bounded shapes establish this regression fix, not a theorem for all input.
+
+
+### CT3完整名义实参的公共元数据修正
+
+普通phantom函数指针参数可形成合法类型，但CtSchemaArgument::Type(CtTy)不能表达其完整身份。根集成方将尚未验收的CT3合同修正为Type(CtTypeRef)，复用同一规范有界TypeDAG；Scalar编码不变。实际CT字段和值继续只接受CtTy纯值，不生成运行时指针。两种元数据表示不并存，声明实例的全部有序参数、关系、图规范及来源须由独立核验证；当前生产CT2与历史v2字节不改写为新v3。344随后实现元数据绑定和可序列化值绑定的区分并保留phantom FP正反例。

@@ -141,6 +141,19 @@ impl<'n> Shape<'_, '_, 'n, '_> {
 
     fn copy_inner(&mut self, ty: &TypeRef) -> R<bool> {
         self.budget.ty(ty)?;
+        if let Some((available, _)) = self.symbolic
+            && available
+                .first_key_value()
+                .is_some_and(|(key, _)| key.starts_with("\0subject:"))
+        {
+            let key = trait_bounds::subject_key(ty, self.budget)?;
+            if available
+                .get(&key)
+                .is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
+            {
+                return Ok(true);
+            }
+        }
         match &grouped(ty).kind {
             TypeKind::Union(fields) => {
                 for field in fields {

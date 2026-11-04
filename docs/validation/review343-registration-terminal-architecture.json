@@ -1,0 +1,116 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "source_commit": "984a01d517ae3befe37d456a10c555cd2a93531e",
+  "author_receipt_commit": "c02de6114",
+  "scope": "Linux x64 same-thread Direct returned Registration<F>, nullable fallible stable allocation and actual strong backend close. This does not complete general retained callbacks, Task drainage, Transfer/Share or asynchronous wakers.",
+  "identity": {
+    "production_rs_count": 313,
+    "production_rs_sha256": "6bceabf67bb81d12e30cbf48251e9105cbae149e60781c805a07012472943fbe",
+    "algorithm": "SHA256 of sorted PurePosixPath component order over tracked crates/**/src/**/*.rs; path UTF-8 + NUL + exact Git bytes + NUL",
+    "fixture_sha256": {
+      "tests/language-readiness/terminal/343/registration-return.zil": "ed895bc60a0a8bd35a49c299da2b5d02eeb09e6fe1caabdfe3928fceec9929af",
+      "tests/language-readiness/terminal/343/registration-observer.c": "9e07057fe66383c8250749fbb06adfee01c4cd015802e83abd68d601bf8ab080",
+      "tests/language-readiness/terminal/343/registration-two.zil": "162793b691daef7d80396ecd82db30de32afcc253964e02af6865b1ad178ec4d",
+      "tests/language-readiness/terminal/343/registration-two-observer.c": "d537220b62d99cf0d31f958cc35661e87022397f9b36f2b717bbb031fb9fabe3",
+      "crates/zil-driver/tests/generic_regressions.rs": "f5db67d57ba5b5a3e9e39c30da2e17253b3ed7f239457d1c0f66ceb0ad16ee63"
+    },
+    "verification": "Production digest and all five selected fixture hashes independently recomputed from exact Git blobs. Both runtime-read C fixture hashes matched the author tree immediately before and after replay."
+  },
+  "retained_harnesses": [
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/registration343-generic",
+      "sha256": "d61082dc62186745645ab94229c84b50938385260b944206a70a53aa1419e227"
+    },
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/registration343-backend",
+      "sha256": "1ae3ee3caedb92a2472d591fd20d2fa7e9b4661abdac482cfd9ab7c00b507599"
+    }
+  ],
+  "independent_execution": [
+    {
+      "command": "source /workspace/.zil-env/env.sh; retained registration343-generic registration343 --test-threads=1 --nocapture",
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 43,
+      "seconds": 1.89,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-registration343.log",
+      "log_sha256": "baff9178d0f835f6e3e534606ff0738d66c431a4d34fb154b60a69f4e0418c26"
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; retained registration343-backend registration343 --test-threads=1 --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 145,
+      "seconds": 0.0
+    }
+  ],
+  "source_review": [
+    "Actual frame stores destroy target, backend handle, Busy/Closing gate and concrete closure environment. Allocation failure destroys the prepared environment once. Installation initializes all fields before a possible synchronous callback; null installation relies on the explicit backend no-future/all-accesses-ended promise, then destroys the environment and frees the frame once.",
+    "Atomic fetch-or Busy admits only old=0. Rejected old=Busy or Busy|Closing does not clear another invocation's Busy bit. Old=Closing temporarily acquired Busy and clears only that bit. Invocation exit preserves Closing. This gate establishes exclusive access to F, not raw-entry quiescence.",
+    "Close sets Closing before calling the actual supplied close target. The strong foreign contract must drain every raw entry/access, including entries before admission and rejected entries, and forbid future access before returning. Only then does the implementation assert gate=Closing, drop F and free. Default Drop uses the same close path; a null owner is a valid empty state.",
+    "Both kernels independently derive concrete F, canonical owning payload, exact external register/close role signatures, recursive closed capture graph and Direct code dependencies. ClosedEnvironment denies stored Address/Desc/Slice/unresolved positions. Code-pointer signature addresses are not confused with captured data addresses.",
+    "The generic factory exemption requires exactly one actual F input, finite Copy companions and Create/Give returned Registration of that same concrete environment. Closure captures are independently closed and ordinary ownership checks still enforce actual transfer and cleanup; no synchronous noescape trace grants retained borrowed-storage permission.",
+    "Previously identified metering seams are corrected: recursive finite-Copy and entry signature comparisons are prepaid independently; actual Register/Close symbol lengths are charged per generated site; physical inline layout walks pay repeated closure occurrences with an active-path cycle guard, stopping at dynamic owning heads instead of deduplicating all ClosureIds."
+  ],
+  "native_evidence": {
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "fallback": false,
+    "success_runs": 16,
+    "actual_allocation_failure_runs": 8,
+    "actual_null_install_failure_runs": 8,
+    "observations": [
+      "generic helper returns actual owning closure carrier surviving 65536-byte stack clobber",
+      "moved Mark owner and mutable counter persist through installation and later callbacks",
+      "two separate live registrations retain distinct actual state and once-only teardown",
+      "reentrant and close-time rejected raw entries do not mutate F",
+      "explicit/default close withdraw callback pointers before actual Drop/free",
+      "allocation failure and null installation after real synchronous callback settle ownership exactly once"
+    ]
+  },
+  "kernel_controls": {
+    "source_negative_neighbors": 14,
+    "raw_mutations": 14,
+    "raw_paths": [
+      "Analyze",
+      "raw Verify",
+      "decoded Wire Verify"
+    ],
+    "examples": [
+      "role swap",
+      "invalid unsafe region",
+      "forged callback type",
+      "canonical resource shadow",
+      "MakeManaged forgery",
+      "descriptor read or consume misuse",
+      "external borrowed capture",
+      "duplicate close",
+      "non-closure registration payload",
+      "borrowed factory laundering",
+      "duplicate actual F transfer with first owner explicitly closed"
+    ],
+    "source_library": "Imported public generic helper reaches Verify; native source-library execution is not claimed."
+  },
+  "budgets": {
+    "Analyze_N": 15202,
+    "Verify_N": 26326,
+    "helper_planning_N": 158890,
+    "checks": "N accepts, N-1 ResourceLimit, fresh N accepts. Backend internal planning model additionally checks long symbol growth, repeated physical nested closures, inline-cycle rejection and heap-head leaf; this model is not native or kernel-admission evidence."
+  },
+  "limitations": [
+    "No cross-thread or asynchronous strong-close execution is demonstrated; the backend safety promise remains an explicit unsafe foreign responsibility.",
+    "Current callback signature is Fn/FnMut(i32)->i32. General Task owned parameters/results, child frames, PendingExit and asynchronous waker drainage remain open.",
+    "Future SuspendCall/effect integration must extend the independent Direct exclusion to the actual new effect graph; this candidate predates that public extension.",
+    "Native executables are ephemeral test outputs; the retained Rust harness and runtime-read C inputs are bound, with actual native executions observed during this replay.",
+    "No independent full 49-test target or Clippy rerun, full-workspace acceptance, native Windows or same-semantic Rust cost comparison."
+  ]
+}

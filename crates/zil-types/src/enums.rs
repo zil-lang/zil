@@ -2,6 +2,19 @@
 use super::*;
 use std::collections::BTreeSet;
 
+pub(super) fn nominal_name(owner: u32, name: &str, variants: &[(String, Vec<Type>)]) -> String {
+    if name.starts_with("$generic_$builtinOption340_")
+        && let [(none, empty), (some, payload)] = variants
+        && none == "None"
+        && empty.is_empty()
+        && some == "Some"
+        && let [payload] = payload.as_slice()
+    {
+        return format!("@builtin:Option:{}", payload.fingerprint());
+    }
+    format!("@module{owner}:{name}")
+}
+
 pub(super) const ANONYMOUS_SUM: &str = "@anonymous-sum:v1";
 pub(super) const TYPE_MEMBER: &str = "@type-member";
 pub(super) fn anonymous(ty: &Type) -> bool {
@@ -156,7 +169,7 @@ pub(super) fn definitions(core: &CoreModule) -> BTreeMap<String, Type> {
             (
                 e.name.clone(),
                 Type::Enum {
-                    name: format!("@module{}:{}", core.module_id.0, e.name),
+                    name: nominal_name(core.module_id.0, &e.name, &e.variants),
                     variants: e.variants.clone(),
                 },
             )
@@ -236,7 +249,7 @@ pub(super) fn project_definitions(
                 .insert(
                     e.name.clone(),
                     Type::Enum {
-                        name: format!("@module{}:{}", module.core.module_id.0, e.name),
+                        name: nominal_name(module.core.module_id.0, &e.name, &e.variants),
                         variants: e.variants.clone(),
                     },
                 )
@@ -317,6 +330,9 @@ impl Coverage<'_> {
                 Pattern::Any
             }
             CorePatternKind::Wildcard => Pattern::Any,
+            CorePatternKind::Reference { pattern, .. } => {
+                self.pattern(pattern, ty, names, depth + 1)?
+            }
             CorePatternKind::Bool(value) if *ty == Type::Bool => {
                 Pattern::Constructor(Constructor::Bool(*value), Vec::new())
             }
@@ -481,6 +497,9 @@ impl Builder<'_, '_> {
                 "pattern condition requires a finite Copy value",
             ));
         }
+        self.irrefutable_pattern(pattern, ty)
+    }
+    pub(super) fn irrefutable_pattern(&mut self, pattern: &CorePattern, ty: &Type) -> R<bool> {
         let mut coverage = Coverage {
             remaining: &mut self.match_work_left,
             depth_limit: self.limits.max_call_depth,
@@ -594,6 +613,27 @@ impl Builder<'_, '_> {
         arms: &[CoreMatchArm],
         span: Span,
     ) -> R<()> {
+        if let Some(ty) = self.known_type(expression)
+            && !matches!(
+                expression.kind,
+                CoreExprKind::Unary {
+                    op: UnaryOp::Dereference,
+                    ..
+                }
+            )
+            && arms
+                .iter()
+                .any(|arm| self.partial_pattern_needed(&arm.pattern, &ty))
+        {
+            return self.partial_pattern_match(expression, arms, span);
+        }
+        if (matches!(&expression.kind,CoreExprKind::Unary{op:UnaryOp::Dereference,operand} if matches!(self.known_type(operand),Some(Type::Address{inner,..}) if matches!(inner.as_ref(),Type::Enum{..}))))
+            || arms
+                .iter()
+                .any(|a| reference_patterns::has_reference(&a.pattern))
+        {
+            return self.reference_match(expression, arms, span);
+        }
         if self
             .known_type(expression)
             .as_ref()

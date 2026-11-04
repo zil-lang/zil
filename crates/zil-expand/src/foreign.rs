@@ -64,6 +64,7 @@ impl Expander<'_> {
             .as_ref()
             .map_or(Type::Unit, |t| self.type_ref(t));
         self.functions.push(CoreFunction {
+            call_kind: Some(CallKind::Direct),
             life: None,
             callable_return: None,
             state_parameters: Vec::new(),

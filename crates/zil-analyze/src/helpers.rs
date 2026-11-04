@@ -610,6 +610,10 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         {
             continue;
         }
+        if registration::factory(module, function, budget)? {
+            checked[index] = true;
+            continue;
+        }
         budget.spend(
             function.parameters.len().saturating_add(1),
             "helper parameter envelope and candidate table",
@@ -707,7 +711,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 && !function.locals[p.0 as usize].ty.is_copy_value()
                 && !matches!(&function.locals[p.0 as usize].ty,
                     Type::Address { inner, .. } if inner.is_copy_value()
-                        || (function.return_type.is_copy_value()
+                        || ((function.return_type.is_copy_value() || claim.roles.iter().any(|r|r.life.is_some()))
                             && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
                 && !matches!(&function.locals[p.0 as usize].ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
                 && !matches!(
@@ -770,7 +774,20 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     }
                 }
             }
+            if let Some(life) = &role.life {
+                budget.spend(
+                    super::borrowed_fp::work(life),
+                    "higher-rank actual callback signature",
+                )?;
+                super::borrowed_fp::signature_work(
+                    &definition.parameters,
+                    &definition.result,
+                    budget,
+                )?;
+                super::borrowed_fp::relation(&definition.parameters, &definition.result, life)?;
+            }
             if !(returned
+                || (role.life.is_some() && matches!(&function.return_type, Type::Address { .. }))
                 || owned_data
                 || function.return_type.is_copy_value()
                 || (candidates.len() == 1

@@ -121,7 +121,11 @@ pub(super) fn teardown_paths(
                             "owned field lacks its resource definition",
                         )]
                     })?;
-                let teardown = if definition.payload == Type::ByteBuffer {
+                let teardown = if matches!(definition.payload, Type::Registration { .. }) {
+                    Some("zil.registration.drop".into())
+                } else if definition.payload == Type::TaskI32 {
+                    Some("zil.task.drop".into())
+                } else if definition.payload == Type::ByteBuffer {
                     Some("zil.bytes.drop".into())
                 } else {
                     definition.teardown.map(symbol)
@@ -526,6 +530,9 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         local: LocalId,
     ) -> CompileResult<()> {
+        if self.drop_partial_place(local)? {
+            return Ok(());
+        }
         let ty = self.local_type(local)?;
         let Type::Package { fields, .. } = ty else {
             return invalid(

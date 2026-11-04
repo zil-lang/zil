@@ -19,6 +19,7 @@ fn module(functions: usize, constants: usize, parameter: bool) -> TypedModule {
         target: TargetProfile::host_llvm(),
         functions: (0..functions)
             .map(|index| TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,

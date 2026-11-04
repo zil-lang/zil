@@ -63,6 +63,9 @@ impl<'a> Budget<'a> {
                 self.copy_work(element, depth + 1)?;
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for t in parameters {
                     self.pay(t, depth)?;
@@ -97,12 +100,28 @@ impl<'a> Budget<'a> {
     ) -> CompileResult<bool> {
         self.pay(ty, depth)?;
         match ty {
+            Type::Address { inner, .. }
+                if matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) =>
+            {
+                self.admits(inner, resources, depth + 1)
+            }
             Type::Managed(payload) => {
                 for _ in resources {
                     self.pay(ty, depth)?;
                     self.copy_work(payload, depth + 1)?;
                 }
                 Ok(resource_type(ty, resources))
+            }
+            Type::Tuple(fields) => {
+                for t in fields {
+                    if !self.admits(t, resources, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
             }
             Type::Package { fields, .. } => {
                 for (_, t) in fields {

@@ -144,6 +144,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         let mut query = expression.clone();
         strip_expr(&mut query);
         let function = CoreFunction {
+            call_kind: None,
             life: None,
             callable_return: None,
             state_parameters: Vec::new(),
@@ -758,6 +759,22 @@ impl Collector<'_> {
         }
         for contract in &function.callable_parameters {
             self.charge(0)?;
+            if let Some(life) = &contract.life {
+                if life.binder_count as usize > self.limits.max_locals
+                    || life.parameter_lives.len() > self.limits.max_locals
+                {
+                    return Err(vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "higher-rank source relation exceeds binder/parameter bounds",
+                        Some(function.span),
+                    )]);
+                }
+                self.text_len(
+                    (life.binder_count as usize)
+                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                        .saturating_add(2),
+                )?;
+            }
             self.text(&contract.generic_name)?;
             self.parameters(&contract.parameters, &contract.result)?;
         }
@@ -853,6 +870,9 @@ impl Collector<'_> {
                 self.ty(result, depth + 1)?;
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 if parameters.len() > self.limits.max_locals {
                     return Err(vec![Diagnostic::limit(

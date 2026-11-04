@@ -139,6 +139,28 @@ impl Builder<'_> {
                 let element = self.ty(element)?;
                 self.push(CtTypeNode::OwnedStore(element))
             }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                self.left = self
+                    .left
+                    .checked_sub(
+                        (life.binder_count as usize).saturating_add(life.parameter_lives.len()),
+                    )
+                    .ok_or_else(|| reject("CT borrowed pointer metadata exceeds node budget"))?;
+                let parameters = parameters
+                    .iter()
+                    .map(|ty| self.ty(ty))
+                    .collect::<CompileResult<Vec<_>>>()?;
+                let result = self.ty(result)?;
+                self.push(CtTypeNode::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life: life.clone(),
+                })
+            }
             Type::FunctionPointer { parameters, result } => {
                 let parameters = parameters
                     .iter()
@@ -160,9 +182,13 @@ impl Builder<'_> {
                 let result = self.ty(result)?;
                 self.push(CtTypeNode::ErrorUnion { error, result })
             }
-            Type::Named(_) | Type::Opaque { .. } | Type::Closure(_) | Type::Unsupported(_) => {
-                Err(reject("type has no completed CT shape"))
-            }
+            Type::Named(_)
+            | Type::Opaque { .. }
+            | Type::Closure(_)
+            | Type::Unsupported(_)
+            | Type::Registration { .. }
+            | Type::TaskI32
+            | Type::SyncCell(_) => Err(reject("type has no completed CT shape")),
         }
     }
 }

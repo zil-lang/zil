@@ -272,8 +272,13 @@ pub(super) fn freeze_shapes(
         })
         .collect::<Vec<_>>();
     let selected_refs = selected.iter().collect::<Vec<_>>();
-    let expanded =
-        zil_expand::expand_program_with_limits(sources, &selected_refs, imports, limits)?;
+    let expanded = zil_expand::expand_program_with_limits_target(
+        sources,
+        &selected_refs,
+        imports,
+        limits,
+        target,
+    )?;
     let modules = expanded
         .into_iter()
         .map(|(module, _)| ProgramModule {
@@ -393,7 +398,8 @@ pub(super) fn freeze_impls(
         return Ok(ImplSnapshot { entries });
     }
     let refs = selected.iter().collect::<Vec<_>>();
-    let expanded = zil_expand::expand_program_with_limits(sources, &refs, imports, limits)?;
+    let expanded =
+        zil_expand::expand_program_with_limits_target(sources, &refs, imports, limits, target)?;
     let modules = expanded
         .into_iter()
         .map(|(module, _)| ProgramModule {

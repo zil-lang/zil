@@ -1,0 +1,35 @@
+{
+  "task": "342",
+  "scope": "Isolated integration regression repair; supplied340 actual-Window-only apart optimization",
+  "baseline": "8981bbccb",
+  "production_patch": "340-symbolic-capture-apart.patch",
+  "original_impl187_tests_preserved": true,
+  "reproduced_original_failure": true,
+  "tests": {
+    "impl187_borrowed_bytes": {
+      "passed": 25,
+      "failed": 0
+    },
+    "aggregates": {
+      "passed": 89,
+      "failed": 0
+    }
+  },
+  "new_control": "Nested relay→call→closure capture target substitution; distinct actual heads native O0/O2 success, same-head source/raw/decoded-Wire SafeReject/E-BORROW-CONFLICT",
+  "old_budget_control": "internal_window_separation_work_has_a_bounded_raw_and_wire_limit passed with exact N/N-1/fresh; actual inline-reference N18127 retained",
+  "default_limits_changed": false,
+  "formal_full_suite": "NotRunByImplementationAuthor",
+  "clippy": "Pass; both affected existing targets, offline, -D warnings",
+  "retained_harnesses": {
+    "impl187_borrowed_bytes-644e508d3d21361e": "f21e8aa0a8aecc567150b359c9ba29a26f4576a8c5282766a84223f2ceb9f71b",
+    "aggregates-69ffa20fbaa0b0e1": "0c88663722ee2cebf3226f4b85fd78f385062f6fb7c0a83baaf60d165fd4a53a"
+  },
+  "logs": [
+    "342-capturefix-first.log",
+    "342-capturefix-debug.log",
+    "342-capturefix-impl187.log",
+    "342-capturefix-complete.log",
+    "342-capturefix-clippy.log"
+  ],
+  "independent_review": "Pending exact candidate"
+}

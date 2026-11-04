@@ -45,6 +45,7 @@ impl<'a> Context<'a> {
         root: ModuleId,
         fingerprint: Fingerprint,
         budget: &mut Budget,
+        target: &TargetProfile,
     ) -> CompileResult<Self> {
         let mut declarations = Vec::new();
         for module in modules {
@@ -79,11 +80,12 @@ impl<'a> Context<'a> {
                 items,
                 span: module.span,
             };
-            let (core, map) = zil_expand::expand_program_module_with_limits(
+            let (core, map) = zil_expand::expand_program_module_with_limits_target(
                 source,
                 &syntax,
                 imports.clone(),
                 &budget.remaining,
+                target,
             )?;
             budget.spend(map.entries.len(), map.entries.len(), module.span)?;
             expanded.push(core);

@@ -317,7 +317,17 @@ fn value_storage(
     Ok(match value {
         CtValue::Scalar(_) => 16,
         CtValue::Text(s) => 16u64.saturating_add(s.len() as u64),
-        CtValue::Type(t) => 16u64.saturating_add((t.nodes.len() as u64).saturating_mul(64)),
+        CtValue::Type(t) => t.nodes.iter().fold(
+            16u64.saturating_add((t.nodes.len() as u64).saturating_mul(64)),
+            |bytes, node| {
+                bytes.saturating_add(match node {
+                    CtTypeNode::BorrowedFunctionPointer { life, .. } => {
+                        (life.parameter_lives.len() as u64).saturating_mul(8)
+                    }
+                    _ => 0,
+                })
+            },
+        ),
         CtValue::Syntax(t) => 16u64
             .saturating_add((t.nodes.len() as u64).saturating_mul(80))
             .saturating_add((t.origins.len() as u64).saturating_mul(32))
@@ -773,6 +783,40 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram, anonymous: &mu
             | CtTypeNode::Managed(element)
             | CtTypeNode::Desc(element)
             | CtTypeNode::OwnedStore(element) => child(*element),
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                let mut dense = 0;
+                let inputs = parameters.len() == life.parameter_lives.len()
+                    && parameters
+                        .iter()
+                        .zip(&life.parameter_lives)
+                        .all(|(id, label)| {
+                            if !child(*id) {
+                                return false;
+                            }
+                            if matches!(reference.nodes[id.0 as usize], CtTypeNode::Address { .. })
+                            {
+                                let Some(tag) =
+                                    label.filter(|tag| *tag < life.binder_count && *tag <= dense)
+                                else {
+                                    return false;
+                                };
+                                if tag == dense {
+                                    dense += 1;
+                                }
+                                true
+                            } else {
+                                label.is_none()
+                            }
+                        });
+                inputs && child(*result) && dense==life.binder_count && dense>0 && match &reference.nodes[result.0 as usize]{
+                    CtTypeNode::Address{mutable,..}=>life.result_life.is_some_and(|tag|tag<dense&&parameters.iter().zip(&life.parameter_lives).any(|(id,label)|*label==Some(tag)&&matches!(reference.nodes[id.0 as usize],CtTypeNode::Address{mutable:authority,..}if !mutable||authority))),
+                    _=>life.result_life.is_none(),
+                }
+            }
             CtTypeNode::FunctionPointer { parameters, result }
             | CtTypeNode::ForeignCallback { parameters, result } => {
                 child(*result) && parameters.iter().all(|id| child(*id))
@@ -870,7 +914,7 @@ fn append_type(out: &mut Vec<CtTypeNode>, source: &CtTypeRef) -> CompileResult<C
     ))
 }
 fn construct_type(
-    kind: CtTypeConstructor,
+    kind: &CtTypeConstructor,
     args: &[CtValue],
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<CtTypeRef> {
@@ -903,15 +947,46 @@ fn construct_type(
         }
         CtTypeConstructor::Tuple => CtTypeNode::Tuple(children),
         CtTypeConstructor::AnonymousSum => CtTypeNode::AnonymousSum(children),
-        CtTypeConstructor::FunctionPointer => {
-            let result = children.pop().expect("verified function Type result");
-            CtTypeNode::FunctionPointer {
+        CtTypeConstructor::BorrowedFunctionPointer { life } => {
+            budget.reserve_analysis_work(
+                (life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64),
+            )?;
+            budget
+                .reserve_temporary_bytes((life.parameter_lives.len() as u64).saturating_mul(8))?;
+            let result = children.pop().expect("verified borrowed pointer result");
+            CtTypeNode::BorrowedFunctionPointer {
                 parameters: children,
                 result,
+                life: life.clone(),
+            }
+        }
+        CtTypeConstructor::FunctionPointer => {
+            let result = children.pop().expect("verified function Type result");
+            let address = |id: &CtTypeNodeId| {
+                matches!(nodes.get(id.0 as usize), Some(CtTypeNode::Address { .. }))
+            };
+            if children.iter().any(address) || address(&result) {
+                budget.reserve_analysis_work(children.len() as u64)?;
+                budget.reserve_temporary_bytes((children.len() as u64).saturating_mul(8))?;
+                let life = zil_ir::FunctionLifeContract {
+                    binder_count: 1,
+                    parameter_lives: children.iter().map(|id| address(id).then_some(0)).collect(),
+                    result_life: address(&result).then_some(0),
+                };
+                CtTypeNode::BorrowedFunctionPointer {
+                    parameters: children,
+                    result,
+                    life,
+                }
+            } else {
+                CtTypeNode::FunctionPointer {
+                    parameters: children,
+                    result,
+                }
             }
         }
         CtTypeConstructor::Address { mutable } => CtTypeNode::Address {
-            mutable,
+            mutable: *mutable,
             inner: children[0],
         },
         CtTypeConstructor::Slice => CtTypeNode::Slice(children[0]),
@@ -928,7 +1003,7 @@ fn construct_type(
         nodes,
         root: CtTypeNodeId(last),
     };
-    if kind == CtTypeConstructor::AnonymousSum {
+    if *kind == CtTypeConstructor::AnonymousSum {
         let canonical = crate::canonicalize_anonymous_type(&value, budget)?;
         budget.release_temporary_bytes(16u64.saturating_add(output_nodes.saturating_mul(64)));
         Ok(canonical)
@@ -1326,7 +1401,7 @@ fn execute_instruction(
             arguments,
         } => {
             let (args, temporary) = clone_operands(frame, arguments, budget)?;
-            let answer = construct_type(*constructor, &args, budget);
+            let answer = construct_type(constructor, &args, budget);
             budget.release_temporary_bytes(temporary);
             Some(CtValue::Type(answer?))
         }

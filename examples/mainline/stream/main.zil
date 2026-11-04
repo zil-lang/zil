@@ -17,7 +17,7 @@ fn main() -> i32 {
     }
 
     var count: i32 = 0
-    while let model.Option.Some(item) = tokens.next() {
+    while let model.LegacyOption.Some(item) = tokens.next() {
         if count >= 1000 { return 2 }
         record(model.identity(item))
         count += 1

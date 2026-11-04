@@ -197,7 +197,9 @@ pub(super) fn resolve(core: CoreModule, limits: &Limits) -> CompileResult<CoreMo
 }
 
 pub(super) fn project_symbol(name: &str) -> bool {
-    name.starts_with("$module") || name.starts_with("$generic_$module")
+    name.starts_with("$module")
+        || name.starts_with("$generic_$module")
+        || name.starts_with("$generic_$builtinOption340_")
 }
 
 /// Resolve project syntax names against actual declarations, not a parsed
@@ -804,6 +806,7 @@ impl Resolver<'_> {
         }
         Ok(match ty {
             Type::Named(name) if self.ordinary_parameter.as_ref() == Some(name) => ty.clone(),
+            Type::Named(name) if name == "TaskI32" => Type::Desc(Box::new(Type::TaskI32)),
             Type::Named(name) if name == "ByteBuffer" => Type::Desc(Box::new(Type::ByteBuffer)),
             Type::Named(name)
                 if self.declarations.contains_key(name)
@@ -868,8 +871,29 @@ impl Resolver<'_> {
                         }
                         variants.push((variant.clone(), fields));
                     }
+                    if name.starts_with("$generic_$builtinOption340_") {
+                        for (_, fields) in &variants {
+                            for field in fields {
+                                let work = inference::type_snapshot_work(
+                                    field,
+                                    span,
+                                    &self.generic_limits,
+                                )?;
+                                self.remaining = self
+                                    .remaining
+                                    .checked_sub(work.saturating_mul(4))
+                                    .ok_or_else(|| {
+                                        Diagnostic::limit(
+                                            Phase::Types,
+                                            "Option identity work budget exceeded",
+                                            Some(span),
+                                        )
+                                    })?;
+                            }
+                        }
+                    }
                     let ty = Type::Enum {
-                        name: format!("@module{}:{}", self.owners[name], name),
+                        name: enums::nominal_name(self.owners[name], name, &variants),
                         variants,
                     };
                     if owns {
@@ -994,6 +1018,9 @@ impl Resolver<'_> {
                     span,
                 )?
             }
+            Type::Registration { environment } => Type::Registration {
+                environment: Box::new(self.ty(environment, depth + 1, span)?),
+            },
             Type::OwnedStore { element } => {
                 let element = self.ty(element, depth + 1, span)?;
                 if !self.store_element_shape(&element, depth, span)? {
@@ -1047,6 +1074,14 @@ impl Resolver<'_> {
                     {
                         Box::new(resolved)
                     }
+                    Type::Registration { .. }
+                        if matches!(inner.as_ref(), Type::Registration { .. }) =>
+                    {
+                        Box::new(resolved)
+                    }
+                    Type::TaskI32 if matches!(inner.as_ref(), Type::TaskI32) => {
+                        Box::new(Type::TaskI32)
+                    }
                     Type::ByteBuffer if matches!(inner.as_ref(), Type::ByteBuffer) => {
                         Box::new(Type::ByteBuffer)
                     }
@@ -1070,6 +1105,11 @@ impl Resolver<'_> {
             Type::Address { mutable, inner } => {
                 let inner = self.ty(inner, depth + 1, span)?;
                 let inner = match inner {
+                    Type::Managed(payload) | Type::Desc(payload)
+                        if *mutable && *payload == Type::TaskI32 =>
+                    {
+                        Type::Managed(payload)
+                    }
                     Type::Managed(payload) | Type::Desc(payload)
                         if !*mutable
                             && matches!(payload.as_ref(), Type::Record { .. })
@@ -1143,6 +1183,23 @@ impl Resolver<'_> {
                     .collect::<R<_>>()?,
                 result: Box::new(self.ty(result, depth + 1, span)?),
             },
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                let parameters = parameters
+                    .iter()
+                    .map(|ty| self.ty(ty, depth + 1, span))
+                    .collect::<R<Vec<_>>>()?;
+                let result = Box::new(self.ty(result, depth + 1, span)?);
+                borrowed_fp::relation(&parameters, &result, life, span)?;
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life: life.clone(),
+                }
+            }
             Type::ForeignCallback { parameters, result } => {
                 let parameters = parameters
                     .iter()
@@ -1665,25 +1722,33 @@ impl Builder<'_, '_> {
             Some(Type::Tuple(fs)) if fs.len() == items.len() => Some(fs),
             _ => None,
         };
-        let mut fields = Vec::new();
+        let mut staged = Vec::new();
         let mut types = Vec::new();
         for (i, v) in items.iter().enumerate() {
-            let (id, t) = self.expr(v, expected_fields.map(|fs| &fs[i]))?;
-            fields.push(id);
+            let (id, t) = if let Some(fs) = expected_fields {
+                self.argument_expr(v, &fs[i])?
+            } else {
+                self.transfer_expr(v, None)?
+            };
+            staged.push(self.stage_argument(id, &t, v.span)?);
             types.push(t);
         }
         let ty = Type::Tuple(types);
         if !ty.is_copy_value() {
-            return Err(unsupported(e.span, "tuple with non-Copy fields"));
-        }
-        Ok((
-            self.value(
-                InstructionKind::MakeAggregate { fields },
-                ty.clone(),
+            owned_shapes::validate(
+                &ty,
+                &mut self.match_work_left,
+                self.limits.max_call_depth,
                 e.span,
-            )?,
-            ty,
-        ))
+            )?;
+        }
+        let fields = self.commit_arguments(staged, e.span)?;
+        let kind = if ty.is_copy_value() {
+            InstructionKind::MakeAggregate { fields }
+        } else {
+            InstructionKind::MakeOwnedTuple { fields }
+        };
+        Ok((self.value(kind, ty.clone(), e.span)?, ty))
     }
 
     #[inline(never)]
@@ -1840,7 +1905,10 @@ impl Builder<'_, '_> {
             || dynamic_store::borrow_expression(object)
             || self.indirect_place(e)
         {
-            let (address, ty) = self.borrow_place(e)?;
+            let (address, ty) = self.address_place(e, false)?;
+            if resources::head_address(&ty) {
+                return self.resource_descriptor(address, ty, e.span);
+            }
             let Type::Address { inner, .. } = ty else {
                 unreachable!()
             };
@@ -2482,6 +2550,12 @@ impl Resolver<'_> {
                 span,
                 "generic Product formal index is invalid",
             )),
+            CoreAggregateTypeRecipe::Registration { environment } => {
+                let environment = self.generic_recipe(environment, args, owner, depth + 1, span)?;
+                Ok(Type::Desc(Box::new(Type::Registration {
+                    environment: Box::new(environment),
+                })))
+            }
             CoreAggregateTypeRecipe::Store { element } => {
                 let element = self.generic_recipe(element, args, owner, depth + 1, span)?;
                 Ok(Type::Desc(Box::new(Type::OwnedStore {

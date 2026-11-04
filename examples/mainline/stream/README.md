@@ -11,7 +11,7 @@ cargo test --offline --locked -p zil-driver --test mainline_stream
 cargo test --offline --locked -p zil-cli --test stream_io
 ```
 
-`model.zil` 提供公共泛型 Option/Result、公共 Stats 和泛型 identity；`tokens.zil` 的私有解析状态通过 `&mut` 更新；`main.zil` 的默认闭包捕获直接更新外部 Stats，闭包最后使用后重新读取 Stats；`io.zil` 只在显式 unsafe 中调用私有 C 声明，其余解析、控制流、格式化和计算都是普通 ZIL。
+`model.zil` 提供公共泛型 LegacyOption/Result、公共 Stats 和泛型 identity；`tokens.zil` 的私有解析状态通过 `&mut` 更新；`main.zil` 的默认闭包捕获直接更新外部 Stats，闭包最后使用后重新读取 Stats；`io.zil` 只在显式 unsafe 中调用私有 C 声明，其余解析、控制流、格式化和计算都是普通 ZIL。
 
 Rust 对照采用标准字节切分与整数解析，与 ZIL 的逐字节状态机独立；测试把相同输入送入两种语言的 O0/O2 可执行程序，并检查明确的期望输出。此例没有使用 `--entry` 打印包装器。
 

@@ -38,6 +38,7 @@ fn raw(text: &str) -> (TypedModule, CandidatePlan) {
 }
 fn program(module: TypedModule) -> TypedProgram {
     TypedProgram {
+        task_interfaces: Vec::new(),
         module,
         interfaces: Vec::new(),
         root_functions: Vec::new(),

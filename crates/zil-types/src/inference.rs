@@ -149,6 +149,9 @@ pub(super) fn type_snapshot_work(ty: &Type, span: Span, limits: &Limits) -> R<us
 }
 
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
+    if let Some(life) = &bound.life {
+        budget.work(borrowed_fp::metadata_work(life), span)?;
+    }
     budget.work(
         bound
             .generic_name
@@ -156,10 +159,19 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
             .saturating_add(bound.parameters.len()),
         span,
     )?;
+    let before = budget.work;
     for ty in &bound.parameters {
         validate_type(ty, 0, span, budget)?;
     }
-    validate_type(&bound.result, 0, span, budget)
+    validate_type(&bound.result, 0, span, budget)?;
+    if let Some(life) = &bound.life {
+        // The local depth/work walk must precede recursive eligibility even on
+        // raw mixed State/callable headers. Its complete cost also bounds the
+        // ensuing eligibility traversal; reserve that second use explicitly.
+        budget.work(before - budget.work, span)?;
+        borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+    }
+    Ok(())
 }
 
 fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget<'_>) -> R<()> {
@@ -491,6 +503,15 @@ fn headers(
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
         lifetimes::preflight(function, &mut budget.work)?;
+        if let Some(life) = &function.life {
+            budget.work(
+                life.binders
+                    .len()
+                    .saturating_add(life.parameter_lives.len())
+                    .saturating_add(1),
+                function.span,
+            )?;
+        }
         state_snapshot(&function.state_parameters, function.span, budget)?;
         if !function.state_parameters.is_empty() && !function.callable_parameters.is_empty() {
             // The mixed header compares both declarations and the actual
@@ -589,6 +610,7 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
+                life: function.life.as_ref().map(borrowed_fp::from_life),
                 callable: state_origins::bounds(function).into_owned(),
                 state_parameter: function.state_parameters.first().cloned(),
                 callable_return: function.callable_return.clone(),
@@ -736,7 +758,8 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             validate_type(element, depth + 1, span, budget)?;
             budget.inside_store = previous;
         }
-        Type::Address { inner, .. }
+        Type::Registration { environment: inner }
+        | Type::Address { inner, .. }
         | Type::Slice { element: inner }
         | Type::Managed(inner)
         | Type::Desc(inner)
@@ -752,6 +775,18 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
                 validate_type(parameter, depth + 1, span, budget)?;
             }
             validate_type(result, depth + 1, span, budget)?;
+        }
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            budget.work(borrowed_fp::metadata_work(life), span)?;
+            for parameter in parameters {
+                validate_type(parameter, depth + 1, span, budget)?;
+            }
+            validate_type(result, depth + 1, span, budget)?;
+            borrowed_fp::relation(parameters, result, life, span)?;
         }
         Type::Named(name) => {
             budget.work(name.len(), span)?;
@@ -780,6 +815,7 @@ fn validate_pattern(pattern: &CorePattern, depth: usize, budget: &mut Budget<'_>
                 validate_pattern(field, depth + 1, budget)?;
             }
         }
+        CorePatternKind::Reference { pattern, .. } => validate_pattern(pattern, depth + 1, budget)?,
         CorePatternKind::Tuple(fields) => {
             for field in fields {
                 validate_pattern(field, depth + 1, budget)?;
@@ -808,7 +844,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || resources::supported(ty)
             || errors::owned(ty)
             || packages::ordinary(ty)
-            || owned_shapes::enumeration(ty)
+            || owned_shapes::sum(ty)
             || packages::owned_array_supported(ty)
     };
     if signature.type_parameter.is_none()
@@ -830,6 +866,9 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
         ));
     }
     validate_type(&signature.result, 0, span, budget)?;
+    if let Some(life) = &signature.life {
+        budget.work(life.parameter_lives.len().saturating_add(1), span)?;
+    }
     for parameter in &signature.parameters {
         validate_type(parameter, 0, span, budget)?;
     }
@@ -952,141 +991,425 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
     let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
+    match &e.kind {
+        CoreExprKind::Literal(Constant::WideString(_)) => {
+            expression_has_closure_literal(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Ascribed { .. }
+        | CoreExprKind::IntegerConvert { .. }
+        | CoreExprKind::NumericConvert { .. } => {
+            expression_has_closure_ascribed(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Closure { .. } => {
+            expression_has_closure_closure(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Unary { .. } | CoreExprKind::CompileTime(..) | CoreExprKind::Try(..) => {
+            expression_has_closure_unary(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Binary { .. } => {
+            expression_has_closure_binary(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Call { .. } => {
+            expression_has_closure_call(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::TypeApply { .. } => {
+            expression_has_closure_type_apply(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Index { .. } => {
+            expression_has_closure_index(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Slice { .. } => {
+            expression_has_closure_slice(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Tuple(..) | CoreExprKind::Array(..) => {
+            expression_has_closure_tuple(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Member { .. } => {
+            expression_has_closure_member(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Record { .. } => {
+            expression_has_closure_record(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::RecordUpdate { .. } => {
+            expression_has_closure_record_update(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Sequence { .. } => {
+            expression_has_closure_sequence(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::If { .. } => expression_has_closure_if(e, depth, budget, direct_type_callee),
+        CoreExprKind::Integer(..)
+        | CoreExprKind::Float(..)
+        | CoreExprKind::String(..)
+        | CoreExprKind::Name(..)
+        | CoreExprKind::ReceiverMember(..)
+        | CoreExprKind::Unsupported(..) => {
+            expression_has_closure_integer(e, depth, budget, direct_type_callee)
+        }
+        _ => expression_has_closure_other(e, depth, budget, direct_type_callee),
+    }
+}
+
+fn expression_has_closure_literal(
+    e: &CoreExpr,
+    _depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let found = false;
+    match &e.kind {
+        CoreExprKind::Literal(Constant::WideString(units)) => {
+            budget.work(units.len(), e.span)?;
+        }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_ascribed(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
     let mut found = false;
     match &e.kind {
-        CoreExprKind::Literal(Constant::WideString(units)) => budget.work(units.len(), e.span)?,
         CoreExprKind::Ascribed { ty, value }
         | CoreExprKind::IntegerConvert { target: ty, value }
         | CoreExprKind::NumericConvert { target: ty, value } => {
-            validate_type(ty, depth + 1, e.span, budget)?;
-            found |= expression_has_closure(value, depth + 1, budget)?;
+            {
+                validate_type(ty, depth + 1, e.span, budget)?;
+                found |= expression_has_closure(value, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_closure(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    match &e.kind {
         CoreExprKind::Closure {
             parameters,
             return_type,
             body,
             ..
         } => {
-            budget.work(parameters.len(), e.span)?;
-            for parameter in parameters {
-                budget.work(parameter.name.len(), parameter.span)?;
-                if let Some(ty) = &parameter.ty {
-                    validate_type(ty, depth + 1, parameter.span, budget)?;
+            {
+                budget.work(parameters.len(), e.span)?;
+                for parameter in parameters {
+                    budget.work(parameter.name.len(), parameter.span)?;
+                    if let Some(ty) = &parameter.ty {
+                        validate_type(ty, depth + 1, parameter.span, budget)?;
+                    }
                 }
-            }
-            if let Some(ty) = return_type {
-                validate_type(ty, depth + 1, e.span, budget)?;
-            }
-            contains_closure(body, depth + 1, budget)?;
-            found = true;
+                if let Some(ty) = return_type {
+                    validate_type(ty, depth + 1, e.span, budget)?;
+                }
+                contains_closure(body, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(true)
+}
+fn expression_has_closure_unary(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Unary { operand, .. }
         | CoreExprKind::CompileTime(operand)
         | CoreExprKind::Try(operand) => {
-            found |= expression_has_closure(operand, depth + 1, budget)?
+            found |= expression_has_closure(operand, depth + 1, budget)?;
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_binary(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Binary { left, right, .. } => {
-            found |= expression_has_closure(left, depth + 1, budget)?;
-            found |= expression_has_closure(right, depth + 1, budget)?;
+            {
+                found |= expression_has_closure(left, depth + 1, budget)?;
+                found |= expression_has_closure(right, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_call(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Call { callee, arguments } => {
-            let previous = budget.direct_type_callee;
-            budget.direct_type_callee = true;
-            found |= expression_has_closure(callee, depth + 1, budget)?;
-            budget.direct_type_callee = false;
-            for argument in arguments {
-                found |= expression_has_closure(argument, depth + 1, budget)?;
-            }
-            budget.direct_type_callee = previous;
+            {
+                let previous = budget.direct_type_callee;
+                budget.direct_type_callee = true;
+                found |= expression_has_closure(callee, depth + 1, budget)?;
+                budget.direct_type_callee = false;
+                for argument in arguments {
+                    found |= expression_has_closure(argument, depth + 1, budget)?;
+                }
+                budget.direct_type_callee = previous;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_type_apply(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::TypeApply {
             callee,
             type_arguments,
         } => {
-            if !direct_type_callee
-                || type_arguments.len() != 1
-                || !(matches!(&callee.kind, CoreExprKind::Name(_))
-                    || matches!(&callee.kind, CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(_))))
             {
-                return Err(error(
-                    "E-TYPE-APPLICATION",
-                    e.span,
-                    "one type argument is allowed only on a static call's direct callee",
-                ));
-            }
-            budget.work(type_arguments.len(), e.span)?;
-            for argument in type_arguments {
-                validate_type(argument, depth + 1, e.span, budget)?;
-            }
-            budget.direct_type_callee = false;
-            found |= expression_has_closure(callee, depth + 1, budget)?;
+                if !direct_type_callee
+                    || type_arguments.len() != 1
+                    || !(matches!(&callee.kind, CoreExprKind::Name(_))
+                        || matches!(&callee.kind, CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(_))))
+                {
+                    return Err(error(
+                        "E-TYPE-APPLICATION",
+                        e.span,
+                        "one type argument is allowed only on a static call's direct callee",
+                    ));
+                }
+                budget.work(type_arguments.len(), e.span)?;
+                for argument in type_arguments {
+                    validate_type(argument, depth + 1, e.span, budget)?;
+                }
+                budget.direct_type_callee = false;
+                found |= expression_has_closure(callee, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_index(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Index { object, index } => {
-            found |= expression_has_closure(object, depth + 1, budget)?;
-            found |= expression_has_closure(index, depth + 1, budget)?;
+            {
+                found |= expression_has_closure(object, depth + 1, budget)?;
+                found |= expression_has_closure(index, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_slice(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Slice { object, start, end } => {
-            found |= expression_has_closure(object, depth + 1, budget)?;
-            for endpoint in [start, end].into_iter().flatten() {
-                found |= expression_has_closure(endpoint, depth + 1, budget)?;
-            }
+            {
+                found |= expression_has_closure(object, depth + 1, budget)?;
+                for endpoint in [start, end].into_iter().flatten() {
+                    found |= expression_has_closure(endpoint, depth + 1, budget)?;
+                }
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_tuple(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
-            for value in values {
-                found |= expression_has_closure(value, depth + 1, budget)?;
-            }
+            {
+                for value in values {
+                    found |= expression_has_closure(value, depth + 1, budget)?;
+                }
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_member(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Member {
             object,
             member,
             owner,
         } => {
-            if let Some(ty) = owner {
-                validate_type(ty, depth + 1, e.span, budget)?;
-            }
-            budget.work(member.len(), e.span)?;
-            found |= expression_has_closure(object, depth + 1, budget)?;
+            {
+                if let Some(ty) = owner {
+                    validate_type(ty, depth + 1, e.span, budget)?;
+                }
+                budget.work(member.len(), e.span)?;
+                found |= expression_has_closure(object, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_record(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Record { ty, fields } => {
-            validate_type(ty, depth + 1, e.span, budget)?;
-            for (name, value) in fields {
-                budget.work(name.len(), value.span)?;
-                found |= expression_has_closure(value, depth + 1, budget)?;
-            }
-        }
-        CoreExprKind::RecordUpdate { ty, base, fields } => {
-            if let Some(ty) = ty {
+            {
                 validate_type(ty, depth + 1, e.span, budget)?;
-            }
-            found |= expression_has_closure(base, depth + 1, budget)?;
-            for (name, value) in fields {
-                budget.work(name.len(), value.span)?;
-                found |= expression_has_closure(value, depth + 1, budget)?;
-            }
+                for (name, value) in fields {
+                    budget.work(name.len(), value.span)?;
+                    found |= expression_has_closure(value, depth + 1, budget)?;
+                }
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_record_update(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
+        CoreExprKind::RecordUpdate { ty, base, fields } => {
+            {
+                if let Some(ty) = ty {
+                    validate_type(ty, depth + 1, e.span, budget)?;
+                }
+                found |= expression_has_closure(base, depth + 1, budget)?;
+                for (name, value) in fields {
+                    budget.work(name.len(), value.span)?;
+                    found |= expression_has_closure(value, depth + 1, budget)?;
+                }
+            };
+        }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_sequence(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Sequence { bindings, value } => {
-            for (name, binding) in bindings {
-                budget.work(name.len(), binding.span)?;
-                found |= expression_has_closure(binding, depth + 1, budget)?;
-            }
-            found |= expression_has_closure(value, depth + 1, budget)?;
+            {
+                for (name, binding) in bindings {
+                    budget.work(name.len(), binding.span)?;
+                    found |= expression_has_closure(binding, depth + 1, budget)?;
+                }
+                found |= expression_has_closure(value, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_if(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::If {
             condition,
             then_value,
             else_value,
         } => {
-            found |= expression_has_closure(condition, depth + 1, budget)?;
-            found |= expression_has_closure(then_value, depth + 1, budget)?;
-            found |= expression_has_closure(else_value, depth + 1, budget)?;
+            {
+                found |= expression_has_closure(condition, depth + 1, budget)?;
+                found |= expression_has_closure(then_value, depth + 1, budget)?;
+                found |= expression_has_closure(else_value, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_integer(
+    e: &CoreExpr,
+    _depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let found = false;
+    match &e.kind {
         CoreExprKind::Integer(text)
         | CoreExprKind::Float(text)
         | CoreExprKind::String(text)
         | CoreExprKind::Name(text)
         | CoreExprKind::ReceiverMember(text)
-        | CoreExprKind::Unsupported(text) => budget.work(text.len(), e.span)?,
-        _ => {}
+        | CoreExprKind::Unsupported(text) => {
+            budget.work(text.len(), e.span)?;
+        }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_other(
+    _e: &CoreExpr,
+    _depth: usize,
+    _budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let found = false;
+    {
+        {};
     }
     Ok(found)
 }
@@ -1098,6 +1421,7 @@ enum Term {
     /// Only the finite payload participates in the Copy constraint graph.
     /// The bool distinguishes a carrier expression from a descriptor.
     Resource(Variable, bool),
+    Registration(Rc<Term>, bool),
     Closure(usize),
     ClosureArray {
         element: usize,
@@ -1226,7 +1550,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || packages::ordinary(&function.return_type)
-            || owned_shapes::enumeration(&function.return_type)
+            || owned_shapes::sum(&function.return_type)
             || packages::owned_array_supported(&function.return_type)
             || resources::supported(&function.return_type);
         if !old_result {
@@ -1460,6 +1784,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
 
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
+        if let Some(environment) = registration::environment(ty) {
+            let source = self.known_term(environment, span)?;
+            return Ok(Term::Registration(
+                Rc::new(source),
+                matches!(ty, Type::Managed(_)),
+            ));
+        }
         if self.helper_environments.len() > 1
             && let Type::Package { fields, .. } = ty
         {
@@ -1526,8 +1857,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             Ok(Term::Resource(variable, matches!(ty, Type::Managed(_))))
         } else if let Type::Address { mutable, inner } = ty {
             if !inner.is_address_pointee()
+                && !ty.is_shared_sync_cell_address()
                 && !ty.is_shared_resource_head_address()
+                && !ty.is_exclusive_task_head_address()
                 && !ty.is_package_address()
+                && !reference_patterns::sum_address(ty)
                 && !self.graph.symbolic_store_type(inner)
             {
                 return Err(unsupported(span, "nested reference signature"));
@@ -2032,6 +2366,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
+        if let Term::Registration(environment, owned) = term {
+            let Some(wanted) = registration::environment(ty) else {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "registration carrier differs from expected type",
+                ));
+            };
+            if matches!(ty, Type::Managed(_)) && !owned {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "registration descriptor does not own its environment",
+                ));
+            }
+            let target = self.known_term(wanted, span)?;
+            return self.unify(environment, &target, span);
+        }
         if let Term::ValueStore(element, owned) = term
             && let Some(wanted) = dynamic_store::element(ty)
         {
@@ -2079,8 +2431,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     mutable: wanted,
                     inner,
                 } if (inner.is_address_pointee()
+                    || ty.is_shared_sync_cell_address()
                     || ty.is_shared_resource_head_address()
+                    || ty.is_exclusive_task_head_address()
                     || ty.is_package_address()
+                    || reference_patterns::sum_address(ty)
                     || self.graph.symbolic_store_type(inner))
                     && (*mutable || !wanted) =>
                 {
@@ -2113,6 +2468,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return self.graph.unify(a, b, span);
         }
         match (left, right) {
+            (Term::Registration(a, am), Term::Registration(b, bm)) if am == bm => {
+                self.unify(a, b, span)
+            }
             (Term::ValueStore(a, _), Term::ValueStore(b, _)) => self.unify(a, b, span),
             (Term::ValueStore(a, _), Term::Resource(..)) => {
                 let b = self.value_store_element(right, span)?;
@@ -2232,6 +2590,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             Term::Scalar(_)
                 | Term::Address(..)
                 | Term::Resource(..)
+                | Term::Registration(..)
                 | Term::Closure(_)
                 | Term::ClosureArray { .. }
                 | Term::ClosurePackage { .. }
@@ -2325,6 +2684,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             }
             return Ok(match binding.term {
+                Term::Registration(environment, _) => Term::Registration(environment, false),
                 Term::Resource(variable, _) => Term::Resource(variable, false),
                 Term::ValueStore(element, _) => Term::ValueStore(element, false),
                 other => other,
@@ -2606,6 +2966,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                             self.graph.shared_address(
                                 self.closures[owner].result,
                                 inner,
+                                statement.span,
+                            )?;
+                        } else if let Term::Address(inner, true) = value {
+                            self.graph.address(
+                                self.closures[owner].result,
+                                inner,
+                                Some(true),
                                 statement.span,
                             )?;
                         } else {
@@ -3051,6 +3418,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             };
             return match self.scopes.iter().rev().find_map(|s| s.get(name)) {
                 Some(Binding {
+                    term: Term::Registration(environment, true),
+                    ..
+                }) => Ok(Term::Registration(environment.clone(), true)),
+                Some(Binding {
                     term: Term::ValueStore(element, true),
                     ..
                 }) => Ok(Term::ValueStore(element.clone(), true)),
@@ -3100,7 +3471,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 return Ok(Term::ClosureAddress(id, *op == UnaryOp::BorrowMut));
             }
-            if *op == UnaryOp::Borrow
+            if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut)
                 && let CoreExprKind::Name(name) = &operand.kind
                 && let Some(Binding {
                     term: Term::Resource(variable, true),
@@ -3110,7 +3481,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 let variable = *variable;
                 self.graph.solve()?;
                 let payload = self.resolved(variable, span)?;
-                if !matches!(payload, Type::Record { .. }) || !payload.is_copy_value() {
+                let task_head = *op == UnaryOp::BorrowMut && payload == Type::TaskI32;
+                if !task_head
+                    && (*op != UnaryOp::Borrow
+                        || !matches!(payload, Type::Record { .. })
+                        || !payload.is_copy_value())
+                {
                     return Err(unsupported(
                         span,
                         "head borrow requires a finite user-resource payload",
@@ -3118,7 +3494,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 let head = self.fresh(VALUE, false, span)?;
                 self.bind(head, &Type::Managed(Box::new(payload)), span)?;
-                return Ok(Term::Address(head, false));
+                return Ok(Term::Address(head, *op == UnaryOp::BorrowMut));
             }
             if matches!(value, Term::Address(..) | Term::ClosureAddress(..)) {
                 return Err(unsupported(
@@ -3300,6 +3676,43 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             return self.known_term(&dynamic_store::result_type(name, &element), span);
         }
+        if let Some(name) = tasks::primitive(callee) {
+            self.budget.node(depth + 1, callee.span)?;
+            self.expression_index += 1;
+            self.budget.work(12, span)?;
+            let offset = usize::from(matches!(name, "task_start" | "task_await"));
+            let parameters = tasks::parameters(name);
+            if arguments.len() != parameters.len() + offset {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "task primitive argument count mismatch",
+                ));
+            }
+            if offset != 0 {
+                let Term::Function(signature) = self.expr(&arguments[0], depth + 1, false)? else {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker must be a static function",
+                    ));
+                };
+                if !signature.scalar_thread_worker()
+                    || signature.parameters.as_slice() != [Type::I32]
+                {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker requires fn(i32)->i32",
+                    ));
+                }
+            }
+            for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
+                let term = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                self.bind_term(&term, ty, argument.span)?;
+            }
+            return self.known_term(&tasks::result(name), span);
+        }
         if let Some(name) = byte_buffer::primitive(callee) {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;
@@ -3319,6 +3732,63 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 &byte_buffer::result_type(name).expect("byte primitive"),
                 span,
             );
+        }
+        if let CoreExprKind::Name(name) = &callee.kind
+            && let Some((kind, op)) = scoped_thread::sync_primitive(name)
+        {
+            self.budget.node(depth + 1, callee.span)?;
+            self.expression_index += 1;
+            let address_ty = scoped_thread::sync_address(kind);
+            let result = if let Some(op) = op {
+                let arity = if op == SyncI32Op::Load { 1 } else { 2 };
+                if arguments.len() != arity {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "incorrect synchronization operation arity",
+                    ));
+                }
+                for (index, argument) in arguments.iter().enumerate() {
+                    let ty = if index == 0 { &address_ty } else { &Type::I32 };
+                    let term = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                    self.bind_term(&term, ty, argument.span)?;
+                }
+                if op == SyncI32Op::Store {
+                    Type::Unit
+                } else {
+                    Type::I32
+                }
+            } else {
+                let [initial, body] = arguments.as_slice() else {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "cell scope requires initial i32 and body",
+                    ));
+                };
+                let term = self.expr_expected(initial, Some(&Type::I32), depth + 1, false)?;
+                self.bind_term(&term, &Type::I32, initial.span)?;
+                let Term::Closure(id) = self.expr(body, depth + 1, false)? else {
+                    return Err(error(
+                        "E-SYNC-BODY",
+                        body.span,
+                        "cell scope requires a concrete closure",
+                    ));
+                };
+                if self.closures[id].parameters.len() != 1 {
+                    return Err(error(
+                        "E-SYNC-BODY",
+                        body.span,
+                        "cell scope body takes one sealed cell address",
+                    ));
+                }
+                self.graph
+                    .bind(self.closures[id].parameters[0], &address_ty, body.span)?;
+                self.graph
+                    .bind(self.closures[id].result, &Type::I32, body.span)?;
+                Type::Tuple(vec![Type::Bool, Type::I32])
+            };
+            return self.known_term(&result, span);
         }
         if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
             self.budget.node(depth + 1, callee.span)?;
@@ -3375,6 +3845,84 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.graph
                 .bind(self.closures[id].result, &Type::I32, body.span)?;
             return self.known_term(&Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]), span);
+        }
+        if let Some(name) = registration::primitive(callee) {
+            self.budget.node(depth + 1, callee.span)?;
+            self.expression_index += 1;
+            if name == "c_register" {
+                let [register, close, callback] = arguments.as_slice() else {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "c_register requires three arguments",
+                    ));
+                };
+                for (expression, role) in [
+                    (register, ScopedCallbackRole::Register),
+                    (close, ScopedCallbackRole::Close),
+                ] {
+                    let Term::Function(signature) = self.expr(expression, depth + 1, false)? else {
+                        return Err(error(
+                            "E-FFI-REGISTRATION",
+                            span,
+                            "registration role requires static foreign function",
+                        ));
+                    };
+                    if signature.scoped_callback != Some(role) {
+                        return Err(error(
+                            "E-FFI-REGISTRATION",
+                            span,
+                            "registration role differs from actual declaration",
+                        ));
+                    }
+                }
+                let previous = self.callable_hint.replace((vec![Type::I32], Type::I32));
+                let source = self.expr(callback, depth + 1, false)?;
+                self.callable_hint = previous;
+                let Term::Closure(id) = source else {
+                    return Err(error(
+                        "E-REGISTRATION-CALLBACK",
+                        span,
+                        "registration requires concrete F",
+                    ));
+                };
+                if self.closures[id].parameters.len() != 1 {
+                    return Err(error(
+                        "E-REGISTRATION-CALLBACK",
+                        span,
+                        "callback signature is (i32)->i32",
+                    ));
+                }
+                self.graph
+                    .bind(self.closures[id].parameters[0], &Type::I32, span)?;
+                self.graph
+                    .bind(self.closures[id].result, &Type::I32, span)?;
+                return Ok(Term::Registration(Rc::new(Term::Closure(id)), true));
+            }
+            let [argument] = arguments.as_slice() else {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "registration operation requires one carrier",
+                ));
+            };
+            let actual = self.expr(argument, depth + 1, false)?;
+            if !matches!(actual,Term::Registration(_,owned) if name=="registration_valid" || owned)
+            {
+                return Err(error(
+                    "E-REGISTRATION-CARRIER",
+                    span,
+                    "registration close requires actual owner, valid requires descriptor",
+                ));
+            }
+            return self.known_term(
+                if name == "registration_valid" {
+                    &Type::Bool
+                } else {
+                    &Type::Unit
+                },
+                span,
+            );
         }
         if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
             self.budget.node(depth + 1, callee.span)?;
@@ -3584,6 +4132,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.bind_term(&value, ty, argument.span)?;
                     }
                 }
+                if registration::environment(&signature.result).is_some()
+                    && let Some(environment) = state_environment
+                {
+                    return Ok(Term::Registration(
+                        Rc::new(Term::Closure(environment)),
+                        matches!(signature.result, Type::Managed(_)),
+                    ));
+                }
                 if forwarding::signature(&signature).is_some() {
                     return Ok(Term::Closure(
                         state_environment
@@ -3649,6 +4205,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.bind_term(&value, ty, argument.span)?;
                     }
                 }
+                if registration::environment(&signature.result).is_some()
+                    && let Some(environment) = state_environment
+                {
+                    return Ok(Term::Registration(
+                        Rc::new(Term::Closure(environment)),
+                        matches!(signature.result, Type::Managed(_)),
+                    ));
+                }
                 if forwarding::signature(&signature).is_some() {
                     return Ok(Term::Closure(
                         state_environment
@@ -3695,8 +4259,29 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             Term::Scalar(callee) => {
                 let known = self.graph.ty(callee)?;
+                if let Some(Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                }) = &known
+                {
+                    if parameters.len() != arguments.len() {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "indirect call arity differs from its signature",
+                        ));
+                    }
+                    for (argument, parameter) in arguments.iter().zip(parameters) {
+                        let term =
+                            self.expr_expected(argument, Some(parameter), depth + 1, false)?;
+                        self.bind_term(&term, parameter, argument.span)?;
+                    }
+                    return self.known_term(result, span);
+                }
                 let hints = match &known {
-                    Some(Type::FunctionPointer { parameters, .. }) => Some(parameters),
+                    Some(
+                        Type::FunctionPointer { parameters, .. }
+                        | Type::BorrowedFunctionPointer { parameters, .. },
+                    ) => Some(parameters),
                     _ => None,
                 };
                 let mut parameters = Vec::new();
@@ -4180,6 +4765,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         if return_type.as_ref().is_some_and(|t| {
             !(t.is_copy_value()
                 || lending::supported_result(t)
+                || matches!(t, Type::Address { inner, .. } if inner.is_address_pointee())
                 || closures::owned_signature_head(t))
         }) || parameters.iter().any(|p| {
             p.ty.as_ref().is_some_and(|t| {
@@ -4193,9 +4779,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         let callable_hint = self.callable_hint.take();
         let pointer = match expected {
-            Some(Type::FunctionPointer { parameters, result }) => {
-                Some((parameters, result.as_ref()))
-            }
+            Some(
+                Type::FunctionPointer { parameters, result }
+                | Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                },
+            ) => Some((parameters, result.as_ref())),
             _ => None,
         };
         let shape = pointer.or_else(|| callable_hint.as_ref().map(|(p, r)| (p, r)));
